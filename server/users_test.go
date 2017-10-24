@@ -308,7 +308,7 @@ func TestService_UpdateUser(t *testing.T) {
 						case 1336:
 							return &chronograf.User{
 								ID:       1336,
-								Name:     "bobbetta2",
+								Name:     "bobbetta",
 								Provider: "GitHub",
 								Scheme:   "OAuth2",
 								Roles: []chronograf.Role{
@@ -329,10 +329,7 @@ func TestService_UpdateUser(t *testing.T) {
 					nil,
 				),
 				user: &userRequest{
-					ID:       1336,
-					Name:     "bobbetta",
-					Provider: "Google",
-					Scheme:   "OAuth2",
+					ID: 1336,
 					Roles: []chronograf.Role{
 						AdminRole,
 					},
@@ -341,47 +338,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
-		},
-		{
-			name: "Update only one field of a Chronograf user",
-			fields: fields{
-				Logger: log.New(log.DebugLevel),
-				UsersStore: &mocks.UsersStore{
-					UpdateF: func(ctx context.Context, user *chronograf.User) error {
-						return nil
-					},
-					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-						switch *q.ID {
-						case 1336:
-							return &chronograf.User{
-								ID:       1336,
-								Name:     "bobbetta2",
-								Provider: "GitHub",
-								Scheme:   "OAuth2",
-							}, nil
-						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
-						}
-					},
-				},
-			},
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"PATCH",
-					"http://any.url",
-					nil,
-				),
-				user: &userRequest{
-					ID:   1336,
-					Name: "burnetta",
-				},
-			},
-			id:              "1336",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[]}`,
+			wantBody:        `{"id":"1336","name":"bobbetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
 		},
 	}
 	for _, tt := range tests {
@@ -414,7 +371,7 @@ func TestService_UpdateUser(t *testing.T) {
 				t.Errorf("%q. UpdateUser() = %v, want %v", tt.name, content, tt.wantContentType)
 			}
 			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
-				t.Errorf("%q. UpdateUser() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+				t.Errorf("%q. UpdateUser()\ngot:%v\n,\nwant:%v", tt.name, string(body), tt.wantBody)
 			}
 		})
 	}
@@ -663,10 +620,7 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			name: "Valid",
 			args: args{
 				u: &userRequest{
-					ID:       1337,
-					Name:     "billietta",
-					Provider: "Auth0",
-					Scheme:   "LDAP",
+					ID: 1337,
 					Roles: []chronograf.Role{
 						EditorRole,
 					},
@@ -676,14 +630,50 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			err:     nil,
 		},
 		{
-			name: "Invalid – field missing",
+			name: "Invalid – roles missing",
+			args: args{
+				u: &userRequest{},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("No Roles to update"),
+		},
+		{
+			name: "Invalid: field missing",
+			args: args{
+				u: &userRequest{},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("No Roles to update"),
+		},
+		{
+			name: "Invalid: Name attempted",
 			args: args{
 				u: &userRequest{
-					ID: 1337,
+					Name: "bob",
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("No fields to update"),
+			err:     fmt.Errorf("Cannot update Name"),
+		},
+		{
+			name: "Invalid: Provider attempted",
+			args: args{
+				u: &userRequest{
+					Provider: "Goggles",
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Cannot update Provider"),
+		},
+		{
+			name: "Invalid: Scheme attempted",
+			args: args{
+				u: &userRequest{
+					Scheme: "leDAP",
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Cannot update Scheme"),
 		},
 	}
 
@@ -693,11 +683,11 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 
 			if tt.wantErr {
 				if err == nil || err.Error() != tt.err.Error() {
-					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+					t.Errorf("%q. ValidUpdate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+					t.Errorf("%q. ValidUpdate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
 				}
 			}
 		})

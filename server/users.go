@@ -37,11 +37,18 @@ func (r *userRequest) ValidCreate() error {
 	return r.ValidRoles()
 }
 
-// TODO: Provide detailed error message
-// TODO: Reconsider what fields should actually be updateable once this is more robust
 func (r *userRequest) ValidUpdate() error {
-	if r.Name == "" && r.Provider == "" && r.Scheme == "" && r.Roles == nil {
-		return fmt.Errorf("No fields to update")
+	if r.Name != "" {
+		return fmt.Errorf("Cannot update Name")
+	}
+	if r.Provider != "" {
+		return fmt.Errorf("Cannot update Provider")
+	}
+	if r.Scheme != "" {
+		return fmt.Errorf("Cannot update Scheme")
+	}
+	if r.Roles == nil {
+		return fmt.Errorf("No Roles to update")
 	}
 	return r.ValidRoles()
 }
@@ -236,18 +243,8 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name != "" {
-		u.Name = req.Name
-	}
-	if req.Provider != "" {
-		u.Provider = req.Provider
-	}
-	if req.Scheme != "" {
-		u.Scheme = req.Scheme
-	}
-	if req.Roles != nil {
-		u.Roles = req.Roles
-	}
+	// ValidUpdate should ensure that req.Roles is not nil
+	u.Roles = req.Roles
 
 	err = s.UsersStore.Update(ctx, u)
 	if err != nil {
