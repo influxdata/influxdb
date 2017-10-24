@@ -641,32 +641,51 @@ func (r *TSMReader) BatchDelete() BatchDeleter {
 type BatchDeleters []BatchDeleter
 
 func (a BatchDeleters) DeleteRange(keys [][]byte, min, max int64) error {
+	errC := make(chan error, len(a))
 	for _, b := range a {
-		if err := b.DeleteRange(keys, min, max); err != nil {
-			return err
+		go func(b BatchDeleter) { errC <- b.DeleteRange(keys, min, max) }(b)
+	}
+
+	var err error
+	for i := 0; i < len(a); i++ {
+		dErr := <-errC
+		if dErr != nil {
+			err = dErr
 		}
 	}
-	return nil
+	return err
 }
 
 func (a BatchDeleters) Commit() error {
+	errC := make(chan error, len(a))
 	for _, b := range a {
-		if err := b.Commit(); err != nil {
-			return err
+		go func(b BatchDeleter) { errC <- b.Commit() }(b)
+	}
+
+	var err error
+	for i := 0; i < len(a); i++ {
+		dErr := <-errC
+		if dErr != nil {
+			err = dErr
 		}
 	}
-	return nil
+	return err
 }
 
 func (a BatchDeleters) Rollback() error {
-	var rollbackErr error
+	errC := make(chan error, len(a))
 	for _, b := range a {
-		// Ensure all batches are rolled back
-		if err := b.Rollback(); err != nil {
-			rollbackErr = err
+		go func(b BatchDeleter) { errC <- b.Rollback() }(b)
+	}
+
+	var err error
+	for i := 0; i < len(a); i++ {
+		dErr := <-errC
+		if dErr != nil {
+			err = dErr
 		}
 	}
-	return rollbackErr
+	return err
 }
 
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
