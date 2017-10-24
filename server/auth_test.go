@@ -106,6 +106,7 @@ func TestAuthorizedUser(t *testing.T) {
 	type args struct {
 		username string
 		provider string
+		scheme   string
 		useAuth  bool
 		role     string
 	}
@@ -150,6 +151,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "viewer",
 				useAuth:  true,
 			},
@@ -179,6 +181,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "viewer",
 				useAuth:  true,
 			},
@@ -208,6 +211,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "viewer",
 				useAuth:  true,
 			},
@@ -237,6 +241,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "editor",
 				useAuth:  true,
 			},
@@ -266,6 +271,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "editor",
 				useAuth:  true,
 			},
@@ -295,6 +301,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "editor",
 				useAuth:  true,
 			},
@@ -324,6 +331,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "admin",
 				useAuth:  true,
 			},
@@ -353,6 +361,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "admin",
 				useAuth:  true,
 			},
@@ -382,6 +391,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "admin",
 				useAuth:  true,
 			},
@@ -409,6 +419,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "view",
 				useAuth:  true,
 			},
@@ -436,6 +447,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "editor",
 				useAuth:  true,
 			},
@@ -463,6 +475,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "admin",
 				useAuth:  true,
 			},
@@ -494,6 +507,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "viewer",
 				useAuth:  true,
 			},
@@ -525,6 +539,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "editor",
 				useAuth:  true,
 			},
@@ -556,6 +571,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				username: "billysteve",
 				provider: "google",
+				scheme:   "oauth2",
 				role:     "admin",
 				useAuth:  true,
 			},
