@@ -255,11 +255,11 @@ func TestOrganizationUsersStore_Delete(t *testing.T) {
 		orgID string
 	}
 	tests := []struct {
-		name        string
-		args        args
-		addFirst    bool
-		wantErr     bool
-		wantRawUser *chronograf.User
+		name     string
+		args     args
+		addFirst bool
+		wantErr  bool
+		wantRaw  *chronograf.User
 	}{
 		{
 			name: "No such user",
@@ -292,7 +292,7 @@ func TestOrganizationUsersStore_Delete(t *testing.T) {
 				orgID: "1336",
 			},
 			addFirst: true,
-			wantRawUser: &chronograf.User{
+			wantRaw: &chronograf.User{
 				Name: "noone",
 				Roles: []chronograf.Role{
 					{
@@ -324,8 +324,8 @@ func TestOrganizationUsersStore_Delete(t *testing.T) {
 		if u, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.user.ID}); err == nil {
 			t.Errorf("%q. Expected error retrieving deleted user, got user %v", tt.name, u)
 		}
-		rawUser, _ := client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.user.ID})
-		if diff := cmp.Diff(rawUser, tt.wantRawUser, cmpOptions...); diff != "" {
+		gotRaw, _ := client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.user.ID})
+		if diff := cmp.Diff(gotRaw, tt.wantRaw, cmpOptions...); diff != "" {
 			t.Errorf("%q. OrganizationUsersStore.Delete():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
