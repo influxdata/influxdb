@@ -163,7 +163,7 @@ class DashboardPage extends Component {
 
     try {
       await dashboardActions.putDashboard({
-        dashboard,
+        ...dashboard,
         templates,
       })
       onSaveTemplatesSuccess()
