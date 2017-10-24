@@ -281,7 +281,8 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
 
     results.forEach(({data}, i) => {
       const {type, query, id} = tempsWithQueries[i]
-      const vals = parsers[type](data, query.tagKey || query.measurement)[type]
+      const parsed = parsers[type](data, query.tagKey || query.measurement)
+      const vals = parsed[type]
       dispatch(editTemplateVariableValues(dashboard.id, id, vals))
     })
   } catch (error) {
