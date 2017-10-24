@@ -76,6 +76,12 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 			return nil, chronograf.ErrUserNotFound
 		}
 
+		user.Roles = []chronograf.Role{
+			{
+				Name: "viewer",
+			},
+		}
+
 		return user, nil
 	}
 
