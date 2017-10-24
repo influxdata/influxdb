@@ -1,5 +1,6 @@
 ## v1.3.11.0 [unreleased]
 ### Bug Fixes
+1. [#2157](https://github.com/influxdata/chronograf/pull/2157): Fix logscale producing console errors when only one point in graph
 ### Features
 ### UI Improvements
 
