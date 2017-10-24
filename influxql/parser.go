@@ -1374,7 +1374,7 @@ func (p *Parser) parseShowTagValuesCardinalityStatement(exact bool) (Statement, 
 	return stmt, nil
 }
 
-// parseTagKeys pa³rses a string and returns a list of tag keys.
+// parseTagKeys parses a string and returns a list of tag keys.
 func (p *Parser) parseTagKeyExpr() (Token, Literal, error) {
 	var err error
 
