@@ -17,6 +17,20 @@ type OrganizationUsersStore struct {
 
 const organizationKey = "organizationID"
 
+func validOrganization(ctx context.Context) (string, error) {
+	if ctx == nil {
+		return "", fmt.Errorf("expect non nil context")
+	}
+	orgID, ok := ctx.Value(organizationKey).(string)
+	if !ok {
+		return "", fmt.Errorf("expected organization key to be a string")
+	}
+	if orgID == "" {
+		return "", fmt.Errorf("expected organization key to be set")
+	}
+	return orgID, nil
+}
+
 // userHasValidRoles ensures that each User Role has both an associated OrganizationID and a Name
 func userHasValidRoles(orgID string, u *chronograf.User) error {
 	if u == nil || u.Roles == nil {
@@ -38,15 +52,9 @@ func userHasValidRoles(orgID string, u *chronograf.User) error {
 
 // Get searches the OrganizationUsersStore for user with name
 func (s *OrganizationUsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("expect non nil context")
-	}
-	orgID, ok := ctx.Value(organizationKey).(string)
-	if !ok {
-		return nil, fmt.Errorf("expected organization key to be a string")
-	}
-	if orgID == "" {
-		return nil, fmt.Errorf("expected organization key to be set")
+	orgID, err := validOrganization(ctx)
+	if err != nil {
+		return nil, err
 	}
 	usr, err := s.client.UsersStore.Get(ctx, q)
 	if err != nil {
@@ -71,12 +79,9 @@ func (s *OrganizationUsersStore) Get(ctx context.Context, q chronograf.UserQuery
 
 // Add a new Users in the OrganizationUsersStore.
 func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("expect non nil context")
-	}
-	orgID, ok := ctx.Value(organizationKey).(string)
-	if !ok {
-		return nil, fmt.Errorf("expected organization key to be set")
+	orgID, err := validOrganization(ctx)
+	if err != nil {
+		return nil, err
 	}
 	if err := userHasValidRoles(orgID, u); err != nil {
 		return nil, err
@@ -86,12 +91,9 @@ func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*
 
 // Delete the users from the OrganizationUsersStore
 func (s *OrganizationUsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
-	if ctx == nil {
-		return fmt.Errorf("expect non nil context")
-	}
-	orgID, ok := ctx.Value(organizationKey).(string)
-	if !ok {
-		return fmt.Errorf("expected organization key to be set")
+	orgID, err := validOrganization(ctx)
+	if err != nil {
+		return err
 	}
 	u, err := s.client.UsersStore.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
 	if err != nil {
@@ -110,12 +112,9 @@ func (s *OrganizationUsersStore) Delete(ctx context.Context, usr *chronograf.Use
 
 // Update a user
 func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.User) error {
-	if ctx == nil {
-		return fmt.Errorf("expect non nil context")
-	}
-	orgID, ok := ctx.Value(organizationKey).(string)
-	if !ok {
-		return fmt.Errorf("expected organization key to be set")
+	orgID, err := validOrganization(ctx)
+	if err != nil {
+		return err
 	}
 	if err := userHasValidRoles(orgID, usr); err != nil {
 		return err
@@ -140,12 +139,9 @@ func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.Use
 
 // All returns all users
 func (s *OrganizationUsersStore) All(ctx context.Context) ([]chronograf.User, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("expect non nil context")
-	}
-	orgID, ok := ctx.Value(organizationKey).(string)
-	if !ok {
-		return nil, fmt.Errorf("expected organization key to be set")
+	orgID, err := validOrganization(ctx)
+	if err != nil {
+		return nil, err
 	}
 	usrs, err := s.client.UsersStore.All(ctx)
 	if err != nil {

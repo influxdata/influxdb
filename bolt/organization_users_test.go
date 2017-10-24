@@ -217,6 +217,19 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Has invalid Role: missing Role",
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:     "henrietta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles:    []chronograf.Role{},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		client, err := NewTestClient()
