@@ -86,7 +86,23 @@ func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*
 	if err := validOrganizationRoles(orgID, u); err != nil {
 		return nil, err
 	}
-	return s.client.UsersStore.Add(ctx, u)
+	usr, err := s.client.UsersStore.Get(ctx, chronograf.UserQuery{
+		Name:     &u.Name,
+		Provider: &u.Provider,
+		Scheme:   &u.Scheme,
+	})
+	if err != nil && err != chronograf.ErrUserNotFound {
+		return nil, err
+	}
+	if err == chronograf.ErrUserNotFound {
+		return s.client.UsersStore.Add(ctx, u)
+	}
+	usr.Roles = append(usr.Roles, u.Roles...)
+	if err := s.client.UsersStore.Update(ctx, usr); err != nil {
+		return nil, err
+	}
+	u.ID = usr.ID
+	return u, nil
 }
 
 // Delete the users from the OrganizationUsersStore

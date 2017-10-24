@@ -126,15 +126,17 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 
 func TestOrganizationUsersStore_Add(t *testing.T) {
 	type args struct {
-		ctx   context.Context
-		u     *chronograf.User
-		orgID string
+		ctx      context.Context
+		u        *chronograf.User
+		orgID    string
+		uInitial *chronograf.User
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    *chronograf.User
-		wantErr bool
+		name     string
+		args     args
+		addFirst bool
+		want     *chronograf.User
+		wantErr  bool
 	}{
 		{
 			name: "Add new user - no org",
@@ -179,6 +181,77 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					{
 						OrganizationID: "1336",
 						Name:           "Editor",
+					},
+				},
+			},
+		},
+		{
+			name: "Add non-new user without Role",
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:     "docbrown",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles:    []chronograf.Role{},
+				},
+				orgID: "1336",
+				uInitial: &chronograf.User{
+					Name:     "docbrown",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles:    []chronograf.Role{},
+				},
+			},
+			addFirst: true,
+			want: &chronograf.User{
+				Name:     "docbrown",
+				Provider: "GitHub",
+				Scheme:   "OAuth2",
+				Roles:    []chronograf.Role{},
+			},
+		},
+		{
+			name: "Add non-new user with Role",
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:     "docbrown",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1336",
+							Name:           "Admin",
+						},
+					},
+				},
+				orgID: "1336",
+				uInitial: &chronograf.User{
+					Name:     "docbrown",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1337",
+							Name:           "Editor",
+						},
+					},
+				},
+			},
+			addFirst: true,
+			want: &chronograf.User{
+				Name:     "docbrown",
+				Provider: "GitHub",
+				Scheme:   "OAuth2",
+				Roles: []chronograf.Role{
+					{
+						OrganizationID: "1337",
+						Name:           "Editor",
+					},
+					{
+						OrganizationID: "1336",
+						Name:           "Admin",
 					},
 				},
 			},
@@ -243,6 +316,11 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
 		s := client.OrganizationUsersStore
+
+		if tt.addFirst {
+			client.UsersStore.Add(tt.args.ctx, tt.args.uInitial)
+		}
+
 		got, err := s.Add(tt.args.ctx, tt.args.u)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. OrganizationUsersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
