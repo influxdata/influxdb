@@ -79,7 +79,7 @@ func (s *OrganizationUsersStore) Get(ctx context.Context, q chronograf.UserQuery
 	return usr, nil
 }
 
-// Add a new Users in the OrganizationUsersStore.
+// Add a new User to the OrganizationUsersStore.
 func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 	orgID, err := validOrganization(ctx)
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*
 	return u, nil
 }
 
-// Delete the users from the OrganizationUsersStore
+// Delete a user from the OrganizationUsersStore
 func (s *OrganizationUsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
 	orgID, err := validOrganization(ctx)
 	if err != nil {
