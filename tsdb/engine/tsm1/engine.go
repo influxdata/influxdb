@@ -1770,7 +1770,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 			select {
 			case <-opt.InterruptCh:
 				query.Iterators(itrs).Close()
-				return err
+				return query.ErrQueryInterrupted
 			default:
 			}
 
@@ -1973,7 +1973,7 @@ func (e *Engine) createTagSetGroupIterators(ctx context.Context, ref *influxql.V
 		select {
 		case <-opt.InterruptCh:
 			query.Iterators(itrs).Close()
-			return nil, err
+			return nil, query.ErrQueryInterrupted
 		default:
 		}
 

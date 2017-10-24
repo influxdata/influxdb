@@ -1260,7 +1260,7 @@ func (a Shards) CreateIterator(ctx context.Context, measurement string, opt quer
 		select {
 		case <-opt.InterruptCh:
 			query.Iterators(itrs).Close()
-			return nil, err
+			return nil, query.ErrQueryInterrupted
 		default:
 		}
 
