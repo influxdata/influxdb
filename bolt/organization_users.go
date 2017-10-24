@@ -18,10 +18,12 @@ type OrganizationUsersStore struct {
 const organizationKey = "organizationID"
 
 func validOrganization(ctx context.Context) (string, error) {
+	// prevents panic in case of nil context
 	if ctx == nil {
 		return "", fmt.Errorf("expect non nil context")
 	}
 	orgID, ok := ctx.Value(organizationKey).(string)
+	// should never happen
 	if !ok {
 		return "", fmt.Errorf("expected organization key to be a string")
 	}
