@@ -182,7 +182,7 @@ export default class Dygraph extends Component {
     const [min, max] = range
 
     // Bug in Dygraph calculates a negative range for logscale when min range is 0
-    if (y.scale === LOG && min <= 0) {
+    if (y.scale === LOG && timeSeries.length === 1 && min <= 0) {
       return [0.1, max]
     }
 
