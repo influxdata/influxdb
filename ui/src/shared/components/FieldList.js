@@ -131,7 +131,6 @@ class FieldList extends Component {
     const {
       query: {database, measurement, fields = [], groupBy, fill},
       isKapacitorRule,
-      isInDataExplorer,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
@@ -148,8 +147,6 @@ class FieldList extends Component {
                   isOpen={!hasGroupByTime}
                   selected={groupBy.time}
                   onChooseGroupByTime={this.handleGroupByTime}
-                  isInRuleBuilder={isKapacitorRule}
-                  isInDataExplorer={isInDataExplorer}
                 />
                 {isKapacitorRule
                   ? null
@@ -221,7 +218,6 @@ FieldList.propTypes = {
   onFill: func,
   applyFuncsToField: func.isRequired,
   isKapacitorRule: bool,
-  isInDataExplorer: bool,
   querySource: shape({
     links: shape({
       proxy: string.isRequired,
