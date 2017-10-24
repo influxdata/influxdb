@@ -52,7 +52,6 @@ func (c *floatFilterBatchCursor) Next() (key []int64, value []float64) {
 		ks, vs = c.FloatBatchCursor.Next()
 	}
 
-LOOP:
 	for len(ks) > 0 {
 		for i, v := range vs {
 			c.m.v = v
@@ -61,7 +60,7 @@ LOOP:
 				pos++
 				if pos >= tsdb.DefaultMaxPointsPerBlock {
 					c.tb, c.vb = ks[i+1:], vs[i+1:]
-					break LOOP
+					return c.t[:pos], c.v[:pos]
 				}
 			}
 		}
@@ -106,22 +105,23 @@ func (c *floatMultiShardBatchCursor) Err() error        { return c.err }
 func (c *floatMultiShardBatchCursor) SeriesKey() string { return c.req.Series }
 
 func (c *floatMultiShardBatchCursor) Next() (key []int64, value []float64) {
-RETRY:
-	ks, vs := c.FloatBatchCursor.Next()
-	if len(ks) == 0 {
-		if c.nextBatchCursor() {
-			goto RETRY
+	for {
+		ks, vs := c.FloatBatchCursor.Next()
+		if len(ks) == 0 {
+			if c.nextBatchCursor() {
+				continue
+			}
 		}
+		c.count += uint64(len(ks))
+		if c.count > c.limit {
+			diff := c.count - c.limit
+			c.count -= diff
+			rem := uint64(len(ks)) - diff
+			ks = ks[:rem]
+			vs = vs[:rem]
+		}
+		return ks, vs
 	}
-	c.count += uint64(len(ks))
-	if c.count > c.limit {
-		diff := c.count - c.limit
-		c.count -= diff
-		rem := uint64(len(ks)) - diff
-		ks = ks[:rem]
-		vs = vs[:rem]
-	}
-	return ks, vs
 }
 
 func (c *floatMultiShardBatchCursor) nextBatchCursor() bool {
@@ -163,8 +163,6 @@ func (c *floatMultiShardBatchCursor) nextBatchCursor() bool {
 
 type floatSumBatchCursor struct {
 	tsdb.FloatBatchCursor
-	ts  int64
-	acc float64
 }
 
 func (c *floatSumBatchCursor) Next() (key []int64, value []float64) {
@@ -210,9 +208,7 @@ func (c *integerFloatCountBatchCursor) Next() (key []int64, value []int64) {
 
 type floatEmptyBatchCursor struct{}
 
-var (
-	FloatEmptyBatchCursor tsdb.FloatBatchCursor = &floatEmptyBatchCursor{}
-)
+var FloatEmptyBatchCursor tsdb.FloatBatchCursor = &floatEmptyBatchCursor{}
 
 func (*floatEmptyBatchCursor) Err() error                           { return nil }
 func (*floatEmptyBatchCursor) Close()                               {}
@@ -258,7 +254,6 @@ func (c *integerFilterBatchCursor) Next() (key []int64, value []int64) {
 		ks, vs = c.IntegerBatchCursor.Next()
 	}
 
-LOOP:
 	for len(ks) > 0 {
 		for i, v := range vs {
 			c.m.v = v
@@ -267,7 +262,7 @@ LOOP:
 				pos++
 				if pos >= tsdb.DefaultMaxPointsPerBlock {
 					c.tb, c.vb = ks[i+1:], vs[i+1:]
-					break LOOP
+					return c.t[:pos], c.v[:pos]
 				}
 			}
 		}
@@ -312,22 +307,23 @@ func (c *integerMultiShardBatchCursor) Err() error        { return c.err }
 func (c *integerMultiShardBatchCursor) SeriesKey() string { return c.req.Series }
 
 func (c *integerMultiShardBatchCursor) Next() (key []int64, value []int64) {
-RETRY:
-	ks, vs := c.IntegerBatchCursor.Next()
-	if len(ks) == 0 {
-		if c.nextBatchCursor() {
-			goto RETRY
+	for {
+		ks, vs := c.IntegerBatchCursor.Next()
+		if len(ks) == 0 {
+			if c.nextBatchCursor() {
+				continue
+			}
 		}
+		c.count += uint64(len(ks))
+		if c.count > c.limit {
+			diff := c.count - c.limit
+			c.count -= diff
+			rem := uint64(len(ks)) - diff
+			ks = ks[:rem]
+			vs = vs[:rem]
+		}
+		return ks, vs
 	}
-	c.count += uint64(len(ks))
-	if c.count > c.limit {
-		diff := c.count - c.limit
-		c.count -= diff
-		rem := uint64(len(ks)) - diff
-		ks = ks[:rem]
-		vs = vs[:rem]
-	}
-	return ks, vs
 }
 
 func (c *integerMultiShardBatchCursor) nextBatchCursor() bool {
@@ -369,8 +365,6 @@ func (c *integerMultiShardBatchCursor) nextBatchCursor() bool {
 
 type integerSumBatchCursor struct {
 	tsdb.IntegerBatchCursor
-	ts  int64
-	acc int64
 }
 
 func (c *integerSumBatchCursor) Next() (key []int64, value []int64) {
@@ -416,9 +410,7 @@ func (c *integerIntegerCountBatchCursor) Next() (key []int64, value []int64) {
 
 type integerEmptyBatchCursor struct{}
 
-var (
-	IntegerEmptyBatchCursor tsdb.IntegerBatchCursor = &integerEmptyBatchCursor{}
-)
+var IntegerEmptyBatchCursor tsdb.IntegerBatchCursor = &integerEmptyBatchCursor{}
 
 func (*integerEmptyBatchCursor) Err() error                         { return nil }
 func (*integerEmptyBatchCursor) Close()                             {}
@@ -464,7 +456,6 @@ func (c *unsignedFilterBatchCursor) Next() (key []int64, value []uint64) {
 		ks, vs = c.UnsignedBatchCursor.Next()
 	}
 
-LOOP:
 	for len(ks) > 0 {
 		for i, v := range vs {
 			c.m.v = v
@@ -473,7 +464,7 @@ LOOP:
 				pos++
 				if pos >= tsdb.DefaultMaxPointsPerBlock {
 					c.tb, c.vb = ks[i+1:], vs[i+1:]
-					break LOOP
+					return c.t[:pos], c.v[:pos]
 				}
 			}
 		}
@@ -518,22 +509,23 @@ func (c *unsignedMultiShardBatchCursor) Err() error        { return c.err }
 func (c *unsignedMultiShardBatchCursor) SeriesKey() string { return c.req.Series }
 
 func (c *unsignedMultiShardBatchCursor) Next() (key []int64, value []uint64) {
-RETRY:
-	ks, vs := c.UnsignedBatchCursor.Next()
-	if len(ks) == 0 {
-		if c.nextBatchCursor() {
-			goto RETRY
+	for {
+		ks, vs := c.UnsignedBatchCursor.Next()
+		if len(ks) == 0 {
+			if c.nextBatchCursor() {
+				continue
+			}
 		}
+		c.count += uint64(len(ks))
+		if c.count > c.limit {
+			diff := c.count - c.limit
+			c.count -= diff
+			rem := uint64(len(ks)) - diff
+			ks = ks[:rem]
+			vs = vs[:rem]
+		}
+		return ks, vs
 	}
-	c.count += uint64(len(ks))
-	if c.count > c.limit {
-		diff := c.count - c.limit
-		c.count -= diff
-		rem := uint64(len(ks)) - diff
-		ks = ks[:rem]
-		vs = vs[:rem]
-	}
-	return ks, vs
 }
 
 func (c *unsignedMultiShardBatchCursor) nextBatchCursor() bool {
@@ -575,8 +567,6 @@ func (c *unsignedMultiShardBatchCursor) nextBatchCursor() bool {
 
 type unsignedSumBatchCursor struct {
 	tsdb.UnsignedBatchCursor
-	ts  int64
-	acc uint64
 }
 
 func (c *unsignedSumBatchCursor) Next() (key []int64, value []uint64) {
@@ -622,9 +612,7 @@ func (c *integerUnsignedCountBatchCursor) Next() (key []int64, value []int64) {
 
 type unsignedEmptyBatchCursor struct{}
 
-var (
-	UnsignedEmptyBatchCursor tsdb.UnsignedBatchCursor = &unsignedEmptyBatchCursor{}
-)
+var UnsignedEmptyBatchCursor tsdb.UnsignedBatchCursor = &unsignedEmptyBatchCursor{}
 
 func (*unsignedEmptyBatchCursor) Err() error                          { return nil }
 func (*unsignedEmptyBatchCursor) Close()                              {}
@@ -670,7 +658,6 @@ func (c *stringFilterBatchCursor) Next() (key []int64, value []string) {
 		ks, vs = c.StringBatchCursor.Next()
 	}
 
-LOOP:
 	for len(ks) > 0 {
 		for i, v := range vs {
 			c.m.v = v
@@ -679,7 +666,7 @@ LOOP:
 				pos++
 				if pos >= tsdb.DefaultMaxPointsPerBlock {
 					c.tb, c.vb = ks[i+1:], vs[i+1:]
-					break LOOP
+					return c.t[:pos], c.v[:pos]
 				}
 			}
 		}
@@ -724,22 +711,23 @@ func (c *stringMultiShardBatchCursor) Err() error        { return c.err }
 func (c *stringMultiShardBatchCursor) SeriesKey() string { return c.req.Series }
 
 func (c *stringMultiShardBatchCursor) Next() (key []int64, value []string) {
-RETRY:
-	ks, vs := c.StringBatchCursor.Next()
-	if len(ks) == 0 {
-		if c.nextBatchCursor() {
-			goto RETRY
+	for {
+		ks, vs := c.StringBatchCursor.Next()
+		if len(ks) == 0 {
+			if c.nextBatchCursor() {
+				continue
+			}
 		}
+		c.count += uint64(len(ks))
+		if c.count > c.limit {
+			diff := c.count - c.limit
+			c.count -= diff
+			rem := uint64(len(ks)) - diff
+			ks = ks[:rem]
+			vs = vs[:rem]
+		}
+		return ks, vs
 	}
-	c.count += uint64(len(ks))
-	if c.count > c.limit {
-		diff := c.count - c.limit
-		c.count -= diff
-		rem := uint64(len(ks)) - diff
-		ks = ks[:rem]
-		vs = vs[:rem]
-	}
-	return ks, vs
 }
 
 func (c *stringMultiShardBatchCursor) nextBatchCursor() bool {
@@ -802,9 +790,7 @@ func (c *integerStringCountBatchCursor) Next() (key []int64, value []int64) {
 
 type stringEmptyBatchCursor struct{}
 
-var (
-	StringEmptyBatchCursor tsdb.StringBatchCursor = &stringEmptyBatchCursor{}
-)
+var StringEmptyBatchCursor tsdb.StringBatchCursor = &stringEmptyBatchCursor{}
 
 func (*stringEmptyBatchCursor) Err() error                          { return nil }
 func (*stringEmptyBatchCursor) Close()                              {}
@@ -850,7 +836,6 @@ func (c *booleanFilterBatchCursor) Next() (key []int64, value []bool) {
 		ks, vs = c.BooleanBatchCursor.Next()
 	}
 
-LOOP:
 	for len(ks) > 0 {
 		for i, v := range vs {
 			c.m.v = v
@@ -859,7 +844,7 @@ LOOP:
 				pos++
 				if pos >= tsdb.DefaultMaxPointsPerBlock {
 					c.tb, c.vb = ks[i+1:], vs[i+1:]
-					break LOOP
+					return c.t[:pos], c.v[:pos]
 				}
 			}
 		}
@@ -904,22 +889,23 @@ func (c *booleanMultiShardBatchCursor) Err() error        { return c.err }
 func (c *booleanMultiShardBatchCursor) SeriesKey() string { return c.req.Series }
 
 func (c *booleanMultiShardBatchCursor) Next() (key []int64, value []bool) {
-RETRY:
-	ks, vs := c.BooleanBatchCursor.Next()
-	if len(ks) == 0 {
-		if c.nextBatchCursor() {
-			goto RETRY
+	for {
+		ks, vs := c.BooleanBatchCursor.Next()
+		if len(ks) == 0 {
+			if c.nextBatchCursor() {
+				continue
+			}
 		}
+		c.count += uint64(len(ks))
+		if c.count > c.limit {
+			diff := c.count - c.limit
+			c.count -= diff
+			rem := uint64(len(ks)) - diff
+			ks = ks[:rem]
+			vs = vs[:rem]
+		}
+		return ks, vs
 	}
-	c.count += uint64(len(ks))
-	if c.count > c.limit {
-		diff := c.count - c.limit
-		c.count -= diff
-		rem := uint64(len(ks)) - diff
-		ks = ks[:rem]
-		vs = vs[:rem]
-	}
-	return ks, vs
 }
 
 func (c *booleanMultiShardBatchCursor) nextBatchCursor() bool {
@@ -982,9 +968,7 @@ func (c *integerBooleanCountBatchCursor) Next() (key []int64, value []int64) {
 
 type booleanEmptyBatchCursor struct{}
 
-var (
-	BooleanEmptyBatchCursor tsdb.BooleanBatchCursor = &booleanEmptyBatchCursor{}
-)
+var BooleanEmptyBatchCursor tsdb.BooleanBatchCursor = &booleanEmptyBatchCursor{}
 
 func (*booleanEmptyBatchCursor) Err() error                        { return nil }
 func (*booleanEmptyBatchCursor) Close()                            {}

@@ -63,8 +63,7 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 	var err error
 
 	if root := req.Predicate.GetRoot(); root != nil {
-		p.cond, err = NodeToExpr(root)
-		if err != nil {
+		if p.cond, err = NodeToExpr(root); err != nil {
 			return nil, err
 		}
 
@@ -310,7 +309,6 @@ func extractFields(itr query.FloatIterator) []string {
 
 	sort.Strings(a)
 	i := 1
-	// TODO(sgc): skip whilst a[i] != a[i-1] to avoid unnecessary copying
 	for j := 1; j < len(a); j++ {
 		if a[j] != a[j-1] {
 			a[i] = a[j]

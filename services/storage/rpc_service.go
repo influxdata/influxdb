@@ -204,7 +204,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 			}
 
 		default:
-			panic("unreachable: unexpected cursor type " + fmt.Sprintf("%T", cur))
+			panic(fmt.Sprintf("unreachable: %T", cur))
 		}
 
 		cur.Close()

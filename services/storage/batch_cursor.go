@@ -25,7 +25,6 @@ func newAggregateBatchCursor(ctx context.Context, agg *Aggregate, cursor tsdb.Cu
 		return newSumBatchCursor(cursor)
 	case AggregateTypeCount:
 		return newCountBatchCursor(cursor)
-
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")
@@ -36,15 +35,12 @@ func newSumBatchCursor(cur tsdb.Cursor) tsdb.Cursor {
 	switch cur := cur.(type) {
 	case tsdb.FloatBatchCursor:
 		return &floatSumBatchCursor{FloatBatchCursor: cur}
-
 	case tsdb.IntegerBatchCursor:
 		return &integerSumBatchCursor{IntegerBatchCursor: cur}
-
 	case tsdb.UnsignedBatchCursor:
 		return &unsignedSumBatchCursor{UnsignedBatchCursor: cur}
-
 	default:
-		panic("unreachable")
+		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
@@ -52,21 +48,16 @@ func newCountBatchCursor(cur tsdb.Cursor) tsdb.Cursor {
 	switch cur := cur.(type) {
 	case tsdb.FloatBatchCursor:
 		return &integerFloatCountBatchCursor{FloatBatchCursor: cur}
-
 	case tsdb.IntegerBatchCursor:
 		return &integerIntegerCountBatchCursor{IntegerBatchCursor: cur}
-
 	case tsdb.UnsignedBatchCursor:
 		return &integerUnsignedCountBatchCursor{UnsignedBatchCursor: cur}
-
 	case tsdb.StringBatchCursor:
 		return &integerStringCountBatchCursor{StringBatchCursor: cur}
-
 	case tsdb.BooleanBatchCursor:
 		return &integerBooleanCountBatchCursor{BooleanBatchCursor: cur}
-
 	default:
-		panic("unreachable")
+		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
@@ -99,20 +90,15 @@ func newMultiShardBatchCursor(ctx context.Context, row seriesRow, rr *readReques
 	switch c := cur.(type) {
 	case tsdb.IntegerBatchCursor:
 		return newIntegerMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
-
 	case tsdb.FloatBatchCursor:
 		return newFloatMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
-
 	case tsdb.UnsignedBatchCursor:
 		return newUnsignedMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
-
 	case tsdb.StringBatchCursor:
 		return newStringMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
-
 	case tsdb.BooleanBatchCursor:
 		return newBooleanMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
-
 	default:
-		panic("unreachable: " + fmt.Sprintf("%T", cur))
+		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }

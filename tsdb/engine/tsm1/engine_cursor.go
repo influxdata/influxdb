@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/query"
@@ -37,20 +38,15 @@ func (e *Engine) CreateCursor(ctx context.Context, r *tsdb.CursorRequest) (tsdb.
 	switch f.Type {
 	case influxql.Float:
 		return newFloatRangeBatchCursor(t, r.Ascending, e.buildFloatBatchCursor(ctx, r.Measurement, r.Series, r.Field, opt)), nil
-
 	case influxql.Integer:
 		return newIntegerRangeBatchCursor(t, r.Ascending, e.buildIntegerBatchCursor(ctx, r.Measurement, r.Series, r.Field, opt)), nil
-
 	case influxql.Unsigned:
 		return newUnsignedRangeBatchCursor(t, r.Ascending, e.buildUnsignedBatchCursor(ctx, r.Measurement, r.Series, r.Field, opt)), nil
-
 	case influxql.String:
 		return newStringRangeBatchCursor(t, r.Ascending, e.buildStringBatchCursor(ctx, r.Measurement, r.Series, r.Field, opt)), nil
-
 	case influxql.Boolean:
 		return newBooleanRangeBatchCursor(t, r.Ascending, e.buildBooleanBatchCursor(ctx, r.Measurement, r.Series, r.Field, opt)), nil
-
 	default:
-		panic("unreachable")
+		panic(fmt.Sprintf("unreachable: %T", f.Type))
 	}
 }

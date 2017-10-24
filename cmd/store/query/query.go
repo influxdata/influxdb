@@ -188,7 +188,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 		if err != nil {
 			return nil
 		}
-		fmt.Println(expr)
+		fmt.Fprintln(cmd.Stdout, expr)
 		var v exprToNodeVisitor
 		influxql.Walk(&v, expr)
 		if v.Err() != nil {
@@ -200,7 +200,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 
 	stream, err := c.Read(context.Background(), &req)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(cmd.Stdout, err)
 		return err
 	}
 
@@ -209,7 +209,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	now := time.Now()
 	defer func() {
 		dur := time.Since(now)
-		fmt.Printf("time: %v\n", dur)
+		fmt.Fprintf(cmd.Stdout, "time: %v\n", dur)
 	}()
 
 	for {
@@ -230,8 +230,8 @@ func (cmd *Command) query(c storage.StorageClient) error {
 		}
 	}
 
-	fmt.Println()
-	fmt.Println("integerSum", cmd.integerSum, "floatSum", cmd.floatSum)
+	fmt.Fprintln(cmd.Stdout)
+	fmt.Fprintln(cmd.Stdout, "integerSum", cmd.integerSum, "floatSum", cmd.floatSum)
 
 	return nil
 }

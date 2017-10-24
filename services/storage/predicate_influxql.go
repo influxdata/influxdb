@@ -189,15 +189,15 @@ func (v *nodeToExprVisitor) pop() influxql.Expr {
 	return top
 }
 
-func (v *nodeToExprVisitor) pop2() (lhs, rhs influxql.Expr) {
+func (v *nodeToExprVisitor) pop2() (influxql.Expr, influxql.Expr) {
 	if len(v.exprs) < 2 {
 		panic("stack empty")
 	}
 
-	rhs = v.exprs[len(v.exprs)-1]
-	lhs = v.exprs[len(v.exprs)-2]
+	rhs := v.exprs[len(v.exprs)-1]
+	lhs := v.exprs[len(v.exprs)-2]
 	v.exprs = v.exprs[:len(v.exprs)-2]
-	return
+	return lhs, rhs
 }
 
 type hasRefs struct {

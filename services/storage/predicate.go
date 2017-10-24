@@ -11,18 +11,6 @@ type NodeVisitor interface {
 	Visit(*Node) NodeVisitor
 }
 
-func (x Node_Type) MarshalJSON() ([]byte, error) {
-	return []byte(strconv.Quote(x.String())), nil
-}
-
-func (x Node_Logical) MarshalJSON() ([]byte, error) {
-	return []byte(strconv.Quote(x.String())), nil
-}
-
-func (x Node_Comparison) MarshalJSON() ([]byte, error) {
-	return []byte(strconv.Quote(x.String())), nil
-}
-
 func walkChildren(v NodeVisitor, node *Node) {
 	for _, n := range node.Children {
 		WalkNode(v, n)

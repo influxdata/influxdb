@@ -48,7 +48,6 @@ func (c *{{.name}}FilterBatchCursor) Next() (key []int64, value []{{.Type}}) {
 		ks, vs = c.{{.Name}}BatchCursor.Next()
 	}
 
-LOOP:
 	for len(ks) > 0 {
 		for i, v := range vs {
 			c.m.v = v
@@ -57,7 +56,7 @@ LOOP:
 				pos++
 				if pos >= tsdb.DefaultMaxPointsPerBlock {
 					c.tb, c.vb = ks[i+1:], vs[i+1:]
-					break LOOP
+					return c.t[:pos], c.v[:pos]
 				}
 			}
 		}
@@ -102,22 +101,23 @@ func (c *{{.name}}MultiShardBatchCursor) Err() error        { return c.err }
 func (c *{{.name}}MultiShardBatchCursor) SeriesKey() string { return c.req.Series }
 
 func (c *{{.name}}MultiShardBatchCursor) Next() (key []int64, value []{{.Type}}) {
-RETRY:
-	ks, vs := c.{{.Name}}BatchCursor.Next()
-	if len(ks) == 0 {
-		if c.nextBatchCursor() {
-			goto RETRY
+	for {
+		ks, vs := c.{{.Name}}BatchCursor.Next()
+		if len(ks) == 0 {
+			if c.nextBatchCursor() {
+				continue
+			}
 		}
+		c.count += uint64(len(ks))
+		if c.count > c.limit {
+			diff := c.count - c.limit
+			c.count -= diff
+			rem := uint64(len(ks)) - diff
+			ks = ks[:rem]
+			vs = vs[:rem]
+		}
+		return ks, vs
 	}
-	c.count += uint64(len(ks))
-	if c.count > c.limit {
-		diff := c.count - c.limit
-		c.count -= diff
-		rem := uint64(len(ks)) - diff
-		ks = ks[:rem]
-		vs = vs[:rem]
-	}
-	return ks, vs
 }
 
 func (c *{{.name}}MultiShardBatchCursor) nextBatchCursor() bool {
@@ -161,8 +161,6 @@ func (c *{{.name}}MultiShardBatchCursor) nextBatchCursor() bool {
 
 type {{.name}}SumBatchCursor struct {
 	tsdb.{{.Name}}BatchCursor
-	ts  int64
-	acc {{.Type}}
 }
 
 func (c *{{.name}}SumBatchCursor) Next() (key []int64, value []{{.Type}}) {
@@ -210,9 +208,7 @@ func (c *integer{{.Name}}CountBatchCursor) Next() (key []int64, value []int64) {
 
 type {{.name}}EmptyBatchCursor struct{}
 
-var (
-	{{.Name}}EmptyBatchCursor tsdb.{{.Name}}BatchCursor = &{{.name}}EmptyBatchCursor{}
-)
+var {{.Name}}EmptyBatchCursor tsdb.{{.Name}}BatchCursor = &{{.name}}EmptyBatchCursor{}
 
 func (*{{.name}}EmptyBatchCursor) Err() error { return nil }
 func (*{{.name}}EmptyBatchCursor) Close() {}
