@@ -806,6 +806,7 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 		return
 	}
 
+	fullKeys := make([]string, 0, len(keys))
 	tombstones := map[string][]TimeRange{}
 	for i, k := range keys {
 		// Is the range passed in outside the time range for this key?
@@ -823,7 +824,7 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 
 		// Is the range passed in cover every value for the key?
 		if minTime <= min && maxTime >= max {
-			d.Delete(keys[i : i+1])
+			fullKeys = append(fullKeys, keys[i])
 			continue
 		}
 
@@ -877,9 +878,14 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 
 		// If we have a fully deleted series, delete it all of it.
 		if minTs <= min && maxTs >= max {
-			d.Delete(keys[i : i+1])
+			fullKeys = append(fullKeys, keys[i])
 			continue
 		}
+	}
+
+	// Delete all the keys that fully deleted in bulk
+	if len(fullKeys) > 0 {
+		d.Delete(fullKeys)
 	}
 
 	if len(tombstones) == 0 {
