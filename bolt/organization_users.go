@@ -131,7 +131,8 @@ func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.Use
 		}
 	}
 
-	// recombine roles from usr
+	// recombine roles from usr, by replacing the roles of the user
+	// within the current Organization
 	u.Roles = append(roles, usr.Roles...)
 
 	return s.client.UsersStore.Update(ctx, u)
