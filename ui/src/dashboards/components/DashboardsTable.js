@@ -38,7 +38,7 @@ const DashboardsTable = ({
                     )
                   : <span className="empty-string">None</span>}
               </td>
-              <Authorized requireRole={EDITOR_ROLE}>
+              <Authorized requiredRole={EDITOR_ROLE}>
                 <DeleteConfirmTableCell
                   onDelete={onDeleteDashboard}
                   item={dashboard}
