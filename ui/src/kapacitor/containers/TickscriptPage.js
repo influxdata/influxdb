@@ -6,6 +6,7 @@ import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
+import {log} from 'src/kapacitor/apis'
 
 class TickscriptPage extends Component {
   constructor(props) {
@@ -51,7 +52,9 @@ class TickscriptPage extends Component {
       this.setState({task: {tickscript, dbrps, type, status, name, id}})
     }
 
-    this.setState({kapacitor})
+    const logs = await log()
+
+    this.setState({kapacitor, logs})
   }
 
   handleSave = async () => {
