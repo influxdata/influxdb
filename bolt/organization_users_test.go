@@ -273,7 +273,7 @@ func TestOrganizationUsersStore_Delete(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Delete new user",
+			name: "Derlete user",
 			args: args{
 				ctx: context.Background(),
 				user: &chronograf.User{
