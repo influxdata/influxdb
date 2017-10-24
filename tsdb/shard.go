@@ -1228,7 +1228,7 @@ func (a Shards) CreateIterator(measurement string, opt influxql.IteratorOptions)
 		select {
 		case <-opt.InterruptCh:
 			influxql.Iterators(itrs).Close()
-			return nil, err
+			return nil, influxql.ErrQueryInterrupted
 		default:
 		}
 

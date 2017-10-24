@@ -1617,7 +1617,7 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 			select {
 			case <-opt.InterruptCh:
 				influxql.Iterators(itrs).Close()
-				return err
+				return influxql.ErrQueryInterrupted
 			default:
 			}
 
@@ -1820,7 +1820,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, s
 		select {
 		case <-opt.InterruptCh:
 			influxql.Iterators(itrs).Close()
-			return nil, err
+			return nil, influxql.ErrQueryInterrupted
 		default:
 		}
 
