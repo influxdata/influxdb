@@ -1,12 +1,17 @@
-## v1.3.10.0 [unreleased]
+## v1.3.11.0 [unreleased]
+### Bug Fixes
+### Features
+### UI Improvements
+
+## v1.3.10.0 [2017-10-24]
 ### Bug Fixes
 1. [#2095](https://github.com/influxdata/chronograf/pull/2095): Improve the copy in the retention policy edit page
-1. [#2122](https://github.com/influxdata/chronograf/pull/2122): Fix 'could not connect to source' bug on source creation with unsafe-ssl
+1. [#2122](https://github.com/influxdata/chronograf/pull/2122): Fix 'Could not connect to source' bug on source creation with unsafe-ssl
 1. [#2093](https://github.com/influxdata/chronograf/pull/2093): Fix when exporting `SHOW DATABASES` CSV has bad data
 1. [#2098](https://github.com/influxdata/chronograf/pull/2098): Fix not-equal-to highlighting in Kapacitor Rule Builder
 1. [#2130](https://github.com/influxdata/chronograf/pull/2130): Fix undescriptive error messages for database and retention policy creation
-1. [#2135](https://github.com/influxdata/chronograf/pull/2135): Fix drag and drop cancel button
-
+1. [#2135](https://github.com/influxdata/chronograf/pull/2135): Fix drag and drop cancel button when writing data in the data explorer
+1. [#2128](https://github.com/influxdata/chronograf/pull/2128): Fix persistence of "SELECT AS" statements in queries
 
 ### Features
 1. [#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
@@ -19,8 +24,8 @@
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
 1. [#2120](https://github.com/influxdata/chronograf/pull/2120): Improve appearance of Admin Page tabs on smaller screens
 1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add cancel button to Tickscript editor
-1.[#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard naming & renaming interaction
-1.[#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard switching dropdown
+1. [#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard naming & renaming interaction
+1. [#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard switching dropdown
 
 ## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
