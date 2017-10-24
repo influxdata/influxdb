@@ -409,9 +409,12 @@ func UnmarshalAlertRule(data []byte, r *ScopedAlert) error {
 // MarshalUser encodes a user to binary protobuf format.
 // We are ignoring the password for now.
 func MarshalUser(u *chronograf.User) ([]byte, error) {
-	roles := make([]string, len(u.Roles))
+	roles := make([]*Role, len(u.Roles))
 	for i, role := range u.Roles {
-		roles[i] = role.Name
+		roles[i] = &Role{
+			OrganizationID: role.OrganizationID,
+			Name:           role.Name,
+		}
 	}
 	return MarshalUserPB(&User{
 		ID:       u.ID,
@@ -438,7 +441,8 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 	roles := make([]chronograf.Role, len(pb.Roles))
 	for i, role := range pb.Roles {
 		roles[i] = chronograf.Role{
-			Name: role,
+			OrganizationID: role.OrganizationID,
+			Name:           role.Name,
 		}
 	}
 	u.ID = pb.ID
@@ -454,6 +458,39 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 // We are ignoring the password for now.
 func UnmarshalUserPB(data []byte, u *User) error {
 	if err := proto.Unmarshal(data, u); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalOrganization encodes a organization to binary protobuf format.
+func MarshalRole(r *chronograf.Role) ([]byte, error) {
+	return MarshalRolePB(&Role{
+		OrganizationID: r.OrganizationID,
+		Name:           r.Name,
+	})
+}
+
+// MarshalRolePB encodes a organization to binary protobuf format.
+func MarshalRolePB(r *Role) ([]byte, error) {
+	return proto.Marshal(r)
+}
+
+// UnmarshalRole decodes a organization from binary protobuf data.
+func UnmarshalRole(data []byte, r *chronograf.Role) error {
+	var pb Role
+	if err := UnmarshalRolePB(data, &pb); err != nil {
+		return err
+	}
+	r.OrganizationID = pb.OrganizationID
+	r.Name = pb.Name
+
+	return nil
+}
+
+// UnmarshalRolePB decodes a organization from binary protobuf data.
+func UnmarshalRolePB(data []byte, r *Role) error {
+	if err := proto.Unmarshal(data, r); err != nil {
 		return err
 	}
 	return nil

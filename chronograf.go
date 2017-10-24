@@ -112,9 +112,10 @@ type TimeSeries interface {
 
 // Role is a restricted set of permissions assigned to a set of users.
 type Role struct {
-	Name        string      `json:"name"`
-	Permissions Permissions `json:"permissions,omitempty"`
-	Users       []User      `json:"users,omitempty"`
+	Name           string      `json:"name"`
+	Permissions    Permissions `json:"permissions,omitempty"`
+	Users          []User      `json:"users,omitempty"`
+	OrganizationID string      `json:"organization,string,omitempty"`
 }
 
 // RolesStore is the Storage and retrieval of authentication information

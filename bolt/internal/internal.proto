@@ -128,7 +128,12 @@ message User {
 	string Name             = 2; // Name is the user's login name
 	string Provider         = 3; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
 	string Scheme           = 4; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
-	repeated string Roles   = 5; // Roles is list of roles a user has
+	repeated Role Roles     = 5; // Roles is set of roles a user has
+}
+
+message Role {
+	string OrganizationID   = 1; // OrganizationID is the ID of the organization that this user has a role in
+	string Name							= 2; // Name is the name of the role of this user in the respective organization
 }
 
 message Organization {

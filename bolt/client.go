@@ -17,12 +17,13 @@ type Client struct {
 	Now       func() time.Time
 	LayoutIDs chronograf.ID
 
-	SourcesStore       *SourcesStore
-	ServersStore       *ServersStore
-	LayoutStore        *LayoutStore
-	UsersStore         *UsersStore
-	DashboardsStore    *DashboardsStore
-	OrganizationsStore *OrganizationsStore
+	SourcesStore           *SourcesStore
+	ServersStore           *ServersStore
+	LayoutStore            *LayoutStore
+	DashboardsStore        *DashboardsStore
+	UsersStore             *UsersStore
+	OrganizationsStore     *OrganizationsStore
+	OrganizationUsersStore *OrganizationUsersStore
 }
 
 // NewClient initializes all stores
@@ -30,8 +31,6 @@ func NewClient() *Client {
 	c := &Client{Now: time.Now}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
-	c.UsersStore = &UsersStore{client: c}
-	c.OrganizationsStore = &OrganizationsStore{client: c}
 	c.LayoutStore = &LayoutStore{
 		client: c,
 		IDs:    &uuid.V4{},
@@ -40,6 +39,9 @@ func NewClient() *Client {
 		client: c,
 		IDs:    &uuid.V4{},
 	}
+	c.UsersStore = &UsersStore{client: c}
+	c.OrganizationsStore = &OrganizationsStore{client: c}
+	c.OrganizationUsersStore = &OrganizationUsersStore{client: c}
 	return c
 }
 
