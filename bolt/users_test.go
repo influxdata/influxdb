@@ -44,14 +44,14 @@ func TestUsersStore_GetWithID(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "billietta",
-					Provider: "Google",
-					Scheme:   "OAuth2",
+					Provider: "google",
+					Scheme:   "oauth2",
 				},
 			},
 			want: &chronograf.User{
 				Name:     "billietta",
-				Provider: "Google",
-				Scheme:   "OAuth2",
+				Provider: "google",
+				Scheme:   "oauth2",
 			},
 			addFirst: true,
 		},
@@ -104,8 +104,8 @@ func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "billietta",
-					Provider: "Google",
-					Scheme:   "OAuth2",
+					Provider: "google",
+					Scheme:   "oauth2",
 				},
 			},
 			wantErr: true,
@@ -116,14 +116,14 @@ func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "billietta",
-					Provider: "Google",
-					Scheme:   "OAuth2",
+					Provider: "google",
+					Scheme:   "oauth2",
 				},
 			},
 			want: &chronograf.User{
 				Name:     "billietta",
-				Provider: "Google",
-				Scheme:   "OAuth2",
+				Provider: "google",
+				Scheme:   "oauth2",
 			},
 			addFirst: true,
 		},
@@ -196,22 +196,22 @@ func TestUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "docbrown",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name: "Editor",
+							Name: "editor",
 						},
 					},
 				},
 			},
 			want: &chronograf.User{
 				Name:     "docbrown",
-				Provider: "GitHub",
-				Scheme:   "OAuth2",
+				Provider: "github",
+				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						Name: "Editor",
+						Name: "editor",
 					},
 				},
 			},
@@ -327,27 +327,27 @@ func TestUsersStore_Update(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "bobetta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name: "Viewer",
+							Name: "viewer",
 						},
 					},
 				},
 				roles: []chronograf.Role{
 					{
-						Name: "Editor",
+						Name: "editor",
 					},
 				},
 			},
 			want: &chronograf.User{
 				Name:     "bobetta",
-				Provider: "GitHub",
-				Scheme:   "OAuth2",
+				Provider: "github",
+				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						Name: "Editor",
+						Name: "editor",
 					},
 				},
 			},
@@ -359,17 +359,17 @@ func TestUsersStore_Update(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "bobetta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 				},
-				provider: "Google",
-				scheme:   "LDAP",
+				provider: "google",
+				scheme:   "oauth2",
 				name:     "billietta",
 			},
 			want: &chronograf.User{
 				Name:     "billietta",
-				Provider: "Google",
-				Scheme:   "LDAP",
+				Provider: "google",
+				Scheme:   "oauth2",
 			},
 			addFirst: true,
 		},
@@ -443,21 +443,21 @@ func TestUsersStore_All(t *testing.T) {
 			want: []chronograf.User{
 				{
 					Name:     "howdy",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name: "Viewer",
+							Name: "viewer",
 						},
 					},
 				},
 				{
 					Name:     "doody",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name: "Editor",
+							Name: "editor",
 						},
 					},
 				},
