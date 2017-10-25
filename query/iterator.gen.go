@@ -907,6 +907,7 @@ type floatAuxIterator struct {
 	output     chan auxFloatPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newFloatAuxIterator(input FloatIterator, opt IteratorOptions) *floatAuxIterator {
@@ -925,7 +926,13 @@ func (itr *floatAuxIterator) Background() {
 
 func (itr *floatAuxIterator) Start()               { go itr.stream() }
 func (itr *floatAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *floatAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *floatAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *floatAuxIterator) Next() (*FloatPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -4303,6 +4310,7 @@ type integerAuxIterator struct {
 	output     chan auxIntegerPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newIntegerAuxIterator(input IntegerIterator, opt IteratorOptions) *integerAuxIterator {
@@ -4321,7 +4329,13 @@ func (itr *integerAuxIterator) Background() {
 
 func (itr *integerAuxIterator) Start()               { go itr.stream() }
 func (itr *integerAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *integerAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *integerAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *integerAuxIterator) Next() (*IntegerPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -7696,6 +7710,7 @@ type unsignedAuxIterator struct {
 	output     chan auxUnsignedPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newUnsignedAuxIterator(input UnsignedIterator, opt IteratorOptions) *unsignedAuxIterator {
@@ -7714,7 +7729,13 @@ func (itr *unsignedAuxIterator) Background() {
 
 func (itr *unsignedAuxIterator) Start()               { go itr.stream() }
 func (itr *unsignedAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *unsignedAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *unsignedAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *unsignedAuxIterator) Next() (*UnsignedPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -11075,6 +11096,7 @@ type stringAuxIterator struct {
 	output     chan auxStringPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newStringAuxIterator(input StringIterator, opt IteratorOptions) *stringAuxIterator {
@@ -11093,7 +11115,13 @@ func (itr *stringAuxIterator) Background() {
 
 func (itr *stringAuxIterator) Start()               { go itr.stream() }
 func (itr *stringAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *stringAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *stringAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *stringAuxIterator) Next() (*StringPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -14454,6 +14482,7 @@ type booleanAuxIterator struct {
 	output     chan auxBooleanPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newBooleanAuxIterator(input BooleanIterator, opt IteratorOptions) *booleanAuxIterator {
@@ -14472,7 +14501,13 @@ func (itr *booleanAuxIterator) Background() {
 
 func (itr *booleanAuxIterator) Start()               { go itr.stream() }
 func (itr *booleanAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *booleanAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *booleanAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *booleanAuxIterator) Next() (*BooleanPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
