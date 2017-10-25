@@ -1,6 +1,8 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
 import {errorThrown} from 'shared/actions/errors'
@@ -52,17 +54,19 @@ class LayoutCell extends Component {
 
     return (
       <div className="dash-graph">
-        <LayoutCellMenu
-          cell={cell}
-          dataExists={!!celldata.length}
-          isDeleting={isDeleting}
-          isEditable={isEditable}
-          onDelete={this.handleDeleteCell}
-          onEdit={this.handleSummonOverlay}
-          handleClickOutside={this.closeMenu}
-          onDeleteClick={this.handleDeleteClick}
-          onCSVDownload={this.handleCSVDownload}
-        />
+        <Authorized requiredRole={EDITOR_ROLE}>
+          <LayoutCellMenu
+            cell={cell}
+            dataExists={!!celldata.length}
+            isDeleting={isDeleting}
+            isEditable={isEditable}
+            onDelete={this.handleDeleteCell}
+            onEdit={this.handleSummonOverlay}
+            handleClickOutside={this.closeMenu}
+            onDeleteClick={this.handleDeleteClick}
+            onCSVDownload={this.handleCSVDownload}
+          />
+        </Authorized>
         <LayoutCellHeader
           queries={queries}
           cellName={cell.name}
