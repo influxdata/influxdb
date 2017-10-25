@@ -5,3 +5,4 @@ dev/
 dist/
 bower_components/
 log/
+.tern-project

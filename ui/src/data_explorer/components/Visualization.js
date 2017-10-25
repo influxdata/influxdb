@@ -55,9 +55,9 @@ class Visualization extends Component {
       autoRefresh,
       heightPixels,
       queryConfigs,
+      manualRefresh,
       editQueryStatus,
       activeQueryIndex,
-      isInDataExplorer,
       resizerBottomHeight,
       errorThrown,
     } = this.props
@@ -99,12 +99,12 @@ class Visualization extends Component {
             axes={axes}
             query={query}
             queries={queries}
-            templates={templates}
             cellType={cellType}
+            templates={templates}
             autoRefresh={autoRefresh}
             heightPixels={heightPixels}
+            manualRefresh={manualRefresh}
             editQueryStatus={editQueryStatus}
-            isInDataExplorer={isInDataExplorer}
             resizerBottomHeight={resizerBottomHeight}
           />
         </div>
@@ -123,7 +123,7 @@ Visualization.defaultProps = {
   cellType: '',
 }
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 Visualization.contextTypes = {
   source: shape({
@@ -138,7 +138,6 @@ Visualization.propTypes = {
   cellType: string,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),
-  isInDataExplorer: bool,
   timeRange: shape({
     upper: string,
     lower: string,
@@ -156,6 +155,7 @@ Visualization.propTypes = {
   }),
   resizerBottomHeight: number,
   errorThrown: func.isRequired,
+  manualRefresh: number,
 }
 
 export default Visualization

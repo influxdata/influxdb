@@ -75,6 +75,7 @@ class LayoutRenderer extends Component {
       isEditable,
       onEditCell,
       autoRefresh,
+      manualRefresh,
       onDeleteCell,
       synchronizer,
       onCancelEditCell,
@@ -114,6 +115,7 @@ class LayoutRenderer extends Component {
                 onEditCell={onEditCell}
                 resizeCoords={resizeCoords}
                 autoRefresh={autoRefresh}
+                manualRefresh={manualRefresh}
                 onDeleteCell={onDeleteCell}
                 synchronizer={synchronizer}
                 onCancelEditCell={onCancelEditCell}
@@ -131,6 +133,7 @@ const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 LayoutRenderer.propTypes = {
   autoRefresh: number.isRequired,
+  manualRefresh: number,
   timeRange: shape({
     lower: string.isRequired,
   }),

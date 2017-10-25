@@ -1,5 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 
+import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
@@ -51,19 +52,23 @@ class KapacitorRule extends Component {
   }
 
   handleEdit = () => {
-    const {addFlashMessage, queryConfigs, rule} = this.props
+    const {addFlashMessage, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     })
 
     editRule(updatedRule)
       .then(() => {
-        addFlashMessage({type: 'success', text: 'Rule successfully updated!'})
+        router.push(`/sources/${source.id}/alert-rules`)
+        addFlashMessage({
+          type: 'success',
+          text: `${rule.name} successfully saved!`,
+        })
       })
       .catch(() => {
         addFlashMessage({
           type: 'error',
-          text: 'There was a problem updating the rule',
+          text: `There was a problem saving ${rule.name}`,
         })
       })
   }
@@ -85,11 +90,11 @@ class KapacitorRule extends Component {
     }
 
     if (!buildInfluxQLQuery({}, query)) {
-      return 'Please select a database, measurement, and field'
+      return 'Please select a Database, Measurement, and Field'
     }
 
     if (!rule.values.value) {
-      return 'Please enter a value in the Rule Conditions section'
+      return 'Please enter a value in the Conditions section'
     }
 
     return ''
@@ -98,7 +103,7 @@ class KapacitorRule extends Component {
   deadmanValidation = () => {
     const {query} = this.props
     if (query && (!query.database || !query.measurement)) {
-      return 'Deadman requires a database and measurement'
+      return 'Deadman rules require a Database and Measurement'
     }
 
     return ''
@@ -144,19 +149,21 @@ class KapacitorRule extends Component {
     return (
       <div className="page">
         <RuleHeader
-          rule={rule}
-          actions={ruleActions}
-          onSave={isEditing ? this.handleEdit : this.handleCreate}
-          onChooseTimeRange={this.handleChooseTimeRange}
-          validationError={this.validationError()}
-          timeRange={timeRange}
           source={source}
+          onSave={isEditing ? this.handleEdit : this.handleCreate}
+          validationError={this.validationError()}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
           <div className="container-fluid">
             <div className="row">
               <div className="col-xs-12">
                 <div className="rule-builder">
+                  <NameSection
+                    isEditing={isEditing}
+                    defaultName={rule.name}
+                    onRuleRename={ruleActions.updateRuleName}
+                    ruleID={rule.id}
+                  />
                   <ValuesSection
                     rule={rule}
                     source={source}
@@ -170,6 +177,7 @@ class KapacitorRule extends Component {
                     onDeadmanChange={this.handleDeadmanChange}
                     onRuleTypeInputChange={this.handleRuleTypeInputChange}
                     onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
+                    onChooseTimeRange={this.handleChooseTimeRange}
                   />
                   <RuleMessage
                     rule={rule}

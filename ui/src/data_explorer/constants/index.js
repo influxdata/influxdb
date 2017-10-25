@@ -81,5 +81,3 @@ export const QUERY_TEMPLATES = [
   {text: 'Show Stats', query: 'SHOW STATS'},
   {text: 'Show Diagnostics', query: 'SHOW DIAGNOSTICS'},
 ]
-
-export const DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL = '10s'

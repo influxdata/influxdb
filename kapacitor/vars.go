@@ -133,7 +133,7 @@ func window(rule chronograf.AlertRule) string {
 	}
 	// Period only makes sense if the field has a been grouped via a time duration.
 	for _, field := range rule.Query.Fields {
-		if len(field.Funcs) > 0 {
+		if field.Type == "func" {
 			return fmt.Sprintf("var period = %s\nvar every = %s", rule.Query.GroupBy.Time, rule.Every)
 		}
 	}
@@ -151,12 +151,30 @@ func groupBy(q *chronograf.QueryConfig) string {
 }
 
 func field(q *chronograf.QueryConfig) (string, error) {
-	if q != nil {
-		for _, field := range q.Fields {
-			return field.Field, nil
-		}
+	if q == nil {
+		return "", fmt.Errorf("No fields set in query")
 	}
-	return "", fmt.Errorf("No fields set in query")
+	if len(q.Fields) != 1 {
+		return "", fmt.Errorf("expect only one field but found %d", len(q.Fields))
+	}
+	field := q.Fields[0]
+	if field.Type == "func" {
+		for _, arg := range field.Args {
+			if arg.Type == "field" {
+				f, ok := arg.Value.(string)
+				if !ok {
+					return "", fmt.Errorf("field value %v is should be string but is %T", arg.Value, arg.Value)
+				}
+				return f, nil
+			}
+		}
+		return "", fmt.Errorf("No fields set in query")
+	}
+	f, ok := field.Value.(string)
+	if !ok {
+		return "", fmt.Errorf("field value %v is should be string but is %T", field.Value, field.Value)
+	}
+	return f, nil
 }
 
 func whereFilter(q *chronograf.QueryConfig) string {

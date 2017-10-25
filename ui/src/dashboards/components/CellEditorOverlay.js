@@ -12,12 +12,16 @@ import DisplayOptions from 'src/dashboards/components/DisplayOptions'
 import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
-import buildInfluxQLQuery from 'utils/influxql'
+import {buildQuery} from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 
-import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
+import {
+  removeUnselectedTemplateValues,
+  TYPE_QUERY_CONFIG,
+} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
+import {AUTO_GROUP_BY} from 'shared/constants'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -59,11 +63,11 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  queryStateReducer = queryModifier => (queryID, payload) => {
+  queryStateReducer = queryModifier => (queryID, ...payload) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
 
-    const nextQuery = queryModifier(query, payload)
+    const nextQuery = queryModifier(query, ...payload)
 
     const nextQueries = queriesWorkingDraft.map(
       q =>
@@ -147,7 +151,7 @@ class CellEditorOverlay extends Component {
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
-      const query = q.rawText || buildInfluxQLQuery(timeRange, q)
+      const query = q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q)
 
       return {
         queryConfig: q,
@@ -365,6 +369,7 @@ class CellEditorOverlay extends Component {
                   activeQueryIndex={activeQueryIndex}
                   activeQuery={this.getActiveQuery()}
                   setActiveQueryIndex={this.handleSetActiveQueryIndex}
+                  initialGroupByTime={AUTO_GROUP_BY}
                 />}
           </CEOBottom>
         </ResizeContainer>

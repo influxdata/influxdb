@@ -293,8 +293,10 @@ export const createDatabaseAsync = (url, database) => async dispatch => {
       )
     )
   } catch (error) {
-    dispatch(errorThrown(error))
-    // undo optimistic upda, `Failed to create database: ${error.data.message}`te
+    dispatch(
+      errorThrown(error, `Failed to create database: ${error.data.message}`)
+    )
+    // undo optimistic update
     setTimeout(() => dispatch(removeDatabase(database)), REVERT_STATE_DELAY)
   }
 }
@@ -316,8 +318,13 @@ export const createRetentionPolicyAsync = (
     )
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
-    dispatch(errorThrown(error))
-    // undo optimistic upda, `Failed to create retention policy: ${error.data.message}`te
+    dispatch(
+      errorThrown(
+        error,
+        `Failed to create retention policy: ${error.data.message}`
+      )
+    )
+    // undo optimistic update
     setTimeout(
       () => dispatch(removeRetentionPolicy(database, retentionPolicy)),
       REVERT_STATE_DELAY

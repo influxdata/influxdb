@@ -1,9 +1,9 @@
 package influx
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 )
 
@@ -24,20 +24,20 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{},
+						Value: "usage_idle",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_guest_nice",
-						Funcs: []string{},
+						Value: "usage_guest_nice",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_system",
-						Funcs: []string{},
+						Value: "usage_system",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_guest",
-						Funcs: []string{},
+						Value: "usage_guest",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{},
@@ -55,17 +55,43 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{
-							"mean",
-							"median",
+						Value: "mean",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
 						},
 					},
 					chronograf.Field{
-						Field: "usage_guest_nice",
-						Funcs: []string{
-							"count",
-							"mean",
+						Value: "median",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
+						},
+					},
+					chronograf.Field{
+						Value: "count",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_guest_nice",
+								Type:  "field",
+							},
+						},
+					},
+					chronograf.Field{
+						Value: "mean",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_guest_nice",
+								Type:  "field",
+							},
 						},
 					},
 				},
@@ -108,8 +134,8 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_user",
-						Funcs: []string{},
+						Value: "usage_user",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{"host": []string{"myhost"}},
@@ -144,8 +170,8 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_user",
-						Funcs: []string{},
+						Value: "usage_user",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{"host": []string{"myhost"}},
@@ -169,8 +195,8 @@ func TestConvert(t *testing.T) {
 				Tags:            map[string][]string{},
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_user",
-						Funcs: []string{},
+						Value: "usage_user",
+						Type:  "field",
 					},
 				},
 				GroupBy: chronograf.GroupBy{
@@ -216,8 +242,8 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_user",
-						Funcs: []string{},
+						Value: "usage_user",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{},
@@ -236,8 +262,8 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_user",
-						Funcs: []string{},
+						Value: "usage_user",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{"host": []string{"myhost"}},
@@ -261,8 +287,8 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_user",
-						Funcs: []string{},
+						Value: "usage_user",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{
@@ -305,8 +331,8 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_user",
-						Funcs: []string{},
+						Value: "usage_user",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{
@@ -332,20 +358,20 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{},
+						Value: "usage_idle",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_guest_nice",
-						Funcs: []string{},
+						Value: "usage_guest_nice",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_system",
-						Funcs: []string{},
+						Value: "usage_system",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_guest",
-						Funcs: []string{},
+						Value: "usage_guest",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{
@@ -379,20 +405,20 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{},
+						Value: "usage_idle",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_guest_nice",
-						Funcs: []string{},
+						Value: "usage_guest_nice",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_system",
-						Funcs: []string{},
+						Value: "usage_system",
+						Type:  "field",
 					},
 					chronograf.Field{
-						Field: "usage_guest",
-						Funcs: []string{},
+						Value: "usage_guest",
+						Type:  "field",
 					},
 				},
 				Tags: map[string][]string{
@@ -426,9 +452,13 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{
-							"mean",
+						Value: "mean",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
 						},
 					},
 				},
@@ -453,9 +483,13 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{
-							"mean",
+						Value: "mean",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
 						},
 					},
 				},
@@ -473,16 +507,21 @@ func TestConvert(t *testing.T) {
 		},
 		{
 			name:     "Test implicit null fill accepted and made explicit",
-			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m)`,
+			influxQL: `SELECT mean("usage_idle") as "mean_usage_idle" FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m)`,
 			want: chronograf.QueryConfig{
 				Database:        "telegraf",
 				Measurement:     "cpu",
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{
-							"mean",
+						Value: "mean",
+						Type:  "func",
+						Alias: "mean_usage_idle",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
 						},
 					},
 				},
@@ -499,6 +538,147 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
+			name:     "Test percentile with a number parameter",
+			influxQL: `SELECT percentile("usage_idle", 3.14) as "mean_usage_idle" FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m)`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Value: "percentile",
+						Type:  "func",
+						Alias: "mean_usage_idle",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
+							chronograf.Field{
+								Value: "3.14",
+								Type:  "number",
+							},
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "1m",
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+				Fill:            "null",
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+		{
+			name:     "Test top with 2 arguments",
+			influxQL: `SELECT TOP("water_level","location",2) FROM "h2o_feet"`,
+			want: chronograf.QueryConfig{
+				Measurement: "h2o_feet",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Value: "top",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "water_level",
+								Type:  "field",
+							},
+							chronograf.Field{
+								Value: "location",
+								Type:  "field",
+							},
+							chronograf.Field{
+								Value: "2",
+								Type:  "integer",
+							},
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+			},
+		},
+		{
+			name:     "count of a regex",
+			influxQL: ` SELECT COUNT(/water/) FROM "h2o_feet"`,
+			want: chronograf.QueryConfig{
+				Measurement: "h2o_feet",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Value: "count",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "water",
+								Type:  "regex",
+							},
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+			},
+		},
+		{
+			name:     "count with aggregate",
+			influxQL: `SELECT COUNT(water) as "count_water" FROM "h2o_feet"`,
+			want: chronograf.QueryConfig{
+				Measurement: "h2o_feet",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Value: "count",
+						Type:  "func",
+						Alias: "count_water",
+						Args: []chronograf.Field{
+							{
+								Value: "water",
+								Type:  "field",
+							},
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+			},
+		},
+		{
+			name:     "count of a wildcard",
+			influxQL: ` SELECT COUNT(*) FROM "h2o_feet"`,
+			want: chronograf.QueryConfig{
+				Measurement: "h2o_feet",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Value: "count",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "*",
+								Type:  "wildcard",
+							},
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+			},
+		},
+		{
 			name:     "Test fill number (int) accepted",
 			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(1337)`,
 			want: chronograf.QueryConfig{
@@ -507,9 +687,13 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{
-							"mean",
+						Value: "mean",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
 						},
 					},
 				},
@@ -534,9 +718,13 @@ func TestConvert(t *testing.T) {
 				RetentionPolicy: "autogen",
 				Fields: []chronograf.Field{
 					chronograf.Field{
-						Field: "usage_idle",
-						Funcs: []string{
-							"mean",
+						Value: "mean",
+						Type:  "func",
+						Args: []chronograf.Field{
+							{
+								Value: "usage_idle",
+								Type:  "field",
+							},
 						},
 					},
 				},
@@ -573,8 +761,8 @@ func TestConvert(t *testing.T) {
 					t.Errorf("Convert() = %s, want %s", *got.RawText, tt.RawText)
 				}
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Convert() = \n%#v\n want \n%#v\n", got, tt.want)
+			if !cmp.Equal(got, tt.want) {
+				t.Errorf("Convert() = %s", cmp.Diff(got, tt.want))
 			}
 		})
 	}

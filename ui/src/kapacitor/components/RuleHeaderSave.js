@@ -1,21 +1,10 @@
 import React, {PropTypes} from 'react'
 import ReactTooltip from 'react-tooltip'
-import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
 
-const RuleHeaderSave = ({
-  onSave,
-  timeRange,
-  validationError,
-  onChooseTimeRange,
-}) =>
+const RuleHeaderSave = ({onSave, validationError}) =>
   <div className="page-header__right">
     <SourceIndicator />
-    <TimeRangeDropdown
-      onChooseTimeRange={onChooseTimeRange}
-      selected={timeRange}
-      preventCustomTimeRange={true}
-    />
     {validationError
       ? <button
           className="btn btn-success btn-sm disabled"
@@ -36,13 +25,11 @@ const RuleHeaderSave = ({
     />
   </div>
 
-const {func, shape, string} = PropTypes
+const {func, string} = PropTypes
 
 RuleHeaderSave.propTypes = {
   onSave: func.isRequired,
   validationError: string.isRequired,
-  onChooseTimeRange: func.isRequired,
-  timeRange: shape({}).isRequired,
 }
 
 export default RuleHeaderSave

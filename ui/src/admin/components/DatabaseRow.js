@@ -161,7 +161,7 @@ class DatabaseRow extends Component {
               name="name"
               type="text"
               defaultValue={formattedDuration}
-              placeholder="INF, 5m, 1d etc"
+              placeholder="INF, 1h30m, 1d, etc"
               onKeyDown={this.handleKeyDown}
               ref={r => (this.duration = r)}
               autoFocus={!isNew}

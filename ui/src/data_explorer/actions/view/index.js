@@ -4,8 +4,6 @@ import {getQueryConfig} from 'shared/apis'
 
 import {errorThrown} from 'shared/actions/errors'
 
-import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
-
 export const addQuery = () => ({
   type: 'DE_ADD_QUERY',
   payload: {
@@ -44,30 +42,21 @@ export const fill = (queryId, value) => ({
   },
 })
 
-// all fields implicitly have a function applied to them by default, unless
-// it was explicitly removed previously, so set the auto group by time except
-// under that removal condition
-export const toggleFieldWithGroupByInterval = (queryID, fieldFunc) => (
-  dispatch,
-  getState
-) => {
-  dispatch(toggleField(queryID, fieldFunc))
-  // toggleField determines whether to add a func, so now check state for funcs
-  // presence, and if present then apply default group by time
-  const updatedFieldFunc = getState().dataExplorerQueryConfigs[
-    queryID
-  ].fields.find(({field}) => field === fieldFunc.field)
-  // updatedFieldFunc could be undefined if it was toggled for removal
-  if (updatedFieldFunc && updatedFieldFunc.funcs.length) {
-    dispatch(groupByTime(queryID, DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL))
-  }
-}
+export const removeFuncs = (queryID, fields, groupBy) => ({
+  type: 'DE_REMOVE_FUNCS',
+  payload: {
+    queryID,
+    fields,
+    groupBy,
+  },
+})
 
-export const applyFuncsToField = (queryId, fieldFunc) => ({
+export const applyFuncsToField = (queryId, fieldFunc, groupBy) => ({
   type: 'DE_APPLY_FUNCS_TO_FIELD',
   payload: {
     queryId,
     fieldFunc,
+    groupBy,
   },
 })
 
@@ -141,6 +130,15 @@ export const updateQueryConfig = config => ({
   },
 })
 
+export const addInitialField = (queryID, field, groupBy) => ({
+  type: 'DE_ADD_INITIAL_FIELD',
+  payload: {
+    queryID,
+    field,
+    groupBy,
+  },
+})
+
 export const editQueryStatus = (queryID, status) => ({
   type: 'DE_EDIT_QUERY_STATUS',
   payload: {
@@ -154,7 +152,6 @@ export const editRawTextAsync = (url, id, text) => async dispatch => {
   try {
     const {data} = await getQueryConfig(url, [{query: text, id}])
     const config = data.queries.find(q => q.id === id)
-    config.queryConfig.rawText = text
     dispatch(updateQueryConfig(config.queryConfig))
   } catch (error) {
     dispatch(errorThrown(error))

@@ -12,8 +12,9 @@ import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import Header from '../containers/Header'
 import ResizeContainer from 'shared/components/ResizeContainer'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
+import ManualRefresh from 'src/shared/components/ManualRefresh'
 
-import {VIS_VIEWS} from 'shared/constants'
+import {VIS_VIEWS, INITIAL_GROUP_BY_TIME} from 'shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
 import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
@@ -35,6 +36,7 @@ class DataExplorer extends Component {
     if (queryConfigs.length === 0) {
       this.props.queryConfigActions.addQuery()
     }
+
     return queryConfigs[0]
   }
 
@@ -66,17 +68,22 @@ class DataExplorer extends Component {
     this.setState({showWriteForm: true})
   }
 
+  handleChooseTimeRange = bounds => {
+    this.props.setTimeRange(bounds)
+  }
+
   render() {
     const {
-      autoRefresh,
-      errorThrownAction,
-      handleChooseAutoRefresh,
-      timeRange,
-      setTimeRange,
-      queryConfigs,
-      queryConfigActions,
       source,
+      timeRange,
+      autoRefresh,
+      queryConfigs,
+      manualRefresh,
+      onManualRefresh,
+      errorThrownAction,
       writeLineProtocol,
+      queryConfigActions,
+      handleChooseAutoRefresh,
     } = this.props
 
     const {showWriteForm} = this.state
@@ -98,8 +105,10 @@ class DataExplorer extends Component {
         <Header
           timeRange={timeRange}
           autoRefresh={autoRefresh}
-          actions={{handleChooseAutoRefresh, setTimeRange}}
           showWriteForm={this.handleOpenWriteData}
+          onChooseTimeRange={this.handleChooseTimeRange}
+          onChooseAutoRefresh={handleChooseAutoRefresh}
+          onManualRefresh={onManualRefresh}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -113,16 +122,17 @@ class DataExplorer extends Component {
             actions={queryConfigActions}
             timeRange={timeRange}
             activeQuery={this.getActiveQuery()}
+            initialGroupByTime={INITIAL_GROUP_BY_TIME}
           />
           <Visualization
-            isInDataExplorer={true}
-            autoRefresh={autoRefresh}
-            timeRange={timeRange}
-            queryConfigs={queryConfigs}
-            errorThrown={errorThrownAction}
-            activeQueryIndex={0}
-            editQueryStatus={queryConfigActions.editQueryStatus}
             views={VIS_VIEWS}
+            activeQueryIndex={0}
+            timeRange={timeRange}
+            autoRefresh={autoRefresh}
+            queryConfigs={queryConfigs}
+            manualRefresh={manualRefresh}
+            errorThrown={errorThrownAction}
+            editQueryStatus={queryConfigActions.editQueryStatus}
           />
         </ResizeContainer>
       </div>
@@ -162,6 +172,8 @@ DataExplorer.propTypes = {
   }).isRequired,
   writeLineProtocol: func.isRequired,
   errorThrownAction: func.isRequired,
+  onManualRefresh: func.isRequired,
+  manualRefresh: number.isRequired,
 }
 
 DataExplorer.childContextTypes = {
@@ -207,5 +219,5 @@ const mapDispatchToProps = dispatch => {
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withRouter(DataExplorer)
+  withRouter(ManualRefresh(DataExplorer))
 )
