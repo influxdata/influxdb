@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -50,10 +52,15 @@ const DashboardHeader = ({
             <GraphTips />
             <SourceIndicator />
             {dashboard
-              ? <button className="btn btn-primary btn-sm" onClick={onAddCell}>
-                  <span className="icon plus" />
-                  Add Cell
-                </button>
+              ? <Authorized requiredRole={EDITOR_ROLE}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={onAddCell}
+                  >
+                    <span className="icon plus" />
+                    Add Cell
+                  </button>
+                </Authorized>
               : null}
             {dashboard
               ? <button
