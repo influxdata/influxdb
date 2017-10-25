@@ -1,70 +1,81 @@
 import React, {PropTypes, Component} from 'react'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import {
+  DASHBOARD_NAME_MAX_LENGTH,
+  NEW_DASHBOARD,
+} from 'src/dashboards/constants/index'
 
 class DashboardEditHeader extends Component {
   constructor(props) {
     super(props)
 
-    const {dashboard: {name}} = props
     this.state = {
-      name,
+      reset: false,
     }
   }
 
-  handleChange = e => {
-    this.setState({name: e.target.value})
-  }
+  handleInputBlur = e => {
+    const {onSave, onCancel} = this.props
+    const {reset} = this.state
 
-  handleFormSubmit = e => {
-    e.preventDefault()
-    const name = e.target.name.value
-    this.props.onSave(name)
-  }
-
-  handleKeyUp = e => {
-    const {onCancel} = this.props
-    if (e.key === 'Escape') {
+    if (reset) {
       onCancel()
+    } else {
+      const newName = e.target.value || NEW_DASHBOARD.name
+      onSave(newName)
     }
+    this.setState({reset: false})
+  }
+
+  handleKeyDown = e => {
+    if (e.key === 'Enter') {
+      this.inputRef.blur()
+    }
+    if (e.key === 'Escape') {
+      this.inputRef.value = this.props.activeDashboard
+      this.setState({reset: true}, () => this.inputRef.blur())
+    }
+  }
+
+  handleFocus = e => {
+    e.target.select()
   }
 
   render() {
-    const {onSave, onCancel} = this.props
-    const {name} = this.state
+    const {onEditDashboard, isEditMode, activeDashboard} = this.props
 
     return (
-      <div className="page-header full-width">
-        <div className="page-header__container">
-          <form
-            className="page-header__left"
-            style={{flex: '1 0 0%'}}
-            onSubmit={this.handleFormSubmit}
-          >
-            <input
-              className="page-header--editing"
-              name="name"
-              value={name}
-              placeholder="Name this Dashboard"
-              onKeyUp={this.handleKeyUp}
+      <div className="dashboard-title">
+        {isEditMode
+          ? <input
+              maxLength={DASHBOARD_NAME_MAX_LENGTH}
+              type="text"
+              className="dashboard-title--input form-control input-sm"
+              defaultValue={activeDashboard}
+              autoComplete="off"
               autoFocus={true}
               spellCheck={false}
-              autoComplete="off"
-              onChange={this.handleChange}
+              onBlur={this.handleInputBlur}
+              onKeyDown={this.handleKeyDown}
+              onFocus={this.handleFocus}
+              placeholder="Name this Dashboard"
+              ref={r => (this.inputRef = r)}
             />
-          </form>
-          <ConfirmButtons item={name} onConfirm={onSave} onCancel={onCancel} />
-        </div>
+          : <h1 onClick={onEditDashboard}>
+              {activeDashboard}
+            </h1>}
       </div>
     )
   }
 }
 
-const {shape, func} = PropTypes
+const {bool, func, string} = PropTypes
 
 DashboardEditHeader.propTypes = {
-  dashboard: shape({}),
-  onCancel: func.isRequired,
+  activeDashboard: string.isRequired,
   onSave: func.isRequired,
+  onCancel: func.isRequired,
+  isEditMode: bool,
+  onEditDashboard: func.isRequired,
 }
 
 export default DashboardEditHeader

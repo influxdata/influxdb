@@ -23,7 +23,7 @@ $query-maker--gutter: 16px;
 $query-maker--tabs-height: 44px;
 $query-maker--tabs-header-text: $g18-cloud;
 
-$query-maker--tab-width: 138px;
+$query-maker--tab-width: 340px;
 $query-maker--tab-text: $g11-sidewalk;
 $query-maker--tab-text-hover: $g15-platinum;
 $query-maker--tab-text-active: $g18-cloud;
@@ -94,30 +94,16 @@ $query-editor-tab-active: $g3-castle;
   height: $query-maker--tabs-height;
   margin: 0 2px 0 0;
   max-width: $query-maker--tab-width;
-  flex: 1 0 0%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex: 1 0 0;
   color: $query-maker--tab-text;
   background: $query-maker--tab-bg;
-  cursor: pointer;
-  padding: 0 9px 0 12px;
+  position: relative;
   transition:
       color 0.25s ease,
       background-color 0.25s ease;
 
-  > label {
-    font-size: 15px;
-    font-weight: 600;
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    width: ($query-maker--tab-width - 42px);
-    text-overflow: ellipsis;
-    @include no-user-select();
-    cursor: pointer;
-  }
   &:hover {
+    cursor: pointer;
     color: $query-maker--tab-text-hover;
     background-color: $query-maker--tab-bg-hover;
   }
@@ -126,14 +112,31 @@ $query-editor-tab-active: $g3-castle;
     background: $query-maker--tab-bg-active;
   }
 }
+.query-maker--tab > label,
+.query-maker--delete {
+  top: 50%;
+  transform: translateY(-50%);
+  position: absolute;
+}
+.query-maker--tab > label {
+  left: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  width: calc(100% - #{$query-maker--tabs-height});
+  text-overflow: ellipsis;
+  @include no-user-select();
+  cursor: inherit !important;
+}
 .query-maker--delete {
   margin: 0;
   width: 18px;
   height: 18px;
   background-color: transparent;
-  display: inline-block;
-  vertical-align: text-top;
-  position: relative;
+  display: block;
+  right: 9px;
 
   &:before,
   &:after {

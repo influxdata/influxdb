@@ -205,14 +205,23 @@ func (g *GroupByVar) Exec(query string) {
 	durStr := query[start+len(whereClause):]
 
 	// attempt to parse out a relative time range
-	dur, err := g.parseRelative(durStr)
+	// locate duration literal start
+	prefix := "time > now() - "
+	lowerDuration, err := g.parseRelative(durStr, prefix)
 	if err == nil {
-		// we parsed relative duration successfully
-		g.Duration = dur
-		return
+		prefix := "time < now() - "
+		upperDuration, err := g.parseRelative(durStr, prefix)
+		if err != nil {
+			g.Duration = lowerDuration
+			return
+		}
+		g.Duration = lowerDuration - upperDuration
+		if g.Duration < 0 {
+			g.Duration = -g.Duration
+		}
 	}
 
-	dur, err = g.parseAbsolute(durStr)
+	dur, err := g.parseAbsolute(durStr)
 	if err == nil {
 		// we found an absolute time range
 		g.Duration = dur
@@ -223,9 +232,7 @@ func (g *GroupByVar) Exec(query string) {
 // InfluxQL query following the "where" keyword. For example, in the fragment
 // "time > now() - 180d GROUP BY :interval:", parseRelative would return a
 // duration equal to 180d
-func (g *GroupByVar) parseRelative(fragment string) (time.Duration, error) {
-	// locate duration literal start
-	prefix := "time > now() - "
+func (g *GroupByVar) parseRelative(fragment string, prefix string) (time.Duration, error) {
 	start := strings.Index(fragment, prefix)
 	if start == -1 {
 		return time.Duration(0), errors.New("not a relative duration")
@@ -298,11 +305,19 @@ func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
 }
 
 func (g *GroupByVar) String() string {
-	duration := int64(g.Duration/time.Second) / int64(g.Resolution) * 3
-	if duration == 0 {
-		duration = 1
+	// The function is: ((total_seconds * millisecond_converstion) / group_by) = pixels / 3
+	// Number of points given the pixels
+	pixels := float64(g.Resolution) / 3.0
+	msPerPixel := float64(g.Duration/time.Millisecond) / pixels
+	secPerPixel := float64(g.Duration/time.Second) / pixels
+	if secPerPixel < 1.0 {
+		if msPerPixel < 1.0 {
+			msPerPixel = 1.0
+		}
+		return "time(" + strconv.FormatInt(int64(msPerPixel), 10) + "ms)"
 	}
-	return "time(" + strconv.Itoa(int(duration)) + "s)"
+	// If groupby is more than 1 second round to the second
+	return "time(" + strconv.FormatInt(int64(secPerPixel), 10) + "s)"
 }
 
 func (g *GroupByVar) Name() string {
@@ -495,8 +510,10 @@ type TriggerValues struct {
 
 // Field represent influxql fields and functions from the UI
 type Field struct {
-	Field string   `json:"field"`
-	Funcs []string `json:"funcs"`
+	Value interface{} `json:"value"`
+	Type  string      `json:"type"`
+	Alias string      `json:"alias"`
+	Args  []Field     `json:"args,omitempty"`
 }
 
 // GroupBy represents influxql group by tags from the UI

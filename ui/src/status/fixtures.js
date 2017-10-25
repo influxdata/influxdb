@@ -18,8 +18,15 @@ export const fixtureStatusPageCells = [
           retentionPolicy: 'autogen',
           fields: [
             {
-              field: 'value',
-              funcs: ['count'],
+              value: 'count',
+              type: 'func',
+              alias: 'count_value',
+              args: [
+                {
+                  value: 'value',
+                  type: 'field',
+                },
+              ],
             },
           ],
           tags: {},

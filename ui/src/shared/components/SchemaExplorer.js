@@ -4,22 +4,25 @@ import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
 import FieldList from 'src/shared/components/FieldList'
 
-const actionBinder = (id, action) => item => action(id, item)
+const actionBinder = (id, action) => (...args) => action(id, ...args)
 
 const SchemaExplorer = ({
   query,
   query: {id},
   source,
+  initialGroupByTime,
   actions: {
+    fill,
     chooseTag,
     groupByTag,
     groupByTime,
-    fill,
+    toggleField,
+    removeFuncs,
+    addInitialField,
     chooseNamespace,
     chooseMeasurement,
     applyFuncsToField,
     toggleTagAcceptance,
-    toggleFieldWithGroupByInterval,
   },
 }) =>
   <div className="query-builder">
@@ -41,10 +44,13 @@ const SchemaExplorer = ({
       source={source}
       query={query}
       querySource={source}
-      onToggleField={actionBinder(id, toggleFieldWithGroupByInterval)}
+      initialGroupByTime={initialGroupByTime}
+      onToggleField={actionBinder(id, toggleField)}
       onFill={actionBinder(id, fill)}
       onGroupByTime={actionBinder(id, groupByTime)}
       applyFuncsToField={actionBinder(id, applyFuncsToField)}
+      removeFuncs={actionBinder(id, removeFuncs)}
+      addInitialField={actionBinder(id, addInitialField)}
     />
   </div>
 
@@ -65,8 +71,11 @@ SchemaExplorer.propTypes = {
     toggleTagAcceptance: func.isRequired,
     fill: func.isRequired,
     editRawTextAsync: func.isRequired,
+    addInitialField: func.isRequired,
+    removeFuncs: func.isRequired,
   }).isRequired,
   source: shape({}),
+  initialGroupByTime: string.isRequired,
 }
 
 export default SchemaExplorer

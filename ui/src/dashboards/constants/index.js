@@ -106,3 +106,8 @@ export const TOOLTIP_CONTENT = {
   FORMAT:
     '<p><strong>K/M/B</strong> = Thousand / Million / Billion<br/><strong>K/M/G</strong> = Kilo / Mega / Giga </p>',
 }
+
+export const TYPE_QUERY_CONFIG = 'queryConfig'
+export const TYPE_IFQL = 'ifql'
+
+export const DASHBOARD_NAME_MAX_LENGTH = 50

@@ -3,6 +3,9 @@ import _ from 'lodash'
 
 import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
+import {errorThrown} from 'shared/actions/errors'
+import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
+import download from 'src/external/download.js'
 
 class LayoutCell extends Component {
   constructor(props) {
@@ -30,8 +33,19 @@ class LayoutCell extends Component {
     this.props.onSummonOverlayTechnologies(cell)
   }
 
+  handleCSVDownload = cell => () => {
+    const joinedName = cell.name.split(' ').join('_')
+    const {celldata} = this.props
+    try {
+      download(dashboardtoCSV(celldata), `${joinedName}.csv`, 'text/plain')
+    } catch (error) {
+      errorThrown(error, 'Unable to download .csv file')
+      console.error(error)
+    }
+  }
+
   render() {
-    const {cell, children, isEditable} = this.props
+    const {cell, children, isEditable, celldata} = this.props
 
     const {isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
@@ -40,12 +54,14 @@ class LayoutCell extends Component {
       <div className="dash-graph">
         <LayoutCellMenu
           cell={cell}
+          dataExists={!!celldata.length}
           isDeleting={isDeleting}
           isEditable={isEditable}
           onDelete={this.handleDeleteCell}
           onEdit={this.handleSummonOverlay}
           handleClickOutside={this.closeMenu}
           onDeleteClick={this.handleDeleteClick}
+          onCSVDownload={this.handleCSVDownload}
         />
         <LayoutCellHeader
           queries={queries}
@@ -84,6 +100,7 @@ LayoutCell.propTypes = {
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,
+  celldata: arrayOf(shape()),
 }
 
 export default LayoutCell
