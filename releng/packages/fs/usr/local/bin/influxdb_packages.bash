@@ -129,10 +129,7 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   #############################
   ######### Checksums #########
   #############################
-  (cd /out && for f in *.deb *.rpm *.tar.gz; do
-    md5sum "$f" > "$f.md5"
-    sha256sum "$f" > "$f.sha256"
-  done)
+  (cd /out && find . \( -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' \) -exec sh -c 'md5sum {} > {}.md5 && sha256sum {} > {}.sha256' \;)
 elif [ "$OS" == "windows" ]; then
   # Windows gets the binaries and the sample config file.
   rm -rf "$PKG_ROOT"
