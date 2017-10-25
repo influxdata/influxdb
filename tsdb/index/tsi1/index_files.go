@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
@@ -52,7 +53,7 @@ func (p *IndexFiles) MeasurementNames() [][]byte {
 	itr := p.MeasurementIterator()
 	var names [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		names = append(names, copyBytes(e.Name()))
+		names = append(names, bytesutil.Clone(e.Name()))
 	}
 	sort.Sort(byteSlices(names))
 	return names
