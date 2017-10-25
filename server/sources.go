@@ -287,6 +287,10 @@ func ValidSourceRequest(s chronograf.Source) error {
 		}
 	}
 
+	if s.Organization == "" {
+		return fmt.Errorf("organization required")
+	}
+
 	url, err := url.ParseRequestURI(s.URL)
 	if err != nil {
 		return fmt.Errorf("invalid source URI: %v", err)

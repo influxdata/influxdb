@@ -23,6 +23,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		InsecureSkipVerify: s.InsecureSkipVerify,
 		Default:            s.Default,
 		Telegraf:           s.Telegraf,
+		Organization:       s.Organization,
 	})
 }
 
@@ -44,6 +45,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.InsecureSkipVerify = pb.InsecureSkipVerify
 	s.Default = pb.Default
 	s.Telegraf = pb.Telegraf
+	s.Organization = pb.Organization
 	return nil
 }
 

@@ -432,6 +432,7 @@ type Source struct {
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
 	Default            bool   `json:"default"`                      // Default specifies the default source for the application
 	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
+	Organization       string `json:"organization,omitempty"`       // Organization is the organization ID associated with a resource
 }
 
 // SourcesStore stores connection information for a `TimeSeries`
@@ -752,7 +753,7 @@ type Organization struct {
 	Name            string `json:"name"`
 	SourcesStore    SourcesStore
 	ServersStore    ServersStore
-	LayoutsStore     LayoutsStore
+	LayoutsStore    LayoutsStore
 	DashboardsStore DashboardsStore
 }
 

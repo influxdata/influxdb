@@ -13,6 +13,7 @@ message Source {
 	bool InsecureSkipVerify   = 9;  // InsecureSkipVerify accepts any certificate from the influx server
 	string MetaURL            = 10; // MetaURL is the connection URL for the meta node.
 	string SharedSecret       = 11; // SharedSecret signs the optional InfluxDB JWT Authorization
+	string Organization       = 12; // Organization is the organization ID for a resource
 }
 
 message Dashboard {
