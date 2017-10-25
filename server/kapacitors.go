@@ -17,7 +17,7 @@ type postKapacitorRequest struct {
 	Username     string  `json:"username,omitempty"` // Username for authentication to kapacitor
 	Password     string  `json:"password,omitempty"`
 	Active       bool    `json:"active"`
-	Organization string  `json:"organization"`
+	Organization string  `json:"organization"` // Organization is the organization ID that resource belongs to
 }
 
 func (p *postKapacitorRequest) Valid() error {

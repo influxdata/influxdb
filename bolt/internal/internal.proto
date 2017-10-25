@@ -13,7 +13,7 @@ message Source {
 	bool InsecureSkipVerify   = 9;  // InsecureSkipVerify accepts any certificate from the influx server
 	string MetaURL            = 10; // MetaURL is the connection URL for the meta node.
 	string SharedSecret       = 11; // SharedSecret signs the optional InfluxDB JWT Authorization
-	string Organization       = 12; // Organization is the organization ID for a resource
+	string Organization       = 12; // Organization is the organization ID that resource belongs to
 }
 
 message Dashboard {
@@ -21,7 +21,7 @@ message Dashboard {
 	string Name                  = 2; // Name is the user-defined name of the dashboard
 	repeated DashboardCell cells = 3; // a representation of all visual data required for rendering the dashboard
 	repeated Template templates  = 4; // Templates replace template variables within InfluxQL
-	string Organization          = 5; // Organization is the organization ID for a resource
+	string Organization          = 5; // Organization is the organization ID that resource belongs to
 }
 
 message DashboardCell {
@@ -78,7 +78,7 @@ message Server {
 	string URL              = 5; // URL is the path to the server
 	int64 SrcID             = 6; // SrcID is the ID of the data source
 	bool Active             = 7; // is this the currently active server for the source
-	string Organization     = 8; // Organization is the organization ID for a resource
+	string Organization     = 8; // Organization is the organization ID that resource belongs to
 }
 
 message Layout {
@@ -87,7 +87,7 @@ message Layout {
 	string Measurement      = 3; // Measurement is the descriptive name of the time series data.
 	repeated Cell Cells     = 4; // Cells are the individual visualization elements.
 	bool Autoflow           = 5; // Autoflow indicates whether the frontend should layout the cells automatically.
-	string Organization     = 7; // Organization is the organization ID for a resource
+	string Organization     = 7; // Organization is the organization ID that resource belongs to
 }
 
 message Cell {
