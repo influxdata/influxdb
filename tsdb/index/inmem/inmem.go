@@ -516,18 +516,20 @@ func (i *Index) measurementNamesByTagFilters(filter *TagFilter) [][]byte {
 
 		// If the operator is non-regex, only check the specified value.
 		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
-			if _, ok := tagVals[filter.Value]; ok {
+			if tagVals.Contains(filter.Value) {
 				tagMatch = true
 			}
 		} else {
 			// Else, the operator is a regex and we have to check all tag
 			// values against the regular expression.
-			for tagVal := range tagVals {
-				if filter.Regex.MatchString(tagVal) {
+			tagVals.Range(func(k string, _ SeriesIDs) bool {
+				if filter.Regex.MatchString(k) {
 					tagMatch = true
-					continue
 				}
-			}
+				// If a tag matches then the Range over remaining tags can be
+				// ceased.
+				return !tagMatch
+			})
 		}
 
 		//
