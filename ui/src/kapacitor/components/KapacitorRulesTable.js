@@ -109,9 +109,18 @@ const RuleTitle = ({rule: {id, name, query}, source}) => {
   }
 
   return (
-    <Link to={`/sources/${source.id}/alert-rules/${id}`}>
-      {name}
-    </Link>
+    <Authorized
+      requiredRole={EDITOR_ROLE}
+      replaceWith={
+        <span>
+          {name}
+        </span>
+      }
+    >
+      <Link to={`/sources/${source.id}/alert-rules/${id}`}>
+        {name}
+      </Link>
+    </Authorized>
   )
 }
 
