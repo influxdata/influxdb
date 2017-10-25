@@ -33,19 +33,28 @@ export const isUserAuthorized = (meRole, requiredRole) => {
 
 const getRoleName = ({roles: [{name}, ..._]}) => name
 
-const Authorized = ({children, me, isUsingAuth, requiredRole, replaceWith}) => {
-  if (!isUsingAuth) {
-    return React.isValidElement(children) ? children : children[0]
+const Authorized = ({
+  children,
+  me,
+  isUsingAuth,
+  requiredRole,
+  replaceWith,
+  ...additionalProps
+}) => {
+  // if me response has not been received yet, render nothing
+  if (typeof isUsingAuth !== 'boolean') {
+    return null
   }
 
   const meRole = getRoleName(me)
-  if (isUserAuthorized(meRole, requiredRole)) {
+  if (!isUsingAuth || isUserAuthorized(meRole, requiredRole)) {
     return React.cloneElement(
-      React.isValidElement(children) ? children : children[0]
-    )
+      React.isValidElement(children) ? children : children[0],
+      {...additionalProps}
+    ) // guards against multiple children wrapped by Authorized
   }
 
-  return replaceWith ? React.cloneElement(replaceWith) : null
+  return replaceWith ? replaceWith : null
 
   // if you want elements to be disabled instead of hidden:
   // return React.cloneElement(clonedElement, {disabled: !isAuthorized})
@@ -54,7 +63,7 @@ const Authorized = ({children, me, isUsingAuth, requiredRole, replaceWith}) => {
 const {arrayOf, bool, node, shape, string} = PropTypes
 
 Authorized.propTypes = {
-  isUsingAuth: bool.isRequired,
+  isUsingAuth: bool,
   replaceWith: node,
   children: node.isRequired,
   me: shape({

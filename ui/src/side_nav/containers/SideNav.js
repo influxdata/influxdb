@@ -2,6 +2,8 @@ import React, {PropTypes} from 'react'
 import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
 
+import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
+
 import {
   NavBar,
   NavBlock,
@@ -108,9 +110,11 @@ const SideNav = React.createClass({
               Create
             </NavListItem>
           </NavBlock>
-          <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
-            <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
-          </NavBlock>
+          <Authorized requiredRole={ADMIN_ROLE}>
+            <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
+              <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
+            </NavBlock>
+          </Authorized>
           <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>
             <NavHeader
               link={`${sourcePrefix}/manage-sources`}

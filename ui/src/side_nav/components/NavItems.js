@@ -2,13 +2,15 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
 
+import Authorized from 'src/auth/Authorized'
+
 const {bool, node, string} = PropTypes
 
 const NavListItem = React.createClass({
   propTypes: {
     link: string.isRequired,
     children: node,
-    location: string,
+    location: string.isRequired,
     useAnchor: bool,
     isExternal: bool,
   },
@@ -60,15 +62,14 @@ const NavBlock = React.createClass({
     children: node,
     link: string,
     icon: string.isRequired,
-    location: string,
+    location: string.isRequired,
     className: string,
   },
 
   render() {
     const {location, className} = this.props
-
     const isActive = React.Children.toArray(this.props.children).find(child => {
-      return location.startsWith(child.props.link)
+      return location.startsWith(child.props.link) // if location is undefined, this will fail silently
     })
 
     const children = React.Children.map(this.props.children, child => {
@@ -119,7 +120,7 @@ const NavBar = React.createClass({
 
   render() {
     const children = React.Children.map(this.props.children, child => {
-      if (child && child.type === NavBlock) {
+      if (child && (child.type === NavBlock || child.type === Authorized)) {
         return React.cloneElement(child, {
           location: this.props.location,
         })
