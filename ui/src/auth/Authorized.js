@@ -1,4 +1,4 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PropTypes} from 'react'
 
 import {connect} from 'react-redux'
 
@@ -33,26 +33,22 @@ export const isUserAuthorized = (meRole, requiredRole) => {
 
 const getRoleName = ({roles: [{name}, ..._]}) => name
 
-class Authorized extends Component {
-  render() {
-    const {children, me, isUsingAuth, requiredRole, replaceWith} = this.props
-
-    if (!isUsingAuth) {
-      return React.isValidElement(children) ? children : children[0]
-    }
-
-    const meRole = getRoleName(me)
-    if (isUserAuthorized(meRole, requiredRole)) {
-      return React.cloneElement(
-        React.isValidElement(children) ? children : children[0]
-      )
-    }
-
-    return replaceWith ? React.cloneElement(replaceWith) : null
-
-    // if you want elements to be disabled instead of hidden:
-    // return React.cloneElement(clonedElement, {disabled: !isAuthorized})
+const Authorized = ({children, me, isUsingAuth, requiredRole, replaceWith}) => {
+  if (!isUsingAuth) {
+    return React.isValidElement(children) ? children : children[0]
   }
+
+  const meRole = getRoleName(me)
+  if (isUserAuthorized(meRole, requiredRole)) {
+    return React.cloneElement(
+      React.isValidElement(children) ? children : children[0]
+    )
+  }
+
+  return replaceWith ? React.cloneElement(replaceWith) : null
+
+  // if you want elements to be disabled instead of hidden:
+  // return React.cloneElement(clonedElement, {disabled: !isAuthorized})
 }
 
 const {arrayOf, bool, node, shape, string} = PropTypes
