@@ -19,7 +19,7 @@ type Client struct {
 
 	SourcesStore           *SourcesStore
 	ServersStore           *ServersStore
-	LayoutsStore            *LayoutsStore
+	LayoutsStore           *LayoutsStore
 	DashboardsStore        *DashboardsStore
 	UsersStore             *UsersStore
 	OrganizationsStore     *OrganizationsStore
@@ -55,7 +55,8 @@ func (c *Client) Open(ctx context.Context) error {
 	c.db = db
 
 	if err := c.db.Update(func(tx *bolt.Tx) error {
-		if err := c.OrganizationsStore.Open(tx); err != nil {
+		// Always create Organizations bucket.
+		if _, err := tx.CreateBucketIfNotExists(OrganizationsBucket); err != nil {
 			return err
 		}
 		// Always create Sources bucket.

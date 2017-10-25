@@ -2,21 +2,15 @@ package bolt_test
 
 import (
 	"context"
-	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/bolt"
 )
 
 var orgCmpOptions = cmp.Options{
 	cmpopts.IgnoreFields(chronograf.Organization{}, "ID"),
-	cmpopts.IgnoreFields(chronograf.Organization{}, "SourcesStore"),
-	cmpopts.IgnoreFields(chronograf.Organization{}, "ServersStore"),
-	cmpopts.IgnoreFields(chronograf.Organization{}, "LayoutsStore"),
-	cmpopts.IgnoreFields(chronograf.Organization{}, "DashboardsStore"),
 	cmpopts.EquateEmpty(),
 }
 
@@ -84,46 +78,6 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 			}
 			if diff := cmp.Diff(got, tt.want, orgCmpOptions...); diff != "" {
 				t.Errorf("%q. OrganizationsStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
-			}
-
-			boltSourcesStore, ok := got.SourcesStore.(*bolt.SourcesStore)
-			if !ok {
-				t.Errorf("got.SourcesStore is not *bolt.SourcesStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltSourcesStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() SourcesStore.org = %s, want %s", gotOrg, wantOrg)
-			}
-
-			boltServersStore, ok := got.ServersStore.(*bolt.ServersStore)
-			if !ok {
-				t.Errorf("got.ServersStore is not *bolt.ServersStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltServersStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() ServerssStore.org = %s, want %s", gotOrg, wantOrg)
-			}
-
-			boltLayoutsStore, ok := got.LayoutsStore.(*bolt.LayoutsStore)
-			if !ok {
-				t.Errorf("got.LayoutsStore is not *bolt.LayoutsStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltLayoutsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() LayoutsStore.org = %s, want %s", gotOrg, wantOrg)
-			}
-
-			boltDashboardsStore, ok := got.DashboardsStore.(*bolt.DashboardsStore)
-			if !ok {
-				t.Errorf("got.DashboardStore is not *bolt.DashboardStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltDashboardsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() DashboardsStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
 		})
@@ -197,45 +151,6 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 				t.Errorf("%q. OrganizationsStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
 			}
 
-			boltSourcesStore, ok := got.SourcesStore.(*bolt.SourcesStore)
-			if !ok {
-				t.Errorf("got.SourcesStore is not *bolt.SourcesStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltSourcesStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() SourcesStore.org = %s, want %s", gotOrg, wantOrg)
-			}
-
-			boltServersStore, ok := got.ServersStore.(*bolt.ServersStore)
-			if !ok {
-				t.Errorf("got.ServersStore is not *bolt.ServersStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltServersStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() ServerssStore.org = %s, want %s", gotOrg, wantOrg)
-			}
-
-			boltLayoutsStore, ok := got.LayoutsStore.(*bolt.LayoutsStore)
-			if !ok {
-				t.Errorf("got.LayoutsStore is not *bolt.LayoutsStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltLayoutsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() LayoutsStore.org = %s, want %s", gotOrg, wantOrg)
-			}
-
-			boltDashboardsStore, ok := got.DashboardsStore.(*bolt.DashboardsStore)
-			if !ok {
-				t.Errorf("got.DashboardStore is not *bolt.DashboardStore")
-				return
-			}
-
-			if gotOrg, wantOrg := boltDashboardsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() DashboardsStore.org = %s, want %s", gotOrg, wantOrg)
-			}
 		})
 	}
 }

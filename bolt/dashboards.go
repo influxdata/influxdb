@@ -17,9 +17,8 @@ var DashboardsBucket = []byte("Dashoard")
 
 // DashboardsStore is the bolt implementation of storing dashboards
 type DashboardsStore struct {
-	client       *Client
-	IDs          chronograf.ID
-	Organization string
+	client *Client
+	IDs    chronograf.ID
 }
 
 // AddIDs is a migration function that adds ID information to existing dashboards
@@ -62,7 +61,7 @@ func (d *DashboardsStore) Migrate(ctx context.Context) error {
 func (d *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, error) {
 	var srcs []chronograf.Dashboard
 	if err := d.client.db.View(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(bucket(DashboardsBucket, d.Organization)).ForEach(func(k, v []byte) error {
+		if err := tx.Bucket(DashboardsBucket).ForEach(func(k, v []byte) error {
 			var src chronograf.Dashboard
 			if err := internal.UnmarshalDashboard(v, &src); err != nil {
 				return err
@@ -83,7 +82,7 @@ func (d *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, erro
 // Add creates a new Dashboard in the DashboardsStore
 func (d *DashboardsStore) Add(ctx context.Context, src chronograf.Dashboard) (chronograf.Dashboard, error) {
 	if err := d.client.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bucket(DashboardsBucket, d.Organization))
+		b := tx.Bucket(DashboardsBucket)
 		id, _ := b.NextSequence()
 
 		src.ID = chronograf.DashboardID(id)
@@ -114,7 +113,7 @@ func (d *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (c
 	var src chronograf.Dashboard
 	if err := d.client.db.View(func(tx *bolt.Tx) error {
 		strID := strconv.Itoa(int(id))
-		if v := tx.Bucket(bucket(DashboardsBucket, d.Organization)).Get([]byte(strID)); v == nil {
+		if v := tx.Bucket(DashboardsBucket).Get([]byte(strID)); v == nil {
 			return chronograf.ErrDashboardNotFound
 		} else if err := internal.UnmarshalDashboard(v, &src); err != nil {
 			return err
@@ -131,7 +130,7 @@ func (d *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (c
 func (d *DashboardsStore) Delete(ctx context.Context, dash chronograf.Dashboard) error {
 	if err := d.client.db.Update(func(tx *bolt.Tx) error {
 		strID := strconv.Itoa(int(dash.ID))
-		if err := tx.Bucket(bucket(DashboardsBucket, d.Organization)).Delete([]byte(strID)); err != nil {
+		if err := tx.Bucket(DashboardsBucket).Delete([]byte(strID)); err != nil {
 			return err
 		}
 		return nil
@@ -146,7 +145,7 @@ func (d *DashboardsStore) Delete(ctx context.Context, dash chronograf.Dashboard)
 func (d *DashboardsStore) Update(ctx context.Context, dash chronograf.Dashboard) error {
 	if err := d.client.db.Update(func(tx *bolt.Tx) error {
 		// Get an existing dashboard with the same ID.
-		b := tx.Bucket(bucket(DashboardsBucket, d.Organization))
+		b := tx.Bucket(DashboardsBucket)
 		strID := strconv.Itoa(int(dash.ID))
 		if v := b.Get([]byte(strID)); v == nil {
 			return chronograf.ErrDashboardNotFound
