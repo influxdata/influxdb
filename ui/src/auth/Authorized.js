@@ -36,15 +36,16 @@ class Authorized extends Component {
 
   render() {
     // TODO: make this return component if not using auth
-    const {children, me, requiredRole} = this.props
+    const {children, me, requiredRole, replaceWith} = this.props
 
     const meRole = getRoleName(me)
 
-    return this.isAuthorized(meRole, requiredRole)
-      ? React.cloneElement(
-          React.isValidElement(children) ? children : children[0]
-        )
-      : null
+    if (this.isAuthorized(meRole, requiredRole)) {
+      return React.cloneElement(
+        React.isValidElement(children) ? children : children[0]
+      )
+    }
+    return replaceWith ? React.cloneElement(replaceWith) : null
 
     // if you want elements to be disabled instead of hidden:
     // return React.cloneElement(clonedElement, {disabled: !isAuthorized})
@@ -54,6 +55,7 @@ class Authorized extends Component {
 const {arrayOf, node, shape, string} = PropTypes
 
 Authorized.propTypes = {
+  replaceWith: node,
   children: node.isRequired,
   me: shape({
     roles: arrayOf(
