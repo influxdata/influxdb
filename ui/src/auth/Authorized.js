@@ -2,10 +2,10 @@ import React, {Component, PropTypes} from 'react'
 
 import {connect} from 'react-redux'
 
-const VIEWER_ROLE = 'viewer'
-const EDITOR_ROLE = 'editor'
-const ADMIN_ROLE = 'admin'
-const SUPERADMIN_ROLE = 'superadmin'
+export const VIEWER_ROLE = 'viewer'
+export const EDITOR_ROLE = 'editor'
+export const ADMIN_ROLE = 'admin'
+export const SUPERADMIN_ROLE = 'superadmin'
 
 const getRoleName = ({roles: [{name}, ..._]}) => name
 
