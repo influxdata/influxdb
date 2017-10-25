@@ -260,10 +260,11 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 		templates[i] = template
 	}
 	return proto.Marshal(&Dashboard{
-		ID:        int64(d.ID),
-		Cells:     cells,
-		Templates: templates,
-		Name:      d.Name,
+		ID:           int64(d.ID),
+		Cells:        cells,
+		Templates:    templates,
+		Name:         d.Name,
+		Organization: d.Organization,
 	})
 }
 
@@ -372,6 +373,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 	d.Cells = cells
 	d.Templates = templates
 	d.Name = pb.Name
+	d.Organization = pb.Organization
 	return nil
 }
 

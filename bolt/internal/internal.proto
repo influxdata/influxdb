@@ -21,6 +21,7 @@ message Dashboard {
 	string Name                  = 2; // Name is the user-defined name of the dashboard
 	repeated DashboardCell cells = 3; // a representation of all visual data required for rendering the dashboard
 	repeated Template templates  = 4; // Templates replace template variables within InfluxQL
+	string Organization          = 5; // Organization is the organization ID for a resource
 }
 
 message DashboardCell {

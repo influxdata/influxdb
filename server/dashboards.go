@@ -15,11 +15,12 @@ type dashboardLinks struct {
 }
 
 type dashboardResponse struct {
-	ID        chronograf.DashboardID  `json:"id"`
-	Cells     []dashboardCellResponse `json:"cells"`
-	Templates []templateResponse      `json:"templates"`
-	Name      string                  `json:"name"`
-	Links     dashboardLinks          `json:"links"`
+	ID           chronograf.DashboardID  `json:"id"`
+	Cells        []dashboardCellResponse `json:"cells"`
+	Templates    []templateResponse      `json:"templates"`
+	Name         string                  `json:"name"`
+	Organization string                  `json:"organization"`
+	Links        dashboardLinks          `json:"links"`
 }
 
 type getDashboardsResponse struct {
@@ -217,6 +218,9 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 
 // ValidDashboardRequest verifies that the dashboard cells have a query
 func ValidDashboardRequest(d *chronograf.Dashboard) error {
+	if d.Organization == "" {
+		return fmt.Errorf("organization must be set")
+	}
 	for i, c := range d.Cells {
 		if err := ValidDashboardCellRequest(&c); err != nil {
 			return err
@@ -238,6 +242,7 @@ func DashboardDefaults(d chronograf.Dashboard) (newDash chronograf.Dashboard) {
 	newDash.ID = d.ID
 	newDash.Templates = d.Templates
 	newDash.Name = d.Name
+	newDash.Organization = d.Organization
 	newDash.Cells = make([]chronograf.DashboardCell, len(d.Cells))
 
 	for i, c := range d.Cells {

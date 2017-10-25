@@ -668,10 +668,11 @@ type DashboardID int
 
 // Dashboard represents all visual and query data for a dashboard
 type Dashboard struct {
-	ID        DashboardID     `json:"id"`
-	Cells     []DashboardCell `json:"cells"`
-	Templates []Template      `json:"templates"`
-	Name      string          `json:"name"`
+	ID           DashboardID     `json:"id"`
+	Cells        []DashboardCell `json:"cells"`
+	Templates    []Template      `json:"templates"`
+	Name         string          `json:"name"`
+	Organization string          `json:"organization"`
 }
 
 // Axis represents the visible extents of a visualization
