@@ -189,6 +189,10 @@ func ValidLayoutRequest(l chronograf.Layout) error {
 		return fmt.Errorf("app, measurement, and cells required")
 	}
 
+	if l.Organization == "" {
+		return fmt.Errorf("organization required")
+	}
+
 	for _, c := range l.Cells {
 		if c.W == 0 || c.H == 0 {
 			return fmt.Errorf("w, and h required")
