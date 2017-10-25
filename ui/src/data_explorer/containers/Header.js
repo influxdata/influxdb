@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -24,14 +26,16 @@ const Header = ({
       <div className="page-header__right">
         <GraphTips />
         <SourceIndicator />
-        <div
-          className="btn btn-sm btn-default"
-          onClick={showWriteForm}
-          data-test="write-data-button"
-        >
-          <span className="icon pencil" />
-          Write Data
-        </div>
+        <Authorized requiredRole={EDITOR_ROLE}>
+          <div
+            className="btn btn-sm btn-default"
+            onClick={showWriteForm}
+            data-test="write-data-button"
+          >
+            <span className="icon pencil" />
+            Write Data
+          </div>
+        </Authorized>
         <AutoRefreshDropdown
           iconName="refresh"
           selected={autoRefresh}
