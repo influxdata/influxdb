@@ -62,7 +62,7 @@ func getProvider(ctx context.Context) (string, error) {
 // support OAuth2. This hard-coding should be removed whenever we add
 // support for other authentication schemes.
 func getScheme(ctx context.Context) (string, error) {
-	return "OAuth2", nil
+	return "oauth2", nil
 }
 
 func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
@@ -123,7 +123,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		// TODO: This Scheme value is hard-coded temporarily since we only currently
 		// support OAuth2. This hard-coding should be removed whenever we add
 		// support for other authentication schemes.
-		Scheme: "OAuth2",
+		Scheme: "oauth2",
 	}
 
 	newUser, err := s.UsersStore.Add(ctx, user)

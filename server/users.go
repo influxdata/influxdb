@@ -33,7 +33,7 @@ func (r *userRequest) ValidCreate() error {
 	// TODO: This Scheme value is hard-coded temporarily since we only currently
 	// support OAuth2. This hard-coding should be removed whenever we add
 	// support for other authentication schemes.
-	r.Scheme = "OAuth2"
+	r.Scheme = "oauth2"
 	return r.ValidRoles()
 }
 

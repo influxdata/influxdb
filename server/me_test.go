@@ -51,19 +51,19 @@ func TestService_Me(t *testing.T) {
 						}
 						return &chronograf.User{
 							Name:     "me",
-							Provider: "GitHub",
-							Scheme:   "OAuth2",
+							Provider: "github",
+							Scheme:   "oauth2",
 						}, nil
 					},
 				},
 			},
 			principal: oauth2.Principal{
 				Subject: "me",
-				Issuer:  "GitHub",
+				Issuer:  "github",
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/me"}}
+			wantBody: `{"name":"me","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"}}
 `,
 		},
 		{
@@ -89,11 +89,11 @@ func TestService_Me(t *testing.T) {
 			},
 			principal: oauth2.Principal{
 				Subject: "secret",
-				Issuer:  "Auth0",
+				Issuer:  "auth0",
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","provider":"Auth0","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/secret"}}
+			wantBody: `{"name":"secret","provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/secret"}}
 `,
 		},
 		{
@@ -116,7 +116,7 @@ func TestService_Me(t *testing.T) {
 			},
 			principal: oauth2.Principal{
 				Subject: "secret",
-				Issuer:  "Heroku",
+				Issuer:  "heroku",
 			},
 			wantStatus:      http.StatusInternalServerError,
 			wantContentType: "application/json",
