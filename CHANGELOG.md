@@ -83,6 +83,7 @@
 - [#8780](https://github.com/influxdata/influxdb/issues/8780): Prevent deadlock during collectd, graphite, opentsdb, and udp shutdown.
 - [#8983](https://github.com/influxdata/influxdb/issues/8983): Remove the pidfile after the server has exited.
 - [#9005](https://github.com/influxdata/influxdb/pull/9005): Return `query.ErrQueryInterrupted` for successful read on `InterruptCh`.
+- [#8989](https://github.com/influxdata/influxdb/issues/8989): Fix race inside Measurement index.
 
 ## v1.3.4 [unreleased]
 
