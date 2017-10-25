@@ -2,6 +2,8 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 
 const {colID, colType, colEnabled, colActions} = TASKS_TABLE
@@ -60,18 +62,22 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
       </div>
     </td>
     <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <Link
-        className="btn btn-info btn-xs"
-        to={`/sources/${source.id}/tickscript/${task.id}`}
-      >
-        Edit TICKscript
-      </Link>
-      <button
-        className="btn btn-danger btn-xs"
-        onClick={handleDelete(task, onDelete)}
-      >
-        Delete
-      </button>
+      <Authorized requiredRole={EDITOR_ROLE}>
+        <Link
+          className="btn btn-info btn-xs"
+          to={`/sources/${source.id}/tickscript/${task.id}`}
+        >
+          Edit TICKscript
+        </Link>
+      </Authorized>
+      <Authorized requiredRole={EDITOR_ROLE}>
+        <button
+          className="btn btn-danger btn-xs"
+          onClick={handleDelete(task, onDelete)}
+        >
+          Delete
+        </button>
+      </Authorized>
     </td>
   </tr>
 
