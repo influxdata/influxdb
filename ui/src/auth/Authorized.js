@@ -7,33 +7,33 @@ export const EDITOR_ROLE = 'editor'
 export const ADMIN_ROLE = 'admin'
 export const SUPERADMIN_ROLE = 'superadmin'
 
+export const isUserAuthorized = (meRole, requiredRole) => {
+  switch (requiredRole) {
+    case VIEWER_ROLE:
+      return (
+        meRole === VIEWER_ROLE ||
+        meRole === EDITOR_ROLE ||
+        meRole === ADMIN_ROLE ||
+        meRole === SUPERADMIN_ROLE
+      )
+    case EDITOR_ROLE:
+      return (
+        meRole === EDITOR_ROLE ||
+        meRole === ADMIN_ROLE ||
+        meRole === SUPERADMIN_ROLE
+      )
+    case ADMIN_ROLE:
+      return meRole === ADMIN_ROLE || meRole === SUPERADMIN_ROLE
+    case SUPERADMIN_ROLE:
+      return meRole === SUPERADMIN_ROLE
+    default:
+      return false
+  }
+}
+
 const getRoleName = ({roles: [{name}, ..._]}) => name
 
 class Authorized extends Component {
-  isAuthorized = (meRole, requiredRole) => {
-    switch (requiredRole) {
-      case VIEWER_ROLE:
-        return (
-          meRole === VIEWER_ROLE ||
-          meRole === EDITOR_ROLE ||
-          meRole === ADMIN_ROLE ||
-          meRole === SUPERADMIN_ROLE
-        )
-      case EDITOR_ROLE:
-        return (
-          meRole === EDITOR_ROLE ||
-          meRole === ADMIN_ROLE ||
-          meRole === SUPERADMIN_ROLE
-        )
-      case ADMIN_ROLE:
-        return meRole === ADMIN_ROLE || meRole === SUPERADMIN_ROLE
-      case SUPERADMIN_ROLE:
-        return meRole === SUPERADMIN_ROLE
-      default:
-        return false
-    }
-  }
-
   render() {
     const {children, me, isUsingAuth, requiredRole, replaceWith} = this.props
 
@@ -42,7 +42,7 @@ class Authorized extends Component {
     }
 
     const meRole = getRoleName(me)
-    if (this.isAuthorized(meRole, requiredRole)) {
+    if (isUserAuthorized(meRole, requiredRole)) {
       return React.cloneElement(
         React.isValidElement(children) ? children : children[0]
       )
