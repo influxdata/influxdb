@@ -1,26 +1,5 @@
 import AJAX from 'utils/ajax'
 
-export const log = async () => {
-  try {
-    let response = await fetch('http://localhost:9092/kapacitor/v1/logs', {
-      method: 'GET',
-      headers: {'Content-Type': 'application/json'},
-    })
-
-    const reader = await response.body.getReader()
-    const decoder = new TextDecoder()
-    const result = await reader.read()
-    const chunk = decoder.decode(result.value || new Uint8Array(), {
-      stream: !result.done,
-    })
-    return chunk
-    console.log(chunk)
-    return result
-  } catch (error) {
-    console.log(error)
-  }
-}
-
 const rangeRule = rule => {
   const {value, rangeValue, operator} = rule.values
 

@@ -39,10 +39,18 @@ const Tickscript = ({
       </div>
       <div className="tickscript-editor">
         <div>
-          {logs.map((l, i) =>
-            <pre key={i}>
-              {JSON.stringify(l, null, 2)}
-            </pre>
+          {logs.map(({key, ts, lvl, msg}) =>
+            <div key={key}>
+              <span>
+                {ts}
+              </span>
+              <span>
+                {lvl}
+              </span>
+              <pre>
+                {msg}
+              </pre>
+            </div>
           )}
         </div>
         <TickscriptEditor

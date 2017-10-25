@@ -6,7 +6,6 @@ import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
-import {log} from 'src/kapacitor/apis'
 
 class TickscriptPage extends Component {
   constructor(props) {
@@ -24,7 +23,53 @@ class TickscriptPage extends Component {
       },
       validation: '',
       isEditingID: true,
-      logs: [{hai: 'hunter', watts: 'is nice'}, {yoMomma: 'is so nice'}],
+      logs: [],
+    }
+  }
+
+  shouldFetch = null
+
+  logKey = j => (log, i) => ({
+    ...log,
+    key: `${log.ts}-${j}-${i}`,
+  })
+
+  fetchChunkedLogs = async () => {
+    try {
+      const response = await fetch('http://localhost:9092/kapacitor/v1/logs', {
+        method: 'GET',
+        headers: {'Content-Type': 'application/json'},
+      })
+
+      const reader = await response.body.getReader()
+      const decoder = new TextDecoder()
+
+      let result
+      let j = 0
+
+      while (this.shouldFetch === true && !(result && result.done)) {
+        result = await reader.read()
+
+        const chunk = decoder.decode(result.value || new Uint8Array(), {
+          stream: !result.done,
+        })
+
+        // console.log(chunk)
+
+        const json = `[${chunk.split('}{').join('},{')}]`
+
+        const logs = JSON.parse(json).map(this.logKey(j))
+
+        // console.log(log)
+        this.setState({
+          logs: [...this.state.logs, ...logs],
+        })
+
+        j += 1
+      }
+    } catch (error) {
+      // console.log(error)
+      // TODO error handling
     }
   }
 
@@ -52,9 +97,15 @@ class TickscriptPage extends Component {
       this.setState({task: {tickscript, dbrps, type, status, name, id}})
     }
 
-    const logs = await log()
+    this.shouldFetch = true
 
-    this.setState({kapacitor, logs})
+    this.fetchChunkedLogs()
+
+    this.setState({kapacitor})
+  }
+
+  componentWillUnmount() {
+    this.shouldFetch = false
   }
 
   handleSave = async () => {
