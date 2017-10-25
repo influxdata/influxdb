@@ -77,6 +77,7 @@ message Server {
 	string URL              = 5; // URL is the path to the server
 	int64 SrcID             = 6; // SrcID is the ID of the data source
 	bool Active             = 7; // is this the currently active server for the source
+	string Organization     = 8; // Organization is the organization ID for a resource
 }
 
 message Layout {
