@@ -24,7 +24,8 @@ while getopts hO:A:s arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     O) OS="$OPTARG";;
-    A) ARCH="$OPTARG";;
+    # For backwards compatibility, ensure the packages say i386 if using GOARCH=386.
+    A) ARCH="$(echo "$OPTARG" | sed 's/386/i386/')";;
     s) STATIC="1";;
   esac
 done
