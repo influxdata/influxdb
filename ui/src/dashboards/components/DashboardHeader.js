@@ -48,13 +48,22 @@ const DashboardHeader = ({
                 />
               : null}
             {dashboard
-              ? <DashboardHeaderEdit
-                  onSave={onSave}
-                  onCancel={onCancel}
-                  activeDashboard={activeDashboard}
-                  onEditDashboard={onEditDashboard}
-                  isEditMode={isEditMode}
-                />
+              ? <Authorized
+                  requiredRole={EDITOR_ROLE}
+                  replaceWith={
+                    <h1 className="page-header__title">
+                      {activeDashboard}
+                    </h1>
+                  }
+                >
+                  <DashboardHeaderEdit
+                    onSave={onSave}
+                    onCancel={onCancel}
+                    activeDashboard={activeDashboard}
+                    onEditDashboard={onEditDashboard}
+                    isEditMode={isEditMode}
+                  />
+                </Authorized>
               : <h1 className="page-header__title">
                   {activeDashboard}
                 </h1>}
