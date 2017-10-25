@@ -46,6 +46,10 @@ $tooltip-code-color: $c-potassium;
     line-height: 1.125em;
     letter-spacing: 0;
     font-family: $default-font;
+
+    &:only-child {
+      margin: 0;
+    }
   }
 
   p {
