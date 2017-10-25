@@ -1,5 +1,4 @@
 import React, {PropTypes} from 'react'
-
 import {connect} from 'react-redux'
 
 export const VIEWER_ROLE = 'viewer'
@@ -39,6 +38,7 @@ const Authorized = ({
   isUsingAuth,
   requiredRole,
   replaceWith,
+  propsOverride,
   ...additionalProps
 }) => {
   // if me response has not been received yet, render nothing
@@ -50,7 +50,7 @@ const Authorized = ({
   if (!isUsingAuth || isUserAuthorized(meRole, requiredRole)) {
     return React.cloneElement(
       React.isValidElement(children) ? children : children[0],
-      {...additionalProps}
+      {...additionalProps, ...propsOverride}
     ) // guards against multiple children wrapped by Authorized
   }
 
@@ -74,6 +74,7 @@ Authorized.propTypes = {
     ),
   }),
   requiredRole: string.isRequired,
+  propsOverride: shape(),
 }
 
 const mapStateToProps = ({auth: {me, isUsingAuth}}) => ({

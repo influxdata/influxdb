@@ -41,35 +41,40 @@ const kapacitorDropdown = (
   }
 
   return (
-    <Dropdown
-      className="dropdown-260"
-      buttonColor="btn-primary"
-      buttonSize="btn-xs"
-      items={kapacitorItems}
-      onChoose={setActiveKapacitor}
-      addNew={{
-        url: `/sources/${source.id}/kapacitors/new`,
-        text: 'Add Kapacitor',
-      }}
-      actions={[
-        {
-          icon: 'pencil',
-          text: 'edit',
-          handler: item => {
-            router.push(`${item.resource}/edit`)
+    <Authorized
+      requiredRole={EDITOR_ROLE}
+      propsOverride={{addNew: null, actions: null}}
+    >
+      <Dropdown
+        className="dropdown-260"
+        buttonColor="btn-primary"
+        buttonSize="btn-xs"
+        items={kapacitorItems}
+        onChoose={setActiveKapacitor}
+        addNew={{
+          url: `/sources/${source.id}/kapacitors/new`,
+          text: 'Add Kapacitor',
+        }}
+        actions={[
+          {
+            icon: 'pencil',
+            text: 'edit',
+            handler: item => {
+              router.push(`${item.resource}/edit`)
+            },
           },
-        },
-        {
-          icon: 'trash',
-          text: 'delete',
-          handler: item => {
-            handleDeleteKapacitor(item.kapacitor)
+          {
+            icon: 'trash',
+            text: 'delete',
+            handler: item => {
+              handleDeleteKapacitor(item.kapacitor)
+            },
+            confirmable: true,
           },
-          confirmable: true,
-        },
-      ]}
-      selected={selected}
-    />
+        ]}
+        selected={selected}
+      />
+    </Authorized>
   )
 }
 
