@@ -41,6 +41,7 @@
 - [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.
 - [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
 - [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion. 
+- [#8986](https://github.com/influxdata/influxdb/issues/8986): Add long-line support to client importer. Thanks @lets00!
 
 ### Bugfixes
 
@@ -82,7 +83,7 @@
 - [#8822](https://github.com/influxdata/influxdb/issues/8822): Fix data dropped incorrectly during compaction
 - [#8780](https://github.com/influxdata/influxdb/issues/8780): Prevent deadlock during collectd, graphite, opentsdb, and udp shutdown.
 - [#8983](https://github.com/influxdata/influxdb/issues/8983): Remove the pidfile after the server has exited.
-- [#8986](https://github.com/influxdata/influxdb/issues/8986): Add long-line support to client importer.
+- [#9005](https://github.com/influxdata/influxdb/pull/9005): Return `query.ErrQueryInterrupted` for successful read on `InterruptCh`.
 
 ## v1.3.4 [unreleased]
 
