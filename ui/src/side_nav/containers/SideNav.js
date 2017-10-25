@@ -22,6 +22,7 @@ const SideNav = React.createClass({
       pathname: string.isRequired,
     }).isRequired,
     isHidden: bool.isRequired,
+    isUsingAuth: bool,
     logoutLink: string,
     customLinks: arrayOf(
       shape({
@@ -61,13 +62,13 @@ const SideNav = React.createClass({
       params: {sourceID},
       location: {pathname: location},
       isHidden,
+      isUsingAuth,
       logoutLink,
       customLinks,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-    const isUsingAuth = !!logoutLink
 
     const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
 
@@ -135,11 +136,12 @@ const SideNav = React.createClass({
 })
 
 const mapStateToProps = ({
-  auth: {logoutLink},
+  auth: {isUsingAuth, logoutLink},
   app: {ephemeral: {inPresentationMode}},
   links: {external: {custom: customLinks}},
 }) => ({
   isHidden: inPresentationMode,
+  isUsingAuth,
   logoutLink,
   customLinks,
 })
