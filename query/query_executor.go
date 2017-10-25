@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -169,6 +170,26 @@ func (ctx *ExecutionContext) Send(result *Result) error {
 	case ctx.Results <- result:
 	}
 	return nil
+}
+
+type contextKey int
+
+const (
+	iteratorsContextKey contextKey = iota
+)
+
+// NewContextWithIterators returns a new context.Context with the *Iterators slice added.
+// The query planner will add instances of AuxIterator to the Iterators slice.
+func NewContextWithIterators(ctx context.Context, itr *Iterators) context.Context {
+	return context.WithValue(ctx, iteratorsContextKey, itr)
+}
+
+// tryAddAuxIteratorToContext will capture itr in the *Iterators slice, when configured
+// with a call to NewContextWithIterators.
+func tryAddAuxIteratorToContext(ctx context.Context, itr AuxIterator) {
+	if v, ok := ctx.Value(iteratorsContextKey).(*Iterators); ok {
+		*v = append(*v, itr)
+	}
 }
 
 // StatementExecutor executes a statement within the QueryExecutor.

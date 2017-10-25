@@ -445,6 +445,8 @@ func (e *StatementExecutor) executeExplainAnalyzeStatement(q *influxql.ExplainSt
 	t, span := tracing.NewTrace("select")
 	ctx := tracing.NewContextWithTrace(context.Background(), t)
 	ctx = tracing.NewContextWithSpan(ctx, span)
+	var aux query.Iterators
+	ctx = query.NewContextWithIterators(ctx, &aux)
 	start := time.Now()
 
 	itrs, columns, err := e.createIterators(ctx, stmt, ectx)
@@ -489,6 +491,9 @@ CLEANUP:
 	if err != nil {
 		return nil, err
 	}
+
+	// close auxiliary iterators deterministically to finalize any captured measurements
+	aux.Close()
 
 	totalTime := time.Since(start)
 	span.MergeFields(
