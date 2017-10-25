@@ -12,16 +12,21 @@ import (
 )
 
 type postKapacitorRequest struct {
-	Name     *string `json:"name"`               // User facing name of kapacitor instance.; Required: true
-	URL      *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
-	Username string  `json:"username,omitempty"` // Username for authentication to kapacitor
-	Password string  `json:"password,omitempty"`
-	Active   bool    `json:"active"`
+	Name         *string `json:"name"`               // User facing name of kapacitor instance.; Required: true
+	URL          *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
+	Username     string  `json:"username,omitempty"` // Username for authentication to kapacitor
+	Password     string  `json:"password,omitempty"`
+	Active       bool    `json:"active"`
+	Organization string  `json:"organization"`
 }
 
 func (p *postKapacitorRequest) Valid() error {
 	if p.Name == nil || p.URL == nil {
 		return fmt.Errorf("name and url required")
+	}
+
+	if p.Organization == "" {
+		return fmt.Errorf("organization must be set")
 	}
 
 	url, err := url.ParseRequestURI(*p.URL)
@@ -79,12 +84,13 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	srv := chronograf.Server{
-		SrcID:    srcID,
-		Name:     *req.Name,
-		Username: req.Username,
-		Password: req.Password,
-		URL:      *req.URL,
-		Active:   req.Active,
+		SrcID:        srcID,
+		Name:         *req.Name,
+		Username:     req.Username,
+		Password:     req.Password,
+		URL:          *req.URL,
+		Active:       req.Active,
+		Organization: req.Organization,
 	}
 
 	if srv, err = s.ServersStore.Add(ctx, srv); err != nil {
