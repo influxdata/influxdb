@@ -4,13 +4,14 @@ import EmptyQuery from 'src/shared/components/EmptyQuery'
 import QueryTabList from 'src/shared/components/QueryTabList'
 import QueryTextArea from 'src/dashboards/components/QueryTextArea'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
-import buildInfluxQLQuery from 'utils/influxql'
+import {buildQuery} from 'utils/influxql'
+import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
 
 const TEMPLATE_RANGE = {upper: null, lower: ':dashboardTime:'}
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
 const buildText = q =>
-  q.rawText || buildInfluxQLQuery(q.range || TEMPLATE_RANGE, q) || ''
+  q.rawText || buildQuery(TYPE_QUERY_CONFIG, q.range || TEMPLATE_RANGE, q) || ''
 
 const QueryMaker = ({
   source,
@@ -22,6 +23,7 @@ const QueryMaker = ({
   activeQuery,
   onDeleteQuery,
   activeQueryIndex,
+  initialGroupByTime,
   setActiveQueryIndex,
 }) =>
   <div className="query-maker query-maker--panel">
@@ -46,16 +48,17 @@ const QueryMaker = ({
             templates={templates}
           />
           <SchemaExplorer
-            query={activeQuery}
-            actions={actions}
-            onAddQuery={onAddQuery}
             source={source}
+            actions={actions}
+            query={activeQuery}
+            onAddQuery={onAddQuery}
+            initialGroupByTime={initialGroupByTime}
           />
         </div>
       : <EmptyQuery onAddQuery={onAddQuery} />}
   </div>
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 QueryMaker.propTypes = {
   source: shape({
@@ -68,7 +71,6 @@ QueryMaker.propTypes = {
     upper: string,
     lower: string,
   }).isRequired,
-  isInDataExplorer: bool,
   actions: shape({
     chooseNamespace: func.isRequired,
     chooseMeasurement: func.isRequired,
@@ -80,6 +82,7 @@ QueryMaker.propTypes = {
     fill: func,
     applyFuncsToField: func.isRequired,
     editRawTextAsync: func.isRequired,
+    addInitialField: func.isRequired,
   }).isRequired,
   setActiveQueryIndex: func.isRequired,
   onDeleteQuery: func.isRequired,
@@ -91,6 +94,7 @@ QueryMaker.propTypes = {
       tempVar: string.isRequired,
     })
   ).isRequired,
+  initialGroupByTime: string.isRequired,
 }
 
 export default QueryMaker

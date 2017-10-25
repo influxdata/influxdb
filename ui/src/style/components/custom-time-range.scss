@@ -33,6 +33,10 @@
   align-items: flex-start;
   justify-content: space-between;
 }
+.custom-time--upper-container,
+.custom-time--lower-container {
+  position: relative;
+}
 .custom-time--lower {
   margin-right: 4px;
   text-align: center;
@@ -40,6 +44,21 @@
 .custom-time--upper {
   margin-left: 4px;
   text-align: center;
+}
+.custom-time--mask {
+  position: absolute;
+  width: 100%;
+  height: calc(100% - 30px);
+  top: 30px;
+  left: 0;
+  opacity: 0.5;
+  background-color: $g5-pepper;
+  z-index: 2;
+}
+.custom-time--now {
+  position: absolute !important;
+  right: 0;
+  top: 4px;
 }
 .custom-time--shortcuts {
   @include no-user-select();

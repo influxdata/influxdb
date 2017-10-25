@@ -1,5 +1,4 @@
-import React, {PropTypes} from 'react'
-import {Link} from 'react-router'
+import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import _ from 'lodash'
@@ -10,6 +9,7 @@ import Dygraph from 'src/external/dygraph'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import {
@@ -23,39 +23,16 @@ import {fetchLayouts} from 'shared/apis'
 import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
-const {shape, string, bool, func, number} = PropTypes
-
-export const HostPage = React.createClass({
-  propTypes: {
-    source: shape({
-      links: shape({
-        proxy: string.isRequired,
-      }).isRequired,
-      telegraf: string.isRequired,
-      id: string.isRequired,
-    }),
-    params: shape({
-      hostID: string.isRequired,
-    }).isRequired,
-    location: shape({
-      query: shape({
-        app: string,
-      }),
-    }),
-    autoRefresh: number.isRequired,
-    handleChooseAutoRefresh: func.isRequired,
-    inPresentationMode: bool,
-    handleClickPresentationButton: func,
-  },
-
-  getInitialState() {
-    return {
+class HostPage extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       layouts: [],
-      hosts: [],
+      hosts: {},
       timeRange: timeRanges.find(tr => tr.lower === 'now() - 1h'),
       dygraphs: [],
     }
-  },
+  }
 
   async componentDidMount() {
     const {source, params, location} = this.props
@@ -70,6 +47,7 @@ export const HostPage = React.createClass({
       mappings,
       source.telegraf
     )
+
     const measurements = await getMeasurementsForHost(source, params.hostID)
 
     const host = newHosts[this.props.params.hostID]
@@ -96,19 +74,19 @@ export const HostPage = React.createClass({
     }
 
     this.setState({layouts: filteredLayouts, hosts: filteredHosts}) // eslint-disable-line react/no-did-mount-set-state
-  },
+  }
 
-  handleChooseTimeRange({lower, upper}) {
+  handleChooseTimeRange = ({lower, upper}) => {
     if (upper) {
       this.setState({timeRange: {lower, upper}})
     } else {
       const timeRange = timeRanges.find(range => range.lower === lower)
       this.setState({timeRange})
     }
-  },
+  }
 
-  synchronizer(dygraph) {
-    const dygraphs = [...this.state.dygraphs, dygraph]
+  synchronizer = dygraph => {
+    const dygraphs = [...this.state.dygraphs, dygraph].filter(d => d.graphDiv)
     const numGraphs = this.state.layouts.reduce((acc, {cells}) => {
       return acc + cells.length
     }, 0)
@@ -121,11 +99,11 @@ export const HostPage = React.createClass({
       })
     }
     this.setState({dygraphs})
-  },
+  }
 
-  renderLayouts(layouts) {
+  renderLayouts = layouts => {
     const {timeRange} = this.state
-    const {source, autoRefresh} = this.props
+    const {source, autoRefresh, manualRefresh} = this.props
 
     const autoflowLayouts = layouts.filter(layout => !!layout.autoflow)
 
@@ -173,53 +151,46 @@ export const HostPage = React.createClass({
 
     return (
       <LayoutRenderer
-        timeRange={timeRange}
-        cells={layoutCells}
-        autoRefresh={autoRefresh}
         source={source}
-        host={this.props.params.hostID}
         isEditable={false}
+        cells={layoutCells}
+        timeRange={timeRange}
+        autoRefresh={autoRefresh}
+        manualRefresh={manualRefresh}
+        host={this.props.params.hostID}
         synchronizer={this.synchronizer}
       />
     )
-  },
+  }
 
   render() {
     const {
-      params: {hostID},
-      location: {query: {app}},
-      source: {id},
       autoRefresh,
-      handleChooseAutoRefresh,
+      onManualRefresh,
+      params: {hostID, sourceID},
       inPresentationMode,
+      handleChooseAutoRefresh,
       handleClickPresentationButton,
-      source,
     } = this.props
     const {layouts, timeRange, hosts} = this.state
-    const appParam = app ? `?app=${app}` : ''
+    const names = _.map(hosts, ({name}) => ({
+      name,
+      link: `/sources/${sourceID}/hosts/${name}`,
+    }))
 
     return (
       <div className="page">
         <DashboardHeader
-          buttonText={hostID}
-          autoRefresh={autoRefresh}
+          names={names}
           timeRange={timeRange}
+          activeDashboard={hostID}
+          autoRefresh={autoRefresh}
           isHidden={inPresentationMode}
-          handleChooseTimeRange={this.handleChooseTimeRange}
+          onManualRefresh={onManualRefresh}
           handleChooseAutoRefresh={handleChooseAutoRefresh}
+          handleChooseTimeRange={this.handleChooseTimeRange}
           handleClickPresentationButton={handleClickPresentationButton}
-          source={source}
-        >
-          {Object.keys(hosts).map((host, i) => {
-            return (
-              <li className="dropdown-item" key={i}>
-                <Link to={`/sources/${id}/hosts/${host + appParam}`}>
-                  {host}
-                </Link>
-              </li>
-            )
-          })}
-        </DashboardHeader>
+        />
         <FancyScrollbar
           className={classnames({
             'page-contents': true,
@@ -232,8 +203,34 @@ export const HostPage = React.createClass({
         </FancyScrollbar>
       </div>
     )
-  },
-})
+  }
+}
+
+const {shape, string, bool, func, number} = PropTypes
+
+HostPage.propTypes = {
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+    telegraf: string.isRequired,
+    id: string.isRequired,
+  }),
+  params: shape({
+    hostID: string.isRequired,
+  }).isRequired,
+  location: shape({
+    query: shape({
+      app: string,
+    }),
+  }),
+  inPresentationMode: bool,
+  autoRefresh: number.isRequired,
+  manualRefresh: number.isRequired,
+  onManualRefresh: func.isRequired,
+  handleChooseAutoRefresh: func.isRequired,
+  handleClickPresentationButton: func,
+}
 
 const mapStateToProps = ({
   app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}},
@@ -247,4 +244,6 @@ const mapDispatchToProps = dispatch => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(HostPage)
+export default connect(mapStateToProps, mapDispatchToProps)(
+  ManualRefresh(HostPage)
+)

@@ -3,7 +3,7 @@
   "info": {
     "title": "Chronograf",
     "description": "API endpoints for Chronograf",
-    "version": "1.3.9.0"
+    "version": "1.3.10.0"
   },
   "schemes": ["http"],
   "basePath": "/chronograf/v1",
@@ -2497,8 +2497,14 @@
         "retentionPolicy": "autogen",
         "fields": [
           {
-            "field": "usage_system",
-            "funcs": ["max"]
+            "value": "max",
+            "type": "func",
+            "args": [
+              {
+                "value": "usage_system",
+                "type": "field"
+              }
+            ]
           }
         ],
         "tags": {},
@@ -2552,19 +2558,7 @@
         "fields": {
           "type": "array",
           "items": {
-            "type": "object",
-            "properties": {
-              "field": {
-                "type": "string"
-              },
-              "funcs": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            },
-            "required": ["field", "funcs"]
+            "$ref": "#/definitions/Field"
           }
         },
         "range": {
@@ -2611,6 +2605,36 @@
           "description": "All properties attached to the kapacitor node",
           "items": {
             "$ref": "#/definitions/KapacitorProperty"
+          }
+        }
+      }
+    },
+    "Field": {
+      "type": "object",
+      "required": ["type", "value"],
+      "description": "Represents a field to be returned from an InfluxQL query",
+      "properties": {
+        "value": {
+          "description":
+            "value is the value of the field.  Meaning of the value is implied by the `type` key",
+          "type": "string"
+        },
+        "type": {
+          "description":
+            "type describes the field type. func is a function; field is a field reference",
+          "type": "string",
+          "enum": ["func", "field", "integer", "number", "regex", "wildcard"]
+        },
+        "alias": {
+          "description":
+            "Alias overrides the field name in the returned response.  Applies only if type is `func`",
+          "type": "string"
+        },
+        "args": {
+          "description": "Args are the arguments to the function",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Field"
           }
         }
       }
@@ -2706,8 +2730,14 @@
           "retentionPolicy": "autogen",
           "fields": [
             {
-              "field": "usage_system",
-              "funcs": ["max"]
+              "value": "max",
+              "type": "func",
+              "args": [
+                {
+                  "value": "usage_system",
+                  "type": "field"
+                }
+              ]
             }
           ],
           "tags": {},
@@ -2790,7 +2820,6 @@
               "opsgenie",
               "pagerduty",
               "victorops",
-              "smtp",
               "email",
               "exec",
               "log",
@@ -2960,6 +2989,12 @@
         }
       },
       "required": ["db", "rp"]
+    },
+    "Sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Source"
+      }
     },
     "Source": {
       "type": "object",
@@ -3787,7 +3822,7 @@
             "queries": [
               {
                 "query":
-                  "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+                  "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"cpu\"",
                 "label": "%",
                 "queryConfig": {
                   "database": "",
@@ -3795,8 +3830,15 @@
                   "retentionPolicy": "",
                   "fields": [
                     {
-                      "field": "usage_user",
-                      "funcs": ["mean"]
+                      "value": "mean",
+                      "type": "func",
+                      "alias": "mean_usage_user",
+                      "args": [
+                        {
+                          "value": "usage_user",
+                          "type": "field"
+                        }
+                      ]
                     }
                   ],
                   "tags": {},

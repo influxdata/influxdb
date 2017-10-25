@@ -12,6 +12,7 @@ import dataExplorerReducers from 'src/data_explorer/reducers'
 import adminReducer from 'src/admin/reducers/admin'
 import kapacitorReducers from 'src/kapacitor/reducers'
 import dashboardUI from 'src/dashboards/reducers/ui'
+import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
 import persistStateEnhancer from './persistStateEnhancer'
 
 const rootReducer = combineReducers({
@@ -21,6 +22,7 @@ const rootReducer = combineReducers({
   ...kapacitorReducers,
   admin: adminReducer,
   dashboardUI,
+  dashTimeV1,
   routing: routerReducer,
 })
 

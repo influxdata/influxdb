@@ -13,6 +13,7 @@ const Dashboard = ({
   onAddCell,
   timeRange,
   autoRefresh,
+  manualRefresh,
   onDeleteCell,
   synchronizer,
   onPositionChange,
@@ -57,6 +58,7 @@ const Dashboard = ({
               isEditable={true}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
+              manualRefresh={manualRefresh}
               synchronizer={synchronizer}
               onDeleteCell={onDeleteCell}
               onPositionChange={onPositionChange}
@@ -111,6 +113,7 @@ Dashboard.propTypes = {
   }).isRequired,
   sources: arrayOf(shape({})).isRequired,
   autoRefresh: number.isRequired,
+  manualRefresh: number,
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,

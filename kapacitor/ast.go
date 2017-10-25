@@ -422,15 +422,26 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 	} else {
 		rule.Query.GroupBy.Time = commonVars.Period
 		rule.Every = commonVars.Every
-		funcs := []string{}
 		if fieldFunc.Func != "" {
-			funcs = append(funcs, fieldFunc.Func)
-		}
-		rule.Query.Fields = []chronograf.Field{
-			{
-				Field: fieldFunc.Field,
-				Funcs: funcs,
-			},
+			rule.Query.Fields = []chronograf.Field{
+				{
+					Type:  "func",
+					Value: fieldFunc.Func,
+					Args: []chronograf.Field{
+						{
+							Value: fieldFunc.Field,
+							Type:  "field",
+						},
+					},
+				},
+			}
+		} else {
+			rule.Query.Fields = []chronograf.Field{
+				{
+					Type:  "field",
+					Value: fieldFunc.Field,
+				},
+			}
 		}
 	}
 

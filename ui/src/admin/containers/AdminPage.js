@@ -2,24 +2,24 @@ import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {
-  loadUsersAsync,
-  loadRolesAsync,
-  loadPermissionsAsync,
   addUser,
   addRole,
-  deleteUser, // TODO rename to removeUser throughout + tests
-  deleteRole, // TODO rename to removeUser throughout + tests
   editUser,
   editRole,
+  deleteUser,
+  deleteRole,
+  loadUsersAsync,
+  loadRolesAsync,
   createUserAsync,
   createRoleAsync,
   deleteUserAsync,
   deleteRoleAsync,
+  loadPermissionsAsync,
   updateRoleUsersAsync,
-  updateRolePermissionsAsync,
-  updateUserPermissionsAsync,
   updateUserRolesAsync,
   updateUserPasswordAsync,
+  updateRolePermissionsAsync,
+  updateUserPermissionsAsync,
   filterUsers as filterUsersAction,
   filterRoles as filterRolesAction,
 } from 'src/admin/actions'
@@ -166,26 +166,26 @@ class AdminPage extends Component {
                     users={users}
                     roles={roles}
                     source={source}
-                    permissions={allowed}
                     hasRoles={hasRoles}
-                    isEditingUsers={users.some(u => u.isEditing)}
-                    isEditingRoles={roles.some(r => r.isEditing)}
-                    onClickCreate={this.handleClickCreate}
+                    permissions={allowed}
+                    onFilterUsers={filterUsers}
+                    onFilterRoles={filterRoles}
                     onEditUser={this.handleEditUser}
                     onEditRole={this.handleEditRole}
                     onSaveUser={this.handleSaveUser}
                     onSaveRole={this.handleSaveRole}
-                    onCancelEditUser={this.handleCancelEditUser}
-                    onCancelEditRole={this.handleCancelEditRole}
                     onDeleteUser={this.handleDeleteUser}
                     onDeleteRole={this.handleDeleteRole}
-                    onFilterUsers={filterUsers}
-                    onFilterRoles={filterRoles}
+                    onClickCreate={this.handleClickCreate}
+                    onCancelEditUser={this.handleCancelEditUser}
+                    onCancelEditRole={this.handleCancelEditRole}
+                    isEditingUsers={users.some(u => u.isEditing)}
+                    isEditingRoles={roles.some(r => r.isEditing)}
                     onUpdateRoleUsers={this.handleUpdateRoleUsers}
-                    onUpdateRolePermissions={this.handleUpdateRolePermissions}
-                    onUpdateUserPermissions={this.handleUpdateUserPermissions}
                     onUpdateUserRoles={this.handleUpdateUserRoles}
                     onUpdateUserPassword={this.handleUpdateUserPassword}
+                    onUpdateRolePermissions={this.handleUpdateRolePermissions}
+                    onUpdateUserPermissions={this.handleUpdateUserPermissions}
                   />
                 </div>
               </div>

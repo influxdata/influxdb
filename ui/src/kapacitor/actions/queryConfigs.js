@@ -61,3 +61,11 @@ export const groupByTime = (queryId, time) => ({
     time,
   },
 })
+
+export const removeFuncs = (queryID, fields) => ({
+  type: 'KAPA_REMOVE_FUNCS',
+  payload: {
+    queryID,
+    fields,
+  },
+})
