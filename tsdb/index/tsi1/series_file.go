@@ -50,6 +50,7 @@ type SeriesFile struct {
 
 	seriesMap           *seriesMap
 	compactingSeriesMap *seriesMap
+	tombstones          map[uint64]struct{}
 
 	// MaxSize is the maximum size of the file.
 	MaxSize int64
@@ -58,8 +59,9 @@ type SeriesFile struct {
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path:    path,
-		MaxSize: DefaultMaxSeriesFileSize,
+		path:       path,
+		tombstones: make(map[uint64]struct{}),
+		MaxSize:    DefaultMaxSeriesFileSize,
 	}
 }
 
@@ -227,6 +229,13 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	return offsets, nil
 }
 
+// DeleteSeries flags a series as permanently deleted.
+// If the series is reintroduced later then it must create a new offset.
+func (f *SeriesFile) DeleteSeries(offset uint64) error {
+	f.tombstones[offset] = struct{}{}
+	return nil
+}
+
 // Offset returns the byte offset of the series within the block.
 func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) (offset uint64) {
 	f.mu.RLock()
@@ -236,7 +245,13 @@ func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) (offset u
 }
 
 func (f *SeriesFile) offset(name []byte, tags models.Tags, buf []byte) uint64 {
-	return f.seriesMap.offset(AppendSeriesKey(buf[:0], name, tags))
+	offset := f.seriesMap.offset(AppendSeriesKey(buf[:0], name, tags))
+	if offset == 0 {
+		return 0
+	} else if _, ok := f.tombstones[offset]; ok {
+		return 0
+	}
+	return offset
 }
 
 // SeriesKey returns the series key for a given offset.

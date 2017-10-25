@@ -468,42 +468,6 @@ func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
 	return nil
 }
 
-/*
-// AddSeries adds a series to the log file.
-func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
-	seriesID, err := f.sfile.CreateSeriesIfNotExists(name, tags, nil)
-	if err != nil {
-		return err
-	}
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	e := LogEntry{SeriesID: seriesID}
-	if err := f.appendEntry(&e); err != nil {
-		return err
-	}
-	f.execEntry(&e)
-	return nil
-}
-*/
-// DeleteSeries adds a tombstone for a series to the log file.
-func (f *LogFile) DeleteSeriesID(seriesID uint64) error {
-	if seriesID == 0 {
-		return nil
-	}
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	e := LogEntry{Flag: LogEntrySeriesTombstoneFlag, SeriesID: seriesID}
-	if err := f.appendEntry(&e); err != nil {
-		return err
-	}
-	f.execEntry(&e)
-	return nil
-}
-
 // SeriesN returns the total number of series in the file.
 func (f *LogFile) SeriesN() (n uint64) {
 	f.mu.RLock()
@@ -656,9 +620,6 @@ func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
 }
 
 func (f *LogFile) execSeriesEntry(e *LogEntry) {
-	// Check if series is deleted.
-	deleted := (e.Flag & LogEntrySeriesTombstoneFlag) != 0
-
 	seriesKey := f.sfile.SeriesKey(e.SeriesID)
 	assert(seriesKey != nil, "series key not found")
 
@@ -668,14 +629,6 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	// Read measurement name.
 	name, remainder := ReadSeriesKeyMeasurement(remainder)
 	mm := f.createMeasurementIfNotExists(name)
-
-	// Undelete measurement if it's been tombstoned previously.
-	if !deleted && mm.deleted {
-		mm.deleted = false
-	}
-
-	// Mark series id tombstone.
-	mm.series[e.SeriesID] = deleted
 
 	// Read tag count.
 	tagN, remainder := ReadSeriesKeyTagN(remainder)
@@ -688,17 +641,10 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		tv := ts.createTagValueIfNotExists(v)
 
 		// Add a reference to the series on the tag value.
-		tv.series[e.SeriesID] = deleted
+		tv.series[e.SeriesID] = struct{}{}
 
 		ts.tagValues[string(v)] = tv
 		mm.tagSet[string(k)] = ts
-	}
-
-	// Update the sketches.
-	if deleted {
-		// TODO(edd) decrement series count...
-		f.sTSketch.Add(seriesKey) // Deleting series so update tombstone sketch.
-		return
 	}
 
 	// TODO(edd) increment series count....
@@ -718,8 +664,8 @@ func (f *LogFile) SeriesIDIterator() SeriesIDIterator {
 	for _, mm := range f.mms {
 		n += len(mm.series)
 		a := make([]SeriesIDElem, 0, len(mm.series))
-		for seriesID, deleted := range mm.series {
-			a = append(a, SeriesIDElem{SeriesID: seriesID, Deleted: deleted})
+		for seriesID := range mm.series {
+			a = append(a, SeriesIDElem{SeriesID: seriesID})
 		}
 		sort.Sort(SeriesIDElems(a))
 		mSeries = append(mSeries, a)
@@ -1091,9 +1037,8 @@ func appendLogEntry(dst []byte, e *LogEntry) []byte {
 }
 
 type logSerie struct {
-	name    []byte
-	tags    models.Tags
-	deleted bool
+	name []byte
+	tags models.Tags
 }
 
 func (s *logSerie) String() string {
@@ -1136,7 +1081,7 @@ type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagKey
 	deleted bool
-	series  map[uint64]bool
+	series  map[uint64]struct{}{}
 }
 
 func (mm *logMeasurement) seriesIDs() []uint64 {
@@ -1225,7 +1170,7 @@ func (a logTagKeySlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[
 type logTagValue struct {
 	name    []byte
 	deleted bool
-	series  map[uint64]bool
+	series  map[uint64]struct{}{}
 }
 
 func (tv *logTagValue) seriesIDs() []uint64 {
