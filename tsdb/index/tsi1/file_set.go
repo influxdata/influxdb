@@ -204,7 +204,7 @@ func (fs *FileSet) MeasurementSeriesIDIterator(name []byte) SeriesIDIterator {
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIDIterator(MergeSeriesIDIterators(a...))
+	return FilterUndeletedSeriesIDIterator(fs.sfile, MergeSeriesIDIterators(a...))
 }
 
 // TagKeyIterator returns an iterator over all tag keys for a measurement.
@@ -383,7 +383,7 @@ func (fs *FileSet) TagKeySeriesIDIterator(name, key []byte) SeriesIDIterator {
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIDIterator(MergeSeriesIDIterators(a...))
+	return FilterUndeletedSeriesIDIterator(fs.sfile, MergeSeriesIDIterators(a...))
 }
 
 // HasTagKey returns true if the tag key exists.
@@ -427,7 +427,7 @@ func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) SeriesIDIte
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIDIterator(MergeSeriesIDIterators(a...))
+	return FilterUndeletedSeriesIDIterator(fs.sfile, MergeSeriesIDIterators(a...))
 }
 
 // MatchTagValueSeriesIDIterator returns a series iterator for tags which match value.
@@ -437,15 +437,15 @@ func (fs *FileSet) MatchTagValueSeriesIDIterator(name, key []byte, value *regexp
 
 	if matches {
 		if matchEmpty {
-			return FilterUndeletedSeriesIDIterator(fs.matchTagValueEqualEmptySeriesIDIterator(name, key, value))
+			return FilterUndeletedSeriesIDIterator(fs.sfile, fs.matchTagValueEqualEmptySeriesIDIterator(name, key, value))
 		}
-		return FilterUndeletedSeriesIDIterator(fs.matchTagValueEqualNotEmptySeriesIDIterator(name, key, value))
+		return FilterUndeletedSeriesIDIterator(fs.sfile, fs.matchTagValueEqualNotEmptySeriesIDIterator(name, key, value))
 	}
 
 	if matchEmpty {
-		return FilterUndeletedSeriesIDIterator(fs.matchTagValueNotEqualEmptySeriesIDIterator(name, key, value))
+		return FilterUndeletedSeriesIDIterator(fs.sfile, fs.matchTagValueNotEqualEmptySeriesIDIterator(name, key, value))
 	}
-	return FilterUndeletedSeriesIDIterator(fs.matchTagValueNotEqualNotEmptySeriesIDIterator(name, key, value))
+	return FilterUndeletedSeriesIDIterator(fs.sfile, fs.matchTagValueNotEqualNotEmptySeriesIDIterator(name, key, value))
 }
 
 func (fs *FileSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, value *regexp.Regexp) SeriesIDIterator {
@@ -678,19 +678,6 @@ func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val strin
 	return names
 }
 
-// SeriesSketches returns the merged series sketches for the FileSet.
-func (fs *FileSet) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
-	// Iterate over all the files and merge the sketches into the result.
-	for _, f := range fs.files {
-		if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
-			return nil, nil, err
-		}
-	}
-	return sketch, tsketch, nil
-}
-
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -919,7 +906,7 @@ type File interface {
 	TagValueSeriesIDIterator(name, key, value []byte) SeriesIDIterator
 
 	// Sketches for cardinality estimation
-	MergeSeriesSketches(s, t estimator.Sketch) error
+	// MergeSeriesSketches(s, t estimator.Sketch) error
 	MergeMeasurementsSketches(s, t estimator.Sketch) error
 
 	// Reference counting.

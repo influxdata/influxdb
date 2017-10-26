@@ -22,12 +22,8 @@ const SeriesIDSize = 8
 
 // Series flag constants.
 const (
-	// Marks the series as having been deleted.
-	SeriesTombstoneFlag = 0x01
-
-	// Marks the following bytes as a hash index.
-	// These bytes should be skipped by an iterator.
-	SeriesHashIndexFlag = 0x02
+	SeriesFileFlagSize      = 1
+	SeriesFileTombstoneFlag = 0x01
 )
 
 const DefaultMaxSeriesFileSize = 32 * (1 << 30) // 32GB
@@ -50,7 +46,6 @@ type SeriesFile struct {
 
 	seriesMap           *seriesMap
 	compactingSeriesMap *seriesMap
-	tombstones          map[uint64]struct{}
 
 	// MaxSize is the maximum size of the file.
 	MaxSize int64
@@ -59,9 +54,8 @@ type SeriesFile struct {
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path:       path,
-		tombstones: make(map[uint64]struct{}),
-		MaxSize:    DefaultMaxSeriesFileSize,
+		path:    path,
+		MaxSize: DefaultMaxSeriesFileSize,
 	}
 }
 
@@ -152,10 +146,11 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	f.mu.RLock()
 	offsets = make([]uint64, len(names))
 	for i := range names {
-		offsets[i] = f.offset(names[i], tagsSlice[i], buf)
-		if offsets[i] == 0 {
+		offset := f.offset(names[i], tagsSlice[i], buf)
+		if offset == 0 {
 			createRequired = true
 		}
+		offsets[i] = offset
 	}
 	f.mu.RUnlock()
 
@@ -173,7 +168,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 	for i := range names {
 		// Skip series that have already been created.
-		if offsets[i] != 0 {
+		if offset := offsets[i]; offset != 0 {
 			continue
 		}
 
@@ -186,6 +181,12 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		} else if offsets[i] = f.offset(names[i], tagsSlice[i], buf); offsets[i] != 0 {
 			continue
 		}
+
+		// Append flag byte.
+		if _, err := f.w.Write([]byte{0}); err != nil {
+			return nil, err
+		}
+		f.size += SeriesFileFlagSize
 
 		// Append series to the end of the file.
 		offset := uint64(f.size)
@@ -229,11 +230,39 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	return offsets, nil
 }
 
-// DeleteSeries flags a series as permanently deleted.
+// DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later then it must create a new offset.
-func (f *SeriesFile) DeleteSeries(offset uint64) error {
-	f.tombstones[offset] = struct{}{}
+func (f *SeriesFile) DeleteSeriesID(offset uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Already tombstoned, ignore.
+	if _, ok := f.seriesMap.tombstones[offset]; ok {
+		return nil
+	}
+
+	// Write tombstone entry.
+	if _, err := f.w.Write([]byte{SeriesFileTombstoneFlag}); err != nil {
+		return err
+	} else if err := binary.Write(f.w, binary.BigEndian, offset); err != nil {
+		return err
+	} else if err := f.w.Flush(); err != nil {
+		return err
+	}
+	f.size += SeriesFileTombstoneFlag + 8
+
+	// Mark tombstone in memory.
+	f.seriesMap.tombstones[offset] = struct{}{}
+
 	return nil
+}
+
+// IsDeleted returns true if the ID has been deleted before.
+func (f *SeriesFile) IsDeleted(offset uint64) bool {
+	f.mu.RLock()
+	_, ok := f.seriesMap.tombstones[offset]
+	f.mu.RUnlock()
+	return ok
 }
 
 // Offset returns the byte offset of the series within the block.
@@ -248,7 +277,7 @@ func (f *SeriesFile) offset(name []byte, tags models.Tags, buf []byte) uint64 {
 	offset := f.seriesMap.offset(AppendSeriesKey(buf[:0], name, tags))
 	if offset == 0 {
 		return 0
-	} else if _, ok := f.tombstones[offset]; ok {
+	} else if _, ok := f.seriesMap.tombstones[offset]; ok {
 		return 0
 	}
 	return offset
@@ -344,16 +373,29 @@ type seriesFileIterator struct {
 
 // Next returns the next series element.
 func (itr *seriesFileIterator) Next() SeriesIDElem {
-	if len(itr.data) == 0 {
-		return SeriesIDElem{}
+	for {
+		if len(itr.data) == 0 {
+			return SeriesIDElem{}
+		}
+
+		// Read flag.
+		flag := itr.data[0]
+		itr.data = itr.data[1:]
+		itr.offset++
+
+		switch flag {
+		case SeriesFileTombstoneFlag:
+			itr.data = itr.data[8:] // skip
+			itr.offset += 8
+		default:
+			var key []byte
+			key, itr.data = ReadSeriesKey(itr.data)
+
+			elem := SeriesIDElem{SeriesID: itr.offset}
+			itr.offset += uint64(len(key))
+			return elem
+		}
 	}
-
-	var key []byte
-	key, itr.data = ReadSeriesKey(itr.data)
-
-	elem := SeriesIDElem{SeriesID: itr.offset}
-	itr.offset += uint64(len(key))
-	return elem
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
@@ -533,9 +575,10 @@ const (
 
 // seriesMap represents a read-only hash map of series offsets.
 type seriesMap struct {
-	path  string
-	sfile *SeriesFile
-	inmem *rhh.HashMap
+	path       string
+	sfile      *SeriesFile
+	inmem      *rhh.HashMap
+	tombstones map[uint64]struct{}
 
 	n         int64
 	maxOffset uint64
@@ -545,7 +588,11 @@ type seriesMap struct {
 }
 
 func newSeriesMap(path string, sfile *SeriesFile) *seriesMap {
-	return &seriesMap{path: path, sfile: sfile}
+	return &seriesMap{
+		path:       path,
+		sfile:      sfile,
+		tombstones: make(map[uint64]struct{}),
+	}
 }
 
 func (m *seriesMap) open() error {
@@ -569,13 +616,26 @@ func (m *seriesMap) open() error {
 
 	// Index all data created after the on-disk hash map.
 	inmem := rhh.NewHashMap(rhh.DefaultOptions)
+	tombstones := make(map[uint64]struct{})
 	for b, offset := m.sfile.data[m.maxOffset:m.sfile.size], m.maxOffset; len(b) > 0; {
-		var key []byte
-		key, b = ReadSeriesKey(b)
-		inmem.Put(key, offset)
-		offset += uint64(len(key))
+		// Read flag.
+		flag := b[0]
+		b, offset = b[1:], offset+1
+
+		switch flag {
+		case SeriesFileTombstoneFlag:
+			seriesID := binary.BigEndian.Uint64(b[:8])
+			b = b[8:]
+			tombstones[seriesID] = struct{}{}
+		default:
+			var key []byte
+			key, b = ReadSeriesKey(b)
+			inmem.Put(key, offset)
+			offset += uint64(len(key))
+		}
 	}
 	m.inmem = inmem
+	m.tombstones = tombstones
 
 	return nil
 }
@@ -592,11 +652,13 @@ func (m *seriesMap) close() error {
 
 // offset finds the series key's offset in either the on-disk or in-memory hash maps.
 func (m *seriesMap) offset(key []byte) uint64 {
-	if offset := m.onDiskOffset(key); offset != 0 {
+	offset, _ := m.inmem.Get(key).(uint64)
+	if _, ok := m.tombstones[offset]; ok {
+		return 0
+	} else if offset != 0 {
 		return offset
 	}
-	offset, _ := m.inmem.Get(key).(uint64)
-	return offset
+	return m.onDiskOffset(key)
 }
 
 func (m *seriesMap) onDiskOffset(key []byte) uint64 {

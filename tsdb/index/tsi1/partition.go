@@ -466,7 +466,7 @@ func (i *Partition) DropMeasurement(name []byte) error {
 	// Delete all series in measurement.
 	if sitr := fs.MeasurementSeriesIDIterator(name); sitr != nil {
 		for s := sitr.Next(); s.SeriesID != 0; s = sitr.Next() {
-			if !s.Deleted {
+			if !fs.SeriesFile().IsDeleted(s.SeriesID) {
 				if err := func() error {
 					i.mu.RLock()
 					defer i.mu.RUnlock()
@@ -538,7 +538,7 @@ func (i *Partition) DropSeries(key []byte) error {
 		defer fs.Release()
 
 		// Check if that was the last series for the measurement in the entire index.
-		itr := fs.MeasurementSeriesIDIterator(mname)
+		itr := FilterUndeletedSeriesIDIterator(i.sfile, fs.MeasurementSeriesIDIterator(mname))
 		if itr == nil {
 			return nil
 		} else if e := itr.Next(); e.SeriesID != 0 {

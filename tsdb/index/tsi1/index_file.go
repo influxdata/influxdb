@@ -315,15 +315,6 @@ func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) SeriesIDIterator {
 	return f.mblk.SeriesIDIterator(name)
 }
 
-// MergeSeriesSketches merges the index file's series sketches into the provided
-// sketches.
-func (f *IndexFile) MergeSeriesSketches(s, t estimator.Sketch) error {
-	if err := s.Merge(f.sSketch); err != nil {
-		return err
-	}
-	return t.Merge(f.sTSketch)
-}
-
 // MergeMeasurementsSketches merges the index file's series sketches into the provided
 // sketches.
 func (f *IndexFile) MergeMeasurementsSketches(s, t estimator.Sketch) error {

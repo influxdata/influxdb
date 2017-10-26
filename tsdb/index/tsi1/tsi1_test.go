@@ -152,7 +152,7 @@ func TestMergeTagValueIterators(t *testing.T) {
 // Ensure iterator can operate over an in-memory list of series.
 func TestSeriesIDIterator(t *testing.T) {
 	elems := []tsi1.SeriesIDElem{
-		{SeriesID: 1, Deleted: true},
+		{SeriesID: 1},
 		{SeriesID: 2},
 	}
 
@@ -171,21 +171,21 @@ func TestMergeSeriesIDIterators(t *testing.T) {
 	itr := tsi1.MergeSeriesIDIterators(
 		&SeriesIDIterator{Elems: []tsi1.SeriesIDElem{
 			{SeriesID: 1},
-			{SeriesID: 2, Deleted: true},
+			{SeriesID: 2},
 			{SeriesID: 3},
 		}},
 		&SeriesIDIterator{},
 		&SeriesIDIterator{Elems: []tsi1.SeriesIDElem{
 			{SeriesID: 1},
 			{SeriesID: 2},
-			{SeriesID: 3, Deleted: true},
+			{SeriesID: 3},
 			{SeriesID: 4},
 		}},
 	)
 
 	if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 1}) {
 		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 2, Deleted: true}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 2}) {
 		t.Fatalf("unexpected elem(1): %#v", e)
 	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 3}) {
 		t.Fatalf("unexpected elem(2): %#v", e)

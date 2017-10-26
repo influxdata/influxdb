@@ -342,7 +342,6 @@ func (p tagValueMergeElem) Deleted() bool {
 
 type SeriesIDElem struct {
 	SeriesID uint64
-	Deleted  bool
 	Expr     influxql.Expr
 }
 
@@ -668,15 +667,16 @@ func (itr *seriesIDDifferenceIterator) Next() SeriesIDElem {
 
 // filterUndeletedSeriesIDIterator returns all series which are not deleted.
 type filterUndeletedSeriesIDIterator struct {
-	itr SeriesIDIterator
+	sfile *SeriesFile
+	itr   SeriesIDIterator
 }
 
 // FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIDIterator(itr SeriesIDIterator) SeriesIDIterator {
+func FilterUndeletedSeriesIDIterator(sfile *SeriesFile, itr SeriesIDIterator) SeriesIDIterator {
 	if itr == nil {
 		return nil
 	}
-	return &filterUndeletedSeriesIDIterator{itr: itr}
+	return &filterUndeletedSeriesIDIterator{sfile: sfile, itr: itr}
 }
 
 func (itr *filterUndeletedSeriesIDIterator) Next() SeriesIDElem {
@@ -684,7 +684,7 @@ func (itr *filterUndeletedSeriesIDIterator) Next() SeriesIDElem {
 		e := itr.itr.Next()
 		if e.SeriesID == 0 {
 			return SeriesIDElem{}
-		} else if e.Deleted {
+		} else if itr.sfile.IsDeleted(e.SeriesID) {
 			continue
 		}
 		return e
