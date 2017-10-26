@@ -22,9 +22,9 @@ type Service struct {
 		DeleteShard(shardID uint64) error
 	}
 
-	checkInterval time.Duration
-	wg            sync.WaitGroup
-	done          chan struct{}
+	config Config
+	wg     sync.WaitGroup
+	done   chan struct{}
 
 	logger zap.Logger
 }
@@ -32,15 +32,21 @@ type Service struct {
 // NewService returns a configured retention policy enforcement service.
 func NewService(c Config) *Service {
 	return &Service{
-		checkInterval: time.Duration(c.CheckInterval),
-		done:          make(chan struct{}),
-		logger:        zap.New(zap.NullEncoder()),
+		config: c,
+		logger: zap.New(zap.NullEncoder()),
 	}
 }
 
 // Open starts retention policy enforcement.
 func (s *Service) Open() error {
-	s.logger.Info(fmt.Sprint("Starting retention policy enforcement service with check interval of ", s.checkInterval))
+	if !s.config.Enabled || s.done != nil {
+		return nil
+	}
+
+	s.logger.Info(fmt.Sprint("Starting retention policy enforcement service with check interval of ", s.config.CheckInterval))
+
+	s.done = make(chan struct{})
+
 	s.wg.Add(2)
 	go s.deleteShardGroups()
 	go s.deleteShards()
@@ -49,9 +55,15 @@ func (s *Service) Open() error {
 
 // Close stops retention policy enforcement.
 func (s *Service) Close() error {
+	if !s.config.Enabled || s.done == nil {
+		return nil
+	}
+
 	s.logger.Info("retention policy enforcement terminating")
 	close(s.done)
+
 	s.wg.Wait()
+	s.done = nil
 	return nil
 }
 
@@ -63,7 +75,7 @@ func (s *Service) WithLogger(log zap.Logger) {
 func (s *Service) deleteShardGroups() {
 	defer s.wg.Done()
 
-	ticker := time.NewTicker(s.checkInterval)
+	ticker := time.NewTicker(time.Duration(s.config.CheckInterval))
 	defer ticker.Stop()
 	for {
 		select {
@@ -92,7 +104,7 @@ func (s *Service) deleteShardGroups() {
 func (s *Service) deleteShards() {
 	defer s.wg.Done()
 
-	ticker := time.NewTicker(s.checkInterval)
+	ticker := time.NewTicker(time.Duration(s.config.CheckInterval))
 	defer ticker.Stop()
 	for {
 		select {
