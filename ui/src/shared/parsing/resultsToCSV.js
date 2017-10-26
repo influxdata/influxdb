@@ -2,7 +2,7 @@ import _ from 'lodash'
 import moment from 'moment'
 
 export const formatDate = timestamp =>
-  moment(timestamp).format('M/D/YYYY h:mm:ss A')
+  moment(timestamp).format('M/D/YYYY h:mm:ss.SSSSSSSSS A')
 
 export const resultsToCSV = results => {
   if (!_.get(results, ['0', 'series', '0'])) {
