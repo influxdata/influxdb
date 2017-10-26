@@ -151,7 +151,7 @@ func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
 		return
 	}
-	user, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
+	user, err := s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -182,7 +182,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		Roles:    req.Roles,
 	}
 
-	res, err := s.UsersStore.Add(ctx, user)
+	res, err := s.OrganizationUsersStore.Add(ctx, user)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -203,12 +203,12 @@ func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
+	u, err := s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
 	}
-	if err := s.UsersStore.Delete(ctx, u); err != nil {
+	if err := s.OrganizationUsersStore.Delete(ctx, u); err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
@@ -237,7 +237,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
+	u, err := s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
@@ -246,7 +246,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	// ValidUpdate should ensure that req.Roles is not nil
 	u.Roles = req.Roles
 
-	err = s.UsersStore.Update(ctx, u)
+	err = s.OrganizationUsersStore.Update(ctx, u)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -261,7 +261,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	users, err := s.UsersStore.All(ctx)
+	users, err := s.OrganizationUsersStore.All(ctx)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return

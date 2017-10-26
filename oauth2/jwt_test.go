@@ -41,6 +41,18 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
+			Desc:     "Test valid jwt token with organization",
+			Secret:   "secret",
+			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsIm9yZyI6IjEzMzciLCJpYXQiOi00NDY3NzQ0MDAsImV4cCI6LTQ0Njc3NDM5OSwibmJmIjotNDQ2Nzc0NDAwfQ.b38MK5liimWsvvJr4a3GNYRDJOAN7WCrfZ0FfZftqjc",
+			Duration: time.Second,
+			Principal: oauth2.Principal{
+				Subject:      "/chronograf/v1/users/1",
+				Organization: "1337",
+				ExpiresAt:    history.Add(time.Second),
+				IssuedAt:     history,
+			},
+		},
+		{
 			Desc:     "Test expired jwt token",
 			Secret:   "secret",
 			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsImlhdCI6LTQ0Njc3NDQwMCwiZXhwIjotNDQ2Nzc0NDAxLCJuYmYiOi00NDY3NzQ0MDB9.vWXdm0-XQ_pW62yBpSISFFJN_yz0vqT9_INcUKTp5Q8",

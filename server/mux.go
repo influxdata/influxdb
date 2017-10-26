@@ -174,6 +174,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Users associated with Chronograf
 	router.GET("/chronograf/v1/me", service.Me)
 
+	// Set current chronograf organization the user is logged into
+	router.PUT("/chronograf/v1/me/organization", service.MeOrganization(opts.Auth))
+
 	router.GET("/chronograf/v1/users", EnsureAdmin(service.Users))
 	router.POST("/chronograf/v1/users", EnsureAdmin(service.NewUser))
 

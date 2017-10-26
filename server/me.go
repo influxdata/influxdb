@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -74,6 +75,50 @@ func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	return principal, nil
 }
 
+// This is the user's current chronograf organization and is not related to any
+// concept of a OAuth organization.
+func getOrganization(ctx context.Context) (string, error) {
+	principal, err := getPrincipal(ctx)
+	if err != nil {
+		return "", err
+	}
+	return principal.Organization, nil
+}
+
+type meOrganizationRequest struct {
+	OrganizationID string `json:"organization"`
+}
+
+func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		principal, err := auth.Validate(ctx, r)
+		if err != nil {
+			s.Logger.Error("Invalid principal")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		var req meOrganizationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			invalidJSON(w, s.Logger)
+			return
+		}
+
+		// TODO: add logic for validating that the org exists and user belongs to that org
+
+		principal.Organization = req.OrganizationID
+
+		if err := auth.Authorize(ctx, w, principal); err != nil {
+			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+			return
+		}
+
+		ctx = context.WithValue(ctx, oauth2.PrincipalKey, principal)
+
+		s.Me(w, r.WithContext(ctx))
+	}
+}
+
 // Me does a findOrCreate based on the username in the context
 func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -99,6 +144,14 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		invalidData(w, err, s.Logger)
 		return
 	}
+	organization, err := getOrganization(ctx)
+	if err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+
+	// TODO: add real implementation
+	ctx = context.WithValue(ctx, "organizationID", organization)
 
 	usr, err := s.UsersStore.Get(ctx, chronograf.UserQuery{
 		Name:     &username,
@@ -111,6 +164,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if usr != nil {
+		usr.CurrentOrganization = organization
 		res := newMeResponse(usr)
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
@@ -133,6 +187,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newUser.CurrentOrganization = organization
 	res := newMeResponse(newUser)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }

@@ -156,13 +156,13 @@ func TestService_Me(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), oauth2.PrincipalKey, tt.principal))
-		h := &Service{
+		s := &Service{
 			UsersStore: tt.fields.UsersStore,
 			Logger:     tt.fields.Logger,
 			UseAuth:    tt.fields.UseAuth,
 		}
 
-		h.Me(tt.args.w, tt.args.r)
+		s.Me(tt.args.w, tt.args.r)
 
 		resp := tt.args.w.Result()
 		content := resp.Header.Get("Content-Type")

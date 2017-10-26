@@ -75,8 +75,8 @@ func TestService_UserID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				OrganizationUsersStore: tt.fields.UsersStore,
+				Logger:                 tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -163,8 +163,8 @@ func TestService_NewUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				OrganizationUsersStore: tt.fields.UsersStore,
+				Logger:                 tt.fields.Logger,
 			}
 
 			buf, _ := json.Marshal(tt.args.user)
@@ -251,8 +251,8 @@ func TestService_RemoveUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				OrganizationUsersStore: tt.fields.UsersStore,
+				Logger:                 tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -344,8 +344,8 @@ func TestService_UpdateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				OrganizationUsersStore: tt.fields.UsersStore,
+				Logger:                 tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(context.Background(),
@@ -475,8 +475,8 @@ func TestService_Users(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				OrganizationUsersStore: tt.fields.UsersStore,
+				Logger:                 tt.fields.Logger,
 			}
 
 			s.Users(tt.args.w, tt.args.r)
