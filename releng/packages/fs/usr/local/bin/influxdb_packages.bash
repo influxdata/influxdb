@@ -24,7 +24,8 @@ while getopts hO:A:s arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     O) OS="$OPTARG";;
-    A) ARCH="$OPTARG";;
+    # For backwards compatibility, ensure the packages say i386 if using GOARCH=386.
+    A) ARCH="$(echo "$OPTARG" | sed 's/386/i386/')";;
     s) STATIC="1";;
   esac
 done
@@ -39,44 +40,66 @@ tar x -C /go -zf /influxdb-src.tar.gz
 ln -s /go/src/github.com/influxdata/influxdb /isrc # Shorthand for influxdb source.
 SHA=$(jq -r .sha < "/isrc/.metadata.json")
 VERSION=$(jq -r .version < "/isrc/.metadata.json")
+ARCHIVE_ROOT_NAME="influxdb-${VERSION}-1"
+PKG_ROOT="/pkg/$ARCHIVE_ROOT_NAME"
 
 # Extract the respective binaries to dedicated folders.
 mkdir -p /ibin
 (cd /ibin && tar xzf /influxdb-bin.tar.gz)
 
-if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
+if [ "$OS" == "linux" ] && [ "$STATIC" == "1" ]; then
+  # Static linux packages get only the binaries and the conf file in the root directory,
+  # plus the man pages in the full path.
+  rm -rf "$PKG_ROOT"
+  mkdir -p "$PKG_ROOT"
+
+  cp /ibin/* "$PKG_ROOT/"
+  cp /isrc/etc/config.sample.toml "$PKG_ROOT/influxdb.conf"
+
+  mkdir -p "$PKG_ROOT/usr/share/man/man1"
+  cp /isrc/man/*.1.gz "$PKG_ROOT/usr/share/man/man1"
+
+  # Creating tarball from /pkg, NOT from $PKG_ROOT, so that influxdb-$VERSION-1 directory is present in archive.
+  (cd /pkg && tar czf "/out/influxdb-${VERSION}-static_${OS}_${ARCH}.tar.gz" ./*)
+
+  (cd /out && for f in *.tar.gz; do
+    md5sum "$f" > "$f.md5"
+    sha256sum "$f" > "$f.sha256"
+  done)
+elif [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   #############################
   ####### Data packages #######
   #############################
 
-  # Create layout for packaging in /pkg.
-  mkdir -p /pkg/usr/bin \
-           /pkg/var/log/influxdb \
-           /pkg/var/lib/influxdb \
-           /pkg/usr/lib/influxdb/scripts \
-           /pkg/usr/share/man/man1 \
-           /pkg/etc/influxdb \
-           /pkg/etc/logrotate.d
+  # Create layout for packaging under $PKG_ROOT.
+  rm -rf "$PKG_ROOT"
+  mkdir -p "$PKG_ROOT/usr/bin" \
+           "$PKG_ROOT/var/log/influxdb" \
+           "$PKG_ROOT/var/lib/influxdb" \
+           "$PKG_ROOT/usr/lib/influxdb/scripts" \
+           "$PKG_ROOT/usr/share/man/man1" \
+           "$PKG_ROOT/etc/influxdb" \
+           "$PKG_ROOT/etc/logrotate.d"
   chmod -R 0755 /pkg
 
   # Copy service scripts.
-  cp /isrc/scripts/init.sh /pkg/usr/lib/influxdb/scripts/init.sh
-  chmod 0644 /pkg/usr/lib/influxdb/scripts/init.sh
-  cp /isrc/scripts/influxdb.service /pkg/usr/lib/influxdb/scripts/influxdb.service
-  chmod 0644 /pkg/usr/lib/influxdb/scripts/influxdb.service
+  cp /isrc/scripts/init.sh "$PKG_ROOT/usr/lib/influxdb/scripts/init.sh"
+  chmod 0644 "$PKG_ROOT/usr/lib/influxdb/scripts/init.sh"
+  cp /isrc/scripts/influxdb.service "$PKG_ROOT/usr/lib/influxdb/scripts/influxdb.service"
+  chmod 0644 "$PKG_ROOT/usr/lib/influxdb/scripts/influxdb.service"
 
   # Copy logrotate script.
-  cp /isrc/scripts/logrotate /pkg/etc/logrotate.d/influxdb
-  chmod 0644 /pkg/etc/logrotate.d/influxdb
+  cp /isrc/scripts/logrotate "$PKG_ROOT/etc/logrotate.d/influxdb"
+  chmod 0644 "$PKG_ROOT/etc/logrotate.d/influxdb"
 
   # Copy sample config.
-  cp /isrc/etc/config.sample.toml /pkg/etc/influxdb/influxdb.conf
+  cp /isrc/etc/config.sample.toml "$PKG_ROOT/etc/influxdb/influxdb.conf"
 
   # Copy data binaries.
-  cp /ibin/* /pkg/usr/bin/
+  cp /ibin/* "$PKG_ROOT/usr/bin/"
 
   # Copy man pages.
-  cp /isrc/man/*.1.gz /pkg/usr/share/man/man1
+  cp /isrc/man/*.1.gz "$PKG_ROOT/usr/share/man/man1"
 
   # Make tarball of files in packaging.
   BIN_GZ_NAME="/out/influxdb-${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -84,10 +107,10 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
     BIN_GZ_NAME="/out/influxdb-${VERSION}-static_${OS}_${ARCH}.tar.gz"
   fi
 
+  # Creating tarball from /pkg, NOT from $PKG_ROOT, so that influxdb-$VERSION-1 directory is present in archive.
   (cd /pkg && tar czf $BIN_GZ_NAME ./*)
 
-  # don't need static install packages.
-  if [ "$OS" == "linux" ] && [ "$STATIC" != "1" ]; then
+  if [ "$OS" == "linux" ] ; then
     # Call fpm to build .deb and .rpm packages.
     for typeargs in "-t deb" "-t rpm --depends coreutils --depends shadow-utils"; do
       FPM_NAME=$(
@@ -111,7 +134,7 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
         --architecture "$ARCH" \
         --version "$VERSION" \
         --iteration 1 \
-        -C /pkg \
+        -C "$PKG_ROOT" \
         -p /out \
          | ruby -e 'puts (eval ARGF.read)[:path]' )
 
@@ -125,14 +148,15 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   #############################
   ######### Checksums #########
   #############################
-  (cd /out && for f in *.deb *.rpm *.tar.gz; do
-    md5sum "$f" > "$f.md5"
-    sha256sum "$f" > "$f.sha256"
-  done)
+  (cd /out && find . \( -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' \) -exec sh -c 'md5sum {} > {}.md5 && sha256sum {} > {}.sha256' \;)
 elif [ "$OS" == "windows" ]; then
-  # Windows gets the binaries and nothing else.
-  # TODO: should Windows get the sample config files?
-  (cd /ibin && zip -9 -r "/out/influxdb-${VERSION}_${OS}_${ARCH}.zip" ./*)
+  # Windows gets the binaries and the sample config file.
+  rm -rf "$PKG_ROOT"
+  mkdir -p "$PKG_ROOT"
+  cp /ibin/*.exe "$PKG_ROOT"
+  cp /isrc/etc/config.sample.toml "$PKG_ROOT/influxdb.conf"
+
+  (cd /pkg && zip -9 -r "/out/influxdb-${VERSION}_${OS}_${ARCH}.zip" ./*)
   (cd /out && for f in *.zip; do
     md5sum "$f" > "$f.md5"
     sha256sum "$f" > "$f.sha256"
