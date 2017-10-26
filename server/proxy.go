@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -35,20 +36,21 @@ func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := url.Parse(srv.URL)
+	// To preserve any HTTP query arguments to the kapacitor path,
+	// we concat and parse them into u.
+	uri := singleJoiningSlash(srv.URL, path)
+	u, err := url.Parse(uri)
 	if err != nil {
 		msg := fmt.Sprintf("Error parsing kapacitor url: %v", err)
 		Error(w, http.StatusUnprocessableEntity, msg, h.Logger)
 		return
 	}
 
-	u.Path = path
-
 	director := func(req *http.Request) {
 		// Set the Host header of the original Kapacitor URL
 		req.Host = u.Host
-
 		req.URL = u
+
 		// Because we are acting as a proxy, kapacitor needs to have the basic auth information set as
 		// a header directly
 		if srv.Username != "" && srv.Password != "" {
@@ -83,4 +85,16 @@ func (h *Service) KapacitorProxyGet(w http.ResponseWriter, r *http.Request) {
 // KapacitorProxyDelete proxies DELETE to kapacitor
 func (h *Service) KapacitorProxyDelete(w http.ResponseWriter, r *http.Request) {
 	h.KapacitorProxy(w, r)
+}
+
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	if aslash && bslash {
+		return a + b[1:]
+	}
+	if !aslash && !bslash {
+		return a + "/" + b
+	}
+	return a + b
 }
