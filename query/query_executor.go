@@ -36,6 +36,9 @@ var (
 
 	// ErrQueryTimeoutLimitExceeded is an error when a query hits the max time allowed to run.
 	ErrQueryTimeoutLimitExceeded = errors.New("query-timeout limit exceeded")
+
+	// ErrAlreadyKilled is returned when attempting to kill a query that has already been killed.
+	ErrAlreadyKilled = errors.New("already killed")
 )
 
 // Statistics for the QueryExecutor
@@ -499,4 +502,25 @@ func (q *QueryTask) monitor(fn QueryMonitorFunc) {
 		case q.monitorCh <- err:
 		}
 	}
+}
+
+// close closes the query task closing channel if the query hasn't been previously killed.
+func (q *QueryTask) close() {
+	q.mu.Lock()
+	if q.status != KilledTask {
+		close(q.closing)
+	}
+	q.mu.Unlock()
+}
+
+func (q *QueryTask) kill() error {
+	q.mu.Lock()
+	if q.status == KilledTask {
+		q.mu.Unlock()
+		return ErrAlreadyKilled
+	}
+	q.status = KilledTask
+	close(q.closing)
+	q.mu.Unlock()
+	return nil
 }
