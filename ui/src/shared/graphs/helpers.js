@@ -114,6 +114,65 @@ export const barPlotter = e => {
   }
 }
 
+export const makeLegendStyles = (graph, legend, pageX) => {
+  if (!graph || !legend || pageX === null) {
+    return {}
+  }
+
+  // Move the Legend on hover
+  const chronografChromeSize = 60 // Width & Height of navigation page elements
+  const graphRect = graph.getBoundingClientRect()
+  const legendRect = legend.getBoundingClientRect()
+
+  const graphWidth = graphRect.width + 32 // Factoring in padding from parent
+  const graphHeight = graphRect.height
+  const graphBottom = graphRect.bottom
+  const legendWidth = legendRect.width
+  const legendHeight = legendRect.height
+  const screenHeight = window.innerHeight
+  const legendMaxLeft = graphWidth - legendWidth / 2
+  const trueGraphX = pageX - graphRect.left
+
+  let legendLeft = trueGraphX
+
+  // Enforcing max & min legend offsets
+  if (trueGraphX < legendWidth / 2) {
+    legendLeft = legendWidth / 2
+  } else if (trueGraphX > legendMaxLeft) {
+    legendLeft = legendMaxLeft
+  }
+
+  // Disallow screen overflow of legend
+  const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
+  const isLegendTopClipped = legendHeight > graphRect.top - chronografChromeSize
+  const willLegendFitLeft = pageX - chronografChromeSize > legendWidth
+
+  let legendTop = graphHeight + 8
+
+  // If legend is only clipped on the bottom, position above graph
+  if (isLegendBottomClipped && !isLegendTopClipped) {
+    legendTop = -legendHeight
+  }
+
+  // If legend is clipped on top and bottom, posiition on either side of crosshair
+  if (isLegendBottomClipped && isLegendTopClipped) {
+    legendTop = 0
+
+    if (willLegendFitLeft) {
+      legendLeft = trueGraphX - legendWidth / 2
+      legendLeft -= 8
+    } else {
+      legendLeft = trueGraphX + legendWidth / 2
+      legendLeft += 32
+    }
+  }
+
+  return {
+    left: `${legendLeft}px`,
+    top: `${legendTop}px`,
+  }
+}
+
 export const OPTIONS = {
   rightGap: 0,
   axisLineWidth: 2,
