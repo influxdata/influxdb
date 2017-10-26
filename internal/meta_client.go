@@ -32,6 +32,8 @@ type MetaClientMock struct {
 
 	OpenFn func() error
 
+	PruneShardGroupsFn func() error
+
 	RetentionPolicyFn func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 
 	AuthenticateFn           func(username, password string) (ui meta.User, err error)
@@ -164,3 +166,5 @@ func (c *MetaClientMock) Users() []meta.UserInfo                  { return c.Use
 func (c *MetaClientMock) Open() error                { return c.OpenFn() }
 func (c *MetaClientMock) Data() meta.Data            { return c.DataFn() }
 func (c *MetaClientMock) SetData(d *meta.Data) error { return c.SetDataFn(d) }
+
+func (c *MetaClientMock) PruneShardGroups() error { return c.PruneShardGroupsFn() }

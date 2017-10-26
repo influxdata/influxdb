@@ -85,6 +85,7 @@
 - [#8983](https://github.com/influxdata/influxdb/issues/8983): Remove the pidfile after the server has exited.
 - [#9005](https://github.com/influxdata/influxdb/pull/9005): Return `query.ErrQueryInterrupted` for successful read on `InterruptCh`.
 - [#8989](https://github.com/influxdata/influxdb/issues/8989): Fix race inside Measurement index.
+- [#8819](https://github.com/influxdata/influxdb/issues/8819): Ensure retention service always removes local shards.
 
 ## v1.3.4 [unreleased]
 
