@@ -3,6 +3,7 @@ package retention_test
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -65,9 +66,13 @@ func TestService_8819_repro(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Wait for service to run.
+		// Wait for service to run one sweep of all dbs/rps/shards.
 		if err := <-errC; err != nil {
 			t.Fatalf("%dth iteration: %v", i, err)
+		}
+
+		if err := s.Close(); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
@@ -76,7 +81,7 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 	c := retention.NewConfig()
 	c.CheckInterval = toml.Duration(time.Millisecond)
 	s := NewService(c)
-	errC := make(chan error)
+	errC := make(chan error, 1) // Buffer Important to prevent deadlock.
 
 	// A database and a bunch of shards
 	var mu sync.Mutex
@@ -102,7 +107,6 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 					},
 				},
 			},
-			// TODO - add expired stuff
 		},
 	}
 
@@ -115,10 +119,13 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 	s.MetaClient.DeleteShardGroupFn = func(database string, policy string, id uint64) error {
 		if database != "db0" {
 			errC <- fmt.Errorf("wrong db name: %s", database)
+			return nil
 		} else if policy != "autogen" {
 			errC <- fmt.Errorf("wrong rp name: %s", policy)
+			return nil
 		} else if id != 1 {
 			errC <- fmt.Errorf("wrong shard group id: %d", id)
+			return nil
 		}
 
 		// remove the associated shards (3 and 9) from the shards slice...
@@ -156,7 +163,14 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 
 			if !found {
 				errC <- fmt.Errorf("local shard %d present, yet it's missing from meta store. %v -- %v ", lid, shards, localShards)
+				return nil
 			}
+		}
+
+		// We should have removed shards 3 and 9
+		if !reflect.DeepEqual(localShards, []uint64{5, 8, 11}) {
+			errC <- fmt.Errorf("removed shards still present locally: %v", localShards)
+			return nil
 		}
 		errC <- nil
 		return nil
