@@ -68,13 +68,15 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
     </td>
     <td style={{width: colEnabled}} className="monotype text-center">
       <div className="dark-checkbox">
-        <input
-          id={`kapacitor-enabled ${rule.id}`}
-          className="form-control-static"
-          type="checkbox"
-          defaultChecked={rule.status === 'enabled'}
-          onClick={onChangeRuleStatus(rule)}
-        />
+        <Authorized requiredRole={EDITOR_ROLE} propsOverride={{disabled: true}}>
+          <input
+            id={`kapacitor-enabled ${rule.id}`}
+            className="form-control-static"
+            type="checkbox"
+            defaultChecked={rule.status === 'enabled'}
+            onClick={onChangeRuleStatus(rule)}
+          />
+        </Authorized>
         <label htmlFor={`kapacitor-enabled ${rule.id}`} />
       </div>
     </td>
