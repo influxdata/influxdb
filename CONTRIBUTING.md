@@ -69,7 +69,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.8.4.
+InfluxDB requires Go 1.9.2.
 
 At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -77,8 +77,8 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.8.4
-    gvm use go1.8.4 --default
+    gvm install go1.9.2
+    gvm use go1.9.2 --default
 
 Installing GDM
 -------------
