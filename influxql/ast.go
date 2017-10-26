@@ -2122,16 +2122,10 @@ func (s *ShowSeriesCardinalityStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW SERIES")
 
-	if !s.Exact {
-		_, _ = buf.WriteString(" CARDINALITY")
-		if s.Database != "" {
-			_, _ = buf.WriteString(" ON ")
-			_, _ = buf.WriteString(QuoteIdent(s.Database))
-		}
-		return buf.String()
+	if s.Exact {
+		_, _ = buf.WriteString(" EXACT")
 	}
-
-	_, _ = buf.WriteString(" EXACT CARDINALITY")
+	_, _ = buf.WriteString(" CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")
@@ -2333,21 +2327,16 @@ func (s *ShowMeasurementCardinalityStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW MEASUREMENT")
 
-	if !s.Exact {
-		_, _ = buf.WriteString(" CARDINALITY")
-		if s.Database != "" {
-			_, _ = buf.WriteString(" ON ")
-			_, _ = buf.WriteString(QuoteIdent(s.Database))
-		}
-		return buf.String()
+	if s.Exact {
+		_, _ = buf.WriteString(" EXACT")
 	}
-
-	_, _ = buf.WriteString(" EXACT CARDINALITY")
+	_, _ = buf.WriteString(" CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")
 		_, _ = buf.WriteString(QuoteIdent(s.Database))
 	}
+
 	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
