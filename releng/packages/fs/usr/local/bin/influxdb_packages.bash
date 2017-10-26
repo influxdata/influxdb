@@ -24,7 +24,8 @@ while getopts hO:A:s arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     O) OS="$OPTARG";;
-    A) ARCH="$OPTARG";;
+    # For backwards compatibility, ensure the packages say i386 if using GOARCH=386.
+    A) ARCH="$(echo "$OPTARG" | sed 's/386/i386/')";;
     s) STATIC="1";;
   esac
 done
@@ -46,7 +47,26 @@ PKG_ROOT="/pkg/$ARCHIVE_ROOT_NAME"
 mkdir -p /ibin
 (cd /ibin && tar xzf /influxdb-bin.tar.gz)
 
-if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
+if [ "$OS" == "linux" ] && [ "$STATIC" == "1" ]; then
+  # Static linux packages get only the binaries and the conf file in the root directory,
+  # plus the man pages in the full path.
+  rm -rf "$PKG_ROOT"
+  mkdir -p "$PKG_ROOT"
+
+  cp /ibin/* "$PKG_ROOT/"
+  cp /isrc/etc/config.sample.toml "$PKG_ROOT/influxdb.conf"
+
+  mkdir -p "$PKG_ROOT/usr/share/man/man1"
+  cp /isrc/man/*.1.gz "$PKG_ROOT/usr/share/man/man1"
+
+  # Creating tarball from /pkg, NOT from $PKG_ROOT, so that influxdb-$VERSION-1 directory is present in archive.
+  (cd /pkg && tar czf "/out/influxdb-${VERSION}-static_${OS}_${ARCH}.tar.gz" ./*)
+
+  (cd /out && for f in *.tar.gz; do
+    md5sum "$f" > "$f.md5"
+    sha256sum "$f" > "$f.sha256"
+  done)
+elif [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   #############################
   ####### Data packages #######
   #############################
@@ -90,8 +110,7 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   # Creating tarball from /pkg, NOT from $PKG_ROOT, so that influxdb-$VERSION-1 directory is present in archive.
   (cd /pkg && tar czf $BIN_GZ_NAME ./*)
 
-  # don't need static install packages.
-  if [ "$OS" == "linux" ] && [ "$STATIC" != "1" ]; then
+  if [ "$OS" == "linux" ] ; then
     # Call fpm to build .deb and .rpm packages.
     for typeargs in "-t deb" "-t rpm --depends coreutils --depends shadow-utils"; do
       FPM_NAME=$(
@@ -129,10 +148,7 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   #############################
   ######### Checksums #########
   #############################
-  (cd /out && for f in *.deb *.rpm *.tar.gz; do
-    md5sum "$f" > "$f.md5"
-    sha256sum "$f" > "$f.sha256"
-  done)
+  (cd /out && find . \( -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' \) -exec sh -c 'md5sum {} > {}.md5 && sha256sum {} > {}.sha256' \;)
 elif [ "$OS" == "windows" ]; then
   # Windows gets the binaries and the sample config file.
   rm -rf "$PKG_ROOT"
