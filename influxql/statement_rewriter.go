@@ -78,7 +78,7 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *ShowFieldKeyCardinalityStatem
 				Alias: "count",
 			},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -111,9 +111,16 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 }
 
 func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinalityStatement) (Statement, error) {
+	// TODO(edd): currently we only support cardinality estimation for certain
+	// types of query. As the estimation coverage is expanded, this condition
+	// will become less strict.
+	if !stmt.Exact && stmt.Sources == nil && stmt.Condition == nil && stmt.Dimensions == nil && stmt.Limit == 0 && stmt.Offset == 0 {
+		return stmt, nil
+	}
+
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW MEASUREMENT CARDINALITY doesn't support time in WHERE clause")
+		return nil, errors.New("SHOW MEASUREMENT EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
@@ -138,7 +145,7 @@ func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinality
 				Alias: "count",
 			},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -166,9 +173,16 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 }
 
 func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement) (Statement, error) {
+	// TODO(edd): currently we only support cardinality estimation for certain
+	// types of query. As the estimation coverage is expanded, this condition
+	// will become less strict.
+	if !stmt.Exact && stmt.Sources == nil && stmt.Condition == nil && stmt.Dimensions == nil && stmt.Limit == 0 && stmt.Offset == 0 {
+		return stmt, nil
+	}
+
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW SERIES CARDINALITY doesn't support time in WHERE clause")
+		return nil, errors.New("SHOW SERIES EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
@@ -182,7 +196,7 @@ func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement)
 		Fields: []*Field{
 			{Expr: &Call{Name: "count", Args: []Expr{&VarRef{Val: "_seriesKey"}}}, Alias: "count"},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -310,7 +324,7 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 				Alias: "count",
 			},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -344,7 +358,7 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement) (Statement, error) {
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW TAG KEY CARDINALITY doesn't support time in WHERE clause")
+		return nil, errors.New("SHOW TAG KEY EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
@@ -369,7 +383,7 @@ func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement)
 				Alias: "count",
 			},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,

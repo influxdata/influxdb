@@ -118,7 +118,7 @@ func init() {
 		})
 		show.Group(FIELD).With(func(field *ParseTree) {
 			field.Handle(KEY, func(p *Parser) (Statement, error) {
-				return p.parseShowFieldKeyStatement()
+				return p.parseShowFieldKeyCardinalityStatement()
 			})
 			field.Handle(KEYS, func(p *Parser) (Statement, error) {
 				return p.parseShowFieldKeysStatement()
@@ -127,8 +127,11 @@ func init() {
 		show.Group(GRANTS).Handle(FOR, func(p *Parser) (Statement, error) {
 			return p.parseGrantsForUserStatement()
 		})
+		show.Group(MEASUREMENT).Handle(EXACT, func(p *Parser) (Statement, error) {
+			return p.parseShowMeasurementCardinalityStatement(true)
+		})
 		show.Group(MEASUREMENT).Handle(CARDINALITY, func(p *Parser) (Statement, error) {
-			return p.parseShowMeasurementCardinalityStatement()
+			return p.parseShowMeasurementCardinalityStatement(false)
 		})
 		show.Handle(MEASUREMENTS, func(p *Parser) (Statement, error) {
 			return p.parseShowMeasurementsStatement()
@@ -155,7 +158,7 @@ func init() {
 			return p.parseShowSubscriptionsStatement()
 		})
 		show.Group(TAG).With(func(tag *ParseTree) {
-			tag.Group(KEY).Handle(CARDINALITY, func(p *Parser) (Statement, error) {
+			tag.Handle(KEY, func(p *Parser) (Statement, error) {
 				return p.parseShowTagKeyCardinalityStatement()
 			})
 			tag.Handle(KEYS, func(p *Parser) (Statement, error) {

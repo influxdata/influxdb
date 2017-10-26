@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/influxql"
@@ -908,6 +909,7 @@ type {{$k.name}}AuxIterator struct {
 	output     chan aux{{$k.Name}}Point
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, opt IteratorOptions) *{{$k.name}}AuxIterator {
@@ -926,7 +928,13 @@ func (itr *{{$k.name}}AuxIterator) Background() {
 
 func (itr *{{$k.name}}AuxIterator) Start()                           { go itr.stream() }
 func (itr *{{$k.name}}AuxIterator) Stats() IteratorStats             { return itr.input.Stats() }
-func (itr *{{$k.name}}AuxIterator) Close() error                     { return itr.input.Close() }
+
+func (itr *{{$k.name}}AuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *{{$k.name}}AuxIterator) Next() (*{{$k.Name}}Point, error) {
 	p := <-itr.output
 	return p.point, p.err

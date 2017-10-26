@@ -42,6 +42,9 @@
 - [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
 - [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion. 
 - [#8986](https://github.com/influxdata/influxdb/issues/8986): Add long-line support to client importer. Thanks @lets00!
+- [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs. Thanks @darkliquid!
+- [#8984](https://github.com/influxdata/influxdb/pull/8984): EXACT and estimated CARDINALITY queries.
+
 
 ### Bugfixes
 
@@ -84,6 +87,8 @@
 - [#8780](https://github.com/influxdata/influxdb/issues/8780): Prevent deadlock during collectd, graphite, opentsdb, and udp shutdown.
 - [#8983](https://github.com/influxdata/influxdb/issues/8983): Remove the pidfile after the server has exited.
 - [#9005](https://github.com/influxdata/influxdb/pull/9005): Return `query.ErrQueryInterrupted` for successful read on `InterruptCh`.
+- [#8989](https://github.com/influxdata/influxdb/issues/8989): Fix race inside Measurement index.
+- [#8819](https://github.com/influxdata/influxdb/issues/8819): Ensure retention service always removes local shards.
 
 ## v1.3.4 [unreleased]
 
@@ -153,7 +158,7 @@ The following new configuration options are available.
 * `max-body-size` was added with a default of 25,000,000, but can be disabled by setting it to 0.
   Specifies the maximum size (in bytes) of a client request body. When a client sends data that exceeds
   the configured maximum size, a `413 Request Entity Too Large` HTTP response is returned.
-  
+
 #### `[continuous_queries]` Section
 
 * `query-stats-enabled` was added with a default of `false`. When set to `true`, continuous query execution statistics are written to the default monitor store.

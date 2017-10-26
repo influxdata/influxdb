@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -514,6 +515,31 @@ func (c *client) Query(q Query) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
+	// If we lack a X-Influxdb-Version header, then we didn't get a response from influxdb
+	// but instead some other service. If the error code is also a 500+ code, then some
+	// downstream loadbalancer/proxy/etc had an issue and we should report that.
+	if resp.Header.Get("X-Influxdb-Version") == "" && resp.StatusCode >= http.StatusInternalServerError {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil || len(body) == 0 {
+			return nil, fmt.Errorf("received status code %d from downstream server", resp.StatusCode)
+		}
+
+		return nil, fmt.Errorf("received status code %d from downstream server, with response body: %q", resp.StatusCode, body)
+	}
+
+	// If we get an unexpected content type, then it is also not from influx direct and therefore
+	// we want to know what we received and what status code was returned for debugging purposes.
+	if cType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); cType != "application/json" {
+		// Read up to 1kb of the body to help identify downstream errors and limit the impact of things
+		// like downstream serving a large file
+		body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1024))
+		if err != nil || len(body) == 0 {
+			return nil, fmt.Errorf("expected json response, got %q, with status: %v", cType, resp.StatusCode)
+		}
+
+		return nil, fmt.Errorf("expected json response, got %q, with status: %v and response body: %q", cType, resp.StatusCode, body)
+	}
+
 	var response Response
 	if q.Chunked {
 		cr := NewChunkedResponse(resp.Body)
@@ -548,11 +574,11 @@ func (c *client) Query(q Query) (*Response, error) {
 			return nil, fmt.Errorf("unable to decode json: received status code %d err: %s", resp.StatusCode, decErr)
 		}
 	}
+
 	// If we don't have an error in our json response, and didn't get statusOK
 	// then send back an error
 	if resp.StatusCode != http.StatusOK && response.Error() == nil {
-		return &response, fmt.Errorf("received status code %d from server",
-			resp.StatusCode)
+		return &response, fmt.Errorf("received status code %d from server", resp.StatusCode)
 	}
 	return &response, nil
 }

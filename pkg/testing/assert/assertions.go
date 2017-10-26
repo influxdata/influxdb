@@ -45,6 +45,16 @@ func NotEqual(t TestingT, got, expected interface{}, msgAndArgs ...interface{}) 
 	return false
 }
 
+// NoError asserts that err is nil and returns
+// true if the assertion was successful.
+func NoError(t TestingT, err error, msgAndArgs ...interface{}) bool {
+	if err != nil {
+		return fail(t, fmt.Sprintf("unexpected error: %+v", err), msgAndArgs...)
+	}
+
+	return true
+}
+
 // PanicsWithValue asserts that fn panics, and that
 // the recovered panic value equals the expected panic value.
 //

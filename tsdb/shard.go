@@ -832,6 +832,14 @@ func (s *Shard) CreateIterator(ctx context.Context, measurement string, opt quer
 	return engine.CreateIterator(ctx, measurement, opt)
 }
 
+func (s *Shard) CreateCursor(ctx context.Context, r *CursorRequest) (Cursor, error) {
+	engine, err := s.engine()
+	if err != nil {
+		return nil, err
+	}
+	return engine.CreateCursor(ctx, r)
+}
+
 // createSystemIterator returns an iterator for a field of system source.
 func (s *Shard) createSystemIterator(engine Engine, measurement string, opt query.IteratorOptions) (query.Iterator, bool, error) {
 	switch measurement {

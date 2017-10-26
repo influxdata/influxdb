@@ -250,6 +250,7 @@ func buildAuxIterators(ctx context.Context, fields influxql.Fields, ic IteratorC
 
 	// Wrap in an auxiliary iterator to separate the fields.
 	aitr := NewAuxIterator(input, opt)
+	tryAddAuxIteratorToContext(ctx, aitr)
 
 	// Generate iterators for each field.
 	itrs := make([]Iterator, len(fields))
@@ -377,6 +378,8 @@ func buildFieldIterators(ctx context.Context, fields influxql.Fields, ic Iterato
 		// Build the aux iterators. Previous validation should ensure that only one
 		// call was present so we build an AuxIterator from that input.
 		aitr := NewAuxIterator(input, opt)
+		tryAddAuxIteratorToContext(ctx, aitr)
+
 		for i, f := range fields {
 			if itrs[i] != nil {
 				itrs[i] = aitr
