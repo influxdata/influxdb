@@ -86,7 +86,7 @@ func getOrganization(ctx context.Context) (string, error) {
 }
 
 type meOrganizationRequest struct {
-	OrganizationID string `json:"organization"`
+	OrganizationID string `json:"currentOrganization"`
 }
 
 func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWriter, *http.Request) {
@@ -105,7 +105,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 		}
 
 		// TODO: add logic for validating that the org exists and user belongs to that org
-
+		// TODO: change to principal.CurrentOrganization
 		principal.Organization = req.OrganizationID
 
 		if err := auth.Authorize(ctx, w, principal); err != nil {
