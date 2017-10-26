@@ -52,6 +52,15 @@ const Authorized = ({
       React.isValidElement(children) ? children : children[0],
       {...additionalProps, ...propsOverride}
     ) // guards against multiple children wrapped by Authorized
+  } else if (
+    isUsingAuth &&
+    !isUserAuthorized(meRole, requiredRole) &&
+    propsOverride
+  ) {
+    return React.cloneElement(
+      React.isValidElement(children) ? children : children[0],
+      {...additionalProps, ...propsOverride}
+    )
   }
 
   return replaceWith ? replaceWith : null
