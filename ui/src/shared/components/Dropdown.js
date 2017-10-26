@@ -164,7 +164,7 @@ class Dropdown extends Component {
                 >
                   {item.text}
                 </a>
-                {actions
+                {actions && actions.length
                   ? <div className="dropdown-actions">
                       {actions.map(action => {
                         return (
