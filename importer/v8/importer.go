@@ -151,7 +151,7 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 		}
 		// End of file
 		if err == io.EOF {
-				return nil
+			return nil
 		}
 		// If we find the DML token, we are done with DDL
 		if strings.HasPrefix(line, "# DML") {
