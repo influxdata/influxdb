@@ -27,8 +27,8 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "billietta",
-					Provider: "Google",
-					Scheme:   "OAuth2",
+					Provider: "google",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
@@ -47,8 +47,8 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "billietta",
-					Provider: "Google",
-					Scheme:   "OAuth2",
+					Provider: "google",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
@@ -66,8 +66,8 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "billietta",
-					Provider: "Google",
-					Scheme:   "OAuth2",
+					Provider: "google",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
@@ -83,8 +83,8 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 			},
 			want: &chronograf.User{
 				Name:     "billietta",
-				Provider: "Google",
-				Scheme:   "OAuth2",
+				Provider: "google",
+				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
 						OrganizationID: "1336",
@@ -144,12 +144,12 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "docbrown",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1336",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -162,12 +162,12 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "docbrown",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1336",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -175,12 +175,12 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 			},
 			want: &chronograf.User{
 				Name:     "docbrown",
-				Provider: "GitHub",
-				Scheme:   "OAuth2",
+				Provider: "github",
+				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
 						OrganizationID: "1336",
-						Name:           "Editor",
+						Name:           "editor",
 					},
 				},
 			},
@@ -191,23 +191,23 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "docbrown",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles:    []chronograf.Role{},
 				},
 				orgID: "1336",
 				uInitial: &chronograf.User{
 					Name:     "docbrown",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles:    []chronograf.Role{},
 				},
 			},
 			addFirst: true,
 			want: &chronograf.User{
 				Name:     "docbrown",
-				Provider: "GitHub",
-				Scheme:   "OAuth2",
+				Provider: "github",
+				Scheme:   "oauth2",
 				Roles:    []chronograf.Role{},
 			},
 		},
@@ -217,24 +217,24 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "docbrown",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1336",
-							Name:           "Admin",
+							Name:           "admin",
 						},
 					},
 				},
 				orgID: "1336",
 				uInitial: &chronograf.User{
 					Name:     "docbrown",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -242,16 +242,16 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 			addFirst: true,
 			want: &chronograf.User{
 				Name:     "docbrown",
-				Provider: "GitHub",
-				Scheme:   "OAuth2",
+				Provider: "github",
+				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
 						OrganizationID: "1337",
-						Name:           "Editor",
+						Name:           "editor",
 					},
 					{
 						OrganizationID: "1336",
-						Name:           "Admin",
+						Name:           "admin",
 					},
 				},
 			},
@@ -262,11 +262,11 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name: "Editor",
+							Name: "editor",
 						},
 					},
 				},
@@ -279,8 +279,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
@@ -296,8 +296,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles:    []chronograf.Role{},
 				},
 			},
@@ -309,8 +309,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						chronograf.Role{},
 					},
@@ -318,12 +318,12 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				orgID: "1337",
 				uInitial: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -337,24 +337,24 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
 				orgID: "1337",
 				uInitial: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -368,8 +368,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				ctx: context.Background(),
 				u: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
@@ -379,12 +379,12 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				orgID: "1337",
 				uInitial: &chronograf.User{
 					Name:     "henrietta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -543,50 +543,50 @@ func TestOrganizationUsersStore_Update(t *testing.T) {
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "bobetta",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Viewer",
+							Name:           "viewer",
 						},
 						{
 							OrganizationID: "1337",
-							Name:           "Viewer",
+							Name:           "viewer",
 						},
 					},
 				},
 				roles: []chronograf.Role{
 					{
 						OrganizationID: "1338",
-						Name:           "Editor",
+						Name:           "editor",
 					},
 				},
 				orgID: "1338",
 			},
 			want: &chronograf.User{
 				Name:     "bobetta",
-				Provider: "GitHub",
-				Scheme:   "OAuth2",
+				Provider: "github",
+				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
 						OrganizationID: "1338",
-						Name:           "Editor",
+						Name:           "editor",
 					},
 				},
 			},
 			wantRaw: &chronograf.User{
 				Name:     "bobetta",
-				Provider: "GitHub",
-				Scheme:   "OAuth2",
+				Provider: "github",
+				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
 						OrganizationID: "1337",
-						Name:           "Viewer",
+						Name:           "viewer",
 					},
 					{
 						OrganizationID: "1338",
-						Name:           "Editor",
+						Name:           "editor",
 					},
 				},
 			},
@@ -658,38 +658,38 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 			wantRaw: []chronograf.User{
 				{
 					Name:     "howdy",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Viewer",
+							Name:           "viewer",
 						},
 						{
 							OrganizationID: "1336",
-							Name:           "Viewer",
+							Name:           "viewer",
 						},
 					},
 				},
 				{
 					Name:     "doody2",
-					Provider: "GitHub2",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
 				{
 					Name:     "doody",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -703,23 +703,23 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 			want: []chronograf.User{
 				{
 					Name:     "howdy",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Viewer",
+							Name:           "viewer",
 						},
 					},
 				},
 				{
 					Name:     "doody",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
@@ -727,38 +727,38 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 			wantRaw: []chronograf.User{
 				{
 					Name:     "howdy",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Viewer",
+							Name:           "viewer",
 						},
 						{
 							OrganizationID: "1336",
-							Name:           "Viewer",
+							Name:           "viewer",
 						},
 					},
 				},
 				{
 					Name:     "doody2",
-					Provider: "GitHub2",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1337",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
 				{
 					Name:     "doody",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							OrganizationID: "1338",
-							Name:           "Editor",
+							Name:           "editor",
 						},
 					},
 				},
