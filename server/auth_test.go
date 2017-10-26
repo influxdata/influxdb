@@ -15,40 +15,6 @@ import (
 	"github.com/influxdata/chronograf/server"
 )
 
-type MockAuthenticator struct {
-	Principal   oauth2.Principal
-	ValidateErr error
-	ExtendErr   error
-	Serialized  string
-}
-
-func (m *MockAuthenticator) Validate(context.Context, *http.Request) (oauth2.Principal, error) {
-	return m.Principal, m.ValidateErr
-}
-
-func (m *MockAuthenticator) Extend(ctx context.Context, w http.ResponseWriter, p oauth2.Principal) (oauth2.Principal, error) {
-	cookie := http.Cookie{}
-
-	http.SetCookie(w, &cookie)
-	return m.Principal, m.ExtendErr
-}
-
-func (m *MockAuthenticator) Authorize(ctx context.Context, w http.ResponseWriter, p oauth2.Principal) error {
-	cookie := http.Cookie{}
-
-	http.SetCookie(w, &cookie)
-	return nil
-}
-
-func (m *MockAuthenticator) Expire(http.ResponseWriter) {}
-
-func (m *MockAuthenticator) ValidAuthorization(ctx context.Context, serializedAuthorization string) (oauth2.Principal, error) {
-	return oauth2.Principal{}, nil
-}
-func (m *MockAuthenticator) Serialize(context.Context, oauth2.Principal) (string, error) {
-	return m.Serialized, nil
-}
-
 func TestAuthorizedToken(t *testing.T) {
 	var tests = []struct {
 		Desc        string
@@ -82,7 +48,7 @@ func TestAuthorizedToken(t *testing.T) {
 		req, _ := http.NewRequest("GET", "", nil)
 		w := httptest.NewRecorder()
 
-		a := &MockAuthenticator{
+		a := &mocks.Authenticator{
 			Principal:   test.Principal,
 			ValidateErr: test.ValidateErr,
 		}
