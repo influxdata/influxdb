@@ -10,7 +10,7 @@ const NavListItem = React.createClass({
   propTypes: {
     link: string.isRequired,
     children: node,
-    location: string.isRequired,
+    location: string,
     useAnchor: bool,
     isExternal: bool,
   },
@@ -62,7 +62,7 @@ const NavBlock = React.createClass({
     children: node,
     link: string,
     icon: string.isRequired,
-    location: string.isRequired,
+    location: string,
     className: string,
   },
 
