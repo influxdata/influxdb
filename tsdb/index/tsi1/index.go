@@ -382,7 +382,6 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-	return fs.MeasurementNamesByExpr(expr)
 	names, err := fs.MeasurementNamesByExpr(expr)
 	return bytesutil.CloneSlice(names), err
 }
