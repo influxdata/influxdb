@@ -229,19 +229,20 @@ func (cmd *Command) printMeasurements(fs *tsi1.FileSet) error {
 	fmt.Fprintln(tw, "Measurement\t")
 
 	// Iterate over each series.
-	itr := fs.MeasurementIterator()
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		if cmd.measurementFilter != nil && !cmd.measurementFilter.Match(e.Name()) {
-			continue
-		}
+	if itr := fs.MeasurementIterator(); itr != nil {
+		for e := itr.Next(); e != nil; e = itr.Next() {
+			if cmd.measurementFilter != nil && !cmd.measurementFilter.Match(e.Name()) {
+				continue
+			}
 
-		fmt.Fprintf(tw, "%s\t%v\n", e.Name(), deletedString(e.Deleted()))
-		if err := tw.Flush(); err != nil {
-			return err
-		}
+			fmt.Fprintf(tw, "%s\t%v\n", e.Name(), deletedString(e.Deleted()))
+			if err := tw.Flush(); err != nil {
+				return err
+			}
 
-		if err := cmd.printTagKeys(fs, e.Name()); err != nil {
-			return err
+			if err := cmd.printTagKeys(fs, e.Name()); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -364,21 +365,23 @@ func (cmd *Command) printIndexFileSummary(f *tsi1.IndexFile) error {
 	var measurementN, measurementSeriesN, measurementSeriesSize uint64
 	var keyN uint64
 	var valueN, valueSeriesN, valueSeriesSize uint64
-	mitr := f.MeasurementIterator()
-	for me, _ := mitr.Next().(*tsi1.MeasurementBlockElem); me != nil; me, _ = mitr.Next().(*tsi1.MeasurementBlockElem) {
-		kitr := f.TagKeyIterator(me.Name())
-		for ke, _ := kitr.Next().(*tsi1.TagBlockKeyElem); ke != nil; ke, _ = kitr.Next().(*tsi1.TagBlockKeyElem) {
-			vitr := f.TagValueIterator(me.Name(), ke.Key())
-			for ve, _ := vitr.Next().(*tsi1.TagBlockValueElem); ve != nil; ve, _ = vitr.Next().(*tsi1.TagBlockValueElem) {
-				valueN++
-				valueSeriesN += uint64(ve.SeriesN())
-				valueSeriesSize += uint64(len(ve.SeriesData()))
+
+	if mitr := f.MeasurementIterator(); mitr != nil {
+		for me, _ := mitr.Next().(*tsi1.MeasurementBlockElem); me != nil; me, _ = mitr.Next().(*tsi1.MeasurementBlockElem) {
+			kitr := f.TagKeyIterator(me.Name())
+			for ke, _ := kitr.Next().(*tsi1.TagBlockKeyElem); ke != nil; ke, _ = kitr.Next().(*tsi1.TagBlockKeyElem) {
+				vitr := f.TagValueIterator(me.Name(), ke.Key())
+				for ve, _ := vitr.Next().(*tsi1.TagBlockValueElem); ve != nil; ve, _ = vitr.Next().(*tsi1.TagBlockValueElem) {
+					valueN++
+					valueSeriesN += uint64(ve.SeriesN())
+					valueSeriesSize += uint64(len(ve.SeriesData()))
+				}
+				keyN++
 			}
-			keyN++
+			measurementN++
+			measurementSeriesN += uint64(me.SeriesN())
+			measurementSeriesSize += uint64(len(me.SeriesData()))
 		}
-		measurementN++
-		measurementSeriesN += uint64(me.SeriesN())
-		measurementSeriesSize += uint64(len(me.SeriesData()))
 	}
 
 	// Write stats.
