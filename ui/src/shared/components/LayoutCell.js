@@ -76,12 +76,14 @@ class LayoutCell extends Component {
           {queries.length
             ? children
             : <div className="graph-empty">
-                <button
-                  className="no-query--button btn btn-md btn-primary"
-                  onClick={this.handleSummonOverlay(cell)}
-                >
-                  <span className="icon plus" /> Add Graph
-                </button>
+                <Authorized requiredRole={EDITOR_ROLE}>
+                  <button
+                    className="no-query--button btn btn-md btn-primary"
+                    onClick={this.handleSummonOverlay(cell)}
+                  >
+                    <span className="icon plus" /> Add Graph
+                  </button>
+                </Authorized>
               </div>}
         </div>
       </div>
