@@ -88,6 +88,7 @@
 - [#9005](https://github.com/influxdata/influxdb/pull/9005): Return `query.ErrQueryInterrupted` for successful read on `InterruptCh`.
 - [#8989](https://github.com/influxdata/influxdb/issues/8989): Fix race inside Measurement index.
 - [#8819](https://github.com/influxdata/influxdb/issues/8819): Ensure retention service always removes local shards.
+- [#8943](https://github.com/influxdata/influxdb/pull/8943): auth: update required permissions for ON clauses
 
 ## v1.3.4 [unreleased]
 
