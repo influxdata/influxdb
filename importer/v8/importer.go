@@ -149,6 +149,10 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 		if err != nil && err != io.EOF {
 			return err
 		}
+		// End of file
+		if err == io.EOF {
+				return nil
+		}
 		// If we find the DML token, we are done with DDL
 		if strings.HasPrefix(line, "# DML") {
 			return nil
@@ -161,10 +165,6 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 			continue
 		}
 		i.queryExecutor(line)
-		//End of File
-		if err == io.EOF {
-			return nil
-		}
 	}
 	return nil
 }
@@ -175,6 +175,12 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		line, err := scanner.ReadString(byte('\n'))
 		if err != nil && err != io.EOF {
 			return err
+		}
+		//End of file
+		if err == io.EOF {
+			// Call batchWrite one last time to flush anything out in the batch
+			i.batchWrite()
+			return nil
 		}
 		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
 			i.database = strings.TrimSpace(strings.Split(string(line), ":")[1])
@@ -190,12 +196,6 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 			continue
 		}
 		i.batchAccumulator(line, start)
-		//End of File
-		if err == io.EOF {
-			// Call batchWrite one last time to flush anything out in the batch
-			i.batchWrite()
-			return nil
-		}
 	}
 	return nil
 }
