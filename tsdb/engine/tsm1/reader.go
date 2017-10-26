@@ -253,12 +253,22 @@ func (t *TSMReader) applyTombstones() error {
 				batch = batch[:0]
 			}
 		}
-		batch = append(batch, ts.Key)
+
+		// Copy the tombstone key and re-use the buffers to avoid allocations
+		n := len(batch)
+		batch = batch[:n+1]
+		if cap(batch[n]) < len(ts.Key) {
+			batch[n] = make([]byte, len(ts.Key))
+		} else {
+			batch[n] = batch[n][:len(ts.Key)]
+		}
+		copy(batch[n], ts.Key)
 
 		if len(batch) >= 4096 {
 			t.index.DeleteRange(batch, prev.Min, prev.Max)
 			batch = batch[:0]
 		}
+
 		prev = ts
 		return nil
 	}); err != nil {

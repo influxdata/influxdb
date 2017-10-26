@@ -15,11 +15,7 @@ func TestTombstoner_Add(t *testing.T) {
 	f := MustTempFile(dir)
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	entries, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries := mustReadAll(ts)
 	if got, exp := len(entries), 0; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -35,11 +31,7 @@ func TestTombstoner_Add(t *testing.T) {
 		t.Fatalf("unexpected error flushing tombstone: %v", err)
 	}
 
-	entries, err = ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries = mustReadAll(ts)
 	stats = ts.TombstoneFiles()
 	if got, exp := len(stats), 1; got != exp {
 		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
@@ -67,11 +59,7 @@ func TestTombstoner_Add(t *testing.T) {
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
-	entries, err = ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries = mustReadAll(ts)
 	if got, exp := len(entries), 1; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -88,11 +76,7 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 	f := MustTempFile(dir)
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	entries, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries := mustReadAll(ts)
 	if got, exp := len(entries), 0; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -114,11 +98,7 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 		t.Fatalf("unexpected error flushing tombstone: %v", err)
 	}
 
-	entries, err = ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries = mustReadAll(ts)
 	stats = ts.TombstoneFiles()
 	if got, exp := len(stats), 1; got != exp {
 		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
@@ -150,11 +130,7 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
-	entries, err = ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries = mustReadAll(ts)
 	if got, exp := len(entries), 2; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -176,11 +152,7 @@ func TestTombstoner_Add_Empty(t *testing.T) {
 	f := MustTempFile(dir)
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	entries, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries := mustReadAll(ts)
 	if got, exp := len(entries), 0; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -193,11 +165,7 @@ func TestTombstoner_Add_Empty(t *testing.T) {
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
-	entries, err = ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries = mustReadAll(ts)
 	if got, exp := len(entries), 0; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -224,11 +192,7 @@ func TestTombstoner_Delete(t *testing.T) {
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
-	entries, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries := mustReadAll(ts)
 	if got, exp := len(entries), 1; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -247,11 +211,7 @@ func TestTombstoner_Delete(t *testing.T) {
 	}
 
 	ts = &tsm1.Tombstoner{Path: f.Name()}
-	entries, err = ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries = mustReadAll(ts)
 	if got, exp := len(entries), 0; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -273,15 +233,11 @@ func TestTombstoner_ReadV1(t *testing.T) {
 
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	_, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
+	// Read once
+	_ = mustReadAll(ts)
 
-	entries, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
+	// Read again
+	entries := mustReadAll(ts)
 
 	if got, exp := len(entries), 1; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
@@ -293,11 +249,7 @@ func TestTombstoner_ReadV1(t *testing.T) {
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
-	entries, err = ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries = mustReadAll(ts)
 	if got, exp := len(entries), 1; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
@@ -320,17 +272,27 @@ func TestTombstoner_ReadEmptyV1(t *testing.T) {
 
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	_, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
+	_ = mustReadAll(ts)
 
-	entries, err := ts.ReadAll()
-	if err != nil {
-		fatal(t, "ReadAll", err)
-	}
-
+	entries := mustReadAll(ts)
 	if got, exp := len(entries), 0; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+func mustReadAll(t *tsm1.Tombstoner) []tsm1.Tombstone {
+	var tombstones []tsm1.Tombstone
+	if err := t.Walk(func(t tsm1.Tombstone) error {
+		b := make([]byte, len(t.Key))
+		copy(b, t.Key)
+		tombstones = append(tombstones, tsm1.Tombstone{
+			Min: t.Min,
+			Max: t.Max,
+			Key: b,
+		})
+		return nil
+	}); err != nil {
+		panic(err)
+	}
+	return tombstones
 }

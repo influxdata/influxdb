@@ -45,6 +45,7 @@ type Tombstoner struct {
 	gz          *gzip.Writer
 	bw          *bufio.Writer
 	pendingFile *os.File
+	tmp         [8]byte
 }
 
 // Tombstone represents an individual deletion.
@@ -128,22 +129,6 @@ func (t *Tombstoner) Rollback() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.rollback()
-}
-
-// ReadAll returns all the tombstones in the Tombstoner's directory.
-func (t *Tombstoner) ReadAll() ([]Tombstone, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	tombstones, err := t.readTombstone()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(t.tombstones) == 0 {
-		return tombstones, nil
-	}
-	return append(tombstones, t.tombstones...), nil
 }
 
 // Delete removes all the tombstone files from disk.
@@ -392,18 +377,6 @@ func (t *Tombstoner) rollback() error {
 	return os.Remove(tmpFilename)
 }
 
-func (t *Tombstoner) readTombstone() ([]Tombstone, error) {
-	var tombstones []Tombstone
-
-	if err := t.Walk(func(t Tombstone) error {
-		tombstones = append(tombstones, t)
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	return tombstones, nil
-}
-
 // readTombstoneV1 reads the first version of tombstone files that were not
 // capable of storing a min and max time for a key.  This is used for backwards
 // compatibility with versions prior to 0.13.  This format is a simple newline
@@ -591,7 +564,7 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 		key      []byte
 	)
 
-	br := bufio.NewReader(f)
+	br := bufio.NewReaderSize(f, 64*1024)
 	gr, err := gzip.NewReader(br)
 	if err != nil {
 		return err
@@ -610,8 +583,8 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 				}
 
 				keyLen := int(binary.BigEndian.Uint32(b[:4]))
-				if keyLen > len(b) {
-					b = make([]byte, keyLen)
+				if keyLen > len(b)+16 {
+					b = make([]byte, keyLen+16)
 				}
 
 				if _, err := io.ReadFull(gr, b[:keyLen]); err != nil {
@@ -619,21 +592,20 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 				}
 
 				// Copy the key since b is re-used
-				key = make([]byte, keyLen)
-				copy(key, b[:keyLen])
+				key = b[:keyLen]
 
-				if _, err := io.ReadFull(gr, b[:8]); err != nil {
+				minBuf := b[keyLen : keyLen+8]
+				maxBuf := b[keyLen+8 : keyLen+16]
+				if _, err := io.ReadFull(gr, minBuf); err != nil {
 					return err
 				}
 
-				min = int64(binary.BigEndian.Uint64(b[:8]))
-
-				if _, err := io.ReadFull(gr, b[:8]); err != nil {
+				min = int64(binary.BigEndian.Uint64(minBuf))
+				if _, err := io.ReadFull(gr, maxBuf); err != nil {
 					return err
 				}
 
-				max = int64(binary.BigEndian.Uint64(b[:8]))
-
+				max = int64(binary.BigEndian.Uint64(maxBuf))
 				if err := fn(Tombstone{
 					Key: key,
 					Min: min,
@@ -678,21 +650,20 @@ func (t *Tombstoner) tombstonePath() string {
 }
 
 func (t *Tombstoner) writeTombstone(dst io.Writer, ts Tombstone) error {
-	var b [8]byte
-	binary.BigEndian.PutUint32(b[:4], uint32(len(ts.Key)))
-	if _, err := dst.Write(b[:4]); err != nil {
+	binary.BigEndian.PutUint32(t.tmp[:4], uint32(len(ts.Key)))
+	if _, err := dst.Write(t.tmp[:4]); err != nil {
 		return err
 	}
 	if _, err := dst.Write([]byte(ts.Key)); err != nil {
 		return err
 	}
-	binary.BigEndian.PutUint64(b[:], uint64(ts.Min))
-	if _, err := dst.Write(b[:]); err != nil {
+	binary.BigEndian.PutUint64(t.tmp[:], uint64(ts.Min))
+	if _, err := dst.Write(t.tmp[:]); err != nil {
 		return err
 	}
 
-	binary.BigEndian.PutUint64(b[:], uint64(ts.Max))
-	if _, err := dst.Write(b[:]); err != nil {
+	binary.BigEndian.PutUint64(t.tmp[:], uint64(ts.Max))
+	if _, err := dst.Write(t.tmp[:]); err != nil {
 		return err
 	}
 	return nil
