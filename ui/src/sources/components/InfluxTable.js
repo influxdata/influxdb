@@ -15,12 +15,14 @@ const kapacitorDropdown = (
 ) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
-      <Link
-        to={`/sources/${source.id}/kapacitors/new`}
-        className="btn btn-xs btn-default"
-      >
-        <span className="icon plus" /> Add Config
-      </Link>
+      <Authorized requiredRole={EDITOR_ROLE}>
+        <Link
+          to={`/sources/${source.id}/kapacitors/new`}
+          className="btn btn-xs btn-default"
+        >
+          <span className="icon plus" /> Add Config
+        </Link>
+      </Authorized>
     )
   }
   const kapacitorItems = kapacitors.map(k => {
