@@ -84,6 +84,10 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (*ResultSet, error) 
 		return nil, err
 	}
 
+	if cur == nil {
+		return nil, nil
+	}
+
 	if len(req.Grouping) > 0 {
 		cur = newGroupSeriesCursor(ctx, cur, req.Grouping)
 	}
