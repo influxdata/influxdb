@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 
 import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
 
+import UserNavBlock from 'src/side_nav/components/UserNavBlock'
 import {
   NavBar,
   NavBlock,
@@ -32,31 +33,6 @@ const SideNav = React.createClass({
         url: string.isRequired,
       })
     ),
-  },
-
-  renderUserMenuBlockWithCustomLinks(customLinks, logoutLink) {
-    return [
-      <NavHeader key={0} title="User" />,
-      ...customLinks
-        .sort((a, b) => a.name.toLowerCase() > b.name.toLowerCase())
-        .map(({name, url}, i) =>
-          <NavListItem
-            key={i + 1}
-            useAnchor={true}
-            isExternal={true}
-            link={url}
-          >
-            {name}
-          </NavListItem>
-        ),
-      <NavListItem
-        key={customLinks.length + 1}
-        useAnchor={true}
-        link={logoutLink}
-      >
-        Logout
-      </NavListItem>,
-    ]
   },
 
   render() {
@@ -152,18 +128,7 @@ const SideNav = React.createClass({
             />
           </NavBlock>
           {isUsingAuth
-            ? <NavBlock icon="user" location={location}>
-                {customLinks
-                  ? this.renderUserMenuBlockWithCustomLinks(
-                      customLinks,
-                      logoutLink
-                    )
-                  : <NavHeader
-                      useAnchor={true}
-                      link={logoutLink}
-                      title="Logout"
-                    />}
-              </NavBlock>
+            ? <UserNavBlock logoutLink={logoutLink} customLinks={customLinks} />
             : null}
         </NavBar>
   },
