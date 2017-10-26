@@ -41,7 +41,7 @@
 - [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.
 - [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
 - [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion.
-- [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs
+- [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs. Thanks @darkliquid!
 
 ### Bugfixes
 
