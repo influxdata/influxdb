@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 )
 
 // KapacitorProxy proxies requests to kapacitor using the path query parameter.
@@ -54,8 +55,12 @@ func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 			req.SetBasicAuth(srv.Username, srv.Password)
 		}
 	}
+
+	// Without a FlushInterval the HTTP Chunked response for kapacitor logs is
+	// buffered and flushed every 30 seconds.
 	proxy := &httputil.ReverseProxy{
-		Director: director,
+		Director:      director,
+		FlushInterval: time.Second,
 	}
 	proxy.ServeHTTP(w, r)
 }
