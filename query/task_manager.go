@@ -197,16 +197,13 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt 
 // running query.
 func (t *TaskManager) KillQuery(qid uint64) error {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	query := t.queries[qid]
+	t.mu.Unlock()
+
 	if query == nil {
 		return fmt.Errorf("no such query id: %d", qid)
 	}
-
-	close(query.closing)
-	query.status = KilledTask
-	return nil
+	return query.kill()
 }
 
 // DetachQuery removes a query from the query table. If the query is not in the
@@ -220,9 +217,7 @@ func (t *TaskManager) DetachQuery(qid uint64) error {
 		return fmt.Errorf("no such query id: %d", qid)
 	}
 
-	if query.status != KilledTask {
-		close(query.closing)
-	}
+	query.close()
 	delete(t.queries, qid)
 	return nil
 }
@@ -287,7 +282,7 @@ func (t *TaskManager) Close() error {
 	t.shutdown = true
 	for _, query := range t.queries {
 		query.setError(ErrQueryEngineShutdown)
-		close(query.closing)
+		query.close()
 	}
 	t.queries = nil
 	return nil
