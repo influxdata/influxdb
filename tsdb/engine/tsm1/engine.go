@@ -974,6 +974,14 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		bytesutil.Sort(seriesKeys)
 	}
 
+	// Min and max time in the engine are slightly different from the query language values.
+	if min == influxql.MinTime {
+		min = math.MinInt64
+	}
+	if max == influxql.MaxTime {
+		max = math.MaxInt64
+	}
+
 	// Disable and abort running compactions so that tombstones added existing tsm
 	// files don't get removed.  This would cause deleted measurements/series to
 	// re-appear once the compaction completed.  We only disable the level compactions
