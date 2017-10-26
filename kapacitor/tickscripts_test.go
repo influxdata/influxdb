@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
@@ -26,8 +27,14 @@ func TestGenerate(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -71,8 +78,14 @@ func TestThreshold(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -215,8 +228,14 @@ func TestThresholdStringCrit(t *testing.T) {
 			Measurement:     "haproxy",
 			Fields: []chronograf.Field{
 				{
-					Field: "status",
-					Funcs: []string{"last"},
+					Value: "last",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "status",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			GroupBy: chronograf.GroupBy{
@@ -353,8 +372,14 @@ func TestThresholdStringCritGreater(t *testing.T) {
 			Measurement:     "haproxy",
 			Fields: []chronograf.Field{
 				{
-					Field: "status",
-					Funcs: []string{"last"},
+					Value: "last",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "status",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			GroupBy: chronograf.GroupBy{
@@ -489,8 +514,14 @@ func TestThresholdDetail(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -636,8 +667,14 @@ func TestThresholdInsideRange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -782,8 +819,14 @@ func TestThresholdOutsideRange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -927,8 +970,8 @@ func TestThresholdNoAggregate(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{},
+					Value: "usage_user",
+					Type:  "field",
 				},
 			},
 			Tags: map[string][]string{
@@ -1064,8 +1107,14 @@ func TestRelative(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -1221,8 +1270,14 @@ func TestRelativeChange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -1375,8 +1430,14 @@ func TestDeadman(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Value: "mean",
+					Type:  "func",
+					Args: []chronograf.Field{
+						{
+							Value: "usage_user",
+							Type:  "field",
+						},
+					},
 				},
 			},
 			Tags: map[string][]string{
@@ -1488,9 +1549,7 @@ trigger
 			continue
 		}
 		if got != tt.want {
-			diff := diffmatchpatch.New()
-			delta := diff.DiffMain(string(tt.want), string(got), true)
-			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
+			t.Errorf("%q\n%s", tt.name, cmp.Diff(string(tt.want), string(got)))
 		}
 	}
 }

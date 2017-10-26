@@ -13,7 +13,7 @@ class CustomTimeRangeOverlay extends Component {
   }
 
   render() {
-    const {onClose, timeRange, onApplyTimeRange} = this.props
+    const {onClose, timeRange, onApplyTimeRange, page} = this.props
 
     return (
       <div className="custom-time--overlay">
@@ -21,6 +21,7 @@ class CustomTimeRangeOverlay extends Component {
           onApplyTimeRange={onApplyTimeRange}
           timeRange={timeRange}
           onClose={onClose}
+          page={page}
         />
       </div>
     )
@@ -36,6 +37,7 @@ CustomTimeRangeOverlay.propTypes = {
     upper: string,
   }).isRequired,
   onClose: func,
+  page: string,
 }
 
 export default OnClickOutside(CustomTimeRangeOverlay)

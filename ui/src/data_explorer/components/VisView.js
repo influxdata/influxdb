@@ -12,6 +12,7 @@ const VisView = ({
   templates,
   autoRefresh,
   heightPixels,
+  manualRefresh,
   editQueryStatus,
   resizerBottomHeight,
 }) => {
@@ -41,6 +42,7 @@ const VisView = ({
       templates={templates}
       cellHeight={heightPixels}
       autoRefresh={autoRefresh}
+      manualRefresh={manualRefresh}
       editQueryStatus={editQueryStatus}
     />
   )
@@ -58,6 +60,7 @@ VisView.propTypes = {
   autoRefresh: number.isRequired,
   heightPixels: number,
   editQueryStatus: func.isRequired,
+  manualRefresh: number,
   activeQueryIndex: number,
   resizerBottomHeight: number,
 }

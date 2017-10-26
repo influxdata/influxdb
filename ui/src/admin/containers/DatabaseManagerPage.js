@@ -19,32 +19,6 @@ class DatabaseManagerPage extends Component {
     actions.loadDBsAndRPsAsync(databases)
   }
 
-  render() {
-    const {source, databases, actions, notify} = this.props
-    return (
-      <DatabaseManager
-        databases={databases}
-        notify={notify}
-        isRFDisplayed={!!source.metaUrl}
-        isAddDBDisabled={!!databases.some(db => db.isEditing)}
-        onKeyDownDatabase={this.handleKeyDownDatabase}
-        onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
-        addDatabase={actions.addDatabase}
-        onEditDatabase={this.handleEditDatabase}
-        onCancelDatabase={actions.removeDatabase}
-        onConfirmDatabase={this.handleCreateDatabase}
-        onDeleteDatabase={actions.deleteDatabaseAsync}
-        onStartDeleteDatabase={this.handleStartDeleteDatabase}
-        onRemoveDeleteCode={actions.removeDatabaseDeleteCode}
-        onAddRetentionPolicy={this.handleAddRetentionPolicy}
-        onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
-        onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
-        onRemoveRetentionPolicy={actions.removeRetentionPolicy}
-        onDeleteRetentionPolicy={this.handleDeleteRetentionPolicy}
-      />
-    )
-  }
-
   handleDeleteRetentionPolicy = (db, rp) => () => {
     this.props.actions.deleteRetentionPolicyAsync(db, rp)
   }
@@ -113,6 +87,32 @@ class DatabaseManagerPage extends Component {
     }
 
     actions.editDatabase(database, {deleteCode: value})
+  }
+
+  render() {
+    const {source, databases, actions, notify} = this.props
+    return (
+      <DatabaseManager
+        notify={notify}
+        databases={databases}
+        isRFDisplayed={!!source.metaUrl}
+        addDatabase={actions.addDatabase}
+        onEditDatabase={this.handleEditDatabase}
+        onCancelDatabase={actions.removeDatabase}
+        onConfirmDatabase={this.handleCreateDatabase}
+        onDeleteDatabase={actions.deleteDatabaseAsync}
+        onKeyDownDatabase={this.handleKeyDownDatabase}
+        onAddRetentionPolicy={this.handleAddRetentionPolicy}
+        onRemoveDeleteCode={actions.removeDatabaseDeleteCode}
+        onStartDeleteDatabase={this.handleStartDeleteDatabase}
+        isAddDBDisabled={!!databases.some(db => db.isEditing)}
+        onRemoveRetentionPolicy={actions.removeRetentionPolicy}
+        onDeleteRetentionPolicy={this.handleDeleteRetentionPolicy}
+        onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
+        onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
+        onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
+      />
+    )
   }
 }
 

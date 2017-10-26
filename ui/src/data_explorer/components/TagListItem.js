@@ -99,7 +99,7 @@ const TagListItem = React.createClass({
   },
 
   render() {
-    const {tagKey, tagValues} = this.props
+    const {tagKey, tagValues, isUsingGroupBy} = this.props
     const {isOpen} = this.state
     const tagItemLabel = `${tagKey} — ${tagValues.length}`
 
@@ -115,8 +115,9 @@ const TagListItem = React.createClass({
             {tagItemLabel}
           </span>
           <div
-            className={classnames('btn btn-default btn-xs group-by-tag', {
-              active: this.props.isUsingGroupBy,
+            className={classnames('btn btn-xs group-by-tag', {
+              'btn-primary': isUsingGroupBy,
+              'btn-default': !isUsingGroupBy,
             })}
             onClick={this.handleGroupBy}
           >

@@ -1,7 +1,11 @@
+import _ from 'lodash'
 import defaultQueryConfig from 'utils/defaultQueryConfig'
-import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
-import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
-import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {
+  hasField,
+  removeField,
+  getFieldsDeep,
+  getFuncsByFieldName,
+} from 'shared/reducers/helpers/fields'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
@@ -23,63 +27,85 @@ export const chooseMeasurement = (
   measurement,
 })
 
-export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
-  const {fields, groupBy} = query
-
-  if (!fields) {
+export const toggleKapaField = (query, field) => {
+  if (field.type === 'field') {
     return {
       ...query,
-      fields: [{field, funcs: ['mean']}],
+      fields: [field],
+      groupBy: {
+        ...query.groupBy,
+        time: null,
+      },
     }
-  }
-
-  const isSelected = fields.find(f => f.field === field)
-  if (isSelected) {
-    const nextFields = fields.filter(f => f.field !== field)
-    if (!nextFields.length) {
-      return {
-        ...query,
-        fields: nextFields,
-        groupBy: {...groupBy, time: null},
-      }
-    }
-
-    return {
-      ...query,
-      fields: nextFields,
-    }
-  }
-
-  if (isKapacitorRule) {
-    return {
-      ...query,
-      fields: [{field, funcs}],
-    }
-  }
-
-  let newFuncs = ['mean']
-  if (query.fields.length) {
-    newFuncs = query.fields.find(f => f.funcs).funcs
   }
 
   return {
     ...query,
-    fields: query.fields.concat({
-      field,
-      funcs: newFuncs,
-    }),
+    fields: [field],
   }
 }
 
-// all fields implicitly have a function applied to them, so consequently
-// we need to set the auto group by time
-export const toggleFieldWithGroupByInterval = (
-  query,
-  {field, funcs},
-  isKapacitorRule
-) => {
-  const queryWithField = toggleField(query, {field, funcs}, isKapacitorRule)
-  return groupByTime(queryWithField, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL)
+export const buildInitialField = value => [
+  {
+    type: 'func',
+    alias: `mean_${value}`,
+    args: [{value, type: 'field'}],
+    value: 'mean',
+  },
+]
+
+export const addInitialField = (query, field, groupBy) => {
+  return {
+    ...query,
+    fields: buildInitialField(field.value),
+    groupBy,
+  }
+}
+
+export const toggleField = (query, {value}) => {
+  const {fields = [], groupBy} = query
+  const isSelected = hasField(value, fields)
+  const newFuncs = fields.filter(f => f.type === 'func')
+
+  if (isSelected) {
+    // if list is all fields, remove that field
+    // if list is all funcs, remove all funcs that match
+    const newFields = removeField(value, fields)
+    if (!newFields.length) {
+      return {
+        ...query,
+        groupBy: {
+          ...groupBy,
+          time: null,
+        },
+        fields: [],
+      }
+    }
+    return {
+      ...query,
+      fields: newFields,
+    }
+  }
+
+  // if we are not applying functions apply a field
+  if (!newFuncs.length) {
+    return {
+      ...query,
+      fields: [...fields, {value, type: 'field'}],
+    }
+  }
+
+  const defaultField = {
+    type: 'func',
+    alias: `mean_${value}`,
+    args: [{value, type: 'field'}],
+    value: 'mean',
+  }
+
+  return {
+    ...query,
+    fields: [...fields, defaultField],
+  }
 }
 
 export function groupByTime(query, time) {
@@ -98,39 +124,65 @@ export function toggleTagAcceptance(query) {
   })
 }
 
-export function applyFuncsToField(
-  query,
-  {field, funcs},
-  {preventAutoGroupBy = false, isKapacitorRule = false} = {}
-) {
-  const shouldRemoveFuncs = funcs.length === 0
-  const nextFields = query.fields.map(f => {
-    // If one field has no funcs, all fields must have no funcs
-    if (shouldRemoveFuncs) {
-      return Object.assign({}, f, {funcs: []})
-    }
+export const removeFuncs = (query, fields) => ({
+  ...query,
+  fields: getFieldsDeep(fields),
+  groupBy: {...query.groupBy, time: null},
+})
 
+export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
+  const nextFields = query.fields.reduce((acc, f) => {
     // If there is a func applied to only one field, add it to the other fields
-    if (f.field === field || !f.funcs || !f.funcs.length) {
-      return Object.assign({}, f, {funcs})
+    if (f.type === 'field') {
+      return [
+        ...acc,
+        funcs.map(func => {
+          const {value, type} = func
+          const args = [{value: f.value, type: 'field'}]
+          const alias = func.alias ? func.alias : `${func.value}_${f.value}`
+
+          return {
+            value,
+            type,
+            args,
+            alias,
+          }
+        }),
+      ]
     }
 
-    return f
-  })
+    const fieldToChange = f.args.find(a => a.value === field.value)
+    // Apply new funcs to field
+    if (fieldToChange) {
+      const newFuncs = funcs.reduce((acc2, func) => {
+        const funcsToChange = getFuncsByFieldName(fieldToChange.value, acc)
+        const dup = funcsToChange.find(a => a.value === func.value)
 
-  const defaultGroupBy = preventAutoGroupBy
-    ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL
-    : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
-  // If there are no functions, then there should be no GROUP BY time
-  const nextGroupBy = Object.assign({}, query.groupBy, {
-    time: shouldRemoveFuncs ? null : defaultGroupBy,
-  })
+        if (dup) {
+          return acc2
+        }
 
-  const nextQuery = {...query, fields: nextFields, groupBy: nextGroupBy}
+        return [
+          ...acc2,
+          {
+            ...func,
+            args: [field],
+            alias: `${func.value}_${field.value}`,
+          },
+        ]
+      }, [])
 
-  // fill is not valid for kapacitor query configs since there is no actual
-  // query and all alert rules create stream-based tasks currently
-  return isKapacitorRule ? nextQuery : {...nextQuery, fill: NULL_STRING}
+      return [...acc, ...newFuncs]
+    }
+
+    return [...acc, f]
+  }, [])
+
+  return {
+    ...query,
+    fields: _.flatten(nextFields),
+    groupBy,
+  }
 }
 
 export function updateRawQuery(query, rawText) {

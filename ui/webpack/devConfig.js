@@ -25,6 +25,15 @@ module.exports = {
     },
   },
   module: {
+    noParse: [
+      path.resolve(
+        __dirname,
+        '..',
+        'node_modules',
+        'memoizerific',
+        'memoizerific.js'
+      ),
+    ],
     preLoaders: [
       {
         test: /\.js$/,

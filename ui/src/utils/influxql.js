@@ -1,10 +1,8 @@
 import _ from 'lodash'
 
-import {
-  TEMP_VAR_INTERVAL,
-  DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
-} from 'shared/constants'
+import {TEMP_VAR_INTERVAL, AUTO_GROUP_BY} from 'shared/constants'
 import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {TYPE_QUERY_CONFIG, TYPE_IFQL} from 'src/dashboards/constants'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 
 /* eslint-disable quotes */
@@ -21,13 +19,9 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 }
 /* eslint-enable quotes */
 
-export default function buildInfluxQLQuery(
-  timeBounds,
-  config,
-  isKapacitorRule
-) {
+export default function buildInfluxQLQuery(timeRange, config) {
   const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
-  const {upper, lower} = quoteIfTimestamp(timeBounds)
+  const {upper, lower} = quoteIfTimestamp(timeRange)
 
   const select = _buildSelect(config)
   if (select === null) {
@@ -36,7 +30,7 @@ export default function buildInfluxQLQuery(
 
   const condition = _buildWhereClause({lower, upper, tags, areTagsAccepted})
   const dimensions = _buildGroupBy(groupBy)
-  const fillClause = isKapacitorRule || !groupBy.time ? '' : _buildFill(fill)
+  const fillClause = groupBy.time ? _buildFill(fill) : ''
 
   return `${select}${condition}${dimensions}${fillClause}`
 }
@@ -53,25 +47,42 @@ function _buildSelect({fields, database, retentionPolicy, measurement}) {
   return statement
 }
 
+// type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
+export const buildQuery = (type, timeRange, config) => {
+  switch (type) {
+    case `${TYPE_QUERY_CONFIG}`: {
+      return buildInfluxQLQuery(timeRange, config)
+    }
+
+    case `${TYPE_IFQL}`: {
+      // build query usining IFQL here
+    }
+  }
+
+  return buildInfluxQLQuery(timeRange, config)
+}
+
 export function buildSelectStatement(config) {
   return _buildSelect(config)
 }
 
 function _buildFields(fieldFuncs) {
-  const hasAggregate = fieldFuncs.some(f => f.funcs && f.funcs.length)
-  if (hasAggregate) {
-    return fieldFuncs
-      .map(f => {
-        return f.funcs
-          .map(func => `${func}("${f.field}") AS "${func}_${f.field}"`)
-          .join(', ')
-      })
-      .join(', ')
+  if (!fieldFuncs) {
+    return ''
   }
 
   return fieldFuncs
     .map(f => {
-      return f.field === '*' ? '*' : `"${f.field}"`
+      switch (f.type) {
+        case 'field': {
+          return f.value === '*' ? '*' : `"${f.value}"`
+        }
+        case 'func': {
+          const args = _buildFields(f.args)
+          const alias = f.alias ? ` AS "${f.alias}"` : ''
+          return `${f.value}(${args})${alias}`
+        }
+      }
     })
     .join(', ')
 }
@@ -121,7 +132,7 @@ function _buildGroupByTime(groupBy) {
     return ''
   }
 
-  return ` GROUP BY ${groupBy.time === DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
+  return ` GROUP BY ${groupBy.time === AUTO_GROUP_BY
     ? TEMP_VAR_INTERVAL
     : `time(${groupBy.time})`}`
 }

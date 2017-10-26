@@ -53,8 +53,8 @@ func TestService_UserID(t *testing.T) {
 							return &chronograf.User{
 								ID:       1337,
 								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
+								Provider: "google",
+								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
 									ViewerRole,
 								},
@@ -68,7 +68,7 @@ func TestService_UserID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"viewer"}]}`,
+			wantBody:        `{"id":"1337","name":"billysteve","provider":"google","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"viewer"}]}`,
 		},
 	}
 
@@ -136,8 +136,8 @@ func TestService_NewUser(t *testing.T) {
 				),
 				user: &userRequest{
 					Name:     "bob",
-					Provider: "GitHub",
-					Scheme:   "OAuth2",
+					Provider: "github",
+					Scheme:   "oauth2",
 				},
 			},
 			fields: fields{
@@ -147,8 +147,8 @@ func TestService_NewUser(t *testing.T) {
 						return &chronograf.User{
 							ID:       1338,
 							Name:     "bob",
-							Provider: "GitHub",
-							Scheme:   "OAuth2",
+							Provider: "github",
+							Scheme:   "oauth2",
 							Roles:    []chronograf.Role{},
 						}, nil
 					},
@@ -156,7 +156,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
+			wantBody:        `{"id":"1338","name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 	}
 
@@ -218,8 +218,8 @@ func TestService_RemoveUser(t *testing.T) {
 							return &chronograf.User{
 								ID:       1339,
 								Name:     "helena",
-								Provider: "Heroku",
-								Scheme:   "LDAP",
+								Provider: "heroku",
+								Scheme:   "oauth2",
 							}, nil
 						default:
 							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
@@ -240,8 +240,8 @@ func TestService_RemoveUser(t *testing.T) {
 				user: &userRequest{
 					ID:       1339,
 					Name:     "helena",
-					Provider: "Heroku",
-					Scheme:   "LDAP",
+					Provider: "heroku",
+					Scheme:   "oauth2",
 				},
 			},
 			id:         "1339",
@@ -309,8 +309,8 @@ func TestService_UpdateUser(t *testing.T) {
 							return &chronograf.User{
 								ID:       1336,
 								Name:     "bobbetta",
-								Provider: "GitHub",
-								Scheme:   "OAuth2",
+								Provider: "github",
+								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
 									EditorRole,
 								},
@@ -338,7 +338,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"bobbetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
+			wantBody:        `{"id":"1336","name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
 		},
 	}
 	for _, tt := range tests {
@@ -404,8 +404,8 @@ func TestService_Users(t *testing.T) {
 							{
 								ID:       1337,
 								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
+								Provider: "google",
+								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
 									EditorRole,
 								},
@@ -413,8 +413,8 @@ func TestService_Users(t *testing.T) {
 							{
 								ID:       1338,
 								Name:     "bobbettastuhvetta",
-								Provider: "Auth0",
-								Scheme:   "LDAP",
+								Provider: "auth0",
+								Scheme:   "oauth2",
 							},
 						}, nil
 					},
@@ -430,7 +430,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
@@ -442,14 +442,14 @@ func TestService_Users(t *testing.T) {
 							{
 								ID:       1338,
 								Name:     "bobbettastuhvetta",
-								Provider: "Auth0",
-								Scheme:   "LDAP",
+								Provider: "auth0",
+								Scheme:   "oauth2",
 							},
 							{
 								ID:       1337,
 								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
+								Provider: "google",
+								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
 									EditorRole,
 								},
@@ -468,7 +468,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
 
@@ -514,8 +514,8 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				u: &userRequest{
 					ID:       1337,
 					Name:     "billietta",
-					Provider: "Auth0",
-					Scheme:   "LDAP",
+					Provider: "auth0",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						EditorRole,
 					},
@@ -529,8 +529,8 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 			args: args{
 				u: &userRequest{
 					ID:       1337,
-					Provider: "Auth0",
-					Scheme:   "LDAP",
+					Provider: "auth0",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						EditorRole,
 					},
@@ -545,7 +545,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				u: &userRequest{
 					ID:     1337,
 					Name:   "billietta",
-					Scheme: "LDAP",
+					Scheme: "oauth2",
 					Roles: []chronograf.Role{
 						EditorRole,
 					},
@@ -560,7 +560,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				u: &userRequest{
 					ID:       1337,
 					Name:     "billietta",
-					Provider: "Auth0",
+					Provider: "auth0",
 					Roles: []chronograf.Role{
 						EditorRole,
 					},
@@ -575,8 +575,8 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				u: &userRequest{
 					ID:       1337,
 					Name:     "billietta",
-					Provider: "Auth0",
-					Scheme:   "LDAP",
+					Provider: "auth0",
+					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
 							Name: "BilliettaSpecialRole",

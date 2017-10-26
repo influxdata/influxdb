@@ -2,17 +2,19 @@ import _ from 'lodash'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
-  editRawText,
-  applyFuncsToField,
-  chooseMeasurement,
-  chooseNamespace,
+  fill,
   chooseTag,
   groupByTag,
+  removeFuncs,
   groupByTime,
   toggleField,
-  toggleTagAcceptance,
-  fill,
+  editRawText,
   updateRawQuery,
+  chooseNamespace,
+  chooseMeasurement,
+  addInitialField,
+  applyFuncsToField,
+  toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
 
 const queryConfigs = (state = {}, action) => {
@@ -98,10 +100,12 @@ const queryConfigs = (state = {}, action) => {
     }
 
     case 'DE_APPLY_FUNCS_TO_FIELD': {
-      const {queryId, fieldFunc} = action.payload
-      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, {
-        preventAutoGroupBy: true,
-      })
+      const {queryId, fieldFunc, groupBy} = action.payload
+      const nextQueryConfig = applyFuncsToField(
+        state[queryId],
+        fieldFunc,
+        groupBy
+      )
 
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,
@@ -150,6 +154,22 @@ const queryConfigs = (state = {}, action) => {
       }
 
       return {...state, ...nextState}
+    }
+
+    case 'DE_REMOVE_FUNCS': {
+      const {queryID, fields} = action.payload
+      const nextQuery = removeFuncs(state[queryID], fields)
+
+      // fields with no functions cannot have a group by time
+      return {...state, [queryID]: nextQuery}
+    }
+
+    // Adding the first feild applies a groupBy time
+    case 'DE_ADD_INITIAL_FIELD': {
+      const {queryID, field, groupBy} = action.payload
+      const nextQuery = addInitialField(state[queryID], field, groupBy)
+
+      return {...state, [queryID]: nextQuery}
     }
   }
   return state

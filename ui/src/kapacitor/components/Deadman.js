@@ -7,7 +7,7 @@ const periods = PERIODS.map(text => {
 })
 
 const Deadman = ({rule, onChange}) =>
-  <div className="rule-section--row">
+  <div className="rule-section--row rule-section--row-first rule-section--row-last">
     <p>Send Alert if Data is missing for</p>
     <Dropdown
       className="dropdown-80"

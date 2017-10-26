@@ -1,18 +1,20 @@
 import reducer from 'src/data_explorer/reducers/queryConfigs'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
-  chooseNamespace,
-  chooseMeasurement,
-  toggleField,
-  applyFuncsToField,
+  fill,
   chooseTag,
   groupByTag,
   groupByTime,
-  toggleTagAcceptance,
-  fill,
-  updateQueryConfig,
+  toggleField,
+  removeFuncs,
   updateRawQuery,
   editQueryStatus,
+  chooseNamespace,
+  chooseMeasurement,
+  applyFuncsToField,
+  addInitialField,
+  updateQueryConfig,
+  toggleTagAcceptance,
 } from 'src/data_explorer/actions/view'
 
 import {LINEAR, NULL_STRING} from 'shared/constants/queryFillOptions'
@@ -77,16 +79,20 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         })
       )
       const three = reducer(two, chooseMeasurement(queryId, 'disk'))
+
       state = reducer(
         three,
-        toggleField(queryId, {field: 'a great field', funcs: []})
+        addInitialField(queryId, {
+          value: 'a great field',
+          type: 'field',
+        })
       )
     })
 
     describe('choosing a new namespace', () => {
       it('clears out the old measurement and fields', () => {
         // what about tags?
-        expect(state[queryId].measurement).to.exist
+        expect(state[queryId].measurement).to.equal('disk')
         expect(state[queryId].fields.length).to.equal(1)
 
         const newState = reducer(
@@ -97,7 +103,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           })
         )
 
-        expect(newState[queryId].measurement).not.to.exist
+        expect(newState[queryId].measurement).to.be.null
         expect(newState[queryId].fields.length).to.equal(0)
       })
     })
@@ -126,100 +132,120 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
         const newState = reducer(
           state,
-          toggleField(queryId, {field: 'a different field', funcs: []})
+          toggleField(queryId, {
+            value: 'f2',
+            type: 'field',
+          })
         )
 
         expect(newState[queryId].fields.length).to.equal(2)
-        expect(newState[queryId].fields[1].field).to.equal('a different field')
+        expect(newState[queryId].fields[1].alias).to.deep.equal('mean_f2')
+        expect(newState[queryId].fields[1].args).to.deep.equal([
+          {value: 'f2', type: 'field'},
+        ])
+        expect(newState[queryId].fields[1].value).to.deep.equal('mean')
       })
 
-      it('applies a funcs to newly selected fields', () => {
+      it('applies a func to newly selected fields', () => {
         expect(state[queryId].fields.length).to.equal(1)
-
-        const oneFieldOneFunc = reducer(
-          state,
-          applyFuncsToField(queryId, {field: 'a great field', funcs: ['func1']})
-        )
+        expect(state[queryId].fields[0].type).to.equal('func')
+        expect(state[queryId].fields[0].value).to.equal('mean')
 
         const newState = reducer(
-          oneFieldOneFunc,
-          toggleField(queryId, {field: 'a different field', funcs: []})
+          state,
+          toggleField(queryId, {
+            value: 'f2',
+            type: 'field',
+          })
         )
 
-        expect(newState[queryId].fields[1].funcs.length).to.equal(1)
-        expect(newState[queryId].fields[1].funcs[0]).to.equal('func1')
+        expect(newState[queryId].fields[1].value).to.equal('mean')
+        expect(newState[queryId].fields[1].alias).to.equal('mean_f2')
+        expect(newState[queryId].fields[1].args).to.deep.equal([
+          {value: 'f2', type: 'field'},
+        ])
+        expect(newState[queryId].fields[1].type).to.equal('func')
       })
 
       it('adds the field property to query config if not found', () => {
         delete state[queryId].fields
         expect(state[queryId].fields).to.equal(undefined)
 
-        const field = 'fk1'
         const newState = reducer(
           state,
-          toggleField(queryId, {field: 'fk1', funcs: []})
+          toggleField(queryId, {value: 'fk1', type: 'field'})
         )
 
         expect(newState[queryId].fields.length).to.equal(1)
-        expect(newState[queryId].fields[0].field).to.equal(field)
       })
     })
   })
 
   describe('DE_APPLY_FUNCS_TO_FIELD', () => {
-    it('applies functions to a field without any existing functions', () => {
+    it('applies new functions to a field', () => {
+      const f1 = {value: 'f1', type: 'field'}
+      const f2 = {value: 'f2', type: 'field'}
+      const f3 = {value: 'f3', type: 'field'}
+      const f4 = {value: 'f4', type: 'field'}
+
       const initialState = {
         [queryId]: {
           id: 123,
           database: 'db1',
           measurement: 'm1',
           fields: [
-            {field: 'f1', funcs: ['fn1', 'fn2']},
-            {field: 'f2', funcs: ['fn1']},
+            {value: 'fn1', type: 'func', args: [f1], alias: `fn1_${f1.value}`},
+            {value: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.value}`},
+            {value: 'fn2', type: 'func', args: [f1], alias: `fn2_${f1.value}`},
           ],
         },
       }
+
       const action = applyFuncsToField(queryId, {
-        field: 'f1',
-        funcs: ['fn3', 'fn4'],
+        field: {value: 'f1', type: 'field'},
+        funcs: [
+          {value: 'fn3', type: 'func', args: []},
+          {value: 'fn4', type: 'func', args: []},
+        ],
       })
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].fields).to.eql([
-        {field: 'f1', funcs: ['fn3', 'fn4']},
-        {field: 'f2', funcs: ['fn1']},
+      expect(nextState[queryId].fields).to.deep.equal([
+        {value: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.value}`},
+        {value: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.value}`},
+        {value: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.value}`},
       ])
     })
+  })
 
+  describe('DE_REMOVE_FUNCS', () => {
     it('removes all functions and group by time when one field has no funcs applied', () => {
+      const f1 = {value: 'f1', type: 'field'}
+      const f2 = {value: 'f2', type: 'field'}
+      const fields = [
+        {value: 'fn1', type: 'func', args: [f1], alias: `fn1_${f1.value}`},
+        {value: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.value}`},
+      ]
+      const groupBy = {time: '1m', tags: []}
+
       const initialState = {
         [queryId]: {
           id: 123,
           database: 'db1',
           measurement: 'm1',
-          fields: [
-            {field: 'f1', funcs: ['fn1', 'fn2']},
-            {field: 'f2', funcs: ['fn3', 'fn4']},
-          ],
-          groupBy: {
-            time: '1m',
-            tags: [],
-          },
+          fields,
+          groupBy,
         },
       }
 
-      const action = applyFuncsToField(queryId, {
-        field: 'f1',
-        funcs: [],
-      })
+      const action = removeFuncs(queryId, fields, groupBy)
 
       const nextState = reducer(initialState, action)
+      const actual = nextState[queryId].fields
+      const expected = [f1, f2]
 
-      expect(nextState[queryId].fields).to.eql([
-        {field: 'f1', funcs: []},
-        {field: 'f2', funcs: []},
-      ])
+      expect(actual).to.eql(expected)
       expect(nextState[queryId].groupBy.time).to.equal(null)
     })
   })

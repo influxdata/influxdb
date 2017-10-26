@@ -28,11 +28,12 @@ const ValuesSection = ({
   timeRange,
   onAddEvery,
   onRemoveEvery,
+  onChooseTrigger,
   onDeadmanChange,
+  onChooseTimeRange,
   queryConfigActions,
   onRuleTypeInputChange,
   onRuleTypeDropdownChange,
-  onChooseTrigger,
 }) =>
   <div className="rule-section">
     <h3 className="rule-section--heading">Alert Type</h3>
@@ -49,7 +50,7 @@ const ValuesSection = ({
           )}
         </TabList>
         <div>
-          <h3 className="rule-builder--sub-header">Time Series</h3>
+          <h3 className="rule-section--sub-heading">Time Series</h3>
           <DataSection
             query={query}
             timeRange={timeRange}
@@ -60,7 +61,7 @@ const ValuesSection = ({
             isDeadman={isDeadman(rule)}
           />
         </div>
-        <h3 className="rule-builder--sub-header">Rule Conditions</h3>
+        <h3 className="rule-section--sub-heading">Conditions</h3>
         <TabPanels>
           <TabPanel>
             <Threshold
@@ -88,6 +89,7 @@ const ValuesSection = ({
               query={query}
               source={source}
               timeRange={timeRange}
+              onChooseTimeRange={onChooseTimeRange}
             />}
       </Tabs>
     </div>
@@ -110,6 +112,7 @@ ValuesSection.propTypes = {
   timeRange: shape({}).isRequired,
   queryConfigActions: shape({}).isRequired,
   source: shape({}).isRequired,
+  onChooseTimeRange: func.isRequired,
 }
 
 export default ValuesSection

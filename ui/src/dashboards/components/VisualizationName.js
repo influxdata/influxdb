@@ -1,17 +1,20 @@
 import React, {Component, PropTypes} from 'react'
 
+import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
+
 class VisualizationName extends Component {
   constructor(props) {
     super(props)
 
     this.state = {
       reset: false,
+      isEditing: false,
     }
   }
 
   handleInputBlur = reset => e => {
     this.props.onCellRename(reset ? this.props.defaultName : e.target.value)
-    this.setState({reset: false})
+    this.setState({reset: false, isEditing: false})
   }
 
   handleKeyDown = e => {
@@ -24,21 +27,39 @@ class VisualizationName extends Component {
     }
   }
 
+  handleEditMode = () => {
+    this.setState({isEditing: true})
+  }
+
+  handleFocus = e => {
+    e.target.select()
+  }
+
   render() {
     const {defaultName} = this.props
-    const {reset} = this.state
+    const {reset, isEditing} = this.state
+    const graphNameClass =
+      defaultName === NEW_DEFAULT_DASHBOARD_CELL.name
+        ? 'graph-name graph-name__untitled'
+        : 'graph-name'
 
     return (
       <div className="graph-heading">
-        <input
-          type="text"
-          className="form-control input-md"
-          defaultValue={defaultName}
-          onBlur={this.handleInputBlur(reset)}
-          onKeyDown={this.handleKeyDown}
-          placeholder="Name this Cell..."
-          ref={r => (this.inputRef = r)}
-        />
+        {isEditing
+          ? <input
+              type="text"
+              className="form-control input-sm"
+              defaultValue={defaultName}
+              onBlur={this.handleInputBlur(reset)}
+              onKeyDown={this.handleKeyDown}
+              placeholder="Name this Cell..."
+              autoFocus={true}
+              onFocus={this.handleFocus}
+              ref={r => (this.inputRef = r)}
+            />
+          : <div className={graphNameClass} onClick={this.handleEditMode}>
+              {defaultName}
+            </div>}
       </div>
     )
   }
