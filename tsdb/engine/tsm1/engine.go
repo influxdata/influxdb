@@ -5,6 +5,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -930,34 +931,6 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
-// containsSeries returns a map of keys indicating whether the key exists and
-// has values or not.
-func (e *Engine) containsSeries(keys [][]byte) (map[string]bool, error) {
-	// keyMap is used to see if a given key exists.  keys
-	// are the measurement + tagset (minus separate & field)
-	keyMap := map[string]bool{}
-	for _, k := range keys {
-		keyMap[string(k)] = false
-	}
-
-	for _, k := range e.Cache.unsortedKeys() {
-		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
-		keyMap[string(seriesKey)] = true
-	}
-
-	if err := e.FileStore.WalkKeys(func(k []byte, _ byte) error {
-		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
-		if _, ok := keyMap[string(seriesKey)]; ok {
-			keyMap[string(seriesKey)] = true
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return keyMap, nil
-}
-
 // deleteSeries removes all series keys from the engine.
 func (e *Engine) deleteSeries(seriesKeys [][]byte) error {
 	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
@@ -991,25 +964,37 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	e.disableLevelCompactions(true)
 	defer e.enableLevelCompactions(true)
 
-	tempKeys := seriesKeys[:]
+	var i int
+	var abort = errors.New("iteration aborted") // sentinel error value
 	deleteKeys := make([][]byte, 0, len(seriesKeys))
-	// go through the keys in the file store
+
+	// Walk through the keys in the file store in sorted order and track any series keys
+	// we find that match the set passed in.  The file store keys contain the field as a
+	// suffix, but the passed in set is only the measurement and tag sets.
 	if err := e.FileStore.WalkKeys(func(k []byte, _ byte) error {
-		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
-
-		// Both tempKeys and keys walked are sorted, skip any passed in keys
-		// that don't exist in our key set.
-		for len(tempKeys) > 0 && bytes.Compare(tempKeys[0], seriesKey) < 0 {
-			tempKeys = tempKeys[1:]
+		if i >= len(seriesKeys) {
+			return abort
 		}
 
-		// Keys match, add the full series key to delete.
-		if len(tempKeys) > 0 && bytes.Equal(tempKeys[0], seriesKey) {
+		// Strip off the field portion of the key
+		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
+
+		// Skip any series keys passed in that are less than the current key.  These
+		// don't exist on disk.
+		cmp := bytes.Compare(seriesKeys[i], seriesKey)
+		for i < len(seriesKeys) && cmp < 0 {
+			cmp = bytes.Compare(seriesKeys[i], seriesKey)
+			i++
+		}
+
+		// We've found a matching key, add the series key (w/ field) to the set we need
+		// to delete.
+		if cmp == 0 {
 			deleteKeys = append(deleteKeys, k)
+			return nil
 		}
-
 		return nil
-	}); err != nil {
+	}); err != nil && err != abort {
 		return err
 	}
 
@@ -1018,7 +1003,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	}
 
 	// find the keys in the cache and remove them
-	walKeys := deleteKeys[:0]
+	deleteKeys = deleteKeys[:0]
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
@@ -1029,33 +1014,84 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		i := bytesutil.SearchBytes(seriesKeys, seriesKey)
 		if i < len(seriesKeys) && bytes.Equal(seriesKey, seriesKeys[i]) {
 			// k is the measurement + tags + sep + field
-			walKeys = append(walKeys, k)
+			deleteKeys = append(deleteKeys, k)
 		}
 		return nil
 	})
 
-	e.Cache.DeleteRange(walKeys, min, max)
+	e.Cache.DeleteRange(deleteKeys, min, max)
 
 	// delete from the WAL
-	if _, err := e.WAL.DeleteRange(walKeys, min, max); err != nil {
+	if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
 		return err
 	}
 
-	// Have we deleted all points for the series? If so, we need to remove
+	// The series are deleted on disk, but the index may still say they exist.
+	// Depending on the the min,max time passed in, the series may or not actually
+	// exists now.  To reconcile the index, we walk the series keys that still exists
+	// on disk and cross out any keys that match the passed in series.  Any series
+	// left in the slice at the end do not exist and can be deleted from the index.
+	// Note: this is inherently racy if writes are occuring to the same measurement/series are
+	// being removed.  A write could occur and exist in the cache at this point, but we
+	// would delete it from the index.
+	i = 0
+	if err := e.FileStore.WalkKeys(func(k []byte, _ byte) error {
+		if i >= len(seriesKeys) {
+			return abort
+		}
+		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
+
+		cmp := bytes.Compare(seriesKeys[i], seriesKey)
+		for i < len(seriesKeys) && cmp < 0 {
+			cmp = bytes.Compare(seriesKeys[i], seriesKey)
+			i++
+		}
+
+		for i < len(seriesKeys) && cmp == 0 {
+			seriesKeys[i] = nil
+			cmp = bytes.Compare(seriesKeys[i], seriesKey)
+			i++
+			return nil
+		}
+		return nil
+	}); err != nil && err != abort {
+		return err
+	}
+
+	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
-	existing, err := e.containsSeries(seriesKeys)
-	if err != nil {
-		return err
-	}
+	if len(seriesKeys) > 0 {
+		for _, k := range seriesKeys {
+			// This key was crossed out earlier, skip it
+			if k == nil {
+				continue
+			}
 
-	for k, exists := range existing {
-		if !exists {
-			if err := e.index.UnassignShard(k, e.id); err != nil {
+			// See if this series was found in the cache earlier
+			i := bytesutil.SearchBytes(deleteKeys, k)
+
+			var hasCacheValues bool
+			// If there are multiple fields, they will have the same prefix.  If any field
+			// has values, then we can't delete it from the index.
+			for i < len(deleteKeys) && bytes.HasPrefix(deleteKeys[i], k) {
+				if e.Cache.Values(deleteKeys[i]).Len() > 0 {
+					hasCacheValues = true
+					break
+				}
+				i++
+			}
+
+			// Some cache values still exists, leave the series in the index.
+			if hasCacheValues {
+				continue
+			}
+
+			if err := e.index.UnassignShard(string(k), e.id); err != nil {
 				return err
 			}
 		}
+		go e.index.Rebuild()
 	}
-	go e.index.Rebuild()
 
 	return nil
 }
