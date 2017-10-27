@@ -34,7 +34,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -107,7 +107,7 @@ type Handler struct {
 	}
 
 	Config    *Config
-	Logger    zap.Logger
+	Logger    *zap.Logger
 	CLFLogger *log.Logger
 	stats     *Statistics
 
@@ -119,7 +119,7 @@ func NewHandler(c Config) *Handler {
 	h := &Handler{
 		mux:            pat.New(),
 		Config:         &c,
-		Logger:         zap.New(zap.NullEncoder()),
+		Logger:         zap.NewNop(),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),

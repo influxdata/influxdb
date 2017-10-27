@@ -7,7 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -51,7 +51,7 @@ type TaskManager struct {
 
 	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	// Used for managing and tracking running queries.
 	queries  map[uint64]*QueryTask
@@ -64,7 +64,7 @@ type TaskManager struct {
 func NewTaskManager() *TaskManager {
 	return &TaskManager{
 		QueryTimeout: DefaultQueryTimeout,
-		Logger:       zap.New(zap.NullEncoder()),
+		Logger:       zap.NewNop(),
 		queries:      make(map[uint64]*QueryTask),
 		nextID:       1,
 	}

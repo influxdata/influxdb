@@ -21,7 +21,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -100,7 +100,7 @@ type Index struct {
 	CompactionEnabled         bool
 	CompactionMonitorInterval time.Duration
 
-	logger zap.Logger
+	logger *zap.Logger
 
 	// Index's version.
 	version int
@@ -115,7 +115,7 @@ func NewIndex() *Index {
 		MaxLogFileSize:    DefaultMaxLogFileSize,
 		CompactionEnabled: true,
 
-		logger:  zap.New(zap.NullEncoder()),
+		logger:  zap.NewNop(),
 		version: Version,
 	}
 }
@@ -324,7 +324,7 @@ func (i *Index) writeManifestFile() error {
 }
 
 // WithLogger sets the logger for the index.
-func (i *Index) WithLogger(logger zap.Logger) {
+func (i *Index) WithLogger(logger *zap.Logger) {
 	i.logger = logger.With(zap.String("index", "tsi"))
 }
 

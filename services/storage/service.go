@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
@@ -13,7 +13,7 @@ type Service struct {
 	addr           string
 	yarpc          *yarpcServer
 	loggingEnabled bool
-	logger         zap.Logger
+	logger         *zap.Logger
 
 	Store      *Store
 	TSDBStore  *tsdb.Store
@@ -28,14 +28,14 @@ func NewService(c Config) *Service {
 	s := &Service{
 		addr:           c.BindAddress,
 		loggingEnabled: c.LogEnabled,
-		logger:         zap.New(zap.NullEncoder()),
+		logger:         zap.NewNop(),
 	}
 
 	return s
 }
 
 // WithLogger sets the logger for the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.logger = log.With(zap.String("service", "storage"))
 }
 

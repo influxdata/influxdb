@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // statistics gathered by the openTSDB package.
@@ -73,7 +73,7 @@ type Service struct {
 	batcher      *tsdb.PointBatcher
 
 	LogPointErrors bool
-	Logger         zap.Logger
+	Logger         *zap.Logger
 
 	stats       *Statistics
 	defaultTags models.StatisticTags
@@ -93,7 +93,7 @@ func NewService(c Config) (*Service, error) {
 		batchSize:       d.BatchSize,
 		batchPending:    d.BatchPending,
 		batchTimeout:    time.Duration(d.BatchTimeout),
-		Logger:          zap.New(zap.NullEncoder()),
+		Logger:          zap.NewNop(),
 		LogPointErrors:  d.LogPointErrors,
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"bind": d.BindAddress},
@@ -230,7 +230,7 @@ func (s *Service) createInternalStorage() error {
 }
 
 // WithLogger sets the logger for the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "opentsdb"))
 }
 

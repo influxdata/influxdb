@@ -14,7 +14,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Statistics for the Subscriber service.
@@ -47,7 +47,7 @@ type Service struct {
 		WaitForDataChanged() chan struct{}
 	}
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
-	Logger          zap.Logger
+	Logger          *zap.Logger
 	update          chan struct{}
 	stats           *Statistics
 	points          chan *coordinator.WritePointsRequest
@@ -64,7 +64,7 @@ type Service struct {
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
 	s := &Service{
-		Logger: zap.New(zap.NullEncoder()),
+		Logger: zap.NewNop(),
 		closed: true,
 		stats:  &Statistics{},
 		conf:   c,
@@ -126,7 +126,7 @@ func (s *Service) Close() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "subscriber"))
 }
 
@@ -355,7 +355,7 @@ type chanWriter struct {
 	pw            PointsWriter
 	pointsWritten *int64
 	failures      *int64
-	logger        zap.Logger
+	logger        *zap.Logger
 }
 
 // Close closes the chanWriter.
