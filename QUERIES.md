@@ -63,14 +63,24 @@ Cluster administration privileges automatically grant full read and write permis
 # Select
 
 ```sql
-SELECT mean(value) from cpu WHERE host = 'serverA' AND time > now() - 4h GROUP BY time(5m)
-
-SELECT mean(value) from cpu WHERE time > now() - 4h GROUP BY time(5m), region
+SELECT * FROM just_my_type
 ```
 
 ## Group By
 
+```sql
+SELECT mean(value) from cpu WHERE host = 'serverA' AND time > now() - 4h GROUP BY time(5m)
+SELECT mean(value) from cpu WHERE time > now() - 4h GROUP BY time(5m), region
+```
+
+
 # Delete
+
+```sql
+DELETE FROM "cpu"
+DELETE FROM "cpu" WHERE time < '2000-01-01T00:00:00Z'
+DELETE WHERE time < '2000-01-01T00:00:00Z'
+```
 
 # Series
 

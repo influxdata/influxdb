@@ -415,6 +415,10 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	defer fs.Release()
 
 	itr := fs.MeasurementIterator()
+	if itr == nil {
+		return nil, nil
+	}
+
 	var a [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if re.Match(e.Name()) {
@@ -1200,6 +1204,10 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		// Create new series iterator, if necessary.
 		// Exit if there are no measurements remaining.
 		if itr.sitr == nil {
+			if itr.mitr == nil {
+				return nil, nil
+			}
+
 			m := itr.mitr.Next()
 			if m == nil {
 				return nil, nil

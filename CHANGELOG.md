@@ -44,6 +44,7 @@
 - [#8986](https://github.com/influxdata/influxdb/issues/8986): Add long-line support to client importer. Thanks @lets00!
 - [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs. Thanks @darkliquid!
 - [#8984](https://github.com/influxdata/influxdb/pull/8984): EXACT and estimated CARDINALITY queries.
+- [#8893](https://github.com/influxdata/influxdb/pull/8893): Handle nil MeasurementIterator.
 
 
 ### Bugfixes

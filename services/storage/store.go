@@ -79,9 +79,12 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (*ResultSet, error) 
 	}
 
 	var cur seriesCursor
-	cur, err = newIndexSeriesCursor(ctx, req, s.TSDBStore.Shards(shardIDs))
-	if err != nil {
+	if ic, err := newIndexSeriesCursor(ctx, req, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
+	} else if ic == nil {
+		return nil, nil
+	} else {
+		cur = ic
 	}
 
 	if len(req.Grouping) > 0 {
