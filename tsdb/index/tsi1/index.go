@@ -768,9 +768,11 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	// they are part of the same composite series.
 	tagSets := make(map[string]*query.TagSet, 64)
 
+	println("dbg/ITRS")
 	if itr != nil {
 		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
 			_, tags := ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
+			println("dbg/ITR.TAGS", tags.String())
 			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
 				continue
 			}

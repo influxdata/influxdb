@@ -190,6 +190,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 		// Append series to the end of the file.
 		offset := uint64(f.size)
+		println("dbg/insert", string(names[i]), tagsSlice[i].String(), offset)
 		if _, err := f.w.Write(buf); err != nil {
 			return nil, err
 		}
