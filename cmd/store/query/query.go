@@ -107,20 +107,22 @@ func (cmd *Command) Run(args ...string) error {
 
 	// set defaults
 	if start != "" {
-		if t, err := parseTime(start); err != nil {
+		t, err := parseTime(start)
+		if err != nil {
 			return err
-		} else {
-			cmd.startTime = t
 		}
+		cmd.startTime = t
+
 	} else {
 		cmd.startTime = models.MinNanoTime
 	}
 	if end != "" {
-		if t, err := parseTime(end); err != nil {
+		t, err := parseTime(end)
+		if err != nil {
 			return err
-		} else {
-			cmd.endTime = t
 		}
+		cmd.endTime = t
+
 	} else {
 		// set end time to max if it is not set.
 		cmd.endTime = models.MaxNanoTime
@@ -128,11 +130,11 @@ func (cmd *Command) Run(args ...string) error {
 
 	if cmd.agg != "" {
 		tm := proto.EnumValueMap("storage.Aggregate_AggregateType")
-		if agg, ok := tm[strings.ToUpper(cmd.agg)]; !ok {
+		agg, ok := tm[strings.ToUpper(cmd.agg)]
+		if !ok {
 			return errors.New("invalid aggregate function: " + cmd.agg)
-		} else {
-			cmd.aggType = storage.Aggregate_AggregateType(agg)
 		}
+		cmd.aggType = storage.Aggregate_AggregateType(agg)
 	}
 
 	if cmd.grouping != "" {
