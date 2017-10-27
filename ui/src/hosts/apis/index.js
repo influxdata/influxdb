@@ -11,7 +11,7 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
       SELECT mean("Percent_Processor_Time") FROM win_cpu WHERE time > now() - 10m GROUP BY host;
       SELECT mean("Processor_Queue_Length") FROM win_system WHERE time > now() - 10s GROUP BY host;
       SELECT non_negative_derivative(mean("System_Up_Time")) AS winDeltaUptime FROM win_system WHERE time > now() - 10m GROUP BY host, time(1m) fill(0);
-      SHOW TAG VALUES FROM /win_system|system/ WITH KEY = "host"`,
+      SHOW TAG VALUES WITH KEY = "host";`,
     db: telegrafDB,
   }).then(resp => {
     const hosts = {}
@@ -87,7 +87,7 @@ export async function getAllHosts(proxyLink, telegrafDB) {
   try {
     const resp = await proxy({
       source: proxyLink,
-      query: 'show tag values from /win_system|system/ with key = "host"',
+      query: 'show tag values with key = "host"',
       db: telegrafDB,
     })
     const hosts = {}

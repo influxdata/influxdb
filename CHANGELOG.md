@@ -1,6 +1,7 @@
 ## v1.3.11.0 [unreleased]
 ### Bug Fixes
 1. [#2167](https://github.com/influxdata/chronograf/pull/2167): Add fractions of seconds to time field in csv export
+2. [#1077](https://github.com/influxdata/chronograf/pull/2087):  Fix Chronograf requires users to run Telegraf's CPU and system plugins to ensure that all Apps appear on the HOST LIST page.
 ### Features
 ### UI Improvements
 
