@@ -1,8 +1,6 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-
 import NoKapacitorError from 'shared/components/NoKapacitorError'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
@@ -22,11 +20,9 @@ const KapacitorRules = ({
       <PageContents>
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">Alert Rules</h2>
-          <Authorized requiredRole={EDITOR_ROLE}>
-            <button className="btn btn-primary btn-sm disabled" disabled={true}>
-              Create Rule
-            </button>
-          </Authorized>
+          <button className="btn btn-primary btn-sm disabled" disabled={true}>
+            Create Rule
+          </button>
         </div>
         <div className="panel-body">
           <div className="generic-empty-state">
@@ -57,14 +53,15 @@ const KapacitorRules = ({
         <h2 className="panel-title">
           {rHeader}
         </h2>
-        <Authorized requiredRole={EDITOR_ROLE}>
+        <div className="u-flex u-ai-center u-jc-space-between">
           <Link
             to={`/sources/${source.id}/alert-rules/new`}
             className="btn btn-sm btn-primary"
+            style={{marginRight: '4px'}}
           >
             <span className="icon plus" /> Build Rule
           </Link>
-        </Authorized>
+        </div>
       </div>
       <KapacitorRulesTable
         source={source}
@@ -80,14 +77,14 @@ const KapacitorRules = ({
               <h2 className="panel-title">
                 {tHeader}
               </h2>
-              <Authorized requiredRole={EDITOR_ROLE}>
+              <div className="u-flex u-ai-center u-jc-space-between">
                 <Link
                   to={`/sources/${source.id}/tickscript/new`}
                   className="btn btn-sm btn-info"
                 >
                   Write TICKscript
                 </Link>
-              </Authorized>
+              </div>
             </div>
             <TasksTable
               source={source}
