@@ -25,7 +25,7 @@ import {
   KapacitorTasksPage,
   TickscriptPage,
 } from 'src/kapacitor'
-import {AdminPage} from 'src/admin'
+import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
 
@@ -146,7 +146,8 @@ const Root = React.createClass({
               <Route path="kapacitors/new" component={KapacitorPage} />
               <Route path="kapacitors/:id/edit" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
-              <Route path="admin" component={AdminPage} />
+              <Route path="admin-chronograf" component={AdminChronografPage} />
+              <Route path="admin-influxdb" component={AdminInfluxDBPage} />
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
