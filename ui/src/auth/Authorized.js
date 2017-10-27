@@ -67,7 +67,7 @@ const Authorized = ({
     )
   }
 
-  return replaceWith ? replaceWith : null
+  return replaceWith || null
 
   // if you want elements to be disabled instead of hidden:
   // return React.cloneElement(clonedElement, {disabled: !isAuthorized})
