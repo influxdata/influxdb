@@ -68,13 +68,34 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	}
 
 	EnsureViewer := func(next http.HandlerFunc) http.HandlerFunc {
-		return AuthorizedUser(service.UsersStore, opts.UseAuth, ViewerRoleName, opts.Logger, next)
+		return AuthorizedUser(
+			service.OrganizationUsersStore,
+			service.OrganizationsStore,
+			opts.UseAuth,
+			ViewerRoleName,
+			opts.Logger,
+			next,
+		)
 	}
 	EnsureEditor := func(next http.HandlerFunc) http.HandlerFunc {
-		return AuthorizedUser(service.UsersStore, opts.UseAuth, EditorRoleName, opts.Logger, next)
+		return AuthorizedUser(
+			service.OrganizationUsersStore,
+			service.OrganizationsStore,
+			opts.UseAuth,
+			EditorRoleName,
+			opts.Logger,
+			next,
+		)
 	}
 	EnsureAdmin := func(next http.HandlerFunc) http.HandlerFunc {
-		return AuthorizedUser(service.UsersStore, opts.UseAuth, AdminRoleName, opts.Logger, next)
+		return AuthorizedUser(
+			service.OrganizationUsersStore,
+			service.OrganizationsStore,
+			opts.UseAuth,
+			AdminRoleName,
+			opts.Logger,
+			next,
+		)
 	}
 
 	/* Documentation */

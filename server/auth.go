@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"strconv"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
@@ -51,7 +52,8 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 // name and provider. If the user is found, we verify that the user has at at
 // least the role supplied.
 func AuthorizedUser(
-	store chronograf.UsersStore,
+	usersStore chronograf.UsersStore,
+	organizationsStore chronograf.OrganizationsStore,
 	useAuth bool,
 	role string,
 	logger chronograf.Logger,
@@ -71,15 +73,9 @@ func AuthorizedUser(
 
 		ctx := r.Context()
 
-		username, err := getUsername(ctx)
+		p, err := getValidPrincipal(ctx)
 		if err != nil {
-			log.Error("Failed to retrieve username from context")
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
-			return
-		}
-		provider, err := getProvider(ctx)
-		if err != nil {
-			log.Error("Failed to retrieve provider from context")
+			log.Error("Failed to retrieve principal from context")
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
@@ -90,9 +86,29 @@ func AuthorizedUser(
 			return
 		}
 
-		u, err := store.Get(ctx, chronograf.UserQuery{
-			Name:     &username,
-			Provider: &provider,
+		if p.Organization == "" {
+			log.Error("Failed to retrieve organization from principal")
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
+		// validate that the organization exists
+		orgID, err := strconv.ParseUint(p.Organization, 10, 64)
+		if err != nil {
+			log.Error("Failed to validate organization on context")
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
+		_, err = organizationsStore.Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		if err != nil {
+			log.Error("Failed to retrieve organization from organizations store")
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
+
+		ctx = context.WithValue(ctx, "organizationID", p.Organization)
+		u, err := usersStore.Get(ctx, chronograf.UserQuery{
+			Name:     &p.Subject,
+			Provider: &p.Issuer,
 			Scheme:   &scheme,
 		})
 		if err != nil {
