@@ -1,14 +1,14 @@
 /* eslint-disable no-var */
-var webpack = require('webpack');
-var path = require('path');
-var ExtractTextPlugin = require("extract-text-webpack-plugin");
-var HtmlWebpackPlugin = require("html-webpack-plugin");
-var package = require('../package.json');
-var dependencies = package.dependencies;
+var webpack = require('webpack')
+var path = require('path')
+var ExtractTextPlugin = require('extract-text-webpack-plugin')
+var HtmlWebpackPlugin = require('html-webpack-plugin')
+var package = require('../package.json')
+var dependencies = package.dependencies
 
 var config = {
   bail: true,
-  devtool:  'eval',
+  devtool: 'eval',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
     vendor: Object.keys(dependencies),
@@ -28,6 +28,15 @@ var config = {
     },
   },
   module: {
+    noParse: [
+      path.resolve(
+        __dirname,
+        '..',
+        'node_modules',
+        'memoizerific',
+        'memoizerific.js'
+      ),
+    ],
     preLoaders: [
       {
         test: /\.js$/,
