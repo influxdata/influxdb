@@ -124,7 +124,6 @@ func AuthorizedUser(
 
 		Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 		return
-
 	})
 }
 

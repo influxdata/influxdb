@@ -71,12 +71,10 @@ func TestAuthorizedUser(t *testing.T) {
 		Logger             chronograf.Logger
 	}
 	type args struct {
-		username     string
-		provider     string
-		scheme       string
-		organization string
-		useAuth      bool
-		role         string
+		principal *oauth2.Principal
+		scheme    string
+		useAuth   bool
+		role      string
 	}
 	tests := []struct {
 		name       string
@@ -129,12 +127,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "viewer",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "viewer",
+				useAuth: true,
 			},
 			authorized: true,
 		},
@@ -171,12 +171,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "viewer",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "viewer",
+				useAuth: true,
 			},
 			authorized: true,
 		},
@@ -213,12 +215,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "viewer",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "viewer",
+				useAuth: true,
 			},
 			authorized: true,
 		},
@@ -255,12 +259,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "editor",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "editor",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -297,12 +303,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "editor",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "editor",
+				useAuth: true,
 			},
 			authorized: true,
 		},
@@ -339,12 +347,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "editor",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "editor",
+				useAuth: true,
 			},
 			authorized: true,
 		},
@@ -381,12 +391,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "admin",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -423,12 +435,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "admin",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -465,12 +479,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "admin",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
 			},
 			authorized: true,
 		},
@@ -505,12 +521,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "view",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "view",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -545,12 +563,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "editor",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "editor",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -585,12 +605,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "admin",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -629,12 +651,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "viewer",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "viewer",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -673,12 +697,14 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "editor",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "editor",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -717,12 +743,239 @@ func TestAuthorizedUser(t *testing.T) {
 				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
-				username:     "billysteve",
-				provider:     "google",
-				scheme:       "oauth2",
-				organization: "1337",
-				role:         "admin",
-				useAuth:      true,
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
+			},
+			authorized: false,
+		},
+		{
+			name: "Invalid principal – principal is nil",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "google",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								server.AdminRole,
+							},
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The ShillBillThrilliettas",
+						}, nil
+					},
+				},
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				principal: nil,
+				scheme:    "oauth2",
+				role:      "admin",
+				useAuth:   true,
+			},
+			authorized: false,
+		},
+		{
+			name: "Invalid principal - missing organization",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "google",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								server.AdminRole,
+							},
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The ShillBillThrilliettas",
+						}, nil
+					},
+				},
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				principal: &oauth2.Principal{
+					Subject: "billysteve",
+					Issuer:  "google",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
+			},
+			authorized: false,
+		},
+		{
+			name: "Invalid principal - organization id not uint64",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "google",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								server.AdminRole,
+							},
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The ShillBillThrilliettas",
+						}, nil
+					},
+				},
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1ee7",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
+			},
+			authorized: false,
+		},
+		{
+			name: "Failed to retrieve organization",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "google",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								server.AdminRole,
+							},
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						switch *q.ID {
+						case 1338:
+							return &chronograf.Organization{
+								ID:   1338,
+								Name: "The ShillBillThrilliettas",
+							}, nil
+						default:
+							return nil, chronograf.ErrOrganizationNotFound
+						}
+					},
+				},
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				principal: &oauth2.Principal{
+					Subject:      "billysteve",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
+			},
+			authorized: false,
+		},
+		{
+			name: "Failed to retrieve user",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						switch *q.Name {
+						case "billysteve":
+							return &chronograf.User{
+								ID:       1337,
+								Name:     "billysteve",
+								Provider: "google",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									server.AdminRole,
+								},
+							}, nil
+						default:
+							return nil, chronograf.ErrUserNotFound
+						}
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The ShillBillThrilliettas",
+						}, nil
+					},
+				},
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				principal: &oauth2.Principal{
+					Subject:      "billietta",
+					Issuer:       "google",
+					Organization: "1337",
+				},
+				scheme:  "oauth2",
+				role:    "admin",
+				useAuth: true,
 			},
 			authorized: false,
 		},
@@ -749,11 +1002,11 @@ func TestAuthorizedUser(t *testing.T) {
 				"http://any.url", // can be any valid URL as we are bypassing mux
 				nil,
 			)
-			r = r.WithContext(context.WithValue(r.Context(), oauth2.PrincipalKey, oauth2.Principal{
-				Subject:      tt.args.username,
-				Issuer:       tt.args.provider,
-				Organization: tt.args.organization,
-			}))
+			if tt.args.principal == nil {
+				r = r.WithContext(context.WithValue(r.Context(), oauth2.PrincipalKey, nil))
+			} else {
+				r = r.WithContext(context.WithValue(r.Context(), oauth2.PrincipalKey, *tt.args.principal))
+			}
 			fn(w, r)
 
 			if authorized != tt.authorized {
