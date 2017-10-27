@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"golang.org/x/net/context"
 
@@ -89,6 +90,8 @@ type meOrganizationRequest struct {
 	OrganizationID string `json:"currentOrganization"`
 }
 
+// MeOrganization changes the user's current organization on the JWT and responds
+// with the same semantics as Me
 func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -104,7 +107,49 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			return
 		}
 
-		// TODO: add logic for validating that the org exists and user belongs to that org
+		// validate that the organization exists
+		orgID, err := strconv.ParseUint(req.OrganizationID, 10, 64)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+			return
+		}
+		_, err = s.OrganizationsStore.Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		if err != nil {
+			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+			return
+		}
+
+		username, err := getUsername(ctx)
+		if err != nil {
+			invalidData(w, err, s.Logger)
+			return
+		}
+		provider, err := getProvider(ctx)
+		if err != nil {
+			invalidData(w, err, s.Logger)
+			return
+		}
+		scheme, err := getScheme(ctx)
+		if err != nil {
+			invalidData(w, err, s.Logger)
+			return
+		}
+		// validate that user belongs to organization
+		ctx = context.WithValue(ctx, "organizationID", req.OrganizationID)
+		_, err = s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{
+			Name:     &username,
+			Provider: &provider,
+			Scheme:   &scheme,
+		})
+		if err == chronograf.ErrUserNotFound {
+			Error(w, http.StatusNotFound, err.Error(), s.Logger)
+			return
+		}
+		if err != nil {
+			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+			return
+		}
+
 		// TODO: change to principal.CurrentOrganization
 		principal.Organization = req.OrganizationID
 

@@ -184,9 +184,11 @@ func TestService_Me(t *testing.T) {
 
 func TestService_MeOrganizations(t *testing.T) {
 	type fields struct {
-		UsersStore chronograf.UsersStore
-		Logger     chronograf.Logger
-		UseAuth    bool
+		UsersStore             chronograf.UsersStore
+		OrganizationsStore     chronograf.OrganizationsStore
+		OrganizationUsersStore chronograf.UsersStore
+		Logger                 chronograf.Logger
+		UseAuth                bool
 	}
 	type args struct {
 		w          *httptest.ResponseRecorder
@@ -218,6 +220,36 @@ func TestService_MeOrganizations(t *testing.T) {
 				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							Name:     "me",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The ShillBillThrilliettas",
+						}, nil
+					},
+				},
+				OrganizationUsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						orgID, ok := ctx.Value("organizationID").(string)
+						if !ok {
+							return nil, fmt.Errorf("expected organization key to be a string")
+						}
+						if orgID == "" {
+							return nil, fmt.Errorf("expected organization key to be set")
+						}
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
 						}
@@ -262,6 +294,36 @@ func TestService_MeOrganizations(t *testing.T) {
 						}, nil
 					},
 				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The ThrillShilliettos",
+						}, nil
+					},
+				},
+				OrganizationUsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						orgID, ok := ctx.Value("organizationID").(string)
+						if !ok {
+							return nil, fmt.Errorf("expected organization key to be a string")
+						}
+						if orgID == "" {
+							return nil, fmt.Errorf("expected organization key to be set")
+						}
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							Name:     "me",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+				},
 			},
 			principal: oauth2.Principal{
 				Subject:      "me",
@@ -276,9 +338,11 @@ func TestService_MeOrganizations(t *testing.T) {
 	for _, tt := range tests {
 		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), oauth2.PrincipalKey, tt.principal))
 		s := &Service{
-			UsersStore: tt.fields.UsersStore,
-			Logger:     tt.fields.Logger,
-			UseAuth:    tt.fields.UseAuth,
+			UsersStore:             tt.fields.UsersStore,
+			OrganizationsStore:     tt.fields.OrganizationsStore,
+			OrganizationUsersStore: tt.fields.OrganizationUsersStore,
+			Logger:                 tt.fields.Logger,
+			UseAuth:                tt.fields.UseAuth,
 		}
 
 		buf, _ := json.Marshal(tt.args.orgRequest)
