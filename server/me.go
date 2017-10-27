@@ -142,7 +142,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			Scheme:   &scheme,
 		})
 		if err == chronograf.ErrUserNotFound {
-			Error(w, http.StatusNotFound, err.Error(), s.Logger)
+			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
 		}
 		if err != nil {

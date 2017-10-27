@@ -334,6 +334,97 @@ func TestService_MeOrganizations(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"name":"me","provider":"github","scheme":"oauth2","currentOrganization":"1337","links":{"self":"/chronograf/v1/users/me"}}`,
 		},
+		{
+			name: "Unable to find requested user in valid organization",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+				orgRequest: &meOrganizationRequest{
+					OrganizationID: "1337",
+				},
+				auth: mocks.Authenticator{},
+			},
+			fields: fields{
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							Name:     "me",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						if q.ID == nil {
+							return nil, fmt.Errorf("Invalid organization query: missing ID")
+						}
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The ShillBillThrilliettas",
+						}, nil
+					},
+				},
+				OrganizationUsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return nil, chronograf.ErrUserNotFound
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject:      "me",
+				Issuer:       "github",
+				Organization: "1338",
+			},
+			wantStatus:      http.StatusBadRequest,
+			wantContentType: "application/json",
+			wantBody:        `{"code":400,"message":"user not found"}`,
+		},
+		{
+			name: "Unable to find requested organization",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+				orgRequest: &meOrganizationRequest{
+					OrganizationID: "1337",
+				},
+				auth: mocks.Authenticator{},
+			},
+			fields: fields{
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							Name:     "me",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return nil, chronograf.ErrOrganizationNotFound
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject:      "me",
+				Issuer:       "github",
+				Organization: "1338",
+			},
+			wantStatus:      http.StatusBadRequest,
+			wantContentType: "application/json",
+			wantBody:        `{"code":400,"message":"organization not found"}`,
+		},
 	}
 	for _, tt := range tests {
 		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), oauth2.PrincipalKey, tt.principal))
