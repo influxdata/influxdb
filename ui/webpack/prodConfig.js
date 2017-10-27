@@ -51,15 +51,21 @@ var config = {
       },
       {
         test: /\.scss$/,
-        loader: ExtractTextPlugin.extract('style-loader', 'css-loader!sass-loader!resolve-url!sass?sourceMap'),
+        loader: ExtractTextPlugin.extract(
+          'style-loader',
+          'css-loader!sass-loader!resolve-url!sass?sourceMap'
+        ),
       },
       {
         test: /\.css$/,
-        loader: ExtractTextPlugin.extract('style-loader', 'css-loader!postcss-loader'),
+        loader: ExtractTextPlugin.extract(
+          'style-loader',
+          'css-loader!postcss-loader'
+        ),
       },
       {
-        test   : /\.(ico|png|cur|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
-        loader : 'file',
+        test: /\.(ico|png|cur|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
+        loader: 'file',
       },
       {
         test: /\.js$/,
@@ -83,10 +89,10 @@ var config = {
       },
     }),
     new webpack.ProvidePlugin({
-      $: "jquery",
-      jQuery: "jquery",
+      $: 'jquery',
+      jQuery: 'jquery',
     }),
-    new ExtractTextPlugin("chronograf.css"),
+    new ExtractTextPlugin('chronograf.css'),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
@@ -95,21 +101,28 @@ var config = {
     }),
     new webpack.optimize.UglifyJsPlugin({
       compress: {
-        warnings: false
-      }
+        warnings: false,
+      },
     }),
     new webpack.optimize.CommonsChunkPlugin({
       names: ['vendor', 'manifest'],
     }),
-    function() { /* Webpack does not exit with non-zero status if error. */
-      this.plugin("done", function(stats) {
-        if (stats.compilation.errors && stats.compilation.errors.length && process.argv.indexOf("--watch") == -1) {
-          console.log(stats.compilation.errors.toString({
-              colors: true
-          }));
-          process.exit(1);
+    function() {
+      /* Webpack does not exit with non-zero status if error. */
+      this.plugin('done', function(stats) {
+        if (
+          stats.compilation.errors &&
+          stats.compilation.errors.length &&
+          process.argv.indexOf('--watch') == -1
+        ) {
+          console.log(
+            stats.compilation.errors.toString({
+              colors: true,
+            })
+          )
+          process.exit(1)
         }
-      });
+      })
     },
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
@@ -117,6 +130,6 @@ var config = {
   ],
   postcss: require('./postcss'),
   target: 'web',
-};
+}
 
-module.exports = config;
+module.exports = config
