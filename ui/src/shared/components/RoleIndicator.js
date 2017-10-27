@@ -1,18 +1,18 @@
 import React, {PropTypes} from 'react'
 import uuid from 'node-uuid'
-
 import {connect} from 'react-redux'
 
 import ReactTooltip from 'react-tooltip'
 
-const getRoleName = ({roles: [{name}, ..._]}) => name
+import {getMeRole} from 'src/auth/Authorized'
 
 const RoleIndicator = ({me, isUsingAuth}) => {
   if (!isUsingAuth) {
     return null
   }
 
-  const roleName = getRoleName(me)
+  const roleName = getMeRole(me)
+
   const RoleTooltip = `<h1>Role: <code>${roleName}</code></h1>`
   const uuidTooltip = uuid.v4()
 

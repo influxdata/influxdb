@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 export const VIEWER_ROLE = 'viewer'
 export const EDITOR_ROLE = 'editor'
@@ -30,7 +31,9 @@ export const isUserAuthorized = (meRole, requiredRole) => {
   }
 }
 
-const getRoleName = ({roles: [{name}, ..._]}) => name
+export const getMeRole = me => {
+  return _.get(_.first(_.get(me, 'roles', [])), 'name', 'none') // TODO: TBD if 'none' should be returned if none
+}
 
 const Authorized = ({
   children,
@@ -46,7 +49,8 @@ const Authorized = ({
     return null
   }
 
-  const meRole = getRoleName(me)
+  const meRole = getMeRole(me)
+
   if (!isUsingAuth || isUserAuthorized(meRole, requiredRole)) {
     return React.cloneElement(
       React.isValidElement(children) ? children : children[0],
