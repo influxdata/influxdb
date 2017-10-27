@@ -283,11 +283,13 @@ Dygraph.prototype.findClosestPoint = function(domX, domY) {
         minYDist = ydist
         closestRow = point.idx
         closestSeries = setIdx
+        closestPoint = point
       } else if (xdist === minXDist && ydist < minYDist) {
         minXDist = xdist
         minYDist = ydist
         closestRow = point.idx
         closestSeries = setIdx
+        closestPoint = point
       }
     }
   }
