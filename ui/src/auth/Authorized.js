@@ -52,22 +52,20 @@ const Authorized = ({
   // React.isValidElement guards against multiple children wrapped by Authorized
   const elementToClone = React.isValidElement(children) ? children : children[0]
 
-  if (!isUsingAuth) {
+  const meRole = getMeRole(me)
+
+  if (!isUsingAuth || isUserAuthorized(meRole, requiredRole)) {
     return React.cloneElement(elementToClone, {...additionalProps})
   }
 
-  const meRole = getMeRole(me)
-
-  if (!isUserAuthorized(meRole, requiredRole)) {
-    return propsOverride
-      ? React.cloneElement(elementToClone, {
-          ...additionalProps,
-          ...propsOverride,
-        })
-      : replaceWith || null
+  if (propsOverride) {
+    return React.cloneElement(elementToClone, {
+      ...additionalProps,
+      ...propsOverride,
+    })
   }
 
-  return React.cloneElement(elementToClone, {...additionalProps})
+  return replaceWith || null
 
   // if you want elements to be disabled instead of hidden:
   // return React.cloneElement(clonedElement, {disabled: !isAuthorized})
