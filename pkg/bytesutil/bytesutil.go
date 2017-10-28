@@ -11,10 +11,12 @@ func Sort(a [][]byte) {
 	sort.Sort(byteSlices(a))
 }
 
+// IsSorted determines if a slice is sorte
 func IsSorted(a [][]byte) bool {
 	return sort.IsSorted(byteSlices(a))
 }
 
+// SearchBytes searches through a slice
 func SearchBytes(a [][]byte, x []byte) int {
 	return sort.Search(len(a), func(i int) bool { return bytes.Compare(a[i], x) >= 0 })
 }
