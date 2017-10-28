@@ -42,7 +42,6 @@ const Authorized = ({
   requiredRole,
   replaceWith,
   propsOverride,
-  ...additionalProps
 }) => {
   // if me response has not been received yet, render nothing
   if (typeof isUsingAuth !== 'boolean') {
@@ -50,25 +49,19 @@ const Authorized = ({
   }
 
   // React.isValidElement guards against multiple children wrapped by Authorized
-  const elementToClone = React.isValidElement(children) ? children : children[0]
+  const firstChild = React.isValidElement(children) ? children : children[0]
 
   const meRole = getMeRole(me)
 
   if (!isUsingAuth || isUserAuthorized(meRole, requiredRole)) {
-    return React.cloneElement(elementToClone, {...additionalProps})
+    return firstChild
   }
 
   if (propsOverride) {
-    return React.cloneElement(elementToClone, {
-      ...additionalProps,
-      ...propsOverride,
-    })
+    return React.cloneElement(firstChild, {...propsOverride})
   }
 
   return replaceWith || null
-
-  // if you want elements to be disabled instead of hidden:
-  // return React.cloneElement(clonedElement, {disabled: !isAuthorized})
 }
 
 const {arrayOf, bool, node, shape, string} = PropTypes

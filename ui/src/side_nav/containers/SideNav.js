@@ -87,13 +87,25 @@ const SideNav = React.createClass({
               <span className="sidebar--icon icon cubo-uniform" />
             </Link>
           </div>
-          <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
+          <NavBlock
+            icon="cubo-node"
+            link={`${sourcePrefix}/hosts`}
+            location={location}
+          >
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
           </NavBlock>
-          <NavBlock icon="graphline" link={dataExplorerLink}>
+          <NavBlock
+            icon="graphline"
+            link={dataExplorerLink}
+            location={location}
+          >
             <NavHeader link={dataExplorerLink} title="Data Explorer" />
           </NavBlock>
-          <NavBlock icon="dash-h" link={`${sourcePrefix}/dashboards`}>
+          <NavBlock
+            icon="dash-h"
+            link={`${sourcePrefix}/dashboards`}
+            location={location}
+          >
             <NavHeader
               link={`${sourcePrefix}/dashboards`}
               title={'Dashboards'}
@@ -103,6 +115,7 @@ const SideNav = React.createClass({
             matcher="alerts"
             icon="alert-triangle"
             link={`${sourcePrefix}/alerts`}
+            location={location}
           >
             <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
             <NavListItem link={`${sourcePrefix}/alerts`}>History</NavListItem>
@@ -111,18 +124,26 @@ const SideNav = React.createClass({
             </NavListItem>
           </NavBlock>
           <Authorized requiredRole={ADMIN_ROLE}>
-            <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
+            <NavBlock
+              icon="crown2"
+              link={`${sourcePrefix}/admin`}
+              location={location}
+            >
               <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
             </NavBlock>
           </Authorized>
-          <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>
+          <NavBlock
+            icon="cog-thick"
+            link={`${sourcePrefix}/manage-sources`}
+            location={location}
+          >
             <NavHeader
               link={`${sourcePrefix}/manage-sources`}
               title="Configuration"
             />
           </NavBlock>
           {isUsingAuth
-            ? <NavBlock icon="user">
+            ? <NavBlock icon="user" location={location}>
                 {customLinks
                   ? this.renderUserMenuBlockWithCustomLinks(
                       customLinks,
