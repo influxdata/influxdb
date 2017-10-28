@@ -2172,9 +2172,8 @@ func (p *Parser) parseSource(subqueries bool) (Source, error) {
 				return nil, err
 			}
 			return &SubQuery{Statement: stmt}, nil
-		} else {
-			p.Unscan()
 		}
+		p.Unscan()
 	}
 
 	// Didn't find a regex so parse segmented identifiers.
@@ -2887,7 +2886,7 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 	return interval, maxDuration, nil
 }
 
-// scan returns the next token from the underlying scanner.
+// Scan returns the next token from the underlying scanner.
 func (p *Parser) Scan() (tok Token, pos Pos, lit string) { return p.s.Scan() }
 
 // ScanIgnoreWhitespace scans the next non-whitespace and non-comment token.
