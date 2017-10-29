@@ -28,8 +28,8 @@ VOLUME $PROJECT_DIR
 # Install go
 ENV GO_VERSION 1.9.2
 ENV GO_ARCH amd64
-RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz; \
-   tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz ; \
+RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
+   tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
    rm /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz
 
 # Clone Go tip for compilation
