@@ -31,6 +31,8 @@ type Tombstoner struct {
 	// full path to a TSM file.
 	Path string
 
+	FilterFn func(k []byte) bool
+
 	// cache of the stats for this tombstone
 	fileStats []FileStat
 	// indicates that the stats may be out of sync with what is on disk and they
@@ -65,6 +67,10 @@ func (t *Tombstoner) Add(keys [][]byte) error {
 
 // AddRange adds all keys to the tombstone specifying only the data between min and max to be removed.
 func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
+	for t.FilterFn != nil && len(keys) > 0 && !t.FilterFn(keys[0]) {
+		keys = keys[1:]
+	}
+
 	if len(keys) == 0 {
 		return nil
 	}
@@ -88,6 +94,10 @@ func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 		}
 
 		for _, k := range keys {
+			if t.FilterFn != nil && !t.FilterFn(k) {
+				continue
+			}
+
 			t.tombstones = append(t.tombstones, Tombstone{
 				Key: k,
 				Min: min,
@@ -101,6 +111,10 @@ func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 	}
 
 	for _, k := range keys {
+		if t.FilterFn != nil && !t.FilterFn(k) {
+			continue
+		}
+
 		if err := t.writeTombstone(t.gz, Tombstone{
 			Key: k,
 			Min: min,

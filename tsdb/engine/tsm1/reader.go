@@ -53,6 +53,10 @@ type TSMIndex interface {
 	// DeleteRange removes the given keys with data between minTime and maxTime from the index.
 	DeleteRange(keys [][]byte, minTime, maxTime int64)
 
+	// ContainsKey returns true if the given key may exist in the index.  This func is faster than
+	// Contains but, may return false positives.
+	ContainsKey(key []byte) bool
+
 	// Contains return true if the given key exists in the index.
 	Contains(key []byte) bool
 
@@ -232,7 +236,7 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 	}
 
 	t.index = index
-	t.tombstoner = &Tombstoner{Path: t.Path()}
+	t.tombstoner = &Tombstoner{Path: t.Path(), FilterFn: index.ContainsKey}
 
 	if err := t.applyTombstones(); err != nil {
 		return nil, err
@@ -810,6 +814,11 @@ func (d *indirectIndex) search(key []byte) int {
 	return len(d.b)
 }
 
+// ContainsKey returns true of key may exist in this index.
+func (d *indirectIndex) ContainsKey(key []byte) bool {
+	return bytes.Compare(key, d.minKey) >= 0 && bytes.Compare(key, d.maxKey) <= 0
+}
+
 // Entries returns all index entries for a key.
 func (d *indirectIndex) Entries(key []byte) []IndexEntry {
 	return d.ReadEntries(key, nil)
@@ -916,6 +925,10 @@ func (d *indirectIndex) KeyCount() int {
 
 // Delete removes the given keys from the index.
 func (d *indirectIndex) Delete(keys [][]byte) {
+	for len(keys) > 0 && !d.ContainsKey(keys[0]) {
+		keys = keys[1:]
+	}
+
 	if len(keys) == 0 {
 		return
 	}
@@ -924,13 +937,15 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 		bytesutil.Sort(keys)
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	// Both keys and offsets are sorted.  Walk both in order and skip
 	// any keys that exist in both.
+	d.mu.Lock()
 	var j int
 	for i := 0; i+4 <= len(d.offsets); i += 4 {
+		for len(keys) > 0 && !d.ContainsKey(keys[0]) {
+			keys = keys[1:]
+		}
+
 		offset := binary.BigEndian.Uint32(d.offsets[i : i+4])
 		_, indexKey := readKey(d.b[offset:])
 
@@ -947,6 +962,7 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 		j += 4
 	}
 	d.offsets = d.offsets[:j]
+	d.mu.Unlock()
 }
 
 // DeleteRange removes the given keys with data between minTime and maxTime from the index.
@@ -954,6 +970,10 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	// No keys, nothing to do
 	if len(keys) == 0 {
 		return
+	}
+
+	if !bytesutil.IsSorted(keys) {
+		bytesutil.Sort(keys)
 	}
 
 	// If we're deleting the max time range, just use tombstoning to remove the
