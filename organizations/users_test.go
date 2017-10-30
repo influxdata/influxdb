@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/organizations"
 )
 
@@ -18,77 +19,103 @@ var userCmpOptions = cmp.Options{
 }
 
 func TestUsersStore_Get(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+	}
 	type args struct {
-		ctx   context.Context
-		usr   *chronograf.User
-		orgID string
+		ctx    context.Context
+		usr    *chronograf.User
+		userID uint64
+		orgID  string
 	}
 	tests := []struct {
-		name     string
-		args     args
-		want     *chronograf.User
-		wantErr  bool
-		addFirst bool
+		name    string
+		fields  fields
+		args    args
+		want    *chronograf.User
+		wantErr bool
 	}{
 		{
 			name: "Get user with no role in organization",
-			args: args{
-				ctx: context.Background(),
-				usr: &chronograf.User{
-					Name:     "billietta",
-					Provider: "google",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "The HillBilliettas",
-						},
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1234,
+							Name:     "billietta",
+							Provider: "google",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Organization: "1338",
+									Name:         "The HillBilliettas",
+								},
+							},
+						}, nil
 					},
 				},
-				orgID: "1336",
 			},
-			wantErr:  true,
-			addFirst: true,
+			args: args{
+				ctx:    context.Background(),
+				userID: 1234,
+				orgID:  "1336",
+			},
+			wantErr: true,
 		},
 		{
 			name: "Get user no organization set",
-			args: args{
-				ctx: context.Background(),
-				usr: &chronograf.User{
-					Name:     "billietta",
-					Provider: "google",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "The HillBilliettas",
-						},
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1234,
+							Name:     "billietta",
+							Provider: "google",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Organization: "1338",
+									Name:         "The HillBilliettas",
+								},
+							},
+						}, nil
 					},
 				},
 			},
-			wantErr:  true,
-			addFirst: true,
+			args: args{
+				userID: 1234,
+				ctx:    context.Background(),
+			},
+			wantErr: true,
 		},
 		{
 			name: "Get user scoped to an organization",
-			args: args{
-				ctx: context.Background(),
-				usr: &chronograf.User{
-					Name:     "billietta",
-					Provider: "google",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "The HillBilliettas",
-						},
-						{
-							Organization: "1336",
-							Name:         "The BillHilliettos",
-						},
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1234,
+							Name:     "billietta",
+							Provider: "google",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Organization: "1338",
+									Name:         "The HillBilliettas",
+								},
+								{
+									Organization: "1336",
+									Name:         "The BillHilliettos",
+								},
+							},
+						}, nil
 					},
 				},
-				orgID: "1336",
+			},
+			args: args{
+				ctx:    context.Background(),
+				userID: 1234,
+				orgID:  "1336",
 			},
 			want: &chronograf.User{
 				Name:     "billietta",
@@ -101,28 +128,12 @@ func TestUsersStore_Get(t *testing.T) {
 					},
 				},
 			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
+		s := organizations.NewUsersStore(tt.fields.UsersStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		if tt.addFirst {
-			tt.args.usr, err = client.UsersStore.Add(tt.args.ctx, tt.args.usr)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		s := organizations.NewUsersStore(client.UsersStore)
-		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
+		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.userID})
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -134,6 +145,9 @@ func TestUsersStore_Get(t *testing.T) {
 }
 
 func TestUsersStore_Add(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+	}
 	type args struct {
 		ctx      context.Context
 		u        *chronograf.User
@@ -141,17 +155,25 @@ func TestUsersStore_Add(t *testing.T) {
 		uInitial *chronograf.User
 	}
 	tests := []struct {
-		name     string
-		args     args
-		addFirst bool
-		want     *chronograf.User
-		wantErr  bool
+		name    string
+		fields  fields
+		args    args
+		want    *chronograf.User
+		wantErr bool
 	}{
 		{
 			name: "Add new user - no org",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
+					ID:       1234,
 					Name:     "docbrown",
 					Provider: "github",
 					Scheme:   "oauth2",
@@ -167,9 +189,20 @@ func TestUsersStore_Add(t *testing.T) {
 		},
 		{
 			name: "Add new user",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return nil, chronograf.ErrUserNotFound
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
+					ID:       1234,
 					Name:     "docbrown",
 					Provider: "github",
 					Scheme:   "oauth2",
@@ -183,6 +216,7 @@ func TestUsersStore_Add(t *testing.T) {
 				orgID: "1336",
 			},
 			want: &chronograf.User{
+				ID:       1234,
 				Name:     "docbrown",
 				Provider: "github",
 				Scheme:   "oauth2",
@@ -196,23 +230,36 @@ func TestUsersStore_Add(t *testing.T) {
 		},
 		{
 			name: "Add non-new user without Role",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1234,
+							Name:     "docbrown",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles:    []chronograf.Role{},
+						}, nil
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
+					ID:       1234,
 					Name:     "docbrown",
 					Provider: "github",
 					Scheme:   "oauth2",
 					Roles:    []chronograf.Role{},
 				},
 				orgID: "1336",
-				uInitial: &chronograf.User{
-					Name:     "docbrown",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles:    []chronograf.Role{},
-				},
 			},
-			addFirst: true,
 			want: &chronograf.User{
 				Name:     "docbrown",
 				Provider: "github",
@@ -222,9 +269,34 @@ func TestUsersStore_Add(t *testing.T) {
 		},
 		{
 			name: "Add non-new user with Role",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1234,
+							Name:     "docbrown",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Organization: "1337",
+									Name:         "editor",
+								},
+							},
+						}, nil
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
+					ID:       1234,
 					Name:     "docbrown",
 					Provider: "github",
 					Scheme:   "oauth2",
@@ -236,19 +308,7 @@ func TestUsersStore_Add(t *testing.T) {
 					},
 				},
 				orgID: "1336",
-				uInitial: &chronograf.User{
-					Name:     "docbrown",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1337",
-							Name:         "editor",
-						},
-					},
-				},
 			},
-			addFirst: true,
 			want: &chronograf.User{
 				Name:     "docbrown",
 				Provider: "github",
@@ -267,8 +327,22 @@ func TestUsersStore_Add(t *testing.T) {
 		},
 		{
 			name: "Has invalid Role: missing Organization",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return nil, nil
+					},
+				},
+			},
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				orgID: "1338",
 				u: &chronograf.User{
 					Name:     "henrietta",
 					Provider: "github",
@@ -284,8 +358,22 @@ func TestUsersStore_Add(t *testing.T) {
 		},
 		{
 			name: "Has invalid Role: missing Name",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return nil, nil
+					},
+				},
+			},
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				orgID: "1337",
 				u: &chronograf.User{
 					Name:     "henrietta",
 					Provider: "github",
@@ -300,20 +388,10 @@ func TestUsersStore_Add(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Has invalid Role: missing Role",
-			args: args{
-				ctx: context.Background(),
-				u: &chronograf.User{
-					Name:     "henrietta",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles:    []chronograf.Role{},
-				},
-			},
-			wantErr: true,
-		},
-		{
 			name: "Has invalid Organization",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{},
+			},
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
@@ -325,23 +403,14 @@ func TestUsersStore_Add(t *testing.T) {
 					},
 				},
 				orgID: "1337",
-				uInitial: &chronograf.User{
-					Name:     "henrietta",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1337",
-							Name:         "editor",
-						},
-					},
-				},
 			},
-			addFirst: true,
-			wantErr:  true,
+			wantErr: true,
 		},
 		{
 			name: "Organization does not match orgID",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{},
+			},
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
@@ -356,20 +425,8 @@ func TestUsersStore_Add(t *testing.T) {
 					},
 				},
 				orgID: "1337",
-				uInitial: &chronograf.User{
-					Name:     "henrietta",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1337",
-							Name:         "editor",
-						},
-					},
-				},
 			},
-			addFirst: true,
-			wantErr:  true,
+			wantErr: true,
 		},
 		{
 			name: "Role Name not specified",
@@ -386,38 +443,13 @@ func TestUsersStore_Add(t *testing.T) {
 					},
 				},
 				orgID: "1337",
-				uInitial: &chronograf.User{
-					Name:     "henrietta",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1337",
-							Name:         "editor",
-						},
-					},
-				},
 			},
-			addFirst: true,
-			wantErr:  true,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		s := organizations.NewUsersStore(client.UsersStore)
-
-		if tt.addFirst {
-			client.UsersStore.Add(tt.args.ctx, tt.args.uInitial)
-		}
+		s := organizations.NewUsersStore(tt.fields.UsersStore)
 
 		got, err := s.Add(tt.args.ctx, tt.args.u)
 		if (err != nil) != tt.wantErr {
@@ -427,31 +459,40 @@ func TestUsersStore_Add(t *testing.T) {
 		if got == nil && tt.want == nil {
 			continue
 		}
-		got, err = client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &got.ID})
-		if err != nil {
-			t.Fatalf("failed to get added user: %v", err)
-		}
-		if diff := cmp.Diff(got, tt.want, userCmpOptions...); diff != "" {
-			t.Errorf("%q. UsersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
-		}
 	}
 }
 
 func TestUsersStore_Delete(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+	}
 	type args struct {
 		ctx   context.Context
 		user  *chronograf.User
 		orgID string
 	}
 	tests := []struct {
-		name     string
-		args     args
-		addFirst bool
-		wantErr  bool
-		wantRaw  *chronograf.User
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+		wantRaw *chronograf.User
 	}{
 		{
 			name: "No such user",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					//AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+					//	return u, nil
+					//},
+					//UpdateF: func(ctx context.Context, u *chronograf.User) error {
+					//	return nil
+					//},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return nil, chronograf.ErrUserNotFound
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				user: &chronograf.User{
@@ -463,9 +504,33 @@ func TestUsersStore_Delete(t *testing.T) {
 		},
 		{
 			name: "Derlete user",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:   1234,
+							Name: "noone",
+							Roles: []chronograf.Role{
+								{
+									Organization: "1338",
+									Name:         "The BillHilliettas",
+								},
+								{
+									Organization: "1336",
+									Name:         "The HillBilliettas",
+								},
+							},
+						}, nil
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				user: &chronograf.User{
+					ID:   1234,
 					Name: "noone",
 					Roles: []chronograf.Role{
 						{
@@ -480,47 +545,21 @@ func TestUsersStore_Delete(t *testing.T) {
 				},
 				orgID: "1336",
 			},
-			addFirst: true,
-			wantRaw: &chronograf.User{
-				Name: "noone",
-				Roles: []chronograf.Role{
-					{
-						Organization: "1338",
-						Name:         "The BillHilliettas",
-					},
-				},
-			},
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		if tt.addFirst {
-			tt.args.user, _ = client.UsersStore.Add(tt.args.ctx, tt.args.user)
-		}
-		s := organizations.NewUsersStore(client.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore)
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
-		}
-		if u, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.user.ID}); err == nil {
-			t.Errorf("%q. Expected error retrieving deleted user, got user %v", tt.name, u)
-		}
-		gotRaw, _ := client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.user.ID})
-		if diff := cmp.Diff(gotRaw, tt.wantRaw, userCmpOptions...); diff != "" {
-			t.Errorf("%q. UsersStore.Delete():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
 func TestUsersStore_Update(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+	}
 	type args struct {
 		ctx   context.Context
 		usr   *chronograf.User
@@ -528,15 +567,22 @@ func TestUsersStore_Update(t *testing.T) {
 		orgID string
 	}
 	tests := []struct {
-		name     string
-		args     args
-		addFirst bool
-		want     *chronograf.User
-		wantRaw  *chronograf.User
-		wantErr  bool
+		name    string
+		fields  fields
+		args    args
+		want    *chronograf.User
+		wantRaw *chronograf.User
+		wantErr bool
 	}{
 		{
 			name: "No such user",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return nil, chronograf.ErrUserNotFound
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				usr: &chronograf.User{
@@ -548,22 +594,37 @@ func TestUsersStore_Update(t *testing.T) {
 		},
 		{
 			name: "Update user role",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							Name:     "bobetta",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Organization: "1337",
+									Name:         "viewer",
+								},
+								{
+									Organization: "1338",
+									Name:         "editor",
+								},
+							},
+						}, nil
+					},
+				},
+			},
 			args: args{
 				ctx: context.Background(),
 				usr: &chronograf.User{
 					Name:     "bobetta",
 					Provider: "github",
 					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "viewer",
-						},
-						{
-							Organization: "1337",
-							Name:         "viewer",
-						},
-					},
+					Roles:    []chronograf.Role{},
 				},
 				roles: []chronograf.Role{
 					{
@@ -584,42 +645,11 @@ func TestUsersStore_Update(t *testing.T) {
 					},
 				},
 			},
-			wantRaw: &chronograf.User{
-				Name:     "bobetta",
-				Provider: "github",
-				Scheme:   "oauth2",
-				Roles: []chronograf.Role{
-					{
-						Organization: "1337",
-						Name:         "viewer",
-					},
-					{
-						Organization: "1338",
-						Name:         "editor",
-					},
-				},
-			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		if tt.addFirst {
-			tt.args.usr, err = client.UsersStore.Add(tt.args.ctx, tt.args.usr)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		s := organizations.NewUsersStore(client.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore)
 
 		if tt.args.roles != nil {
 			tt.args.usr.Roles = tt.args.roles
@@ -634,81 +664,121 @@ func TestUsersStore_Update(t *testing.T) {
 			continue
 		}
 
-		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
-		if err != nil {
-			t.Fatalf("failed to get updated user: %v", err)
-		}
-		if diff := cmp.Diff(got, tt.want, userCmpOptions...); diff != "" {
-			t.Errorf("%q. UsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
-		}
-		gotRaw, err := client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
-		if err != nil {
-			t.Fatalf("failed to get updated user: %v", err)
-		}
-		if diff := cmp.Diff(gotRaw, tt.wantRaw, userCmpOptions...); diff != "" {
-			t.Errorf("%q. UsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
-		}
 	}
 }
 
 func TestUsersStore_All(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+	}
 	tests := []struct {
-		name     string
-		ctx      context.Context
-		want     []chronograf.User
-		wantRaw  []chronograf.User
-		orgID    string
-		addFirst bool
-		wantErr  bool
+		name    string
+		fields  fields
+		ctx     context.Context
+		want    []chronograf.User
+		wantRaw []chronograf.User
+		orgID   string
+		wantErr bool
 	}{
 		{
 			name: "No users",
-			ctx:  context.Background(),
-			wantRaw: []chronograf.User{
-				{
-					Name:     "howdy",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "viewer",
-						},
-						{
-							Organization: "1336",
-							Name:         "viewer",
-						},
-					},
-				},
-				{
-					Name:     "doody2",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1337",
-							Name:         "editor",
-						},
-					},
-				},
-				{
-					Name:     "doody",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "editor",
-						},
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								Name:     "howdy",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "viewer",
+									},
+									{
+										Organization: "1336",
+										Name:         "viewer",
+									},
+								},
+							},
+							{
+								Name:     "doody2",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1337",
+										Name:         "editor",
+									},
+								},
+							},
+							{
+								Name:     "doody",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "editor",
+									},
+								},
+							},
+						}, nil
 					},
 				},
 			},
+			ctx:   context.Background(),
 			orgID: "2330",
 		},
 		{
 			name:  "get all users",
 			orgID: "1338",
-			ctx:   context.Background(),
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								Name:     "howdy",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "viewer",
+									},
+									{
+										Organization: "1336",
+										Name:         "viewer",
+									},
+								},
+							},
+							{
+								Name:     "doody2",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1337",
+										Name:         "editor",
+									},
+								},
+							},
+							{
+								Name:     "doody",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "editor",
+									},
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			ctx: context.Background(),
 			want: []chronograf.User{
 				{
 					Name:     "howdy",
@@ -733,65 +803,14 @@ func TestUsersStore_All(t *testing.T) {
 					},
 				},
 			},
-			wantRaw: []chronograf.User{
-				{
-					Name:     "howdy",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "viewer",
-						},
-						{
-							Organization: "1336",
-							Name:         "viewer",
-						},
-					},
-				},
-				{
-					Name:     "doody2",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1337",
-							Name:         "editor",
-						},
-					},
-				},
-				{
-					Name:     "doody",
-					Provider: "github",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Organization: "1338",
-							Name:         "editor",
-						},
-					},
-				},
-			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
 		tt.ctx = context.WithValue(tt.ctx, "organizationID", tt.orgID)
-		if tt.addFirst {
-			for _, u := range tt.wantRaw {
-				client.UsersStore.Add(tt.ctx, &u)
-			}
+		for _, u := range tt.wantRaw {
+			tt.fields.UsersStore.Add(tt.ctx, &u)
 		}
-		s := organizations.NewUsersStore(client.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore)
 		gots, err := s.All(tt.ctx)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)

@@ -2,11 +2,13 @@ package organizations_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/organizations"
 )
 
@@ -19,24 +21,50 @@ var sourceCmpOptions = cmp.Options{
 }
 
 func TestSources_All(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
 	}
 	tests := []struct {
-		name     string
-		args     args
-		want     []chronograf.Source
-		wantRaw  []chronograf.Source
-		addFirst bool
-		wantErr  bool
+		name    string
+		args    args
+		fields  fields
+		want    []chronograf.Source
+		wantRaw []chronograf.Source
+		wantErr bool
 	}{
 		{
-			name:    "No Sources",
+			name: "No Sources",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					AllF: func(ctx context.Context) ([]chronograf.Source, error) {
+						return nil, fmt.Errorf("No Sources")
+					},
+				},
+			},
 			wantErr: true,
 		},
 		{
 			name: "All Sources",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					AllF: func(ctx context.Context) ([]chronograf.Source, error) {
+						return []chronograf.Source{
+							{
+								Name:         "howdy",
+								Organization: "1337",
+							},
+							{
+								Name:         "doody",
+								Organization: "1338",
+							},
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
@@ -47,35 +75,10 @@ func TestSources_All(t *testing.T) {
 					Organization: "1337",
 				},
 			},
-			wantRaw: []chronograf.Source{
-				{
-					Name:         "howdy",
-					Organization: "1337",
-				},
-				{
-					Name:         "doody",
-					Organization: "1338",
-				},
-			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewSourcesStore(client.SourcesStore)
-		if tt.addFirst {
-			for _, d := range tt.wantRaw {
-				client.SourcesStore.Add(tt.args.ctx, d)
-			}
-		}
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
@@ -91,6 +94,9 @@ func TestSources_All(t *testing.T) {
 }
 
 func TestSources_Add(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -99,15 +105,31 @@ func TestSources_Add(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
+		fields  fields
 		want    chronograf.Source
 		wantErr bool
 	}{
 		{
 			name: "Add Source",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					AddF: func(ctx context.Context, s chronograf.Source) (chronograf.Source, error) {
+						return s, nil
+					},
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1229,
+							Name:         "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				source: chronograf.Source{
+					ID:   1229,
 					Name: "howdy",
 				},
 			},
@@ -118,16 +140,7 @@ func TestSources_Add(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewSourcesStore(client.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		d, err := s.Add(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
@@ -142,6 +155,9 @@ func TestSources_Add(t *testing.T) {
 }
 
 func TestSources_Delete(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -149,6 +165,7 @@ func TestSources_Delete(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     []chronograf.Source
 		addFirst bool
@@ -156,10 +173,25 @@ func TestSources_Delete(t *testing.T) {
 	}{
 		{
 			name: "Delete source",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					DeleteF: func(ctx context.Context, s chronograf.Source) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1229,
+							Name:         "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				source: chronograf.Source{
+					ID:           1229,
 					Name:         "howdy",
 					Organization: "1337",
 				},
@@ -168,21 +200,9 @@ func TestSources_Delete(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewSourcesStore(client.SourcesStore)
-		if tt.addFirst {
-			tt.args.source, _ = client.SourcesStore.Add(tt.args.ctx, tt.args.source)
-		}
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Delete(tt.args.ctx, tt.args.source)
+		err := s.Delete(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. SourcesStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -191,6 +211,9 @@ func TestSources_Delete(t *testing.T) {
 }
 
 func TestSources_Get(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -198,6 +221,7 @@ func TestSources_Get(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     chronograf.Source
 		addFirst bool
@@ -205,48 +229,51 @@ func TestSources_Get(t *testing.T) {
 	}{
 		{
 			name: "Get Source",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1229,
+							Name:         "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				source: chronograf.Source{
+					ID:           1229,
 					Name:         "howdy",
 					Organization: "1337",
 				},
 			},
 			want: chronograf.Source{
+				ID:           1229,
 				Name:         "howdy",
 				Organization: "1337",
 			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		if tt.addFirst {
-			tt.args.source, _ = client.SourcesStore.Add(tt.args.ctx, tt.args.source)
-		}
-		s := organizations.NewSourcesStore(client.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		got, err := s.Get(tt.args.ctx, tt.args.source.ID)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. SourcesStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. SourcesStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		got, err := s.Get(tt.args.ctx, tt.args.source.ID)
 		if diff := cmp.Diff(got, tt.want, sourceCmpOptions...); diff != "" {
-			t.Errorf("%q. SourcesStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. SourcesStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
 func TestSources_Update(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -255,6 +282,7 @@ func TestSources_Update(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     chronograf.Source
 		addFirst bool
@@ -262,10 +290,25 @@ func TestSources_Update(t *testing.T) {
 	}{
 		{
 			name: "Update Source Name",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					UpdateF: func(ctx context.Context, s chronograf.Source) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1229,
+							Name:         "doody",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				source: chronograf.Source{
+					ID:           1229,
 					Name:         "howdy",
 					Organization: "1337",
 				},
@@ -279,24 +322,12 @@ func TestSources_Update(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		if tt.addFirst {
-			tt.args.source, _ = client.SourcesStore.Add(tt.args.ctx, tt.args.source)
-		}
 		if tt.args.name != "" {
 			tt.args.source.Name = tt.args.name
 		}
-		s := organizations.NewSourcesStore(client.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Update(tt.args.ctx, tt.args.source)
+		err := s.Update(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. SourcesStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue

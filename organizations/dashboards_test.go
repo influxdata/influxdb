@@ -2,11 +2,13 @@ package organizations_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/organizations"
 )
 
@@ -18,24 +20,50 @@ var dashboardCmpOptions = cmp.Options{
 }
 
 func TestDashboards_All(t *testing.T) {
+	type fields struct {
+		DashboardsStore chronograf.DashboardsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
 	}
 	tests := []struct {
-		name     string
-		args     args
-		want     []chronograf.Dashboard
-		wantRaw  []chronograf.Dashboard
-		addFirst bool
-		wantErr  bool
+		name    string
+		args    args
+		fields  fields
+		want    []chronograf.Dashboard
+		wantRaw []chronograf.Dashboard
+		wantErr bool
 	}{
 		{
-			name:    "No Dashboards",
+			name: "No Dashboards",
+			fields: fields{
+				DashboardsStore: &mocks.DashboardsStore{
+					AllF: func(ctx context.Context) ([]chronograf.Dashboard, error) {
+						return nil, fmt.Errorf("No Dashboards")
+					},
+				},
+			},
 			wantErr: true,
 		},
 		{
 			name: "All Dashboards",
+			fields: fields{
+				DashboardsStore: &mocks.DashboardsStore{
+					AllF: func(ctx context.Context) ([]chronograf.Dashboard, error) {
+						return []chronograf.Dashboard{
+							{
+								Name:         "howdy",
+								Organization: "1337",
+							},
+							{
+								Name:         "doody",
+								Organization: "1338",
+							},
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
@@ -46,35 +74,10 @@ func TestDashboards_All(t *testing.T) {
 					Organization: "1337",
 				},
 			},
-			wantRaw: []chronograf.Dashboard{
-				{
-					Name:         "howdy",
-					Organization: "1337",
-				},
-				{
-					Name:         "doody",
-					Organization: "1338",
-				},
-			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewDashboardsStore(client.DashboardsStore)
-		if tt.addFirst {
-			for _, d := range tt.wantRaw {
-				client.DashboardsStore.Add(tt.args.ctx, d)
-			}
-		}
+		s := organizations.NewDashboardsStore(tt.fields.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
@@ -90,6 +93,9 @@ func TestDashboards_All(t *testing.T) {
 }
 
 func TestDashboards_Add(t *testing.T) {
+	type fields struct {
+		DashboardsStore chronograf.DashboardsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -98,15 +104,31 @@ func TestDashboards_Add(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
+		fields  fields
 		want    chronograf.Dashboard
 		wantErr bool
 	}{
 		{
-			name: "Add Dashbaord",
+			name: "Add Dashboard",
+			fields: fields{
+				DashboardsStore: &mocks.DashboardsStore{
+					AddF: func(ctx context.Context, s chronograf.Dashboard) (chronograf.Dashboard, error) {
+						return s, nil
+					},
+					GetF: func(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
+						return chronograf.Dashboard{
+							ID:           1229,
+							Name:         "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				dashboard: chronograf.Dashboard{
+					ID:   1229,
 					Name: "howdy",
 				},
 			},
@@ -117,16 +139,7 @@ func TestDashboards_Add(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewDashboardsStore(client.DashboardsStore)
+		s := organizations.NewDashboardsStore(tt.fields.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		d, err := s.Add(tt.args.ctx, tt.args.dashboard)
 		if (err != nil) != tt.wantErr {
@@ -141,6 +154,9 @@ func TestDashboards_Add(t *testing.T) {
 }
 
 func TestDashboards_Delete(t *testing.T) {
+	type fields struct {
+		DashboardsStore chronograf.DashboardsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -148,6 +164,7 @@ func TestDashboards_Delete(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     []chronograf.Dashboard
 		addFirst bool
@@ -155,10 +172,25 @@ func TestDashboards_Delete(t *testing.T) {
 	}{
 		{
 			name: "Delete dashboard",
+			fields: fields{
+				DashboardsStore: &mocks.DashboardsStore{
+					DeleteF: func(ctx context.Context, s chronograf.Dashboard) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
+						return chronograf.Dashboard{
+							ID:           1229,
+							Name:         "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				dashboard: chronograf.Dashboard{
+					ID:           1229,
 					Name:         "howdy",
 					Organization: "1337",
 				},
@@ -167,21 +199,9 @@ func TestDashboards_Delete(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := client.DashboardsStore
-		if tt.addFirst {
-			tt.args.dashboard, _ = client.DashboardsStore.Add(tt.args.ctx, tt.args.dashboard)
-		}
+		s := organizations.NewDashboardsStore(tt.fields.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Delete(tt.args.ctx, tt.args.dashboard)
+		err := s.Delete(tt.args.ctx, tt.args.dashboard)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. DashboardsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -190,6 +210,9 @@ func TestDashboards_Delete(t *testing.T) {
 }
 
 func TestDashboards_Get(t *testing.T) {
+	type fields struct {
+		DashboardsStore chronograf.DashboardsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -197,55 +220,59 @@ func TestDashboards_Get(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     chronograf.Dashboard
 		addFirst bool
 		wantErr  bool
 	}{
 		{
-			name: "Get Dashbaord",
+			name: "Get Dashboard",
+			fields: fields{
+				DashboardsStore: &mocks.DashboardsStore{
+					GetF: func(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
+						return chronograf.Dashboard{
+							ID:           1229,
+							Name:         "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				dashboard: chronograf.Dashboard{
+					ID:           1229,
 					Name:         "howdy",
 					Organization: "1337",
 				},
 			},
 			want: chronograf.Dashboard{
+				ID:           1229,
 				Name:         "howdy",
 				Organization: "1337",
 			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		if tt.addFirst {
-			tt.args.dashboard, _ = client.DashboardsStore.Add(tt.args.ctx, tt.args.dashboard)
-		}
-		s := organizations.NewDashboardsStore(client.DashboardsStore)
+		s := organizations.NewDashboardsStore(tt.fields.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		got, err := s.Get(tt.args.ctx, tt.args.dashboard.ID)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. DashboardsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. DashboardsStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		got, err := s.Get(tt.args.ctx, tt.args.dashboard.ID)
 		if diff := cmp.Diff(got, tt.want, dashboardCmpOptions...); diff != "" {
-			t.Errorf("%q. DashboardsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. DashboardsStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
 func TestDashboards_Update(t *testing.T) {
+	type fields struct {
+		DashboardsStore chronograf.DashboardsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -254,17 +281,33 @@ func TestDashboards_Update(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     chronograf.Dashboard
 		addFirst bool
 		wantErr  bool
 	}{
 		{
-			name: "Update Dashbaord Name",
+			name: "Update Dashboard Name",
+			fields: fields{
+				DashboardsStore: &mocks.DashboardsStore{
+					UpdateF: func(ctx context.Context, s chronograf.Dashboard) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
+						return chronograf.Dashboard{
+							ID:           1229,
+							Name:         "doody",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				dashboard: chronograf.Dashboard{
+					ID:           1229,
 					Name:         "howdy",
 					Organization: "1337",
 				},
@@ -278,24 +321,12 @@ func TestDashboards_Update(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		if tt.addFirst {
-			tt.args.dashboard, _ = client.DashboardsStore.Add(tt.args.ctx, tt.args.dashboard)
-		}
 		if tt.args.name != "" {
 			tt.args.dashboard.Name = tt.args.name
 		}
-		s := organizations.NewDashboardsStore(client.DashboardsStore)
+		s := organizations.NewDashboardsStore(tt.fields.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Update(tt.args.ctx, tt.args.dashboard)
+		err := s.Update(tt.args.ctx, tt.args.dashboard)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. DashboardsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue

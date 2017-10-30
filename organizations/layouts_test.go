@@ -2,11 +2,13 @@ package organizations_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/organizations"
 )
 
@@ -18,24 +20,50 @@ var layoutCmpOptions = cmp.Options{
 }
 
 func TestLayouts_All(t *testing.T) {
+	type fields struct {
+		LayoutsStore chronograf.LayoutsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
 	}
 	tests := []struct {
-		name     string
-		args     args
-		want     []chronograf.Layout
-		wantRaw  []chronograf.Layout
-		addFirst bool
-		wantErr  bool
+		name    string
+		args    args
+		fields  fields
+		want    []chronograf.Layout
+		wantRaw []chronograf.Layout
+		wantErr bool
 	}{
 		{
-			name:    "No Layouts",
+			name: "No Layouts",
+			fields: fields{
+				LayoutsStore: &mocks.LayoutsStore{
+					AllF: func(ctx context.Context) ([]chronograf.Layout, error) {
+						return nil, fmt.Errorf("No Layouts")
+					},
+				},
+			},
 			wantErr: true,
 		},
 		{
 			name: "All Layouts",
+			fields: fields{
+				LayoutsStore: &mocks.LayoutsStore{
+					AllF: func(ctx context.Context) ([]chronograf.Layout, error) {
+						return []chronograf.Layout{
+							{
+								Application:  "howdy",
+								Organization: "1337",
+							},
+							{
+								Application:  "doody",
+								Organization: "1338",
+							},
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
@@ -46,35 +74,10 @@ func TestLayouts_All(t *testing.T) {
 					Organization: "1337",
 				},
 			},
-			wantRaw: []chronograf.Layout{
-				{
-					Application:  "howdy",
-					Organization: "1337",
-				},
-				{
-					Application:  "doody",
-					Organization: "1338",
-				},
-			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewLayoutsStore(client.LayoutsStore)
-		if tt.addFirst {
-			for _, d := range tt.wantRaw {
-				client.LayoutsStore.Add(tt.args.ctx, d)
-			}
-		}
+		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
@@ -90,6 +93,9 @@ func TestLayouts_All(t *testing.T) {
 }
 
 func TestLayouts_Add(t *testing.T) {
+	type fields struct {
+		LayoutsStore chronograf.LayoutsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -98,15 +104,31 @@ func TestLayouts_Add(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
+		fields  fields
 		want    chronograf.Layout
 		wantErr bool
 	}{
 		{
 			name: "Add Layout",
+			fields: fields{
+				LayoutsStore: &mocks.LayoutsStore{
+					AddF: func(ctx context.Context, s chronograf.Layout) (chronograf.Layout, error) {
+						return s, nil
+					},
+					GetF: func(ctx context.Context, id string) (chronograf.Layout, error) {
+						return chronograf.Layout{
+							ID:           "1229",
+							Application:  "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				layout: chronograf.Layout{
+					ID:          "1229",
 					Application: "howdy",
 				},
 			},
@@ -117,16 +139,7 @@ func TestLayouts_Add(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewLayoutsStore(client.LayoutsStore)
+		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		d, err := s.Add(tt.args.ctx, tt.args.layout)
 		if (err != nil) != tt.wantErr {
@@ -141,6 +154,9 @@ func TestLayouts_Add(t *testing.T) {
 }
 
 func TestLayouts_Delete(t *testing.T) {
+	type fields struct {
+		LayoutsStore chronograf.LayoutsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -148,6 +164,7 @@ func TestLayouts_Delete(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     []chronograf.Layout
 		addFirst bool
@@ -155,10 +172,25 @@ func TestLayouts_Delete(t *testing.T) {
 	}{
 		{
 			name: "Delete layout",
+			fields: fields{
+				LayoutsStore: &mocks.LayoutsStore{
+					DeleteF: func(ctx context.Context, s chronograf.Layout) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, id string) (chronograf.Layout, error) {
+						return chronograf.Layout{
+							ID:           "1229",
+							Application:  "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				layout: chronograf.Layout{
+					ID:           "1229",
 					Application:  "howdy",
 					Organization: "1337",
 				},
@@ -167,21 +199,9 @@ func TestLayouts_Delete(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		s := organizations.NewLayoutsStore(client.LayoutsStore)
-		if tt.addFirst {
-			tt.args.layout, _ = client.LayoutsStore.Add(tt.args.ctx, tt.args.layout)
-		}
+		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Delete(tt.args.ctx, tt.args.layout)
+		err := s.Delete(tt.args.ctx, tt.args.layout)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. LayoutsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -190,6 +210,9 @@ func TestLayouts_Delete(t *testing.T) {
 }
 
 func TestLayouts_Get(t *testing.T) {
+	type fields struct {
+		LayoutsStore chronograf.LayoutsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -197,6 +220,7 @@ func TestLayouts_Get(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     chronograf.Layout
 		addFirst bool
@@ -204,56 +228,60 @@ func TestLayouts_Get(t *testing.T) {
 	}{
 		{
 			name: "Get Layout",
+			fields: fields{
+				LayoutsStore: &mocks.LayoutsStore{
+					GetF: func(ctx context.Context, id string) (chronograf.Layout, error) {
+						return chronograf.Layout{
+							ID:           "1229",
+							Application:  "howdy",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				layout: chronograf.Layout{
+					ID:           "1229",
 					Application:  "howdy",
 					Organization: "1337",
 				},
 			},
 			want: chronograf.Layout{
+				ID:           "1229",
 				Application:  "howdy",
 				Organization: "1337",
 			},
-			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		if tt.addFirst {
-			tt.args.layout, _ = client.LayoutsStore.Add(tt.args.ctx, tt.args.layout)
-		}
-		s := organizations.NewLayoutsStore(client.LayoutsStore)
+		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		got, err := s.Get(tt.args.ctx, tt.args.layout.ID)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. LayoutsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. LayoutsStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		got, err := s.Get(tt.args.ctx, tt.args.layout.ID)
 		if diff := cmp.Diff(got, tt.want, layoutCmpOptions...); diff != "" {
-			t.Errorf("%q. LayoutsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. LayoutsStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
 func TestLayouts_Update(t *testing.T) {
+	type fields struct {
+		LayoutsStore chronograf.LayoutsStore
+	}
 	type args struct {
 		organization string
 		ctx          context.Context
 		layout       chronograf.Layout
-		application  string
+		name         string
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		want     chronograf.Layout
 		addFirst bool
@@ -261,14 +289,29 @@ func TestLayouts_Update(t *testing.T) {
 	}{
 		{
 			name: "Update Layout Application",
+			fields: fields{
+				LayoutsStore: &mocks.LayoutsStore{
+					UpdateF: func(ctx context.Context, s chronograf.Layout) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, id string) (chronograf.Layout, error) {
+						return chronograf.Layout{
+							ID:           "1229",
+							Application:  "doody",
+							Organization: "1337",
+						}, nil
+					},
+				},
+			},
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 				layout: chronograf.Layout{
+					ID:           "1229",
 					Application:  "howdy",
 					Organization: "1337",
 				},
-				application: "doody",
+				name: "doody",
 			},
 			want: chronograf.Layout{
 				Application:  "doody",
@@ -278,24 +321,12 @@ func TestLayouts_Update(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		client, err := NewTestClient()
-		if err != nil {
-			t.Fatal(err)
+		if tt.args.name != "" {
+			tt.args.layout.Application = tt.args.name
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		defer client.Close()
-
-		if tt.addFirst {
-			tt.args.layout, _ = client.LayoutsStore.Add(tt.args.ctx, tt.args.layout)
-		}
-		if tt.args.application != "" {
-			tt.args.layout.Application = tt.args.application
-		}
-		s := organizations.NewLayoutsStore(client.LayoutsStore)
+		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Update(tt.args.ctx, tt.args.layout)
+		err := s.Update(tt.args.ctx, tt.args.layout)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. LayoutsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
