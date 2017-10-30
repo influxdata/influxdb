@@ -110,11 +110,15 @@ type Engine struct {
 
 	// The following group of fields is used to track the state of level compactions within the
 	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
-	// used to signal those goroutines to shutdown.
+	// used to signal those goroutines to shutdown. Every request to disable level compactions will
+	// call 'Wait' on 'wg', with the first goroutine to arrive (levelWorkers == 0 while holding the
+	// lock) will close the done channel and re-assign 'nil' to the variable. Re-enabling will
+	// decrease 'levelWorkers', and when it decreases to zero, level compactions will be started
+	// back up again.
 
-	wg      sync.WaitGroup // waitgroup for active level compaction goroutines
-	done    chan struct{}  // channel to signal level compactions to stop
-	running int32          // running tracks whether compactions are being enabled or disabled
+	wg           sync.WaitGroup // waitgroup for active level compaction goroutines
+	done         chan struct{}  // channel to signal level compactions to stop
+	levelWorkers int            // Number of "workers" that expect compactions to be in a disabled state
 
 	snapDone chan struct{}  // channel to signal snapshot compactions to stop
 	snapWG   sync.WaitGroup // waitgroup for running snapshot compactions
@@ -220,63 +224,72 @@ func (e *Engine) SetEnabled(enabled bool) {
 func (e *Engine) SetCompactionsEnabled(enabled bool) {
 	if enabled {
 		e.enableSnapshotCompactions()
-		e.enableLevelCompactions()
+		e.enableLevelCompactions(false)
 	} else {
 		e.disableSnapshotCompactions()
-		e.disableLevelCompactions()
+		e.disableLevelCompactions(false)
 	}
 }
 
 // enableLevelCompactions will request that level compactions start back up again
-func (e *Engine) enableLevelCompactions() {
-	// See if they are already enabled.  If we set this to one, they are disabled
-	// and we're the first to enable.
-	if !atomic.CompareAndSwapInt32(&e.running, 0, 1) {
-		return
+//
+// 'wait' signifies that a corresponding call to disableLevelCompactions(true) was made at some
+// point, and the associated task that required disabled compactions is now complete
+func (e *Engine) enableLevelCompactions(wait bool) {
+	// If we don't need to wait, see if we're already enabled
+	if !wait {
+		e.mu.RLock()
+		if e.done != nil {
+			e.mu.RUnlock()
+			return
+		}
+		e.mu.RUnlock()
 	}
 
 	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if e.done != nil {
+	if wait {
+		e.levelWorkers -= 1
+	}
+	if e.levelWorkers != 0 || e.done != nil {
+		// still waiting on more workers or already enabled
+		e.mu.Unlock()
 		return
 	}
 
-	// First one to enable, start things up
+	// last one to enable, start things back up
 	e.Compactor.EnableCompactions()
 	quit := make(chan struct{})
 	e.done = quit
 
 	e.wg.Add(1)
+	e.mu.Unlock()
 
 	go func() { defer e.wg.Done(); e.compact(quit) }()
 }
 
 // disableLevelCompactions will stop level compactions before returning.
-func (e *Engine) disableLevelCompactions() {
-	// Already disabled?
-	if atomic.LoadInt32(&e.running) == 0 {
-		return
-	}
-
+//
+// If 'wait' is set to true, then a corresponding call to enableLevelCompactions(true) will be
+// required before level compactions will start back up again.
+func (e *Engine) disableLevelCompactions(wait bool) {
 	e.mu.Lock()
-	if e.done == nil {
-		e.mu.Unlock()
-		return
+	old := e.levelWorkers
+	if wait {
+		e.levelWorkers += 1
 	}
 
-	// Interrupt and disable running compactions
-	e.Compactor.DisableCompactions()
+	if old == 0 && e.done != nil {
+		// Prevent new compactions from starting
+		e.Compactor.DisableCompactions()
 
-	// Stop all background compaction goroutines
-	close(e.done)
-	e.done = nil
+		// Stop all background compaction goroutines
+		close(e.done)
+		e.done = nil
 
-	// Allow goroutines to exit
+	}
+
 	e.mu.Unlock()
 	e.wg.Wait()
-
-	atomic.StoreInt32(&e.running, 0)
 }
 
 func (e *Engine) enableSnapshotCompactions() {
@@ -967,8 +980,8 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
 	// and writing tombstones takes a long time, writes can get rejected due to the cache
 	// filling up.
-	e.disableLevelCompactions()
-	defer e.enableLevelCompactions()
+	e.disableLevelCompactions(true)
+	defer e.enableLevelCompactions(true)
 
 	tempKeys := seriesKeys[:]
 	deleteKeys := make([][]byte, 0, len(seriesKeys))
