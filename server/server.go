@@ -404,7 +404,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	layouts, err := lBuilder.Build(db.LayoutsStore)
+	layouts, err := lBuilder.Build(db.OrganizationLayoutsStore)
 	if err != nil {
 		logger.
 			WithField("component", "LayoutsStore").
@@ -412,7 +412,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	sources, err := sBuilder.Build(db.SourcesStore)
+	sources, err := sBuilder.Build(db.OrganizationSourcesStore)
 	if err != nil {
 		logger.
 			WithField("component", "SourcesStore").
@@ -420,7 +420,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	kapacitors, err := kapBuilder.Build(db.ServersStore)
+	kapacitors, err := kapBuilder.Build(db.OrganizationServersStore)
 	if err != nil {
 		logger.
 			WithField("component", "KapacitorStore").
@@ -436,7 +436,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		OrganizationUsersStore: db.OrganizationUsersStore,
 		OrganizationsStore:     db.OrganizationsStore,
 		LayoutsStore:           layouts,
-		DashboardsStore:        db.DashboardsStore,
+		DashboardsStore:        db.OrganizationDashboardsStore,
 		Logger:                 logger,
 		UseAuth:                useAuth,
 		Databases:              &influx.Client{Logger: logger},
