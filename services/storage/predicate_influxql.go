@@ -4,7 +4,7 @@ import (
 	"errors"
 	"regexp"
 
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxql"
 )
 
 // NodeToExpr transforms a predicate node to an influxql.Expr.

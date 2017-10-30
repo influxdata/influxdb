@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxql"
 	"github.com/uber-go/zap"
 
 	"golang.org/x/crypto/bcrypt"

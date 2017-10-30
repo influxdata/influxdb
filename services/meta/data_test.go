@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxql"
 
 	"github.com/influxdata/influxdb/services/meta"
 )

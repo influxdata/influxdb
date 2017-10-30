@@ -19,13 +19,13 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 )
 
 // Ensure the handler returns results from a query (including nil results).

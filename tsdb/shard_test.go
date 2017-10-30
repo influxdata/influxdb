@@ -17,7 +17,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/query"
@@ -25,6 +24,7 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
+	"github.com/influxdata/influxql"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {

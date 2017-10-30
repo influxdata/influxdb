@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -14,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
 )
 
 // FileSet represents a collection of files.

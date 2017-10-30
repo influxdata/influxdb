@@ -8,8 +8,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/pkg/tracing"
+	"github.com/influxdata/influxql"
 )
 
 // SelectOptions are options that customize the select call.

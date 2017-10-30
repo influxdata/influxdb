@@ -4,7 +4,7 @@ import (
 	"math"
 	"regexp"
 
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxql"
 )
 
 // evalExpr evaluates expr against a map.
