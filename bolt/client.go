@@ -26,6 +26,7 @@ type Client struct {
 	OrganizationUsersStore      *OrganizationUsersStore
 	OrganizationDashboardsStore *OrganizationDashboardsStore
 	OrganizationSourcesStore    *OrganizationSourcesStore
+	OrganizationServersStore    *OrganizationServersStore
 }
 
 // NewClient initializes all stores
@@ -46,6 +47,7 @@ func NewClient() *Client {
 	c.OrganizationUsersStore = &OrganizationUsersStore{client: c}
 	c.OrganizationDashboardsStore = &OrganizationDashboardsStore{client: c}
 	c.OrganizationSourcesStore = &OrganizationSourcesStore{client: c}
+	c.OrganizationServersStore = &OrganizationServersStore{client: c}
 	return c
 }
 
