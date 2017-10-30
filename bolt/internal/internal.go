@@ -420,8 +420,8 @@ func MarshalUser(u *chronograf.User) ([]byte, error) {
 	roles := make([]*Role, len(u.Roles))
 	for i, role := range u.Roles {
 		roles[i] = &Role{
-			OrganizationID: role.OrganizationID,
-			Name:           role.Name,
+			Organization: role.Organization,
+			Name:         role.Name,
 		}
 	}
 	return MarshalUserPB(&User{
@@ -449,8 +449,8 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 	roles := make([]chronograf.Role, len(pb.Roles))
 	for i, role := range pb.Roles {
 		roles[i] = chronograf.Role{
-			OrganizationID: role.OrganizationID,
-			Name:           role.Name,
+			Organization: role.Organization,
+			Name:         role.Name,
 		}
 	}
 	u.ID = pb.ID
@@ -474,8 +474,8 @@ func UnmarshalUserPB(data []byte, u *User) error {
 // MarshalOrganization encodes a organization to binary protobuf format.
 func MarshalRole(r *chronograf.Role) ([]byte, error) {
 	return MarshalRolePB(&Role{
-		OrganizationID: r.OrganizationID,
-		Name:           r.Name,
+		Organization: r.Organization,
+		Name:         r.Name,
 	})
 }
 
@@ -490,7 +490,7 @@ func UnmarshalRole(data []byte, r *chronograf.Role) error {
 	if err := UnmarshalRolePB(data, &pb); err != nil {
 		return err
 	}
-	r.OrganizationID = pb.OrganizationID
+	r.Organization = pb.Organization
 	r.Name = pb.Name
 
 	return nil

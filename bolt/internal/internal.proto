@@ -87,7 +87,7 @@ message Layout {
 	string Measurement      = 3; // Measurement is the descriptive name of the time series data.
 	repeated Cell Cells     = 4; // Cells are the individual visualization elements.
 	bool Autoflow           = 5; // Autoflow indicates whether the frontend should layout the cells automatically.
-	string Organization     = 7; // Organization is the organization ID that resource belongs to
+	string Organization     = 6; // Organization is the organization ID that resource belongs to
 }
 
 message Cell {
@@ -136,8 +136,8 @@ message User {
 }
 
 message Role {
-	string OrganizationID   = 1; // OrganizationID is the ID of the organization that this user has a role in
-	string Name							= 2; // Name is the name of the role of this user in the respective organization
+	string Organization   = 1; // Organization is the ID of the organization that this user has a role in
+	string Name             = 2; // Name is the name of the role of this user in the respective organization
 }
 
 message Organization {

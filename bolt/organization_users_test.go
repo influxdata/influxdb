@@ -31,8 +31,8 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "The HillBilliettas",
+							Organization: "1338",
+							Name:         "The HillBilliettas",
 						},
 					},
 				},
@@ -51,8 +51,8 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "The HillBilliettas",
+							Organization: "1338",
+							Name:         "The HillBilliettas",
 						},
 					},
 				},
@@ -70,12 +70,12 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "The HillBilliettas",
+							Organization: "1338",
+							Name:         "The HillBilliettas",
 						},
 						{
-							OrganizationID: "1336",
-							Name:           "The BillHilliettos",
+							Organization: "1336",
+							Name:         "The BillHilliettos",
 						},
 					},
 				},
@@ -87,8 +87,8 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						OrganizationID: "1336",
-						Name:           "The BillHilliettos",
+						Organization: "1336",
+						Name:         "The BillHilliettos",
 					},
 				},
 			},
@@ -148,8 +148,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1336",
-							Name:           "editor",
+							Organization: "1336",
+							Name:         "editor",
 						},
 					},
 				},
@@ -166,8 +166,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1336",
-							Name:           "editor",
+							Organization: "1336",
+							Name:         "editor",
 						},
 					},
 				},
@@ -179,8 +179,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						OrganizationID: "1336",
-						Name:           "editor",
+						Organization: "1336",
+						Name:         "editor",
 					},
 				},
 			},
@@ -221,8 +221,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1336",
-							Name:           "admin",
+							Organization: "1336",
+							Name:         "admin",
 						},
 					},
 				},
@@ -233,8 +233,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
-							Name:           "editor",
+							Organization: "1337",
+							Name:         "editor",
 						},
 					},
 				},
@@ -246,18 +246,18 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						OrganizationID: "1337",
-						Name:           "editor",
+						Organization: "1337",
+						Name:         "editor",
 					},
 					{
-						OrganizationID: "1336",
-						Name:           "admin",
+						Organization: "1336",
+						Name:         "admin",
 					},
 				},
 			},
 		},
 		{
-			name: "Has invalid Role: missing OrganizationID",
+			name: "Has invalid Role: missing Organization",
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
@@ -283,7 +283,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
+							Organization: "1337",
 						},
 					},
 				},
@@ -304,7 +304,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Has invalid OrganizationID",
+			name: "Has invalid Organization",
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
@@ -322,8 +322,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
-							Name:           "editor",
+							Organization: "1337",
+							Name:         "editor",
 						},
 					},
 				},
@@ -332,7 +332,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			name: "OrganizationID does not match orgID",
+			name: "Organization does not match orgID",
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
@@ -341,8 +341,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "editor",
+							Organization: "1338",
+							Name:         "editor",
 						},
 					},
 				},
@@ -353,8 +353,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
-							Name:           "editor",
+							Organization: "1337",
+							Name:         "editor",
 						},
 					},
 				},
@@ -372,7 +372,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
+							Organization: "1337",
 						},
 					},
 				},
@@ -383,8 +383,8 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
-							Name:           "editor",
+							Organization: "1337",
+							Name:         "editor",
 						},
 					},
 				},
@@ -460,12 +460,12 @@ func TestOrganizationUsersStore_Delete(t *testing.T) {
 					Name: "noone",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "The BillHilliettas",
+							Organization: "1338",
+							Name:         "The BillHilliettas",
 						},
 						{
-							OrganizationID: "1336",
-							Name:           "The HillBilliettas",
+							Organization: "1336",
+							Name:         "The HillBilliettas",
 						},
 					},
 				},
@@ -476,8 +476,8 @@ func TestOrganizationUsersStore_Delete(t *testing.T) {
 				Name: "noone",
 				Roles: []chronograf.Role{
 					{
-						OrganizationID: "1338",
-						Name:           "The BillHilliettas",
+						Organization: "1338",
+						Name:         "The BillHilliettas",
 					},
 				},
 			},
@@ -547,19 +547,19 @@ func TestOrganizationUsersStore_Update(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "viewer",
+							Organization: "1338",
+							Name:         "viewer",
 						},
 						{
-							OrganizationID: "1337",
-							Name:           "viewer",
+							Organization: "1337",
+							Name:         "viewer",
 						},
 					},
 				},
 				roles: []chronograf.Role{
 					{
-						OrganizationID: "1338",
-						Name:           "editor",
+						Organization: "1338",
+						Name:         "editor",
 					},
 				},
 				orgID: "1338",
@@ -570,8 +570,8 @@ func TestOrganizationUsersStore_Update(t *testing.T) {
 				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						OrganizationID: "1338",
-						Name:           "editor",
+						Organization: "1338",
+						Name:         "editor",
 					},
 				},
 			},
@@ -581,12 +581,12 @@ func TestOrganizationUsersStore_Update(t *testing.T) {
 				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						OrganizationID: "1337",
-						Name:           "viewer",
+						Organization: "1337",
+						Name:         "viewer",
 					},
 					{
-						OrganizationID: "1338",
-						Name:           "editor",
+						Organization: "1338",
+						Name:         "editor",
 					},
 				},
 			},
@@ -662,12 +662,12 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "viewer",
+							Organization: "1338",
+							Name:         "viewer",
 						},
 						{
-							OrganizationID: "1336",
-							Name:           "viewer",
+							Organization: "1336",
+							Name:         "viewer",
 						},
 					},
 				},
@@ -677,8 +677,8 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
-							Name:           "editor",
+							Organization: "1337",
+							Name:         "editor",
 						},
 					},
 				},
@@ -688,8 +688,8 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "editor",
+							Organization: "1338",
+							Name:         "editor",
 						},
 					},
 				},
@@ -707,8 +707,8 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "viewer",
+							Organization: "1338",
+							Name:         "viewer",
 						},
 					},
 				},
@@ -718,8 +718,8 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "editor",
+							Organization: "1338",
+							Name:         "editor",
 						},
 					},
 				},
@@ -731,12 +731,12 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "viewer",
+							Organization: "1338",
+							Name:         "viewer",
 						},
 						{
-							OrganizationID: "1336",
-							Name:           "viewer",
+							Organization: "1336",
+							Name:         "viewer",
 						},
 					},
 				},
@@ -746,8 +746,8 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1337",
-							Name:           "editor",
+							Organization: "1337",
+							Name:         "editor",
 						},
 					},
 				},
@@ -757,8 +757,8 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							OrganizationID: "1338",
-							Name:           "editor",
+							Organization: "1338",
+							Name:         "editor",
 						},
 					},
 				},

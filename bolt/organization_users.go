@@ -33,17 +33,17 @@ func validOrganization(ctx context.Context) (string, error) {
 	return orgID, nil
 }
 
-// validOrganizationRoles ensures that each User Role has both an associated OrganizationID and a Name
+// validOrganizationRoles ensures that each User Role has both an associated Organization and a Name
 func validOrganizationRoles(orgID string, u *chronograf.User) error {
 	if u == nil || u.Roles == nil {
 		return nil
 	}
 	for _, r := range u.Roles {
-		if r.OrganizationID == "" {
-			return fmt.Errorf("user role must have an OrganizationID")
+		if r.Organization == "" {
+			return fmt.Errorf("user role must have an Organization")
 		}
-		if r.OrganizationID != orgID {
-			return fmt.Errorf("organizationID %s does not match %s", r.OrganizationID, orgID)
+		if r.Organization != orgID {
+			return fmt.Errorf("organizationID %s does not match %s", r.Organization, orgID)
 		}
 		if r.Name == "" {
 			return fmt.Errorf("user role must have a Name")
@@ -66,7 +66,7 @@ func (s *OrganizationUsersStore) Get(ctx context.Context, q chronograf.UserQuery
 	// filter Roles that are not scoped to this Organization
 	roles := usr.Roles[:0]
 	for _, r := range usr.Roles {
-		if r.OrganizationID == orgID {
+		if r.Organization == orgID {
 			roles = append(roles, r)
 		}
 	}
@@ -120,7 +120,7 @@ func (s *OrganizationUsersStore) Delete(ctx context.Context, usr *chronograf.Use
 	// delete Roles that are not scoped to this Organization
 	roles := u.Roles[:0]
 	for _, r := range u.Roles {
-		if r.OrganizationID != orgID {
+		if r.Organization != orgID {
 			roles = append(roles, r)
 		}
 	}
@@ -144,7 +144,7 @@ func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.Use
 	// filter Roles that are not scoped to this Organization
 	roles := u.Roles[:0]
 	for _, r := range u.Roles {
-		if r.OrganizationID != orgID {
+		if r.Organization != orgID {
 			roles = append(roles, r)
 		}
 	}
@@ -172,7 +172,7 @@ func (s *OrganizationUsersStore) All(ctx context.Context) ([]chronograf.User, er
 	for _, usr := range usrs {
 		roles := usr.Roles[:0]
 		for _, r := range usr.Roles {
-			if r.OrganizationID == orgID {
+			if r.Organization == orgID {
 				roles = append(roles, r)
 			}
 		}
