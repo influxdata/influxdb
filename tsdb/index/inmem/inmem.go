@@ -680,6 +680,14 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
+	keys, err := i.MeasurementSeriesKeysByExpr(name, condition)
+	if err != nil {
+		return nil, err
+	}
+	return &seriesIterator{keys: keys}, nil
+}
+
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -1016,3 +1024,28 @@ func (itr *seriesPointIterator) nextKeys() error {
 // errMaxSeriesPerDatabaseExceeded is a marker error returned during series creation
 // to indicate that a new series would exceed the limits of the database.
 var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceeded")
+
+type seriesIterator struct {
+	keys [][]byte
+}
+
+type series struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (s series) Name() []byte        { return s.name }
+func (s series) Tags() models.Tags   { return s.tags }
+func (s series) Deleted() bool       { return s.deleted }
+func (s series) Expr() influxql.Expr { return nil }
+
+func (itr *seriesIterator) Next() tsdb.SeriesElem {
+	if len(itr.keys) == 0 {
+		return nil
+	}
+	name, tags := models.ParseKeyBytes(itr.keys[0])
+	s := series{name: name, tags: tags}
+	itr.keys = itr.keys[1:]
+	return s
+}

@@ -42,6 +42,7 @@ type Index interface {
 	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL system iterators
+	MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (SeriesIterator, error)
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 
@@ -60,6 +61,21 @@ type Index interface {
 	Type() string
 
 	Rebuild()
+}
+
+// SeriesElem represents a generic series element.
+type SeriesElem interface {
+	Name() []byte
+	Tags() models.Tags
+	Deleted() bool
+
+	// InfluxQL expression associated with series during filtering.
+	Expr() influxql.Expr
+}
+
+// SeriesIterator represents a iterator over a list of series.
+type SeriesIterator interface {
+	Next() SeriesElem
 }
 
 // IndexFormat represents the format for an index.

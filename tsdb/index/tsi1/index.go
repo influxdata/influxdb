@@ -732,6 +732,19 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	itr, err := fs.MeasurementSeriesByExprIterator(name, condition, i.fieldset)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+	return itr, err
+}
+
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
@@ -1170,7 +1183,7 @@ type seriesPointIterator struct {
 	fs       *FileSet
 	fieldset *tsdb.MeasurementFieldSet
 	mitr     MeasurementIterator
-	sitr     SeriesIterator
+	sitr     tsdb.SeriesIterator
 	opt      query.IteratorOptions
 
 	point query.FloatPoint // reusable point

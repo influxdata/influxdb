@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // IndexFiles represents a layered set of index files.
@@ -90,8 +91,8 @@ func (p *IndexFiles) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 }
 
 // SeriesIterator returns an iterator that merges series across all files.
-func (p IndexFiles) SeriesIterator() SeriesIterator {
-	a := make([]SeriesIterator, 0, len(p))
+func (p IndexFiles) SeriesIterator() tsdb.SeriesIterator {
+	a := make([]tsdb.SeriesIterator, 0, len(p))
 	for _, f := range p {
 		itr := f.SeriesIterator()
 		if itr == nil {
@@ -103,8 +104,8 @@ func (p IndexFiles) SeriesIterator() SeriesIterator {
 }
 
 // MeasurementSeriesIterator returns an iterator that merges series across all files.
-func (p IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
-	a := make([]SeriesIterator, 0, len(p))
+func (p IndexFiles) MeasurementSeriesIterator(name []byte) tsdb.SeriesIterator {
+	a := make([]tsdb.SeriesIterator, 0, len(p))
 	for _, f := range p {
 		itr := f.MeasurementSeriesIterator(name)
 		if itr == nil {
@@ -116,8 +117,8 @@ func (p IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
 }
 
 // TagValueSeriesIterator returns an iterator that merges series across all files.
-func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
-	a := make([]SeriesIterator, 0, len(p))
+func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) tsdb.SeriesIterator {
+	a := make([]tsdb.SeriesIterator, 0, len(p))
 	for i := range p {
 		itr := p[i].TagValueSeriesIterator(name, key, value)
 		if itr != nil {

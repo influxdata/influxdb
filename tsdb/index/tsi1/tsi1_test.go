@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 )
@@ -255,7 +256,7 @@ type TagValueElem struct {
 
 func (e *TagValueElem) Value() []byte                       { return e.value }
 func (e *TagValueElem) Deleted() bool                       { return e.deleted }
-func (e *TagValueElem) SeriesIterator() tsi1.SeriesIterator { return nil }
+func (e *TagValueElem) SeriesIterator() tsdb.SeriesIterator { return nil }
 
 // TagValueIterator represents an iterator over a slice of tag values.
 type TagValueIterator struct {
@@ -290,7 +291,7 @@ type SeriesIterator struct {
 }
 
 // Next returns the next element in the iterator.
-func (itr *SeriesIterator) Next() (e tsi1.SeriesElem) {
+func (itr *SeriesIterator) Next() (e tsdb.SeriesElem) {
 	if len(itr.Elems) == 0 {
 		return nil
 	}
