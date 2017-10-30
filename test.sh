@@ -29,7 +29,7 @@ DOCKER_SAVE_DIR=${DOCKER_SAVE_DIR-$HOME/docker}
 # Set default parallelism
 PARALLELISM=${PARALLELISM-1}
 # Set default timeout
-TIMEOUT=${TIMEOUT-960s}
+TIMEOUT=${TIMEOUT-1200s}
 
 # Default to deleteing the container
 DOCKER_RM=${DOCKER_RM-true}
