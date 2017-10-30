@@ -2005,7 +2005,7 @@ func (s *ShowSeriesStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowSeriesStatement.
 func (s *ShowSeriesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -2304,7 +2304,7 @@ func (s *DropContinuousQueryStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a DropContinuousQueryStatement
 func (s *DropContinuousQueryStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: WritePrivilege}}, nil
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -2492,7 +2492,7 @@ func (s *ShowRetentionPoliciesStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowRetentionPoliciesStatement
 func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -2712,7 +2712,7 @@ func (s *ShowTagKeysStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowTagKeysStatement.
 func (s *ShowTagKeysStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -2846,7 +2846,7 @@ func (s *ShowTagValuesStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowTagValuesStatement.
 func (s *ShowTagValuesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -3038,7 +3038,7 @@ func (s *ShowFieldKeysStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowFieldKeysStatement.
 func (s *ShowFieldKeysStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
 }
 
 // DefaultDatabase returns the default database from the statement.
