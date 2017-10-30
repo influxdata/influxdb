@@ -1,4 +1,4 @@
-package bolt_test
+package organizations_test
 
 import (
 	"context"
@@ -7,16 +7,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/organizations"
 )
 
 // IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably
 // EquateEmpty is used because we want nil slices, arrays, and maps to be equal to the empty map
-var layoutCmpOptions = cmp.Options{
+var serverCmpOptions = cmp.Options{
 	cmpopts.EquateEmpty(),
-	cmpopts.IgnoreFields(chronograf.Layout{}, "ID"),
+	cmpopts.IgnoreFields(chronograf.Server{}, "ID"),
+	cmpopts.IgnoreFields(chronograf.Server{}, "Active"),
 }
 
-func TestOrganizationLayouts_All(t *testing.T) {
+func TestServers_All(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -24,34 +26,34 @@ func TestOrganizationLayouts_All(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     args
-		want     []chronograf.Layout
-		wantRaw  []chronograf.Layout
+		want     []chronograf.Server
+		wantRaw  []chronograf.Server
 		addFirst bool
 		wantErr  bool
 	}{
 		{
-			name:    "No Layouts",
+			name:    "No Servers",
 			wantErr: true,
 		},
 		{
-			name: "All Layouts",
+			name: "All Servers",
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
 			},
-			want: []chronograf.Layout{
+			want: []chronograf.Server{
 				{
-					Application:  "howdy",
+					Name:         "howdy",
 					Organization: "1337",
 				},
 			},
-			wantRaw: []chronograf.Layout{
+			wantRaw: []chronograf.Server{
 				{
-					Application:  "howdy",
+					Name:         "howdy",
 					Organization: "1337",
 				},
 				{
-					Application:  "doody",
+					Name:         "doody",
 					Organization: "1338",
 				},
 			},
@@ -68,49 +70,49 @@ func TestOrganizationLayouts_All(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationLayoutsStore
+		s := organizations.NewServersStore(client.ServersStore)
 		if tt.addFirst {
 			for _, d := range tt.wantRaw {
-				client.LayoutsStore.Add(tt.args.ctx, d)
+				client.ServersStore.Add(tt.args.ctx, d)
 			}
 		}
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationLayoutsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. ServersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		for i, got := range gots {
-			if diff := cmp.Diff(got, tt.want[i], layoutCmpOptions...); diff != "" {
-				t.Errorf("%q. OrganizationLayoutsStore.All():\n-got/+want\ndiff %s", tt.name, diff)
+			if diff := cmp.Diff(got, tt.want[i], serverCmpOptions...); diff != "" {
+				t.Errorf("%q. ServersStore.All():\n-got/+want\ndiff %s", tt.name, diff)
 			}
 		}
 	}
 }
 
-func TestOrganizationLayouts_Add(t *testing.T) {
+func TestServers_Add(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
-		layout       chronograf.Layout
+		server       chronograf.Server
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    chronograf.Layout
+		want    chronograf.Server
 		wantErr bool
 	}{
 		{
-			name: "Add Layout",
+			name: "Add Server",
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
-				layout: chronograf.Layout{
-					Application: "howdy",
+				server: chronograf.Server{
+					Name: "howdy",
 				},
 			},
-			want: chronograf.Layout{
-				Application:  "howdy",
+			want: chronograf.Server{
+				Name:         "howdy",
 				Organization: "1337",
 			},
 		},
@@ -125,40 +127,40 @@ func TestOrganizationLayouts_Add(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationLayoutsStore
+		s := organizations.NewServersStore(client.ServersStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		d, err := s.Add(tt.args.ctx, tt.args.layout)
+		d, err := s.Add(tt.args.ctx, tt.args.server)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationLayoutsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. ServersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, d.ID)
-		if diff := cmp.Diff(got, tt.want, layoutCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationLayoutsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+		if diff := cmp.Diff(got, tt.want, serverCmpOptions...); diff != "" {
+			t.Errorf("%q. ServersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationLayouts_Delete(t *testing.T) {
+func TestServers_Delete(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
-		layout       chronograf.Layout
+		server       chronograf.Server
 	}
 	tests := []struct {
 		name     string
 		args     args
-		want     []chronograf.Layout
+		want     []chronograf.Server
 		addFirst bool
 		wantErr  bool
 	}{
 		{
-			name: "Delete layout",
+			name: "Delete server",
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
-				layout: chronograf.Layout{
-					Application:  "howdy",
+				server: chronograf.Server{
+					Name:         "howdy",
 					Organization: "1337",
 				},
 			},
@@ -175,44 +177,44 @@ func TestOrganizationLayouts_Delete(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationLayoutsStore
+		s := organizations.NewServersStore(client.ServersStore)
 		if tt.addFirst {
-			tt.args.layout, _ = client.LayoutsStore.Add(tt.args.ctx, tt.args.layout)
+			tt.args.server, _ = client.ServersStore.Add(tt.args.ctx, tt.args.server)
 		}
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Delete(tt.args.ctx, tt.args.layout)
+		err = s.Delete(tt.args.ctx, tt.args.server)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationLayoutsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. ServersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 	}
 }
 
-func TestOrganizationLayouts_Get(t *testing.T) {
+func TestServers_Get(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
-		layout       chronograf.Layout
+		server       chronograf.Server
 	}
 	tests := []struct {
 		name     string
 		args     args
-		want     chronograf.Layout
+		want     chronograf.Server
 		addFirst bool
 		wantErr  bool
 	}{
 		{
-			name: "Get Layout",
+			name: "Get Server",
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
-				layout: chronograf.Layout{
-					Application:  "howdy",
+				server: chronograf.Server{
+					Name:         "howdy",
 					Organization: "1337",
 				},
 			},
-			want: chronograf.Layout{
-				Application:  "howdy",
+			want: chronograf.Server{
+				Name:         "howdy",
 				Organization: "1337",
 			},
 			addFirst: true,
@@ -229,48 +231,48 @@ func TestOrganizationLayouts_Get(t *testing.T) {
 		defer client.Close()
 
 		if tt.addFirst {
-			tt.args.layout, _ = client.LayoutsStore.Add(tt.args.ctx, tt.args.layout)
+			tt.args.server, _ = client.ServersStore.Add(tt.args.ctx, tt.args.server)
 		}
-		s := client.OrganizationLayoutsStore
+		s := organizations.NewServersStore(client.ServersStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationLayoutsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. ServersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		got, err := s.Get(tt.args.ctx, tt.args.layout.ID)
-		if diff := cmp.Diff(got, tt.want, layoutCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationLayoutsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+		got, err := s.Get(tt.args.ctx, tt.args.server.ID)
+		if diff := cmp.Diff(got, tt.want, serverCmpOptions...); diff != "" {
+			t.Errorf("%q. ServersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationLayouts_Update(t *testing.T) {
+func TestServers_Update(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
-		layout       chronograf.Layout
-		application  string
+		server       chronograf.Server
+		name         string
 	}
 	tests := []struct {
 		name     string
 		args     args
-		want     chronograf.Layout
+		want     chronograf.Server
 		addFirst bool
 		wantErr  bool
 	}{
 		{
-			name: "Update Layout Application",
+			name: "Update Server Name",
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
-				layout: chronograf.Layout{
-					Application:  "howdy",
+				server: chronograf.Server{
+					Name:         "howdy",
 					Organization: "1337",
 				},
-				application: "doody",
+				name: "doody",
 			},
-			want: chronograf.Layout{
-				Application:  "doody",
+			want: chronograf.Server{
+				Name:         "doody",
 				Organization: "1337",
 			},
 			addFirst: true,
@@ -287,21 +289,21 @@ func TestOrganizationLayouts_Update(t *testing.T) {
 		defer client.Close()
 
 		if tt.addFirst {
-			tt.args.layout, _ = client.LayoutsStore.Add(tt.args.ctx, tt.args.layout)
+			tt.args.server, _ = client.ServersStore.Add(tt.args.ctx, tt.args.server)
 		}
-		if tt.args.application != "" {
-			tt.args.layout.Application = tt.args.application
+		if tt.args.name != "" {
+			tt.args.server.Name = tt.args.name
 		}
-		s := client.OrganizationLayoutsStore
+		s := organizations.NewServersStore(client.ServersStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
-		err = s.Update(tt.args.ctx, tt.args.layout)
+		err = s.Update(tt.args.ctx, tt.args.server)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationLayoutsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. ServersStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		got, err := s.Get(tt.args.ctx, tt.args.layout.ID)
-		if diff := cmp.Diff(got, tt.want, layoutCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationLayoutsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+		got, err := s.Get(tt.args.ctx, tt.args.server.ID)
+		if diff := cmp.Diff(got, tt.want, serverCmpOptions...); diff != "" {
+			t.Errorf("%q. ServersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }

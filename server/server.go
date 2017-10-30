@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/chronograf/influx"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/organizations"
 	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
@@ -404,7 +405,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	layouts, err := lBuilder.Build(db.OrganizationLayoutsStore)
+	layouts, err := lBuilder.Build(db.LayoutsStore)
 	if err != nil {
 		logger.
 			WithField("component", "LayoutsStore").
@@ -412,7 +413,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	sources, err := sBuilder.Build(db.OrganizationSourcesStore)
+	sources, err := sBuilder.Build(db.SourcesStore)
 	if err != nil {
 		logger.
 			WithField("component", "SourcesStore").
@@ -420,7 +421,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	kapacitors, err := kapBuilder.Build(db.OrganizationServersStore)
+	kapacitors, err := kapBuilder.Build(db.ServersStore)
 	if err != nil {
 		logger.
 			WithField("component", "KapacitorStore").
@@ -430,13 +431,13 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 
 	return Service{
 		TimeSeriesClient:       &InfluxClient{},
-		SourcesStore:           sources,
-		ServersStore:           kapacitors,
+		SourcesStore:           organizations.NewSourcesStore(sources),
+		ServersStore:           organizations.NewServersStore(kapacitors),
 		UsersStore:             db.UsersStore,
-		OrganizationUsersStore: db.OrganizationUsersStore,
+		OrganizationUsersStore: organizations.NewUsersStore(db.UsersStore),
 		OrganizationsStore:     db.OrganizationsStore,
-		LayoutsStore:           layouts,
-		DashboardsStore:        db.OrganizationDashboardsStore,
+		LayoutsStore:           organizations.NewLayoutsStore(layouts),
+		DashboardsStore:        organizations.NewDashboardsStore(db.DashboardsStore),
 		Logger:                 logger,
 		UseAuth:                useAuth,
 		Databases:              &influx.Client{Logger: logger},

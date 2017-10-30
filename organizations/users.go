@@ -1,4 +1,4 @@
-package bolt
+package organizations
 
 import (
 	"context"
@@ -7,15 +7,21 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-// Ensure OrganizationUsersStore implements chronograf.OrganizationUsersStore.
-var _ chronograf.UsersStore = &OrganizationUsersStore{}
+// Ensure UsersStore implements chronograf.UsersStore.
+var _ chronograf.UsersStore = &UsersStore{}
 
-// OrganizationUsersStore uses bolt to store and retrieve users
-type OrganizationUsersStore struct {
-	client *Client
+// UsersStore uses bolt to store and retrieve users
+type UsersStore struct {
+	store chronograf.UsersStore
 }
 
 const organizationKey = "organizationID"
+
+func NewUsersStore(s chronograf.UsersStore) *UsersStore {
+	return &UsersStore{
+		store: s,
+	}
+}
 
 func validOrganization(ctx context.Context) (string, error) {
 	// prevents panic in case of nil context
@@ -52,13 +58,13 @@ func validOrganizationRoles(orgID string, u *chronograf.User) error {
 	return nil
 }
 
-// Get searches the OrganizationUsersStore for user with name
-func (s *OrganizationUsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+// Get searches the UsersStore for user with name
+func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 	orgID, err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
-	usr, err := s.client.UsersStore.Get(ctx, q)
+	usr, err := s.store.Get(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +85,8 @@ func (s *OrganizationUsersStore) Get(ctx context.Context, q chronograf.UserQuery
 	return usr, nil
 }
 
-// Add a new User to the OrganizationUsersStore.
-func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+// Add a new User to the UsersStore.
+func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 	orgID, err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
@@ -88,7 +94,7 @@ func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*
 	if err := validOrganizationRoles(orgID, u); err != nil {
 		return nil, err
 	}
-	usr, err := s.client.UsersStore.Get(ctx, chronograf.UserQuery{
+	usr, err := s.store.Get(ctx, chronograf.UserQuery{
 		Name:     &u.Name,
 		Provider: &u.Provider,
 		Scheme:   &u.Scheme,
@@ -97,23 +103,23 @@ func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*
 		return nil, err
 	}
 	if err == chronograf.ErrUserNotFound {
-		return s.client.UsersStore.Add(ctx, u)
+		return s.store.Add(ctx, u)
 	}
 	usr.Roles = append(usr.Roles, u.Roles...)
-	if err := s.client.UsersStore.Update(ctx, usr); err != nil {
+	if err := s.store.Update(ctx, usr); err != nil {
 		return nil, err
 	}
 	u.ID = usr.ID
 	return u, nil
 }
 
-// Delete a user from the OrganizationUsersStore
-func (s *OrganizationUsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
+// Delete a user from the UsersStore
+func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
 	orgID, err := validOrganization(ctx)
 	if err != nil {
 		return err
 	}
-	u, err := s.client.UsersStore.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
+	u, err := s.store.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
 	if err != nil {
 		return err
 	}
@@ -125,11 +131,11 @@ func (s *OrganizationUsersStore) Delete(ctx context.Context, usr *chronograf.Use
 		}
 	}
 	u.Roles = roles
-	return s.client.UsersStore.Update(ctx, u)
+	return s.store.Update(ctx, u)
 }
 
 // Update a user
-func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.User) error {
+func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 	orgID, err := validOrganization(ctx)
 	if err != nil {
 		return err
@@ -137,7 +143,7 @@ func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.Use
 	if err := validOrganizationRoles(orgID, usr); err != nil {
 		return err
 	}
-	u, err := s.client.UsersStore.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
+	u, err := s.store.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
 	if err != nil {
 		return err
 	}
@@ -153,16 +159,16 @@ func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.Use
 	// within the current Organization
 	u.Roles = append(roles, usr.Roles...)
 
-	return s.client.UsersStore.Update(ctx, u)
+	return s.store.Update(ctx, u)
 }
 
 // All returns all users
-func (s *OrganizationUsersStore) All(ctx context.Context) ([]chronograf.User, error) {
+func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
 	orgID, err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
-	usrs, err := s.client.UsersStore.All(ctx)
+	usrs, err := s.store.All(ctx)
 	if err != nil {
 		return nil, err
 	}

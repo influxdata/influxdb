@@ -1,4 +1,4 @@
-package bolt_test
+package organizations_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/organizations"
 )
 
 // IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably
@@ -17,7 +18,7 @@ var sourceCmpOptions = cmp.Options{
 	cmpopts.IgnoreFields(chronograf.Source{}, "Default"),
 }
 
-func TestOrganizationSources_All(t *testing.T) {
+func TestSources_All(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -69,7 +70,7 @@ func TestOrganizationSources_All(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationSourcesStore
+		s := organizations.NewSourcesStore(client.SourcesStore)
 		if tt.addFirst {
 			for _, d := range tt.wantRaw {
 				client.SourcesStore.Add(tt.args.ctx, d)
@@ -78,18 +79,18 @@ func TestOrganizationSources_All(t *testing.T) {
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationSourcesStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. SourcesStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		for i, got := range gots {
 			if diff := cmp.Diff(got, tt.want[i], sourceCmpOptions...); diff != "" {
-				t.Errorf("%q. OrganizationSourcesStore.All():\n-got/+want\ndiff %s", tt.name, diff)
+				t.Errorf("%q. SourcesStore.All():\n-got/+want\ndiff %s", tt.name, diff)
 			}
 		}
 	}
 }
 
-func TestOrganizationSources_Add(t *testing.T) {
+func TestSources_Add(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -126,21 +127,21 @@ func TestOrganizationSources_Add(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationSourcesStore
+		s := organizations.NewSourcesStore(client.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		d, err := s.Add(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationSourcesStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. SourcesStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, d.ID)
 		if diff := cmp.Diff(got, tt.want, sourceCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationSourcesStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. SourcesStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationSources_Delete(t *testing.T) {
+func TestSources_Delete(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -176,20 +177,20 @@ func TestOrganizationSources_Delete(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationSourcesStore
+		s := organizations.NewSourcesStore(client.SourcesStore)
 		if tt.addFirst {
 			tt.args.source, _ = client.SourcesStore.Add(tt.args.ctx, tt.args.source)
 		}
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		err = s.Delete(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationSourcesStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. SourcesStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 	}
 }
 
-func TestOrganizationSources_Get(t *testing.T) {
+func TestSources_Get(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -232,20 +233,20 @@ func TestOrganizationSources_Get(t *testing.T) {
 		if tt.addFirst {
 			tt.args.source, _ = client.SourcesStore.Add(tt.args.ctx, tt.args.source)
 		}
-		s := client.OrganizationSourcesStore
+		s := organizations.NewSourcesStore(client.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationSourcesStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. SourcesStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, tt.args.source.ID)
 		if diff := cmp.Diff(got, tt.want, sourceCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationSourcesStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. SourcesStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationSources_Update(t *testing.T) {
+func TestSources_Update(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -293,16 +294,16 @@ func TestOrganizationSources_Update(t *testing.T) {
 		if tt.args.name != "" {
 			tt.args.source.Name = tt.args.name
 		}
-		s := client.OrganizationSourcesStore
+		s := organizations.NewSourcesStore(client.SourcesStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		err = s.Update(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationSourcesStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. SourcesStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, tt.args.source.ID)
 		if diff := cmp.Diff(got, tt.want, sourceCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationSourcesStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. SourcesStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }

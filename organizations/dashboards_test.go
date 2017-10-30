@@ -1,4 +1,4 @@
-package bolt_test
+package organizations_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/organizations"
 )
 
 // IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably
@@ -16,7 +17,7 @@ var dashboardCmpOptions = cmp.Options{
 	cmpopts.IgnoreFields(chronograf.Dashboard{}, "ID"),
 }
 
-func TestOrganizationDashboards_All(t *testing.T) {
+func TestDashboards_All(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -68,7 +69,7 @@ func TestOrganizationDashboards_All(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationDashboardsStore
+		s := organizations.NewDashboardsStore(client.DashboardsStore)
 		if tt.addFirst {
 			for _, d := range tt.wantRaw {
 				client.DashboardsStore.Add(tt.args.ctx, d)
@@ -77,18 +78,18 @@ func TestOrganizationDashboards_All(t *testing.T) {
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationDashboardsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. DashboardsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		for i, got := range gots {
 			if diff := cmp.Diff(got, tt.want[i], dashboardCmpOptions...); diff != "" {
-				t.Errorf("%q. OrganizationDashboardsStore.All():\n-got/+want\ndiff %s", tt.name, diff)
+				t.Errorf("%q. DashboardsStore.All():\n-got/+want\ndiff %s", tt.name, diff)
 			}
 		}
 	}
 }
 
-func TestOrganizationDashboards_Add(t *testing.T) {
+func TestDashboards_Add(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -125,21 +126,21 @@ func TestOrganizationDashboards_Add(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationDashboardsStore
+		s := organizations.NewDashboardsStore(client.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		d, err := s.Add(tt.args.ctx, tt.args.dashboard)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationDashboardsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. DashboardsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, d.ID)
 		if diff := cmp.Diff(got, tt.want, dashboardCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationDashboardsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. DashboardsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationDashboards_Delete(t *testing.T) {
+func TestDashboards_Delete(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -175,20 +176,20 @@ func TestOrganizationDashboards_Delete(t *testing.T) {
 		}
 		defer client.Close()
 
-		s := client.OrganizationDashboardsStore
+		s := client.DashboardsStore
 		if tt.addFirst {
 			tt.args.dashboard, _ = client.DashboardsStore.Add(tt.args.ctx, tt.args.dashboard)
 		}
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		err = s.Delete(tt.args.ctx, tt.args.dashboard)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationDashboardsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. DashboardsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 	}
 }
 
-func TestOrganizationDashboards_Get(t *testing.T) {
+func TestDashboards_Get(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -231,20 +232,20 @@ func TestOrganizationDashboards_Get(t *testing.T) {
 		if tt.addFirst {
 			tt.args.dashboard, _ = client.DashboardsStore.Add(tt.args.ctx, tt.args.dashboard)
 		}
-		s := client.OrganizationDashboardsStore
+		s := organizations.NewDashboardsStore(client.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationDashboardsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. DashboardsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, tt.args.dashboard.ID)
 		if diff := cmp.Diff(got, tt.want, dashboardCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationDashboardsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. DashboardsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationDashboards_Update(t *testing.T) {
+func TestDashboards_Update(t *testing.T) {
 	type args struct {
 		organization string
 		ctx          context.Context
@@ -292,16 +293,16 @@ func TestOrganizationDashboards_Update(t *testing.T) {
 		if tt.args.name != "" {
 			tt.args.dashboard.Name = tt.args.name
 		}
-		s := client.OrganizationDashboardsStore
+		s := organizations.NewDashboardsStore(client.DashboardsStore)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		err = s.Update(tt.args.ctx, tt.args.dashboard)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationDashboardsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. DashboardsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, tt.args.dashboard.ID)
 		if diff := cmp.Diff(got, tt.want, dashboardCmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationDashboardsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. DashboardsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }

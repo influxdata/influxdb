@@ -1,14 +1,23 @@
-package bolt_test
+package organizations_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/organizations"
 )
 
-func TestOrganizationUsersStore_Get(t *testing.T) {
+// IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably
+// EquateEmpty is used because we want nil slices, arrays, and maps to be equal to the empty map
+var userCmpOptions = cmp.Options{
+	cmpopts.IgnoreFields(chronograf.User{}, "ID"),
+	cmpopts.EquateEmpty(),
+}
+
+func TestUsersStore_Get(t *testing.T) {
 	type args struct {
 		ctx   context.Context
 		usr   *chronograf.User
@@ -112,19 +121,19 @@ func TestOrganizationUsersStore_Get(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		s := client.OrganizationUsersStore
+		s := organizations.NewUsersStore(client.UsersStore)
 		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationUsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationUsersStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
+		if diff := cmp.Diff(got, tt.want, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationUsersStore_Add(t *testing.T) {
+func TestUsersStore_Add(t *testing.T) {
 	type args struct {
 		ctx      context.Context
 		u        *chronograf.User
@@ -404,7 +413,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 		defer client.Close()
 
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		s := client.OrganizationUsersStore
+		s := organizations.NewUsersStore(client.UsersStore)
 
 		if tt.addFirst {
 			client.UsersStore.Add(tt.args.ctx, tt.args.uInitial)
@@ -412,7 +421,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 
 		got, err := s.Add(tt.args.ctx, tt.args.u)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationUsersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. UsersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		if got == nil && tt.want == nil {
@@ -422,13 +431,13 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get added user: %v", err)
 		}
-		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationUsersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+		if diff := cmp.Diff(got, tt.want, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationUsersStore_Delete(t *testing.T) {
+func TestUsersStore_Delete(t *testing.T) {
 	type args struct {
 		ctx   context.Context
 		user  *chronograf.User
@@ -497,21 +506,21 @@ func TestOrganizationUsersStore_Delete(t *testing.T) {
 		if tt.addFirst {
 			tt.args.user, _ = client.UsersStore.Add(tt.args.ctx, tt.args.user)
 		}
-		s := client.OrganizationUsersStore
+		s := organizations.NewUsersStore(client.UsersStore)
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationUsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
 		if u, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.user.ID}); err == nil {
 			t.Errorf("%q. Expected error retrieving deleted user, got user %v", tt.name, u)
 		}
 		gotRaw, _ := client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.user.ID})
-		if diff := cmp.Diff(gotRaw, tt.wantRaw, cmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationUsersStore.Delete():\n-got/+want\ndiff %s", tt.name, diff)
+		if diff := cmp.Diff(gotRaw, tt.wantRaw, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Delete():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationUsersStore_Update(t *testing.T) {
+func TestUsersStore_Update(t *testing.T) {
 	type args struct {
 		ctx   context.Context
 		usr   *chronograf.User
@@ -610,14 +619,14 @@ func TestOrganizationUsersStore_Update(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		s := client.OrganizationUsersStore
+		s := organizations.NewUsersStore(client.UsersStore)
 
 		if tt.args.roles != nil {
 			tt.args.usr.Roles = tt.args.roles
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.usr); (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationUsersStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. UsersStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
 
 		// for the empty test
@@ -629,20 +638,20 @@ func TestOrganizationUsersStore_Update(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get updated user: %v", err)
 		}
-		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationUsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+		if diff := cmp.Diff(got, tt.want, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 		gotRaw, err := client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
 		if err != nil {
 			t.Fatalf("failed to get updated user: %v", err)
 		}
-		if diff := cmp.Diff(gotRaw, tt.wantRaw, cmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationUsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+		if diff := cmp.Diff(gotRaw, tt.wantRaw, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
 
-func TestOrganizationUsersStore_All(t *testing.T) {
+func TestUsersStore_All(t *testing.T) {
 	tests := []struct {
 		name     string
 		ctx      context.Context
@@ -782,14 +791,14 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 				client.UsersStore.Add(tt.ctx, &u)
 			}
 		}
-		s := client.OrganizationUsersStore
+		s := organizations.NewUsersStore(client.UsersStore)
 		gots, err := s.All(tt.ctx)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. OrganizationUsersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. UsersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if diff := cmp.Diff(gots, tt.want, cmpOptions...); diff != "" {
-			t.Errorf("%q. OrganizationUsersStore.All():\n-got/+want\ndiff %s", tt.name, diff)
+		if diff := cmp.Diff(gots, tt.want, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.All():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
