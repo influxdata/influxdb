@@ -113,7 +113,7 @@ func (s *Service) serve() {
 func (s *Service) handleConn(conn net.Conn) error {
 	var Type [1]byte
 
-	n, err := conn.Read(Type[:])
+	_, err := conn.Read(Type[:])
 
 	if err != nil {
 		return err
