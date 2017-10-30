@@ -263,6 +263,8 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileCumulativeSum(expr.Args)
 		case "moving_average":
 			return c.compileMovingAverage(expr.Args)
+		case "exp_moving_average":
+			return c.compileExponentialMovingAverage(expr.Args)
 		case "elapsed":
 			return c.compileElapsed(expr.Args)
 		case "integral":
@@ -533,6 +535,36 @@ func (c *compiledField) compileMovingAverage(args []influxql.Expr) error {
 			return fmt.Errorf("aggregate function required inside the call to moving_average")
 		}
 		return c.compileSymbol("moving_average", arg0)
+	}
+}
+
+func (c *compiledField) compileExponentialMovingAverage(args []influxql.Expr) error {
+	if got := len(args); got != 2 {
+		return fmt.Errorf("invalid number of arguments for exp_moving_average, expected 2, got %d", got)
+	}
+
+	switch arg1 := args[1].(type) {
+	case *influxql.IntegerLiteral:
+		if arg1.Val <= 1 {
+			return fmt.Errorf("exp_moving_average window must be greater than 1, got %d", arg1.Val)
+		}
+	default:
+		return fmt.Errorf("second argument for exp_moving_average must be an integer, got %T", args[1])
+	}
+	c.global.OnlySelectors = false
+
+	// Must be a variable reference, function, wildcard, or regexp.
+	switch arg0 := args[0].(type) {
+	case *influxql.Call:
+		if c.global.Interval.IsZero() {
+			return fmt.Errorf("exp_moving_average aggregate requires a GROUP BY interval")
+		}
+		return c.compileExpr(arg0)
+	default:
+		if !c.global.Interval.IsZero() {
+			return fmt.Errorf("aggregate function required inside the call to exp_moving_average")
+		}
+		return c.compileSymbol("exp_moving_average", arg0)
 	}
 }
 
