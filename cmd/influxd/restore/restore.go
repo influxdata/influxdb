@@ -70,8 +70,14 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if cmd.liveUpdate {
-		cmd.updateMetaLive()
+		err := cmd.updateMetaLive()
+		if err != nil {
+			cmd.StderrLogger.Printf("error updating meta: %v", err)
+		}
 		cmd.uploadShardsLive()
+		if err != nil {
+			cmd.StderrLogger.Printf("error updating shards: %v", err)
+		}
 	} else {
 		if cmd.metadir != "" {
 			if err := cmd.unpackMeta(); err != nil {
@@ -93,6 +99,7 @@ func (cmd *Command) Run(args ...string) error {
 // parseFlags parses and validates the command line arguments.
 func (cmd *Command) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
+	fs.StringVar(&cmd.host, "host", "localhost:8088", "")
 	fs.StringVar(&cmd.metadir, "metadir", "", "")
 	fs.StringVar(&cmd.datadir, "datadir", "", "")
 	fs.StringVar(&cmd.destinationDatabase, "database", "", "")
