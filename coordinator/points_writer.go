@@ -143,6 +143,7 @@ func (w *PointsWriter) Close() error {
 	return nil
 }
 
+// AddWriteSubscriber adds a subscriber
 func (w *PointsWriter) AddWriteSubscriber(c chan<- *WritePointsRequest) {
 	w.subPoints = append(w.subPoints, c)
 }

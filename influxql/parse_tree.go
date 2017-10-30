@@ -4,8 +4,10 @@ import (
 	"fmt"
 )
 
+// Language to parse
 var Language = &ParseTree{}
 
+// ParseTree represents a tree to be used by the InfluxQL parser
 type ParseTree struct {
 	Handlers map[Token]func(*Parser) (Statement, error)
 	Tokens   map[Token]*ParseTree
@@ -81,6 +83,7 @@ func (t *ParseTree) Parse(p *Parser) (Statement, error) {
 	}
 }
 
+// Clone copies a ParseTree
 func (t *ParseTree) Clone() *ParseTree {
 	newT := &ParseTree{}
 	if t.Handlers != nil {

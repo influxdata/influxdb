@@ -69,7 +69,7 @@ func (i *Importer) Import() error {
 	}
 	i.client = cl
 	if _, _, e := i.client.Ping(); e != nil {
-		return fmt.Errorf("failed to connect to %s\n", i.client.Addr())
+		return fmt.Errorf("failed to connect to %s", i.client.Addr())
 	}
 
 	// Validate args

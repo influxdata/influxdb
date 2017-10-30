@@ -4323,13 +4323,13 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		rhs := EvalType(expr.RHS, sources, typmap)
 		if rhs.LessThan(lhs) {
 			return lhs
-		} else {
-			return rhs
 		}
+		return rhs
 	}
 	return Unknown
 }
 
+// FieldDimensions takes sources and mapper and converts them to fields and dimensions
 func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
 	fields = make(map[string]DataType)
 	dimensions = make(map[string]struct{})
@@ -5035,6 +5035,7 @@ func (v *containsVarRefVisitor) Visit(n Node) Visitor {
 	return v
 }
 
+// IsSelector determines if an expression is a selector
 func IsSelector(expr Expr) bool {
 	if call, ok := expr.(*Call); ok {
 		switch call.Name {

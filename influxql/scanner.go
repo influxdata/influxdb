@@ -78,9 +78,9 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 				return ILLEGAL, pos, ""
 			}
 			return COMMENT, pos, ""
-		} else {
-			s.r.unread()
 		}
+		s.r.unread()
+
 		return DIV, pos, ""
 	case '%':
 		return MOD, pos, ""
@@ -323,10 +323,10 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 				}
 			}
 			return DURATIONVAL, pos, buf.String()
-		} else {
-			s.r.unread()
-			return INTEGER, pos, buf.String()
 		}
+		s.r.unread()
+		return INTEGER, pos, buf.String()
+
 	}
 	return NUMBER, pos, buf.String()
 }

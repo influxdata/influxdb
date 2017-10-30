@@ -223,10 +223,8 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 	}
 
 	// Update the retention policy.
-	if err := e.MetaClient.UpdateRetentionPolicy(stmt.Database, stmt.Name, rpu, stmt.Default); err != nil {
-		return err
-	}
-	return nil
+	err := e.MetaClient.UpdateRetentionPolicy(stmt.Database, stmt.Name, rpu, stmt.Default)
+	return err
 }
 
 func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement) error {
@@ -1103,15 +1101,12 @@ func (e *StatementExecutor) writeInto(w pointsWriter, stmt *influxql.SelectState
 		return err
 	}
 
-	if err := w.WritePointsInto(&IntoWriteRequest{
+	werr := w.WritePointsInto(&IntoWriteRequest{
 		Database:        stmt.Target.Measurement.Database,
 		RetentionPolicy: stmt.Target.Measurement.RetentionPolicy,
 		Points:          points,
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
+	return werr
 }
 
 var errNoDatabaseInTarget = errors.New("no database in target")

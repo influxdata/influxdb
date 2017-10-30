@@ -84,7 +84,7 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 	return nil
 }
 
-// ShardMapper maps data sources to a list of shard information.
+// LocalShardMapping maps data sources to a list of shard information.
 type LocalShardMapping struct {
 	ShardMap map[Source]tsdb.ShardGroup
 
@@ -99,6 +99,7 @@ type LocalShardMapping struct {
 	MaxTime time.Time
 }
 
+// FieldDimensions takes a measurment and breaks it into fields and dimensions
 func (a *LocalShardMapping) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	source := Source{
 		Database:        m.Database,
@@ -133,6 +134,7 @@ func (a *LocalShardMapping) FieldDimensions(m *influxql.Measurement) (fields map
 	return
 }
 
+// MapType measurement and field and turns it into a influxql datatype
 func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influxql.DataType {
 	source := Source{
 		Database:        m.Database,
@@ -161,6 +163,7 @@ func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influ
 	return typ
 }
 
+// CreateIterator creates an iterator from a measurement
 func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	source := Source{
 		Database:        m.Database,
@@ -201,6 +204,7 @@ func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Meas
 	return sg.CreateIterator(ctx, m.Name, opt)
 }
 
+// IteratorCost determines the cost of a measurment
 func (a *LocalShardMapping) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
 	source := Source{
 		Database:        m.Database,
