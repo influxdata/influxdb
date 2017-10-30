@@ -68,10 +68,10 @@ func (s *OrganizationDashboardsStore) Get(ctx context.Context, id chronograf.Das
 }
 
 func (s *OrganizationDashboardsStore) Update(ctx context.Context, d chronograf.Dashboard) error {
-	dash, err := s.client.DashboardsStore.Get(ctx, d.ID)
+	_, err := s.client.DashboardsStore.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}
 
-	return s.client.DashboardsStore.Update(ctx, dash)
+	return s.client.DashboardsStore.Update(ctx, d)
 }
