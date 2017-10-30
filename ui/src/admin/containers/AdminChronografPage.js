@@ -14,15 +14,46 @@ class AdminChronografPage extends Component {
     this.state = {
       organizationName: null,
       users: DUMMY_USERS,
+      selectedUsers: [],
     }
   }
 
+  isSameUser = (userA, userB) => {
+    return userA.name === userB.name && userA.provider === userB.provider
+  }
+
   handleViewOrg = organizationName => () => {
+    this.handleDeselectAllUsers()
     this.setState({organizationName})
   }
 
+  handleToggleUserSelected = user => e => {
+    e.preventDefault()
+
+    const {selectedUsers} = this.state
+
+    const isUserSelected = selectedUsers.find(u => this.isSameUser(user, u))
+
+    const newSelectedUsers = isUserSelected
+      ? selectedUsers.filter(u => !this.isSameUser(user, u))
+      : [...selectedUsers, user]
+
+    this.setState({selectedUsers: newSelectedUsers})
+  }
+
+  handleSelectAllUsers = () => {
+    this.state.users.forEach(user => {
+      user.selected = true
+    })
+  }
+  handleDeselectAllUsers = () => {
+    this.state.users.forEach(user => {
+      user.selected = false
+    })
+  }
+
   render() {
-    const {organizationName, users} = this.state
+    const {organizationName, users, selectedUsers} = this.state
 
     return (
       <div className="page">
@@ -58,6 +89,9 @@ class AdminChronografPage extends Component {
                           users={users}
                           organizationName={organizationName}
                           onViewOrg={this.handleViewOrg}
+                          onToggleUserSelected={this.handleToggleUserSelected}
+                          selectedUsers={selectedUsers}
+                          isSameUser={this.isSameUser}
                         />
                       </div>
                     </div>

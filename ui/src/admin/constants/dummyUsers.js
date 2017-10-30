@@ -80,7 +80,7 @@ export const DUMMY_USERS = [
   },
   {
     name: 'bob.builder@gmail.com',
-    provider: 'Generic',
+    provider: 'Heroku',
     scheme: 'LDAP',
     roles: [
       {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},

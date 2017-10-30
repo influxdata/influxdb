@@ -31,7 +31,13 @@ class ChronografAllUsersTable extends Component {
   }
 
   renderTableRows = () => {
-    const {users, organizationName} = this.props
+    const {
+      users,
+      organizationName,
+      onToggleUserSelected,
+      selectedUsers,
+      isSameUser,
+    } = this.props
 
     const filteredUsers = organizationName
       ? users.filter(user => {
@@ -41,38 +47,38 @@ class ChronografAllUsersTable extends Component {
         })
       : users
 
-    return filteredUsers.map((user, u) =>
-      <tr key={u}>
-        <td>
-          <div className="dark-checkbox">
-            <input
-              type="checkbox"
-              id={`chronograf-user-${u}`}
-              className="form-control-static"
-              value="off"
-            />
-            <label htmlFor={`chronograf-user-${u}`} />
-          </div>
-        </td>
-        <td>
-          <strong>
-            {user.name}
-          </strong>
-        </td>
-        <td>
-          {user.superadmin ? 'Yes' : '--'}
-        </td>
-        <td>
-          {this.renderOrgAndRoleCell(user)}
-        </td>
-        <td>
-          {user.provider}
-        </td>
-        <td className="text-right">
-          {user.scheme}
-        </td>
-      </tr>
-    )
+    return filteredUsers.map((user, i) => {
+      const isSelected = selectedUsers.find(u => isSameUser(user, u))
+      return (
+        <tr key={i}>
+          <td>
+            <div
+              className={isSelected ? 'active' : null}
+              onClick={onToggleUserSelected(user)}
+            >
+              {isSelected ? '[x]' : '[ ]'}
+            </div>
+          </td>
+          <td>
+            <strong>
+              {user.name}
+            </strong>
+          </td>
+          <td>
+            {user.superadmin ? 'Yes' : '--'}
+          </td>
+          <td>
+            {this.renderOrgAndRoleCell(user)}
+          </td>
+          <td>
+            {user.provider}
+          </td>
+          <td className="text-right">
+            {user.scheme}
+          </td>
+        </tr>
+      )
+    })
   }
 
   render() {
@@ -114,7 +120,10 @@ const {arrayOf, func, shape, string} = PropTypes
 
 ChronografAllUsersTable.propTypes = {
   users: arrayOf(shape()),
+  selectedUsers: arrayOf(shape()),
   onViewOrg: func.isRequired,
+  onToggleUserSelected: func.isRequired,
+  isSameUser: func.isRequired,
   organizationName: string,
 }
 export default ChronografAllUsersTable
