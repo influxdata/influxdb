@@ -50,8 +50,10 @@ type Command struct {
 	aggType storage.Aggregate_AggregateType
 
 	// response
-	integerSum int64
-	floatSum   float64
+	integerSum  int64
+	unsignedSum uint64
+	floatSum    float64
+	pointCount  uint64
 }
 
 // NewCommand returns a new instance of Command.
@@ -231,7 +233,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	}
 
 	fmt.Fprintln(cmd.Stdout)
-	fmt.Fprintln(cmd.Stdout, "integerSum", cmd.integerSum, "floatSum", cmd.floatSum)
+	fmt.Fprint(cmd.Stdout, "points(count): ", cmd.pointCount, ", sum(int64): ", cmd.integerSum, ", sum(uint64): ", cmd.unsignedSum, ", sum(float64): ", cmd.floatSum, "\n")
 
 	return nil
 }
@@ -243,11 +245,25 @@ func (cmd *Command) processFramesSilent(frames []storage.ReadResponse_Frame) {
 			for _, v := range f.IntegerPoints.Values {
 				cmd.integerSum += v
 			}
+			cmd.pointCount += uint64(len(f.IntegerPoints.Values))
+
+		case *storage.ReadResponse_Frame_UnsignedPoints:
+			for _, v := range f.UnsignedPoints.Values {
+				cmd.unsignedSum += v
+			}
+			cmd.pointCount += uint64(len(f.UnsignedPoints.Values))
 
 		case *storage.ReadResponse_Frame_FloatPoints:
 			for _, v := range f.FloatPoints.Values {
 				cmd.floatSum += v
 			}
+			cmd.pointCount += uint64(len(f.FloatPoints.Values))
+
+		case *storage.ReadResponse_Frame_StringPoints:
+			cmd.pointCount += uint64(len(f.StringPoints.Values))
+
+		case *storage.ReadResponse_Frame_BooleanPoints:
+			cmd.pointCount += uint64(len(f.BooleanPoints.Values))
 		}
 	}
 }
@@ -289,6 +305,23 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 
 				cmd.integerSum += p.Values[i]
 			}
+			cmd.pointCount += uint64(len(f.IntegerPoints.Values))
+
+		case *storage.ReadResponse_Frame_UnsignedPoints:
+			p := f.UnsignedPoints
+			for i := 0; i < len(p.Timestamps); i++ {
+				line = buf[:0]
+				wr.Write(strconv.AppendInt(line, p.Timestamps[i], 10))
+				wr.WriteByte(' ')
+
+				line = buf[:0]
+				wr.Write(strconv.AppendUint(line, p.Values[i], 10))
+				wr.WriteString("\n")
+				wr.Flush()
+
+				cmd.unsignedSum += p.Values[i]
+			}
+			cmd.pointCount += uint64(len(f.UnsignedPoints.Values))
 
 		case *storage.ReadResponse_Frame_FloatPoints:
 			p := f.FloatPoints
@@ -304,6 +337,39 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 
 				cmd.floatSum += p.Values[i]
 			}
+			cmd.pointCount += uint64(len(f.FloatPoints.Values))
+
+		case *storage.ReadResponse_Frame_StringPoints:
+			p := f.StringPoints
+			for i := 0; i < len(p.Timestamps); i++ {
+				line = buf[:0]
+				wr.Write(strconv.AppendInt(line, p.Timestamps[i], 10))
+				wr.WriteByte(' ')
+
+				line = buf[:0]
+				wr.WriteString(p.Values[i])
+				wr.WriteString("\n")
+				wr.Flush()
+			}
+			cmd.pointCount += uint64(len(f.StringPoints.Values))
+
+		case *storage.ReadResponse_Frame_BooleanPoints:
+			p := f.BooleanPoints
+			for i := 0; i < len(p.Timestamps); i++ {
+				line = buf[:0]
+				wr.Write(strconv.AppendInt(line, p.Timestamps[i], 10))
+				wr.WriteByte(' ')
+
+				line = buf[:0]
+				if p.Values[i] {
+					wr.WriteString("true")
+				} else {
+					wr.WriteString("false")
+				}
+				wr.WriteString("\n")
+				wr.Flush()
+			}
+			cmd.pointCount += uint64(len(f.BooleanPoints.Values))
 		}
 	}
 }
