@@ -62,22 +62,30 @@ func NewCommand() *Command {
 
 // Run executes the program.
 func (cmd *Command) Run(args ...string) error {
+	// Set up logger.
+	cmd.StdoutLogger = log.New(cmd.Stdout, "", log.LstdFlags)
+	cmd.StderrLogger = log.New(cmd.Stderr, "", log.LstdFlags)
 	if err := cmd.parseFlags(args); err != nil {
 		return err
 	}
 
-	if cmd.metadir != "" {
-		if err := cmd.unpackMeta(); err != nil {
-			return err
+	if cmd.liveUpdate {
+		cmd.updateMetaLive()
+		cmd.uploadShardsLive()
+	} else {
+		if cmd.metadir != "" {
+			if err := cmd.unpackMeta(); err != nil {
+				return err
+			}
 		}
-	}
 
-	if cmd.shard != "" {
-		return cmd.unpackShard(cmd.shard)
-	} else if cmd.retention != "" {
-		return cmd.unpackRetention()
-	} else if cmd.datadir != "" {
-		return cmd.unpackDatabase()
+		if cmd.shard != "" {
+			return cmd.unpackShard(cmd.shard)
+		} else if cmd.retention != "" {
+			return cmd.unpackRetention()
+		} else if cmd.datadir != "" {
+			return cmd.unpackDatabase()
+		}
 	}
 	return nil
 }
