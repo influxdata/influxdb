@@ -1,43 +1,45 @@
-package influxql
+package query
 
 import (
 	"errors"
 	"regexp"
+
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // RewriteStatement rewrites stmt into a new statement, if applicable.
-func RewriteStatement(stmt Statement) (Statement, error) {
+func RewriteStatement(stmt influxql.Statement) (influxql.Statement, error) {
 	switch stmt := stmt.(type) {
-	case *ShowFieldKeysStatement:
+	case *influxql.ShowFieldKeysStatement:
 		return rewriteShowFieldKeysStatement(stmt)
-	case *ShowFieldKeyCardinalityStatement:
+	case *influxql.ShowFieldKeyCardinalityStatement:
 		return rewriteShowFieldKeyCardinalityStatement(stmt)
-	case *ShowMeasurementsStatement:
+	case *influxql.ShowMeasurementsStatement:
 		return rewriteShowMeasurementsStatement(stmt)
-	case *ShowMeasurementCardinalityStatement:
+	case *influxql.ShowMeasurementCardinalityStatement:
 		return rewriteShowMeasurementCardinalityStatement(stmt)
-	case *ShowSeriesStatement:
+	case *influxql.ShowSeriesStatement:
 		return rewriteShowSeriesStatement(stmt)
-	case *ShowSeriesCardinalityStatement:
+	case *influxql.ShowSeriesCardinalityStatement:
 		return rewriteShowSeriesCardinalityStatement(stmt)
-	case *ShowTagKeysStatement:
+	case *influxql.ShowTagKeysStatement:
 		return rewriteShowTagKeysStatement(stmt)
-	case *ShowTagKeyCardinalityStatement:
+	case *influxql.ShowTagKeyCardinalityStatement:
 		return rewriteShowTagKeyCardinalityStatement(stmt)
-	case *ShowTagValuesStatement:
+	case *influxql.ShowTagValuesStatement:
 		return rewriteShowTagValuesStatement(stmt)
-	case *ShowTagValuesCardinalityStatement:
+	case *influxql.ShowTagValuesCardinalityStatement:
 		return rewriteShowTagValuesCardinalityStatement(stmt)
 	default:
 		return stmt, nil
 	}
 }
 
-func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, error) {
-	return &SelectStatement{
-		Fields: Fields([]*Field{
-			{Expr: &VarRef{Val: "fieldKey"}},
-			{Expr: &VarRef{Val: "fieldType"}},
+func rewriteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement) (influxql.Statement, error) {
+	return &influxql.SelectStatement{
+		Fields: influxql.Fields([]*influxql.Field{
+			{Expr: &influxql.VarRef{Val: "fieldKey"}},
+			{Expr: &influxql.VarRef{Val: "fieldType"}},
 		}),
 		Sources:    rewriteSources(stmt.Sources, "_fieldKeys", stmt.Database),
 		Condition:  rewriteSourcesCondition(stmt.Sources, nil),
@@ -50,28 +52,28 @@ func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, err
 	}, nil
 }
 
-func rewriteShowFieldKeyCardinalityStatement(stmt *ShowFieldKeyCardinalityStatement) (Statement, error) {
+func rewriteShowFieldKeyCardinalityStatement(stmt *influxql.ShowFieldKeyCardinalityStatement) (influxql.Statement, error) {
 	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
+	if influxql.HasTimeExpr(stmt.Condition) {
 		return nil, errors.New("SHOW FIELD KEY CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all field keys, if zero.
 	if len(stmt.Sources) == 0 {
-		stmt.Sources = Sources{
-			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		stmt.Sources = influxql.Sources{
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
 		}
 	}
 
-	return &SelectStatement{
-		Fields: []*Field{
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
 			{
-				Expr: &Call{
+				Expr: &influxql.Call{
 					Name: "count",
-					Args: []Expr{
-						&Call{
+					Args: []influxql.Expr{
+						&influxql.Call{
 							Name: "distinct",
-							Args: []Expr{&VarRef{Val: "_fieldKey"}},
+							Args: []influxql.Expr{&influxql.VarRef{Val: "_fieldKey"}},
 						},
 					},
 				},
@@ -87,15 +89,15 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *ShowFieldKeyCardinalityStatem
 	}, nil
 }
 
-func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statement, error) {
-	var sources Sources
+func rewriteShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement) (influxql.Statement, error) {
+	var sources influxql.Sources
 	if stmt.Source != nil {
-		sources = Sources{stmt.Source}
+		sources = influxql.Sources{stmt.Source}
 	}
 
-	return &SelectStatement{
-		Fields: []*Field{
-			{Expr: &VarRef{Val: "_name"}, Alias: "name"},
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
+			{Expr: &influxql.VarRef{Val: "_name"}, Alias: "name"},
 		},
 		Sources:    rewriteSources2(sources, stmt.Database),
 		Condition:  stmt.Condition,
@@ -110,7 +112,7 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 	}, nil
 }
 
-func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinalityStatement) (Statement, error) {
+func rewriteShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCardinalityStatement) (influxql.Statement, error) {
 	// TODO(edd): currently we only support cardinality estimation for certain
 	// types of query. As the estimation coverage is expanded, this condition
 	// will become less strict.
@@ -119,26 +121,26 @@ func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinality
 	}
 
 	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
+	if influxql.HasTimeExpr(stmt.Condition) {
 		return nil, errors.New("SHOW MEASUREMENT EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
-		stmt.Sources = Sources{
-			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		stmt.Sources = influxql.Sources{
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
 		}
 	}
 
-	return &SelectStatement{
-		Fields: []*Field{
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
 			{
-				Expr: &Call{
+				Expr: &influxql.Call{
 					Name: "count",
-					Args: []Expr{
-						&Call{
+					Args: []influxql.Expr{
+						&influxql.Call{
 							Name: "distinct",
-							Args: []Expr{&VarRef{Val: "_name"}},
+							Args: []influxql.Expr{&influxql.VarRef{Val: "_name"}},
 						},
 					},
 				},
@@ -155,10 +157,10 @@ func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinality
 	}, nil
 }
 
-func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
-	return &SelectStatement{
-		Fields: []*Field{
-			{Expr: &VarRef{Val: "_seriesKey"}, Alias: "key"},
+func rewriteShowSeriesStatement(stmt *influxql.ShowSeriesStatement) (influxql.Statement, error) {
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
+			{Expr: &influxql.VarRef{Val: "_seriesKey"}, Alias: "key"},
 		},
 		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
@@ -172,7 +174,7 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 	}, nil
 }
 
-func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement) (Statement, error) {
+func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityStatement) (influxql.Statement, error) {
 	// TODO(edd): currently we only support cardinality estimation for certain
 	// types of query. As the estimation coverage is expanded, this condition
 	// will become less strict.
@@ -181,20 +183,20 @@ func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement)
 	}
 
 	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
+	if influxql.HasTimeExpr(stmt.Condition) {
 		return nil, errors.New("SHOW SERIES EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
-		stmt.Sources = Sources{
-			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		stmt.Sources = influxql.Sources{
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
 		}
 	}
 
-	return &SelectStatement{
-		Fields: []*Field{
-			{Expr: &Call{Name: "count", Args: []Expr{&VarRef{Val: "_seriesKey"}}}, Alias: "count"},
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
+			{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "_seriesKey"}}}, Alias: "count"},
 		},
 		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
@@ -205,24 +207,24 @@ func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement)
 	}, nil
 }
 
-func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, error) {
+func rewriteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement) (influxql.Statement, error) {
 	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
+	if influxql.HasTimeExpr(stmt.Condition) {
 		return nil, errors.New("SHOW TAG VALUES doesn't support time in WHERE clause")
 	}
 
-	var expr Expr
-	if list, ok := stmt.TagKeyExpr.(*ListLiteral); ok {
+	var expr influxql.Expr
+	if list, ok := stmt.TagKeyExpr.(*influxql.ListLiteral); ok {
 		for _, tagKey := range list.Vals {
-			tagExpr := &BinaryExpr{
-				Op:  EQ,
-				LHS: &VarRef{Val: "_tagKey"},
-				RHS: &StringLiteral{Val: tagKey},
+			tagExpr := &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_tagKey"},
+				RHS: &influxql.StringLiteral{Val: tagKey},
 			}
 
 			if expr != nil {
-				expr = &BinaryExpr{
-					Op:  OR,
+				expr = &influxql.BinaryExpr{
+					Op:  influxql.OR,
 					LHS: expr,
 					RHS: tagExpr,
 				}
@@ -231,9 +233,9 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 			}
 		}
 	} else {
-		expr = &BinaryExpr{
+		expr = &influxql.BinaryExpr{
 			Op:  stmt.Op,
-			LHS: &VarRef{Val: "_tagKey"},
+			LHS: &influxql.VarRef{Val: "_tagKey"},
 			RHS: stmt.TagKeyExpr,
 		}
 	}
@@ -243,15 +245,15 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 	if condition == nil {
 		condition = expr
 	} else {
-		condition = &BinaryExpr{
-			Op:  AND,
-			LHS: &ParenExpr{Expr: condition},
-			RHS: &ParenExpr{Expr: expr},
+		condition = &influxql.BinaryExpr{
+			Op:  influxql.AND,
+			LHS: &influxql.ParenExpr{Expr: condition},
+			RHS: &influxql.ParenExpr{Expr: expr},
 		}
 	}
 	condition = rewriteSourcesCondition(stmt.Sources, condition)
 
-	return &ShowTagValuesStatement{
+	return &influxql.ShowTagValuesStatement{
 		Database:   stmt.Database,
 		Op:         stmt.Op,
 		TagKeyExpr: stmt.TagKeyExpr,
@@ -262,26 +264,26 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 	}, nil
 }
 
-func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStatement) (Statement, error) {
+func rewriteShowTagValuesCardinalityStatement(stmt *influxql.ShowTagValuesCardinalityStatement) (influxql.Statement, error) {
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
-		stmt.Sources = Sources{
-			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		stmt.Sources = influxql.Sources{
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
 		}
 	}
 
-	var expr Expr
-	if list, ok := stmt.TagKeyExpr.(*ListLiteral); ok {
+	var expr influxql.Expr
+	if list, ok := stmt.TagKeyExpr.(*influxql.ListLiteral); ok {
 		for _, tagKey := range list.Vals {
-			tagExpr := &BinaryExpr{
-				Op:  EQ,
-				LHS: &VarRef{Val: "_tagKey"},
-				RHS: &StringLiteral{Val: tagKey},
+			tagExpr := &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_tagKey"},
+				RHS: &influxql.StringLiteral{Val: tagKey},
 			}
 
 			if expr != nil {
-				expr = &BinaryExpr{
-					Op:  OR,
+				expr = &influxql.BinaryExpr{
+					Op:  influxql.OR,
 					LHS: expr,
 					RHS: tagExpr,
 				}
@@ -290,9 +292,9 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 			}
 		}
 	} else {
-		expr = &BinaryExpr{
+		expr = &influxql.BinaryExpr{
 			Op:  stmt.Op,
-			LHS: &VarRef{Val: "_tagKey"},
+			LHS: &influxql.VarRef{Val: "_tagKey"},
 			RHS: stmt.TagKeyExpr,
 		}
 	}
@@ -302,22 +304,22 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 	if condition == nil {
 		condition = expr
 	} else {
-		condition = &BinaryExpr{
-			Op:  AND,
-			LHS: &ParenExpr{Expr: condition},
-			RHS: &ParenExpr{Expr: expr},
+		condition = &influxql.BinaryExpr{
+			Op:  influxql.AND,
+			LHS: &influxql.ParenExpr{Expr: condition},
+			RHS: &influxql.ParenExpr{Expr: expr},
 		}
 	}
 
-	return &SelectStatement{
-		Fields: []*Field{
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
 			{
-				Expr: &Call{
+				Expr: &influxql.Call{
 					Name: "count",
-					Args: []Expr{
-						&Call{
+					Args: []influxql.Expr{
+						&influxql.Call{
 							Name: "distinct",
-							Args: []Expr{&VarRef{Val: "_tagValue"}},
+							Args: []influxql.Expr{&influxql.VarRef{Val: "_tagValue"}},
 						},
 					},
 				},
@@ -333,13 +335,13 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 	}, nil
 }
 
-func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) {
-	return &SelectStatement{
-		Fields: []*Field{
+func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.Statement, error) {
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
 			{
-				Expr: &Call{
+				Expr: &influxql.Call{
 					Name: "distinct",
-					Args: []Expr{&VarRef{Val: "_tagKey"}},
+					Args: []influxql.Expr{&influxql.VarRef{Val: "_tagKey"}},
 				},
 				Alias: "tagKey",
 			},
@@ -355,28 +357,28 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 	}, nil
 }
 
-func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement) (Statement, error) {
+func rewriteShowTagKeyCardinalityStatement(stmt *influxql.ShowTagKeyCardinalityStatement) (influxql.Statement, error) {
 	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
+	if influxql.HasTimeExpr(stmt.Condition) {
 		return nil, errors.New("SHOW TAG KEY EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
-		stmt.Sources = Sources{
-			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		stmt.Sources = influxql.Sources{
+			&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`.+`)}},
 		}
 	}
 
-	return &SelectStatement{
-		Fields: []*Field{
+	return &influxql.SelectStatement{
+		Fields: []*influxql.Field{
 			{
-				Expr: &Call{
+				Expr: &influxql.Call{
 					Name: "count",
-					Args: []Expr{
-						&Call{
+					Args: []influxql.Expr{
+						&influxql.Call{
 							Name: "distinct",
-							Args: []Expr{&VarRef{Val: "_tagKey"}},
+							Args: []influxql.Expr{&influxql.VarRef{Val: "_tagKey"}},
 						},
 					},
 				},
@@ -393,26 +395,26 @@ func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement)
 }
 
 // rewriteSources rewrites sources with previous database and retention policy
-func rewriteSources(sources Sources, measurementName, defaultDatabase string) Sources {
-	newSources := Sources{}
+func rewriteSources(sources influxql.Sources, measurementName, defaultDatabase string) influxql.Sources {
+	newSources := influxql.Sources{}
 	for _, src := range sources {
 		if src == nil {
 			continue
 		}
-		mm := src.(*Measurement)
+		mm := src.(*influxql.Measurement)
 		database := mm.Database
 		if database == "" {
 			database = defaultDatabase
 		}
 		newSources = append(newSources,
-			&Measurement{
+			&influxql.Measurement{
 				Database:        database,
 				RetentionPolicy: mm.RetentionPolicy,
 				Name:            measurementName,
 			})
 	}
 	if len(newSources) <= 0 {
-		return append(newSources, &Measurement{
+		return append(newSources, &influxql.Measurement{
 			Database: defaultDatabase,
 			Name:     measurementName,
 		})
@@ -422,37 +424,37 @@ func rewriteSources(sources Sources, measurementName, defaultDatabase string) So
 
 // rewriteSourcesCondition rewrites sources into `name` expressions.
 // Merges with cond and returns a new condition.
-func rewriteSourcesCondition(sources Sources, cond Expr) Expr {
+func rewriteSourcesCondition(sources influxql.Sources, cond influxql.Expr) influxql.Expr {
 	if len(sources) == 0 {
 		return cond
 	}
 
 	// Generate an OR'd set of filters on source name.
-	var scond Expr
+	var scond influxql.Expr
 	for _, source := range sources {
-		mm := source.(*Measurement)
+		mm := source.(*influxql.Measurement)
 
 		// Generate a filtering expression on the measurement name.
-		var expr Expr
+		var expr influxql.Expr
 		if mm.Regex != nil {
-			expr = &BinaryExpr{
-				Op:  EQREGEX,
-				LHS: &VarRef{Val: "_name"},
-				RHS: &RegexLiteral{Val: mm.Regex.Val},
+			expr = &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "_name"},
+				RHS: &influxql.RegexLiteral{Val: mm.Regex.Val},
 			}
 		} else if mm.Name != "" {
-			expr = &BinaryExpr{
-				Op:  EQ,
-				LHS: &VarRef{Val: "_name"},
-				RHS: &StringLiteral{Val: mm.Name},
+			expr = &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_name"},
+				RHS: &influxql.StringLiteral{Val: mm.Name},
 			}
 		}
 
 		if scond == nil {
 			scond = expr
 		} else {
-			scond = &BinaryExpr{
-				Op:  OR,
+			scond = &influxql.BinaryExpr{
+				Op:  influxql.OR,
 				LHS: scond,
 				RHS: expr,
 			}
@@ -460,22 +462,22 @@ func rewriteSourcesCondition(sources Sources, cond Expr) Expr {
 	}
 
 	if cond != nil {
-		return &BinaryExpr{
-			Op:  AND,
-			LHS: &ParenExpr{Expr: scond},
-			RHS: &ParenExpr{Expr: cond},
+		return &influxql.BinaryExpr{
+			Op:  influxql.AND,
+			LHS: &influxql.ParenExpr{Expr: scond},
+			RHS: &influxql.ParenExpr{Expr: cond},
 		}
 	}
 	return scond
 }
 
-func rewriteSources2(sources Sources, database string) Sources {
+func rewriteSources2(sources influxql.Sources, database string) influxql.Sources {
 	if len(sources) == 0 {
-		sources = Sources{&Measurement{Regex: &RegexLiteral{Val: matchAllRegex.Copy()}}}
+		sources = influxql.Sources{&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: matchAllRegex.Copy()}}}
 	}
 	for _, source := range sources {
 		switch source := source.(type) {
-		case *Measurement:
+		case *influxql.Measurement:
 			if source.Database == "" {
 				source.Database = database
 			}
