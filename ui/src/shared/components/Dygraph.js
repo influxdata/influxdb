@@ -29,6 +29,7 @@ export default class Dygraph extends Component {
         x: null,
         series: [],
       },
+      pageX: null,
       sortType: '',
       filterText: '',
       isSynced: false,
@@ -36,7 +37,6 @@ export default class Dygraph extends Component {
       isAscending: true,
       isSnipped: false,
       isFilterVisible: false,
-      legendArrowPosition: 'top',
     }
   }
 
@@ -166,9 +166,8 @@ export default class Dygraph extends Component {
     dygraph.updateOptions(updateOptions)
 
     const {w} = this.dygraph.getArea()
-    this.resize()
-    this.dygraph.resize()
     this.props.setResolution(w)
+    this.resize()
   }
 
   getYRange = timeSeries => {
@@ -311,6 +310,7 @@ export default class Dygraph extends Component {
   resize = () => {
     this.dygraph.resizeElements_()
     this.dygraph.predraw_()
+    this.dygraph.resize()
   }
 
   formatTimeRange = timeRange => {
@@ -354,64 +354,8 @@ export default class Dygraph extends Component {
     }
   }
 
-  highlightCallback = e => {
-    const chronografChromeSize = 60 // Width & Height of navigation page elements
-
-    // Move the Legend on hover
-    const graphRect = this.graphRef.getBoundingClientRect()
-    const legendRect = this.legendRef.getBoundingClientRect()
-
-    const graphWidth = graphRect.width + 32 // Factoring in padding from parent
-    const graphHeight = graphRect.height
-    const graphBottom = graphRect.bottom
-    const legendWidth = legendRect.width
-    const legendHeight = legendRect.height
-    const screenHeight = window.innerHeight
-    const legendMaxLeft = graphWidth - legendWidth / 2
-    const trueGraphX = e.pageX - graphRect.left
-
-    let legendLeft = trueGraphX
-
-    // Enforcing max & min legend offsets
-    if (trueGraphX < legendWidth / 2) {
-      legendLeft = legendWidth / 2
-    } else if (trueGraphX > legendMaxLeft) {
-      legendLeft = legendMaxLeft
-    }
-
-    // Disallow screen overflow of legend
-    const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
-    const isLegendTopClipped =
-      legendHeight > graphRect.top - chronografChromeSize
-    const willLegendFitLeft = e.pageX - chronografChromeSize > legendWidth
-
-    let legendTop = graphHeight + 8
-    this.setState({legendArrowPosition: 'top'})
-
-    // If legend is only clipped on the bottom, position above graph
-    if (isLegendBottomClipped && !isLegendTopClipped) {
-      this.setState({legendArrowPosition: 'bottom'})
-      legendTop = -legendHeight
-    }
-    // If legend is clipped on top and bottom, posiition on either side of crosshair
-    if (isLegendBottomClipped && isLegendTopClipped) {
-      legendTop = 0
-
-      if (willLegendFitLeft) {
-        this.setState({legendArrowPosition: 'right'})
-        legendLeft = trueGraphX - legendWidth / 2
-        legendLeft -= 8
-      } else {
-        this.setState({legendArrowPosition: 'left'})
-        legendLeft = trueGraphX + legendWidth / 2
-        legendLeft += 32
-      }
-    }
-
-    this.legendRef.style.left = `${legendLeft}px`
-    this.legendRef.style.top = `${legendTop}px`
-
-    this.setState({isHidden: false})
+  highlightCallback = ({pageX}) => {
+    this.setState({isHidden: false, pageX})
   }
 
   legendFormatter = legend => {
@@ -437,12 +381,12 @@ export default class Dygraph extends Component {
   render() {
     const {
       legend,
+      pageX,
       sortType,
       isHidden,
       isSnipped,
       filterText,
       isAscending,
-      legendArrowPosition,
       isFilterVisible,
     } = this.state
 
@@ -450,6 +394,9 @@ export default class Dygraph extends Component {
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         <DygraphLegend
           {...legend}
+          graph={this.graphRef}
+          legend={this.legendRef}
+          pageX={pageX}
           sortType={sortType}
           onHide={this.handleHideLegend}
           isHidden={isHidden}
@@ -462,7 +409,6 @@ export default class Dygraph extends Component {
           legendRef={this.handleLegendRef}
           onToggleFilter={this.handleToggleFilter}
           onInputChange={this.handleLegendInputChange}
-          arrowPosition={legendArrowPosition}
         />
         <div
           ref={r => {
