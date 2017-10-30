@@ -10,7 +10,6 @@
 #      2: normal 32bit tests
 #      3: tsi build
 #      4: go 1.9
-#      save: build the docker images and save them to DOCKER_SAVE_DIR. Do not run tests.
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
 #
@@ -24,12 +23,10 @@ cd $DIR
 ENVIRONMENT_INDEX=$1
 # Set the default OUTPUT_DIR
 OUTPUT_DIR=${OUTPUT_DIR-./test-logs}
-# Set the default DOCKER_SAVE_DIR
-DOCKER_SAVE_DIR=${DOCKER_SAVE_DIR-$HOME/docker}
 # Set default parallelism
 PARALLELISM=${PARALLELISM-1}
 # Set default timeout
-TIMEOUT=${TIMEOUT-960s}
+TIMEOUT=${TIMEOUT-1200s}
 
 # Default to deleteing the container
 DOCKER_RM=${DOCKER_RM-true}
@@ -97,33 +94,6 @@ function build_docker_image {
 }
 
 
-# Saves a docker image to $DOCKER_SAVE_DIR
-function save_docker_image {
-    local dockerfile=$1
-    local imagename=$(filename2imagename "$dockerfile")
-    local imagefile="$DOCKER_SAVE_DIR/${imagename}.tar.gz"
-
-    if [ ! -d  "$DOCKER_SAVE_DIR" ]
-    then
-        mkdir -p "$DOCKER_SAVE_DIR"
-    fi
-
-    if [[ -e "$imagefile" ]]
-    then
-        zcat $imagefile | docker load
-    fi
-    imageid=$(docker images -q --no-trunc "$imagename")
-    build_docker_image "$dockerfile" "$imagename"
-    newimageid=$(docker images -q --no-trunc "$imagename")
-    rc=0
-    if [ "$imageid" != "$newimageid" ]
-    then
-        docker save "$imagename" | gzip > "$imagefile"
-        rc="${PIPESTATUS[0]}"
-    fi
-    return "$rc"
-}
-
 if [ ! -d "$OUTPUT_DIR" ]
 then
     mkdir -p "$OUTPUT_DIR"
@@ -157,31 +127,6 @@ case $ENVIRONMENT_INDEX in
         # go1.9
         run_test_docker Dockerfile_build_ubuntu64_go19 test_64bit --test --junit-report
         rc=$?
-        ;;
-     "save")
-        # Save docker images for every Dockerfile_build* file.
-        # Useful for creating an external cache.
-        pids=()
-        for d in Dockerfile_build*
-        do
-            echo "Building and saving $d ..."
-            save_docker_image "$d" > $OUTPUT_DIR/${d}.log 2>&1 &
-            pids+=($!)
-        done
-        echo "Waiting..."
-        # Wait for all saves to finish
-        for pid in "${pids[@]}"
-        do
-            wait $pid
-            rc=$(($? + $rc))
-        done
-        # Check if all saves passed
-        if [ $rc -eq 0 ]
-        then
-            echo "All saves succeeded"
-        else
-            echo "Some saves failed, check logs in $OUTPUT_DIR"
-        fi
         ;;
     "count")
         echo $ENV_COUNT

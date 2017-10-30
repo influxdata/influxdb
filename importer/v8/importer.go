@@ -164,7 +164,6 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 		}
 		i.queryExecutor(line)
 	}
-	return nil
 }
 
 func (i *Importer) processDML(scanner *bufio.Reader) error {
@@ -193,7 +192,6 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		}
 		i.batchAccumulator(line, start)
 	}
-	return nil
 }
 
 func (i *Importer) execute(command string) {
