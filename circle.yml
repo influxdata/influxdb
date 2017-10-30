@@ -14,9 +14,7 @@ dependencies:
         - "~/docker"
         - ~/download
     override:
-      - ./test.sh save:
-          # building the docker images can take a long time, hence caching
-          timeout: 1800
+      - ./test.sh count
 
 test:
     override:
