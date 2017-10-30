@@ -303,7 +303,7 @@ func (t *Tombstoner) prepareV4() error {
 	f.Close()
 
 	var b [8]byte
-	bw := bufio.NewWriterSize(tmp, 1024*1024)
+	bw := bufio.NewWriterSize(tmp, 64*1024)
 
 	// Write the header only if the file is new
 	if os.IsNotExist(err) {

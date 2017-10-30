@@ -18,6 +18,10 @@ import (
 // ErrFileInUse is returned when attempting to remove or close a TSM file that is still being used.
 var ErrFileInUse = fmt.Errorf("file still in use")
 
+// nilOffset is the value written to the offsets to indicate that position is deleted.  The value is the max
+// uint32 which is an invalid position.  We don't use 0 as 0 is actually a valid position.
+var nilOffset = []byte{255, 255, 255, 255}
+
 // TSMReader is a reader for a TSM file.
 type TSMReader struct {
 	// refs is the count of active references to this reader.
@@ -777,14 +781,46 @@ func NewIndirectIndex() *indirectIndex {
 	}
 }
 
-// search returns the index of i in offsets for where key is located.  If key is not
+func (d *indirectIndex) offset(i int) int {
+	if i < 0 || i+4 > len(d.offsets) {
+		return -1
+	}
+	return int(binary.BigEndian.Uint32(d.offsets[i*4 : i*4+4]))
+}
+
+// searchOffset searches the offsets slice for key and returns the position in
+// offsets where key would exist.
+func (d *indirectIndex) searchOffset(key []byte) int {
+	// We use a binary search across our indirect offsets (pointers to all the keys
+	// in the index slice).
+	i := bytesutil.SearchBytesFixed(d.offsets, 4, func(x []byte) bool {
+		// i is the position in offsets we are at so get offset it points to
+		offset := int32(binary.BigEndian.Uint32(x))
+
+		// It's pointing to the start of the key which is a 2 byte length
+		keyLen := int32(binary.BigEndian.Uint16(d.b[offset : offset+2]))
+
+		// See if it matches
+		return bytes.Compare(d.b[offset+2:offset+2+keyLen], key) >= 0
+	})
+
+	// See if we might have found the right index
+	if i < len(d.offsets) {
+		return int(i / 4)
+	}
+
+	// The key is not in the index.  i is the index where it would be inserted so return
+	// a value outside our offset range.
+	return int(len(d.offsets)) / 4
+}
+
+// search returns the byte position of key in the index.  If key is not
 // in the index, len(index) is returned.
 func (d *indirectIndex) search(key []byte) int {
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
 	i := bytesutil.SearchBytesFixed(d.offsets, 4, func(x []byte) bool {
 		// i is the position in offsets we are at so get offset it points to
-		//offset := d.offsets[i]
 		offset := int32(binary.BigEndian.Uint32(x))
 
 		// It's pointing to the start of the key which is a 2 byte length
@@ -824,6 +860,24 @@ func (d *indirectIndex) Entries(key []byte) []IndexEntry {
 	return d.ReadEntries(key, nil)
 }
 
+func (d *indirectIndex) readEntriesAt(ofs int, entries *[]IndexEntry) ([]byte, []IndexEntry) {
+	n, k := readKey(d.b[ofs:])
+
+	// Read and return all the entries
+	ofs += n
+	var ie indexEntries
+	if entries != nil {
+		ie.entries = *entries
+	}
+	if _, err := readEntries(d.b[ofs:], &ie); err != nil {
+		panic(fmt.Sprintf("error reading entries: %v", err))
+	}
+	if entries != nil {
+		*entries = ie.entries
+	}
+	return k, ie.entries
+}
+
 // ReadEntries returns all index entries for a key.
 func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry {
 	d.mu.RLock()
@@ -831,8 +885,7 @@ func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEn
 
 	ofs := d.search(key)
 	if ofs < len(d.b) {
-		n, k := readKey(d.b[ofs:])
-
+		k, entries := d.readEntriesAt(ofs, entries)
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at position 0.  Make sure the key in the index
 		// matches the search value.
@@ -840,19 +893,7 @@ func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEn
 			return nil
 		}
 
-		// Read and return all the entries
-		ofs += n
-		var ie indexEntries
-		if entries != nil {
-			ie.entries = *entries
-		}
-		if _, err := readEntries(d.b[ofs:], &ie); err != nil {
-			panic(fmt.Sprintf("error reading entries: %v", err))
-		}
-		if entries != nil {
-			*entries = ie.entries
-		}
-		return ie.entries
+		return entries
 	}
 
 	// The key is not in the index.  i is the index where it would be inserted.
@@ -940,7 +981,6 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 	// Both keys and offsets are sorted.  Walk both in order and skip
 	// any keys that exist in both.
 	d.mu.Lock()
-	var j int
 	for i := 0; i+4 <= len(d.offsets); i += 4 {
 		for len(keys) > 0 && !d.ContainsKey(keys[0]) {
 			keys = keys[1:]
@@ -955,13 +995,11 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 
 		if len(keys) > 0 && bytes.Equal(keys[0], indexKey) {
 			keys = keys[1:]
+			copy(d.offsets[i:i+4], nilOffset[:])
 			continue
 		}
-
-		copy(d.offsets[j:j+4], d.offsets[i:i+4])
-		j += 4
 	}
-	d.offsets = d.offsets[:j]
+	d.offsets = bytesutil.Pack(d.offsets, 4, 255)
 	d.mu.Unlock()
 }
 
@@ -991,23 +1029,42 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 
 	fullKeys := make([][]byte, 0, len(keys))
 	tombstones := map[string][]TimeRange{}
-	for i, k := range keys {
-		// Is the range passed in outside the time range for this key?
-		entries := d.Entries(k)
+	var ie []IndexEntry
+
+	for i := 0; len(keys) > 0 && i < d.KeyCount(); i++ {
+		k, entries := d.readEntriesAt(d.offset(i), &ie)
+
+		// Skip any keys that don't exist.  These are less than the current key.
+		for len(keys) > 0 && bytes.Compare(keys[0], k) < 0 {
+			keys = keys[1:]
+		}
+
+		// No more keys to delete, we're done.
+		if len(keys) == 0 {
+			break
+		}
+
+		// If the current key is greater than the index one, continue to the next
+		// index key.
+		if len(keys) > 0 && bytes.Compare(keys[0], k) > 0 {
+			continue
+		}
 
 		// If multiple tombstones are saved for the same key
 		if len(entries) == 0 {
 			continue
 		}
 
+		// Is the time range passed outside of the time range we've have stored for this key?
 		min, max := entries[0].MinTime, entries[len(entries)-1].MaxTime
 		if minTime > max || maxTime < min {
 			continue
 		}
 
-		// Is the range passed in cover every value for the key?
+		// Does the range passed in cover every value for the key?
 		if minTime <= min && maxTime >= max {
-			fullKeys = append(fullKeys, keys[i])
+			fullKeys = append(fullKeys, keys[0])
+			keys = keys[1:]
 			continue
 		}
 
@@ -1061,7 +1118,8 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 
 		// If we have a fully deleted series, delete it all of it.
 		if minTs <= min && maxTs >= max {
-			fullKeys = append(fullKeys, keys[i])
+			fullKeys = append(fullKeys, keys[0])
+			keys = keys[1:]
 			continue
 		}
 	}
