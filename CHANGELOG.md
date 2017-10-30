@@ -1,6 +1,8 @@
 ## v1.3.11.0 [unreleased]
 ### Bug Fixes
+1. [#2158](https://github.com/influxdata/chronograf/pull/2158): Fix 'Cannot connect to source' false error flag on Dashboard page
 1. [#2167](https://github.com/influxdata/chronograf/pull/2167): Add fractions of seconds to time field in csv export
+
 ### Features
 ### UI Improvements
 
