@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/influxdata/influxdb/influxql/neldermead"
+	"github.com/influxdata/influxdb/query/neldermead"
 )
 
 // FloatMeanReducer calculates the mean of the aggregated points.

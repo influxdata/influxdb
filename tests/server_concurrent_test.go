@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 )
 
 func TestConcurrentServer_WriteValues(t *testing.T) {
@@ -71,7 +72,7 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rewrite, err := influxql.RewriteStatement(stmt)
+	rewrite, err := query.RewriteStatement(stmt)
 	if err != nil {
 		t.Fatal(err)
 	}
