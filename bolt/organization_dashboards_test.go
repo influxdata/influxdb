@@ -34,7 +34,7 @@ func TestOrganizationDashboards_All(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "All Dashbaords",
+			name: "All Dashboards",
 			args: args{
 				organization: "1337",
 				ctx:          context.Background(),
