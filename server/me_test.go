@@ -159,9 +159,11 @@ func TestService_Me(t *testing.T) {
 	for _, tt := range tests {
 		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), oauth2.PrincipalKey, tt.principal))
 		s := &Service{
-			UsersStore: tt.fields.UsersStore,
-			Logger:     tt.fields.Logger,
-			UseAuth:    tt.fields.UseAuth,
+			Store: &mocks.Store{
+				UsersStore: tt.fields.UsersStore,
+			},
+			Logger:  tt.fields.Logger,
+			UseAuth: tt.fields.UseAuth,
 		}
 
 		s.Me(tt.args.w, tt.args.r)
@@ -184,11 +186,10 @@ func TestService_Me(t *testing.T) {
 
 func TestService_MeOrganizations(t *testing.T) {
 	type fields struct {
-		UsersStore             chronograf.UsersStore
-		OrganizationsStore     chronograf.OrganizationsStore
-		OrganizationUsersStore chronograf.UsersStore
-		Logger                 chronograf.Logger
-		UseAuth                bool
+		UsersStore         chronograf.UsersStore
+		OrganizationsStore chronograf.OrganizationsStore
+		Logger             chronograf.Logger
+		UseAuth            bool
 	}
 	type args struct {
 		w          *httptest.ResponseRecorder
@@ -227,6 +228,12 @@ func TestService_MeOrganizations(t *testing.T) {
 							Name:     "me",
 							Provider: "github",
 							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         AdminRoleName,
+									Organization: "1337",
+								},
+							},
 						}, nil
 					},
 				},
@@ -241,25 +248,6 @@ func TestService_MeOrganizations(t *testing.T) {
 						}, nil
 					},
 				},
-				OrganizationUsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-						orgID, ok := ctx.Value("organizationID").(string)
-						if !ok {
-							return nil, fmt.Errorf("expected organization key to be a string")
-						}
-						if orgID == "" {
-							return nil, fmt.Errorf("expected organization key to be set")
-						}
-						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
-						}
-						return &chronograf.User{
-							Name:     "me",
-							Provider: "github",
-							Scheme:   "oauth2",
-						}, nil
-					},
-				},
 			},
 			principal: oauth2.Principal{
 				Subject: "me",
@@ -267,7 +255,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","provider":"github","scheme":"oauth2","currentOrganization":"1337","links":{"self":"/chronograf/v1/users/me"}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","currentOrganization":"1337","links":{"self":"/chronograf/v1/users/me"}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -291,6 +279,12 @@ func TestService_MeOrganizations(t *testing.T) {
 							Name:     "me",
 							Provider: "github",
 							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         AdminRoleName,
+									Organization: "1337",
+								},
+							},
 						}, nil
 					},
 				},
@@ -305,25 +299,6 @@ func TestService_MeOrganizations(t *testing.T) {
 						}, nil
 					},
 				},
-				OrganizationUsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-						orgID, ok := ctx.Value("organizationID").(string)
-						if !ok {
-							return nil, fmt.Errorf("expected organization key to be a string")
-						}
-						if orgID == "" {
-							return nil, fmt.Errorf("expected organization key to be set")
-						}
-						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
-						}
-						return &chronograf.User{
-							Name:     "me",
-							Provider: "github",
-							Scheme:   "oauth2",
-						}, nil
-					},
-				},
 			},
 			principal: oauth2.Principal{
 				Subject:      "me",
@@ -332,7 +307,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","provider":"github","scheme":"oauth2","currentOrganization":"1337","links":{"self":"/chronograf/v1/users/me"}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","currentOrganization":"1337","links":{"self":"/chronograf/v1/users/me"}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
@@ -352,11 +327,7 @@ func TestService_MeOrganizations(t *testing.T) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
 						}
-						return &chronograf.User{
-							Name:     "me",
-							Provider: "github",
-							Scheme:   "oauth2",
-						}, nil
+						return nil, chronograf.ErrUserNotFound
 					},
 				},
 				OrganizationsStore: &mocks.OrganizationsStore{
@@ -368,11 +339,6 @@ func TestService_MeOrganizations(t *testing.T) {
 							ID:   1337,
 							Name: "The ShillBillThrilliettas",
 						}, nil
-					},
-				},
-				OrganizationUsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-						return nil, chronograf.ErrUserNotFound
 					},
 				},
 			},
@@ -407,6 +373,12 @@ func TestService_MeOrganizations(t *testing.T) {
 							Name:     "me",
 							Provider: "github",
 							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         AdminRoleName,
+									Organization: "1337",
+								},
+							},
 						}, nil
 					},
 				},
@@ -429,11 +401,14 @@ func TestService_MeOrganizations(t *testing.T) {
 	for _, tt := range tests {
 		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), oauth2.PrincipalKey, tt.principal))
 		s := &Service{
-			UsersStore:             tt.fields.UsersStore,
-			OrganizationsStore:     tt.fields.OrganizationsStore,
-			OrganizationUsersStore: tt.fields.OrganizationUsersStore,
-			Logger:                 tt.fields.Logger,
-			UseAuth:                tt.fields.UseAuth,
+			Store: &Store{
+				UsersStore:         tt.fields.UsersStore,
+				OrganizationsStore: tt.fields.OrganizationsStore,
+			},
+			//UsersStore:             tt.fields.UsersStore,
+			//OrganizationUsersStore: tt.fields.OrganizationUsersStore,
+			Logger:  tt.fields.Logger,
+			UseAuth: tt.fields.UseAuth,
 		}
 
 		buf, _ := json.Marshal(tt.args.orgRequest)

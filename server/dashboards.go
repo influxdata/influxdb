@@ -49,7 +49,7 @@ func newDashboardResponse(d chronograf.Dashboard) *dashboardResponse {
 // Dashboards returns all dashboards within the store
 func (s *Service) Dashboards(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	dashboards, err := s.DashboardsStore.All(ctx)
+	dashboards, err := s.Store.Dashboards(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading dashboards", s.Logger)
 		return
@@ -74,7 +74,7 @@ func (s *Service) DashboardID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	e, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	e, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -98,7 +98,8 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
-	if dashboard, err = s.DashboardsStore.Add(r.Context(), dashboard); err != nil {
+	ctx := r.Context()
+	if dashboard, err = s.Store.Dashboards(ctx).Add(r.Context(), dashboard); err != nil {
 		msg := fmt.Errorf("Error storing dashboard %v: %v", dashboard, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
@@ -118,13 +119,13 @@ func (s *Service) RemoveDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	e, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	e, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
 	}
 
-	if err := s.DashboardsStore.Delete(ctx, e); err != nil {
+	if err := s.Store.Dashboards(ctx).Delete(ctx, e); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
@@ -141,7 +142,7 @@ func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chronograf.DashboardID(idParam)
 
-	_, err = s.DashboardsStore.Get(ctx, id)
+	_, err = s.Store.Dashboards(ctx).Get(ctx, id)
 	if err != nil {
 		Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id), s.Logger)
 		return
@@ -159,7 +160,7 @@ func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.DashboardsStore.Update(ctx, req); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, req); err != nil {
 		msg := fmt.Sprintf("Error updating dashboard ID %d: %v", id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -180,7 +181,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chronograf.DashboardID(idParam)
 
-	orig, err := s.DashboardsStore.Get(ctx, id)
+	orig, err := s.Store.Dashboards(ctx).Get(ctx, id)
 	if err != nil {
 		Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id), s.Logger)
 		return
@@ -206,7 +207,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.DashboardsStore.Update(ctx, orig); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, orig); err != nil {
 		msg := fmt.Sprintf("Error updating dashboard ID %d: %v", id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return

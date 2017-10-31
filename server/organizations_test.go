@@ -70,8 +70,10 @@ func TestService_OrganizationID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				OrganizationsStore: tt.fields.OrganizationsStore,
-				Logger:             tt.fields.Logger,
+				Store: &Store{
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -155,8 +157,10 @@ func TestService_Organizations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				OrganizationsStore: tt.fields.OrganizationsStore,
-				Logger:             tt.fields.Logger,
+				Store: &Store{
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			s.Organizations(tt.args.w, tt.args.r)
@@ -234,8 +238,10 @@ func TestService_UpdateOrganization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				OrganizationsStore: tt.fields.OrganizationsStore,
-				Logger:             tt.fields.Logger,
+				Store: &Store{
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(context.Background(),
@@ -319,8 +325,10 @@ func TestService_RemoveOrganization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				OrganizationsStore: tt.fields.OrganizationsStore,
-				Logger:             tt.fields.Logger,
+				Store: &Store{
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(context.Background(),
@@ -393,8 +401,10 @@ func TestService_NewOrganization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				OrganizationsStore: tt.fields.OrganizationsStore,
-				Logger:             tt.fields.Logger,
+				Store: &Store{
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			buf, _ := json.Marshal(tt.args.org)

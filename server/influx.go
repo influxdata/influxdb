@@ -42,7 +42,7 @@ func (s *Service) Influx(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	src, err := s.SourcesStore.Get(ctx, id)
+	src, err := s.Store.Sources(ctx).Get(ctx, id)
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -87,7 +87,7 @@ func (s *Service) Write(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	src, err := s.SourcesStore.Get(ctx, id)
+	src, err := s.Store.Sources(ctx).Get(ctx, id)
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return

@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/chronograf/influx"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
-	"github.com/influxdata/chronograf/organizations"
 	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
@@ -430,17 +429,19 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 	}
 
 	return Service{
-		TimeSeriesClient:       &InfluxClient{},
-		SourcesStore:           organizations.NewSourcesStore(sources),
-		ServersStore:           organizations.NewServersStore(kapacitors),
-		UsersStore:             db.UsersStore,
-		OrganizationUsersStore: organizations.NewUsersStore(db.UsersStore),
-		OrganizationsStore:     db.OrganizationsStore,
-		LayoutsStore:           organizations.NewLayoutsStore(layouts),
-		DashboardsStore:        organizations.NewDashboardsStore(db.DashboardsStore),
-		Logger:                 logger,
-		UseAuth:                useAuth,
-		Databases:              &influx.Client{Logger: logger},
+		TimeSeriesClient: &InfluxClient{},
+		Store: &Store{
+			SourcesStore:       sources,
+			ServersStore:       kapacitors,
+			UsersStore:         db.UsersStore,
+			OrganizationsStore: db.OrganizationsStore,
+			LayoutsStore:       layouts,
+			DashboardsStore:    db.DashboardsStore,
+			//OrganizationUsersStore: organizations.NewUsersStore(db.UsersStore),
+		},
+		Logger:    logger,
+		UseAuth:   useAuth,
+		Databases: &influx.Client{Logger: logger},
 	}
 }
 

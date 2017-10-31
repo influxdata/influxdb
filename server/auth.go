@@ -52,8 +52,7 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 // name and provider. If the user is found, we verify that the user has at at
 // least the role supplied.
 func AuthorizedUser(
-	usersStore chronograf.UsersStore,
-	organizationsStore chronograf.OrganizationsStore,
+	store DataStore,
 	useAuth bool,
 	role string,
 	logger chronograf.Logger,
@@ -98,7 +97,7 @@ func AuthorizedUser(
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
-		_, err = organizationsStore.Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		_, err = store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
 		if err != nil {
 			log.Error("Failed to retrieve organization from organizations store")
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
@@ -106,7 +105,7 @@ func AuthorizedUser(
 		}
 
 		ctx = context.WithValue(ctx, "organizationID", p.Organization)
-		u, err := usersStore.Get(ctx, chronograf.UserQuery{
+		u, err := store.Users(ctx).Get(ctx, chronograf.UserQuery{
 			Name:     &p.Subject,
 			Provider: &p.Issuer,
 			Scheme:   &scheme,

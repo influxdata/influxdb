@@ -66,7 +66,7 @@ func newOrganizationsResponse(orgs []chronograf.Organization) *organizationsResp
 func (s *Service) Organizations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	orgs, err := s.OrganizationsStore.All(ctx)
+	orgs, err := s.Store.Organizations(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -94,7 +94,7 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 		Name: req.Name,
 	}
 
-	res, err := s.OrganizationsStore.Add(ctx, org)
+	res, err := s.Store.Organizations(ctx).Add(ctx, org)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -116,7 +116,7 @@ func (s *Service) OrganizationID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.OrganizationsStore.Get(ctx, chronograf.OrganizationQuery{ID: &id})
+	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -146,7 +146,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.OrganizationsStore.Get(ctx, chronograf.OrganizationQuery{ID: &id})
+	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -156,7 +156,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 		org.Name = req.Name
 	}
 
-	err = s.OrganizationsStore.Update(ctx, org)
+	err = s.Store.Organizations(ctx).Update(ctx, org)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -176,12 +176,12 @@ func (s *Service) RemoveOrganization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.OrganizationsStore.Get(ctx, chronograf.OrganizationQuery{ID: &id})
+	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
 	}
-	if err := s.OrganizationsStore.Delete(ctx, org); err != nil {
+	if err := s.Store.Organizations(ctx).Delete(ctx, org); err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}

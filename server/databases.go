@@ -76,7 +76,7 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := h.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, h.Logger)
 		return
@@ -122,7 +122,7 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := h.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, h.Logger)
 		return
@@ -172,7 +172,7 @@ func (h *Service) DropDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := h.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, h.Logger)
 		return
@@ -207,7 +207,7 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := h.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, h.Logger)
 		return
@@ -261,7 +261,7 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := h.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, h.Logger)
 		return
@@ -311,7 +311,7 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := h.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, h.Logger)
 		return
@@ -364,7 +364,7 @@ func (s *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src, err := s.SourcesStore.Get(ctx, srcID)
+	src, err := s.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, s.Logger)
 		return

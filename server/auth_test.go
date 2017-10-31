@@ -108,7 +108,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.ViewerRole,
+								{
+									Name:         server.ViewerRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -152,7 +155,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.EditorRole,
+								{
+									Name:         server.EditorRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -196,7 +202,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.AdminRole,
+								{
+									Name:         server.AdminRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -240,7 +249,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.ViewerRole,
+								{
+									Name:         server.ViewerRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -284,7 +296,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.EditorRole,
+								{
+									Name:         server.EditorRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -328,7 +343,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.AdminRole,
+								{
+									Name:         server.AdminRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -372,7 +390,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.ViewerRole,
+								{
+									Name:         server.ViewerRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -416,7 +437,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.EditorRole,
+								{
+									Name:         server.EditorRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -460,7 +484,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.AdminRole,
+								{
+									Name:         server.AdminRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -768,7 +795,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.AdminRole,
+								{
+									Name:         server.AdminRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -808,7 +838,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.AdminRole,
+								{
+									Name:         server.AdminRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -851,7 +884,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.AdminRole,
+								{
+									Name:         server.AdminRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -895,7 +931,10 @@ func TestAuthorizedUser(t *testing.T) {
 							Provider: "google",
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
-								server.AdminRole,
+								{
+									Name:         server.AdminRoleName,
+									Organization: "1337",
+								},
 							},
 						}, nil
 					},
@@ -946,7 +985,10 @@ func TestAuthorizedUser(t *testing.T) {
 								Provider: "google",
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
-									server.AdminRole,
+									{
+										Name:         server.AdminRoleName,
+										Organization: "1337",
+									},
 								},
 							}, nil
 						default:
@@ -988,8 +1030,10 @@ func TestAuthorizedUser(t *testing.T) {
 				authorized = true
 			}
 			fn := server.AuthorizedUser(
-				tt.fields.UsersStore,
-				tt.fields.OrganizationsStore,
+				&server.Store{
+					UsersStore:         tt.fields.UsersStore,
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
 				tt.args.useAuth,
 				tt.args.role,
 				tt.fields.Logger,

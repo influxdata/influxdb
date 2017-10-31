@@ -67,7 +67,7 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	_, err = s.SourcesStore.Get(ctx, srcID)
+	_, err = s.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, s.Logger)
 		return
@@ -93,7 +93,7 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 		Organization: req.Organization,
 	}
 
-	if srv, err = s.ServersStore.Add(ctx, srv); err != nil {
+	if srv, err = s.Store.Servers(ctx).Add(ctx, srv); err != nil {
 		msg := fmt.Errorf("Error storing kapacitor %v: %v", req, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
@@ -135,7 +135,7 @@ func (s *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	mrSrvs, err := s.ServersStore.All(ctx)
+	mrSrvs, err := s.Store.Servers(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading kapacitors", s.Logger)
 		return
@@ -170,7 +170,7 @@ func (s *Service) KapacitorsID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -195,13 +195,13 @@ func (s *Service) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
 	}
 
-	if err = s.ServersStore.Delete(ctx, srv); err != nil {
+	if err = s.Store.Servers(ctx).Delete(ctx, srv); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
@@ -245,7 +245,7 @@ func (s *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -278,7 +278,7 @@ func (s *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 		srv.Active = *req.Active
 	}
 
-	if err := s.ServersStore.Update(ctx, srv); err != nil {
+	if err := s.Store.Servers(ctx).Update(ctx, srv); err != nil {
 		msg := fmt.Sprintf("Error updating kapacitor ID %d", id)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -303,7 +303,7 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -432,7 +432,7 @@ func (s *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -502,7 +502,7 @@ func (s *Service) KapacitorRulesStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -563,7 +563,7 @@ func (s *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -605,7 +605,7 @@ func (s *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -644,7 +644,7 @@ func (s *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return

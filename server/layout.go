@@ -63,7 +63,8 @@ func (s *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
-	if layout, err = s.LayoutsStore.Add(r.Context(), layout); err != nil {
+	ctx := r.Context()
+	if layout, err = s.Store.Layouts(ctx).Add(r.Context(), layout); err != nil {
 		msg := fmt.Errorf("Error storing layout %v: %v", layout, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
@@ -91,7 +92,7 @@ func (s *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	layouts, err := s.LayoutsStore.All(ctx)
+	layouts, err := s.Store.Layouts(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading layouts", s.Logger)
 		return
@@ -123,7 +124,7 @@ func (s *Service) LayoutsID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
-	layout, err := s.LayoutsStore.Get(ctx, id)
+	layout, err := s.Store.Layouts(ctx).Get(ctx, id)
 	if err != nil {
 		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
 		return
@@ -142,7 +143,7 @@ func (s *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 		ID: id,
 	}
 
-	if err := s.LayoutsStore.Delete(ctx, layout); err != nil {
+	if err := s.Store.Layouts(ctx).Delete(ctx, layout); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
@@ -155,7 +156,7 @@ func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
-	_, err := s.LayoutsStore.Get(ctx, id)
+	_, err := s.Store.Layouts(ctx).Get(ctx, id)
 	if err != nil {
 		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
 		return
@@ -173,7 +174,7 @@ func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.LayoutsStore.Update(ctx, req); err != nil {
+	if err := s.Store.Layouts(ctx).Update(ctx, req); err != nil {
 		msg := fmt.Sprintf("Error updating layout ID %s: %v", id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return

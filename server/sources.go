@@ -86,7 +86,7 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	src.Type = dbType
-	if src, err = s.SourcesStore.Add(ctx, src); err != nil {
+	if src, err = s.Store.Sources(ctx).Add(ctx, src); err != nil {
 		msg := fmt.Errorf("Error storing source %v: %v", src, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
@@ -115,7 +115,7 @@ type getSourcesResponse struct {
 // Sources returns all sources from the store.
 func (s *Service) Sources(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	srcs, err := s.SourcesStore.All(ctx)
+	srcs, err := s.Store.Sources(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading sources", s.Logger)
 		return
@@ -141,7 +141,7 @@ func (s *Service) SourcesID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	src, err := s.SourcesStore.Get(ctx, id)
+	src, err := s.Store.Sources(ctx).Get(ctx, id)
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -161,7 +161,7 @@ func (s *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 
 	src := chronograf.Source{ID: id}
 	ctx := r.Context()
-	if err = s.SourcesStore.Delete(ctx, src); err != nil {
+	if err = s.Store.Sources(ctx).Delete(ctx, src); err != nil {
 		if err == chronograf.ErrSourceNotFound {
 			notFound(w, id, s.Logger)
 		} else {
@@ -182,7 +182,7 @@ func (s *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 // removeSrcsKapa will remove all kapacitors and kapacitor rules from the stores.
 // However, it will not remove the kapacitor tickscript from kapacitor itself.
 func (s *Service) removeSrcsKapa(ctx context.Context, srcID int) error {
-	kapas, err := s.ServersStore.All(ctx)
+	kapas, err := s.Store.Servers(ctx).All(ctx)
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func (s *Service) removeSrcsKapa(ctx context.Context, srcID int) error {
 		}
 		s.Logger.Debug("Deleting kapacitor resource id ", kapa.ID)
 
-		if err := s.ServersStore.Delete(ctx, kapa); err != nil {
+		if err := s.Store.Servers(ctx).Delete(ctx, kapa); err != nil {
 			return err
 		}
 	}
@@ -218,7 +218,7 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	src, err := s.SourcesStore.Get(ctx, id)
+	src, err := s.Store.Sources(ctx).Get(ctx, id)
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -266,7 +266,7 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	}
 	src.Type = dbType
 
-	if err := s.SourcesStore.Update(ctx, src); err != nil {
+	if err := s.Store.Sources(ctx).Update(ctx, src); err != nil {
 		msg := fmt.Sprintf("Error updating source ID %d", id)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -338,7 +338,7 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 
 // newSourceKapacitor adds sources to BoltDB idempotently by name, as well as respective kapacitors
 func (s *Service) newSourceKapacitor(ctx context.Context, src chronograf.Source, kapa chronograf.Server) error {
-	srcs, err := s.SourcesStore.All(ctx)
+	srcs, err := s.Store.Sources(ctx).All(ctx)
 	if err != nil {
 		return err
 	}
@@ -354,13 +354,13 @@ func (s *Service) newSourceKapacitor(ctx context.Context, src chronograf.Source,
 		}
 	}
 
-	src, err = s.SourcesStore.Add(ctx, src)
+	src, err = s.Store.Sources(ctx).Add(ctx, src)
 	if err != nil {
 		return err
 	}
 
 	kapa.SrcID = src.ID
-	if _, err := s.ServersStore.Add(ctx, kapa); err != nil {
+	if _, err := s.Store.Servers(ctx).Add(ctx, kapa); err != nil {
 		return err
 	}
 
@@ -540,7 +540,7 @@ func (s *Service) sourcesSeries(ctx context.Context, w http.ResponseWriter, r *h
 		return 0, nil, err
 	}
 
-	src, err := s.SourcesStore.Get(ctx, srcID)
+	src, err := s.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, s.Logger)
 		return 0, nil, err

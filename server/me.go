@@ -119,7 +119,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 			return
 		}
-		_, err = s.OrganizationsStore.Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		_, err = s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
 		if err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
@@ -137,7 +137,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 		}
 		// validate that user belongs to organization
 		ctx = context.WithValue(ctx, "organizationID", req.OrganizationID)
-		_, err = s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{
+		_, err = s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
 			Name:     &p.Subject,
 			Provider: &p.Issuer,
 			Scheme:   &scheme,
@@ -188,7 +188,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	// TODO: add real implementation
 	ctx = context.WithValue(ctx, "organizationID", p.Organization)
 
-	usr, err := s.UsersStore.Get(ctx, chronograf.UserQuery{
+	// TODO: Change RawUsers to Users
+	usr, err := s.Store.RawUsers(ctx).Get(ctx, chronograf.UserQuery{
 		Name:     &p.Subject,
 		Provider: &p.Issuer,
 		Scheme:   &scheme,
@@ -215,7 +216,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		Scheme: scheme,
 	}
 
-	newUser, err := s.UsersStore.Add(ctx, user)
+	newUser, err := s.Store.RawUsers(ctx).Add(ctx, user)
 	if err != nil {
 		msg := fmt.Errorf("error storing user %s: %v", user.Name, err)
 		unknownErrorWithMessage(w, msg, s.Logger)

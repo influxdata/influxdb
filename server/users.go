@@ -151,7 +151,7 @@ func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
 		return
 	}
-	user, err := s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
+	user, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -182,7 +182,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		Roles:    req.Roles,
 	}
 
-	res, err := s.OrganizationUsersStore.Add(ctx, user)
+	res, err := s.Store.Users(ctx).Add(ctx, user)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -203,12 +203,12 @@ func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
+	u, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
 	}
-	if err := s.OrganizationUsersStore.Delete(ctx, u); err != nil {
+	if err := s.Store.Users(ctx).Delete(ctx, u); err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
@@ -237,7 +237,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := s.OrganizationUsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
+	u, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
@@ -246,7 +246,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	// ValidUpdate should ensure that req.Roles is not nil
 	u.Roles = req.Roles
 
-	err = s.OrganizationUsersStore.Update(ctx, u)
+	err = s.Store.Users(ctx).Update(ctx, u)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -261,7 +261,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	users, err := s.OrganizationUsersStore.All(ctx)
+	users, err := s.Store.Users(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
