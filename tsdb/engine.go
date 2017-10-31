@@ -72,6 +72,7 @@ type Engine interface {
 	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL iterators
+	MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIterator, error)
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 

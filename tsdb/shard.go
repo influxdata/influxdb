@@ -755,6 +755,14 @@ func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	return engine.MeasurementNamesByRegex(re)
 }
 
+func (s *Shard) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIterator, error) {
+	engine, err := s.engine()
+	if err != nil {
+		return nil, err
+	}
+	return engine.MeasurementSeriesKeysByExprIterator(name, expr)
+}
+
 // MeasurementSeriesKeysByExpr returns a list of series keys from the shard
 // matching expr.
 func (s *Shard) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {

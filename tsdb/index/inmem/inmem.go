@@ -685,7 +685,7 @@ func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influ
 	if err != nil {
 		return nil, err
 	}
-	return &seriesIterator{keys: keys}, nil
+	return &seriesIterator{keys: keys}, err
 }
 
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {

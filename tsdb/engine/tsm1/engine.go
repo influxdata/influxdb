@@ -1157,6 +1157,10 @@ func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
 	return e.index.ForEachMeasurementName(fn)
 }
 
+func (e *Engine) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (tsdb.SeriesIterator, error) {
+	return e.index.MeasurementSeriesKeysByExprIterator(name, expr)
+}
+
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (e *Engine) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	return e.index.MeasurementSeriesKeysByExpr(name, expr)
