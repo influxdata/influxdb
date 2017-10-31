@@ -25,6 +25,21 @@ func hasOrganizationContext(ctx context.Context) (string, bool) {
 	return orgID, true
 }
 
+const superAdminKey = "superadmin"
+
+func hasSuperAdminContext(ctx context.Context) (bool, bool) {
+	// prevents panic in case of nil context
+	if ctx == nil {
+		return false, false
+	}
+	sa, ok := ctx.Value(superAdminKey).(bool)
+	// should never happen
+	if !ok {
+		return false, false
+	}
+	return sa, true
+}
+
 // TODO: Comment
 // DataSource is ...
 // Having this as an interface is useful for testing
@@ -33,8 +48,6 @@ type DataStore interface {
 	Servers(ctx context.Context) chronograf.ServersStore
 	Layouts(ctx context.Context) chronograf.LayoutsStore
 	Users(ctx context.Context) chronograf.UsersStore
-	// TODO: remove
-	RawUsers(ctx context.Context) chronograf.UsersStore
 	Organizations(ctx context.Context) chronograf.OrganizationsStore
 	Dashboards(ctx context.Context) chronograf.DashboardsStore
 }
@@ -77,11 +90,15 @@ func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
 }
 
 func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
+	if superAdmin, ok := hasSuperAdminContext(ctx); ok && superAdmin {
+		return s.UsersStore
+	}
 	if org, ok := hasOrganizationContext(ctx); ok {
 		return organizations.NewUsersStore(s.UsersStore, org)
 	}
 
-	return s.UsersStore
+	// TODO: eventually have NoOpUserstore
+	return organizations.NewUsersStore(s.UsersStore, "")
 }
 
 func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
@@ -90,11 +107,6 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	}
 
 	return s.DashboardsStore
-}
-
-// TODO: remove me and put logic into Users Call
-func (s *Store) RawUsers(ctx context.Context) chronograf.UsersStore {
-	return s.UsersStore
 }
 
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {

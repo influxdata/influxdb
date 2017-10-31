@@ -32,11 +32,6 @@ func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
 	return s.UsersStore
 }
 
-// TODO: remove me and put logic into Users Call
-func (s *Store) RawUsers(ctx context.Context) chronograf.UsersStore {
-	return s.UsersStore
-}
-
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {
 	return s.OrganizationsStore
 }

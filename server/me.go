@@ -188,8 +188,10 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	// TODO: add real implementation
 	ctx = context.WithValue(ctx, "organizationID", p.Organization)
 
-	// TODO: Change RawUsers to Users
-	usr, err := s.Store.RawUsers(ctx).Get(ctx, chronograf.UserQuery{
+	// TODO: add real implementation
+	ctx = context.WithValue(ctx, "superadmin", true)
+
+	usr, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
 		Name:     &p.Subject,
 		Provider: &p.Issuer,
 		Scheme:   &scheme,
@@ -216,7 +218,10 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		Scheme: scheme,
 	}
 
-	newUser, err := s.Store.RawUsers(ctx).Add(ctx, user)
+	// TODO: add real implementation
+	ctx = context.WithValue(ctx, "superadmin", true)
+
+	newUser, err := s.Store.Users(ctx).Add(ctx, user)
 	if err != nil {
 		msg := fmt.Errorf("error storing user %s: %v", user.Name, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
