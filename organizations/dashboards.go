@@ -9,20 +9,23 @@ import (
 var _ chronograf.DashboardsStore = &DashboardsStore{}
 
 type DashboardsStore struct {
-	store chronograf.DashboardsStore
+	store        chronograf.DashboardsStore
+	organization string
 }
 
-func NewDashboardsStore(s chronograf.DashboardsStore) *DashboardsStore {
+func NewDashboardsStore(s chronograf.DashboardsStore, org string) *DashboardsStore {
 	return &DashboardsStore{
-		store: s,
+		store:        s,
+		organization: org,
 	}
 }
 
 func (s *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	ds, err := s.store.All(ctx)
 	if err != nil {
 		return nil, err
@@ -30,7 +33,7 @@ func (s *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, erro
 
 	dashboards := ds[:0]
 	for _, d := range ds {
-		if d.Organization == org {
+		if d.Organization == s.organization {
 			dashboards = append(dashboards, d)
 		}
 	}
@@ -39,17 +42,22 @@ func (s *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, erro
 }
 
 func (s *DashboardsStore) Add(ctx context.Context, d chronograf.Dashboard) (chronograf.Dashboard, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Dashboard{}, err
 	}
 
-	d.Organization = org
+	d.Organization = s.organization
 	return s.store.Add(ctx, d)
 }
 
 func (s *DashboardsStore) Delete(ctx context.Context, d chronograf.Dashboard) error {
-	d, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	d, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}
@@ -58,7 +66,7 @@ func (s *DashboardsStore) Delete(ctx context.Context, d chronograf.Dashboard) er
 }
 
 func (s *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Dashboard{}, err
 	}
@@ -68,7 +76,7 @@ func (s *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (c
 		return chronograf.Dashboard{}, err
 	}
 
-	if d.Organization != org {
+	if d.Organization != s.organization {
 		return chronograf.Dashboard{}, chronograf.ErrDashboardNotFound
 	}
 
@@ -76,7 +84,12 @@ func (s *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (c
 }
 
 func (s *DashboardsStore) Update(ctx context.Context, d chronograf.Dashboard) error {
-	_, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}

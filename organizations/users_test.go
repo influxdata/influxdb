@@ -131,7 +131,7 @@ func TestUsersStore_Get(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := organizations.NewUsersStore(tt.fields.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
 		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.userID})
 		if (err != nil) != tt.wantErr {
@@ -449,7 +449,7 @@ func TestUsersStore_Add(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		s := organizations.NewUsersStore(tt.fields.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
 
 		got, err := s.Add(tt.args.ctx, tt.args.u)
 		if (err != nil) != tt.wantErr {
@@ -549,7 +549,7 @@ func TestUsersStore_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		s := organizations.NewUsersStore(tt.fields.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
@@ -649,7 +649,7 @@ func TestUsersStore_Update(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
-		s := organizations.NewUsersStore(tt.fields.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
 
 		if tt.args.roles != nil {
 			tt.args.usr.Roles = tt.args.roles
@@ -810,7 +810,7 @@ func TestUsersStore_All(t *testing.T) {
 		for _, u := range tt.wantRaw {
 			tt.fields.UsersStore.Add(tt.ctx, &u)
 		}
-		s := organizations.NewUsersStore(tt.fields.UsersStore)
+		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.orgID)
 		gots, err := s.All(tt.ctx)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)

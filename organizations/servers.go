@@ -9,17 +9,19 @@ import (
 var _ chronograf.ServersStore = &ServersStore{}
 
 type ServersStore struct {
-	store chronograf.ServersStore
+	store        chronograf.ServersStore
+	organization string
 }
 
-func NewServersStore(s chronograf.ServersStore) *ServersStore {
+func NewServersStore(s chronograf.ServersStore, org string) *ServersStore {
 	return &ServersStore{
-		store: s,
+		store:        s,
+		organization: org,
 	}
 }
 
 func (s *ServersStore) All(ctx context.Context) ([]chronograf.Server, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +32,7 @@ func (s *ServersStore) All(ctx context.Context) ([]chronograf.Server, error) {
 
 	dashboards := ds[:0]
 	for _, d := range ds {
-		if d.Organization == org {
+		if d.Organization == s.organization {
 			dashboards = append(dashboards, d)
 		}
 	}
@@ -39,17 +41,22 @@ func (s *ServersStore) All(ctx context.Context) ([]chronograf.Server, error) {
 }
 
 func (s *ServersStore) Add(ctx context.Context, d chronograf.Server) (chronograf.Server, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Server{}, err
 	}
 
-	d.Organization = org
+	d.Organization = s.organization
 	return s.store.Add(ctx, d)
 }
 
 func (s *ServersStore) Delete(ctx context.Context, d chronograf.Server) error {
-	d, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	d, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}
@@ -58,7 +65,7 @@ func (s *ServersStore) Delete(ctx context.Context, d chronograf.Server) error {
 }
 
 func (s *ServersStore) Get(ctx context.Context, id int) (chronograf.Server, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Server{}, err
 	}
@@ -68,7 +75,7 @@ func (s *ServersStore) Get(ctx context.Context, id int) (chronograf.Server, erro
 		return chronograf.Server{}, err
 	}
 
-	if d.Organization != org {
+	if d.Organization != s.organization {
 		return chronograf.Server{}, chronograf.ErrServerNotFound
 	}
 
@@ -76,7 +83,12 @@ func (s *ServersStore) Get(ctx context.Context, id int) (chronograf.Server, erro
 }
 
 func (s *ServersStore) Update(ctx context.Context, d chronograf.Server) error {
-	_, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}

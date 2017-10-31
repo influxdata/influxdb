@@ -12,31 +12,15 @@ var _ chronograf.UsersStore = &UsersStore{}
 
 // UsersStore uses bolt to store and retrieve users
 type UsersStore struct {
-	store chronograf.UsersStore
+	organization string
+	store        chronograf.UsersStore
 }
 
-const organizationKey = "organizationID"
-
-func NewUsersStore(s chronograf.UsersStore) *UsersStore {
+func NewUsersStore(s chronograf.UsersStore, org string) *UsersStore {
 	return &UsersStore{
-		store: s,
+		store:        s,
+		organization: org,
 	}
-}
-
-func validOrganization(ctx context.Context) (string, error) {
-	// prevents panic in case of nil context
-	if ctx == nil {
-		return "", fmt.Errorf("expect non nil context")
-	}
-	orgID, ok := ctx.Value(organizationKey).(string)
-	// should never happen
-	if !ok {
-		return "", fmt.Errorf("expected organization key to be a string")
-	}
-	if orgID == "" {
-		return "", fmt.Errorf("expected organization key to be set")
-	}
-	return orgID, nil
 }
 
 // validOrganizationRoles ensures that each User Role has both an associated Organization and a Name
@@ -60,10 +44,11 @@ func validOrganizationRoles(orgID string, u *chronograf.User) error {
 
 // Get searches the UsersStore for user with name
 func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-	orgID, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	usr, err := s.store.Get(ctx, q)
 	if err != nil {
 		return nil, err
@@ -72,7 +57,7 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 	// filter Roles that are not scoped to this Organization
 	roles := usr.Roles[:0]
 	for _, r := range usr.Roles {
-		if r.Organization == orgID {
+		if r.Organization == s.organization {
 			roles = append(roles, r)
 		}
 	}
@@ -87,11 +72,12 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 
 // Add a new User to the UsersStore.
 func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
-	orgID, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := validOrganizationRoles(orgID, u); err != nil {
+
+	if err := validOrganizationRoles(s.organization, u); err != nil {
 		return nil, err
 	}
 	usr, err := s.store.Get(ctx, chronograf.UserQuery{
@@ -115,7 +101,7 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 
 // Delete a user from the UsersStore
 func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
-	orgID, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return err
 	}
@@ -126,7 +112,7 @@ func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
 	// delete Roles that are not scoped to this Organization
 	roles := u.Roles[:0]
 	for _, r := range u.Roles {
-		if r.Organization != orgID {
+		if r.Organization != s.organization {
 			roles = append(roles, r)
 		}
 	}
@@ -136,11 +122,12 @@ func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
 
 // Update a user
 func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
-	orgID, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return err
 	}
-	if err := validOrganizationRoles(orgID, usr); err != nil {
+
+	if err := validOrganizationRoles(s.organization, usr); err != nil {
 		return err
 	}
 	u, err := s.store.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
@@ -150,7 +137,7 @@ func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 	// filter Roles that are not scoped to this Organization
 	roles := u.Roles[:0]
 	for _, r := range u.Roles {
-		if r.Organization != orgID {
+		if r.Organization != s.organization {
 			roles = append(roles, r)
 		}
 	}
@@ -164,10 +151,11 @@ func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 
 // All returns all users
 func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
-	orgID, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	usrs, err := s.store.All(ctx)
 	if err != nil {
 		return nil, err
@@ -178,7 +166,7 @@ func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
 	for _, usr := range usrs {
 		roles := usr.Roles[:0]
 		for _, r := range usr.Roles {
-			if r.Organization == orgID {
+			if r.Organization == s.organization {
 				roles = append(roles, r)
 			}
 		}

@@ -9,20 +9,23 @@ import (
 var _ chronograf.LayoutsStore = &LayoutsStore{}
 
 type LayoutsStore struct {
-	store chronograf.LayoutsStore
+	store        chronograf.LayoutsStore
+	organization string
 }
 
-func NewLayoutsStore(s chronograf.LayoutsStore) *LayoutsStore {
+func NewLayoutsStore(s chronograf.LayoutsStore, org string) *LayoutsStore {
 	return &LayoutsStore{
-		store: s,
+		store:        s,
+		organization: org,
 	}
 }
 
 func (s *LayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	ds, err := s.store.All(ctx)
 	if err != nil {
 		return nil, err
@@ -30,7 +33,7 @@ func (s *LayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 
 	dashboards := ds[:0]
 	for _, d := range ds {
-		if d.Organization == org {
+		if d.Organization == s.organization {
 			dashboards = append(dashboards, d)
 		}
 	}
@@ -39,17 +42,22 @@ func (s *LayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 }
 
 func (s *LayoutsStore) Add(ctx context.Context, d chronograf.Layout) (chronograf.Layout, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Layout{}, err
 	}
 
-	d.Organization = org
+	d.Organization = s.organization
 	return s.store.Add(ctx, d)
 }
 
 func (s *LayoutsStore) Delete(ctx context.Context, d chronograf.Layout) error {
-	d, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	d, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}
@@ -58,7 +66,7 @@ func (s *LayoutsStore) Delete(ctx context.Context, d chronograf.Layout) error {
 }
 
 func (s *LayoutsStore) Get(ctx context.Context, id string) (chronograf.Layout, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Layout{}, err
 	}
@@ -68,7 +76,7 @@ func (s *LayoutsStore) Get(ctx context.Context, id string) (chronograf.Layout, e
 		return chronograf.Layout{}, err
 	}
 
-	if d.Organization != org {
+	if d.Organization != s.organization {
 		return chronograf.Layout{}, chronograf.ErrLayoutNotFound
 	}
 
@@ -76,7 +84,12 @@ func (s *LayoutsStore) Get(ctx context.Context, id string) (chronograf.Layout, e
 }
 
 func (s *LayoutsStore) Update(ctx context.Context, d chronograf.Layout) error {
-	_, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}

@@ -78,7 +78,7 @@ func TestSources_All(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore, tt.args.organization)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
@@ -140,7 +140,7 @@ func TestSources_Add(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore, tt.args.organization)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		d, err := s.Add(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
@@ -200,7 +200,7 @@ func TestSources_Delete(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore, tt.args.organization)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		err := s.Delete(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {
@@ -257,7 +257,7 @@ func TestSources_Get(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore, tt.args.organization)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		got, err := s.Get(tt.args.ctx, tt.args.source.ID)
 		if (err != nil) != tt.wantErr {
@@ -325,7 +325,7 @@ func TestSources_Update(t *testing.T) {
 		if tt.args.name != "" {
 			tt.args.source.Name = tt.args.name
 		}
-		s := organizations.NewSourcesStore(tt.fields.SourcesStore)
+		s := organizations.NewSourcesStore(tt.fields.SourcesStore, tt.args.organization)
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
 		err := s.Update(tt.args.ctx, tt.args.source)
 		if (err != nil) != tt.wantErr {

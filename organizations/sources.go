@@ -9,20 +9,23 @@ import (
 var _ chronograf.SourcesStore = &SourcesStore{}
 
 type SourcesStore struct {
-	store chronograf.SourcesStore
+	store        chronograf.SourcesStore
+	organization string
 }
 
-func NewSourcesStore(s chronograf.SourcesStore) *SourcesStore {
+func NewSourcesStore(s chronograf.SourcesStore, org string) *SourcesStore {
 	return &SourcesStore{
-		store: s,
+		store:        s,
+		organization: org,
 	}
 }
 
 func (s *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	ds, err := s.store.All(ctx)
 	if err != nil {
 		return nil, err
@@ -30,7 +33,7 @@ func (s *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error) {
 
 	dashboards := ds[:0]
 	for _, d := range ds {
-		if d.Organization == org {
+		if d.Organization == s.organization {
 			dashboards = append(dashboards, d)
 		}
 	}
@@ -39,17 +42,22 @@ func (s *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error) {
 }
 
 func (s *SourcesStore) Add(ctx context.Context, d chronograf.Source) (chronograf.Source, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Source{}, err
 	}
 
-	d.Organization = org
+	d.Organization = s.organization
 	return s.store.Add(ctx, d)
 }
 
 func (s *SourcesStore) Delete(ctx context.Context, d chronograf.Source) error {
-	d, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	d, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}
@@ -58,7 +66,7 @@ func (s *SourcesStore) Delete(ctx context.Context, d chronograf.Source) error {
 }
 
 func (s *SourcesStore) Get(ctx context.Context, id int) (chronograf.Source, error) {
-	org, err := validOrganization(ctx)
+	err := validOrganization(ctx)
 	if err != nil {
 		return chronograf.Source{}, err
 	}
@@ -68,7 +76,7 @@ func (s *SourcesStore) Get(ctx context.Context, id int) (chronograf.Source, erro
 		return chronograf.Source{}, err
 	}
 
-	if d.Organization != org {
+	if d.Organization != s.organization {
 		return chronograf.Source{}, chronograf.ErrSourceNotFound
 	}
 
@@ -76,7 +84,12 @@ func (s *SourcesStore) Get(ctx context.Context, id int) (chronograf.Source, erro
 }
 
 func (s *SourcesStore) Update(ctx context.Context, d chronograf.Source) error {
-	_, err := s.store.Get(ctx, d.ID)
+	err := validOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.store.Get(ctx, d.ID)
 	if err != nil {
 		return err
 	}
