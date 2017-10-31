@@ -34,12 +34,15 @@ class TickscriptPage extends Component {
     key: `${log.ts}-${j}-${i}`,
   })
 
-  fetchChunkedLogs = async () => {
+  fetchChunkedLogs = async (kapacitor, ruleID) => {
     try {
-      const response = await fetch('http://localhost:9092/kapacitor/v1/logs', {
-        method: 'GET',
-        headers: {'Content-Type': 'application/json'},
-      })
+      const response = await fetch(
+        `${kapacitor.links.proxy}?path=/kapacitor/v1/logs?task=${ruleID}`,
+        {
+          method: 'GET',
+          headers: {'Content-Type': 'application/json'},
+        }
+      )
 
       const reader = await response.body.getReader()
       const decoder = new TextDecoder()
@@ -54,13 +57,10 @@ class TickscriptPage extends Component {
           stream: !result.done,
         })
 
-        // console.log(chunk)
-
         const json = `[${chunk.split('}{').join('},{')}]`
 
         const logs = JSON.parse(json).map(this.logKey(j))
 
-        // console.log(log)
         this.setState({
           logs: [...this.state.logs, ...logs],
         })
@@ -68,7 +68,8 @@ class TickscriptPage extends Component {
         j += 1
       }
     } catch (error) {
-      // console.log(error)
+      console.error(error)
+      throw error
       // TODO error handling
     }
   }
@@ -99,7 +100,7 @@ class TickscriptPage extends Component {
 
     this.shouldFetch = true
 
-    this.fetchChunkedLogs()
+    this.fetchChunkedLogs(kapacitor, ruleID)
 
     this.setState({kapacitor})
   }
