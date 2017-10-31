@@ -237,14 +237,6 @@ table.table.chronograf-admin-table tbody tr.selected td {
   font-weight: 700;
 }
 
-.chronograf-admin-table--num-selected {
-  @include no-user-select();
-  margin-left: 8px;
-  display: inline-block;
-  font-size: 16px;
-  font-weight: 500;
-  color: $g13-mist;
-}
 table.table.chronograf-admin-table thead tr th.chronograf-admin-table--check-col,
 table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--check-col {
   width: 28px;
@@ -253,4 +245,33 @@ table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--check-col
 table.table.chronograf-admin-table thead tr th.chronograf-admin-table--selectable,
 table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--selectable {
   &:hover {cursor: pointer;}
+}
+
+.dropdown-label {
+  margin: 0 8px 0 0;
+  font-weight: 700;
+  color: $g13-mist;
+  font-size: 14px;
+}
+.panel-body.chronograf-admin-table--panel {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: 11px;
+}
+.chronograf-admin-table--batch-actions {
+  border-radius: 5px 5px 0 0;
+  background-color: $g4-onyx;
+  padding: 11px 38px;
+  display: flex;
+  align-items: center;
+}
+.chronograf-admin-table--num-selected {
+  @include no-user-select();
+  margin: 0px 11px 0 0;
+  display: inline-block;
+  height: 30px;
+  line-height: 30px;
+  font-size: 14px;
+  font-weight: 500;
+  color: $g13-mist;
 }

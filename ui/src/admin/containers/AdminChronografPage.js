@@ -104,20 +104,37 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <div className="panel panel-minimal">
-                      <div className="panel-heading u-flex u-ai-center">
-                        <Dropdown
-                          items={organizations.map(org => ({
-                            ...org,
-                            text: org.name,
-                          }))}
-                          selected={organizationName}
-                          onChoose={this.handleFilterUsers}
-                        />
+                      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+                        <div className="u-flex u-ai-center">
+                          <p className="dropdown-label">Filter Users</p>
+                          <Dropdown
+                            items={organizations.map(org => ({
+                              ...org,
+                              text: org.name,
+                            }))}
+                            selected={organizationName}
+                            onChoose={this.handleFilterUsers}
+                            buttonSize="btn-md"
+                            className="dropdown-220"
+                          />
+                        </div>
+                        <div className="users__search-widget input-group">
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Filter Users..."
+                          />
+                          <div className="input-group-addon">
+                            <span className="icon search" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="chronograf-admin-table--batch-actions">
                         <p className="chronograf-admin-table--num-selected">
                           {numUsersSelected} User{numUsersSelected === 1 ? ' ' : 's '}Selected
                         </p>
                       </div>
-                      <div className="panel-body">
+                      <div className="panel-body chronograf-admin-table--panel">
                         <AllUsersTable
                           filteredUsers={filteredUsers}
                           organizationName={organizationName}
