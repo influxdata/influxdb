@@ -104,7 +104,7 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <div className="panel panel-minimal">
-                      <div className="panel-heading">
+                      <div className="panel-heading u-flex u-ai-center">
                         <Dropdown
                           items={organizations.map(org => ({
                             ...org,
@@ -113,9 +113,9 @@ class AdminChronografPage extends Component {
                           selected={organizationName}
                           onChoose={this.handleFilterUsers}
                         />
-                        <h2 className="panel-title">
+                        <p className="chronograf-admin-table--num-selected">
                           {numUsersSelected} User{numUsersSelected === 1 ? ' ' : 's '}Selected
-                        </h2>
+                        </p>
                       </div>
                       <div className="panel-body">
                         <AllUsersTable
