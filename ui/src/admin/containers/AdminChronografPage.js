@@ -66,7 +66,7 @@ class AdminChronografPage extends Component {
   render() {
     const {users} = this.props
     const {organizationName, selectedUsers, filteredUsers} = this.state
-
+    const numUsersSelected = Object.keys(selectedUsers).length
     return (
       <div className="page">
         <div className="page-header">
@@ -89,9 +89,12 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <div className="panel panel-minimal">
-                      {Object.keys(selectedUsers).length
+                      {numUsersSelected
                         ? <div className="panel-heading">
-                            <h2 className="panel-title">Batch actions</h2>
+                            <h2 className="panel-title">
+                              {numUsersSelected} User{numUsersSelected > 1 ? 's' : ''}{' '}
+                              Selected
+                            </h2>
                           </div>
                         : <div className="panel-heading">
                             <h2 className="panel-title">
