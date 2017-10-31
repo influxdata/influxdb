@@ -6,6 +6,8 @@
 1. [#1077](https://github.com/influxdata/chronograf/pull/2087): Fix Chronograf requiring Telegraf's CPU and system plugins to ensure that all Apps appear on the HOST LIST page.
 
 ### Features
+1. [#2188](https://github.com/influxdata/chronograf/pull/2188): Add Kapacitor logs to the TICKscript editor
+
 ### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]
@@ -28,7 +30,7 @@
 ### UI Improvements
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
 1. [#2120](https://github.com/influxdata/chronograf/pull/2120): Improve appearance of Admin Page tabs on smaller screens
-1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add cancel button to Tickscript editor
+1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add cancel button to TICKscript editor
 1. [#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard naming & renaming interaction
 1. [#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard switching dropdown
 
@@ -48,7 +50,7 @@
 
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
-1. [#1978](https://github.com/influxdata/chronograf/pull/1978): Support editing kapacitor TICKScript
+1. [#1978](https://github.com/influxdata/chronograf/pull/1978): Support editing kapacitor TICKscript
 1. [#1721](https://github.com/influxdata/chronograf/pull/1721): Introduce the TICKscript editor UI
 1. [#1992](https://github.com/influxdata/chronograf/pull/1992): Add .csv download button to data explorer
 1. [#2082](https://github.com/influxdata/chronograf/pull/2082): Add Data Explorer InfluxQL query and location query synchronization, so queries can be shared via a a URL
