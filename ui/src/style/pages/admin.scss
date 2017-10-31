@@ -258,12 +258,21 @@ table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--selectabl
   border-top-right-radius: 0;
   padding-top: 11px;
 }
-.chronograf-admin-table--batch-actions {
+.chronograf-admin-table--batch {
   border-radius: 5px 5px 0 0;
   background-color: $g4-onyx;
   padding: 11px 38px;
   display: flex;
   align-items: center;
+}
+.chronograf-admin-table--batch-actions {
+  display: flex;
+  align-items: center;
+
+  > .dropdown,
+  > .btn {
+    margin-left: 4px;
+  }
 }
 .chronograf-admin-table--num-selected {
   @include no-user-select();

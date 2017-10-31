@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
+import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 import Dropdown from 'shared/components/Dropdown'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -78,6 +79,21 @@ class AdminChronografPage extends Component {
     }
   }
 
+  handleBatchDeleteUsers = () => {
+    console.log('Delete Users')
+  }
+
+  handleBatchRemoveOrgFromUsers = arg => {
+    console.log(arg)
+  }
+
+  handleBatchAddOrgToUsers = arg => {
+    console.log(arg)
+  }
+  handleBatchChangeUsersRole = arg => {
+    console.log(arg)
+  }
+
   render() {
     const {users, organizations} = this.props
     const {organizationName, selectedUsers, filteredUsers} = this.state
@@ -129,14 +145,15 @@ class AdminChronografPage extends Component {
                           </div>
                         </div>
                       </div>
-                      <div className="chronograf-admin-table--batch-actions">
-                        <p className="chronograf-admin-table--num-selected">
-                          {numUsersSelected} User{numUsersSelected === 1 ? ' ' : 's '}Selected
-                        </p>
-                        {numUsersSelected > 0
-                          ? <div className="btn btn-sm btn-danger">Delete</div>
-                          : null}
-                      </div>
+                      <BatchActionsBar
+                        numUsersSelected={numUsersSelected}
+                        organizationName={organizationName}
+                        organizations={organizations}
+                        onDeleteUsers={this.handleBatchDeleteUsers}
+                        onAddOrgs={this.handleBatchAddOrgToUsers}
+                        onRemoveOrgs={this.handleBatchRemoveOrgFromUsers}
+                        onChangeRoles={this.handleBatchChangeUsersRole}
+                      />
                       <div className="panel-body chronograf-admin-table--panel">
                         <AllUsersTable
                           filteredUsers={filteredUsers}

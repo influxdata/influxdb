@@ -112,6 +112,12 @@ export const DUMMY_USERS = [
   },
 ]
 
+export const USER_ROLES = [
+  {name: 'None'},
+  {name: 'Viewer'},
+  {name: 'Editor'},
+  {name: 'Admin'},
+]
 export const DEFAULT_ORG = 'All Users'
 export const NO_ORG = 'None'
 
