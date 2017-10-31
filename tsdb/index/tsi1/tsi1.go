@@ -8,9 +8,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxql"
 )
 
 // LoadFactor is the fill percent for RHH indexes.

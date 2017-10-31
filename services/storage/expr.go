@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxql"
 )
 
 // TODO(sgc): build expression evaluator that does not use influxql AST

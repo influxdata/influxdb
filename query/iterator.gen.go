@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxql"
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.

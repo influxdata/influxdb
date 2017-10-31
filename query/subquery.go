@@ -3,7 +3,7 @@ package query
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxql"
 )
 
 type subqueryBuilder struct {

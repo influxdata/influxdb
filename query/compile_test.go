@@ -3,8 +3,8 @@ package query_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxql"
 )
 
 func TestCompile_Success(t *testing.T) {

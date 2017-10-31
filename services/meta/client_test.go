@@ -12,8 +12,8 @@ import (
 
 	"github.com/influxdata/influxdb"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 )
 
 func TestMetaClient_CreateDatabaseOnly(t *testing.T) {

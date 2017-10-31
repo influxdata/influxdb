@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
 )
 
 func (e *Engine) CreateCursor(ctx context.Context, r *tsdb.CursorRequest) (tsdb.Cursor, error) {

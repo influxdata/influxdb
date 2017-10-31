@@ -3,8 +3,8 @@ package tsm1
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxql"
 )
 
 func BenchmarkIntegerIterator_Next(b *testing.B) {
