@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {Component, PropTypes} from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
@@ -13,18 +13,30 @@ class AdminChronografPage extends Component {
 
     this.state = {
       organizationName: null,
-      users: DUMMY_USERS,
       selectedUsers: [],
+      filteredUsers: this.props.users,
     }
   }
 
   isSameUser = (userA, userB) => {
-    return userA.name === userB.name && userA.provider === userB.provider
+    return (
+      userA.name === userB.name &&
+      userA.provider === userB.provider &&
+      userA.scheme === userB.scheme
+    )
   }
 
-  handleViewOrg = organizationName => () => {
-    this.handleDeselectAllUsers()
-    this.setState({organizationName})
+  handleFilterUsers = organizationName => () => {
+    const {users} = this.props
+
+    const filteredUsers = organizationName
+      ? users.filter(user => {
+          return user.roles.find(
+            role => role.organizationName === organizationName
+          )
+        })
+      : users
+    this.setState({filteredUsers})
   }
 
   handleToggleUserSelected = user => e => {
@@ -41,19 +53,19 @@ class AdminChronografPage extends Component {
     this.setState({selectedUsers: newSelectedUsers})
   }
 
-  handleSelectAllUsers = () => {
-    this.state.users.forEach(user => {
-      user.selected = true
-    })
-  }
-  handleDeselectAllUsers = () => {
-    this.state.users.forEach(user => {
-      user.selected = false
-    })
+  handleToggleAllUsersSelected = areAllSelected => () => {
+    const {filteredUsers} = this.state
+
+    if (areAllSelected) {
+      this.setState({selectedUsers: []})
+    } else {
+      this.setState({selectedUsers: filteredUsers})
+    }
   }
 
   render() {
-    const {organizationName, users, selectedUsers} = this.state
+    const {users} = this.props
+    const {organizationName, selectedUsers, filteredUsers} = this.state
 
     return (
       <div className="page">
@@ -77,21 +89,28 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <div className="panel panel-minimal">
-                      <div className="panel-heading">
-                        <h2 className="panel-title">
-                          {organizationName
-                            ? `Users in ${organizationName}`
-                            : 'Users'}
-                        </h2>
-                      </div>
+                      {Object.keys(selectedUsers).length
+                        ? <div className="panel-heading">
+                            <h2 className="panel-title">Batch actions</h2>
+                          </div>
+                        : <div className="panel-heading">
+                            <h2 className="panel-title">
+                              {organizationName
+                                ? `Users in ${organizationName}`
+                                : 'Users'}
+                            </h2>
+                          </div>}
                       <div className="panel-body">
                         <AllUsersTable
-                          users={users}
+                          filteredUsers={filteredUsers}
                           organizationName={organizationName}
-                          onViewOrg={this.handleViewOrg}
+                          onFilterUsers={this.handleFilterUsers}
                           onToggleUserSelected={this.handleToggleUserSelected}
                           selectedUsers={selectedUsers}
                           isSameUser={this.isSameUser}
+                          onToggleAllUsersSelected={
+                            this.handleToggleAllUsersSelected
+                          }
                         />
                       </div>
                     </div>
@@ -105,7 +124,14 @@ class AdminChronografPage extends Component {
   }
 }
 
-// const {} = PropTypes
+const {arrayOf, shape} = PropTypes
 
-// AdminChronografPage.propTypes = {}
+AdminChronografPage.propTypes = {
+  users: arrayOf(shape()),
+}
+
+AdminChronografPage.defaultProps = {
+  users: DUMMY_USERS,
+}
+
 export default AdminChronografPage
