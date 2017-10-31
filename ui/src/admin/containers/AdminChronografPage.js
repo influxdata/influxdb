@@ -46,7 +46,12 @@ class AdminChronografPage extends Component {
                 ? user.roles.length === 1 // Filter out if user is only part of Default Org
                 : user.roles.find(role => role.organizationName === name)
           )
-    this.setState({filteredUsers, organizationName: name})
+    this.setState({
+      filteredUsers,
+      organizationName: name,
+      selectedUsers:
+        filterQuery.name === DEFAULT_ORG ? this.state.selectedUsers : [],
+    })
   }
 
   handleToggleUserSelected = user => e => {
@@ -99,23 +104,19 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <div className="panel panel-minimal">
-                      {numUsersSelected
-                        ? <div className="panel-heading">
-                            <h2 className="panel-title">
-                              {numUsersSelected} User{numUsersSelected > 1 ? 's' : ''}{' '}
-                              Selected
-                            </h2>
-                          </div>
-                        : <div className="panel-heading">
-                            <Dropdown
-                              items={organizations.map(org => ({
-                                ...org,
-                                text: org.name,
-                              }))}
-                              selected={organizationName}
-                              onChoose={this.handleFilterUsers}
-                            />
-                          </div>}
+                      <div className="panel-heading">
+                        <Dropdown
+                          items={organizations.map(org => ({
+                            ...org,
+                            text: org.name,
+                          }))}
+                          selected={organizationName}
+                          onChoose={this.handleFilterUsers}
+                        />
+                        <h2 className="panel-title">
+                          {numUsersSelected} User{numUsersSelected === 1 ? ' ' : 's '}Selected
+                        </h2>
+                      </div>
                       <div className="panel-body">
                         <AllUsersTable
                           filteredUsers={filteredUsers}
