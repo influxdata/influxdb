@@ -425,11 +425,12 @@ func MarshalUser(u *chronograf.User) ([]byte, error) {
 		}
 	}
 	return MarshalUserPB(&User{
-		ID:       u.ID,
-		Name:     u.Name,
-		Provider: u.Provider,
-		Scheme:   u.Scheme,
-		Roles:    roles,
+		ID:         u.ID,
+		Name:       u.Name,
+		Provider:   u.Provider,
+		Scheme:     u.Scheme,
+		Roles:      roles,
+		SuperAdmin: u.SuperAdmin,
 	})
 }
 
@@ -457,6 +458,7 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 	u.Name = pb.Name
 	u.Provider = pb.Provider
 	u.Scheme = pb.Scheme
+	u.SuperAdmin = pb.SuperAdmin
 	u.Roles = roles
 
 	return nil

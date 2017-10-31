@@ -133,11 +133,12 @@ message User {
 	string Provider         = 3; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
 	string Scheme           = 4; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
 	repeated Role Roles     = 5; // Roles is set of roles a user has
+	bool SuperAdmin         = 6; // SuperAdmin is bool that specifies whether a user is a super admin
 }
 
 message Role {
 	string Organization   = 1; // Organization is the ID of the organization that this user has a role in
-	string Name             = 2; // Name is the name of the role of this user in the respective organization
+	string Name           = 2; // Name is the name of the role of this user in the respective organization
 }
 
 message Organization {

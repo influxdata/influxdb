@@ -626,6 +626,7 @@ type User struct {
 	Provider            string      `json:"provider,omitempty"`
 	Scheme              string      `json:"scheme,omitempty"`
 	CurrentOrganization string      `json:"currentOrganization,omitempty"`
+	SuperAdmin          bool        `json:"superAdmin,omitempty"`
 }
 
 // UserQuery represents the attributes that a user may be retrieved by.

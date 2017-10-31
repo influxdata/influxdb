@@ -105,7 +105,29 @@ func AuthorizedUser(
 		}
 
 		ctx = context.WithValue(ctx, "organizationID", p.Organization)
-		u, err := store.Users(ctx).Get(ctx, chronograf.UserQuery{
+		// TODO: add real implementation
+		serverCtx := context.WithValue(ctx, "superadmin", true)
+		// TODO: seems silly to look up a user twice
+		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
+			Name:     &p.Subject,
+			Provider: &p.Issuer,
+			Scheme:   &scheme,
+		})
+
+		if err != nil {
+			log.Error("Failed to retrieve user")
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
+
+		if u.SuperAdmin {
+			// This context is where superadmin gets set for all things
+			r = r.WithContext(serverCtx)
+			next(w, r)
+			return
+		}
+
+		u, err = store.Users(ctx).Get(ctx, chronograf.UserQuery{
 			Name:     &p.Subject,
 			Provider: &p.Issuer,
 			Scheme:   &scheme,
