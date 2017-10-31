@@ -133,6 +133,9 @@ class AdminChronografPage extends Component {
                         <p className="chronograf-admin-table--num-selected">
                           {numUsersSelected} User{numUsersSelected === 1 ? ' ' : 's '}Selected
                         </p>
+                        {numUsersSelected > 0
+                          ? <div className="btn btn-sm btn-danger">Delete</div>
+                          : null}
                       </div>
                       <div className="panel-body chronograf-admin-table--panel">
                         <AllUsersTable
