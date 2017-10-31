@@ -897,7 +897,6 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		defer limit.Release()
 
 		// Find matching series keys for each measurement.
-		var keys [][]byte
 		for _, name := range names {
 
 			itr, err := sh.MeasurementSeriesKeysByExprIterator([]byte(name), condition)
@@ -907,40 +906,10 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				continue
 			}
 
-			for e := itr.Next(); e != nil; e = itr.Next() {
-				if e.Expr() != nil {
-					if v, ok := e.Expr().(*influxql.BooleanLiteral); !ok || !v.Val {
-						return errors.New("fields not supported in WHERE clause during deletion")
-					}
-				}
-
-				keys = append(keys, models.MakeKey(e.Name(), e.Tags()))
-
-				if len(keys) == 10000 {
-					if !bytesutil.IsSorted(keys) {
-						bytesutil.Sort(keys)
-					}
-
-					// Delete all matching keys.
-					if err := sh.DeleteSeriesRange(keys, min, max); err != nil {
-						return err
-					}
-					keys = keys[:0]
-				}
+			if err := sh.DeleteSeriesRange(itr, min, max); err != nil {
+				return err
 			}
 
-			if len(keys) > 0 {
-				if !bytesutil.IsSorted(keys) {
-					bytesutil.Sort(keys)
-				}
-
-				// Delete all matching keys.
-				if err := sh.DeleteSeriesRange(keys, min, max); err != nil {
-					return err
-				}
-
-				keys = keys[:0]
-			}
 		}
 
 		return nil

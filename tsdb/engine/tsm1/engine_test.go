@@ -128,7 +128,8 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	}
 
 	// Remove series.
-	if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+	if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 		t.Fatalf("failed to delete series: %s", err.Error())
 	}
 
@@ -607,7 +608,8 @@ func TestEngine_DeleteSeries(t *testing.T) {
 				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 			}
 
-			if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -667,7 +669,8 @@ func TestEngine_LastModified(t *testing.T) {
 				t.Fatalf("expected time change, got %v, exp %v", got, exp)
 			}
 
-			if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1080,4 +1083,29 @@ func ParseTags(s string) query.Tags {
 		m[a[0]] = a[1]
 	}
 	return query.NewTags(m)
+}
+
+type seriesIterator struct {
+	keys [][]byte
+}
+
+type series struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (s series) Name() []byte        { return s.name }
+func (s series) Tags() models.Tags   { return s.tags }
+func (s series) Deleted() bool       { return s.deleted }
+func (s series) Expr() influxql.Expr { return nil }
+
+func (itr *seriesIterator) Next() tsdb.SeriesElem {
+	if len(itr.keys) == 0 {
+		return nil
+	}
+	name, tags := models.ParseKeyBytes(itr.keys[0])
+	s := series{name: name, tags: tags}
+	itr.keys = itr.keys[1:]
+	return s
 }

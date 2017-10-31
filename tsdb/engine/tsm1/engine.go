@@ -931,13 +931,50 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
-// deleteSeries removes all series keys from the engine.
-func (e *Engine) deleteSeries(seriesKeys [][]byte) error {
-	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
+func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
+	// Disable and abort running compactions so that tombstones added existing tsm
+	// files don't get removed.  This would cause deleted measurements/series to
+	// re-appear once the compaction completed.  We only disable the level compactions
+	// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
+	// and writing tombstones takes a long time, writes can get rejected due to the cache
+	// filling up.
+	e.disableLevelCompactions(true)
+	defer e.enableLevelCompactions(true)
+
+	batch := make([][]byte, 0, 10000)
+	for elem := itr.Next(); elem != nil; elem = itr.Next() {
+		if elem.Expr() != nil {
+			if v, ok := elem.Expr().(*influxql.BooleanLiteral); !ok || !v.Val {
+				return errors.New("fields not supported in WHERE clause during deletion")
+			}
+		}
+
+		batch = append(batch, models.MakeKey(elem.Name(), elem.Tags()))
+
+		if len(batch) == 10000 {
+			// Delete all matching batch.
+			if err := e.deleteSeriesRange(batch, min, max); err != nil {
+				return err
+			}
+			batch = batch[:0]
+		}
+	}
+
+	if len(batch) > 0 {
+		// Delete all matching batch.
+		if err := e.deleteSeriesRange(batch, min, max); err != nil {
+			return err
+		}
+		batch = batch[:0]
+	}
+	go e.index.Rebuild()
+	return nil
 }
 
-// DeleteSeriesRange removes the values between min and max (inclusive) from all series.
-func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+// deleteSeriesRange removes the values between min and max (inclusive) from all series.  This
+// does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
+// and not directly.
+func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -954,15 +991,6 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if max == influxql.MaxTime {
 		max = math.MaxInt64
 	}
-
-	// Disable and abort running compactions so that tombstones added existing tsm
-	// files don't get removed.  This would cause deleted measurements/series to
-	// re-appear once the compaction completed.  We only disable the level compactions
-	// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
-	// and writing tombstones takes a long time, writes can get rejected due to the cache
-	// filling up.
-	e.disableLevelCompactions(true)
-	defer e.enableLevelCompactions(true)
 
 	var i int
 	var abort = errors.New("iteration aborted") // sentinel error value
@@ -1090,7 +1118,6 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				return err
 			}
 		}
-		go e.index.Rebuild()
 	}
 
 	return nil
@@ -1141,13 +1168,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) deleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
-	keys, err := e.index.MeasurementSeriesKeysByExpr(name, nil)
+	itr, err := e.index.MeasurementSeriesKeysByExprIterator(name, nil)
 	if err != nil {
 		return err
-	} else if len(keys) > 0 {
-		if err := e.deleteSeries(keys); err != nil {
-			return err
-		}
+	} else if itr != nil {
+		return e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64)
 	}
 	return nil
 }
