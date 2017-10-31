@@ -2,7 +2,9 @@ import React, {Component, PropTypes} from 'react'
 
 import _ from 'lodash'
 
-import {DEFAULT_ORG, NO_ORG} from 'src/admin/constants/dummyUsers'
+import Dropdown from 'shared/components/Dropdown'
+
+import {DEFAULT_ORG, NO_ORG, USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 class ChronografUsersTable extends Component {
@@ -14,11 +16,15 @@ class ChronografUsersTable extends Component {
     this.props.onFilterUsers({name: filterString})
   }
 
-  renderOrgCell = roles => {
+  handleChangeUserRole = (user, currentRole) => newRole => {
+    this.props.onUpdateUserRole(user, currentRole, newRole)
+  }
+
+  renderOrgCell = user => {
     const {organizationName} = this.props
 
     // Expects Users to always have at least 1 role (as a member of the default org)
-    if (roles.length === 1) {
+    if (user.roles.length === 1) {
       return (
         <a href="#" onClick={this.handleChooseFilter(NO_ORG)}>
           {NO_ORG}
@@ -27,12 +33,12 @@ class ChronografUsersTable extends Component {
     }
 
     if (organizationName === DEFAULT_ORG) {
-      return roles
+      return user.roles
         .filter(role => {
           return !(role.organizationName === DEFAULT_ORG)
         })
-        .map((role, r) =>
-          <span key={r} className="chronograf-user--org">
+        .map((role, i) =>
+          <span key={i} className="chronograf-user--org">
             <a
               href="#"
               onClick={this.handleChooseFilter(role.organizationName)}
@@ -43,7 +49,7 @@ class ChronografUsersTable extends Component {
         )
     }
 
-    const currentOrg = roles.find(
+    const currentOrg = user.roles.find(
       role => role.organizationName === organizationName
     )
     return (
@@ -58,35 +64,55 @@ class ChronografUsersTable extends Component {
     )
   }
 
-  renderRoleCell = roles => {
+  renderRoleCell = user => {
     const {organizationName} = this.props
 
-    // Expects Users to always have at least 1 role (as a member of the default org)
-    if (roles.length === 1) {
-      return <span className="chronograf-user--role">No Role</span>
+    // User must be part of more than one organization to be able to be assigned a role
+    if (user.roles.length === 1) {
+      return <span className="chronograf-user--role">N/A</span>
     }
 
     if (organizationName === DEFAULT_ORG) {
-      return roles
+      return user.roles
         .filter(role => {
           return !(role.organizationName === DEFAULT_ORG)
         })
-        .map((role, r) =>
-          <span key={r} className="chronograf-user--role">
-            {role.name}
-          </span>
+        .map((role, i) =>
+          <Dropdown
+            key={i}
+            items={USER_ROLES.map(r => ({
+              ...r,
+              text: r.name,
+            }))}
+            selected={role.name}
+            onChoose={this.handleChangeUserRole(user, role)}
+            buttonColor="btn-primary"
+            buttonSize="btn-xs"
+            className="dropdown-80"
+          />
         )
     }
 
-    const currentOrg = roles.find(
+    const currentRole = user.roles.find(
       role => role.organizationName === organizationName
     )
     return (
       <span className="chronograf-user--role">
-        {currentOrg.name}
+        <Dropdown
+          items={USER_ROLES.map(r => ({
+            ...r,
+            text: r.name,
+          }))}
+          selected={currentRole.name}
+          onChoose={this.handleChangeUserRole(user, currentRole)}
+          buttonColor="btn-primary"
+          buttonSize="btn-xs"
+          className="dropdown-80"
+        />
       </span>
     )
   }
+
   renderTableRows = filteredUsers => {
     const {colOrg, colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
     const {onToggleUserSelected, selectedUsers, isSameUser} = this.props
@@ -110,10 +136,10 @@ class ChronografUsersTable extends Component {
             </strong>
           </td>
           <td style={{width: colOrg}}>
-            {this.renderOrgCell(user.roles)}
+            {this.renderOrgCell(user)}
           </td>
           <td style={{width: colRole}}>
-            {this.renderRoleCell(user.roles)}
+            {this.renderRoleCell(user)}
           </td>
           <td style={{width: colSuperAdmin}}>
             {user.superadmin ? 'Yes' : '--'}
@@ -180,5 +206,6 @@ ChronografUsersTable.propTypes = {
   onToggleAllUsersSelected: func.isRequired,
   isSameUser: func.isRequired,
   organizationName: string,
+  onUpdateUserRole: func.isRequired,
 }
 export default ChronografUsersTable

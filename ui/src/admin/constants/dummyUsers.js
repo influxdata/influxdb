@@ -110,13 +110,23 @@ export const DUMMY_USERS = [
     superadmin: true,
     roles: [{organizationName: 'All Users', organizationID: 666, name: 'none'}],
   },
+  {
+    name: 'ohnooeezzz@gmail.com',
+    provider: 'GitHub',
+    scheme: 'oAuth2',
+    superadmin: true,
+    roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
+      {organizationName: 'Blue Team', organizationID: 1234, name: 'none'},
+    ],
+  },
 ]
 
 export const USER_ROLES = [
-  {name: 'None'},
-  {name: 'Viewer'},
-  {name: 'Editor'},
-  {name: 'Admin'},
+  {name: 'none'},
+  {name: 'viewer'},
+  {name: 'editor'},
+  {name: 'admin'},
 ]
 export const DEFAULT_ORG = 'All Users'
 export const NO_ORG = 'None'

@@ -94,6 +94,10 @@ class AdminChronografPage extends Component {
     console.log(arg)
   }
 
+  handleUpdateUserRole = () => (user, currentRole, newRole) => {
+    console.log(user, currentRole, newRole)
+  }
+
   render() {
     const {users, organizations} = this.props
     const {organizationName, selectedUsers, filteredUsers} = this.state
@@ -165,6 +169,7 @@ class AdminChronografPage extends Component {
                           onToggleAllUsersSelected={
                             this.handleToggleAllUsersSelected
                           }
+                          onUpdateUserRole={this.handleUpdateUserRole()}
                         />
                       </div>
                     </div>
