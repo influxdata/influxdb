@@ -5,4 +5,5 @@
     dateext
     copytruncate
     compress
+    notifempty
 }
