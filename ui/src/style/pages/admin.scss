@@ -245,3 +245,12 @@ table.table.chronograf-admin-table tbody tr.selected td {
   font-weight: 500;
   color: $g13-mist;
 }
+table.table.chronograf-admin-table thead tr th.chronograf-admin-table--check-col,
+table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--check-col {
+  width: 28px;
+  padding-right: 0;
+}
+table.table.chronograf-admin-table thead tr th.chronograf-admin-table--selectable,
+table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--selectable {
+  &:hover {cursor: pointer;}
+}

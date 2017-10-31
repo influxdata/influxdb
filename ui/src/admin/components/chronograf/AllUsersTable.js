@@ -57,13 +57,16 @@ class ChronografAllUsersTable extends Component {
       const isSelected = selectedUsers.find(u => isSameUser(user, u))
       return (
         <tr key={i} className={isSelected ? 'selected' : null}>
-          <td>
-            <div
-              className="user-checkbox"
-              onClick={onToggleUserSelected(user)}
-            />
+          <td
+            onClick={onToggleUserSelected(user)}
+            className="chronograf-admin-table--check-col chronograf-admin-table--selectable"
+          >
+            <div className="user-checkbox" />
           </td>
-          <td>
+          <td
+            onClick={onToggleUserSelected(user)}
+            className="chronograf-admin-table--selectable"
+          >
             <strong>
               {user.name}
             </strong>
@@ -104,7 +107,7 @@ class ChronografAllUsersTable extends Component {
       <table className="table table-highlight chronograf-admin-table">
         <thead>
           <tr>
-            <th>
+            <th className="chronograf-admin-table--check-col">
               <div
                 className={
                   areAllSelected ? 'user-checkbox selected' : 'user-checkbox'
@@ -115,7 +118,9 @@ class ChronografAllUsersTable extends Component {
             <th>Username</th>
             <th>SuperAdmin</th>
             <th>
-              {organizationName ? 'Role' : 'Organization & Role'}
+              {organizationName === DEFAULT_ORG
+                ? 'Organization & Role'
+                : 'Role'}
             </th>
             <th>Provider</th>
             <th className="text-right">Scheme</th>
