@@ -1,3 +1,10 @@
+## v1.3.8 [unreleased]
+
+### Bugfixes
+
+- [#9036](https://github.com/influxdata/influxdb/issues/9036): Add 'influx_inspect inmem2tsi' command.
+
+
 ## v1.3.7 [2017-10-26]
 
 ### Bugfixes
