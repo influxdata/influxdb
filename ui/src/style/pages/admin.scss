@@ -196,3 +196,43 @@ pre.admin-table--query {
     margin-left: 4px;
   }
 }
+.user-checkbox {
+  display: inline-block;
+  vertical-align: middle;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background-color: $g2-kevlar;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(1, 1);
+    width: 20px;
+    height: 20px;
+    opacity: 0;
+    background-color: $c-pool;
+    border-radius: 50%;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+tr.selected .user-checkbox:after,
+.user-checkbox.selected:after {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(0.4, 0.4);
+}
+
+table.table.chronograf-admin-table tbody tr.selected {
+  background-color: $g5-pepper;
+}
+table.table.chronograf-admin-table tbody tr.selected td {
+  color: $g18-cloud;
+  font-weight: 700;
+}

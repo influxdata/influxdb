@@ -38,14 +38,12 @@ class ChronografAllUsersTable extends Component {
     return filteredUsers.map((user, i) => {
       const isSelected = selectedUsers.find(u => isSameUser(user, u))
       return (
-        <tr key={i}>
+        <tr key={i} className={isSelected ? 'selected' : null}>
           <td>
             <div
-              className={isSelected ? 'active' : null}
+              className="user-checkbox"
               onClick={onToggleUserSelected(user)}
-            >
-              {isSelected ? '[x]' : '[ ]'}
-            </div>
+            />
           </td>
           <td>
             <strong>
@@ -85,16 +83,16 @@ class ChronografAllUsersTable extends Component {
     const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
 
     return (
-      <table className="table table-highlight">
+      <table className="table table-highlight chronograf-admin-table">
         <thead>
           <tr>
             <th>
               <div
-                className={areAllSelected ? 'active' : null}
+                className={
+                  areAllSelected ? 'user-checkbox selected' : 'user-checkbox'
+                }
                 onClick={onToggleAllUsersSelected(areAllSelected)}
-              >
-                {areAllSelected ? '[x]' : '[ ]'}
-              </div>
+              />
             </th>
             <th>Username</th>
             <th>SuperAdmin</th>
