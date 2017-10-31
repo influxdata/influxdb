@@ -5,7 +5,7 @@ import _ from 'lodash'
 import {DEFAULT_ORG, NO_ORG} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-class ChronografAllUsersTable extends Component {
+class ChronografUsersTable extends Component {
   constructor(props) {
     super(props)
   }
@@ -172,7 +172,7 @@ class ChronografAllUsersTable extends Component {
 
 const {arrayOf, func, shape, string} = PropTypes
 
-ChronografAllUsersTable.propTypes = {
+ChronografUsersTable.propTypes = {
   filteredUsers: arrayOf(shape),
   selectedUsers: arrayOf(shape),
   onFilterUsers: func.isRequired,
@@ -181,4 +181,4 @@ ChronografAllUsersTable.propTypes = {
   isSameUser: func.isRequired,
   organizationName: string,
 }
-export default ChronografAllUsersTable
+export default ChronografUsersTable
