@@ -43,7 +43,6 @@ export default class Dygraph extends Component {
   componentDidMount() {
     const {
       axes: {y, y2},
-      ruleValues,
       isGraphFilled: fillGraph,
       isBarGraph,
       options,
@@ -63,9 +62,7 @@ export default class Dygraph extends Component {
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
-          valueRange: options.stackedGraph
-            ? getStackedRange(y.bounds)
-            : getRange(timeSeries, y.bounds, ruleValues),
+          valueRange: this.getYRange(timeSeries),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
           axisLabelWidth: this.getLabelWidth(),
@@ -130,7 +127,7 @@ export default class Dygraph extends Component {
   }
 
   componentDidUpdate() {
-    const {labels, axes: {y, y2}, options, ruleValues, isBarGraph} = this.props
+    const {labels, axes: {y, y2}, options, isBarGraph} = this.props
 
     const dygraph = this.dygraph
     if (!dygraph) {
@@ -149,9 +146,7 @@ export default class Dygraph extends Component {
       ylabel: this.getLabel('y'),
       axes: {
         y: {
-          valueRange: options.stackedGraph
-            ? getStackedRange(y.bounds)
-            : getRange(timeSeries, y.bounds, ruleValues),
+          valueRange: this.getYRange(timeSeries),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
           axisLabelWidth: this.getLabelWidth(),
@@ -173,6 +168,24 @@ export default class Dygraph extends Component {
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
     this.resize()
+  }
+
+  getYRange = timeSeries => {
+    const {options, axes: {y}, ruleValues} = this.props
+
+    if (options.stackedGraph) {
+      return getStackedRange(y.bounds)
+    }
+
+    const range = getRange(timeSeries, y.bounds, ruleValues)
+    const [min, max] = range
+
+    // Bug in Dygraph calculates a negative range for logscale when min range is 0
+    if (y.scale === LOG && timeSeries.length === 1 && min <= 0) {
+      return [0.1, max]
+    }
+
+    return range
   }
 
   handleZoom = (lower, upper) => {

@@ -99,7 +99,7 @@ class OptIn extends Component {
   handleInputRef = el => (this.customValueInput = el)
 
   render() {
-    const {fixedPlaceholder, customPlaceholder, type} = this.props
+    const {fixedPlaceholder, customPlaceholder, type, min} = this.props
     const {useCustomValue, customValue} = this.state
 
     return (
@@ -110,6 +110,7 @@ class OptIn extends Component {
       >
         <ClickOutsideInput
           id={this.id}
+          min={min}
           type={type}
           customValue={customValue}
           onGetRef={this.handleInputRef}
@@ -119,7 +120,6 @@ class OptIn extends Component {
           onKeyDown={this.handleKeyDownCustomValueInput}
           handleClickOutsideInput={this.handleClickOutsideInput}
         />
-
         <div
           className="opt-in--groove-knob-container"
           id={this.id}
@@ -141,15 +141,16 @@ class OptIn extends Component {
 }
 
 OptIn.defaultProps = {
-  fixedPlaceholder: 'auto',
   fixedValue: '',
   customPlaceholder: 'Custom Value',
+  fixedPlaceholder: 'auto',
   customValue: '',
 }
 
 const {func, oneOf, string} = PropTypes
 
 OptIn.propTypes = {
+  min: string,
   fixedPlaceholder: string,
   fixedValue: string,
   customPlaceholder: string,
