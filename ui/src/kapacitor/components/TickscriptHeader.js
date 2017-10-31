@@ -1,52 +1,33 @@
 import React, {PropTypes} from 'react'
-import {Link} from 'react-router'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
-import TickscriptType from 'src/kapacitor/components/TickscriptType'
-import MultiSelectDBDropdown from 'shared/components/MultiSelectDBDropdown'
-import TickscriptID, {
-  TickscriptStaticID,
-} from 'src/kapacitor/components/TickscriptID'
-
-const addName = list => list.map(l => ({...l, name: `${l.db}.${l.rp}`}))
+import LogsToggle from 'src/kapacitor/components/LogsToggle'
 
 const TickscriptHeader = ({
-  task: {id, type, dbrps},
-  task,
-  source,
+  task: {id},
   onSave,
-  onChangeType,
-  onChangeID,
-  onSelectDbrps,
+  areLogsVisible,
   isNewTickscript,
+  onToggleLogsVisbility,
 }) =>
-  <div className="page-header">
+  <div className="page-header full-width">
     <div className="page-header__container">
       <div className="page-header__left">
-        {isNewTickscript
-          ? <TickscriptID onChangeID={onChangeID} id={id} />
-          : <TickscriptStaticID id={task.name} />}
+        <h1 className="page-header__title">TICKscript Editor</h1>
       </div>
+      <LogsToggle
+        areLogsVisible={areLogsVisible}
+        onToggleLogsVisbility={onToggleLogsVisbility}
+      />
       <div className="page-header__right">
         <SourceIndicator />
-        <TickscriptType type={type} onChangeType={onChangeType} />
-        <MultiSelectDBDropdown
-          selectedItems={addName(dbrps)}
-          onApply={onSelectDbrps}
-        />
-        <Link
-          className="btn btn-sm btn-default"
-          to={`/sources/${source.id}/alert-rules`}
-        >
-          Cancel
-        </Link>
         <button
           className="btn btn-success btn-sm"
           title={id ? '' : 'ID your TICKscript to save'}
           onClick={onSave}
           disabled={!id}
         >
-          Save Rule
+          {isNewTickscript ? 'Save New TICKscript' : 'Save TICKscript'}
         </button>
       </div>
     </div>
@@ -55,11 +36,10 @@ const TickscriptHeader = ({
 const {arrayOf, bool, func, shape, string} = PropTypes
 
 TickscriptHeader.propTypes = {
+  isNewTickscript: bool,
   onSave: func,
-  source: shape({
-    id: string,
-  }),
-  onSelectDbrps: func.isRequired,
+  areLogsVisible: bool,
+  onToggleLogsVisbility: func.isRequired,
   task: shape({
     dbrps: arrayOf(
       shape({
@@ -68,9 +48,6 @@ TickscriptHeader.propTypes = {
       })
     ),
   }),
-  onChangeType: func.isRequired,
-  onChangeID: func.isRequired,
-  isNewTickscript: bool.isRequired,
 }
 
 export default TickscriptHeader

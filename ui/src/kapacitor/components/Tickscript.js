@@ -2,9 +2,11 @@ import React, {PropTypes} from 'react'
 
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import TickscriptEditor from 'src/kapacitor/components/TickscriptEditor'
+import TickscriptEditorControls from 'src/kapacitor/components/TickscriptEditorControls'
+import TickscriptEditorConsole from 'src/kapacitor/components/TickscriptEditorConsole'
+import LogsTable from 'src/kapacitor/components/LogsTable'
 
 const Tickscript = ({
-  source,
   onSave,
   task,
   logs,
@@ -14,50 +16,33 @@ const Tickscript = ({
   onChangeType,
   onChangeID,
   isNewTickscript,
+  areLogsVisible,
+  onToggleLogsVisbility,
 }) =>
   <div className="page">
     <TickscriptHeader
       task={task}
-      source={source}
       onSave={onSave}
-      onChangeID={onChangeID}
-      onChangeType={onChangeType}
-      onSelectDbrps={onSelectDbrps}
+      areLogsVisible={areLogsVisible}
+      onToggleLogsVisbility={onToggleLogsVisbility}
       isNewTickscript={isNewTickscript}
     />
-    <div className="page-contents">
-      <div className="tickscript-console">
-        <div className="tickscript-console--output">
-          {validation
-            ? <p>
-                {validation}
-              </p>
-            : <p className="tickscript-console--default">
-                Save your TICKscript to validate it
-              </p>}
-        </div>
-      </div>
-      <div className="tickscript-editor">
-        <div>
-          {logs.map(({key, ts, lvl, msg}) =>
-            <div key={key}>
-              <span>
-                {ts}
-              </span>
-              <span>
-                {lvl}
-              </span>
-              <pre>
-                {msg}
-              </pre>
-            </div>
-          )}
-        </div>
+    <div className="page-contents--split">
+      <div className="tickscript">
+        <TickscriptEditorControls
+          isNewTickscript={isNewTickscript}
+          onSelectDbrps={onSelectDbrps}
+          onChangeType={onChangeType}
+          onChangeID={onChangeID}
+          task={task}
+        />
+        <TickscriptEditorConsole validation={validation} />
         <TickscriptEditor
           script={task.tickscript}
           onChangeScript={onChangeScript}
         />
       </div>
+      {areLogsVisible ? <LogsTable logs={logs} /> : null}
     </div>
   </div>
 
@@ -69,6 +54,8 @@ Tickscript.propTypes = {
   source: shape({
     id: string,
   }),
+  areLogsVisible: bool,
+  onToggleLogsVisbility: func.isRequired,
   task: shape({
     id: string,
     script: string,
