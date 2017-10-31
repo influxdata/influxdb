@@ -2,34 +2,52 @@ import React, {Component, PropTypes} from 'react'
 
 import _ from 'lodash'
 
+import {DEFAULT_ORG, NO_ORG} from 'src/admin/constants/dummyUsers'
+
 class ChronografAllUsersTable extends Component {
   constructor(props) {
     super(props)
   }
 
-  renderOrgAndRoleCell = user => {
-    const {onFilterUsers, organizationName} = this.props
+  handleChooseFilter = filterString => () => {
+    this.props.onFilterUsers({name: filterString})
+  }
 
-    if (!user.roles.length) {
-      return <a href="#">None</a>
+  renderOrgAndRoleCell = user => {
+    const {organizationName} = this.props
+
+    // Expects Users to always have at least 1 role (as a member of the default org)
+    if (user.roles.length === 1) {
+      return (
+        <a href="#" onClick={this.handleChooseFilter(NO_ORG)}>
+          {NO_ORG}
+        </a>
+      )
     }
 
-    return organizationName
-      ? user.roles
-          .filter(role => role.organizationName === organizationName)
-          .map((role, r) =>
-            <span key={r} className="org-and-role">
-              {role.name}
-            </span>
-          )
-      : user.roles.map((role, r) =>
-          <span key={r} className="org-and-role">
-            <a href="#" onClick={onFilterUsers(role.organizationName)}>
-              {role.organizationName}
-            </a>
-            <i>({role.name}</i>)
-          </span>
-        )
+    if (organizationName === DEFAULT_ORG) {
+      return user.roles.map(
+        (role, r) =>
+          role.organizationName === DEFAULT_ORG
+            ? null // don't show Default Organization among user roles
+            : <span key={r} className="org-and-role">
+                <a
+                  href="#"
+                  onClick={this.handleChooseFilter(role.organizationName)}
+                >
+                  {role.organizationName}
+                </a>
+                <i>({role.name}</i>)
+              </span>
+      )
+    }
+    return user.roles
+      .filter(role => role.organizationName === organizationName)
+      .map((role, r) =>
+        <span key={r} className="org-and-role">
+          {role.name}
+        </span>
+      )
   }
 
   renderTableRows = filteredUsers => {
@@ -114,8 +132,8 @@ class ChronografAllUsersTable extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 ChronografAllUsersTable.propTypes = {
-  filteredUsers: arrayOf(shape()),
-  selectedUsers: arrayOf(shape()),
+  filteredUsers: arrayOf(shape),
+  selectedUsers: arrayOf(shape),
   onFilterUsers: func.isRequired,
   onToggleUserSelected: func.isRequired,
   onToggleAllUsersSelected: func.isRequired,

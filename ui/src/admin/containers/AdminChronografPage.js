@@ -2,17 +2,24 @@ import React, {Component, PropTypes} from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
+import Dropdown from 'shared/components/Dropdown'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {DUMMY_USERS} from 'src/admin/constants/dummyUsers'
+import {
+  DUMMY_USERS,
+  DUMMY_ORGS,
+  DEFAULT_ORG,
+  NO_ORG,
+} from 'src/admin/constants/dummyUsers'
 
 class AdminChronografPage extends Component {
   constructor(props) {
     super(props)
 
     this.state = {
-      organizationName: null,
+      // TODO: pass around organization object instead of just name
+      organizationName: DEFAULT_ORG,
       selectedUsers: [],
       filteredUsers: this.props.users,
     }
@@ -26,17 +33,20 @@ class AdminChronografPage extends Component {
     )
   }
 
-  handleFilterUsers = organizationName => () => {
+  handleFilterUsers = filterQuery => {
     const {users} = this.props
+    const {name} = filterQuery
 
-    const filteredUsers = organizationName
-      ? users.filter(user => {
-          return user.roles.find(
-            role => role.organizationName === organizationName
+    const filteredUsers =
+      name === DEFAULT_ORG
+        ? users
+        : users.filter(
+            user =>
+              name === NO_ORG
+                ? user.roles.length === 1 // Filter out if user is only part of Default Org
+                : user.roles.find(role => role.organizationName === name)
           )
-        })
-      : users
-    this.setState({filteredUsers})
+    this.setState({filteredUsers, organizationName: name})
   }
 
   handleToggleUserSelected = user => e => {
@@ -64,7 +74,7 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users} = this.props
+    const {users, organizations} = this.props
     const {organizationName, selectedUsers, filteredUsers} = this.state
     const numUsersSelected = Object.keys(selectedUsers).length
     return (
@@ -97,11 +107,14 @@ class AdminChronografPage extends Component {
                             </h2>
                           </div>
                         : <div className="panel-heading">
-                            <h2 className="panel-title">
-                              {organizationName
-                                ? `Users in ${organizationName}`
-                                : 'Users'}
-                            </h2>
+                            <Dropdown
+                              items={organizations.map(org => ({
+                                ...org,
+                                text: org.name,
+                              }))}
+                              selected={organizationName}
+                              onChoose={this.handleFilterUsers}
+                            />
                           </div>}
                       <div className="panel-body">
                         <AllUsersTable
@@ -130,11 +143,13 @@ class AdminChronografPage extends Component {
 const {arrayOf, shape} = PropTypes
 
 AdminChronografPage.propTypes = {
-  users: arrayOf(shape()),
+  users: arrayOf(shape),
+  organizations: arrayOf(shape),
 }
 
 AdminChronografPage.defaultProps = {
   users: DUMMY_USERS,
+  organizations: DUMMY_ORGS,
 }
 
 export default AdminChronografPage

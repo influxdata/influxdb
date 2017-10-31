@@ -4,6 +4,7 @@ export const DUMMY_USERS = [
     provider: 'GitHub',
     scheme: 'oAuth2',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Green Team', organizationID: 1234, name: 'admin'},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'editor'},
     ],
@@ -13,6 +14,7 @@ export const DUMMY_USERS = [
     provider: 'GitHub',
     scheme: 'oAuth2',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Green Team', organizationID: 1234, name: 'viewer'},
       {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
     ],
@@ -22,6 +24,7 @@ export const DUMMY_USERS = [
     provider: 'Heroku',
     scheme: 'LDAP',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Green Team', organizationID: 1234, name: 'editor'},
     ],
   },
@@ -30,6 +33,7 @@ export const DUMMY_USERS = [
     provider: 'GitHub',
     scheme: 'oAuth2',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'editor'},
     ],
   },
@@ -38,6 +42,7 @@ export const DUMMY_USERS = [
     provider: 'Heroku',
     scheme: 'oAuth2',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Red Team', organizationID: 1236, name: 'viewer'},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'viewer'},
     ],
@@ -47,6 +52,7 @@ export const DUMMY_USERS = [
     provider: 'GitHub',
     scheme: 'oAuth2',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Green Team', organizationID: 1234, name: 'viewer'},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'viewer'},
       {organizationName: 'Red Team', organizationID: 1236, name: 'viewer'},
@@ -57,6 +63,7 @@ export const DUMMY_USERS = [
     provider: 'Generic',
     scheme: 'LDAP',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
     ],
   },
@@ -64,25 +71,26 @@ export const DUMMY_USERS = [
     name: 'lost.in.translation@gmail.com',
     provider: 'Generic',
     scheme: 'LDAP',
-    roles: [],
+    roles: [{organizationName: 'All Users', organizationID: 666, name: 'none'}],
   },
   {
     name: 'wandering.soul@gmail.com',
     provider: 'Heroku',
     scheme: 'LDAP',
-    roles: [],
+    roles: [{organizationName: 'All Users', organizationID: 666, name: 'none'}],
   },
   {
     name: 'disembodied@gmail.com',
     provider: 'GitHub',
     scheme: 'oAuth2',
-    roles: [],
+    roles: [{organizationName: 'All Users', organizationID: 666, name: 'none'}],
   },
   {
     name: 'bob.builder@gmail.com',
     provider: 'Heroku',
     scheme: 'LDAP',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
     ],
   },
@@ -91,6 +99,7 @@ export const DUMMY_USERS = [
     provider: 'GitHub',
     scheme: 'oAuth2',
     roles: [
+      {organizationName: 'All Users', organizationID: 666, name: 'none'},
       {organizationName: 'Blue Team', organizationID: 1234, name: 'admin'},
     ],
   },
@@ -99,6 +108,17 @@ export const DUMMY_USERS = [
     provider: 'GitHub',
     scheme: 'oAuth2',
     superadmin: true,
-    roles: [],
+    roles: [{organizationName: 'All Users', organizationID: 666, name: 'none'}],
   },
+]
+
+export const DEFAULT_ORG = 'All Users'
+export const NO_ORG = 'None'
+
+export const DUMMY_ORGS = [
+  {name: DEFAULT_ORG},
+  {name: NO_ORG},
+  {name: 'Red Team'},
+  {name: 'Blue Team'},
+  {name: 'Green Team'},
 ]
