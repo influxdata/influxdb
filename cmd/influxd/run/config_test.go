@@ -2,11 +2,15 @@ package run_test
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 // Ensure the configuration can be parsed.
@@ -308,5 +312,190 @@ func TestConfig_InvalidSubsections(t *testing.T) {
 		if err := c.Validate(); err == nil {
 			t.Fatalf("expected error but got nil for config: %s", s)
 		}
+	}
+}
+
+// Ensure the configuration can be parsed when a Byte-Order-Mark is present.
+func TestConfig_Parse_UTF8_ByteOrderMark(t *testing.T) {
+	// Parse configuration.
+	var c run.Config
+	f, err := ioutil.TempFile("", "influxd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	f.WriteString("\ufeff")
+	f.WriteString(`
+[meta]
+dir = "/tmp/meta"
+
+[data]
+dir = "/tmp/data"
+
+[coordinator]
+
+[http]
+bind-address = ":8087"
+
+[[graphite]]
+protocol = "udp"
+
+[[graphite]]
+protocol = "tcp"
+
+[[collectd]]
+bind-address = ":1000"
+
+[[collectd]]
+bind-address = ":1010"
+
+[[opentsdb]]
+bind-address = ":2000"
+
+[[opentsdb]]
+bind-address = ":2010"
+
+[[opentsdb]]
+bind-address = ":2020"
+
+[[udp]]
+bind-address = ":4444"
+
+[monitoring]
+enabled = true
+
+[subscriber]
+enabled = true
+
+[continuous_queries]
+enabled = true
+`)
+	if err := c.FromTomlFile(f.Name()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Validate configuration.
+	if c.Meta.Dir != "/tmp/meta" {
+		t.Fatalf("unexpected meta dir: %s", c.Meta.Dir)
+	} else if c.Data.Dir != "/tmp/data" {
+		t.Fatalf("unexpected data dir: %s", c.Data.Dir)
+	} else if c.HTTPD.BindAddress != ":8087" {
+		t.Fatalf("unexpected api bind address: %s", c.HTTPD.BindAddress)
+	} else if len(c.GraphiteInputs) != 2 {
+		t.Fatalf("unexpected graphiteInputs count: %d", len(c.GraphiteInputs))
+	} else if c.GraphiteInputs[0].Protocol != "udp" {
+		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
+	} else if c.GraphiteInputs[1].Protocol != "tcp" {
+		t.Fatalf("unexpected graphite protocol(1): %s", c.GraphiteInputs[1].Protocol)
+	} else if c.CollectdInputs[0].BindAddress != ":1000" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
+	} else if c.CollectdInputs[1].BindAddress != ":1010" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
+	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
+	} else if c.OpenTSDBInputs[1].BindAddress != ":2010" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[1].BindAddress)
+	} else if c.OpenTSDBInputs[2].BindAddress != ":2020" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[2].BindAddress)
+	} else if c.UDPInputs[0].BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
+	} else if c.Subscriber.Enabled != true {
+		t.Fatalf("unexpected subscriber enabled: %v", c.Subscriber.Enabled)
+	} else if c.ContinuousQuery.Enabled != true {
+		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
+	}
+}
+
+// Ensure the configuration can be parsed when a Byte-Order-Mark is present.
+func TestConfig_Parse_UTF16_ByteOrderMark(t *testing.T) {
+	// Parse configuration.
+	var c run.Config
+	f, err := ioutil.TempFile("", "influxd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	utf16 := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+	w := transform.NewWriter(f, utf16.NewEncoder())
+	io.WriteString(w, `
+[meta]
+dir = "/tmp/meta"
+
+[data]
+dir = "/tmp/data"
+
+[coordinator]
+
+[http]
+bind-address = ":8087"
+
+[[graphite]]
+protocol = "udp"
+
+[[graphite]]
+protocol = "tcp"
+
+[[collectd]]
+bind-address = ":1000"
+
+[[collectd]]
+bind-address = ":1010"
+
+[[opentsdb]]
+bind-address = ":2000"
+
+[[opentsdb]]
+bind-address = ":2010"
+
+[[opentsdb]]
+bind-address = ":2020"
+
+[[udp]]
+bind-address = ":4444"
+
+[monitoring]
+enabled = true
+
+[subscriber]
+enabled = true
+
+[continuous_queries]
+enabled = true
+`)
+	if err := c.FromTomlFile(f.Name()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Validate configuration.
+	if c.Meta.Dir != "/tmp/meta" {
+		t.Fatalf("unexpected meta dir: %s", c.Meta.Dir)
+	} else if c.Data.Dir != "/tmp/data" {
+		t.Fatalf("unexpected data dir: %s", c.Data.Dir)
+	} else if c.HTTPD.BindAddress != ":8087" {
+		t.Fatalf("unexpected api bind address: %s", c.HTTPD.BindAddress)
+	} else if len(c.GraphiteInputs) != 2 {
+		t.Fatalf("unexpected graphiteInputs count: %d", len(c.GraphiteInputs))
+	} else if c.GraphiteInputs[0].Protocol != "udp" {
+		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
+	} else if c.GraphiteInputs[1].Protocol != "tcp" {
+		t.Fatalf("unexpected graphite protocol(1): %s", c.GraphiteInputs[1].Protocol)
+	} else if c.CollectdInputs[0].BindAddress != ":1000" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
+	} else if c.CollectdInputs[1].BindAddress != ":1010" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
+	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
+	} else if c.OpenTSDBInputs[1].BindAddress != ":2010" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[1].BindAddress)
+	} else if c.OpenTSDBInputs[2].BindAddress != ":2020" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[2].BindAddress)
+	} else if c.UDPInputs[0].BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
+	} else if c.Subscriber.Enabled != true {
+		t.Fatalf("unexpected subscriber enabled: %v", c.Subscriber.Enabled)
+	} else if c.ContinuousQuery.Enabled != true {
+		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
 	}
 }

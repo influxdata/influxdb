@@ -26,3 +26,4 @@ github.com/uber-go/zap fbae0281ffd546fa6d1959fec6075ac5da7fb577
 github.com/xlab/treeprint 06dfc6fa17cdde904617990a0c2d89e3e332dbb3
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
 golang.org/x/sys 062cd7e4e68206d8bab9b18396626e855c992658
+golang.org/x/text a71fd10341b064c10f4a81ceac72bcf70f26ea34
