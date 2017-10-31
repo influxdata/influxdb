@@ -1,5 +1,10 @@
 ## v1.3.11.0 [unreleased]
 ### Bug Fixes
+1. [#2157](https://github.com/influxdata/chronograf/pull/2157): Fix logscale producing console errors when only one point in graph
+1. [#2158](https://github.com/influxdata/chronograf/pull/2158): Fix 'Cannot connect to source' false error flag on Dashboard page
+1. [#2167](https://github.com/influxdata/chronograf/pull/2167): Add fractions of seconds to time field in csv export
+1. [#1077](https://github.com/influxdata/chronograf/pull/2087): Fix Chronograf requiring Telegraf's CPU and system plugins to ensure that all Apps appear on the HOST LIST page.
+
 ### Features
 ### UI Improvements
 
