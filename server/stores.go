@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/noop"
 	"github.com/influxdata/chronograf/organizations"
 )
 
@@ -70,7 +71,7 @@ func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
 		return organizations.NewSourcesStore(s.SourcesStore, org)
 	}
 
-	return s.SourcesStore
+	return &noop.SourcesStore{}
 }
 
 func (s *Store) Servers(ctx context.Context) chronograf.ServersStore {
@@ -78,7 +79,7 @@ func (s *Store) Servers(ctx context.Context) chronograf.ServersStore {
 		return organizations.NewServersStore(s.ServersStore, org)
 	}
 
-	return s.ServersStore
+	return &noop.ServersStore{}
 }
 
 func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
@@ -86,7 +87,7 @@ func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
 		return organizations.NewLayoutsStore(s.LayoutsStore, org)
 	}
 
-	return s.LayoutsStore
+	return &noop.LayoutsStore{}
 }
 
 func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
@@ -97,8 +98,7 @@ func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
 		return organizations.NewUsersStore(s.UsersStore, org)
 	}
 
-	// TODO: eventually have NoOpUserstore
-	return organizations.NewUsersStore(s.UsersStore, "")
+	return &noop.UsersStore{}
 }
 
 func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
@@ -106,7 +106,7 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 		return organizations.NewDashboardsStore(s.DashboardsStore, org)
 	}
 
-	return s.DashboardsStore
+	return &noop.DashboardsStore{}
 }
 
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {
