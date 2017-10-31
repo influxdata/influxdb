@@ -185,16 +185,13 @@ pre.admin-table--query {
     ----------------------------------------------------------------------------
 */
 
-.org-and-role {
+.chronograf-user--role,
+.chronograf-user--org {
   display: inline-block;
   width: 100%;
-
-  i {
-    display: inline-block;
-    font-style: normal;
-    text-transform: capitalize;
-    margin-left: 4px;
-  }
+}
+.chronograf-user--role {
+  text-transform: capitalize;
 }
 .user-checkbox {
   display: inline-block;

@@ -13,11 +13,11 @@ class ChronografAllUsersTable extends Component {
     this.props.onFilterUsers({name: filterString})
   }
 
-  renderOrgAndRoleCell = user => {
+  renderOrgCell = roles => {
     const {organizationName} = this.props
 
     // Expects Users to always have at least 1 role (as a member of the default org)
-    if (user.roles.length === 1) {
+    if (roles.length === 1) {
       return (
         <a href="#" onClick={this.handleChooseFilter(NO_ORG)}>
           {NO_ORG}
@@ -26,30 +26,61 @@ class ChronografAllUsersTable extends Component {
     }
 
     if (organizationName === DEFAULT_ORG) {
-      return user.roles.map(
-        (role, r) =>
-          role.organizationName === DEFAULT_ORG
-            ? null // don't show Default Organization among user roles
-            : <span key={r} className="org-and-role">
-                <a
-                  href="#"
-                  onClick={this.handleChooseFilter(role.organizationName)}
-                >
-                  {role.organizationName}
-                </a>
-                <i>({role.name}</i>)
-              </span>
-      )
+      return roles
+        .filter(role => {
+          return !(role.organizationName === DEFAULT_ORG)
+        })
+        .map((role, r) =>
+          <span key={r} className="chronograf-user--org">
+            <a
+              href="#"
+              onClick={this.handleChooseFilter(role.organizationName)}
+            >
+              {role.organizationName}
+            </a>
+          </span>
+        )
     }
-    return user.roles
-      .filter(role => role.organizationName === organizationName)
-      .map((role, r) =>
-        <span key={r} className="org-and-role">
-          {role.name}
-        </span>
-      )
+
+    const currentOrg = roles.find(
+      role => role.organizationName === organizationName
+    )
+    return (
+      <span className="chronograf-user--org">
+        {currentOrg.organizationName}
+      </span>
+    )
   }
 
+  renderRoleCell = roles => {
+    const {organizationName} = this.props
+
+    // Expects Users to always have at least 1 role (as a member of the default org)
+    if (roles.length === 1) {
+      return <span className="chronograf-user--role">No Role</span>
+    }
+
+    if (organizationName === DEFAULT_ORG) {
+      return roles
+        .filter(role => {
+          return !(role.organizationName === DEFAULT_ORG)
+        })
+        .map((role, r) =>
+          <span key={r} className="chronograf-user--role">
+            {role.name}
+          </span>
+        )
+    }
+
+    const currentOrg = roles.find(
+      role => role.organizationName === organizationName
+    )
+    return (
+      <span className="chronograf-user--role">
+        {currentOrg.name}
+      </span>
+    )
+  }
   renderTableRows = filteredUsers => {
     const {onToggleUserSelected, selectedUsers, isSameUser} = this.props
 
@@ -75,7 +106,10 @@ class ChronografAllUsersTable extends Component {
             {user.superadmin ? 'Yes' : '--'}
           </td>
           <td>
-            {this.renderOrgAndRoleCell(user)}
+            {this.renderOrgCell(user.roles)}
+          </td>
+          <td>
+            {this.renderRoleCell(user.roles)}
           </td>
           <td>
             {user.provider}
@@ -94,12 +128,7 @@ class ChronografAllUsersTable extends Component {
   }
 
   render() {
-    const {
-      filteredUsers,
-      organizationName,
-      onToggleAllUsersSelected,
-      selectedUsers,
-    } = this.props
+    const {filteredUsers, onToggleAllUsersSelected, selectedUsers} = this.props
 
     const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
 
@@ -117,11 +146,8 @@ class ChronografAllUsersTable extends Component {
             </th>
             <th>Username</th>
             <th>SuperAdmin</th>
-            <th>
-              {organizationName === DEFAULT_ORG
-                ? 'Organization & Role'
-                : 'Role'}
-            </th>
+            <th>Organization</th>
+            <th>Role</th>
             <th>Provider</th>
             <th className="text-right">Scheme</th>
           </tr>
