@@ -220,7 +220,9 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 // ValidDashboardRequest verifies that the dashboard cells have a query
 func ValidDashboardRequest(d *chronograf.Dashboard) error {
 	if d.Organization == "" {
-		return fmt.Errorf("organization must be set")
+		//TODO: Remove this
+		d.Organization = "1"
+		//return fmt.Errorf("organization required")
 	}
 	for i, c := range d.Cells {
 		if err := ValidDashboardCellRequest(&c); err != nil {

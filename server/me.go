@@ -208,6 +208,21 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create default org if no organization exists
+	// TODO: cleanup
+	defaultOrgID := uint64(1)
+	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{
+		ID: &defaultOrgID,
+	})
+
+	// Create defaultOrg
+	if err == chronograf.ErrOrganizationNotFound {
+		// TODO: check err
+		org, _ = s.Store.Organizations(ctx).Add(ctx, &chronograf.Organization{
+			Name: "__default",
+		})
+	}
+
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
 		Name:     p.Subject,
@@ -216,6 +231,15 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		// support OAuth2. This hard-coding should be removed whenever we add
 		// support for other authentication schemes.
 		Scheme: scheme,
+		// TODO: this should be member
+		Roles: []chronograf.Role{
+			{
+				Name:         ViewerRoleName,
+				Organization: fmt.Sprintf("%d", org.ID),
+			},
+		},
+		// TODO: is super admin for now
+		SuperAdmin: true,
 	}
 
 	// TODO: add real implementation

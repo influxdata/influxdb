@@ -191,7 +191,9 @@ func ValidLayoutRequest(l chronograf.Layout) error {
 	}
 
 	if l.Organization == "" {
-		return fmt.Errorf("organization required")
+		//TODO: Remove this
+		l.Organization = "1"
+		//return fmt.Errorf("organization required")
 	}
 
 	for _, c := range l.Cells {

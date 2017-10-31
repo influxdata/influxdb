@@ -20,6 +20,23 @@ type UsersStore struct {
 	client *Client
 }
 
+// TODO: this will have to change eventually and is only temporary
+func (s *UsersStore) Migrate(ctx context.Context) error {
+	users, err := s.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, u := range users {
+		u.SuperAdmin = true
+		if err := s.Update(ctx, &u); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // get searches the UsersStore for user with id and returns the bolt representation
 func (s *UsersStore) get(ctx context.Context, id uint64) (*chronograf.User, error) {
 	var u chronograf.User
