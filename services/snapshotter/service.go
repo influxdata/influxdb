@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/pkg/errors"
 	"github.com/uber-go/zap"
 	"io"
 )
@@ -221,7 +220,7 @@ func (s *Service) writeMetaStore(conn net.Conn, dbName string) error {
 	if dbName != "" {
 		keepDB := data.Database(dbName)
 		if keepDB == nil {
-			return errors.Errorf("Database %s not found.", dbName)
+			return fmt.Errorf("database %s not found", dbName)
 		}
 		data.Databases = []meta.DatabaseInfo{*keepDB}
 		// drop all users, since we only want the DB
