@@ -3,6 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
 import {DEFAULT_ORG, NO_ORG} from 'src/admin/constants/dummyUsers'
+import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 class ChronografAllUsersTable extends Component {
   constructor(props) {
@@ -47,7 +48,12 @@ class ChronografAllUsersTable extends Component {
     )
     return (
       <span className="chronograf-user--org">
-        {currentOrg.organizationName}
+        <a
+          href="#"
+          onClick={this.handleChooseFilter(currentOrg.organizationName)}
+        >
+          {currentOrg.organizationName}
+        </a>
       </span>
     )
   }
@@ -82,6 +88,7 @@ class ChronografAllUsersTable extends Component {
     )
   }
   renderTableRows = filteredUsers => {
+    const {colOrg, colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
     const {onToggleUserSelected, selectedUsers, isSameUser} = this.props
 
     return filteredUsers.map((user, i) => {
@@ -102,19 +109,19 @@ class ChronografAllUsersTable extends Component {
               {user.name}
             </strong>
           </td>
-          <td>
-            {user.superadmin ? 'Yes' : '--'}
-          </td>
-          <td>
+          <td style={{width: colOrg}}>
             {this.renderOrgCell(user.roles)}
           </td>
-          <td>
+          <td style={{width: colRole}}>
             {this.renderRoleCell(user.roles)}
           </td>
-          <td>
+          <td style={{width: colSuperAdmin}}>
+            {user.superadmin ? 'Yes' : '--'}
+          </td>
+          <td style={{width: colProvider}}>
             {user.provider}
           </td>
-          <td className="text-right">
+          <td className="text-right" style={{width: colScheme}}>
             {user.scheme}
           </td>
         </tr>
@@ -129,6 +136,7 @@ class ChronografAllUsersTable extends Component {
 
   render() {
     const {filteredUsers, onToggleAllUsersSelected, selectedUsers} = this.props
+    const {colOrg, colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
 
     const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
 
@@ -145,11 +153,13 @@ class ChronografAllUsersTable extends Component {
               />
             </th>
             <th>Username</th>
-            <th>SuperAdmin</th>
-            <th>Organization</th>
-            <th>Role</th>
-            <th>Provider</th>
-            <th className="text-right">Scheme</th>
+            <th style={{width: colOrg}}>Organization</th>
+            <th style={{width: colRole}}>Role</th>
+            <th style={{width: colSuperAdmin}}>SuperAdmin</th>
+            <th style={{width: colProvider}}>Provider</th>
+            <th className="text-right" style={{width: colScheme}}>
+              Scheme
+            </th>
           </tr>
         </thead>
         <tbody>
