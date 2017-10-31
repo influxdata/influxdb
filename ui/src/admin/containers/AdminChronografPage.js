@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
-import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
+import UsersTable from 'src/admin/components/chronograf/UsersTable'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 import Dropdown from 'shared/components/Dropdown'
 
@@ -159,7 +159,7 @@ class AdminChronografPage extends Component {
                         onChangeRoles={this.handleBatchChangeUsersRole}
                       />
                       <div className="panel-body chronograf-admin-table--panel">
-                        <AllUsersTable
+                        <UsersTable
                           filteredUsers={filteredUsers}
                           organizationName={organizationName}
                           onFilterUsers={this.handleFilterUsers}

@@ -7,7 +7,7 @@ import Dropdown from 'shared/components/Dropdown'
 import {DEFAULT_ORG, NO_ORG, USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-class ChronografAllUsersTable extends Component {
+class ChronografUsersTable extends Component {
   constructor(props) {
     super(props)
   }
@@ -187,7 +187,7 @@ class ChronografAllUsersTable extends Component {
 
 const {arrayOf, func, shape, string} = PropTypes
 
-ChronografAllUsersTable.propTypes = {
+ChronografUsersTable.propTypes = {
   filteredUsers: arrayOf(shape),
   selectedUsers: arrayOf(shape),
   onFilterUsers: func.isRequired,
@@ -197,4 +197,4 @@ ChronografAllUsersTable.propTypes = {
   organizationName: string,
   onUpdateUserRole: func.isRequired,
 }
-export default ChronografAllUsersTable
+export default ChronografUsersTable
