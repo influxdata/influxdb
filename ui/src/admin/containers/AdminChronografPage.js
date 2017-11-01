@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import SourceIndicator from 'shared/components/SourceIndicator'
+import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 import CreateOrgOverlay from 'src/admin/components/chronograf/CreateOrgOverlay'
@@ -113,23 +113,7 @@ class AdminChronografPage extends Component {
     const numUsersSelected = Object.keys(selectedUsers).length
     return (
       <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Chronograf Admin</h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator />
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={this.handleShowCreateOrgOverlay}
-              >
-                <span className="icon plus" />
-                Create Organization
-              </button>
-            </div>
-          </div>
-        </div>
+        <PageHeader onShowCreateOrgOverlay={this.handleShowCreateOrgOverlay} />
         <FancyScrollbar className="page-contents">
           {users
             ? <div className="container-fluid">
