@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import {Link, withRouter} from 'react-router'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import Dropdown from 'shared/components/Dropdown'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
@@ -13,12 +15,14 @@ const kapacitorDropdown = (
 ) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
-      <Link
-        to={`/sources/${source.id}/kapacitors/new`}
-        className="btn btn-xs btn-default"
-      >
-        <span className="icon plus" /> Add Config
-      </Link>
+      <Authorized requiredRole={EDITOR_ROLE}>
+        <Link
+          to={`/sources/${source.id}/kapacitors/new`}
+          className="btn btn-xs btn-default"
+        >
+          <span className="icon plus" /> Add Config
+        </Link>
+      </Authorized>
     )
   }
   const kapacitorItems = kapacitors.map(k => {
@@ -39,35 +43,40 @@ const kapacitorDropdown = (
   }
 
   return (
-    <Dropdown
-      className="dropdown-260"
-      buttonColor="btn-primary"
-      buttonSize="btn-xs"
-      items={kapacitorItems}
-      onChoose={setActiveKapacitor}
-      addNew={{
-        url: `/sources/${source.id}/kapacitors/new`,
-        text: 'Add Kapacitor',
-      }}
-      actions={[
-        {
-          icon: 'pencil',
-          text: 'edit',
-          handler: item => {
-            router.push(`${item.resource}/edit`)
+    <Authorized
+      requiredRole={EDITOR_ROLE}
+      propsOverride={{addNew: null, actions: null}}
+    >
+      <Dropdown
+        className="dropdown-260"
+        buttonColor="btn-primary"
+        buttonSize="btn-xs"
+        items={kapacitorItems}
+        onChoose={setActiveKapacitor}
+        addNew={{
+          url: `/sources/${source.id}/kapacitors/new`,
+          text: 'Add Kapacitor',
+        }}
+        actions={[
+          {
+            icon: 'pencil',
+            text: 'edit',
+            handler: item => {
+              router.push(`${item.resource}/edit`)
+            },
           },
-        },
-        {
-          icon: 'trash',
-          text: 'delete',
-          handler: item => {
-            handleDeleteKapacitor(item.kapacitor)
+          {
+            icon: 'trash',
+            text: 'delete',
+            handler: item => {
+              handleDeleteKapacitor(item.kapacitor)
+            },
+            confirmable: true,
           },
-          confirmable: true,
-        },
-      ]}
-      selected={selected}
-    />
+        ]}
+        selected={selected}
+      />
+    </Authorized>
   )
 }
 
@@ -85,12 +94,14 @@ const InfluxTable = ({
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">InfluxDB Sources</h2>
-          <Link
-            to={`/sources/${source.id}/manage-sources/new`}
-            className="btn btn-sm btn-primary"
-          >
-            <span className="icon plus" /> Add Source
-          </Link>
+          <Authorized requiredRole={EDITOR_ROLE}>
+            <Link
+              to={`/sources/${source.id}/manage-sources/new`}
+              className="btn btn-sm btn-primary"
+            >
+              <span className="icon plus" /> Add Source
+            </Link>
+          </Authorized>
         </div>
         <div className="panel-body">
           <table className="table v-center margin-bottom-zero table-highlight">
@@ -131,28 +142,41 @@ const InfluxTable = ({
                     </td>
                     <td>
                       <h5 className="margin-zero">
-                        <Link
-                          to={`${location.pathname}/${s.id}/edit`}
-                          className={s.id === source.id ? 'link-success' : null}
+                        <Authorized
+                          requiredRole={EDITOR_ROLE}
+                          replaceWith={
+                            <strong>
+                              {s.name}
+                            </strong>
+                          }
                         >
-                          <strong>
-                            {s.name}
-                          </strong>
-                          {s.default ? ' (Default)' : null}
-                        </Link>
+                          <Link
+                            to={`${location.pathname}/${s.id}/edit`}
+                            className={
+                              s.id === source.id ? 'link-success' : null
+                            }
+                          >
+                            <strong>
+                              {s.name}
+                            </strong>
+                            {s.default ? ' (Default)' : null}
+                          </Link>
+                        </Authorized>
                       </h5>
                       <span>
                         {s.url}
                       </span>
                     </td>
                     <td className="text-right">
-                      <a
-                        className="btn btn-xs btn-danger table--show-on-row-hover"
-                        href="#"
-                        onClick={handleDeleteSource(s)}
-                      >
-                        Delete Source
-                      </a>
+                      <Authorized requiredRole={EDITOR_ROLE}>
+                        <a
+                          className="btn btn-xs btn-danger table--show-on-row-hover"
+                          href="#"
+                          onClick={handleDeleteSource(s)}
+                        >
+                          Delete Source
+                        </a>
+                      </Authorized>
                     </td>
                     <td className="source-table--kapacitor">
                       {kapacitorDropdown(

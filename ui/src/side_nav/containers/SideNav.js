@@ -2,6 +2,8 @@ import React, {PropTypes} from 'react'
 import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
 
+import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
+
 import {
   NavBar,
   NavBlock,
@@ -22,6 +24,7 @@ const SideNav = React.createClass({
       pathname: string.isRequired,
     }).isRequired,
     isHidden: bool.isRequired,
+    isUsingAuth: bool,
     logoutLink: string,
     customLinks: arrayOf(
       shape({
@@ -61,13 +64,13 @@ const SideNav = React.createClass({
       params: {sourceID},
       location: {pathname: location},
       isHidden,
+      isUsingAuth,
       logoutLink,
       customLinks,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-    const isUsingAuth = !!logoutLink
 
     const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
 
@@ -84,13 +87,25 @@ const SideNav = React.createClass({
               <span className="sidebar--icon icon cubo-uniform" />
             </Link>
           </div>
-          <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
+          <NavBlock
+            icon="cubo-node"
+            link={`${sourcePrefix}/hosts`}
+            location={location}
+          >
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
           </NavBlock>
-          <NavBlock icon="graphline" link={dataExplorerLink}>
+          <NavBlock
+            icon="graphline"
+            link={dataExplorerLink}
+            location={location}
+          >
             <NavHeader link={dataExplorerLink} title="Data Explorer" />
           </NavBlock>
-          <NavBlock icon="dash-h" link={`${sourcePrefix}/dashboards`}>
+          <NavBlock
+            icon="dash-h"
+            link={`${sourcePrefix}/dashboards`}
+            location={location}
+          >
             <NavHeader
               link={`${sourcePrefix}/dashboards`}
               title={'Dashboards'}
@@ -100,6 +115,7 @@ const SideNav = React.createClass({
             matcher="alerts"
             icon="alert-triangle"
             link={`${sourcePrefix}/alerts`}
+            location={location}
           >
             <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
             <NavListItem link={`${sourcePrefix}/alerts`}>History</NavListItem>
@@ -107,26 +123,36 @@ const SideNav = React.createClass({
               Create
             </NavListItem>
           </NavBlock>
-          <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
-            <NavHeader
-              link={`${sourcePrefix}/admin-chronograf`}
-              title="Admin"
-            />
-            <NavListItem link={`${sourcePrefix}/admin-chronograf`}>
-              Chronograf
-            </NavListItem>
-            <NavListItem link={`${sourcePrefix}/admin-influxdb`}>
-              InfluxDB
-            </NavListItem>
-          </NavBlock>
-          <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>
+          <Authorized requiredRole={ADMIN_ROLE}>
+            <NavBlock
+              icon="crown2"
+              link={`${sourcePrefix}/admin`}
+              location={location}
+            >
+              <NavHeader
+                link={`${sourcePrefix}/admin-chronograf`}
+                title="Admin"
+              />
+              <NavListItem link={`${sourcePrefix}/admin-chronograf`}>
+                Chronograf
+              </NavListItem>
+              <NavListItem link={`${sourcePrefix}/admin-influxdb`}>
+                InfluxDB
+              </NavListItem>
+            </NavBlock>
+          </Authorized>
+          <NavBlock
+            icon="cog-thick"
+            link={`${sourcePrefix}/manage-sources`}
+            location={location}
+          >
             <NavHeader
               link={`${sourcePrefix}/manage-sources`}
               title="Configuration"
             />
           </NavBlock>
           {isUsingAuth
-            ? <NavBlock icon="user">
+            ? <NavBlock icon="user" location={location}>
                 {customLinks
                   ? this.renderUserMenuBlockWithCustomLinks(
                       customLinks,
@@ -144,11 +170,12 @@ const SideNav = React.createClass({
 })
 
 const mapStateToProps = ({
-  auth: {logoutLink},
+  auth: {isUsingAuth, logoutLink},
   app: {ephemeral: {inPresentationMode}},
   links: {external: {custom: customLinks}},
 }) => ({
   isHidden: inPresentationMode,
+  isUsingAuth,
   logoutLink,
   customLinks,
 })

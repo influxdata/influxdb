@@ -30,7 +30,7 @@ const authReducer = (state = initialState, action) => {
     }
     case 'LOGOUT_LINK_RECEIVED': {
       const {logoutLink} = action.payload
-      return {...state, logoutLink}
+      return {...state, logoutLink, isUsingAuth: !!logoutLink}
     }
   }
 

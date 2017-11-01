@@ -66,9 +66,8 @@ const NavBlock = React.createClass({
 
   render() {
     const {location, className} = this.props
-
     const isActive = React.Children.toArray(this.props.children).find(child => {
-      return location.startsWith(child.props.link)
+      return location.startsWith(child.props.link) // if location is undefined, this will fail silently
     })
 
     const children = React.Children.map(this.props.children, child => {
@@ -114,19 +113,11 @@ const NavBlock = React.createClass({
 const NavBar = React.createClass({
   propTypes: {
     children: node,
-    location: string.isRequired,
   },
 
   render() {
-    const children = React.Children.map(this.props.children, child => {
-      if (child && child.type === NavBlock) {
-        return React.cloneElement(child, {
-          location: this.props.location,
-        })
-      }
+    const {children} = this.props
 
-      return child
-    })
     return (
       <nav className="sidebar">
         {children}
