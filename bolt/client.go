@@ -89,10 +89,6 @@ func (c *Client) Open(ctx context.Context) error {
 	if err := c.OrganizationsStore.Migrate(ctx); err != nil {
 		return err
 	}
-	// TODO: this will have to change, and is temporary
-	if err := c.UsersStore.Migrate(ctx); err != nil {
-		return err
-	}
 
 	return nil
 }

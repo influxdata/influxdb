@@ -13,29 +13,11 @@ import (
 var _ chronograf.UsersStore = &UsersStore{}
 
 // UsersBucket is used to store users local to chronograf
-var UsersBucket = []byte("UsersV1")
+var UsersBucket = []byte("UsersV2")
 
 // UsersStore uses bolt to store and retrieve users
 type UsersStore struct {
 	client *Client
-}
-
-// Migrate changes all existing users to be SuperAdmin
-func (s *UsersStore) Migrate(ctx context.Context) error {
-	users, err := s.All(ctx)
-	if err != nil {
-		return err
-	}
-
-	// TODO(desa): REMOVE!!!!!!!!!!!!!!
-	for _, u := range users {
-		u.SuperAdmin = true
-		if err := s.Update(ctx, &u); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // get searches the UsersStore for user with id and returns the bolt representation
