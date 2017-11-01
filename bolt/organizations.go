@@ -7,6 +7,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
+	"github.com/influxdata/chronograf/organizations"
 )
 
 // Ensure OrganizationsStore implements chronograf.OrganizationsStore.
@@ -85,9 +86,75 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 	if err != nil {
 		return err
 	}
-	return s.client.db.Update(func(tx *bolt.Tx) error {
+	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(OrganizationsBucket).Delete(u64tob(o.ID))
-	})
+	}); err != nil {
+		return err
+	}
+
+	// Dependent Delete of all resources
+
+	org := fmt.Sprintf("%d", o.ID)
+	// Each of the associated organization stores expects organization to be
+	// set on the context.
+	ctx = context.WithValue(ctx, organizations.ContextKey, org)
+
+	sourcesStore := organizations.NewSourcesStore(s.client.SourcesStore, org)
+	sources, err := sourcesStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, source := range sources {
+		if err := sourcesStore.Delete(ctx, source); err != nil {
+			return err
+		}
+	}
+
+	serversStore := organizations.NewServersStore(s.client.ServersStore, org)
+	servers, err := serversStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, server := range servers {
+		if err := serversStore.Delete(ctx, server); err != nil {
+			return err
+		}
+	}
+
+	layoutsStore := organizations.NewLayoutsStore(s.client.LayoutsStore, org)
+	layouts, err := layoutsStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, layout := range layouts {
+		if err := layoutsStore.Delete(ctx, layout); err != nil {
+			return err
+		}
+	}
+
+	dashboardsStore := organizations.NewDashboardsStore(s.client.DashboardsStore, org)
+	dashboards, err := dashboardsStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, dashboard := range dashboards {
+		if err := dashboardsStore.Delete(ctx, dashboard); err != nil {
+			return err
+		}
+	}
+
+	usersStore := organizations.NewUsersStore(s.client.UsersStore, org)
+	users, err := usersStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, user := range users {
+		if err := usersStore.Delete(ctx, &user); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *OrganizationsStore) get(ctx context.Context, id uint64) (*chronograf.Organization, error) {
