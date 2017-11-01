@@ -1027,9 +1027,11 @@ var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceed
 
 type seriesIterator struct {
 	keys [][]byte
+	elem series
 }
 
 type series struct {
+	tsdb.SeriesElem
 	name    []byte
 	tags    models.Tags
 	deleted bool
@@ -1044,8 +1046,10 @@ func (itr *seriesIterator) Next() tsdb.SeriesElem {
 	if len(itr.keys) == 0 {
 		return nil
 	}
+
 	name, tags := models.ParseKeyBytes(itr.keys[0])
-	s := series{name: name, tags: tags}
+	itr.elem.name = name
+	itr.elem.tags = tags
 	itr.keys = itr.keys[1:]
-	return s
+	return &itr.elem
 }

@@ -44,10 +44,11 @@ type Tombstoner struct {
 
 	// These are references used for pending writes that have not been committed.  If
 	// these are nil, then no pending writes are in progress.
-	gz          *gzip.Writer
-	bw          *bufio.Writer
-	pendingFile *os.File
-	tmp         [8]byte
+	gz                *gzip.Writer
+	bw                *bufio.Writer
+	pendingFile       *os.File
+	tmp               [8]byte
+	lastAppliedOffset int64
 }
 
 // Tombstone represents an individual deletion.
@@ -153,6 +154,8 @@ func (t *Tombstoner) Delete() error {
 		return err
 	}
 	t.statsLoaded = false
+	t.lastAppliedOffset = 0
+
 	return nil
 }
 
@@ -202,6 +205,9 @@ func (t *Tombstoner) TombstoneFiles() []FileStat {
 
 // Walk calls fn for every Tombstone under the Tombstoner.
 func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	f, err := os.Open(t.tombstonePath())
 	if os.IsNotExist(err) {
 		return nil
@@ -569,10 +575,15 @@ func (t *Tombstoner) readTombstoneV3(f *os.File, fn func(t Tombstone) error) err
 // of storing multiple v3 files appended together.
 func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) error {
 	// Skip header, already checked earlier
-	if _, err := f.Seek(headerSize, io.SeekStart); err != nil {
-		return err
+	if t.lastAppliedOffset != 0 {
+		if _, err := f.Seek(t.lastAppliedOffset, io.SeekStart); err != nil {
+			return err
+		}
+	} else {
+		if _, err := f.Seek(headerSize, io.SeekStart); err != nil {
+			return err
+		}
 	}
-
 	var (
 		min, max int64
 		key      []byte
@@ -580,7 +591,9 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 
 	br := bufio.NewReaderSize(f, 64*1024)
 	gr, err := gzip.NewReader(br)
-	if err != nil {
+	if err == io.EOF {
+		return nil
+	} else if err != nil {
 		return err
 	}
 	defer gr.Close()
@@ -640,9 +653,18 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 
 		err = gr.Reset(br)
 		if err == io.EOF {
-			return nil
+			break
 		}
 	}
+
+	// Save the position of tombstone file so we don't re-apply the same set again if there are
+	// more deletes.
+	pos, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+	t.lastAppliedOffset = pos
+	return nil
 }
 
 func (t *Tombstoner) tombstonePath() string {

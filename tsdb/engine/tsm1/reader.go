@@ -88,6 +88,9 @@ type TSMIndex interface {
 	// KeyCount returns the count of unique keys in the index.
 	KeyCount() int
 
+	// Seek returns the position in the index where key <= value in the index.
+	Seek(key []byte) int
+
 	// OverlapsTimeRange returns true if the time range of the file intersect min and max.
 	OverlapsTimeRange(min, max int64) bool
 
@@ -313,6 +316,10 @@ func (t *TSMReader) KeyAt(idx int) ([]byte, byte) {
 	return t.index.KeyAt(idx)
 }
 
+func (t *TSMReader) Seek(key []byte) int {
+	return t.index.Seek(key)
+}
+
 // ReadAt returns the values corresponding to the given index entry.
 func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	t.mu.RLock()
@@ -501,6 +508,11 @@ func (t *TSMReader) Delete(keys [][]byte) error {
 // OverlapsTimeRange returns true if the time range of the file intersect min and max.
 func (t *TSMReader) OverlapsTimeRange(min, max int64) bool {
 	return t.index.OverlapsTimeRange(min, max)
+}
+
+// OverlapsKeyRange returns true if the key range of the file intersect min and max.
+func (t *TSMReader) OverlapsKeyRange(min, max []byte) bool {
+	return t.index.OverlapsKeyRange(min, max)
 }
 
 // TimeRange returns the min and max time across all keys in the file.
@@ -788,6 +800,12 @@ func (d *indirectIndex) offset(i int) int {
 	return int(binary.BigEndian.Uint32(d.offsets[i*4 : i*4+4]))
 }
 
+func (d *indirectIndex) Seek(key []byte) int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.searchOffset(key)
+}
+
 // searchOffset searches the offsets slice for key and returns the position in
 // offsets where key would exist.
 func (d *indirectIndex) searchOffset(key []byte) int {
@@ -966,10 +984,6 @@ func (d *indirectIndex) KeyCount() int {
 
 // Delete removes the given keys from the index.
 func (d *indirectIndex) Delete(keys [][]byte) {
-	for len(keys) > 0 && !d.ContainsKey(keys[0]) {
-		keys = keys[1:]
-	}
-
 	if len(keys) == 0 {
 		return
 	}
@@ -981,11 +995,8 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 	// Both keys and offsets are sorted.  Walk both in order and skip
 	// any keys that exist in both.
 	d.mu.Lock()
-	for i := 0; i+4 <= len(d.offsets); i += 4 {
-		for len(keys) > 0 && !d.ContainsKey(keys[0]) {
-			keys = keys[1:]
-		}
-
+	start := d.searchOffset(keys[0])
+	for i := start * 4; i+4 <= len(d.offsets) && len(keys) > 0; i += 4 {
 		offset := binary.BigEndian.Uint32(d.offsets[i : i+4])
 		_, indexKey := readKey(d.b[offset:])
 
@@ -996,7 +1007,6 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 		if len(keys) > 0 && bytes.Equal(keys[0], indexKey) {
 			keys = keys[1:]
 			copy(d.offsets[i:i+4], nilOffset[:])
-			continue
 		}
 	}
 	d.offsets = bytesutil.Pack(d.offsets, 4, 255)

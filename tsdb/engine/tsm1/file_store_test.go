@@ -1,7 +1,6 @@
 package tsm1_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -9,11 +8,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
@@ -2541,7 +2540,7 @@ func TestFileStore_Delete(t *testing.T) {
 	}
 }
 
-func TestFileStore_DeleteRangeWith(t *testing.T) {
+func TestFileStore_Apply(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	fs := tsm1.NewFileStore(dir)
@@ -2565,25 +2564,16 @@ func TestFileStore_DeleteRangeWith(t *testing.T) {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if err := fs.DeleteRangeWith(func(name []byte, tags models.Tags) bool {
-		if !bytes.Equal([]byte("cpu"), name) {
-			return false
-		}
-
-		hostTag := tags.Get([]byte("host"))
-		return bytes.Equal(hostTag, []byte("server1")) || bytes.Equal(hostTag, []byte("server2"))
-
-	}, 0, 1); err != nil {
-		fatal(t, "deleting", err)
+	var n int64
+	if err := fs.Apply(func(r tsm1.TSMFile) error {
+		atomic.AddInt64(&n, 1)
+		return nil
+	}); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
 	}
 
-	keys = fs.Keys()
-	if got, exp := len(keys), 1; got != exp {
-		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if _, ok := keys["mem,host=server1#!~#value"]; !ok {
-		t.Fatalf("key missing: %v", "mem,host=server1#!~#value")
+	if got, exp := n, int64(3); got != exp {
+		t.Fatalf("apply mismatch: got %v, exp %v", got, exp)
 	}
 }
 
