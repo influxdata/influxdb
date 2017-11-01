@@ -20,6 +20,7 @@ type OrganizationsStore struct {
 	client *Client
 }
 
+// Migrate sets the default organization at runtime
 func (s *OrganizationsStore) Migrate(ctx context.Context) error {
 	o := chronograf.Organization{
 		ID:   0,
@@ -27,6 +28,10 @@ func (s *OrganizationsStore) Migrate(ctx context.Context) error {
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
+		v := b.Get(u64tob(o.ID))
+		if v != nil {
+			return nil
+		}
 		if v, err := internal.MarshalOrganization(&o); err != nil {
 			return err
 		} else if err := b.Put(u64tob(o.ID), v); err != nil {
