@@ -28,6 +28,8 @@ func hasOrganizationContext(ctx context.Context) (string, bool) {
 
 type superAdminKey string
 
+// SuperAdminKey is the context key for retrieving is the context
+// is for a super admin
 const SuperAdminKey = superAdminKey("superadmin")
 
 // hasSuperAdminContext speficies if the context contains
@@ -45,7 +47,7 @@ func hasSuperAdminContext(ctx context.Context) bool {
 	return sa
 }
 
-// DataSource is collection of resources that are used by the Service
+// DataStore is collection of resources that are used by the Service
 // Abstracting this into an interface was useful for isolated testing
 type DataStore interface {
 	Sources(ctx context.Context) chronograf.SourcesStore
@@ -126,7 +128,7 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	return &noop.DashboardsStore{}
 }
 
-// DashboardsStore returns the underlying OrganizationsStore.
+// Organizations returns the underlying OrganizationsStore.
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {
 	return s.OrganizationsStore
 }

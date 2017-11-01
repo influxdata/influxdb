@@ -130,6 +130,7 @@ func (s *Service) OrganizationID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
+// UpdateOrganization updates an organization in the organizations store
 func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 	var req organizationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -171,6 +172,8 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 
 }
+
+// RemoveOrganization removes an organization in the organizations store
 func (s *Service) RemoveOrganization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	idStr := httprouter.GetParamFromContext(ctx, "id")
