@@ -21,7 +21,7 @@ class AdminChronografPage extends Component {
 
     this.state = {
       // TODO: pass around organization object instead of just name
-      organizationName: DEFAULT_ORG,
+      organizationName: DEFAULT_ORG, // // TODO: make sure that we take org from server if not superadmin
       selectedUsers: [],
       filteredUsers: this.props.users,
       showCreateOverlay: false,

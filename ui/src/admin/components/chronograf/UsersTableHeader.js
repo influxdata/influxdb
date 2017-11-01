@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 import Dropdown from 'shared/components/Dropdown'
 
 class UsersTableHeader extends Component {
@@ -12,19 +14,28 @@ class UsersTableHeader extends Component {
 
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-        <div className="u-flex u-ai-center">
-          <p className="dropdown-label">Filter Users</p>
-          <Dropdown
-            items={organizations.map(org => ({
-              ...org,
-              text: org.name,
-            }))}
-            selected={organizationName}
-            onChoose={onFilterUsers}
-            buttonSize="btn-md"
-            className="dropdown-220"
-          />
-        </div>
+        <Authorized
+          requiredRole={SUPERADMIN_ROLE}
+          replaceWith={
+            <h2 className="panel-title">
+              {organizationName} Users
+            </h2>
+          }
+        >
+          <div className="u-flex u-ai-center">
+            <p className="dropdown-label">Filter Users</p>
+            <Dropdown
+              items={organizations.map(org => ({
+                ...org,
+                text: org.name,
+              }))}
+              selected={organizationName}
+              onChoose={onFilterUsers}
+              buttonSize="btn-md"
+              className="dropdown-220"
+            />
+          </div>
+        </Authorized>
       </div>
     )
   }

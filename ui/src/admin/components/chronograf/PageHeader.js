@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 const PageHeader = ({onShowCreateOrgOverlay}) =>
   <div className="page-header">
@@ -10,13 +11,15 @@ const PageHeader = ({onShowCreateOrgOverlay}) =>
       </div>
       <div className="page-header__right">
         <SourceIndicator />
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={onShowCreateOrgOverlay}
-        >
-          <span className="icon plus" />
-          Create Organization
-        </button>
+        <Authorized requiredRole={SUPERADMIN_ROLE}>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={onShowCreateOrgOverlay}
+          >
+            <span className="icon plus" />
+            Create Organization
+          </button>
+        </Authorized>
       </div>
     </div>
   </div>
