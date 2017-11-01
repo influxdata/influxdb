@@ -134,16 +134,6 @@ class AdminChronografPage extends Component {
                             className="dropdown-220"
                           />
                         </div>
-                        <div className="users__search-widget input-group">
-                          <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Filter Users..."
-                          />
-                          <div className="input-group-addon">
-                            <span className="icon search" />
-                          </div>
-                        </div>
                       </div>
                       <BatchActionsBar
                         numUsersSelected={numUsersSelected}
