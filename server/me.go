@@ -38,30 +38,6 @@ func newMeResponse(usr *chronograf.User) meResponse {
 	}
 }
 
-// getUsername not currently used
-func getUsername(ctx context.Context) (string, error) {
-	principal, err := getPrincipal(ctx)
-	if err != nil {
-		return "", err
-	}
-	if principal.Subject == "" {
-		return "", fmt.Errorf("Token not found")
-	}
-	return principal.Subject, nil
-}
-
-// getProvider not currently used
-func getProvider(ctx context.Context) (string, error) {
-	principal, err := getPrincipal(ctx)
-	if err != nil {
-		return "", err
-	}
-	if principal.Issuer == "" {
-		return "", fmt.Errorf("Token not found")
-	}
-	return principal.Issuer, nil
-}
-
 // TODO: This Scheme value is hard-coded temporarily since we only currently
 // support OAuth2. This hard-coding should be removed whenever we add
 // support for other authentication schemes.
