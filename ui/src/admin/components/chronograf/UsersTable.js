@@ -3,7 +3,9 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
+import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
 
+import {DEFAULT_ORG} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 class ChronografUsersTable extends Component {
@@ -60,17 +62,27 @@ class ChronografUsersTable extends Component {
           </tr>
         </thead>
         <tbody>
-          {filteredUsers.map((user, i) =>
-            <UsersTableRow
-              user={user}
-              key={i}
-              onToggleUserSelected={onToggleUserSelected}
-              selectedUsers={selectedUsers}
-              isSameUser={isSameUser}
-              organizationName={organizationName}
-              onChangeUserRole={this.handleChangeUserRole}
-              onChooseFilter={this.handleChooseFilter}
-            />
+          {filteredUsers.map(
+            (user, i) =>
+              organizationName === DEFAULT_ORG
+                ? <UsersTableRow
+                    user={user}
+                    key={i}
+                    onToggleUserSelected={onToggleUserSelected}
+                    selectedUsers={selectedUsers}
+                    isSameUser={isSameUser}
+                    onChangeUserRole={this.handleChangeUserRole}
+                    onChooseFilter={this.handleChooseFilter}
+                  />
+                : <OrgTableRow
+                    user={user}
+                    key={i}
+                    onToggleUserSelected={onToggleUserSelected}
+                    selectedUsers={selectedUsers}
+                    isSameUser={isSameUser}
+                    organizationName={organizationName}
+                    onChangeUserRole={this.handleChangeUserRole}
+                  />
           )}
         </tbody>
       </table>

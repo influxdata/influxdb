@@ -7,7 +7,6 @@ import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const UsersTableRow = ({
   user,
-  organizationName,
   onToggleUserSelected,
   selectedUsers,
   isSameUser,
@@ -36,15 +35,10 @@ const UsersTableRow = ({
       </td>
       <UsersTableOrgCell
         user={user}
-        organizationName={organizationName}
         onChangeUserRole={onChangeUserRole}
         onChooseFilter={onChooseFilter}
       />
-      <UsersTableRoleCell
-        user={user}
-        organizationName={organizationName}
-        onChangeUserRole={onChangeUserRole}
-      />
+      <UsersTableRoleCell user={user} onChangeUserRole={onChangeUserRole} />
       <td style={{width: colSuperAdmin}}>
         {user.superadmin ? 'Yes' : '--'}
       </td>
@@ -58,11 +52,10 @@ const UsersTableRow = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, func, shape} = PropTypes
 
 UsersTableRow.propTypes = {
   user: shape(),
-  organizationName: string.isRequired,
   onToggleUserSelected: func.isRequired,
   selectedUsers: arrayOf(shape()),
   isSameUser: func.isRequired,

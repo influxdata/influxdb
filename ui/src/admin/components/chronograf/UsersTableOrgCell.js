@@ -10,12 +10,7 @@ import {
 } from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-const UsersTableOrgCell = ({
-  user,
-  organizationName,
-  onChangeUserRole,
-  onChooseFilter,
-}) => {
+const UsersTableOrgCell = ({user, onChangeUserRole, onChooseFilter}) => {
   const {colOrg} = USERS_TABLE
 
   // Expects Users to always have at least 1 role (as a member of the default org)
@@ -39,44 +34,27 @@ const UsersTableOrgCell = ({
     )
   }
 
-  if (organizationName === DEFAULT_ORG) {
-    return (
-      <td style={{width: colOrg}}>
-        {user.roles
-          .filter(role => {
-            return !(role.organizationName === DEFAULT_ORG)
-          })
-          .map((role, i) =>
-            <span key={i} className="chronograf-user--org">
-              <a href="#" onClick={onChooseFilter(role.organizationName)}>
-                {role.organizationName}
-              </a>
-            </span>
-          )}
-      </td>
-    )
-  }
-
-  const currentOrg = user.roles.find(
-    role => role.organizationName === organizationName
-  )
-
   return (
     <td style={{width: colOrg}}>
-      <span className="chronograf-user--org">
-        <a href="#" onClick={onChooseFilter(currentOrg.organizationName)}>
-          {currentOrg.organizationName}
-        </a>
-      </span>
+      {user.roles
+        .filter(role => {
+          return !(role.organizationName === DEFAULT_ORG)
+        })
+        .map((role, i) =>
+          <span key={i} className="chronograf-user--org">
+            <a href="#" onClick={onChooseFilter(role.organizationName)}>
+              {role.organizationName}
+            </a>
+          </span>
+        )}
     </td>
   )
 }
 
-const {func, shape, string} = PropTypes
+const {func, shape} = PropTypes
 
 UsersTableOrgCell.propTypes = {
   user: shape(),
-  organizationName: string.isRequired,
   onChangeUserRole: func.isRequired,
   onChooseFilter: func.isRequired,
 }
