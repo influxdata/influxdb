@@ -1,10 +1,10 @@
 import React, {Component, PropTypes} from 'react'
 
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
+import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 import CreateOrgOverlay from 'src/admin/components/chronograf/CreateOrgOverlay'
-import Dropdown from 'shared/components/Dropdown'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -120,21 +120,11 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <div className="panel panel-minimal">
-                      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                        <div className="u-flex u-ai-center">
-                          <p className="dropdown-label">Filter Users</p>
-                          <Dropdown
-                            items={organizations.map(org => ({
-                              ...org,
-                              text: org.name,
-                            }))}
-                            selected={organizationName}
-                            onChoose={this.handleFilterUsers}
-                            buttonSize="btn-md"
-                            className="dropdown-220"
-                          />
-                        </div>
-                      </div>
+                      <UsersTableHeader
+                        organizationName={organizationName}
+                        organizations={organizations}
+                        onFilterUsers={this.handleFilterUsers}
+                      />
                       <BatchActionsBar
                         numUsersSelected={numUsersSelected}
                         organizationName={organizationName}
