@@ -195,6 +195,15 @@ pre.admin-table--query {
 .chronograf-user--role {
   text-transform: capitalize;
 }
+.chronograf-user--role,
+.chronograf-user--org,
+table.table.chronograf-admin-table .dropdown {
+  margin-bottom: 2px;
+
+  &:last-child {
+    margin: 0;
+  }
+}
 .user-checkbox {
   display: inline-block;
   vertical-align: middle;
