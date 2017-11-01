@@ -163,8 +163,6 @@ $dash-graph-options-arrow: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.dash-graph--name {
   position: relative;
   height: $dash-graph-heading;
   line-height: $dash-graph-heading;
@@ -172,6 +170,10 @@ $dash-graph-options-arrow: 8px;
   padding-left: 10px;
   transition: color 0.25s ease, background-color 0.25s ease,
     border-color 0.25s ease;
+
+  &:only-child {
+    width: 100%;
+  }
 }
 .dash-graph--name.dash-graph--name__default {
   font-style: italic;

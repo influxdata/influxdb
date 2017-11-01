@@ -2,6 +2,8 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 const DashboardsTable = ({
@@ -36,11 +38,13 @@ const DashboardsTable = ({
                     )
                   : <span className="empty-string">None</span>}
               </td>
-              <DeleteConfirmTableCell
-                onDelete={onDeleteDashboard}
-                item={dashboard}
-                buttonSize="btn-xs"
-              />
+              <Authorized requiredRole={EDITOR_ROLE} replaceWith={<td />}>
+                <DeleteConfirmTableCell
+                  onDelete={onDeleteDashboard}
+                  item={dashboard}
+                  buttonSize="btn-xs"
+                />
+              </Authorized>
             </tr>
           )}
         </tbody>
