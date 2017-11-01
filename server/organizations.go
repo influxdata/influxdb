@@ -10,6 +10,10 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+func parseOrganizationID(id string) (uint64, error) {
+	return strconv.ParseUint(id, 10, 64)
+}
+
 type organizationRequest struct {
 	Name string `json:"name"`
 }
@@ -110,7 +114,7 @@ func (s *Service) OrganizationID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	idStr := httprouter.GetParamFromContext(ctx, "id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := parseOrganizationID(idStr)
 	if err != nil {
 		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid organization id: %s", err.Error()), s.Logger)
 		return
@@ -140,7 +144,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	idStr := httprouter.GetParamFromContext(ctx, "id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := parseOrganizationID(idStr)
 	if err != nil {
 		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid organization id: %s", err.Error()), s.Logger)
 		return
@@ -170,7 +174,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 func (s *Service) RemoveOrganization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	idStr := httprouter.GetParamFromContext(ctx, "id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := parseOrganizationID(idStr)
 	if err != nil {
 		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid organization id: %s", err.Error()), s.Logger)
 		return

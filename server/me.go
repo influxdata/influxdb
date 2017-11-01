@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"golang.org/x/net/context"
 
@@ -116,7 +115,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 		}
 
 		// validate that the organization exists
-		orgID, err := strconv.ParseUint(req.Organization, 10, 64)
+		orgID, err := parseOrganizationID(req.Organization)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 			return

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
@@ -93,7 +92,7 @@ func AuthorizedUser(
 		}
 
 		// validate that the organization exists
-		orgID, err := strconv.ParseUint(p.Organization, 10, 64)
+		orgID, err := parseOrganizationID(p.Organization)
 		if err != nil {
 			log.Error("Failed to validate organization on context")
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
