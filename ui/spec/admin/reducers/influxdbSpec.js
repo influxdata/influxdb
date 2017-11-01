@@ -138,7 +138,7 @@ const db2 = {
   deleteCode: 'DELETE',
 }
 
-describe('Admin.Reducers', () => {
+describe('Admin.InfluxDB.Reducers', () => {
   describe('Databases', () => {
     const state = {databases: [db1, db2]}
 
