@@ -15,7 +15,7 @@ class RuleMessage extends Component {
     super(props)
 
     this.state = {
-      selectedAlertNodeName: null,
+      selectedAlertNode: null,
       endpointsOnThisAlert: [],
       endpointsOfKind: {},
     }
@@ -30,7 +30,7 @@ class RuleMessage extends Component {
     const {actions} = this.props
     actions.updateAlerts(item.ruleID, [item.text]) // TODO: this seems to be doing a lot more than it needs to.
     actions.updateAlertNodes(item.ruleID, item.text, '')
-    this.setState({selectedAlertNodeName: item.text})
+    this.setState({selectedAlertNode: {name: item.text, kind: item.kind}})
   }
 
   handleAddNewAlertEndpoint = selectedItem => {
@@ -56,7 +56,7 @@ class RuleMessage extends Component {
 
   render() {
     const {rule, actions, enabledAlerts} = this.props
-    const {endpointsOnThisAlert} = this.state
+    const {endpointsOnThisAlert, selectedAlertNode} = this.state
     const defaultAlertEndpoints = DEFAULT_ALERTS.map(text => {
       return {text, kind: text, ruleID: rule.id}
     })
@@ -68,7 +68,7 @@ class RuleMessage extends Component {
       }),
     ]
 
-    const selectedAlertNodeName = rule.alerts[0] || alerts[0].text
+    // const selectedAlertNode = rule.alerts[0] || alerts[0].text
 
     return (
       <div className="rule-section">
@@ -86,7 +86,9 @@ class RuleMessage extends Component {
                       <li
                         key={uuid.v4()}
                         className={classnames({
-                          active: alert.text === selectedAlertNodeName,
+                          active:
+                            alert.text ===
+                            (selectedAlertNode && selectedAlertNode.text),
                         })}
                         onClick={this.handleChooseAlert(alert)}
                       >
@@ -104,21 +106,27 @@ class RuleMessage extends Component {
               className="dropdown-140 rule-message--add-endpoint"
             />
           </div>
-          <RuleMessageOptions
-            rule={rule}
-            alertNodeName={selectedAlertNodeName}
-            updateAlertNodes={actions.updateAlertNodes}
-            updateDetails={actions.updateDetails}
-            updateAlertProperty={actions.updateAlertProperty}
-          />
-          <RuleMessageText
-            rule={rule}
-            updateMessage={this.handleChangeMessage}
-          />
-          <RuleMessageTemplates
-            rule={rule}
-            updateMessage={actions.updateMessage}
-          />
+          {selectedAlertNode
+            ? <div>
+                <RuleMessageOptions
+                  rule={rule}
+                  alertNode={selectedAlertNode}
+                  updateAlertNodes={actions.updateAlertNodes}
+                  updateDetails={actions.updateDetails}
+                  updateAlertProperty={actions.updateAlertProperty}
+                />
+                <RuleMessageText
+                  rule={rule}
+                  updateMessage={this.handleChangeMessage}
+                  alertNodeName={selectedAlertNode}
+                />
+                <RuleMessageTemplates
+                  rule={rule}
+                  updateMessage={actions.updateMessage}
+                  alertNodeName={selectedAlertNode}
+                />
+              </div>
+            : null}
         </div>
       </div>
     )
