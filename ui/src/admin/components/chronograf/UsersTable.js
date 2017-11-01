@@ -4,7 +4,13 @@ import _ from 'lodash'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {DEFAULT_ORG, NO_ORG, USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {
+  DUMMY_ORGS,
+  DEFAULT_ORG,
+  NO_ORG,
+  NO_ROLE,
+  USER_ROLES,
+} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 class ChronografUsersTable extends Component {
@@ -26,9 +32,19 @@ class ChronografUsersTable extends Component {
     // Expects Users to always have at least 1 role (as a member of the default org)
     if (user.roles.length === 1) {
       return (
-        <a href="#" onClick={this.handleChooseFilter(NO_ORG)}>
-          {NO_ORG}
-        </a>
+        <Dropdown
+          items={DUMMY_ORGS.filter(org => {
+            return !(org.name === DEFAULT_ORG || org.name === NO_ORG)
+          }).map(r => ({
+            ...r,
+            text: r.name,
+          }))}
+          selected={NO_ORG}
+          onChoose={this.handleChangeUserRole(user, NO_ROLE)}
+          buttonColor="btn-primary"
+          buttonSize="btn-xs"
+          className="dropdown-190"
+        />
       )
     }
 
@@ -67,9 +83,9 @@ class ChronografUsersTable extends Component {
   renderRoleCell = user => {
     const {organizationName} = this.props
 
-    // Expects Users to always have at least 1 role (as a member of the default org)
+    // User must be part of more than one organization to be able to be assigned a role
     if (user.roles.length === 1) {
-      return <span className="chronograf-user--role">No Role</span>
+      return <span className="chronograf-user--role">N/A</span>
     }
 
     if (organizationName === DEFAULT_ORG) {
@@ -87,17 +103,28 @@ class ChronografUsersTable extends Component {
             selected={role.name}
             onChoose={this.handleChangeUserRole(user, role)}
             buttonColor="btn-primary"
-            className="dropdown-140"
+            buttonSize="btn-xs"
+            className="dropdown-80"
           />
         )
     }
 
-    const currentOrg = user.roles.find(
+    const currentRole = user.roles.find(
       role => role.organizationName === organizationName
     )
     return (
       <span className="chronograf-user--role">
-        {currentOrg.name}
+        <Dropdown
+          items={USER_ROLES.map(r => ({
+            ...r,
+            text: r.name,
+          }))}
+          selected={currentRole.name}
+          onChoose={this.handleChangeUserRole(user, currentRole)}
+          buttonColor="btn-primary"
+          buttonSize="btn-xs"
+          className="dropdown-80"
+        />
       </span>
     )
   }
