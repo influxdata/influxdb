@@ -7197,6 +7197,48 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01,region=useast"],["cpu,host=server02,region=useast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			name:    `show series with time`,
+			command: "SHOW SERIES WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01"],["cpu,host=server01,region=useast"],["cpu,host=server01,region=uswest"],["cpu,host=server02,region=useast"],["disk,host=server03,region=caeast"],["gpu,host=server02,region=useast"],["gpu,host=server03,region=caeast"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series from measurement with time`,
+			command: "SHOW SERIES FROM cpu WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01"],["cpu,host=server01,region=useast"],["cpu,host=server01,region=uswest"],["cpu,host=server02,region=useast"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series from regular expression with time`,
+			command: "SHOW SERIES FROM /[cg]pu/ WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01"],["cpu,host=server01,region=useast"],["cpu,host=server01,region=uswest"],["cpu,host=server02,region=useast"],["gpu,host=server02,region=useast"],["gpu,host=server03,region=caeast"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series with where tag with time`,
+			command: "SHOW SERIES WHERE region = 'uswest' AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01,region=uswest"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series where tag matches regular expression with time`,
+			command: "SHOW SERIES WHERE region =~ /ca.*/ AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["disk,host=server03,region=caeast"],["gpu,host=server03,region=caeast"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series with != regex and time`,
+			command: "SHOW SERIES WHERE host !~ /server0[12]/ AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["disk,host=server03,region=caeast"],["gpu,host=server03,region=caeast"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series with from and where with time`,
+			command: "SHOW SERIES FROM cpu WHERE region = 'useast' AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01,region=useast"],["cpu,host=server02,region=useast"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	for i, query := range test.queries {
@@ -7527,6 +7569,42 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			name:    `show measurements with limit 2 and time`,
+			command: "SHOW MEASUREMENTS WHERE time > 0 LIMIT 2",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements using WITH and time`,
+			command: "SHOW MEASUREMENTS WITH MEASUREMENT = cpu WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements using WITH and regex and time`,
+			command: "SHOW MEASUREMENTS WITH MEASUREMENT =~ /[cg]pu/ WHERE time > 0 ",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements using WITH and regex and time - no matches`,
+			command: "SHOW MEASUREMENTS WITH MEASUREMENT =~ /.*zzzzz.*/ WHERE time > 0 ",
+			exp:     `{"results":[{"statement_id":0}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements and time where tag matches regular expression `,
+			command: "SHOW MEASUREMENTS WHERE region =~ /ca.*/ AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["gpu"],["other"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements and time where tag does not match a regular expression`,
+			command: "SHOW MEASUREMENTS WHERE region !~ /ca.*/ AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	for i, query := range test.queries {
@@ -7796,6 +7874,41 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 		&Query{
 			name:    "show tag keys measurement not found",
 			command: "SHOW TAG KEYS FROM doesntexist",
+			exp:     `{"results":[{"statement_id":0}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag keys with time`,
+			command: "SHOW TAG KEYS WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"disk","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag keys on db0 with time`,
+			command: "SHOW TAG KEYS ON db0 WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"disk","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		&Query{
+			name:    "show tag keys with time from",
+			command: "SHOW TAG KEYS FROM cpu WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag keys with time from regex",
+			command: "SHOW TAG KEYS FROM /[cg]pu/ WHERE time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag keys with time where",
+			command: "SHOW TAG KEYS WHERE host = 'server03' AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag keys with time measurement not found",
+			command: "SHOW TAG KEYS FROM doesntexist WHERE time > 0",
 			exp:     `{"results":[{"statement_id":0}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
