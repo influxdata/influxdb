@@ -224,7 +224,7 @@ func TestService_MeOrganizations(t *testing.T) {
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 				orgRequest: &meOrganizationRequest{
-					OrganizationID: "1337",
+					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
 			},
@@ -275,7 +275,7 @@ func TestService_MeOrganizations(t *testing.T) {
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 				orgRequest: &meOrganizationRequest{
-					OrganizationID: "1337",
+					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
 			},
@@ -327,7 +327,7 @@ func TestService_MeOrganizations(t *testing.T) {
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 				orgRequest: &meOrganizationRequest{
-					OrganizationID: "1337",
+					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
 			},
@@ -369,7 +369,7 @@ func TestService_MeOrganizations(t *testing.T) {
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 				orgRequest: &meOrganizationRequest{
-					OrganizationID: "1337",
+					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
 			},

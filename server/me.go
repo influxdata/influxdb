@@ -94,7 +94,8 @@ func getValidPrincipal(ctx context.Context) (oauth2.Principal, error) {
 }
 
 type meOrganizationRequest struct {
-	OrganizationID string `json:"currentOrganization"`
+	// Organization is the OrganizationID
+	Organization string `json:"organization"`
 }
 
 // MeOrganization changes the user's current organization on the JWT and responds
@@ -115,7 +116,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 		}
 
 		// validate that the organization exists
-		orgID, err := strconv.ParseUint(req.OrganizationID, 10, 64)
+		orgID, err := strconv.ParseUint(req.Organization, 10, 64)
 		if err != nil {
 			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 			return
@@ -137,7 +138,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			return
 		}
 		// validate that user belongs to organization
-		ctx = context.WithValue(ctx, organizations.ContextKey, req.OrganizationID)
+		ctx = context.WithValue(ctx, organizations.ContextKey, req.Organization)
 		_, err = s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
 			Name:     &p.Subject,
 			Provider: &p.Issuer,
@@ -153,7 +154,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 		}
 
 		// TODO: change to principal.CurrentOrganization
-		principal.Organization = req.OrganizationID
+		principal.Organization = req.Organization
 
 		if err := auth.Authorize(ctx, w, principal); err != nil {
 			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
