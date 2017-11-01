@@ -183,7 +183,7 @@ class ChronografUsersTable extends Component {
     const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
 
     return (
-      <table className="table table-highlight chronograf-admin-table">
+      <table className="table table-highlight v-center chronograf-admin-table">
         <thead>
           <tr>
             <th className="chronograf-admin-table--check-col">
