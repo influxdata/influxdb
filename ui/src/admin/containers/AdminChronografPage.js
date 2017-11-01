@@ -3,6 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
+import CreateOrgOverlay from 'src/admin/components/chronograf/CreateOrgOverlay'
 import Dropdown from 'shared/components/Dropdown'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -23,6 +24,7 @@ class AdminChronografPage extends Component {
       organizationName: DEFAULT_ORG,
       selectedUsers: [],
       filteredUsers: this.props.users,
+      showCreateOverlay: false,
     }
   }
 
@@ -88,9 +90,26 @@ class AdminChronografPage extends Component {
     console.log(user, currentRole, newRole)
   }
 
+  handleShowCreateOrgOverlay = () => {
+    this.setState({showCreateOverlay: true})
+  }
+
+  handleHideCreateOrgOverlay = () => {
+    this.setState({showCreateOverlay: false})
+  }
+
+  handleCreateOrganization = orgName => {
+    console.log(orgName)
+  }
+
   render() {
     const {users, organizations} = this.props
-    const {organizationName, selectedUsers, filteredUsers} = this.state
+    const {
+      organizationName,
+      selectedUsers,
+      filteredUsers,
+      showCreateOverlay,
+    } = this.state
     const numUsersSelected = Object.keys(selectedUsers).length
     return (
       <div className="page">
@@ -101,7 +120,10 @@ class AdminChronografPage extends Component {
             </div>
             <div className="page-header__right">
               <SourceIndicator />
-              <button className="btn btn-primary btn-sm">
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={this.handleShowCreateOrgOverlay}
+              >
                 <span className="icon plus" />
                 Create Organization
               </button>
@@ -168,6 +190,12 @@ class AdminChronografPage extends Component {
               </div>
             : <div className="page-spinner" />}
         </FancyScrollbar>
+        {showCreateOverlay
+          ? <CreateOrgOverlay
+              onDismiss={this.handleHideCreateOrgOverlay}
+              onCreateOrg={this.handleCreateOrganization}
+            />
+          : null}
       </div>
     )
   }
