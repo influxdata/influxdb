@@ -126,7 +126,7 @@ const SideNav = React.createClass({
           <Authorized requiredRole={ADMIN_ROLE}>
             <NavBlock
               icon="crown2"
-              link={`${sourcePrefix}/admin`}
+              link={`${sourcePrefix}/admin-chronograf`}
               location={location}
             >
               <NavHeader
