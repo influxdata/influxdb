@@ -85,7 +85,7 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 
 	sg := tsdb.Shards(shards)
 	var itr query.Iterator
-	if itr, err = sg.CreateIterator(ctx, "_series", opt); itr != nil && err == nil {
+	if itr, err = sg.CreateIterator(ctx, &influxql.Measurement{SystemIterator: "_series"}, opt); itr != nil && err == nil {
 		// TODO(sgc): need to rethink how we enumerate series across shards; dedupe is inefficient
 		itr = query.NewDedupeIterator(itr)
 
@@ -94,7 +94,7 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 			goto CLEANUP
 		}
 
-		if itr, err = sg.CreateIterator(ctx, "_fieldKeys", opt); itr != nil && err == nil {
+		if itr, err = sg.CreateIterator(ctx, &influxql.Measurement{SystemIterator: "_fieldKeys"}, opt); itr != nil && err == nil {
 			var fitr query.FloatIterator
 			if fitr, err = toFloatIterator(itr); err != nil {
 				goto CLEANUP

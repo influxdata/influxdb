@@ -123,12 +123,12 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 	c.HasTarget = stmt.Target != nil
 
 	valuer := influxql.NowValuer{Now: c.Options.Now, Location: stmt.Location}
-	if cond, t, err := influxql.ConditionExpr(stmt.Condition, &valuer); err != nil {
+	cond, t, err := influxql.ConditionExpr(stmt.Condition, &valuer)
+	if err != nil {
 		return err
-	} else {
-		c.Condition = cond
-		c.TimeRange = t
 	}
+	c.Condition = cond
+	c.TimeRange = t
 
 	// Read the dimensions of the query, validate them, and retrieve the interval
 	// if it exists.

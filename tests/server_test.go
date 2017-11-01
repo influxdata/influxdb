@@ -7524,7 +7524,7 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		&Query{
 			name:    `show measurements where tag does not match a regular expression`,
 			command: "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

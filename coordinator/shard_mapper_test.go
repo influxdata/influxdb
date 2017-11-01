@@ -41,9 +41,9 @@ func TestLocalShardMapper(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error) {
-			if measurement != "cpu" {
-				t.Errorf("unexpected measurement: %s", measurement)
+		sh.CreateIteratorFn = func(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+			if measurement.Name != "cpu" {
+				t.Errorf("unexpected measurement: %s", measurement.Name)
 			}
 			return &FloatIterator{}, nil
 		}

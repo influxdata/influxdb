@@ -51,7 +51,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(ctx context.Context, m string, opt query.IteratorOptions) (query.Iterator, error) {
+		sh.CreateIteratorFn = func(_ context.Context, _ *influxql.Measurement, _ query.IteratorOptions) (query.Iterator, error) {
 			return &FloatIterator{Points: []query.FloatPoint{
 				{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}},
 				{Name: "cpu", Time: int64(1 * time.Second), Aux: []interface{}{float64(200)}},
@@ -104,7 +104,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(ctx context.Context, m string, opt query.IteratorOptions) (query.Iterator, error) {
+		sh.CreateIteratorFn = func(_ context.Context, _ *influxql.Measurement, _ query.IteratorOptions) (query.Iterator, error) {
 			return &FloatIterator{
 				Points: []query.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
 			}, nil
@@ -395,7 +395,7 @@ func (s *TSDBStore) SeriesCardinality(database string) (int64, error) {
 type MockShard struct {
 	Measurements      []string
 	FieldDimensionsFn func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	CreateIteratorFn  func(ctx context.Context, m string, opt query.IteratorOptions) (query.Iterator, error)
+	CreateIteratorFn  func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
 	IteratorCostFn    func(m string, opt query.IteratorOptions) (query.IteratorCost, error)
 	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
 }
@@ -428,7 +428,7 @@ func (sh *MockShard) MapType(measurement, field string) influxql.DataType {
 	return influxql.Unknown
 }
 
-func (sh *MockShard) CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error) {
+func (sh *MockShard) CreateIterator(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	return sh.CreateIteratorFn(ctx, measurement, opt)
 }
 

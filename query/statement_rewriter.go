@@ -95,6 +95,14 @@ func rewriteShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement) 
 		sources = influxql.Sources{stmt.Source}
 	}
 
+	// Check if we can exclusively use the index via the ShowMeasurementsStatement.
+	if !influxql.HasTimeExpr(stmt.Condition) {
+		stmt.Condition = rewriteSourcesCondition(sources, stmt.Condition)
+		return stmt, nil
+	}
+
+	// The query is bounded by time then it will have to query TSM data rather
+	// than utilising the index via system iterators.
 	return &influxql.SelectStatement{
 		Fields: []*influxql.Field{
 			{Expr: &influxql.VarRef{Val: "_name"}, Alias: "name"},
@@ -158,11 +166,7 @@ func rewriteShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCa
 }
 
 func rewriteShowSeriesStatement(stmt *influxql.ShowSeriesStatement) (influxql.Statement, error) {
-	return &influxql.SelectStatement{
-		Fields: []*influxql.Field{
-			{Expr: &influxql.VarRef{Val: "_seriesKey"}, Alias: "key"},
-		},
-		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
+	s := &influxql.SelectStatement{
 		Condition:  stmt.Condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -171,7 +175,22 @@ func rewriteShowSeriesStatement(stmt *influxql.ShowSeriesStatement) (influxql.St
 		StripName:  true,
 		Dedupe:     true,
 		IsRawQuery: true,
-	}, nil
+	}
+	// Check if we can exclusively use the index.
+	if !HasTimeExpr(stmt.Condition) {
+		s.Fields = []*Field{{Expr: &VarRef{Val: "key"}}}
+		s.Sources = rewriteSources(stmt.Sources, "_series", stmt.Database)
+		s.Condition = rewriteSourcesCondition(s.Sources, s.Condition)
+		return s, nil
+	}
+
+	// The query is bounded by time then it will have to query TSM data rather
+	// than utilising the index via system iterators.
+	s.Fields = []*Field{
+		{Expr: &VarRef{Val: "_seriesKey"}, Alias: "key"},
+	}
+	s.Sources = rewriteSources2(stmt.Sources, stmt.Database)
+	return s, nil
 }
 
 func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityStatement) (influxql.Statement, error) {
@@ -336,17 +355,7 @@ func rewriteShowTagValuesCardinalityStatement(stmt *influxql.ShowTagValuesCardin
 }
 
 func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.Statement, error) {
-	return &influxql.SelectStatement{
-		Fields: []*influxql.Field{
-			{
-				Expr: &influxql.Call{
-					Name: "distinct",
-					Args: []influxql.Expr{&influxql.VarRef{Val: "_tagKey"}},
-				},
-				Alias: "tagKey",
-			},
-		},
-		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
+	s := &influxql.SelectStatement{
 		Condition:  stmt.Condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -354,7 +363,29 @@ func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.
 		OmitTime:   true,
 		Dedupe:     true,
 		IsRawQuery: true,
-	}, nil
+	}
+
+	// Check if we can exclusively use the index.
+	if !HasTimeExpr(stmt.Condition) {
+		s.Fields = []*Field{{Expr: &VarRef{Val: "tagKey"}}}
+		s.Sources = rewriteSources(stmt.Sources, "_tagKeys", stmt.Database)
+		s.Condition = rewriteSourcesCondition(s.Sources, stmt.Condition)
+		return s, nil
+	}
+
+	// The query is bounded by time then it will have to query TSM data rather
+	// than utilising the index via system iterators.
+	s.Fields = []*Field{
+		{
+			Expr: &Call{
+				Name: "distinct",
+				Args: []Expr{&VarRef{Val: "_tagKey"}},
+			},
+			Alias: "tagKey",
+		},
+	}
+	s.Sources = rewriteSources2(stmt.Sources, stmt.Database)
+	return s, nil
 }
 
 func rewriteShowTagKeyCardinalityStatement(stmt *influxql.ShowTagKeyCardinalityStatement) (influxql.Statement, error) {
@@ -394,8 +425,10 @@ func rewriteShowTagKeyCardinalityStatement(stmt *influxql.ShowTagKeyCardinalityS
 	}, nil
 }
 
-// rewriteSources rewrites sources with previous database and retention policy
-func rewriteSources(sources influxql.Sources, measurementName, defaultDatabase string) influxql.Sources {
+// rewriteSources rewrites sources to include the provided system iterator.
+//
+// rewriteSources also sets the default database where necessary.
+func rewriteSources(sources influxql.Sources, systemIterator, defaultDatabase string) influxql.Sources {
 	newSources := influxql.Sources{}
 	for _, src := range sources {
 		if src == nil {
@@ -406,17 +439,16 @@ func rewriteSources(sources influxql.Sources, measurementName, defaultDatabase s
 		if database == "" {
 			database = defaultDatabase
 		}
-		newSources = append(newSources,
-			&influxql.Measurement{
-				Database:        database,
-				RetentionPolicy: mm.RetentionPolicy,
-				Name:            measurementName,
-			})
+
+		newM := mm.Clone()
+		newM.SystemIterator, newM.Database = systemIterator, database
+		newSources = append(newSources, newM)
 	}
+
 	if len(newSources) <= 0 {
 		return append(newSources, &influxql.Measurement{
-			Database: defaultDatabase,
-			Name:     measurementName,
+			Database:       defaultDatabase,
+			SystemIterator: systemIterator,
 		})
 	}
 	return newSources
@@ -461,12 +493,18 @@ func rewriteSourcesCondition(sources influxql.Sources, cond influxql.Expr) influ
 		}
 	}
 
-	if cond != nil {
+	// This is the case where the original query has a WHERE on a tag, and also
+	// is requesting from a specific source.
+	if cond != nil && scond != nil {
 		return &influxql.BinaryExpr{
 			Op:  influxql.AND,
 			LHS: &influxql.ParenExpr{Expr: scond},
 			RHS: &influxql.ParenExpr{Expr: cond},
 		}
+	} else if cond != nil {
+		// This is the case where the original query has a WHERE on a tag but
+		// is not requesting from a specific source.
+		return cond
 	}
 	return scond
 }

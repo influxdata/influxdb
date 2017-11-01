@@ -242,7 +242,6 @@ func buildAuxIterators(ctx context.Context, fields influxql.Fields, ic IteratorC
 			input = NewDedupeIterator(input)
 		}
 	}
-
 	// Apply limit & offset.
 	if opt.Limit > 0 || opt.Offset > 0 {
 		input = NewLimitIterator(input, opt)

@@ -52,7 +52,6 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 				Database:        s.Database,
 				RetentionPolicy: s.RetentionPolicy,
 			}
-
 			// Retrieve the list of shards for this database. This list of
 			// shards is always the same regardless of which measurement we are
 			// using.
@@ -153,6 +152,9 @@ func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influ
 
 	var typ influxql.DataType
 	for _, name := range names {
+		if m.SystemIterator != "" {
+			name = m.SystemIterator
+		}
 		t := sg.MapType(name, field)
 		if typ.LessThan(t) {
 			typ = t
@@ -184,8 +186,12 @@ func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Meas
 		measurements := sg.MeasurementsByRegex(m.Regex.Val)
 		inputs := make([]query.Iterator, 0, len(measurements))
 		if err := func() error {
+			// Create a Measurement for each returned matching measurement value
+			// from the regex.
 			for _, measurement := range measurements {
-				input, err := sg.CreateIterator(ctx, measurement, opt)
+				mm := m.Clone()
+				mm.Name = measurement // Set the name to this matching regex value.
+				input, err := sg.CreateIterator(ctx, mm, opt)
 				if err != nil {
 					return err
 				}
@@ -196,9 +202,10 @@ func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Meas
 			query.Iterators(inputs).Close()
 			return nil, err
 		}
+
 		return query.Iterators(inputs).Merge(opt)
 	}
-	return sg.CreateIterator(ctx, m.Name, opt)
+	return sg.CreateIterator(ctx, m, opt)
 }
 
 func (a *LocalShardMapping) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {

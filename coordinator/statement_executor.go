@@ -1198,7 +1198,7 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDatabase string) error {
 	// Targets (measurements in an INTO clause) can have blank names, which means it will be
 	// the same as the measurement name it came from in the FROM clause.
-	if !m.IsTarget && m.Name == "" && m.Regex == nil {
+	if !m.IsTarget && m.Name == "" && m.SystemIterator == "" && m.Regex == nil {
 		return errors.New("invalid measurement")
 	}
 
@@ -1225,7 +1225,6 @@ func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaul
 		}
 		m.RetentionPolicy = di.DefaultRetentionPolicy
 	}
-
 	return nil
 }
 
