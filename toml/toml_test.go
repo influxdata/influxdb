@@ -3,6 +3,7 @@ package toml_test
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -13,13 +14,10 @@ import (
 )
 
 func TestSize_UnmarshalText(t *testing.T) {
-	// Copy this from the toml package
-	maxInt := int64(^uint(0) >> 1)
-
 	var s itoml.Size
 	for _, test := range []struct {
 		str  string
-		want int64
+		want uint64
 	}{
 		{"1", 1},
 		{"10", 10},
@@ -38,7 +36,7 @@ func TestSize_UnmarshalText(t *testing.T) {
 		{"100M", 100 << 20},
 		{"1g", 1 << 30},
 		{"1G", 1 << 30},
-		{fmt.Sprint(maxInt - 1), maxInt - 1},
+		{fmt.Sprint(uint64(math.MaxUint64) - 1), math.MaxUint64 - 1},
 	} {
 		if err := s.UnmarshalText([]byte(test.str)); err != nil {
 			t.Fatalf("unexpected error: %s", err)
@@ -49,7 +47,7 @@ func TestSize_UnmarshalText(t *testing.T) {
 	}
 
 	for _, str := range []string{
-		fmt.Sprintf("%dk", maxInt-1),
+		fmt.Sprintf("%dk", uint64(math.MaxUint64-1)),
 		"10000000000000000000g",
 		"abcdef",
 		"1KB",

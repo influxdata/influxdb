@@ -32,7 +32,6 @@ wal-fsync-delay = "10s"
 	if got, exp := c.WALFsyncDelay, time.Duration(10*time.Second); time.Duration(got).Nanoseconds() != exp.Nanoseconds() {
 		t.Errorf("unexpected wal-fsync-delay:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
 	}
-
 }
 
 func TestConfig_Validate_Error(t *testing.T) {
@@ -66,5 +65,73 @@ func TestConfig_Validate_Error(t *testing.T) {
 	c.Index = "tsi1"
 	if err := c.Validate(); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestConfig_ByteSizes(t *testing.T) {
+	// Parse configuration.
+	c := tsdb.NewConfig()
+	if _, err := toml.Decode(`
+dir = "/var/lib/influxdb/data"
+wal-dir = "/var/lib/influxdb/wal"
+wal-fsync-delay = "10s"
+cache-max-memory-size = 5368709120
+cache-snapshot-memory-size = 104857600
+`, &c); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Validate(); err != nil {
+		t.Errorf("unexpected validate error: %s", err)
+	}
+
+	if got, exp := c.Dir, "/var/lib/influxdb/data"; got != exp {
+		t.Errorf("unexpected dir:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.WALDir, "/var/lib/influxdb/wal"; got != exp {
+		t.Errorf("unexpected wal-dir:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.WALFsyncDelay, time.Duration(10*time.Second); time.Duration(got).Nanoseconds() != exp.Nanoseconds() {
+		t.Errorf("unexpected wal-fsync-delay:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.CacheMaxMemorySize, uint64(5<<30); uint64(got) != exp {
+		t.Errorf("unexpected cache-max-memory-size:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.CacheSnapshotMemorySize, uint64(100<<20); uint64(got) != exp {
+		t.Errorf("unexpected cache-snapshot-memory-size:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+}
+
+func TestConfig_HumanReadableSizes(t *testing.T) {
+	// Parse configuration.
+	c := tsdb.NewConfig()
+	if _, err := toml.Decode(`
+dir = "/var/lib/influxdb/data"
+wal-dir = "/var/lib/influxdb/wal"
+wal-fsync-delay = "10s"
+cache-max-memory-size = "5g"
+cache-snapshot-memory-size = "100m"
+`, &c); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Validate(); err != nil {
+		t.Errorf("unexpected validate error: %s", err)
+	}
+
+	if got, exp := c.Dir, "/var/lib/influxdb/data"; got != exp {
+		t.Errorf("unexpected dir:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.WALDir, "/var/lib/influxdb/wal"; got != exp {
+		t.Errorf("unexpected wal-dir:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.WALFsyncDelay, time.Duration(10*time.Second); time.Duration(got).Nanoseconds() != exp.Nanoseconds() {
+		t.Errorf("unexpected wal-fsync-delay:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.CacheMaxMemorySize, uint64(5<<30); uint64(got) != exp {
+		t.Errorf("unexpected cache-max-memory-size:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.CacheSnapshotMemorySize, uint64(100<<20); uint64(got) != exp {
+		t.Errorf("unexpected cache-snapshot-memory-size:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
 	}
 }

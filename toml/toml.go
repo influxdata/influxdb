@@ -3,13 +3,11 @@ package toml // import "github.com/influxdata/influxdb/toml"
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 	"unicode"
 )
-
-// maxInt is the largest integer representable by a word (architecture dependent).
-const maxInt = int64(^uint(0) >> 1)
 
 // Duration is a TOML wrapper type for time.Duration.
 type Duration time.Duration
@@ -55,7 +53,7 @@ func (s *Size) UnmarshalText(text []byte) error {
 
 	// The multiplier defaults to 1 in case the size has
 	// no suffix (and is then just raw bytes)
-	mult := int64(1)
+	mult := uint64(1)
 
 	// Preserve the original text for error messages
 	sizeText := text
@@ -71,27 +69,22 @@ func (s *Size) UnmarshalText(text []byte) error {
 		case 'g', 'G':
 			mult = 1 << 30 // GiB
 		default:
-			return fmt.Errorf("unknown size suffix: %c", suffix)
+			return fmt.Errorf("unknown size suffix: %c (expected k, m, or g)", suffix)
 		}
 		sizeText = sizeText[:len(sizeText)-1]
 	}
 
 	// Parse numeric portion of value.
-	size, err := strconv.ParseInt(string(sizeText), 10, 64)
+	size, err := strconv.ParseUint(string(sizeText), 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid size: %s", string(text))
 	}
 
-	if maxInt/mult < size {
-		return fmt.Errorf("size would overflow the max size (%d) of an int: %s", maxInt, string(text))
+	if math.MaxUint64/mult < size {
+		return fmt.Errorf("size would overflow the max size (%d) of a uint: %s", uint64(math.MaxUint64), string(text))
 	}
 
 	size *= mult
-
-	// Check for overflow.
-	if size > maxInt {
-		return fmt.Errorf("size %d is too large", size)
-	}
 
 	*s = Size(size)
 	return nil
