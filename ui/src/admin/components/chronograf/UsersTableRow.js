@@ -14,7 +14,7 @@ const UsersTableRow = ({
   onChangeUserRole,
   onChooseFilter,
 }) => {
-  const {colOrg, colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
+  const {colSuperAdmin, colProvider, colScheme} = USERS_TABLE
 
   const isSelected = selectedUsers.find(u => isSameUser(user, u))
 
@@ -34,21 +34,17 @@ const UsersTableRow = ({
           {user.name}
         </strong>
       </td>
-      <td style={{width: colOrg}}>
-        <UsersTableOrgCell
-          user={user}
-          organizationName={organizationName}
-          onChangeUserRole={onChangeUserRole}
-          onChooseFilter={onChooseFilter}
-        />
-      </td>
-      <td style={{width: colRole}}>
-        <UsersTableRoleCell
-          user={user}
-          organizationName={organizationName}
-          onChangeUserRole={onChangeUserRole}
-        />
-      </td>
+      <UsersTableOrgCell
+        user={user}
+        organizationName={organizationName}
+        onChangeUserRole={onChangeUserRole}
+        onChooseFilter={onChooseFilter}
+      />
+      <UsersTableRoleCell
+        user={user}
+        organizationName={organizationName}
+        onChangeUserRole={onChangeUserRole}
+      />
       <td style={{width: colSuperAdmin}}>
         {user.superadmin ? 'Yes' : '--'}
       </td>
