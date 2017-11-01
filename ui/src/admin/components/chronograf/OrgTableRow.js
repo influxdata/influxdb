@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 import Dropdown from 'shared/components/Dropdown'
 
 import {
@@ -79,9 +81,11 @@ const OrgTableRow = ({
             : 'N/A'}
         </span>
       </td>
-      <td style={{width: colSuperAdmin}}>
-        {user.superadmin ? 'Yes' : '--'}
-      </td>
+      <Authorized requiredRole={SUPERADMIN_ROLE}>
+        <td style={{width: colSuperAdmin}}>
+          {user.superadmin ? 'Yes' : '--'}
+        </td>
+      </Authorized>
       <td style={{width: colProvider}}>
         {user.provider}
       </td>

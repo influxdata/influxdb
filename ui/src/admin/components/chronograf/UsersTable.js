@@ -2,6 +2,8 @@ import React, {Component, PropTypes} from 'react'
 
 import _ from 'lodash'
 
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
 
@@ -54,7 +56,9 @@ class ChronografUsersTable extends Component {
             <th>Username</th>
             <th style={{width: colOrg}}>Organization</th>
             <th style={{width: colRole}}>Role</th>
-            <th style={{width: colSuperAdmin}}>SuperAdmin</th>
+            <Authorized requiredRole={SUPERADMIN_ROLE}>
+              <th style={{width: colSuperAdmin}}>SuperAdmin</th>
+            </Authorized>
             <th style={{width: colProvider}}>Provider</th>
             <th className="text-right" style={{width: colScheme}}>
               Scheme
