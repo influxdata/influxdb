@@ -79,20 +79,10 @@ class AdminChronografPage extends Component {
     }
   }
 
-  handleBatchDeleteUsers = () => {
-    console.log('Delete Users')
-  }
-
-  handleBatchRemoveOrgFromUsers = arg => {
-    console.log(arg)
-  }
-
-  handleBatchAddOrgToUsers = arg => {
-    console.log(arg)
-  }
-  handleBatchChangeUsersRole = arg => {
-    console.log(arg)
-  }
+  handleBatchDeleteUsers = () => {}
+  handleBatchRemoveOrgFromUsers = () => {}
+  handleBatchAddOrgToUsers = () => {}
+  handleBatchChangeUsersRole = () => {}
 
   handleUpdateUserRole = () => (user, currentRole, newRole) => {
     console.log(user, currentRole, newRole)
