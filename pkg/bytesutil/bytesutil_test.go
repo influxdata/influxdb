@@ -106,3 +106,27 @@ func TestPack_WidthOne_Last(t *testing.T) {
 		}
 	}
 }
+
+func TestPack_WidthOne_LastFill(t *testing.T) {
+	a := make([]byte, 8)
+
+	a[0] = 255
+	a[1] = 255
+	a[2] = 2
+	a[3] = 2
+	a[4] = 2
+	a[5] = 2
+	a[6] = 2
+	a[7] = 2
+
+	a = bytesutil.Pack(a, 2, 255)
+	if got, exp := len(a), 6; got != exp {
+		t.Fatalf("len mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range []byte{2, 2, 2, 2, 2, 2} {
+		if got, exp := a[i], v; got != exp {
+			t.Fatalf("value mismatch: a[%d] = %v, exp %v", i, got, exp)
+		}
+	}
+}

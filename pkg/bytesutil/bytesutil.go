@@ -112,6 +112,11 @@ func CloneSlice(a [][]byte) [][]byte {
 func Pack(a []byte, width int, val byte) []byte {
 	var i, j, iStart, jStart, end int
 
+	fill := make([]byte, width)
+	for i := 0; i < len(fill); i++ {
+		fill[i] = val
+	}
+
 	// Skip the first run that won't move
 	for ; i < len(a) && a[i] != val; i += width {
 	}
@@ -134,13 +139,10 @@ func Pack(a []byte, width int, val byte) []byte {
 		}
 
 		// Move the non-gap over the section to remove.
-		copy(a[iStart:], a[jStart:j])
+		copy(a[end:], a[jStart:j])
 		i = iStart + len(a[jStart:j])
-		for k := i; k < j; k++ {
-			a[k] = val
-		}
-
-		end = i
+		end += j - jStart
+		i = j
 	}
 
 	return a[:end]
