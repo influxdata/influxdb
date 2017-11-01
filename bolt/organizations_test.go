@@ -100,7 +100,9 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 			name: "Organization not found",
 			args: args{
 				ctx: context.Background(),
-				org: &chronograf.Organization{},
+				org: &chronograf.Organization{
+					ID: 1234,
+				},
 			},
 			wantErr: true,
 		},
@@ -181,6 +183,9 @@ func TestOrganizationsStore_All(t *testing.T) {
 			},
 			want: []chronograf.Organization{
 				{
+					Name: "__default",
+				},
+				{
 					Name: "EE - Evil Empire",
 				},
 				{
@@ -243,6 +248,7 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				org: &chronograf.Organization{
+					ID:   1234,
 					Name: "The Okay Place",
 				},
 			},
