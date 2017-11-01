@@ -8,14 +8,12 @@ import (
 	"github.com/influxdata/chronograf/organizations"
 )
 
-const organizationKey = "organizationID"
-
 func hasOrganizationContext(ctx context.Context) (string, bool) {
 	// prevents panic in case of nil context
 	if ctx == nil {
 		return "", false
 	}
-	orgID, ok := ctx.Value(organizationKey).(string)
+	orgID, ok := ctx.Value(organizations.ContextKey).(string)
 	// should never happen
 	if !ok {
 		return "", false
@@ -26,14 +24,16 @@ func hasOrganizationContext(ctx context.Context) (string, bool) {
 	return orgID, true
 }
 
-const superAdminKey = "superadmin"
+type superAdminKey string
+
+const SuperAdminKey = superAdminKey("superadmin")
 
 func hasSuperAdminContext(ctx context.Context) (bool, bool) {
 	// prevents panic in case of nil context
 	if ctx == nil {
 		return false, false
 	}
-	sa, ok := ctx.Value(superAdminKey).(bool)
+	sa, ok := ctx.Value(SuperAdminKey).(bool)
 	// should never happen
 	if !ok {
 		return false, false

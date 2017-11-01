@@ -132,7 +132,7 @@ func TestUsersStore_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.orgID)
 		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.userID})
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -448,7 +448,7 @@ func TestUsersStore_Add(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.orgID)
 		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
 
 		got, err := s.Add(tt.args.ctx, tt.args.u)
@@ -548,7 +548,7 @@ func TestUsersStore_Delete(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.orgID)
 		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -648,7 +648,7 @@ func TestUsersStore_Update(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.orgID)
 		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.args.orgID)
 
 		if tt.args.roles != nil {
@@ -806,7 +806,7 @@ func TestUsersStore_All(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.ctx = context.WithValue(tt.ctx, "organizationID", tt.orgID)
+		tt.ctx = context.WithValue(tt.ctx, organizations.ContextKey, tt.orgID)
 		for _, u := range tt.wantRaw {
 			tt.fields.UsersStore.Add(tt.ctx, &u)
 		}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/organizations"
 )
 
 type meLinks struct {
@@ -136,7 +137,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			return
 		}
 		// validate that user belongs to organization
-		ctx = context.WithValue(ctx, "organizationID", req.OrganizationID)
+		ctx = context.WithValue(ctx, organizations.ContextKey, req.OrganizationID)
 		_, err = s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
 			Name:     &p.Subject,
 			Provider: &p.Issuer,
@@ -185,11 +186,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		invalidData(w, err, s.Logger)
 		return
 	}
-	// TODO: add real implementation
-	ctx = context.WithValue(ctx, "organizationID", p.Organization)
-
-	// TODO: add real implementation
-	ctx = context.WithValue(ctx, "superadmin", true)
+	ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
+	ctx = context.WithValue(ctx, SuperAdminKey, true)
 
 	usr, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
 		Name:     &p.Subject,
@@ -216,7 +214,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		// support OAuth2. This hard-coding should be removed whenever we add
 		// support for other authentication schemes.
 		Scheme: scheme,
-		// TODO: this should be member
 		Roles: []chronograf.Role{
 			{
 				Name: MemberRoleName,
@@ -226,9 +223,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		},
 		SuperAdmin: s.firstUser(),
 	}
-
-	// TODO: add real implementation
-	ctx = context.WithValue(ctx, "superadmin", true)
 
 	newUser, err := s.Store.Users(ctx).Add(ctx, user)
 	if err != nil {
@@ -244,7 +238,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 // TODO(desa): very slow
 func (s *Service) firstUser() bool {
-	ctx := context.WithValue(context.Background(), "superadmin", true)
+	ctx := context.WithValue(context.Background(), SuperAdminKey, true)
 	users, err := s.Store.Users(ctx).All(ctx)
 	if err != nil {
 		return false

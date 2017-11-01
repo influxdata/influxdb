@@ -78,7 +78,7 @@ func TestLayouts_All(t *testing.T) {
 	}
 	for _, tt := range tests {
 		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore, tt.args.organization)
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.organization)
 		gots, err := s.All(tt.args.ctx)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. LayoutsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -140,7 +140,7 @@ func TestLayouts_Add(t *testing.T) {
 	}
 	for _, tt := range tests {
 		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore, tt.args.organization)
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.organization)
 		d, err := s.Add(tt.args.ctx, tt.args.layout)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. LayoutsStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -200,7 +200,7 @@ func TestLayouts_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore, tt.args.organization)
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.organization)
 		err := s.Delete(tt.args.ctx, tt.args.layout)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. LayoutsStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -257,7 +257,7 @@ func TestLayouts_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore, tt.args.organization)
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.organization)
 		got, err := s.Get(tt.args.ctx, tt.args.layout.ID)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. LayoutsStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -325,7 +325,7 @@ func TestLayouts_Update(t *testing.T) {
 			tt.args.layout.Application = tt.args.name
 		}
 		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore, tt.args.organization)
-		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.organization)
+		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.organization)
 		err := s.Update(tt.args.ctx, tt.args.layout)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. LayoutsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)

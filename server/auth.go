@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/organizations"
 )
 
 // AuthorizedToken extracts the token and validates; if valid the next handler
@@ -104,9 +105,8 @@ func AuthorizedUser(
 			return
 		}
 
-		ctx = context.WithValue(ctx, "organizationID", p.Organization)
-		// TODO: add real implementation
-		serverCtx := context.WithValue(ctx, "superadmin", true)
+		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
+		serverCtx := context.WithValue(ctx, SuperAdminKey, true)
 		// TODO: seems silly to look up a user twice
 		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
 			Name:     &p.Subject,

@@ -5,14 +5,16 @@ import (
 	"fmt"
 )
 
-const organizationKey = "organizationID"
+type contextKey string
+
+const ContextKey = contextKey("organization")
 
 func validOrganization(ctx context.Context) error {
 	// prevents panic in case of nil context
 	if ctx == nil {
 		return fmt.Errorf("expect non nil context")
 	}
-	orgID, ok := ctx.Value(organizationKey).(string)
+	orgID, ok := ctx.Value(ContextKey).(string)
 	// should never happen
 	if !ok {
 		return fmt.Errorf("expected organization key to be a string")
