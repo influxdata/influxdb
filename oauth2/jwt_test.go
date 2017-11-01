@@ -13,8 +13,9 @@ import (
 func TestAuthenticate(t *testing.T) {
 	history := time.Unix(-446774400, 0)
 	var tests = []struct {
-		Desc      string
-		Secret    string
+		Desc   string
+		Secret string
+		// JWT tokens were generated at https://jwt.io/ using their Debugger
 		Token     oauth2.Token
 		Duration  time.Duration
 		Principal oauth2.Principal
