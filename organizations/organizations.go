@@ -7,6 +7,8 @@ import (
 
 type contextKey string
 
+// ContextKey is the key used to specify the
+// organization via context
 const ContextKey = contextKey("organization")
 
 func validOrganization(ctx context.Context) error {

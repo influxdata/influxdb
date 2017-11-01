@@ -6,13 +6,18 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// ensure that LayoutsStore implements chronograf.LayoutStore
 var _ chronograf.LayoutsStore = &LayoutsStore{}
 
+// LayoutsStore facade on a LayoutStore that filters layouts
+// by organization.
 type LayoutsStore struct {
 	store        chronograf.LayoutsStore
 	organization string
 }
 
+// NewLayoutsStore creates a new LayoutsStore from an existing
+// chronograf.LayoutStore and an organization string
 func NewLayoutsStore(s chronograf.LayoutsStore, org string) *LayoutsStore {
 	return &LayoutsStore{
 		store:        s,
@@ -20,6 +25,8 @@ func NewLayoutsStore(s chronograf.LayoutsStore, org string) *LayoutsStore {
 	}
 }
 
+// All retrieves all layouts from the underlying LayoutStore and filters them
+// by organization.
 func (s *LayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -31,16 +38,20 @@ func (s *LayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 		return nil, err
 	}
 
-	dashboards := ds[:0]
+	// This filters layouts without allocating
+	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	layouts := ds[:0]
 	for _, d := range ds {
 		if d.Organization == s.organization {
-			dashboards = append(dashboards, d)
+			layouts = append(layouts, d)
 		}
 	}
 
-	return dashboards, nil
+	return layouts, nil
 }
 
+// Add creates a new Layout in the LayoutsStore with layout.Organization set to be the
+// organization from the layout store.
 func (s *LayoutsStore) Add(ctx context.Context, d chronograf.Layout) (chronograf.Layout, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -51,6 +62,7 @@ func (s *LayoutsStore) Add(ctx context.Context, d chronograf.Layout) (chronograf
 	return s.store.Add(ctx, d)
 }
 
+// Delete the layout from LayoutsStore
 func (s *LayoutsStore) Delete(ctx context.Context, d chronograf.Layout) error {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -65,6 +77,7 @@ func (s *LayoutsStore) Delete(ctx context.Context, d chronograf.Layout) error {
 	return s.store.Delete(ctx, d)
 }
 
+// Get returns a Layout if the id exists and belongs to the organization that is set.
 func (s *LayoutsStore) Get(ctx context.Context, id string) (chronograf.Layout, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -83,6 +96,7 @@ func (s *LayoutsStore) Get(ctx context.Context, id string) (chronograf.Layout, e
 	return d, nil
 }
 
+// Update the layout in LayoutsStore.
 func (s *LayoutsStore) Update(ctx context.Context, d chronograf.Layout) error {
 	err := validOrganization(ctx)
 	if err != nil {

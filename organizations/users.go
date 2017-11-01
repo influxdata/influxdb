@@ -10,12 +10,21 @@ import (
 // Ensure UsersStore implements chronograf.UsersStore.
 var _ chronograf.UsersStore = &UsersStore{}
 
-// UsersStore uses bolt to store and retrieve users
+// UsersStore facade on a UserStore that filters a users roles
+// by organization.
+//
+// The high level idea here is to use the same underlying store for all users.
+// In particular, this is done by having all the users Roles field be a set of
+// all of the users roles in all organizations. Each CRUD method here takes care
+// to ensure that the only roles that are modified are the roles for the organization
+// that was provided on the UsersStore.
 type UsersStore struct {
 	organization string
 	store        chronograf.UsersStore
 }
 
+// NewUsersStore creates a new UsersStore from an existing
+// chronograf.UserStore and an organization string
 func NewUsersStore(s chronograf.UsersStore, org string) *UsersStore {
 	return &UsersStore{
 		store:        s,
@@ -42,7 +51,9 @@ func validOrganizationRoles(orgID string, u *chronograf.User) error {
 	return nil
 }
 
-// Get searches the UsersStore for user with name
+// Get searches the UsersStore for using the query.
+// The roles returned on the user are filtered to only contain roles that are for the organization
+// specified on the organization store.
 func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -54,62 +65,99 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 		return nil, err
 	}
 
-	// filter Roles that are not scoped to this Organization
+	// This filters a users roles so that the resulting struct only contains roles
+	// from the organization on the UsersStore.
 	roles := usr.Roles[:0]
 	for _, r := range usr.Roles {
 		if r.Organization == s.organization {
 			roles = append(roles, r)
 		}
 	}
+
 	if len(roles) == 0 {
-		// This means that the user has no roles in an organization
-		// TODO: should we return the user without any roles or ErrUserNotFound?
+		// This means that the user does not belong to the organization
+		// and therefore, is not found.
 		return nil, chronograf.ErrUserNotFound
 	}
+
 	usr.Roles = roles
 	return usr, nil
 }
 
-// Add a new User to the UsersStore.
+// Add creates a new User in the UsersStore. It validates that the user provided only
+// has roles for the organization set on the UsersStore.
+// If a user is not found in the underlying, it calls the underlying UsersStore Add method.
+// If a user is found, it removes any existing roles a user has for an organization and appends
+// the roles specified on the provided user and calls the uderlying UsersStore Update method.
 func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	// Validates that the users roles are only for the current organization.
 	if err := validOrganizationRoles(s.organization, u); err != nil {
 		return nil, err
 	}
+
+	// retrieve the user from the underlying store
 	usr, err := s.store.Get(ctx, chronograf.UserQuery{
 		Name:     &u.Name,
 		Provider: &u.Provider,
 		Scheme:   &u.Scheme,
 	})
-	if err != nil && err != chronograf.ErrUserNotFound {
+
+	switch err {
+	case nil:
+		// If there is no error continue to the rest of the code
+		break
+	case chronograf.ErrUserNotFound:
+		// If user is not found in the backed store, attempt to add the user
+		return s.store.Add(ctx, u)
+	default:
+		// return the error
 		return nil, err
 	}
-	if err == chronograf.ErrUserNotFound {
-		return s.store.Add(ctx, u)
+
+	// Filter the retrieved users roles so that the resulting struct only contains roles
+	// that are not from the organization on the UsersStore.
+	roles := usr.Roles[:0]
+	for _, r := range usr.Roles {
+		if r.Organization != s.organization {
+			roles = append(roles, r)
+		}
 	}
-	usr.Roles = append(usr.Roles, u.Roles...)
+
+	// Set the users roles to be the union of the roles set on the provided user
+	// and the user that was found in the underlying store
+	usr.Roles = append(roles, u.Roles...)
+
+	// Update the user in the underlying store
 	if err := s.store.Update(ctx, usr); err != nil {
 		return nil, err
 	}
+
+	// Return the provided user with ID set
 	u.ID = usr.ID
 	return u, nil
 }
 
-// Delete a user from the UsersStore
+// Delete a user from the UsersStore. This is done by stripping a user of
+// any roles it has in the organization speicified on the UsersStore.
 func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
 	err := validOrganization(ctx)
 	if err != nil {
 		return err
 	}
+
+	// retrieve the user from the underlying store
 	u, err := s.store.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
 	if err != nil {
 		return err
 	}
-	// delete Roles that are not scoped to this Organization
+
+	// Filter the retrieved users roles so that the resulting slice contains
+	// roles that are not scoped to the organization provided
 	roles := u.Roles[:0]
 	for _, r := range u.Roles {
 		if r.Organization != s.organization {
@@ -120,21 +168,26 @@ func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
 	return s.store.Update(ctx, u)
 }
 
-// Update a user
+// Update a user in the UsersStore.
 func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 	err := validOrganization(ctx)
 	if err != nil {
 		return err
 	}
 
+	// Validates that the users roles are only for the current organization.
 	if err := validOrganizationRoles(s.organization, usr); err != nil {
 		return err
 	}
+
+	// retrieve the user from the underlying store
 	u, err := s.store.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
 	if err != nil {
 		return err
 	}
-	// filter Roles that are not scoped to this Organization
+
+	// Filter the retrieved users roles so that the resulting slice contains
+	// roles that are not scoped to the organization provided
 	roles := u.Roles[:0]
 	for _, r := range u.Roles {
 		if r.Organization != s.organization {
@@ -142,29 +195,34 @@ func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 		}
 	}
 
-	// recombine roles from usr, by replacing the roles of the user
-	// within the current Organization
+	// Set the users roles to be the union of the roles set on the provided user
+	// and the user that was found in the underlying store
 	u.Roles = append(roles, usr.Roles...)
 
 	return s.store.Update(ctx, u)
 }
 
-// All returns all users
+// All returns all users where roles have been filters to be exclusively for
+// the organization provided on the UsersStore.
 func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
 	err := validOrganization(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	// retrieve all users from the underlying UsersStore
 	usrs, err := s.store.All(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Filtering users that have no associtation to an organization
+	// Filter users to only contain users that have at least one role
+	// in the provided organization.
 	us := usrs[:0]
 	for _, usr := range usrs {
 		roles := usr.Roles[:0]
+		// This filters a users roles so that the resulting struct only contains roles
+		// from the organization on the UsersStore.
 		for _, r := range usr.Roles {
 			if r.Organization == s.organization {
 				roles = append(roles, r)

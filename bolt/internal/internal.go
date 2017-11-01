@@ -473,7 +473,7 @@ func UnmarshalUserPB(data []byte, u *User) error {
 	return nil
 }
 
-// MarshalOrganization encodes a organization to binary protobuf format.
+// MarshalRole encodes a role to binary protobuf format.
 func MarshalRole(r *chronograf.Role) ([]byte, error) {
 	return MarshalRolePB(&Role{
 		Organization: r.Organization,
@@ -481,12 +481,12 @@ func MarshalRole(r *chronograf.Role) ([]byte, error) {
 	})
 }
 
-// MarshalRolePB encodes a organization to binary protobuf format.
+// MarshalRolePB encodes a role to binary protobuf format.
 func MarshalRolePB(r *Role) ([]byte, error) {
 	return proto.Marshal(r)
 }
 
-// UnmarshalRole decodes a organization from binary protobuf data.
+// UnmarshalRole decodes a role from binary protobuf data.
 func UnmarshalRole(data []byte, r *chronograf.Role) error {
 	var pb Role
 	if err := UnmarshalRolePB(data, &pb); err != nil {
@@ -498,7 +498,7 @@ func UnmarshalRole(data []byte, r *chronograf.Role) error {
 	return nil
 }
 
-// UnmarshalRolePB decodes a organization from binary protobuf data.
+// UnmarshalRolePB decodes a role from binary protobuf data.
 func UnmarshalRolePB(data []byte, r *Role) error {
 	if err := proto.Unmarshal(data, r); err != nil {
 		return err

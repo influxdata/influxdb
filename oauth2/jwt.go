@@ -31,6 +31,8 @@ var _ gojwt.Claims = &Claims{}
 // Claims extends jwt.StandardClaims' Valid to make sure claims has a subject.
 type Claims struct {
 	gojwt.StandardClaims
+	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtmldd
+	// that felt appropriate for Organization. As a result, we added a custom `org` field.
 	Organization string `json:"org,omitempty"`
 }
 

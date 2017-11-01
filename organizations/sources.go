@@ -6,13 +6,18 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// ensure that SourcesStore implements chronograf.SourceStore
 var _ chronograf.SourcesStore = &SourcesStore{}
 
+// SourcesStore facade on a SourceStore that filters sources
+// by organization.
 type SourcesStore struct {
 	store        chronograf.SourcesStore
 	organization string
 }
 
+// NewSourcesStore creates a new SourcesStore from an existing
+// chronograf.SourceStore and an organization string
 func NewSourcesStore(s chronograf.SourcesStore, org string) *SourcesStore {
 	return &SourcesStore{
 		store:        s,
@@ -20,6 +25,8 @@ func NewSourcesStore(s chronograf.SourcesStore, org string) *SourcesStore {
 	}
 }
 
+// All retrieves all sources from the underlying SourceStore and filters them
+// by organization.
 func (s *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -31,16 +38,20 @@ func (s *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error) {
 		return nil, err
 	}
 
-	dashboards := ds[:0]
+	// This filters sources without allocating
+	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	sources := ds[:0]
 	for _, d := range ds {
 		if d.Organization == s.organization {
-			dashboards = append(dashboards, d)
+			sources = append(sources, d)
 		}
 	}
 
-	return dashboards, nil
+	return sources, nil
 }
 
+// Add creates a new Source in the SourcesStore with source.Organization set to be the
+// organization from the source store.
 func (s *SourcesStore) Add(ctx context.Context, d chronograf.Source) (chronograf.Source, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -51,6 +62,7 @@ func (s *SourcesStore) Add(ctx context.Context, d chronograf.Source) (chronograf
 	return s.store.Add(ctx, d)
 }
 
+// Delete the source from SourcesStore
 func (s *SourcesStore) Delete(ctx context.Context, d chronograf.Source) error {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -65,6 +77,7 @@ func (s *SourcesStore) Delete(ctx context.Context, d chronograf.Source) error {
 	return s.store.Delete(ctx, d)
 }
 
+// Get returns a Source if the id exists and belongs to the organization that is set.
 func (s *SourcesStore) Get(ctx context.Context, id int) (chronograf.Source, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -83,6 +96,7 @@ func (s *SourcesStore) Get(ctx context.Context, id int) (chronograf.Source, erro
 	return d, nil
 }
 
+// Update the source in SourcesStore.
 func (s *SourcesStore) Update(ctx context.Context, d chronograf.Source) error {
 	err := validOrganization(ctx)
 	if err != nil {

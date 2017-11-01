@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/chronograf/organizations"
 )
 
-// IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably
+// IgnoreFields is used because ID cannot be predicted reliably
 // EquateEmpty is used because we want nil slices, arrays, and maps to be equal to the empty map
 var serverCmpOptions = cmp.Options{
 	cmpopts.EquateEmpty(),

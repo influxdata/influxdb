@@ -6,13 +6,18 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// ensure that ServersStore implements chronograf.ServerStore
 var _ chronograf.ServersStore = &ServersStore{}
 
+// ServersStore facade on a ServerStore that filters servers
+// by organization.
 type ServersStore struct {
 	store        chronograf.ServersStore
 	organization string
 }
 
+// NewServersStore creates a new ServersStore from an existing
+// chronograf.ServerStore and an organization string
 func NewServersStore(s chronograf.ServersStore, org string) *ServersStore {
 	return &ServersStore{
 		store:        s,
@@ -20,6 +25,8 @@ func NewServersStore(s chronograf.ServersStore, org string) *ServersStore {
 	}
 }
 
+// All retrieves all servers from the underlying ServerStore and filters them
+// by organization.
 func (s *ServersStore) All(ctx context.Context) ([]chronograf.Server, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -30,16 +37,20 @@ func (s *ServersStore) All(ctx context.Context) ([]chronograf.Server, error) {
 		return nil, err
 	}
 
-	dashboards := ds[:0]
+	// This filters servers without allocating
+	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	servers := ds[:0]
 	for _, d := range ds {
 		if d.Organization == s.organization {
-			dashboards = append(dashboards, d)
+			servers = append(servers, d)
 		}
 	}
 
-	return dashboards, nil
+	return servers, nil
 }
 
+// Add creates a new Server in the ServersStore with server.Organization set to be the
+// organization from the server store.
 func (s *ServersStore) Add(ctx context.Context, d chronograf.Server) (chronograf.Server, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -50,6 +61,7 @@ func (s *ServersStore) Add(ctx context.Context, d chronograf.Server) (chronograf
 	return s.store.Add(ctx, d)
 }
 
+// Delete the server from ServersStore
 func (s *ServersStore) Delete(ctx context.Context, d chronograf.Server) error {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -64,6 +76,7 @@ func (s *ServersStore) Delete(ctx context.Context, d chronograf.Server) error {
 	return s.store.Delete(ctx, d)
 }
 
+// Get returns a Server if the id exists and belongs to the organization that is set.
 func (s *ServersStore) Get(ctx context.Context, id int) (chronograf.Server, error) {
 	err := validOrganization(ctx)
 	if err != nil {
@@ -82,6 +95,7 @@ func (s *ServersStore) Get(ctx context.Context, id int) (chronograf.Server, erro
 	return d, nil
 }
 
+// Update the server in ServersStore.
 func (s *ServersStore) Update(ctx context.Context, d chronograf.Server) error {
 	err := validOrganization(ctx)
 	if err != nil {

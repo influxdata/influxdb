@@ -775,16 +775,21 @@ type Organization struct {
 	Name string `json:"name"`
 }
 
-// OrganizationQuery represents the attributes that a user may be retrieved by.
+// OrganizationQuery represents the attributes that a organization may be retrieved by.
 // It is predominantly used in the OrganizationsStore.Get method.
+// It is expected that only one of ID or Name will be specified, but will prefer ID over Name if both are specified.
 type OrganizationQuery struct {
-	ID   *uint64
+	// If an ID is provided in the query, the lookup time for an organization will be O(1).
+	ID *uint64
+	// If Name is provided, the lookup time will be O(n).
 	Name *string
 }
 
 // OrganizationsStore is the storage and retrieval of Organizations
 type OrganizationsStore interface {
-	// Add creates a new Organization
+	// Add creates a new Organization.
+	// The Created organization is returned back to the user with the
+	// ID field populated.
 	Add(context.Context, *Organization) (*Organization, error)
 	// All lists all Organizations in the OrganizationsStore
 	All(context.Context) ([]Organization, error)

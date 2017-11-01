@@ -12,7 +12,7 @@ import (
 // Ensure OrganizationsStore implements chronograf.OrganizationsStore.
 var _ chronograf.OrganizationsStore = &OrganizationsStore{}
 
-// OrganizationsStore is used to store organizations local to chronograf
+// OrganizationsBucket is the bucket where organizations are stored.
 var OrganizationsBucket = []byte("OrganizationsV1")
 
 // OrganizationsStore uses bolt to store and retrieve Organizations
@@ -42,6 +42,7 @@ func (s *OrganizationsStore) Migrate(ctx context.Context) error {
 	})
 }
 
+// Add creates a new Organization in the OrganizationsStore
 func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
@@ -64,6 +65,7 @@ func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization
 	return o, nil
 }
 
+// All returns all known organizations
 func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization, error) {
 	var orgs []chronograf.Organization
 	err := s.each(ctx, func(o *chronograf.Organization) {
@@ -77,6 +79,7 @@ func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization
 	return orgs, nil
 }
 
+// Delete the organization from OrganizationsStore
 func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organization) error {
 	_, err := s.get(ctx, o.ID)
 	if err != nil {
@@ -118,6 +121,10 @@ func (s *OrganizationsStore) each(ctx context.Context, fn func(*chronograf.Organ
 	return nil
 }
 
+// Get returns a Organization if the id exists.
+// If an ID is provided in the query, the lookup time for an organization will be O(1).
+// If Name is provided, the lookup time will be O(n).
+// Get expects that only one of ID or Name will be specified, but will prefer ID over Name if both are specified.
 func (s *OrganizationsStore) Get(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 	if q.ID != nil {
 		return s.get(ctx, *q.ID)
@@ -148,6 +155,7 @@ func (s *OrganizationsStore) Get(ctx context.Context, q chronograf.OrganizationQ
 	return nil, fmt.Errorf("must specify either ID, or Name in OrganizationQuery")
 }
 
+// Update the organization in OrganizationsStore
 func (s *OrganizationsStore) Update(ctx context.Context, o *chronograf.Organization) error {
 	org, err := s.get(ctx, o.ID)
 	if err != nil {

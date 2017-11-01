@@ -87,6 +87,7 @@ func AuthorizedUser(
 			return
 		}
 
+		// This is as if the user was logged into the default organization
 		if p.Organization == "" {
 			p.Organization = "0"
 		}

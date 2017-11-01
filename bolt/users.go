@@ -20,13 +20,14 @@ type UsersStore struct {
 	client *Client
 }
 
-// TODO: this will have to change eventually and is only temporary
+// Migrate changes all existing users to be SuperAdmin
 func (s *UsersStore) Migrate(ctx context.Context) error {
 	users, err := s.All(ctx)
 	if err != nil {
 		return err
 	}
 
+	// TODO(desa): REMOVE!!!!!!!!!!!!!!
 	for _, u := range users {
 		u.SuperAdmin = true
 		if err := s.Update(ctx, &u); err != nil {
