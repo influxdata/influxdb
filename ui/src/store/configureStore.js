@@ -9,7 +9,7 @@ import {queryStringConfig} from 'shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
 import sharedReducers from 'shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
-import adminReducer from 'src/admin/reducers/admin'
+import {adminInfluxDBReducer} from 'src/admin/reducers'
 import kapacitorReducers from 'src/kapacitor/reducers'
 import dashboardUI from 'src/dashboards/reducers/ui'
 import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
@@ -20,7 +20,7 @@ const rootReducer = combineReducers({
   ...sharedReducers,
   ...dataExplorerReducers,
   ...kapacitorReducers,
-  admin: adminReducer,
+  adminInfluxDB: adminInfluxDBReducer,
   dashboardUI,
   dashTimeV1,
   routing: routerReducer,

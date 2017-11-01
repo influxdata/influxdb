@@ -22,7 +22,7 @@ import {
   updateUserPermissionsAsync,
   filterUsers as filterUsersAction,
   filterRoles as filterRolesAction,
-} from 'src/admin/actions'
+} from 'src/admin/actions/influxdb'
 
 import AdminTabs from 'src/admin/components/AdminTabs'
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -231,7 +231,7 @@ AdminInfluxDBPage.propTypes = {
   notify: func,
 }
 
-const mapStateToProps = ({admin: {users, roles, permissions}}) => ({
+const mapStateToProps = ({adminInfluxDB: {users, roles, permissions}}) => ({
   users,
   roles,
   permissions,

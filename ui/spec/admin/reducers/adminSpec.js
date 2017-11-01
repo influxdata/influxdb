@@ -1,4 +1,4 @@
-import reducer from 'src/admin/reducers/admin'
+import {adminInfluxDBReducer as reducer} from 'src/admin/reducers'
 
 import {
   addUser,
@@ -21,7 +21,7 @@ import {
   filterUsers,
   addDatabaseDeleteCode,
   removeDatabaseDeleteCode,
-} from 'src/admin/actions'
+} from 'src/admin/actions/influxdb'
 
 import {
   NEW_DEFAULT_USER,

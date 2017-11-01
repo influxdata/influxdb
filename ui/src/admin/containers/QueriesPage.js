@@ -15,7 +15,7 @@ import {
   loadQueries as loadQueriesAction,
   setQueryToKill as setQueryToKillAction,
   killQueryAsync,
-} from 'src/admin/actions'
+} from 'src/admin/actions/influxdb'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
@@ -100,7 +100,7 @@ QueriesPage.propTypes = {
   notify: func,
 }
 
-const mapStateToProps = ({admin: {queries, queryIDToKill}}) => ({
+const mapStateToProps = ({adminInfluxDB: {queries, queryIDToKill}}) => ({
   queries,
   queryIDToKill,
 })
