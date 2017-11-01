@@ -31,21 +31,21 @@ class RuleMessageOptions extends Component {
   }
 
   handleUpdateAlertNodes = e => {
-    const {updateAlertNodes, alertNodeName, rule} = this.props
-    updateAlertNodes(rule.id, alertNodeName, e.target.value)
+    const {updateAlertNodes, alertNode, rule} = this.props
+    updateAlertNodes(rule.id, alertNode, e.target.value)
   }
 
   handleUpdateAlertProperty = propertyName => e => {
-    const {updateAlertProperty, alertNodeName, rule} = this.props
-    updateAlertProperty(rule.id, alertNodeName, {
+    const {updateAlertProperty, alertNode, rule} = this.props
+    updateAlertProperty(rule.id, alertNode, {
       name: propertyName,
       args: [e.target.value],
     })
   }
 
   render() {
-    const {rule, alertNodeName} = this.props
-    const {args, details, properties} = RULE_ALERT_OPTIONS[alertNodeName]
+    const {rule, alertNode} = this.props
+    const {args, details, properties} = RULE_ALERT_OPTIONS[alertNode.kind]
 
     return (
       <div>
@@ -61,7 +61,7 @@ class RuleMessageOptions extends Component {
                     type="text"
                     placeholder={args.placeholder}
                     onChange={this.handleUpdateAlertNodes}
-                    value={ALERT_NODES_ACCESSORS[alertNodeName](rule)}
+                    value={ALERT_NODES_ACCESSORS[alertNode.kind](rule)}
                     autoComplete="off"
                     spellCheck="false"
                   />
@@ -112,11 +112,11 @@ class RuleMessageOptions extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {func, shape} = PropTypes
 
 RuleMessageOptions.propTypes = {
   rule: shape({}).isRequired,
-  alertNodeName: string,
+  alertNode: shape({}),
   updateAlertNodes: func.isRequired,
   updateDetails: func.isRequired,
   updateAlertProperty: func.isRequired,
