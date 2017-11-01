@@ -14,7 +14,7 @@ import {
   updateRole as updateRoleAJAX,
   updateUser as updateUserAJAX,
   updateRetentionPolicy as updateRetentionPolicyAJAX,
-} from 'src/admin/apis'
+} from 'src/admin/apis/influxdb'
 
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 
