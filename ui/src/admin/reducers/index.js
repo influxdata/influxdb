@@ -1,3 +1,4 @@
+import adminChronograf from './chronograf'
 import adminInfluxDB from './influxdb'
 
-export default {adminInfluxDB}
+export default {adminChronograf, adminInfluxDB}

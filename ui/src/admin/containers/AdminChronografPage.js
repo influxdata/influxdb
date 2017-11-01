@@ -1,4 +1,8 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import {loadUsersAsync} from 'src/admin/actions/chronograf'
 
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
@@ -8,12 +12,7 @@ import CreateOrgOverlay from 'src/admin/components/chronograf/CreateOrgOverlay'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {
-  DUMMY_USERS,
-  DUMMY_ORGS,
-  DEFAULT_ORG,
-  NO_ORG,
-} from 'src/admin/constants/dummyUsers'
+import {DUMMY_ORGS, DEFAULT_ORG, NO_ORG} from 'src/admin/constants/dummyUsers'
 
 class AdminChronografPage extends Component {
   constructor(props) {
@@ -26,6 +25,14 @@ class AdminChronografPage extends Component {
       filteredUsers: this.props.users,
       showCreateOverlay: false,
     }
+  }
+
+  componentDidMount() {
+    const {loadUsers} = this.props
+
+    // TODO: determine this url from server
+    const urlThatsProbablySourceLinksUsersChronograf = '/chronograf/v1/users'
+    loadUsers(urlThatsProbablySourceLinksUsersChronograf)
   }
 
   isSameUser = (userA, userB) => {
@@ -106,7 +113,9 @@ class AdminChronografPage extends Component {
       filteredUsers,
       showCreateOverlay,
     } = this.state
+
     const numUsersSelected = Object.keys(selectedUsers).length
+
     return (
       <div className="page">
         <PageHeader onShowCreateOrgOverlay={this.handleShowCreateOrgOverlay} />
@@ -132,7 +141,7 @@ class AdminChronografPage extends Component {
                       />
                       <div className="panel-body chronograf-admin-table--panel">
                         <UsersTable
-                          filteredUsers={filteredUsers}
+                          filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
                           organizationName={organizationName}
                           onFilterUsers={this.handleFilterUsers}
                           onToggleUserSelected={this.handleToggleUserSelected}
@@ -161,16 +170,24 @@ class AdminChronografPage extends Component {
   }
 }
 
-const {arrayOf, shape} = PropTypes
+const {arrayOf, func, shape} = PropTypes
 
 AdminChronografPage.propTypes = {
   users: arrayOf(shape),
   organizations: arrayOf(shape),
+  loadUsers: func.isRequired,
 }
 
 AdminChronografPage.defaultProps = {
-  users: DUMMY_USERS,
   organizations: DUMMY_ORGS,
 }
 
-export default AdminChronografPage
+const mapStateToProps = ({adminChronograf: {users}}) => ({
+  users,
+})
+
+const mapDispatchToProps = dispatch => ({
+  loadUsers: bindActionCreators(loadUsersAsync, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(AdminChronografPage)
