@@ -6,6 +6,8 @@ const getInitialState = () => ({
   logoutLink: null,
 })
 
+import {getMeRole} from 'shared/reducers/helpers/auth'
+
 export const initialState = getInitialState()
 
 const authReducer = (state = initialState, action) => {
@@ -26,7 +28,7 @@ const authReducer = (state = initialState, action) => {
     }
     case 'ME_RECEIVED': {
       const {me} = action.payload
-      return {...state, me, isMeLoading: false}
+      return {...state, me: {...me, role: getMeRole(me)}, isMeLoading: false}
     }
     case 'LOGOUT_LINK_RECEIVED': {
       const {logoutLink} = action.payload

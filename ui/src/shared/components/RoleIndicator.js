@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 import ReactTooltip from 'react-tooltip'
 
-import {getMeRole} from 'src/auth/Authorized'
+import {getMeRole} from 'shared/reducers/helpers/auth'
 
 const RoleIndicator = ({me, isUsingAuth}) => {
   if (!isUsingAuth) {
