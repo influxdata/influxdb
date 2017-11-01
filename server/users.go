@@ -58,7 +58,7 @@ func (r *userRequest) ValidRoles() error {
 	if len(r.Roles) > 0 {
 		for _, r := range r.Roles {
 			switch r.Name {
-			case ViewerRoleName, EditorRoleName, AdminRoleName:
+			case MemberRoleName, ViewerRoleName, EditorRoleName, AdminRoleName:
 				continue
 			default:
 				return fmt.Errorf("Unknown role %s. Valid roles are 'viewer', 'editor', 'admin', and 'superadmin'", r.Name)
@@ -120,6 +120,7 @@ func newUsersResponse(users []chronograf.User) *usersResponse {
 
 // Chronograf User Roles
 const (
+	MemberRoleName     = "member"
 	ViewerRoleName     = "viewer"
 	EditorRoleName     = "editor"
 	AdminRoleName      = "admin"
@@ -127,6 +128,11 @@ const (
 )
 
 var (
+	// MemberRole is the role for a user who can only perform No operations.
+	MemberRole = chronograf.Role{
+		Name: MemberRoleName,
+	}
+
 	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
 	ViewerRole = chronograf.Role{
 		Name: ViewerRoleName,
@@ -182,6 +188,19 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		Provider: req.Provider,
 		Scheme:   req.Scheme,
 		Roles:    req.Roles,
+	}
+
+	// If req.SuperAdmin has been set, verify that it was done with the superadmin context.
+	// Even though req.SuperAdmin == true is logically equivalent to req.SuperAdmin it is
+	// more clear that this code should only be ran in the case that a user is trying to
+	// set the SuperAdmin field.
+	if req.SuperAdmin == true {
+		// Only allow users to set SuperAdmin if they have the superadmin context
+		if isSuperAdmin, ok := hasSuperAdminContext(ctx); !(ok && isSuperAdmin) {
+			Error(w, http.StatusBadRequest, "Cannot set SuperAdmin", s.Logger)
+			return
+		}
+		user.SuperAdmin = true
 	}
 
 	res, err := s.Store.Users(ctx).Add(ctx, user)

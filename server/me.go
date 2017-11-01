@@ -219,13 +219,12 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		// TODO: this should be member
 		Roles: []chronograf.Role{
 			{
-				Name: ViewerRoleName,
+				Name: MemberRoleName,
 				// This is the ID of the default organization
 				Organization: "0",
 			},
 		},
-		// TODO: is super admin for now
-		SuperAdmin: true,
+		SuperAdmin: s.firstUser(),
 	}
 
 	// TODO: add real implementation
@@ -241,4 +240,15 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	newUser.CurrentOrganization = p.Organization
 	res := newMeResponse(newUser)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+// TODO(desa): very slow
+func (s *Service) firstUser() bool {
+	ctx := context.WithValue(context.Background(), "superadmin", true)
+	users, err := s.Store.Users(ctx).All(ctx)
+	if err != nil {
+		return false
+	}
+
+	return len(users) == 0
 }

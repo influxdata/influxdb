@@ -47,6 +47,10 @@ func TestService_Me(t *testing.T) {
 				UseAuth: true,
 				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						// This function gets to verify that there is at least one first user
+						return []chronograf.User{{}}, nil
+					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
@@ -78,6 +82,10 @@ func TestService_Me(t *testing.T) {
 				UseAuth: true,
 				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						// This function gets to verify that there is at least one first user
+						return []chronograf.User{{}}, nil
+					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
@@ -95,7 +103,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/secret"}}
+			wantBody: `{"name":"secret","roles":[{"name":"member","organization":"\"0\""}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/secret"}}
 `,
 		},
 		{
@@ -107,6 +115,10 @@ func TestService_Me(t *testing.T) {
 			fields: fields{
 				UseAuth: true,
 				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						// This function gets to verify that there is at least one first user
+						return []chronograf.User{{}}, nil
+					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						return nil, chronograf.ErrUserNotFound
 					},
