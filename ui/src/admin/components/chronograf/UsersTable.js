@@ -4,7 +4,13 @@ import _ from 'lodash'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {DEFAULT_ORG, NO_ORG, USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {
+  DUMMY_ORGS,
+  DEFAULT_ORG,
+  NO_ORG,
+  NO_ROLE,
+  USER_ROLES,
+} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 class ChronografUsersTable extends Component {
@@ -26,9 +32,19 @@ class ChronografUsersTable extends Component {
     // Expects Users to always have at least 1 role (as a member of the default org)
     if (user.roles.length === 1) {
       return (
-        <a href="#" onClick={this.handleChooseFilter(NO_ORG)}>
-          {NO_ORG}
-        </a>
+        <Dropdown
+          items={DUMMY_ORGS.filter(org => {
+            return !(org.name === DEFAULT_ORG || org.name === NO_ORG)
+          }).map(r => ({
+            ...r,
+            text: r.name,
+          }))}
+          selected={NO_ORG}
+          onChoose={this.handleChangeUserRole(user, NO_ROLE)}
+          buttonColor="btn-primary"
+          buttonSize="btn-xs"
+          className="dropdown-190"
+        />
       )
     }
 
