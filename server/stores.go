@@ -8,6 +8,8 @@ import (
 	"github.com/influxdata/chronograf/organizations"
 )
 
+// hasOrganizationContext retrieves organization specified on context
+// under the organizations.ContextKey
 func hasOrganizationContext(ctx context.Context) (string, bool) {
 	// prevents panic in case of nil context
 	if ctx == nil {
@@ -28,6 +30,8 @@ type superAdminKey string
 
 const SuperAdminKey = superAdminKey("superadmin")
 
+// hasSuperAdminContext speficies if the context contains
+// the SuperAdminKey and that the value stored there is true
 func hasSuperAdminContext(ctx context.Context) bool {
 	// prevents panic in case of nil context
 	if ctx == nil {
@@ -41,9 +45,8 @@ func hasSuperAdminContext(ctx context.Context) bool {
 	return sa
 }
 
-// TODO: Comment
-// DataSource is ...
-// Having this as an interface is useful for testing
+// DataSource is collection of resources that are used by the Service
+// Abstracting this into an interface was useful for isolated testing
 type DataStore interface {
 	Sources(ctx context.Context) chronograf.SourcesStore
 	Servers(ctx context.Context) chronograf.ServersStore
@@ -56,7 +59,7 @@ type DataStore interface {
 // ensure that Store implements a DataStore
 var _ DataStore = &Store{}
 
-// Store is a DataStore
+// Store implements the DataStore interface
 type Store struct {
 	SourcesStore       chronograf.SourcesStore
 	ServersStore       chronograf.ServersStore
@@ -66,6 +69,8 @@ type Store struct {
 	OrganizationsStore chronograf.OrganizationsStore
 }
 
+// Sources returns a noop.SourcesStore if the context has no organization specified
+// and a organization.SourcesStore otherwise.
 func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
 	if org, ok := hasOrganizationContext(ctx); ok {
 		return organizations.NewSourcesStore(s.SourcesStore, org)
@@ -74,6 +79,8 @@ func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
 	return &noop.SourcesStore{}
 }
 
+// Servers returns a noop.ServersStore if the context has no organization specified
+// and a organization.ServersStore otherwise.
 func (s *Store) Servers(ctx context.Context) chronograf.ServersStore {
 	if org, ok := hasOrganizationContext(ctx); ok {
 		return organizations.NewServersStore(s.ServersStore, org)
@@ -82,6 +89,8 @@ func (s *Store) Servers(ctx context.Context) chronograf.ServersStore {
 	return &noop.ServersStore{}
 }
 
+// Layouts returns a noop.LayoutsStore if the context has no organization specified
+// and a organization.LayoutsStore otherwise.
 func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
 	if org, ok := hasOrganizationContext(ctx); ok {
 		return organizations.NewLayoutsStore(s.LayoutsStore, org)
@@ -90,6 +99,12 @@ func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
 	return &noop.LayoutsStore{}
 }
 
+// Users returns a chronograf.UsersStore.
+// If the context is a super admin context, then the underlying chronograf.UsersStore
+// is returned.
+// If there is an organization specified on context, then an organizations.UsersStore
+// is returned.
+// If niether are specified, a noop.UsersStore is returned.
 func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
 	if superAdmin := hasSuperAdminContext(ctx); superAdmin {
 		return s.UsersStore
@@ -101,6 +116,8 @@ func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
 	return &noop.UsersStore{}
 }
 
+// Dashboards returns a noop.DashboardsStore if the context has no organization specified
+// and a organization.DashboardsStore otherwise.
 func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	if org, ok := hasOrganizationContext(ctx); ok {
 		return organizations.NewDashboardsStore(s.DashboardsStore, org)
@@ -109,6 +126,7 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	return &noop.DashboardsStore{}
 }
 
+// DashboardsStore returns the underlying OrganizationsStore.
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {
 	return s.OrganizationsStore
 }
