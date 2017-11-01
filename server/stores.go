@@ -28,17 +28,17 @@ type superAdminKey string
 
 const SuperAdminKey = superAdminKey("superadmin")
 
-func hasSuperAdminContext(ctx context.Context) (bool, bool) {
+func hasSuperAdminContext(ctx context.Context) bool {
 	// prevents panic in case of nil context
 	if ctx == nil {
-		return false, false
+		return false
 	}
 	sa, ok := ctx.Value(SuperAdminKey).(bool)
 	// should never happen
 	if !ok {
-		return false, false
+		return false
 	}
-	return sa, true
+	return sa
 }
 
 // TODO: Comment
@@ -91,7 +91,7 @@ func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
 }
 
 func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
-	if superAdmin, ok := hasSuperAdminContext(ctx); ok && superAdmin {
+	if superAdmin := hasSuperAdminContext(ctx); superAdmin {
 		return s.UsersStore
 	}
 	if org, ok := hasOrganizationContext(ctx); ok {

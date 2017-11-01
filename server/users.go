@@ -196,7 +196,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	// set the SuperAdmin field.
 	if req.SuperAdmin == true {
 		// Only allow users to set SuperAdmin if they have the superadmin context
-		if isSuperAdmin, ok := hasSuperAdminContext(ctx); !(ok && isSuperAdmin) {
+		if isSuperAdmin := hasSuperAdminContext(ctx); !isSuperAdmin {
 			Error(w, http.StatusBadRequest, "Cannot set SuperAdmin", s.Logger)
 			return
 		}
@@ -266,6 +266,19 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	// ValidUpdate should ensure that req.Roles is not nil
 	u.Roles = req.Roles
+
+	// If req.SuperAdmin has been set, verify that it was done with the superadmin context.
+	// Even though req.SuperAdmin == true is logically equivalent to req.SuperAdmin it is
+	// more clear that this code should only be ran in the case that a user is trying to
+	// set the SuperAdmin field.
+	if req.SuperAdmin == true {
+		// Only allow users to set SuperAdmin if they have the superadmin context
+		if isSuperAdmin := hasSuperAdminContext(ctx); !isSuperAdmin {
+			Error(w, http.StatusBadRequest, "Cannot set SuperAdmin", s.Logger)
+			return
+		}
+		u.SuperAdmin = true
+	}
 
 	err = s.Store.Users(ctx).Update(ctx, u)
 	if err != nil {
