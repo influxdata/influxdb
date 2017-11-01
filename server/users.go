@@ -48,7 +48,7 @@ func (r *userRequest) ValidUpdate() error {
 	if r.Scheme != "" {
 		return fmt.Errorf("Cannot update Scheme")
 	}
-	if r.Roles == nil {
+	if len(r.Roles) == 0 {
 		return fmt.Errorf("No Roles to update")
 	}
 	return r.ValidRoles()
