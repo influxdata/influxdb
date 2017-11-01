@@ -16,25 +16,25 @@ const initialState = {
   databases: [],
 }
 
-export default function admin(state = initialState, action) {
+export default function adminInfluxDB(state = initialState, action) {
   switch (action.type) {
-    case 'LOAD_USERS': {
+    case 'INFLUXDB_LOAD_USERS': {
       return {...state, ...action.payload}
     }
 
-    case 'LOAD_ROLES': {
+    case 'INFLUXDB_LOAD_ROLES': {
       return {...state, ...action.payload}
     }
 
-    case 'LOAD_PERMISSIONS': {
+    case 'INFLUXDB_LOAD_PERMISSIONS': {
       return {...state, ...action.payload}
     }
 
-    case 'LOAD_DATABASES': {
+    case 'INFLUXDB_LOAD_DATABASES': {
       return {...state, ...action.payload}
     }
 
-    case 'ADD_USER': {
+    case 'INFLUXDB_ADD_USER': {
       const newUser = {...NEW_DEFAULT_USER, isEditing: true}
       return {
         ...state,
@@ -42,7 +42,7 @@ export default function admin(state = initialState, action) {
       }
     }
 
-    case 'ADD_ROLE': {
+    case 'INFLUXDB_ADD_ROLE': {
       const newRole = {...NEW_DEFAULT_ROLE, isEditing: true}
       return {
         ...state,
@@ -50,7 +50,7 @@ export default function admin(state = initialState, action) {
       }
     }
 
-    case 'ADD_DATABASE': {
+    case 'INFLUXDB_ADD_DATABASE': {
       const newDatabase = {
         ...NEW_DEFAULT_DATABASE,
         links: {self: `temp-ID${uuid.v4()}`},
@@ -63,7 +63,7 @@ export default function admin(state = initialState, action) {
       }
     }
 
-    case 'ADD_RETENTION_POLICY': {
+    case 'INFLUXDB_ADD_RETENTION_POLICY': {
       const {database} = action.payload
       const databases = state.databases.map(
         db =>
@@ -81,7 +81,7 @@ export default function admin(state = initialState, action) {
       return {...state, databases}
     }
 
-    case 'SYNC_USER': {
+    case 'INFLUXDB_SYNC_USER': {
       const {staleUser, syncedUser} = action.payload
       const newState = {
         users: state.users.map(
@@ -91,7 +91,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'SYNC_ROLE': {
+    case 'INFLUXDB_SYNC_ROLE': {
       const {staleRole, syncedRole} = action.payload
       const newState = {
         roles: state.roles.map(
@@ -101,7 +101,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'SYNC_DATABASE': {
+    case 'INFLUXDB_SYNC_DATABASE': {
       const {stale, synced} = action.payload
       const newState = {
         databases: state.databases.map(
@@ -112,7 +112,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'SYNC_RETENTION_POLICY': {
+    case 'INFLUXDB_SYNC_RETENTION_POLICY': {
       const {database, stale, synced} = action.payload
       const newState = {
         databases: state.databases.map(
@@ -132,7 +132,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'EDIT_USER': {
+    case 'INFLUXDB_EDIT_USER': {
       const {user, updates} = action.payload
       const newState = {
         users: state.users.map(
@@ -142,7 +142,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'EDIT_ROLE': {
+    case 'INFLUXDB_EDIT_ROLE': {
       const {role, updates} = action.payload
       const newState = {
         roles: state.roles.map(
@@ -152,7 +152,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'EDIT_DATABASE': {
+    case 'INFLUXDB_EDIT_DATABASE': {
       const {database, updates} = action.payload
       const newState = {
         databases: state.databases.map(
@@ -164,7 +164,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'EDIT_RETENTION_POLICY': {
+    case 'INFLUXDB_EDIT_RETENTION_POLICY': {
       const {database, retentionPolicy, updates} = action.payload
 
       const newState = {
@@ -187,7 +187,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'DELETE_USER': {
+    case 'INFLUXDB_DELETE_USER': {
       const {user} = action.payload
       const newState = {
         users: state.users.filter(u => u.links.self !== user.links.self),
@@ -196,7 +196,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'DELETE_ROLE': {
+    case 'INFLUXDB_DELETE_ROLE': {
       const {role} = action.payload
       const newState = {
         roles: state.roles.filter(r => r.links.self !== role.links.self),
@@ -205,7 +205,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'REMOVE_DATABASE': {
+    case 'INFLUXDB_REMOVE_DATABASE': {
       const {database} = action.payload
       const newState = {
         databases: state.databases.filter(
@@ -216,7 +216,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'REMOVE_RETENTION_POLICY': {
+    case 'INFLUXDB_REMOVE_RETENTION_POLICY': {
       const {database, retentionPolicy} = action.payload
       const newState = {
         databases: state.databases.map(
@@ -235,7 +235,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'ADD_DATABASE_DELETE_CODE': {
+    case 'INFLUXDB_ADD_DATABASE_DELETE_CODE': {
       const {database} = action.payload
       const newState = {
         databases: state.databases.map(
@@ -247,7 +247,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'REMOVE_DATABASE_DELETE_CODE': {
+    case 'INFLUXDB_REMOVE_DATABASE_DELETE_CODE': {
       const {database} = action.payload
       delete database.deleteCode
 
@@ -260,11 +260,11 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'LOAD_QUERIES': {
+    case 'INFLUXDB_LOAD_QUERIES': {
       return {...state, ...action.payload}
     }
 
-    case 'FILTER_USERS': {
+    case 'INFLUXDB_FILTER_USERS': {
       const {text} = action.payload
       const newState = {
         users: state.users.map(u => {
@@ -275,7 +275,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'FILTER_ROLES': {
+    case 'INFLUXDB_FILTER_ROLES': {
       const {text} = action.payload
       const newState = {
         roles: state.roles.map(r => {
@@ -286,7 +286,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'KILL_QUERY': {
+    case 'INFLUXDB_KILL_QUERY': {
       const {queryID} = action.payload
       const nextState = {
         queries: reject(state.queries, q => +q.id === +queryID),
@@ -295,7 +295,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...nextState}
     }
 
-    case 'SET_QUERY_TO_KILL': {
+    case 'INFLUXDB_SET_QUERY_TO_KILL': {
       return {...state, ...action.payload}
     }
   }
