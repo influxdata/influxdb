@@ -86,9 +86,7 @@ class AdminChronografPage extends Component {
   handleBatchAddOrgToUsers = () => {}
   handleBatchChangeUsersRole = () => {}
 
-  handleUpdateUserRole = () => (user, currentRole, newRole) => {
-    console.log(user, currentRole, newRole)
-  }
+  handleUpdateUserRole = () => (_user, _currentRole, _newRole) => {}
 
   handleShowCreateOrgOverlay = () => {
     this.setState({showCreateOverlay: true})
@@ -98,9 +96,7 @@ class AdminChronografPage extends Component {
     this.setState({showCreateOverlay: false})
   }
 
-  handleCreateOrganization = orgName => {
-    console.log(orgName)
-  }
+  handleCreateOrganization = _orgName => {}
 
   render() {
     const {users, organizations} = this.props
