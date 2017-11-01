@@ -93,12 +93,6 @@ func (j *JWT) ValidClaims(jwtToken Token, lifespan time.Duration, alg gojwt.Keyf
 		return Principal{}, fmt.Errorf("claims duration is different from auth lifespan")
 	}
 
-	if claims.Organization == "" {
-		// TODO(desa): this okay?
-		// Set to be the default organization
-		claims.Organization = "0"
-	}
-
 	return Principal{
 		Subject:      claims.Subject,
 		Issuer:       claims.Issuer,
