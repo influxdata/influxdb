@@ -12,11 +12,12 @@ import (
 )
 
 type userRequest struct {
-	ID       uint64            `json:"id,string"`
-	Name     string            `json:"name"`
-	Provider string            `json:"provider"`
-	Scheme   string            `json:"scheme"`
-	Roles    []chronograf.Role `json:"roles"`
+	ID         uint64            `json:"id,string"`
+	Name       string            `json:"name"`
+	Provider   string            `json:"provider"`
+	Scheme     string            `json:"scheme"`
+	SuperAdmin bool              `json:"superAdmin"`
+	Roles      []chronograf.Role `json:"roles"`
 }
 
 func (r *userRequest) ValidCreate() error {
@@ -57,7 +58,6 @@ func (r *userRequest) ValidRoles() error {
 	if len(r.Roles) > 0 {
 		for _, r := range r.Roles {
 			switch r.Name {
-			// TODO: add SuperAdmin
 			case ViewerRoleName, EditorRoleName, AdminRoleName:
 				continue
 			default:
@@ -69,12 +69,13 @@ func (r *userRequest) ValidRoles() error {
 }
 
 type userResponse struct {
-	Links    selfLinks         `json:"links"`
-	ID       uint64            `json:"id,string"`
-	Name     string            `json:"name"`
-	Provider string            `json:"provider"`
-	Scheme   string            `json:"scheme"`
-	Roles    []chronograf.Role `json:"roles"`
+	Links      selfLinks         `json:"links"`
+	ID         uint64            `json:"id,string"`
+	Name       string            `json:"name"`
+	Provider   string            `json:"provider"`
+	Scheme     string            `json:"scheme"`
+	SuperAdmin bool              `json:"superAdmin"`
+	Roles      []chronograf.Role `json:"roles"`
 }
 
 func newUserResponse(u *chronograf.User) *userResponse {
@@ -119,9 +120,10 @@ func newUsersResponse(users []chronograf.User) *usersResponse {
 
 // Chronograf User Roles
 const (
-	ViewerRoleName = "viewer"
-	EditorRoleName = "editor"
-	AdminRoleName  = "admin"
+	ViewerRoleName     = "viewer"
+	EditorRoleName     = "editor"
+	AdminRoleName      = "admin"
+	SuperAdminRoleName = "superadmin"
 )
 
 var (

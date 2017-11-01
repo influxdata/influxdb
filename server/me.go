@@ -208,21 +208,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create default org if no organization exists
-	// TODO: cleanup
-	defaultOrgID := uint64(1)
-	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{
-		ID: &defaultOrgID,
-	})
-
-	// Create defaultOrg
-	if err == chronograf.ErrOrganizationNotFound {
-		// TODO: check err
-		org, _ = s.Store.Organizations(ctx).Add(ctx, &chronograf.Organization{
-			Name: "__default",
-		})
-	}
-
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
 		Name:     p.Subject,
@@ -234,8 +219,9 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		// TODO: this should be member
 		Roles: []chronograf.Role{
 			{
-				Name:         ViewerRoleName,
-				Organization: fmt.Sprintf("%d", org.ID),
+				Name: ViewerRoleName,
+				// This is the ID of the default organization
+				Organization: "0",
 			},
 		},
 		// TODO: is super admin for now

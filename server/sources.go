@@ -288,9 +288,7 @@ func ValidSourceRequest(s chronograf.Source) error {
 	}
 
 	if s.Organization == "" {
-		//TODO: Remove this
-		s.Organization = "1"
-		//return fmt.Errorf("organization required")
+		s.Organization = "0"
 	}
 
 	url, err := url.ParseRequestURI(s.URL)

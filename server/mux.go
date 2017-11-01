@@ -94,6 +94,15 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 			next,
 		)
 	}
+	EnsureSuperAdmin := func(next http.HandlerFunc) http.HandlerFunc {
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			SuperAdminRoleName,
+			opts.Logger,
+			next,
+		)
+	}
 
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
@@ -101,17 +110,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	/* API */
 	// Organizations
-	// TODO: Change to SuperAdmin
-	router.GET("/chronograf/v1/organizations", EnsureAdmin(service.Organizations))
-	// TODO: Change to SuperAdmin
-	router.POST("/chronograf/v1/organizations", EnsureAdmin(service.NewOrganization))
+	router.GET("/chronograf/v1/organizations", EnsureSuperAdmin(service.Organizations))
+	router.POST("/chronograf/v1/organizations", EnsureSuperAdmin(service.NewOrganization))
 
-	// TODO: Change to SuperAdmin
-	router.GET("/chronograf/v1/organizations/:id", EnsureAdmin(service.OrganizationID))
-	// TODO: Change to SuperAdmin
-	router.PATCH("/chronograf/v1/organizations/:id", EnsureAdmin(service.UpdateOrganization))
-	// TODO: Change to SuperAdmin
-	router.DELETE("/chronograf/v1/organizations/:id", EnsureAdmin(service.RemoveOrganization))
+	router.GET("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.OrganizationID))
+	router.PATCH("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.UpdateOrganization))
+	router.DELETE("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.RemoveOrganization))
 
 	// Sources
 	router.GET("/chronograf/v1/sources", EnsureViewer(service.Sources))
@@ -193,8 +197,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/me", service.Me)
 
 	// Set current chronograf organization the user is logged into
-	router.PUT("/chronograf/v1/me/organization", service.MeOrganization(opts.Auth))
+	router.PUT("/chronograf/v1/me", service.MeOrganization(opts.Auth))
 
+	// TODO(desa): what to do about admin's being able to set superadmin
 	router.GET("/chronograf/v1/users", EnsureAdmin(service.Users))
 	router.POST("/chronograf/v1/users", EnsureAdmin(service.NewUser))
 

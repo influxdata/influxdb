@@ -26,7 +26,7 @@ func (p *postKapacitorRequest) Valid() error {
 	}
 
 	if p.Organization == "" {
-		return fmt.Errorf("organization must be set")
+		p.Organization = "0"
 	}
 
 	url, err := url.ParseRequestURI(*p.URL)

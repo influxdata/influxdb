@@ -20,6 +20,23 @@ type OrganizationsStore struct {
 	client *Client
 }
 
+func (s *OrganizationsStore) Migrate(ctx context.Context) error {
+	o := chronograf.Organization{
+		ID:   0,
+		Name: "__default",
+	}
+	return s.client.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(OrganizationsBucket)
+		if v, err := internal.MarshalOrganization(&o); err != nil {
+			return err
+		} else if err := b.Put(u64tob(o.ID), v); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
