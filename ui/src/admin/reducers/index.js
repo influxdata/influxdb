@@ -1,3 +1,3 @@
-import adminInfluxDBReducer from './influxdb'
+import adminInfluxDB from './influxdb'
 
-export {adminInfluxDBReducer}
+export default {adminInfluxDB}

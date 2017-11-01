@@ -1,4 +1,4 @@
-import {adminInfluxDBReducer as reducer} from 'src/admin/reducers'
+import reducer from 'src/admin/reducers/influxdb'
 
 import {
   addUser,

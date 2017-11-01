@@ -16,7 +16,7 @@ const initialState = {
   databases: [],
 }
 
-export default function adminInfluxDB(state = initialState, action) {
+const adminInfluxDB = (state = initialState, action) => {
   switch (action.type) {
     case 'INFLUXDB_LOAD_USERS': {
       return {...state, ...action.payload}
@@ -302,3 +302,5 @@ export default function adminInfluxDB(state = initialState, action) {
 
   return state
 }
+
+export default adminInfluxDB
