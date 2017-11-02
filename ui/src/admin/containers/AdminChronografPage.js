@@ -27,6 +27,14 @@ class AdminChronografPage extends Component {
     }
   }
 
+  // TODO: revisit this, possibly for deep equal comparison on just users
+  componentWillReceiveProps(nextProps) {
+    this.handleFilterUsers({
+      name: this.state.organizationName,
+      users: nextProps.users,
+    })
+  }
+
   componentDidMount() {
     const {loadUsers} = this.props
 
@@ -43,14 +51,13 @@ class AdminChronografPage extends Component {
     )
   }
 
-  handleFilterUsers = filterQuery => {
-    const {users} = this.props
-    const {name} = filterQuery
+  handleFilterUsers = ({name, users}) => {
+    const nextUsers = users || this.props.users
 
     const filteredUsers =
       name === DEFAULT_ORG
-        ? users
-        : users.filter(
+        ? nextUsers
+        : nextUsers.filter(
             user =>
               name === NO_ORG
                 ? user.roles.length === 1 // Filter out if user is only part of Default Org
@@ -59,8 +66,7 @@ class AdminChronografPage extends Component {
     this.setState({
       filteredUsers,
       organizationName: name,
-      selectedUsers:
-        filterQuery.name === DEFAULT_ORG ? this.state.selectedUsers : [],
+      selectedUsers: name === DEFAULT_ORG ? this.state.selectedUsers : [],
     })
   }
 
