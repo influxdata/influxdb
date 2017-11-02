@@ -16,10 +16,14 @@ var _ chronograf.OrganizationsStore = &OrganizationsStore{}
 // OrganizationsBucket is the bucket where organizations are stored.
 var OrganizationsBucket = []byte("OrganizationsV1")
 
-// DefaultOrganizationID is the ID of the default organization.
-const DefaultOrganizationID uint64 = 0
-const DefaultOrganizationName string = "Default"
-const DefaultOrganizationRole string = "member"
+const (
+	// DefaultOrganizationID is the ID of the default organization.
+	DefaultOrganizationID uint64 = 0
+	// DefaultOrganizationName is the Name of the default organization
+	DefaultOrganizationName string = "Default"
+	// DefaultOrganizationRole is the DefaultRole for the Default organization
+	DefaultOrganizationRole string = "member"
+)
 
 // OrganizationsStore uses bolt to store and retrieve Organizations
 type OrganizationsStore struct {

@@ -393,6 +393,44 @@ func TestOrganizationStore_Delete(t *testing.T) {
 	}
 }
 
+func TestOrganizationStore_DeleteDefaultOrg(t *testing.T) {
+	type args struct {
+		ctx context.Context
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "Delete the default organization",
+			args: args{
+				ctx: context.Background(),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		client, err := NewTestClient()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Open(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+		s := client.OrganizationsStore
+
+		defaultOrg, err := s.DefaultOrganization(tt.args.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Delete(tt.args.ctx, defaultOrg); (err != nil) != tt.wantErr {
+			t.Errorf("%q. OrganizationsStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+	}
+}
+
 func TestOrganizationsStore_Add(t *testing.T) {
 	type fields struct {
 		orgs []chronograf.Organization
