@@ -1,0 +1,165 @@
+/*
+  Styles for the Manage Organizations Overlay
+  ------------------------------------------------------------------------------
+  Accessed via Chronograf Admin
+*/
+
+$manage-orgs--form-z: 2;
+$manage-orgs--max-width: 650px;
+$manage-orgs--gutter: 30px;
+
+.manage-orgs-form {
+  max-width: $manage-orgs--max-width;
+  margin: 0 auto;
+  position: relative;
+  z-index: $manage-orgs--form-z;
+}
+.manage-orgs-form--header {
+  height: $chronograf-page-header-height;
+  background: $g0-obsidian;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 $manage-orgs--gutter;
+
+  .page-header__right span.page-header__dismiss {
+    margin-right: -10px !important;
+  }
+}
+.manage-orgs-form--body {
+  padding: $manage-orgs--gutter;
+  border-radius: 0 0 $radius $radius;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.manage-orgs-form--org {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  position: relative;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+.manage-orgs-form--id {
+  padding: 0 11px;
+  width: 60px;
+  height: 30px;
+  line-height: 30px;
+  font-size: 13px;
+  color: $g13-mist;
+  font-weight: 500;
+}
+.manage-orgs-form--name,
+input[type="text"].form-control.manage-orgs-form--input {
+  flex: 1 0 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+.manage-orgs-form--name {
+  padding: 0 11px;
+  border: 2px solid $g2-kevlar;
+  background-color: $g2-kevlar;
+  color: $g13-mist;
+  border-radius: 4px;
+  height: 30px;
+  line-height: 28px;
+  position: relative;
+  transition:
+    color 0.4s ease,
+    background-color 0.4s ease,
+    border-color 0.4s ease;
+
+  > span.icon {
+    position: absolute;
+    top: 50%;
+    right: 11px;
+    transform: translateY(-50%);
+    color: $g8-storm;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  &:hover {
+    color: $g20-white;
+    background-color: $g5-pepper;
+    border-color: $g5-pepper;
+    cursor: text;
+
+    > span.icon {opacity: 1;}
+  }
+}
+.manage-orgs-form--body .manage-orgs-form--org .btn.btn-sm.btn-square.manage-orgs-form--delete {
+  position: relative;
+  margin-left: 4px;
+}
+.manage-orgs-form--confirm-delete {
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  transform: translateY(-50%);
+  @include gradient-h($c-star,$c-curacao);
+  color: $c-marmelade;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 13px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  z-index: 6;
+  transition: background-color 0.25s ease;
+
+  > span {
+    text-align: left;
+  }
+  > .btn {
+    margin-left: 10px;
+  }
+
+  &:after {
+    content: '';
+    border-width: 6px;
+    border-style: solid;
+    border-color: transparent;
+    border-right-color: $c-star;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: -12px;
+    transition: border-color 0.25s ease;
+  }
+}
+
+.manage-orgs-form--org-labels {
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid $g3-castle;
+  margin-bottom: 8px;
+  width: 100%;
+
+  > .manage-orgs-form--name,
+  > .manage-orgs-form--name:hover {
+    transition: none;
+    background-color: transparent;
+    border-color: transparent;
+  }
+
+  > .manage-orgs-form--id,
+  > .manage-orgs-form--name,
+  > .manage-orgs-form--name:hover {
+    color: $g15-platinum;
+    font-weight: 700;
+  }
+}
+.manage-orgs-form--org.manage-orgs-form--new-org {
+  .btn {
+    margin-left: 4px;
+  }
+}

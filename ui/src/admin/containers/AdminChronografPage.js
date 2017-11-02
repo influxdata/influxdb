@@ -10,11 +10,16 @@ import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
-import CreateOrgOverlay from 'src/admin/components/chronograf/CreateOrgOverlay'
+import ManageOrgsOverlay from 'src/admin/components/chronograf/ManageOrgsOverlay'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {DUMMY_ORGS, DEFAULT_ORG, NO_ORG} from 'src/admin/constants/dummyUsers'
+import {
+  DUMMY_ORGS,
+  DEFAULT_ORG,
+  NO_ORG,
+  MOAR_DUMMY_ORGS,
+} from 'src/admin/constants/dummyUsers'
 
 class AdminChronografPage extends Component {
   constructor(props) {
@@ -25,7 +30,7 @@ class AdminChronografPage extends Component {
       organizationName: this.props.currentOrganization,
       selectedUsers: [],
       filteredUsers: this.props.users,
-      showCreateOverlay: false,
+      showManageOverlay: false,
     }
   }
 
@@ -109,15 +114,17 @@ class AdminChronografPage extends Component {
 
   handleUpdateUserRole = () => (_user, _currentRole, _newRole) => {}
 
-  handleShowCreateOrgOverlay = () => {
-    this.setState({showCreateOverlay: true})
+  handleShowManageOrgsOverlay = () => {
+    this.setState({showManageOverlay: true})
   }
 
-  handleHideCreateOrgOverlay = () => {
-    this.setState({showCreateOverlay: false})
+  handleHideManageOrgsOverlay = () => {
+    this.setState({showManageOverlay: false})
   }
 
-  handleCreateOrganization = _orgName => {}
+  handleCreateOrganization = _organizationName => {}
+  handleDeleteOrganization = _organization => {}
+  handleRenameOrganization = (_organization, _newOrgName) => {}
 
   render() {
     const {users, organizations} = this.props
@@ -125,14 +132,16 @@ class AdminChronografPage extends Component {
       organizationName,
       selectedUsers,
       filteredUsers,
-      showCreateOverlay,
+      showManageOverlay,
     } = this.state
 
     const numUsersSelected = Object.keys(selectedUsers).length
 
     return (
       <div className="page">
-        <PageHeader onShowCreateOrgOverlay={this.handleShowCreateOrgOverlay} />
+        <PageHeader
+          onShowManageOrgsOverlay={this.handleShowManageOrgsOverlay}
+        />
 
         <FancyScrollbar className="page-contents">
           {users
@@ -179,10 +188,13 @@ class AdminChronografPage extends Component {
               </div>
             : <div className="page-spinner" />}
         </FancyScrollbar>
-        {showCreateOverlay
-          ? <CreateOrgOverlay
-              onDismiss={this.handleHideCreateOrgOverlay}
+        {showManageOverlay
+          ? <ManageOrgsOverlay
+              onDismiss={this.handleHideManageOrgsOverlay}
               onCreateOrg={this.handleCreateOrganization}
+              onDeleteOrg={this.handleDeleteOrganization}
+              onRenameOrg={this.handleRenameOrganization}
+              organizations={MOAR_DUMMY_ORGS}
             />
           : null}
       </div>

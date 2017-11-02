@@ -16,3 +16,10 @@ export const DUMMY_ORGS = [
   {name: 'Blue Team'},
   {name: 'Green Team'},
 ]
+
+export const MOAR_DUMMY_ORGS = [
+  {name: 'Marketing', id: '128'},
+  {name: 'Exec Team', id: '127'},
+  {name: 'Lion Tamers', id: '126'},
+  {name: 'Susl0rds', id: '125'},
+]

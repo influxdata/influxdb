@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
-const PageHeader = ({onShowCreateOrgOverlay}) =>
+const PageHeader = ({onShowManageOrgsOverlay}) =>
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
@@ -14,10 +14,10 @@ const PageHeader = ({onShowCreateOrgOverlay}) =>
         <Authorized requiredRole={SUPERADMIN_ROLE}>
           <button
             className="btn btn-primary btn-sm"
-            onClick={onShowCreateOrgOverlay}
+            onClick={onShowManageOrgsOverlay}
           >
-            <span className="icon plus" />
-            Create Organization
+            <span className="icon cog-thick" />
+            Manage Organizations
           </button>
         </Authorized>
       </div>
@@ -27,7 +27,7 @@ const PageHeader = ({onShowCreateOrgOverlay}) =>
 const {func} = PropTypes
 
 PageHeader.propTypes = {
-  onShowCreateOrgOverlay: func.isRequired,
+  onShowManageOrgsOverlay: func.isRequired,
 }
 
 export default PageHeader

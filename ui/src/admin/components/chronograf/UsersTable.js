@@ -23,15 +23,7 @@ class ChronografUsersTable extends Component {
     this.props.onUpdateUserRole(user, currentRole, newRole)
   }
 
-  handleChangeSuperAdmin = (user, currentState) => newState => {
-    console.log(
-      user.name,
-      'SuperAdmin - was:',
-      currentState,
-      'is now:',
-      newState.text
-    )
-  }
+  handleChangeSuperAdmin = (_user, _currentState) => _newState => {}
 
   areSameUsers = (usersA, usersB) => {
     if (usersA.length === 0 && usersB.length === 0) {
