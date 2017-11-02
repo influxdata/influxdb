@@ -20,9 +20,10 @@ type MockUsers struct{}
 
 func TestService_Me(t *testing.T) {
 	type fields struct {
-		UsersStore chronograf.UsersStore
-		Logger     chronograf.Logger
-		UseAuth    bool
+		UsersStore         chronograf.UsersStore
+		OrganizationsStore chronograf.OrganizationsStore
+		Logger             chronograf.Logger
+		UseAuth            bool
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -46,6 +47,14 @@ func TestService_Me(t *testing.T) {
 			fields: fields{
 				UseAuth: true,
 				Logger:  log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:   0,
+							Name: "The Bad Place",
+						}, nil
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AllF: func(ctx context.Context) ([]chronograf.User, error) {
 						// This function gets to verify that there is at least one first user
@@ -69,7 +78,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"}}
+			wantBody: `{"name":"me","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"},"currentOrganization":{"id":"0","name":"The Bad Place"}}
 `,
 		},
 		{
@@ -81,6 +90,14 @@ func TestService_Me(t *testing.T) {
 			fields: fields{
 				UseAuth: true,
 				Logger:  log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:   0,
+							Name: "The Bad Place",
+						}, nil
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AllF: func(ctx context.Context) ([]chronograf.User, error) {
 						// This function gets to verify that there is at least one first user
@@ -103,7 +120,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","roles":[{"name":"member","organization":"\"0\""}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/secret"}}
+			wantBody: `{"name":"secret","roles":[{"name":"member","organization":"\"0\""}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/secret"},"organizations":[{"id":"0","name":"The Bad Place"}],"currentOrganization":{"id":"0","name":"The Bad Place"}}
 `,
 		},
 		{
@@ -114,6 +131,14 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:   0,
+							Name: "The Bad Place",
+						}, nil
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AllF: func(ctx context.Context) ([]chronograf.User, error) {
 						// This function gets to verify that there is at least one first user
@@ -172,7 +197,8 @@ func TestService_Me(t *testing.T) {
 		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), oauth2.PrincipalKey, tt.principal))
 		s := &Service{
 			Store: &mocks.Store{
-				UsersStore: tt.fields.UsersStore,
+				UsersStore:         tt.fields.UsersStore,
+				OrganizationsStore: tt.fields.OrganizationsStore,
 			},
 			Logger:  tt.fields.Logger,
 			UseAuth: tt.fields.UseAuth,
@@ -267,7 +293,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","currentOrganization":"1337","links":{"self":"/chronograf/v1/users/me"}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -319,7 +345,8 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","currentOrganization":"1337","links":{"self":"/chronograf/v1/users/me"}}`,
+			wantBody: `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"},"organizations":[{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}
+`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
