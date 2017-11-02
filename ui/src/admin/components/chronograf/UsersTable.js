@@ -79,29 +79,44 @@ class ChronografUsersTable extends Component {
           </tr>
         </thead>
         <tbody>
-          {filteredUsers.map(
-            (user, i) =>
-              organizationName === DEFAULT_ORG
-                ? <UsersTableRow
-                    user={user}
-                    key={i}
-                    onToggleUserSelected={onToggleUserSelected}
-                    selectedUsers={selectedUsers}
-                    isSameUser={isSameUser}
-                    onChangeUserRole={this.handleChangeUserRole}
-                    onChooseFilter={this.handleChooseFilter}
-                    onChangeSuperAdmin={this.handleChangeSuperAdmin}
-                  />
-                : <OrgTableRow
-                    user={user}
-                    key={i}
-                    onToggleUserSelected={onToggleUserSelected}
-                    selectedUsers={selectedUsers}
-                    isSameUser={isSameUser}
-                    organizationName={organizationName}
-                    onChangeUserRole={this.handleChangeUserRole}
-                  />
-          )}
+          {filteredUsers.length
+            ? filteredUsers.map(
+                (user, i) =>
+                  organizationName === DEFAULT_ORG
+                    ? <UsersTableRow
+                        user={user}
+                        key={i}
+                        onToggleUserSelected={onToggleUserSelected}
+                        selectedUsers={selectedUsers}
+                        isSameUser={isSameUser}
+                        onChangeUserRole={this.handleChangeUserRole}
+                        onChooseFilter={this.handleChooseFilter}
+                        onChangeSuperAdmin={this.handleChangeSuperAdmin}
+                      />
+                    : <OrgTableRow
+                        user={user}
+                        key={i}
+                        onToggleUserSelected={onToggleUserSelected}
+                        selectedUsers={selectedUsers}
+                        isSameUser={isSameUser}
+                        organizationName={organizationName}
+                        onChangeUserRole={this.handleChangeUserRole}
+                      />
+              )
+            : <tr className="table-empty-state">
+                <Authorized
+                  requiredRole={SUPERADMIN_ROLE}
+                  replaceWith={
+                    <th colSpan="6">
+                      <p>No Users to display</p>
+                    </th>
+                  }
+                >
+                  <th colSpan="7">
+                    <p>No Users to display</p>
+                  </th>
+                </Authorized>
+              </tr>}
         </tbody>
       </table>
     )
