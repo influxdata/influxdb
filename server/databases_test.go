@@ -11,7 +11,7 @@ func TestService_GetDatabases(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore     chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -33,11 +33,13 @@ func TestService_GetDatabases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Service{
-				SourcesStore:     tt.fields.SourcesStore,
-				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
-				UsersStore:       tt.fields.UsersStore,
-				DashboardsStore:  tt.fields.DashboardsStore,
+				Store: &Store{
+					SourcesStore:    tt.fields.SourcesStore,
+					ServersStore:    tt.fields.ServersStore,
+					LayoutsStore:    tt.fields.LayoutsStore,
+					UsersStore:      tt.fields.UsersStore,
+					DashboardsStore: tt.fields.DashboardsStore,
+				},
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
 				Logger:           tt.fields.Logger,
 				UseAuth:          tt.fields.UseAuth,
@@ -52,7 +54,7 @@ func TestService_NewDatabase(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore     chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -74,11 +76,13 @@ func TestService_NewDatabase(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Service{
-				SourcesStore:     tt.fields.SourcesStore,
-				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
-				UsersStore:       tt.fields.UsersStore,
-				DashboardsStore:  tt.fields.DashboardsStore,
+				Store: &Store{
+					SourcesStore:    tt.fields.SourcesStore,
+					ServersStore:    tt.fields.ServersStore,
+					LayoutsStore:    tt.fields.LayoutsStore,
+					UsersStore:      tt.fields.UsersStore,
+					DashboardsStore: tt.fields.DashboardsStore,
+				},
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
 				Logger:           tt.fields.Logger,
 				UseAuth:          tt.fields.UseAuth,
@@ -93,7 +97,7 @@ func TestService_DropDatabase(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore     chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -115,11 +119,13 @@ func TestService_DropDatabase(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Service{
-				SourcesStore:     tt.fields.SourcesStore,
-				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
-				UsersStore:       tt.fields.UsersStore,
-				DashboardsStore:  tt.fields.DashboardsStore,
+				Store: &Store{
+					SourcesStore:    tt.fields.SourcesStore,
+					ServersStore:    tt.fields.ServersStore,
+					LayoutsStore:    tt.fields.LayoutsStore,
+					UsersStore:      tt.fields.UsersStore,
+					DashboardsStore: tt.fields.DashboardsStore,
+				},
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
 				Logger:           tt.fields.Logger,
 				UseAuth:          tt.fields.UseAuth,
@@ -134,7 +140,7 @@ func TestService_RetentionPolicies(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore     chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -156,11 +162,13 @@ func TestService_RetentionPolicies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Service{
-				SourcesStore:     tt.fields.SourcesStore,
-				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
-				UsersStore:       tt.fields.UsersStore,
-				DashboardsStore:  tt.fields.DashboardsStore,
+				Store: &Store{
+					SourcesStore:    tt.fields.SourcesStore,
+					ServersStore:    tt.fields.ServersStore,
+					LayoutsStore:    tt.fields.LayoutsStore,
+					UsersStore:      tt.fields.UsersStore,
+					DashboardsStore: tt.fields.DashboardsStore,
+				},
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
 				Logger:           tt.fields.Logger,
 				UseAuth:          tt.fields.UseAuth,
@@ -175,7 +183,7 @@ func TestService_NewRetentionPolicy(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore     chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -197,11 +205,13 @@ func TestService_NewRetentionPolicy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Service{
-				SourcesStore:     tt.fields.SourcesStore,
-				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
-				UsersStore:       tt.fields.UsersStore,
-				DashboardsStore:  tt.fields.DashboardsStore,
+				Store: &Store{
+					SourcesStore:    tt.fields.SourcesStore,
+					ServersStore:    tt.fields.ServersStore,
+					LayoutsStore:    tt.fields.LayoutsStore,
+					UsersStore:      tt.fields.UsersStore,
+					DashboardsStore: tt.fields.DashboardsStore,
+				},
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
 				Logger:           tt.fields.Logger,
 				UseAuth:          tt.fields.UseAuth,
@@ -216,7 +226,7 @@ func TestService_UpdateRetentionPolicy(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore     chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -238,11 +248,13 @@ func TestService_UpdateRetentionPolicy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Service{
-				SourcesStore:     tt.fields.SourcesStore,
-				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
-				UsersStore:       tt.fields.UsersStore,
-				DashboardsStore:  tt.fields.DashboardsStore,
+				Store: &Store{
+					SourcesStore:    tt.fields.SourcesStore,
+					ServersStore:    tt.fields.ServersStore,
+					LayoutsStore:    tt.fields.LayoutsStore,
+					UsersStore:      tt.fields.UsersStore,
+					DashboardsStore: tt.fields.DashboardsStore,
+				},
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
 				Logger:           tt.fields.Logger,
 				UseAuth:          tt.fields.UseAuth,
@@ -257,7 +269,7 @@ func TestService_DropRetentionPolicy(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore     chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -279,11 +291,13 @@ func TestService_DropRetentionPolicy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Service{
-				SourcesStore:     tt.fields.SourcesStore,
-				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
-				UsersStore:       tt.fields.UsersStore,
-				DashboardsStore:  tt.fields.DashboardsStore,
+				Store: &Store{
+					SourcesStore:    tt.fields.SourcesStore,
+					ServersStore:    tt.fields.ServersStore,
+					LayoutsStore:    tt.fields.LayoutsStore,
+					UsersStore:      tt.fields.UsersStore,
+					DashboardsStore: tt.fields.DashboardsStore,
+				},
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
 				Logger:           tt.fields.Logger,
 				UseAuth:          tt.fields.UseAuth,

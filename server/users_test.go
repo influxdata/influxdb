@@ -60,7 +60,7 @@ func TestService_UserID(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -68,15 +68,17 @@ func TestService_UserID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"billysteve","provider":"google","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"viewer"}]}`,
+			wantBody:        `{"id":"1337","superAdmin":false,"name":"billysteve","provider":"google","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"viewer"}]}`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -156,15 +158,17 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1338","name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
+			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			buf, _ := json.Marshal(tt.args.user)
@@ -222,7 +226,7 @@ func TestService_RemoveUser(t *testing.T) {
 								Scheme:   "oauth2",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
 						}
 					},
 					DeleteF: func(ctx context.Context, user *chronograf.User) error {
@@ -251,8 +255,10 @@ func TestService_RemoveUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -308,7 +314,7 @@ func TestService_UpdateUser(t *testing.T) {
 						case 1336:
 							return &chronograf.User{
 								ID:       1336,
-								Name:     "bobbetta2",
+								Name:     "bobbetta",
 								Provider: "github",
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
@@ -316,7 +322,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -329,10 +335,7 @@ func TestService_UpdateUser(t *testing.T) {
 					nil,
 				),
 				user: &userRequest{
-					ID:       1336,
-					Name:     "bobbetta",
-					Provider: "google",
-					Scheme:   "oauth2",
+					ID: 1336,
 					Roles: []chronograf.Role{
 						AdminRole,
 					},
@@ -341,54 +344,16 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"bobbetta","provider":"google","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
-		},
-		{
-			name: "Update only one field of a Chronograf user",
-			fields: fields{
-				Logger: log.New(log.DebugLevel),
-				UsersStore: &mocks.UsersStore{
-					UpdateF: func(ctx context.Context, user *chronograf.User) error {
-						return nil
-					},
-					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-						switch *q.ID {
-						case 1336:
-							return &chronograf.User{
-								ID:       1336,
-								Name:     "bobbetta2",
-								Provider: "github",
-								Scheme:   "oauth2",
-							}, nil
-						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
-						}
-					},
-				},
-			},
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"PATCH",
-					"http://any.url",
-					nil,
-				),
-				user: &userRequest{
-					ID:   1336,
-					Name: "burnetta",
-				},
-			},
-			id:              "1336",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"burnetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[]}`,
+			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(context.Background(),
@@ -414,7 +379,7 @@ func TestService_UpdateUser(t *testing.T) {
 				t.Errorf("%q. UpdateUser() = %v, want %v", tt.name, content, tt.wantContentType)
 			}
 			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
-				t.Errorf("%q. UpdateUser() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+				t.Errorf("%q. UpdateUser()\ngot:%v\n,\nwant:%v", tt.name, string(body), tt.wantBody)
 			}
 		})
 	}
@@ -473,7 +438,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","superAdmin":false,"name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","superAdmin":false,"name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
@@ -511,15 +476,17 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","superAdmin":false,"name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","superAdmin":false,"name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				UsersStore: tt.fields.UsersStore,
-				Logger:     tt.fields.Logger,
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 
 			s.Users(tt.args.w, tt.args.r)
@@ -663,10 +630,7 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			name: "Valid",
 			args: args{
 				u: &userRequest{
-					ID:       1337,
-					Name:     "billietta",
-					Provider: "auth0",
-					Scheme:   "oauth2",
+					ID: 1337,
 					Roles: []chronograf.Role{
 						EditorRole,
 					},
@@ -676,14 +640,50 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			err:     nil,
 		},
 		{
-			name: "Invalid – field missing",
+			name: "Invalid – roles missing",
+			args: args{
+				u: &userRequest{},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("No Roles to update"),
+		},
+		{
+			name: "Invalid: field missing",
+			args: args{
+				u: &userRequest{},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("No Roles to update"),
+		},
+		{
+			name: "Invalid: Name attempted",
 			args: args{
 				u: &userRequest{
-					ID: 1337,
+					Name: "bob",
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("No fields to update"),
+			err:     fmt.Errorf("Cannot update Name"),
+		},
+		{
+			name: "Invalid: Provider attempted",
+			args: args{
+				u: &userRequest{
+					Provider: "Goggles",
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Cannot update Provider"),
+		},
+		{
+			name: "Invalid: Scheme attempted",
+			args: args{
+				u: &userRequest{
+					Scheme: "leDAP",
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Cannot update Scheme"),
 		},
 	}
 
@@ -693,11 +693,11 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 
 			if tt.wantErr {
 				if err == nil || err.Error() != tt.err.Error() {
-					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+					t.Errorf("%q. ValidUpdate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+					t.Errorf("%q. ValidUpdate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
 				}
 			}
 		})

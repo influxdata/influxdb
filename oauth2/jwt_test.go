@@ -13,8 +13,9 @@ import (
 func TestAuthenticate(t *testing.T) {
 	history := time.Unix(-446774400, 0)
 	var tests = []struct {
-		Desc      string
-		Secret    string
+		Desc   string
+		Secret string
+		// JWT tokens were generated at https://jwt.io/ using their Debugger
 		Token     oauth2.Token
 		Duration  time.Duration
 		Principal oauth2.Principal
@@ -38,6 +39,18 @@ func TestAuthenticate(t *testing.T) {
 				Subject:   "/chronograf/v1/users/1",
 				ExpiresAt: history.Add(time.Second),
 				IssuedAt:  history,
+			},
+		},
+		{
+			Desc:     "Test valid jwt token with organization",
+			Secret:   "secret",
+			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsIm9yZyI6IjEzMzciLCJpYXQiOi00NDY3NzQ0MDAsImV4cCI6LTQ0Njc3NDM5OSwibmJmIjotNDQ2Nzc0NDAwfQ.b38MK5liimWsvvJr4a3GNYRDJOAN7WCrfZ0FfZftqjc",
+			Duration: time.Second,
+			Principal: oauth2.Principal{
+				Subject:      "/chronograf/v1/users/1",
+				Organization: "1337",
+				ExpiresAt:    history.Add(time.Second),
+				IssuedAt:     history,
 			},
 		},
 		{

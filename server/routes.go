@@ -30,6 +30,8 @@ func (r *AuthRoutes) Lookup(provider string) (AuthRoute, bool) {
 
 type getRoutesResponse struct {
 	Layouts       string                   `json:"layouts"`          // Location of the layouts endpoint
+	Users         string                   `json:"users"`            // Location of the users endpoint
+	Organizations string                   `json:"organizations"`    // Location of the organizations endpoint
 	Mappings      string                   `json:"mappings"`         // Location of the application mappings endpoint
 	Sources       string                   `json:"sources"`          // Location of the sources endpoint
 	Me            string                   `json:"me"`               // Location of the me endpoint
@@ -59,12 +61,14 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	routes := getRoutesResponse{
-		Sources:    "/chronograf/v1/sources",
-		Layouts:    "/chronograf/v1/layouts",
-		Me:         "/chronograf/v1/me",
-		Mappings:   "/chronograf/v1/mappings",
-		Dashboards: "/chronograf/v1/dashboards",
-		Auth:       make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
+		Sources:       "/chronograf/v1/sources",
+		Layouts:       "/chronograf/v1/layouts",
+		Users:         "/chronograf/v1/users",
+		Organizations: "/chronograf/v1/organizations",
+		Me:            "/chronograf/v1/me",
+		Mappings:      "/chronograf/v1/mappings",
+		Dashboards:    "/chronograf/v1/dashboards",
+		Auth:          make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 		ExternalLinks: getExternalLinksResponse{
 			StatusFeed:  &a.StatusFeed,
 			CustomLinks: customLinks,

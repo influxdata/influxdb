@@ -68,13 +68,40 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	}
 
 	EnsureViewer := func(next http.HandlerFunc) http.HandlerFunc {
-		return AuthorizedUser(service.UsersStore, opts.UseAuth, ViewerRoleName, opts.Logger, next)
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			ViewerRoleName,
+			opts.Logger,
+			next,
+		)
 	}
 	EnsureEditor := func(next http.HandlerFunc) http.HandlerFunc {
-		return AuthorizedUser(service.UsersStore, opts.UseAuth, EditorRoleName, opts.Logger, next)
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			EditorRoleName,
+			opts.Logger,
+			next,
+		)
 	}
 	EnsureAdmin := func(next http.HandlerFunc) http.HandlerFunc {
-		return AuthorizedUser(service.UsersStore, opts.UseAuth, AdminRoleName, opts.Logger, next)
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			AdminRoleName,
+			opts.Logger,
+			next,
+		)
+	}
+	EnsureSuperAdmin := func(next http.HandlerFunc) http.HandlerFunc {
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			SuperAdminRoleName,
+			opts.Logger,
+			next,
+		)
 	}
 
 	/* Documentation */
@@ -82,6 +109,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/docs", Redoc("/swagger.json"))
 
 	/* API */
+	// Organizations
+	router.GET("/chronograf/v1/organizations", EnsureSuperAdmin(service.Organizations))
+	router.POST("/chronograf/v1/organizations", EnsureSuperAdmin(service.NewOrganization))
+
+	router.GET("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.OrganizationID))
+	router.PATCH("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.UpdateOrganization))
+	router.DELETE("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.RemoveOrganization))
+
 	// Sources
 	router.GET("/chronograf/v1/sources", EnsureViewer(service.Sources))
 	router.POST("/chronograf/v1/sources", EnsureEditor(service.NewSource))
@@ -161,6 +196,10 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Users associated with Chronograf
 	router.GET("/chronograf/v1/me", service.Me)
 
+	// Set current chronograf organization the user is logged into
+	router.PUT("/chronograf/v1/me", service.MeOrganization(opts.Auth))
+
+	// TODO(desa): what to do about admin's being able to set superadmin
 	router.GET("/chronograf/v1/users", EnsureAdmin(service.Users))
 	router.POST("/chronograf/v1/users", EnsureAdmin(service.NewUser))
 

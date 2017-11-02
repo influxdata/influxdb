@@ -11,11 +11,7 @@ import (
 
 // Service handles REST calls to the persistence
 type Service struct {
-	SourcesStore     chronograf.SourcesStore
-	ServersStore     chronograf.ServersStore
-	LayoutStore      chronograf.LayoutStore
-	UsersStore       chronograf.UsersStore
-	DashboardsStore  chronograf.DashboardsStore
+	Store            DataStore
 	TimeSeriesClient TimeSeriesClient
 	Logger           chronograf.Logger
 	UseAuth          bool

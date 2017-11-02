@@ -16,7 +16,7 @@ func (s *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src, err := s.SourcesStore.Get(ctx, srcID)
+	src, err := s.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, s.Logger)
 		return

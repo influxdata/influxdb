@@ -144,6 +144,7 @@ func TestValidDashboardRequest(t *testing.T) {
 		{
 			name: "Updates all cell widths/heights",
 			d: chronograf.Dashboard{
+				Organization: "1337",
 				Cells: []chronograf.DashboardCell{
 					{
 						W: 0,
@@ -166,6 +167,7 @@ func TestValidDashboardRequest(t *testing.T) {
 				},
 			},
 			want: chronograf.Dashboard{
+				Organization: "1337",
 				Cells: []chronograf.DashboardCell{
 					{
 						W: 4,
@@ -195,8 +197,8 @@ func TestValidDashboardRequest(t *testing.T) {
 			t.Errorf("%q. ValidDashboardRequest() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !reflect.DeepEqual(tt.d, tt.want) {
-			t.Errorf("%q. ValidDashboardRequest() = %v, want %v", tt.name, tt.d, tt.want)
+		if diff := cmp.Diff(tt.d, tt.want); diff != "" {
+			t.Errorf("%q. ValidDashboardRequest(). got/want diff:\n%s", tt.name, diff)
 		}
 	}
 }

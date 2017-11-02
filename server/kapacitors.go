@@ -12,16 +12,21 @@ import (
 )
 
 type postKapacitorRequest struct {
-	Name     *string `json:"name"`               // User facing name of kapacitor instance.; Required: true
-	URL      *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
-	Username string  `json:"username,omitempty"` // Username for authentication to kapacitor
-	Password string  `json:"password,omitempty"`
-	Active   bool    `json:"active"`
+	Name         *string `json:"name"`               // User facing name of kapacitor instance.; Required: true
+	URL          *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
+	Username     string  `json:"username,omitempty"` // Username for authentication to kapacitor
+	Password     string  `json:"password,omitempty"`
+	Active       bool    `json:"active"`
+	Organization string  `json:"organization"` // Organization is the organization ID that resource belongs to
 }
 
 func (p *postKapacitorRequest) Valid() error {
 	if p.Name == nil || p.URL == nil {
 		return fmt.Errorf("name and url required")
+	}
+
+	if p.Organization == "" {
+		p.Organization = "0"
 	}
 
 	url, err := url.ParseRequestURI(*p.URL)
@@ -62,7 +67,7 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	_, err = s.SourcesStore.Get(ctx, srcID)
+	_, err = s.Store.Sources(ctx).Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, s.Logger)
 		return
@@ -79,15 +84,16 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	srv := chronograf.Server{
-		SrcID:    srcID,
-		Name:     *req.Name,
-		Username: req.Username,
-		Password: req.Password,
-		URL:      *req.URL,
-		Active:   req.Active,
+		SrcID:        srcID,
+		Name:         *req.Name,
+		Username:     req.Username,
+		Password:     req.Password,
+		URL:          *req.URL,
+		Active:       req.Active,
+		Organization: req.Organization,
 	}
 
-	if srv, err = s.ServersStore.Add(ctx, srv); err != nil {
+	if srv, err = s.Store.Servers(ctx).Add(ctx, srv); err != nil {
 		msg := fmt.Errorf("Error storing kapacitor %v: %v", req, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
@@ -129,7 +135,7 @@ func (s *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	mrSrvs, err := s.ServersStore.All(ctx)
+	mrSrvs, err := s.Store.Servers(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading kapacitors", s.Logger)
 		return
@@ -164,7 +170,7 @@ func (s *Service) KapacitorsID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -189,13 +195,13 @@ func (s *Service) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
 	}
 
-	if err = s.ServersStore.Delete(ctx, srv); err != nil {
+	if err = s.Store.Servers(ctx).Delete(ctx, srv); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
@@ -239,7 +245,7 @@ func (s *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -272,7 +278,7 @@ func (s *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 		srv.Active = *req.Active
 	}
 
-	if err := s.ServersStore.Update(ctx, srv); err != nil {
+	if err := s.Store.Servers(ctx).Update(ctx, srv); err != nil {
 		msg := fmt.Sprintf("Error updating kapacitor ID %d", id)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -297,7 +303,7 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -426,7 +432,7 @@ func (s *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -496,7 +502,7 @@ func (s *Service) KapacitorRulesStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -557,7 +563,7 @@ func (s *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -599,7 +605,7 @@ func (s *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return
@@ -638,7 +644,7 @@ func (s *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return

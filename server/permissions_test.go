@@ -89,7 +89,9 @@ func TestService_Permissions(t *testing.T) {
 				},
 			}))
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 			UseAuth:          tt.fields.UseAuth,

@@ -63,7 +63,8 @@ func (s *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
-	if layout, err = s.LayoutStore.Add(r.Context(), layout); err != nil {
+	ctx := r.Context()
+	if layout, err = s.Store.Layouts(ctx).Add(r.Context(), layout); err != nil {
 		msg := fmt.Errorf("Error storing layout %v: %v", layout, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
@@ -91,7 +92,7 @@ func (s *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	layouts, err := s.LayoutStore.All(ctx)
+	layouts, err := s.Store.Layouts(ctx).All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading layouts", s.Logger)
 		return
@@ -123,7 +124,7 @@ func (s *Service) LayoutsID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
-	layout, err := s.LayoutStore.Get(ctx, id)
+	layout, err := s.Store.Layouts(ctx).Get(ctx, id)
 	if err != nil {
 		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
 		return
@@ -142,7 +143,7 @@ func (s *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 		ID: id,
 	}
 
-	if err := s.LayoutStore.Delete(ctx, layout); err != nil {
+	if err := s.Store.Layouts(ctx).Delete(ctx, layout); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
@@ -155,7 +156,7 @@ func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
-	_, err := s.LayoutStore.Get(ctx, id)
+	_, err := s.Store.Layouts(ctx).Get(ctx, id)
 	if err != nil {
 		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
 		return
@@ -173,7 +174,7 @@ func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.LayoutStore.Update(ctx, req); err != nil {
+	if err := s.Store.Layouts(ctx).Update(ctx, req); err != nil {
 		msg := fmt.Sprintf("Error updating layout ID %s: %v", id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -187,6 +188,10 @@ func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 func ValidLayoutRequest(l chronograf.Layout) error {
 	if l.Application == "" || l.Measurement == "" || len(l.Cells) == 0 {
 		return fmt.Errorf("app, measurement, and cells required")
+	}
+
+	if l.Organization == "" {
+		l.Organization = "0"
 	}
 
 	for _, c := range l.Cells {

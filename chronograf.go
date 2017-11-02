@@ -20,17 +20,18 @@ import (
 
 // General errors.
 const (
-	ErrUpstreamTimeout   = Error("request to backend timed out")
-	ErrSourceNotFound    = Error("source not found")
-	ErrServerNotFound    = Error("server not found")
-	ErrLayoutNotFound    = Error("layout not found")
-	ErrDashboardNotFound = Error("dashboard not found")
-	ErrUserNotFound      = Error("user not found")
-	ErrLayoutInvalid     = Error("layout is invalid")
-	ErrAlertNotFound     = Error("alert not found")
-	ErrAuthentication    = Error("user not authenticated")
-	ErrUninitialized     = Error("client uninitialized. Call Open() method")
-	ErrInvalidAxis       = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrUpstreamTimeout      = Error("request to backend timed out")
+	ErrSourceNotFound       = Error("source not found")
+	ErrServerNotFound       = Error("server not found")
+	ErrLayoutNotFound       = Error("layout not found")
+	ErrDashboardNotFound    = Error("dashboard not found")
+	ErrUserNotFound         = Error("user not found")
+	ErrOrganizationNotFound = Error("organization not found")
+	ErrLayoutInvalid        = Error("layout is invalid")
+	ErrAlertNotFound        = Error("alert not found")
+	ErrAuthentication       = Error("user not authenticated")
+	ErrUninitialized        = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis          = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -111,9 +112,10 @@ type TimeSeries interface {
 
 // Role is a restricted set of permissions assigned to a set of users.
 type Role struct {
-	Name        string      `json:"name"`
-	Permissions Permissions `json:"permissions,omitempty"`
-	Users       []User      `json:"users,omitempty"`
+	Name         string      `json:"name"`
+	Permissions  Permissions `json:"permissions,omitempty"`
+	Users        []User      `json:"users,omitempty"`
+	Organization string      `json:"organization,string,omitempty"`
 }
 
 // RolesStore is the Storage and retrieval of authentication information
@@ -445,6 +447,7 @@ type Source struct {
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
 	Default            bool   `json:"default"`                      // Default specifies the default source for the application
 	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
+	Organization       string `json:"organization"`                 // Organization is the organization ID that resource belongs to
 }
 
 // SourcesStore stores connection information for a `TimeSeries`
@@ -559,13 +562,14 @@ type KapacitorProperty struct {
 
 // Server represents a proxy connection to an HTTP server
 type Server struct {
-	ID       int    // ID is the unique ID of the server
-	SrcID    int    // SrcID of the data source
-	Name     string // Name is the user-defined name for the server
-	Username string // Username is the username to connect to the server
-	Password string // Password is in CLEARTEXT
-	URL      string // URL are the connections to the server
-	Active   bool   // Is this the active server for the source?
+	ID           int    // ID is the unique ID of the server
+	SrcID        int    // SrcID of the data source
+	Name         string // Name is the user-defined name for the server
+	Username     string // Username is the username to connect to the server
+	Password     string // Password is in CLEARTEXT
+	URL          string // URL are the connections to the server
+	Active       bool   // Is this the active server for the source?
+	Organization string // Organization is the organization ID that resource belongs to
 }
 
 // ServersStore stores connection information for a `Server`
@@ -614,13 +618,15 @@ type Scope string
 
 // User represents an authenticated user.
 type User struct {
-	ID          uint64      `json:"id,string,omitempty"`
-	Name        string      `json:"name"`
-	Passwd      string      `json:"password,omitempty"`
-	Permissions Permissions `json:"permissions,omitempty"`
-	Roles       []Role      `json:"roles,omitempty"`
-	Provider    string      `json:"provider,omitempty"`
-	Scheme      string      `json:"scheme,omitempty"`
+	ID                  uint64      `json:"id,string,omitempty"`
+	Name                string      `json:"name"`
+	Passwd              string      `json:"password,omitempty"`
+	Permissions         Permissions `json:"permissions,omitempty"`
+	Roles               []Role      `json:"roles,omitempty"`
+	Provider            string      `json:"provider,omitempty"`
+	Scheme              string      `json:"scheme,omitempty"`
+	CurrentOrganization string      `json:"currentOrganization,omitempty"`
+	SuperAdmin          bool        `json:"superAdmin,omitempty"`
 }
 
 // UserQuery represents the attributes that a user may be retrieved by.
@@ -681,10 +687,11 @@ type DashboardID int
 
 // Dashboard represents all visual and query data for a dashboard
 type Dashboard struct {
-	ID        DashboardID     `json:"id"`
-	Cells     []DashboardCell `json:"cells"`
-	Templates []Template      `json:"templates"`
-	Name      string          `json:"name"`
+	ID           DashboardID     `json:"id"`
+	Cells        []DashboardCell `json:"cells"`
+	Templates    []Template      `json:"templates"`
+	Name         string          `json:"name"`
+	Organization string          `json:"organization"` // Organization is the organization ID that resource belongs to
 }
 
 // Axis represents the visible extents of a visualization
@@ -740,18 +747,19 @@ type Cell struct {
 
 // Layout is a collection of Cells for visualization
 type Layout struct {
-	ID          string `json:"id"`
-	Application string `json:"app"`
-	Measurement string `json:"measurement"`
-	Autoflow    bool   `json:"autoflow"`
-	Cells       []Cell `json:"cells"`
+	ID           string `json:"id"`
+	Application  string `json:"app"`
+	Measurement  string `json:"measurement"`
+	Autoflow     bool   `json:"autoflow"`
+	Cells        []Cell `json:"cells"`
+	Organization string `json:"organization"` // Organization is the organization ID that resource belongs to
 }
 
-// LayoutStore stores dashboards and associated Cells
-type LayoutStore interface {
+// LayoutsStore stores dashboards and associated Cells
+type LayoutsStore interface {
 	// All returns all dashboards in the store
 	All(context.Context) ([]Layout, error)
-	// Add creates a new dashboard in the LayoutStore
+	// Add creates a new dashboard in the LayoutsStore
 	Add(context.Context, Layout) (Layout, error)
 	// Delete the dashboard from the store
 	Delete(context.Context, Layout) error
@@ -759,4 +767,36 @@ type LayoutStore interface {
 	Get(ctx context.Context, ID string) (Layout, error)
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
+}
+
+// Organization is a group of resources under a common name
+type Organization struct {
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
+}
+
+// OrganizationQuery represents the attributes that a organization may be retrieved by.
+// It is predominantly used in the OrganizationsStore.Get method.
+// It is expected that only one of ID or Name will be specified, but will prefer ID over Name if both are specified.
+type OrganizationQuery struct {
+	// If an ID is provided in the query, the lookup time for an organization will be O(1).
+	ID *uint64
+	// If Name is provided, the lookup time will be O(n).
+	Name *string
+}
+
+// OrganizationsStore is the storage and retrieval of Organizations
+type OrganizationsStore interface {
+	// Add creates a new Organization.
+	// The Created organization is returned back to the user with the
+	// ID field populated.
+	Add(context.Context, *Organization) (*Organization, error)
+	// All lists all Organizations in the OrganizationsStore
+	All(context.Context) ([]Organization, error)
+	// Delete removes an Organization from the OrganizationsStore
+	Delete(context.Context, *Organization) error
+	// Get retrieves an Organization from the OrganizationsStore
+	Get(context.Context, OrganizationQuery) (*Organization, error)
+	// Update updates an Organization in the OrganizationsStore
+	Update(context.Context, *Organization) error
 }

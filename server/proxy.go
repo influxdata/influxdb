@@ -28,7 +28,7 @@ func (s *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srv, err := s.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
 		notFound(w, id, s.Logger)
 		return

@@ -239,9 +239,11 @@ func TestService_newSourceKapacitor(t *testing.T) {
 			srcCount = 0
 			srvCount = 0
 			h := &Service{
-				SourcesStore: tt.fields.SourcesStore,
-				ServersStore: tt.fields.ServersStore,
-				Logger:       tt.fields.Logger,
+				Store: &mocks.Store{
+					SourcesStore: tt.fields.SourcesStore,
+					ServersStore: tt.fields.ServersStore,
+				},
+				Logger: tt.fields.Logger,
 			}
 			if err := h.newSourceKapacitor(tt.args.ctx, tt.args.src, tt.args.kapa); (err != nil) != tt.wantErr {
 				t.Errorf("Service.newSourceKapacitor() error = %v, wantErr %v", err, tt.wantErr)
@@ -535,7 +537,9 @@ func TestService_NewSourceUser(t *testing.T) {
 			}))
 
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 			UseAuth:          tt.fields.UseAuth,
@@ -702,7 +706,9 @@ func TestService_SourceUsers(t *testing.T) {
 				},
 			}))
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 			UseAuth:          tt.fields.UseAuth,
@@ -867,7 +873,9 @@ func TestService_SourceUserID(t *testing.T) {
 				},
 			}))
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 			UseAuth:          tt.fields.UseAuth,
@@ -962,7 +970,9 @@ func TestService_RemoveSourceUser(t *testing.T) {
 				},
 			}))
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 			UseAuth:          tt.fields.UseAuth,
@@ -1144,7 +1154,9 @@ func TestService_UpdateSourceUser(t *testing.T) {
 				},
 			}))
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 			UseAuth:          tt.fields.UseAuth,
@@ -1367,7 +1379,9 @@ func TestService_NewSourceRole(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 		}
@@ -1480,7 +1494,9 @@ func TestService_UpdateSourceRole(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 		}
@@ -1603,7 +1619,9 @@ func TestService_SourceRoleID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 		}
@@ -1699,7 +1717,9 @@ func TestService_RemoveSourceRole(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 		}
@@ -1811,7 +1831,9 @@ func TestService_SourceRoles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &Service{
-			SourcesStore:     tt.fields.SourcesStore,
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 		}

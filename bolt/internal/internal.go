@@ -23,6 +23,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		InsecureSkipVerify: s.InsecureSkipVerify,
 		Default:            s.Default,
 		Telegraf:           s.Telegraf,
+		Organization:       s.Organization,
 	})
 }
 
@@ -44,19 +45,21 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.InsecureSkipVerify = pb.InsecureSkipVerify
 	s.Default = pb.Default
 	s.Telegraf = pb.Telegraf
+	s.Organization = pb.Organization
 	return nil
 }
 
 // MarshalServer encodes a server to binary protobuf format.
 func MarshalServer(s chronograf.Server) ([]byte, error) {
 	return proto.Marshal(&Server{
-		ID:       int64(s.ID),
-		SrcID:    int64(s.SrcID),
-		Name:     s.Name,
-		Username: s.Username,
-		Password: s.Password,
-		URL:      s.URL,
-		Active:   s.Active,
+		ID:           int64(s.ID),
+		SrcID:        int64(s.SrcID),
+		Name:         s.Name,
+		Username:     s.Username,
+		Password:     s.Password,
+		URL:          s.URL,
+		Active:       s.Active,
+		Organization: s.Organization,
 	})
 }
 
@@ -74,6 +77,7 @@ func UnmarshalServer(data []byte, s *chronograf.Server) error {
 	s.Password = pb.Password
 	s.URL = pb.URL
 	s.Active = pb.Active
+	s.Organization = pb.Organization
 	return nil
 }
 
@@ -119,11 +123,12 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 		}
 	}
 	return proto.Marshal(&Layout{
-		ID:          l.ID,
-		Measurement: l.Measurement,
-		Application: l.Application,
-		Autoflow:    l.Autoflow,
-		Cells:       cells,
+		ID:           l.ID,
+		Measurement:  l.Measurement,
+		Application:  l.Application,
+		Autoflow:     l.Autoflow,
+		Cells:        cells,
+		Organization: l.Organization,
 	})
 }
 
@@ -138,6 +143,7 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 	l.Measurement = pb.Measurement
 	l.Application = pb.Application
 	l.Autoflow = pb.Autoflow
+	l.Organization = pb.Organization
 	cells := make([]chronograf.Cell, len(pb.Cells))
 	for i, c := range pb.Cells {
 		queries := make([]chronograf.Query, len(c.Queries))
@@ -254,10 +260,11 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 		templates[i] = template
 	}
 	return proto.Marshal(&Dashboard{
-		ID:        int64(d.ID),
-		Cells:     cells,
-		Templates: templates,
-		Name:      d.Name,
+		ID:           int64(d.ID),
+		Cells:        cells,
+		Templates:    templates,
+		Name:         d.Name,
+		Organization: d.Organization,
 	})
 }
 
@@ -366,6 +373,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 	d.Cells = cells
 	d.Templates = templates
 	d.Name = pb.Name
+	d.Organization = pb.Organization
 	return nil
 }
 
@@ -409,16 +417,20 @@ func UnmarshalAlertRule(data []byte, r *ScopedAlert) error {
 // MarshalUser encodes a user to binary protobuf format.
 // We are ignoring the password for now.
 func MarshalUser(u *chronograf.User) ([]byte, error) {
-	roles := make([]string, len(u.Roles))
+	roles := make([]*Role, len(u.Roles))
 	for i, role := range u.Roles {
-		roles[i] = role.Name
+		roles[i] = &Role{
+			Organization: role.Organization,
+			Name:         role.Name,
+		}
 	}
 	return MarshalUserPB(&User{
-		ID:       u.ID,
-		Name:     u.Name,
-		Provider: u.Provider,
-		Scheme:   u.Scheme,
-		Roles:    roles,
+		ID:         u.ID,
+		Name:       u.Name,
+		Provider:   u.Provider,
+		Scheme:     u.Scheme,
+		Roles:      roles,
+		SuperAdmin: u.SuperAdmin,
 	})
 }
 
@@ -438,13 +450,15 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 	roles := make([]chronograf.Role, len(pb.Roles))
 	for i, role := range pb.Roles {
 		roles[i] = chronograf.Role{
-			Name: role,
+			Organization: role.Organization,
+			Name:         role.Name,
 		}
 	}
 	u.ID = pb.ID
 	u.Name = pb.Name
 	u.Provider = pb.Provider
 	u.Scheme = pb.Scheme
+	u.SuperAdmin = pb.SuperAdmin
 	u.Roles = roles
 
 	return nil
@@ -454,6 +468,72 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 // We are ignoring the password for now.
 func UnmarshalUserPB(data []byte, u *User) error {
 	if err := proto.Unmarshal(data, u); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalRole encodes a role to binary protobuf format.
+func MarshalRole(r *chronograf.Role) ([]byte, error) {
+	return MarshalRolePB(&Role{
+		Organization: r.Organization,
+		Name:         r.Name,
+	})
+}
+
+// MarshalRolePB encodes a role to binary protobuf format.
+func MarshalRolePB(r *Role) ([]byte, error) {
+	return proto.Marshal(r)
+}
+
+// UnmarshalRole decodes a role from binary protobuf data.
+func UnmarshalRole(data []byte, r *chronograf.Role) error {
+	var pb Role
+	if err := UnmarshalRolePB(data, &pb); err != nil {
+		return err
+	}
+	r.Organization = pb.Organization
+	r.Name = pb.Name
+
+	return nil
+}
+
+// UnmarshalRolePB decodes a role from binary protobuf data.
+func UnmarshalRolePB(data []byte, r *Role) error {
+	if err := proto.Unmarshal(data, r); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalOrganization encodes a organization to binary protobuf format.
+func MarshalOrganization(o *chronograf.Organization) ([]byte, error) {
+	return MarshalOrganizationPB(&Organization{
+		ID:   o.ID,
+		Name: o.Name,
+	})
+}
+
+// MarshalOrganizationPB encodes a organization to binary protobuf format.
+func MarshalOrganizationPB(o *Organization) ([]byte, error) {
+	return proto.Marshal(o)
+}
+
+// UnmarshalOrganization decodes a organization from binary protobuf data.
+func UnmarshalOrganization(data []byte, o *chronograf.Organization) error {
+	var pb Organization
+	if err := UnmarshalOrganizationPB(data, &pb); err != nil {
+		return err
+	}
+	o.ID = pb.ID
+	o.Name = pb.Name
+
+	return nil
+}
+
+// UnmarshalOrganizationPB decodes a organization from binary protobuf data.
+func UnmarshalOrganizationPB(data []byte, o *Organization) error {
+	if err := proto.Unmarshal(data, o); err != nil {
 		return err
 	}
 	return nil

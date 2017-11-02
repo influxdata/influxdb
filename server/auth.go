@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/organizations"
 )
 
 // AuthorizedToken extracts the token and validates; if valid the next handler
@@ -51,7 +53,7 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 // name and provider. If the user is found, we verify that the user has at at
 // least the role supplied.
 func AuthorizedUser(
-	store chronograf.UsersStore,
+	store DataStore,
 	useAuth bool,
 	role string,
 	logger chronograf.Logger,
@@ -71,15 +73,9 @@ func AuthorizedUser(
 
 		ctx := r.Context()
 
-		username, err := getUsername(ctx)
+		p, err := getValidPrincipal(ctx)
 		if err != nil {
-			log.Error("Failed to retrieve username from context")
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
-			return
-		}
-		provider, err := getProvider(ctx)
-		if err != nil {
-			log.Error("Failed to retrieve provider from context")
+			log.Error("Failed to retrieve principal from context")
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
@@ -90,9 +86,50 @@ func AuthorizedUser(
 			return
 		}
 
-		u, err := store.Get(ctx, chronograf.UserQuery{
-			Name:     &username,
-			Provider: &provider,
+		// This is as if the user was logged into the default organization
+		if p.Organization == "" {
+			p.Organization = "0"
+		}
+
+		// validate that the organization exists
+		orgID, err := parseOrganizationID(p.Organization)
+		if err != nil {
+			log.Error("Failed to validate organization on context")
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
+		_, err = store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		if err != nil {
+			log.Error(fmt.Sprintf("Failed to retrieve organization %d from organizations store", orgID))
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
+
+		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
+		serverCtx := context.WithValue(ctx, SuperAdminKey, true)
+		// TODO: seems silly to look up a user twice
+		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
+			Name:     &p.Subject,
+			Provider: &p.Issuer,
+			Scheme:   &scheme,
+		})
+
+		if err != nil {
+			log.Error("Failed to retrieve user")
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
+
+		if u.SuperAdmin {
+			// This context is where superadmin gets set for all things
+			r = r.WithContext(serverCtx)
+			next(w, r)
+			return
+		}
+
+		u, err = store.Users(ctx).Get(ctx, chronograf.UserQuery{
+			Name:     &p.Subject,
+			Provider: &p.Issuer,
 			Scheme:   &scheme,
 		})
 		if err != nil {
@@ -108,7 +145,6 @@ func AuthorizedUser(
 
 		Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 		return
-
 	})
 }
 
@@ -139,6 +175,10 @@ func hasAuthorizedRole(u *chronograf.User, role string) bool {
 				return true
 			}
 		}
+	case SuperAdminRoleName:
+		// SuperAdmins should have been authorized before this.
+		// This is only meant to restrict access for non-superadmins.
+		return false
 	}
 
 	return false

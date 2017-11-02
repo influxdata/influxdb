@@ -228,14 +228,16 @@ func Test_Service_DashboardCells(t *testing.T) {
 			// setup mock DashboardCells store and logger
 			tlog := &mocks.TestLogger{}
 			svc := &server.Service{
-				DashboardsStore: &mocks.DashboardsStore{
-					GetF: func(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
-						return chronograf.Dashboard{
-							ID:        chronograf.DashboardID(1),
-							Cells:     test.mockResponse,
-							Templates: []chronograf.Template{},
-							Name:      "empty dashboard",
-						}, nil
+				Store: &mocks.Store{
+					DashboardsStore: &mocks.DashboardsStore{
+						GetF: func(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
+							return chronograf.Dashboard{
+								ID:        chronograf.DashboardID(1),
+								Cells:     test.mockResponse,
+								Templates: []chronograf.Template{},
+								Name:      "empty dashboard",
+							}, nil
+						},
 					},
 				},
 				Logger: tlog,

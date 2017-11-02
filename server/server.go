@@ -404,11 +404,11 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	layouts, err := lBuilder.Build(db.LayoutStore)
+	layouts, err := lBuilder.Build(db.LayoutsStore)
 	if err != nil {
 		logger.
-			WithField("component", "LayoutStore").
-			Error("Unable to construct a MultiLayoutStore", err)
+			WithField("component", "LayoutsStore").
+			Error("Unable to construct a MultiLayoutsStore", err)
 		os.Exit(1)
 	}
 
@@ -430,14 +430,18 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 
 	return Service{
 		TimeSeriesClient: &InfluxClient{},
-		SourcesStore:     sources,
-		ServersStore:     kapacitors,
-		UsersStore:       db.UsersStore,
-		LayoutStore:      layouts,
-		DashboardsStore:  db.DashboardsStore,
-		Logger:           logger,
-		UseAuth:          useAuth,
-		Databases:        &influx.Client{Logger: logger},
+		Store: &Store{
+			SourcesStore:       sources,
+			ServersStore:       kapacitors,
+			UsersStore:         db.UsersStore,
+			OrganizationsStore: db.OrganizationsStore,
+			LayoutsStore:       layouts,
+			DashboardsStore:    db.DashboardsStore,
+			//OrganizationUsersStore: organizations.NewUsersStore(db.UsersStore),
+		},
+		Logger:    logger,
+		UseAuth:   useAuth,
+		Databases: &influx.Client{Logger: logger},
 	}
 }
 
