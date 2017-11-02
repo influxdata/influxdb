@@ -67,10 +67,6 @@ func getValidPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	if p.Issuer == "" {
 		return oauth2.Principal{}, fmt.Errorf("Token not found")
 	}
-	// TODO(desa): make this default org
-	if p.Organization == "" {
-		p.Organization = "0"
-	}
 	return p, nil
 }
 
@@ -108,18 +104,27 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			return
 		}
 
+		// validate that user belongs to organization
+		ctx = context.WithValue(ctx, organizations.ContextKey, req.Organization)
+
 		p, err := getValidPrincipal(ctx)
 		if err != nil {
 			invalidData(w, err, s.Logger)
 			return
+		}
+		if p.Organization == "" {
+			defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+			if err != nil {
+				unknownErrorWithMessage(w, err, s.Logger)
+				return
+			}
+			p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
 		}
 		scheme, err := getScheme(ctx)
 		if err != nil {
 			invalidData(w, err, s.Logger)
 			return
 		}
-		// validate that user belongs to organization
-		ctx = context.WithValue(ctx, organizations.ContextKey, req.Organization)
 		_, err = s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
 			Name:     &p.Subject,
 			Provider: &p.Issuer,
@@ -168,8 +173,18 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		invalidData(w, err, s.Logger)
 		return
 	}
+
 	ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 	ctx = context.WithValue(ctx, SuperAdminKey, true)
+
+	if p.Organization == "" {
+		defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+		if err != nil {
+			unknownErrorWithMessage(w, err, s.Logger)
+			return
+		}
+		p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
+	}
 
 	usr, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
 		Name:     &p.Subject,
@@ -218,6 +233,12 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
 		Name:     p.Subject,
@@ -230,7 +251,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			{
 				Name: MemberRoleName,
 				// This is the ID of the default organization
-				Organization: "0",
+				Organization: fmt.Sprintf("%d", defaultOrg.ID),
 			},
 		},
 		SuperAdmin: s.firstUser(),

@@ -68,7 +68,14 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidSourceRequest(src); err != nil {
+	ctx := r.Context()
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if err := ValidSourceRequest(src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -78,7 +85,6 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		src.Telegraf = "telegraf"
 	}
 
-	ctx := r.Context()
 	dbType, err := s.tsdbType(ctx, &src)
 	if err != nil {
 		Error(w, http.StatusBadRequest, "Error contacting source", s.Logger)
@@ -254,7 +260,13 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 		src.Telegraf = req.Telegraf
 	}
 
-	if err := ValidSourceRequest(src); err != nil {
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if err := ValidSourceRequest(src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -275,7 +287,7 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 }
 
 // ValidSourceRequest checks if name, url and type are valid
-func ValidSourceRequest(s chronograf.Source) error {
+func ValidSourceRequest(s chronograf.Source, defaultOrgID string) error {
 	// Name and URL areq required
 	if s.URL == "" {
 		return fmt.Errorf("url required")
@@ -288,7 +300,7 @@ func ValidSourceRequest(s chronograf.Source) error {
 	}
 
 	if s.Organization == "" {
-		s.Organization = "0"
+		s.Organization = defaultOrgID
 	}
 
 	url, err := url.ParseRequestURI(s.URL)
@@ -319,8 +331,13 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 		return err
 	}
 
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, sk := range srcsKaps {
-		if err := ValidSourceRequest(sk.Source); err != nil {
+		if err := ValidSourceRequest(sk.Source, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 			return err
 		}
 		// Add any new sources and kapacitors as specified via server flag

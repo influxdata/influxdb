@@ -87,18 +87,24 @@ func (s *Service) DashboardID(w http.ResponseWriter, r *http.Request) {
 // NewDashboard creates and returns a new dashboard object
 func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 	var dashboard chronograf.Dashboard
+	var err error
 	if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
 
-	if err := ValidDashboardRequest(&dashboard); err != nil {
+	ctx := r.Context()
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if err := ValidDashboardRequest(&dashboard, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
 
-	var err error
-	ctx := r.Context()
 	if dashboard, err = s.Store.Dashboards(ctx).Add(r.Context(), dashboard); err != nil {
 		msg := fmt.Errorf("Error storing dashboard %v: %v", dashboard, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
@@ -155,7 +161,13 @@ func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	req.ID = id
 
-	if err := ValidDashboardRequest(&req); err != nil {
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if err := ValidDashboardRequest(&req, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -197,7 +209,12 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	if req.Name != "" {
 		orig.Name = req.Name
 	} else if len(req.Cells) > 0 {
-		if err := ValidDashboardRequest(&req); err != nil {
+		defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+		if err != nil {
+			unknownErrorWithMessage(w, err, s.Logger)
+			return
+		}
+		if err := ValidDashboardRequest(&req, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 			invalidData(w, err, s.Logger)
 			return
 		}
@@ -218,9 +235,9 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 // ValidDashboardRequest verifies that the dashboard cells have a query
-func ValidDashboardRequest(d *chronograf.Dashboard) error {
+func ValidDashboardRequest(d *chronograf.Dashboard, defaultOrgID string) error {
 	if d.Organization == "" {
-		d.Organization = "0"
+		d.Organization = defaultOrgID
 	}
 	for i, c := range d.Cells {
 		if err := ValidDashboardCellRequest(&c); err != nil {

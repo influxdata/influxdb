@@ -20,13 +20,13 @@ type postKapacitorRequest struct {
 	Organization string  `json:"organization"` // Organization is the organization ID that resource belongs to
 }
 
-func (p *postKapacitorRequest) Valid() error {
+func (p *postKapacitorRequest) Valid(defaultOrgID string) error {
 	if p.Name == nil || p.URL == nil {
 		return fmt.Errorf("name and url required")
 	}
 
 	if p.Organization == "" {
-		p.Organization = "0"
+		p.Organization = defaultOrgID
 	}
 
 	url, err := url.ParseRequestURI(*p.URL)
@@ -78,7 +78,14 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 		invalidJSON(w, s.Logger)
 		return
 	}
-	if err := req.Valid(); err != nil {
+
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if err := req.Valid(fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}

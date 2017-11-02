@@ -88,7 +88,12 @@ func AuthorizedUser(
 
 		// This is as if the user was logged into the default organization
 		if p.Organization == "" {
-			p.Organization = "0"
+			defaultOrg, err := store.Organizations(ctx).DefaultOrganization(ctx)
+			if err != nil {
+				unknownErrorWithMessage(w, err, logger)
+				return
+			}
+			p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
 		}
 
 		// validate that the organization exists

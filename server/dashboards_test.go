@@ -192,7 +192,8 @@ func TestValidDashboardRequest(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		err := ValidDashboardRequest(&tt.d)
+		// TODO(desa): this Okay?
+		err := ValidDashboardRequest(&tt.d, "0")
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. ValidDashboardRequest() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
