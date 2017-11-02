@@ -86,11 +86,12 @@ func newUserResponse(u *chronograf.User) *userResponse {
 		u.Roles = []chronograf.Role{}
 	}
 	return &userResponse{
-		ID:       u.ID,
-		Name:     u.Name,
-		Provider: u.Provider,
-		Scheme:   u.Scheme,
-		Roles:    u.Roles,
+		ID:         u.ID,
+		Name:       u.Name,
+		Provider:   u.Provider,
+		Scheme:     u.Scheme,
+		Roles:      u.Roles,
+		SuperAdmin: u.SuperAdmin,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
 		},
