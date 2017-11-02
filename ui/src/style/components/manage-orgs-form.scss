@@ -26,6 +26,19 @@ $manage-orgs--gutter: 30px;
     margin-right: -10px !important;
   }
 }
+.manage-orgs-form--footer {
+  margin-top: $manage-orgs--gutter;
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  > .btn {
+    margin: 0 4px;
+    width: 90px;
+    justify-content: center;
+  }
+}
 .manage-orgs-form--body {
   padding: $manage-orgs--gutter;
   border-radius: 0 0 $radius $radius;

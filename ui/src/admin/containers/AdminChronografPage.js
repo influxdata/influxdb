@@ -11,6 +11,7 @@ import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 import ManageOrgsOverlay from 'src/admin/components/chronograf/ManageOrgsOverlay'
+import CreateUserOverlay from 'src/admin/components/chronograf/CreateUserOverlay'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -18,6 +19,7 @@ import {
   DUMMY_ORGS,
   DEFAULT_ORG,
   NO_ORG,
+  USER_ROLES,
   MOAR_DUMMY_ORGS,
 } from 'src/admin/constants/dummyUsers'
 
@@ -31,6 +33,7 @@ class AdminChronografPage extends Component {
       selectedUsers: [],
       filteredUsers: this.props.users,
       showManageOverlay: false,
+      showCreateUserOverlay: false,
     }
   }
 
@@ -118,13 +121,19 @@ class AdminChronografPage extends Component {
     this.setState({showManageOverlay: true})
   }
 
-  handleHideManageOrgsOverlay = () => {
-    this.setState({showManageOverlay: false})
+  handleShowCreateUserOverlay = () => {
+    this.setState({showCreateUserOverlay: true})
+  }
+
+  handleHideOverlays = () => {
+    this.setState({showManageOverlay: false, showCreateUserOverlay: false})
   }
 
   handleCreateOrganization = _organizationName => {}
   handleDeleteOrganization = _organization => {}
   handleRenameOrganization = (_organization, _newOrgName) => {}
+
+  handleCreateUser = _newUser => {}
 
   render() {
     const {users, organizations} = this.props
@@ -133,6 +142,7 @@ class AdminChronografPage extends Component {
       selectedUsers,
       filteredUsers,
       showManageOverlay,
+      showCreateUserOverlay,
     } = this.state
 
     const numUsersSelected = Object.keys(selectedUsers).length
@@ -141,6 +151,7 @@ class AdminChronografPage extends Component {
       <div className="page">
         <PageHeader
           onShowManageOrgsOverlay={this.handleShowManageOrgsOverlay}
+          onShowCreateUserOverlay={this.handleShowCreateUserOverlay}
         />
 
         <FancyScrollbar className="page-contents">
@@ -190,10 +201,18 @@ class AdminChronografPage extends Component {
         </FancyScrollbar>
         {showManageOverlay
           ? <ManageOrgsOverlay
-              onDismiss={this.handleHideManageOrgsOverlay}
+              onDismiss={this.handleHideOverlays}
               onCreateOrg={this.handleCreateOrganization}
               onDeleteOrg={this.handleDeleteOrganization}
               onRenameOrg={this.handleRenameOrganization}
+              organizations={MOAR_DUMMY_ORGS}
+            />
+          : null}
+        {showCreateUserOverlay
+          ? <CreateUserOverlay
+              onDismiss={this.handleHideOverlays}
+              onCreateUser={this.handleCreateUser}
+              userRoles={USER_ROLES}
               organizations={MOAR_DUMMY_ORGS}
             />
           : null}
