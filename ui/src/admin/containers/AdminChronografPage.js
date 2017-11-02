@@ -48,11 +48,9 @@ class AdminChronografPage extends Component {
   }
 
   componentDidMount() {
-    const {loadUsers} = this.props
+    const {links, loadUsers} = this.props
 
-    // TODO: determine this url from server
-    const urlThatsProbablySourceLinksUsersChronograf = '/chronograf/v1/users'
-    loadUsers(urlThatsProbablySourceLinksUsersChronograf)
+    loadUsers(links.users)
   }
 
   isSameUser = (userA, userB) => {
@@ -224,6 +222,9 @@ class AdminChronografPage extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 AdminChronografPage.propTypes = {
+  links: shape({
+    users: string.isRequired,
+  }),
   users: arrayOf(shape),
   currentOrganization: shape({
     id: string.isRequired,
@@ -238,9 +239,11 @@ AdminChronografPage.defaultProps = {
 }
 
 const mapStateToProps = ({
+  links,
   adminChronograf: {users},
   auth: {me: {currentOrganization}},
 }) => ({
+  links,
   users,
   currentOrganization,
 })
