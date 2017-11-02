@@ -24,6 +24,9 @@ class ChronografUsersTable extends Component {
   }
 
   areSameUsers = (usersA, usersB) => {
+    if (usersA.length === 0 && usersB.length === 0) {
+      return false
+    }
     const {isSameUser} = this.props
     return !_.differenceWith(usersA, usersB, isSameUser).length
   }
