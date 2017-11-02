@@ -83,10 +83,6 @@ export default function rules(state = {}, action) {
       })
     }
 
-    // TODO: refactor to allow multiple alert nodes, and change name + refactor
-    // functionality to clearly disambiguate creating an alert node, changing its
-    // type, adding other alert nodes to a single rule, and updating an alert node's
-    // properties vs args vs details vs message.
     case 'UPDATE_RULE_ALERT_NODES': {
       const {ruleID, alertNodeName, alertNodesText} = action.payload
 
