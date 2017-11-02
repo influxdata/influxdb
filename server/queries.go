@@ -12,16 +12,21 @@ import (
 	"github.com/influxdata/chronograf/influx/queries"
 )
 
+// QueryRequest is query that will be converted to a queryConfig
 type QueryRequest struct {
-	ID           string                  `json:"id"`
-	Query        string                  `json:"query"`
+	ID    string `json:"id"`
+	Query string `json:"query"`
+}
+
+// QueriesRequest converts all queries to queryConfigs with the help
+// of the template variables
+type QueriesRequest struct {
+	Queries      []QueryRequest          `json:"queries"`
 	TemplateVars chronograf.TemplateVars `json:"tempVars,omitempty"`
 }
 
-type QueriesRequest struct {
-	Queries []QueryRequest `json:"queries"`
-}
-
+// QueryResponse is the return result of a QueryRequest including
+// the raw query, the templated query, the queryConfig and the queryAST
 type QueryResponse struct {
 	ID             string                   `json:"id"`
 	Query          string                   `json:"query"`
@@ -31,11 +36,12 @@ type QueryResponse struct {
 	TemplateVars   chronograf.TemplateVars  `json:"tempVars,omitempty"`
 }
 
+// QueriesResponse is the response for a QueriesRequest
 type QueriesResponse struct {
 	Queries []QueryResponse `json:"queries"`
 }
 
-// Queries parses InfluxQL and returns the JSON
+// Queries parses InfluxQL and returns mostly importantly a structured QueryConfig
 func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
@@ -66,12 +72,7 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			Query: q.Query,
 		}
 
-		query := q.Query
-		if len(q.TemplateVars) > 0 {
-			query = influx.TemplateReplace(query, q.TemplateVars)
-			qr.QueryTemplated = &query
-		}
-
+		query := influx.TemplateReplace(q.Query, req.TemplateVars)
 		qc := ToQueryConfig(query)
 		if err := s.DefaultRP(ctx, &qc, &src); err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
@@ -83,9 +84,10 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			qr.QueryAST = stmt
 		}
 
-		if len(q.TemplateVars) > 0 {
-			qr.TemplateVars = q.TemplateVars
+		if len(req.TemplateVars) > 0 {
+			qr.TemplateVars = req.TemplateVars
 			qr.QueryConfig.RawText = &qr.Query
+			qr.QueryTemplated = &query
 		}
 
 		qr.QueryConfig.ID = q.ID
