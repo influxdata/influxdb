@@ -60,7 +60,6 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 	}
 
 	if rs == nil {
-		stream.Send(&ReadResponse{})
 		return nil
 	}
 
