@@ -771,8 +771,9 @@ type LayoutsStore interface {
 
 // Organization is a group of resources under a common name
 type Organization struct {
-	ID   uint64 `json:"id,string"`
-	Name string `json:"name"`
+	ID          uint64 `json:"id,string"`
+	Name        string `json:"name"`
+	DefaultRole string `json:"defaultRole,omitempty"`
 }
 
 // OrganizationQuery represents the attributes that a organization may be retrieved by.
