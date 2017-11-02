@@ -29,7 +29,7 @@ class AdminChronografPage extends Component {
 
     this.state = {
       // TODO: pass around organization object instead of just name
-      organizationName: this.props.currentOrganization,
+      organizationName: this.props.currentOrganization.name,
       selectedUsers: [],
       filteredUsers: this.props.users,
       showManageOverlay: false,
@@ -42,7 +42,7 @@ class AdminChronografPage extends Component {
     const {users, currentOrganization} = nextProps
 
     this.handleFilterUsers({
-      name: currentOrganization,
+      name: currentOrganization.name,
       users,
     })
   }
@@ -65,7 +65,7 @@ class AdminChronografPage extends Component {
 
   handleFilterUsers = ({users, name}) => {
     const nextUsers = users || this.props.users
-    const nextOrganizationName = name || this.props.currentOrganization
+    const nextOrganizationName = name || this.props.currentOrganization.name
 
     const filteredUsers =
       nextOrganizationName === DEFAULT_ORG
@@ -225,7 +225,10 @@ const {arrayOf, func, shape, string} = PropTypes
 
 AdminChronografPage.propTypes = {
   users: arrayOf(shape),
-  currentOrganization: string,
+  currentOrganization: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+  }).isRequired,
   organizations: arrayOf(shape),
   loadUsers: func.isRequired,
 }
