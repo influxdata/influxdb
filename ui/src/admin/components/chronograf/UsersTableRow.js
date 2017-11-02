@@ -2,8 +2,10 @@ import React, {PropTypes} from 'react'
 
 import UsersTableRoleCell from 'src/admin/components/chronograf/UsersTableRoleCell'
 import UsersTableOrgCell from 'src/admin/components/chronograf/UsersTableOrgCell'
+import UsersTableSuperAdminCell from 'src/admin/components/chronograf/UsersTableSuperAdminCell'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 const UsersTableRow = ({
   user,
@@ -12,8 +14,9 @@ const UsersTableRow = ({
   isSameUser,
   onChangeUserRole,
   onChooseFilter,
+  onChangeSuperAdmin,
 }) => {
-  const {colSuperAdmin, colProvider, colScheme} = USERS_TABLE
+  const {colProvider, colScheme} = USERS_TABLE
 
   const isSelected = selectedUsers.find(u => isSameUser(user, u))
 
@@ -39,9 +42,11 @@ const UsersTableRow = ({
         onChooseFilter={onChooseFilter}
       />
       <UsersTableRoleCell user={user} onChangeUserRole={onChangeUserRole} />
-      <td style={{width: colSuperAdmin}}>
-        {user.superadmin ? 'Yes' : '--'}
-      </td>
+      <UsersTableSuperAdminCell
+        superAdmin={user.role === SUPERADMIN_ROLE}
+        user={user}
+        onChangeSuperAdmin={onChangeSuperAdmin}
+      />
       <td style={{width: colProvider}}>
         {user.provider}
       </td>
@@ -61,6 +66,7 @@ UsersTableRow.propTypes = {
   isSameUser: func.isRequired,
   onChangeUserRole: func.isRequired,
   onChooseFilter: func.isRequired,
+  onChangeSuperAdmin: func.isRequired,
 }
 
 export default UsersTableRow

@@ -23,6 +23,16 @@ class ChronografUsersTable extends Component {
     this.props.onUpdateUserRole(user, currentRole, newRole)
   }
 
+  handleChangeSuperAdmin = (user, currentState) => newState => {
+    console.log(
+      user.name,
+      'SuperAdmin - was:',
+      currentState,
+      'is now:',
+      newState.text
+    )
+  }
+
   areSameUsers = (usersA, usersB) => {
     if (usersA.length === 0 && usersB.length === 0) {
       return false
@@ -80,6 +90,7 @@ class ChronografUsersTable extends Component {
                     isSameUser={isSameUser}
                     onChangeUserRole={this.handleChangeUserRole}
                     onChooseFilter={this.handleChooseFilter}
+                    onChangeSuperAdmin={this.handleChangeSuperAdmin}
                   />
                 : <OrgTableRow
                     user={user}
