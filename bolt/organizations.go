@@ -18,7 +18,7 @@ var OrganizationsBucket = []byte("OrganizationsV1")
 
 // DefaultOrganizationID is the ID of the default organization.
 const DefaultOrganizationID uint64 = 0
-const DefaultOrganizationName string = "__default"
+const DefaultOrganizationName string = "Default"
 const DefaultOrganizationRole string = "member"
 
 // OrganizationsStore uses bolt to store and retrieve Organizations
