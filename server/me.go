@@ -18,7 +18,9 @@ type meLinks struct {
 
 type meResponse struct {
 	*chronograf.User
-	Links meLinks `json:"links"`
+	Links               meLinks                   `json:"links"`
+	Organizations       []chronograf.Organization `json:"organizations,omitempty"`
+	CurrentOrganization *chronograf.Organization  `json:"currentOrganization,omitempty"`
 }
 
 // If new user response is nil, return an empty meResponse because it
@@ -64,6 +66,10 @@ func getValidPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	}
 	if p.Issuer == "" {
 		return oauth2.Principal{}, fmt.Errorf("Token not found")
+	}
+	// TODO(desa): make this default org
+	if p.Organization == "" {
+		p.Organization = "0"
 	}
 	return p, nil
 }
@@ -176,8 +182,24 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if usr != nil {
-		usr.CurrentOrganization = p.Organization
+		orgs, err := s.usersOrganizations(ctx, usr)
+		if err != nil {
+			unknownErrorWithMessage(w, err, s.Logger)
+			return
+		}
+		orgID, err := parseOrganizationID(p.Organization)
+		if err != nil {
+			unknownErrorWithMessage(w, err, s.Logger)
+			return
+		}
+		currentOrg, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		if err != nil {
+			unknownErrorWithMessage(w, err, s.Logger)
+			return
+		}
 		res := newMeResponse(usr)
+		res.Organizations = orgs
+		res.CurrentOrganization = currentOrg
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
@@ -207,8 +229,24 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newUser.CurrentOrganization = p.Organization
+	orgs, err := s.usersOrganizations(ctx, newUser)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+	orgID, err := parseOrganizationID(p.Organization)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+	currentOrg, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
 	res := newMeResponse(newUser)
+	res.Organizations = orgs
+	res.CurrentOrganization = currentOrg
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -221,4 +259,28 @@ func (s *Service) firstUser() bool {
 	}
 
 	return len(users) == 0
+}
+
+func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {
+	if u == nil {
+		// TODO(desa): better error
+		return nil, fmt.Errorf("user was nil")
+	}
+
+	orgIDs := map[string]bool{}
+	for _, role := range u.Roles {
+		orgIDs[role.Organization] = true
+	}
+
+	orgs := []chronograf.Organization{}
+	for orgID, _ := range orgIDs {
+		id, err := parseOrganizationID(orgID)
+		org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
+		if err != nil {
+			return nil, err
+		}
+		orgs = append(orgs, *org)
+	}
+
+	return orgs, nil
 }

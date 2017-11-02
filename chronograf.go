@@ -618,15 +618,14 @@ type Scope string
 
 // User represents an authenticated user.
 type User struct {
-	ID                  uint64      `json:"id,string,omitempty"`
-	Name                string      `json:"name"`
-	Passwd              string      `json:"password,omitempty"`
-	Permissions         Permissions `json:"permissions,omitempty"`
-	Roles               []Role      `json:"roles,omitempty"`
-	Provider            string      `json:"provider,omitempty"`
-	Scheme              string      `json:"scheme,omitempty"`
-	CurrentOrganization string      `json:"currentOrganization,omitempty"`
-	SuperAdmin          bool        `json:"superAdmin,omitempty"`
+	ID          uint64      `json:"id,string,omitempty"`
+	Name        string      `json:"name"`
+	Passwd      string      `json:"password,omitempty"`
+	Permissions Permissions `json:"permissions,omitempty"`
+	Roles       []Role      `json:"roles,omitempty"`
+	Provider    string      `json:"provider,omitempty"`
+	Scheme      string      `json:"scheme,omitempty"`
+	SuperAdmin  bool        `json:"superAdmin,omitempty"`
 }
 
 // UserQuery represents the attributes that a user may be retrieved by.
@@ -771,7 +770,7 @@ type LayoutsStore interface {
 
 // Organization is a group of resources under a common name
 type Organization struct {
-	ID   uint64 `json:"id"`
+	ID   uint64 `json:"id,string"`
 	Name string `json:"name"`
 }
 
