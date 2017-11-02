@@ -4,6 +4,8 @@ import {bindActionCreators} from 'redux'
 
 import {loadUsersAsync} from 'src/admin/actions/chronograf'
 
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
@@ -20,18 +22,20 @@ class AdminChronografPage extends Component {
 
     this.state = {
       // TODO: pass around organization object instead of just name
-      organizationName: DEFAULT_ORG, // // TODO: make sure that we take org from server if not superadmin
+      organizationName: this.props.currentOrganization,
       selectedUsers: [],
       filteredUsers: this.props.users,
       showCreateOverlay: false,
     }
   }
 
-  // TODO: revisit this, possibly for deep equal comparison on just users
+  // TODO: revisit this, possibly don't call setState if both are deep equal
   componentWillReceiveProps(nextProps) {
+    const {users, currentOrganization} = nextProps
+
     this.handleFilterUsers({
-      name: this.state.organizationName,
-      users: nextProps.users,
+      name: currentOrganization,
+      users,
     })
   }
 
@@ -51,22 +55,26 @@ class AdminChronografPage extends Component {
     )
   }
 
-  handleFilterUsers = ({name, users}) => {
+  handleFilterUsers = ({users, name}) => {
     const nextUsers = users || this.props.users
+    const nextOrganizationName = name || this.props.currentOrganization
 
     const filteredUsers =
-      name === DEFAULT_ORG
+      nextOrganizationName === DEFAULT_ORG
         ? nextUsers
         : nextUsers.filter(
             user =>
-              name === NO_ORG
+              nextOrganizationName === NO_ORG
                 ? user.roles.length === 1 // Filter out if user is only part of Default Org
-                : user.roles.find(role => role.organizationName === name)
+                : user.roles.find(
+                    role => role.organizationName === nextOrganizationName
+                  )
           )
     this.setState({
       filteredUsers,
-      organizationName: name,
-      selectedUsers: name === DEFAULT_ORG ? this.state.selectedUsers : [],
+      organizationName: nextOrganizationName,
+      selectedUsers:
+        nextOrganizationName === DEFAULT_ORG ? this.state.selectedUsers : [],
     })
   }
 
@@ -125,6 +133,7 @@ class AdminChronografPage extends Component {
     return (
       <div className="page">
         <PageHeader onShowCreateOrgOverlay={this.handleShowCreateOrgOverlay} />
+
         <FancyScrollbar className="page-contents">
           {users
             ? <div className="container-fluid">
@@ -146,18 +155,23 @@ class AdminChronografPage extends Component {
                         onChangeRoles={this.handleBatchChangeUsersRole}
                       />
                       <div className="panel-body chronograf-admin-table--panel">
-                        <UsersTable
-                          filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
-                          organizationName={organizationName}
-                          onFilterUsers={this.handleFilterUsers}
-                          onToggleUserSelected={this.handleToggleUserSelected}
-                          selectedUsers={selectedUsers}
-                          isSameUser={this.isSameUser}
-                          onToggleAllUsersSelected={
-                            this.handleToggleAllUsersSelected
-                          }
-                          onUpdateUserRole={this.handleUpdateUserRole()}
-                        />
+                        <Authorized
+                          requiredRole={SUPERADMIN_ROLE}
+                          propsOverride={{organizationName}}
+                        >
+                          <UsersTable
+                            filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
+                            organizationName={organizationName}
+                            onFilterUsers={this.handleFilterUsers}
+                            onToggleUserSelected={this.handleToggleUserSelected}
+                            selectedUsers={selectedUsers}
+                            isSameUser={this.isSameUser}
+                            onToggleAllUsersSelected={
+                              this.handleToggleAllUsersSelected
+                            }
+                            onUpdateUserRole={this.handleUpdateUserRole()}
+                          />
+                        </Authorized>
                       </div>
                     </div>
                   </div>
@@ -176,10 +190,11 @@ class AdminChronografPage extends Component {
   }
 }
 
-const {arrayOf, func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 AdminChronografPage.propTypes = {
   users: arrayOf(shape),
+  currentOrganization: string,
   organizations: arrayOf(shape),
   loadUsers: func.isRequired,
 }
@@ -188,8 +203,12 @@ AdminChronografPage.defaultProps = {
   organizations: DUMMY_ORGS,
 }
 
-const mapStateToProps = ({adminChronograf: {users}}) => ({
+const mapStateToProps = ({
+  adminChronograf: {users},
+  auth: {me: {currentOrganization}},
+}) => ({
   users,
+  currentOrganization,
 })
 
 const mapDispatchToProps = dispatch => ({

@@ -8,6 +8,8 @@ const getInitialState = () => ({
 
 import {getMeRole} from 'shared/reducers/helpers/auth'
 
+import {DEFAULT_ORG} from 'src/admin/constants/dummyUsers'
+
 export const initialState = getInitialState()
 
 const authReducer = (state = initialState, action) => {
@@ -27,8 +29,16 @@ const authReducer = (state = initialState, action) => {
       return {...state, isMeLoading: true}
     }
     case 'ME_RECEIVED': {
-      const {me} = action.payload
-      return {...state, me: {...me, role: getMeRole(me)}, isMeLoading: false}
+      const {me, me: {currentOrganization}} = action.payload
+      return {
+        ...state,
+        me: {
+          ...me,
+          role: getMeRole(me),
+          currentOrganization: currentOrganization || DEFAULT_ORG, // TODO: make sure currentOrganization is received as non-superadmin
+        },
+        isMeLoading: false,
+      }
     }
     case 'LOGOUT_LINK_RECEIVED': {
       const {logoutLink} = action.payload
