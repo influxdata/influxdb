@@ -43,8 +43,21 @@ func (s *OrganizationsStore) Migrate(ctx context.Context) error {
 	})
 }
 
+func (s *OrganizationsStore) nameIsUnique(ctx context.Context, name string) bool {
+	_, err := s.Get(ctx, chronograf.OrganizationQuery{Name: &name})
+	switch err {
+	case chronograf.ErrOrganizationNotFound:
+		return true
+	default:
+		return false
+	}
+}
+
 // Add creates a new Organization in the OrganizationsStore
 func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
+	if !s.nameIsUnique(ctx, o.Name) {
+		return nil, chronograf.ErrOrganizationNameTaken
+	}
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
 		seq, err := b.NextSequence()
@@ -227,6 +240,9 @@ func (s *OrganizationsStore) Update(ctx context.Context, o *chronograf.Organizat
 	org, err := s.get(ctx, o.ID)
 	if err != nil {
 		return err
+	}
+	if o.Name != org.Name && !s.nameIsUnique(ctx, o.Name) {
+		return chronograf.ErrOrganizationNameTaken
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		org.Name = o.Name

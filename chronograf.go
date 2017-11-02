@@ -20,18 +20,19 @@ import (
 
 // General errors.
 const (
-	ErrUpstreamTimeout      = Error("request to backend timed out")
-	ErrSourceNotFound       = Error("source not found")
-	ErrServerNotFound       = Error("server not found")
-	ErrLayoutNotFound       = Error("layout not found")
-	ErrDashboardNotFound    = Error("dashboard not found")
-	ErrUserNotFound         = Error("user not found")
-	ErrOrganizationNotFound = Error("organization not found")
-	ErrLayoutInvalid        = Error("layout is invalid")
-	ErrAlertNotFound        = Error("alert not found")
-	ErrAuthentication       = Error("user not authenticated")
-	ErrUninitialized        = Error("client uninitialized. Call Open() method")
-	ErrInvalidAxis          = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrUpstreamTimeout       = Error("request to backend timed out")
+	ErrSourceNotFound        = Error("source not found")
+	ErrServerNotFound        = Error("server not found")
+	ErrLayoutNotFound        = Error("layout not found")
+	ErrDashboardNotFound     = Error("dashboard not found")
+	ErrUserNotFound          = Error("user not found")
+	ErrOrganizationNotFound  = Error("organization not found")
+	ErrLayoutInvalid         = Error("layout is invalid")
+	ErrAlertNotFound         = Error("alert not found")
+	ErrAuthentication        = Error("user not authenticated")
+	ErrUninitialized         = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis           = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrOrganizationNameTaken = Error("organization name is taken")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -786,6 +787,11 @@ type OrganizationQuery struct {
 }
 
 // OrganizationsStore is the storage and retrieval of Organizations
+//
+// While not necessary for the app to function correctly, it is
+// expected that Implementors of the OrganizationsStore will take
+// care to guarantee that the Organization.Name is unqiue. Allowing
+// for duplicate names creates a confusing UX experience for the User.
 type OrganizationsStore interface {
 	// Add creates a new Organization.
 	// The Created organization is returned back to the user with the

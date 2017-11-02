@@ -231,6 +231,9 @@ func TestOrganizationsStore_All(t *testing.T) {
 }
 
 func TestOrganizationsStore_Update(t *testing.T) {
+	type fields struct {
+		orgs []chronograf.Organization
+	}
 	type args struct {
 		ctx  context.Context
 		org  *chronograf.Organization
@@ -238,13 +241,15 @@ func TestOrganizationsStore_Update(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		fields   fields
 		args     args
 		addFirst bool
 		want     *chronograf.Organization
 		wantErr  bool
 	}{
 		{
-			name: "No such organization",
+			name:   "No such organization",
+			fields: fields{},
 			args: args{
 				ctx: context.Background(),
 				org: &chronograf.Organization{
@@ -255,7 +260,8 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Update organization name",
+			name:   "Update organization name",
+			fields: fields{},
 			args: args{
 				ctx: context.Background(),
 				org: &chronograf.Organization{
@@ -266,6 +272,25 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			want: &chronograf.Organization{
 				Name: "The Bad Place",
 			},
+			addFirst: true,
+		},
+		{
+			name: "Update organization name - name already taken",
+			fields: fields{
+				orgs: []chronograf.Organization{
+					{
+						Name: "The Bad Place",
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				org: &chronograf.Organization{
+					Name: "The Good Place",
+				},
+				name: "The Bad Place",
+			},
+			wantErr:  true,
 			addFirst: true,
 		},
 	}
@@ -280,11 +305,15 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		defer client.Close()
 		s := client.OrganizationsStore
 
-		if tt.addFirst {
-			tt.args.org, err = s.Add(tt.args.ctx, tt.args.org)
+		for _, org := range tt.fields.orgs {
+			_, err = s.Add(tt.args.ctx, &org)
 			if err != nil {
 				t.Fatal(err)
 			}
+		}
+
+		if tt.addFirst {
+			tt.args.org, err = s.Add(tt.args.ctx, tt.args.org)
 		}
 
 		if tt.args.name != "" {
@@ -358,6 +387,78 @@ func TestOrganizationStore_Delete(t *testing.T) {
 		}
 		if err := s.Delete(tt.args.ctx, tt.args.org); (err != nil) != tt.wantErr {
 			t.Errorf("%q. OrganizationsStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+	}
+}
+
+func TestOrganizationsStore_Add(t *testing.T) {
+	type fields struct {
+		orgs []chronograf.Organization
+	}
+	type args struct {
+		ctx context.Context
+		org *chronograf.Organization
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *chronograf.Organization
+		wantErr bool
+	}{
+		{
+			name: "Add organization - name already taken",
+			fields: fields{
+				orgs: []chronograf.Organization{
+					{
+						Name: "The Good Place",
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				org: &chronograf.Organization{
+					Name: "The Good Place",
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		client, err := NewTestClient()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Open(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+		s := client.OrganizationsStore
+
+		for _, org := range tt.fields.orgs {
+			_, err = s.Add(tt.args.ctx, &org)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		_, err = s.Add(tt.args.ctx, tt.args.org)
+
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. OrganizationsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+
+		// for the empty test
+		if tt.want == nil {
+			continue
+		}
+
+		got, err := s.Get(tt.args.ctx, chronograf.OrganizationQuery{Name: &tt.args.org.Name})
+		if err != nil {
+			t.Fatalf("failed to get organization: %v", err)
+		}
+		if diff := cmp.Diff(got, tt.want, orgCmpOptions...); diff != "" {
+			t.Errorf("%q. OrganizationsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
