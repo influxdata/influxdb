@@ -119,6 +119,9 @@ func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization
 
 // Delete the organization from OrganizationsStore
 func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organization) error {
+	if o.ID == DefaultOrganizationID {
+		return chronograf.ErrCannotDeleteDefaultOrganization
+	}
 	_, err := s.get(ctx, o.ID)
 	if err != nil {
 		return err
