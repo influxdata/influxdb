@@ -197,6 +197,20 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
+		// If a user was added via the API, they might not yet be a member of the default organization
+		// Here we check to verify that they are a user in the default organization
+		// TODO(desa): when https://github.com/influxdata/chronograf/pull/2219 is merge, refactor this to use
+		// the default organization logic rather than hard coding valies here.
+		if !hasRoleInDefaultOrganization(usr) {
+			usr.Roles = append(usr.Roles, chronograf.Role{
+				Organization: "0",
+				Name:         MemberRoleName,
+			})
+			if err := s.Store.Users(ctx).Update(ctx, usr); err != nil {
+				unknownErrorWithMessage(w, err, s.Logger)
+				return
+			}
+		}
 		res := newMeResponse(usr)
 		res.Organizations = orgs
 		res.CurrentOrganization = currentOrg
@@ -283,4 +297,16 @@ func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([
 	}
 
 	return orgs, nil
+}
+
+// TODO(desa): when https://github.com/influxdata/chronograf/pull/2219 is merge, refactor this to use
+// the default organization logic rather than hard coding valies here.
+func hasRoleInDefaultOrganization(u *chronograf.User) bool {
+	for _, role := range u.Roles {
+		if role.Organization == "0" {
+			return true
+		}
+	}
+
+	return false
 }
