@@ -3,6 +3,7 @@ import {
   getOrganizations as getOrganizationsAJAX,
   createUser as createUserAJAX,
   deleteUser as deleteUserAJAX,
+  createOrganization as createOrganizationAJAX,
 } from 'src/admin/apis/chronograf'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -44,6 +45,28 @@ export const removeUser = user => ({
   type: 'CHRONOGRAF_REMOVE_USER',
   payload: {
     user,
+  },
+})
+
+export const addOrganization = organization => ({
+  type: 'CHRONOGRAF_ADD_ORGANIZATION',
+  payload: {
+    organization,
+  },
+})
+
+export const syncOrganization = (staleOrganization, syncedOrganization) => ({
+  type: 'CHRONOGRAF_SYNC_ORGANIZATION',
+  payload: {
+    staleOrganization,
+    syncedOrganization,
+  },
+})
+
+export const removeOrganization = organization => ({
+  type: 'CHRONOGRAF_REMOVE_ORGANIZATION',
+  payload: {
+    organization,
   },
 })
 
@@ -90,5 +113,19 @@ export const deleteUserAsync = user => async dispatch => {
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addUser(user))
+  }
+}
+
+export const createOrganizationAsync = (
+  url,
+  organization
+) => async dispatch => {
+  dispatch(addOrganization(organization))
+  try {
+    const {data} = await createOrganizationAJAX(url, organization)
+    dispatch(syncOrganization(organization, data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(removeOrganization(organization))
   }
 }

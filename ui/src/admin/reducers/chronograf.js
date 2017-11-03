@@ -39,6 +39,31 @@ const adminChronograf = (state = initialState, action) => {
         users: state.users.filter(u => !isSameUser(u, user)),
       }
     }
+
+    case 'CHRONOGRAF_ADD_ORGANIZATION': {
+      const {organization} = action.payload
+      return {...state, organizations: [organization, ...state.organizations]}
+    }
+
+    case 'CHRONOGRAF_SYNC_ORGANIZATION': {
+      const {staleOrganization, syncedOrganization} = action.payload
+      return {
+        ...state,
+        organizations: state.organizations.map(
+          o => (o.name === staleOrganization.name ? {...syncedOrganization} : o)
+        ),
+      }
+    }
+
+    case 'CHRONOGRAF_REMOVE_ORGANIZATION': {
+      const {organization} = action.payload
+      return {
+        ...state,
+        organizations: state.organizations.filter(
+          o => o.name !== organization.name
+        ),
+      }
+    }
   }
 
   return state

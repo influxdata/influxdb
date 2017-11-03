@@ -48,3 +48,16 @@ export const deleteUser = async url => {
     throw error
   }
 }
+
+export const createOrganization = async (url, organization) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: organization,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

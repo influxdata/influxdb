@@ -22,7 +22,6 @@ import {
   DEFAULT_ORG_NAME,
   NO_ORG,
   USER_ROLES,
-  MOAR_DUMMY_ORGS,
 } from 'src/admin/constants/dummyUsers'
 
 class AdminChronografPage extends Component {
@@ -143,7 +142,12 @@ class AdminChronografPage extends Component {
     this.setState({showManageOverlay: false, showCreateUserOverlay: false})
   }
 
-  handleCreateOrganization = _organizationName => {}
+  handleCreateOrganization = organizationName => {
+    const {links, actions: {createOrganizationAsync}} = this.props
+
+    createOrganizationAsync(links.organizations, {name: organizationName})
+  }
+
   handleDeleteOrganization = _organization => {}
   handleRenameOrganization = (_organization, _newOrgName) => {}
 
@@ -224,7 +228,7 @@ class AdminChronografPage extends Component {
               onCreateOrg={this.handleCreateOrganization}
               onDeleteOrg={this.handleDeleteOrganization}
               onRenameOrg={this.handleRenameOrganization}
-              organizations={MOAR_DUMMY_ORGS}
+              organizations={organizations}
             />
           : null}
         {showCreateUserOverlay
@@ -263,6 +267,7 @@ AdminChronografPage.propTypes = {
     loadOrganizationsAsync: func.isRequired,
     createUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
+    createOrganizationAsync: func.isRequired,
   }),
   notify: func.isRequired,
 }

@@ -26,10 +26,3 @@ export const DUMMY_ORGS = [
   {id: '2', name: 'Blue Team'},
   {id: '3', name: 'Green Team'},
 ]
-
-export const MOAR_DUMMY_ORGS = [
-  {id: '128', name: 'Marketing'},
-  {id: '127', name: 'Exec Team'},
-  {id: '126', name: 'Lion Tamers'},
-  {id: '125', name: 'Susl0rds'},
-]
