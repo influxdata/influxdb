@@ -148,7 +148,12 @@ class AdminChronografPage extends Component {
     createOrganizationAsync(links.organizations, {name: organizationName})
   }
 
-  handleDeleteOrganization = _organization => {}
+  handleDeleteOrganization = organization => {
+    const {actions: {deleteOrganizationAsync}} = this.props
+
+    deleteOrganizationAsync(organization)
+  }
+
   handleRenameOrganization = (_organization, _newOrgName) => {}
 
   handleCreateUser = user => {
@@ -268,6 +273,7 @@ AdminChronografPage.propTypes = {
     createUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
     createOrganizationAsync: func.isRequired,
+    deleteOrganizationAsync: func.isRequired,
   }),
   notify: func.isRequired,
 }

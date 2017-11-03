@@ -4,6 +4,7 @@ import {
   createUser as createUserAJAX,
   deleteUser as deleteUserAJAX,
   createOrganization as createOrganizationAJAX,
+  deleteOrganization as deleteOrganizationAJAX,
 } from 'src/admin/apis/chronograf'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -127,5 +128,21 @@ export const createOrganizationAsync = (
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(removeOrganization(organization))
+  }
+}
+
+export const deleteOrganizationAsync = organization => async dispatch => {
+  dispatch(removeOrganization(organization))
+  try {
+    await deleteOrganizationAJAX(organization.links.self)
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        `Organization deleted: ${organization.name}`
+      )
+    )
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(addOrganization(organization))
   }
 }

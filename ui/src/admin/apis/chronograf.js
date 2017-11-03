@@ -61,3 +61,15 @@ export const createOrganization = async (url, organization) => {
     throw error
   }
 }
+
+export const deleteOrganization = async url => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
