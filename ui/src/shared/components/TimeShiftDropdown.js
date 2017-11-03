@@ -10,7 +10,7 @@ const TimeShiftDropdown = ({selected, onChooseTimeShift}) =>
       buttonColor="btn-info"
       items={TIME_SHIFTS}
       onChoose={onChooseTimeShift}
-      selected={selected || 'Duration'}
+      selected={selected || 'none'}
     />
   </div>
 
