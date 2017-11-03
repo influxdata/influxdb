@@ -116,18 +116,6 @@ class CreateUserOverlay extends Component {
                 placeholder="Type user's OAuth Scheme..."
                 value={userScheme}
               />
-              <Dropdown
-                items={userRoles.map(role => ({...role, text: role.name}))}
-                selected={userRole || 'Assign a Role'}
-                onChoose={this.handleSelectRole}
-              />
-              <Authorized requiredRole={SUPERADMIN_ROLE}>
-                <Dropdown
-                  items={SUPERADMIN_OPTION_ITEMS}
-                  selected={userSuperAdmin.text}
-                  onChoose={this.handleSelectSuperAdmin}
-                />
-              </Authorized>
               <Authorized
                 requiredRole={SUPERADMIN_ROLE}
                 replaceWith={
@@ -147,6 +135,20 @@ class CreateUserOverlay extends Component {
                       : 'Add to Organization'
                   }
                   onChoose={this.handleSelectOrganization}
+                />
+              </Authorized>
+              {userOrganization
+                ? <Dropdown
+                    items={userRoles.map(role => ({...role, text: role.name}))}
+                    selected={userRole || 'Assign a Role'}
+                    onChoose={this.handleSelectRole}
+                  />
+                : null}
+              <Authorized requiredRole={SUPERADMIN_ROLE}>
+                <Dropdown
+                  items={SUPERADMIN_OPTION_ITEMS}
+                  selected={userSuperAdmin.text}
+                  onChoose={this.handleSelectSuperAdmin}
                 />
               </Authorized>
             </div>
