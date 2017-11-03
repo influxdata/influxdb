@@ -34,7 +34,7 @@ const adminChronograf = (state = initialState, action) => {
       }
     }
 
-    case 'CHRONOGRAF_DELETE_USER': {
+    case 'CHRONOGRAF_REMOVE_USER': {
       const {user} = action.payload
       return {
         ...state,

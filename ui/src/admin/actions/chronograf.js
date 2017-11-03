@@ -38,8 +38,8 @@ export const syncUser = (staleUser, syncedUser) => ({
   },
 })
 
-export const deleteUser = user => ({
-  type: 'CHRONOGRAF_DELETE_USER',
+export const removeUser = user => ({
+  type: 'CHRONOGRAF_REMOVE_USER',
   payload: {
     user,
   },
@@ -71,6 +71,6 @@ export const createUserAsync = (url, user) => async dispatch => {
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(errorThrown(error))
-    dispatch(deleteUser(user))
+    dispatch(removeUser(user))
   }
 }
