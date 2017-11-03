@@ -120,7 +120,21 @@ class AdminChronografPage extends Component {
   // SINGLE USER ACTIONS
   handleCreateUser = user => {
     const {links, actions: {createUserAsync}} = this.props
-    createUserAsync(links.users, user)
+    let newUser = user
+
+    if (
+      user.roles.length === 1 &&
+      user.roles[0].organization !== DEFAULT_ORG_ID
+    ) {
+      newUser = {
+        ...newUser,
+        roles: [
+          ...newUser.roles,
+          {organization: DEFAULT_ORG_ID, name: MEMBER_ROLE},
+        ],
+      }
+    }
+    createUserAsync(links.users, newUser)
   }
   // handleAddUserToOrg will add a user to an organization as a 'member'. if
   // the user already has a role in that organization, it will do nothing.
