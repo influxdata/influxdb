@@ -22,11 +22,9 @@ class KapacitorRulePage extends Component {
 
   async componentDidMount() {
     const {params, source, ruleActions, addFlashMessage} = this.props
-    if (this.isEditing()) {
-      ruleActions.fetchRule(source, params.ruleID)
-    } else {
-      ruleActions.loadDefaultRule()
-    }
+    params.ruleID === 'new'
+      ? ruleActions.loadDefaultRule()
+      : ruleActions.fetchRule(source, params.ruleID)
 
     const kapacitor = await getActiveKapacitor(this.props.source)
     if (!kapacitor) {
@@ -70,9 +68,8 @@ class KapacitorRulePage extends Component {
       router,
     } = this.props
     const {enabledAlerts, kapacitor} = this.state
-    const rule = this.isEditing()
-      ? rules[params.ruleID]
-      : rules[DEFAULT_RULE_ID]
+    const rule =
+      params.ruleID === 'new' ? rules[DEFAULT_RULE_ID] : rules[params.ruleID]
     const query = rule && queryConfigs[rule.queryID]
 
     if (!query) {
@@ -88,16 +85,11 @@ class KapacitorRulePage extends Component {
         ruleActions={ruleActions}
         addFlashMessage={addFlashMessage}
         enabledAlerts={enabledAlerts}
-        isEditing={this.isEditing()}
+        ruleID={params.ruleID}
         router={router}
         kapacitor={kapacitor}
       />
     )
-  }
-
-  isEditing = () => {
-    const {params} = this.props
-    return params.ruleID && params.ruleID !== 'new'
   }
 }
 

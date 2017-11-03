@@ -137,7 +137,7 @@ class KapacitorRule extends Component {
     const {
       rule,
       source,
-      isEditing,
+      ruleID,
       ruleActions,
       queryConfigs,
       enabledAlerts,
@@ -150,7 +150,7 @@ class KapacitorRule extends Component {
       <div className="page">
         <RuleHeader
           source={source}
-          onSave={isEditing ? this.handleEdit : this.handleCreate}
+          onSave={ruleID === 'new' ? this.handleCreate : this.handleEdit}
           validationError={this.validationError()}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
@@ -159,10 +159,9 @@ class KapacitorRule extends Component {
               <div className="col-xs-12">
                 <div className="rule-builder">
                   <NameSection
-                    isEditing={isEditing}
+                    ruleID={ruleID}
                     defaultName={rule.name}
                     onRuleRename={ruleActions.updateRuleName}
-                    ruleID={rule.id}
                   />
                   <ValuesSection
                     rule={rule}
@@ -204,7 +203,7 @@ KapacitorRule.propTypes = {
   queryConfigActions: PropTypes.shape({}).isRequired,
   ruleActions: PropTypes.shape({}).isRequired,
   addFlashMessage: PropTypes.func.isRequired,
-  isEditing: PropTypes.bool.isRequired,
+  ruleID: PropTypes.string.isRequired,
   enabledAlerts: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
   router: PropTypes.shape({
     push: PropTypes.func.isRequired,
