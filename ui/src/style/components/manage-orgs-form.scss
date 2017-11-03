@@ -6,6 +6,7 @@
 
 $manage-orgs--form-z: 2;
 $manage-orgs--max-width: 650px;
+$manage-orgs--max-height: calc(100vh - 120px);
 $manage-orgs--gutter: 30px;
 
 .manage-orgs-form {
@@ -43,9 +44,10 @@ $manage-orgs--gutter: 30px;
   padding: $manage-orgs--gutter;
   border-radius: 0 0 $radius $radius;
   @include gradient-v($g2-kevlar,$g0-obsidian);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  @include custom-scrollbar-round($g2-kevlar,$c-pool);
+  display: block;
+  max-height: $manage-orgs--max-height;
+  overflow: auto;
 }
 
 .manage-orgs-form--org {
