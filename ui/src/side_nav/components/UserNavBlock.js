@@ -7,7 +7,11 @@ class UserNavBlock extends Component {
   }
 
   render() {
-    const {logoutLink, customLinks, me} = this.props
+    const {
+      logoutLink,
+      links: {external: {custom: customLinks}},
+      me,
+    } = this.props
 
     return (
       <div className="sidebar--item">
@@ -51,14 +55,24 @@ class UserNavBlock extends Component {
   }
 }
 
-const {array, shape, string} = PropTypes
+const {arrayOf, shape, string} = PropTypes
 
 UserNavBlock.propTypes = {
-  customLinks: array,
+  links: shape({
+    me: string.isRequired,
+    external: shape({
+      custom: arrayOf(
+        shape({
+          name: string.isRequired,
+          url: string.isRequired,
+        })
+      ),
+    }),
+  }),
   logoutLink: string.isRequired,
   me: shape({
     name: string.isRequired,
-  }),
+  }).isRequired,
 }
 
 const mapStateToProps = ({auth: {me}}) => ({
