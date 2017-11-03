@@ -148,8 +148,6 @@ class AdminChronografPage extends Component {
 
     updateUserAsync(user, {...user, roles: newRoles})
   }
-  // currentOrg is a role that contains the organization id being updated
-  handleUpdateUserOrg = () => (_user, _currentOrg, _newOrg) => {}
   handleUpdateUserRole = () => (_user, _currentRole, _newRole) => {}
   handleDeleteUser = user => {
     const {actions: {deleteUserAsync}} = this.props
@@ -269,7 +267,7 @@ class AdminChronografPage extends Component {
                             onToggleAllUsersSelected={
                               this.handleToggleAllUsersSelected
                             }
-                            onUpdateUserOrg={this.handleUpdateUserOrg()}
+                            onAddUserToOrg={this.handleAddUserToOrg}
                             onUpdateUserRole={this.handleUpdateUserRole()}
                           />
                         </Authorized>

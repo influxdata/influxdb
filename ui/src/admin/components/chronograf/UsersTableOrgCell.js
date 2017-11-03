@@ -6,14 +6,13 @@ import {
   DEFAULT_ORG_NAME,
   DEFAULT_ORG_ID,
   NO_ORG,
-  MEMBER_ROLE,
 } from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const UsersTableOrgCell = ({
   user,
   organizations,
-  onChangeUserOrg,
+  onSelectAddUserToOrg,
   onChooseFilter,
 }) => {
   const {colOrg} = USERS_TABLE
@@ -34,7 +33,7 @@ const UsersTableOrgCell = ({
           selected={'Add to organization'}
           // TODO: assigning role here may not be necessary especially once
           // default organization roles are implemented
-          onChoose={onChangeUserOrg(user, MEMBER_ROLE)}
+          onChoose={onSelectAddUserToOrg}
           buttonColor="btn-primary"
           buttonSize="btn-xs"
           className="dropdown-190"
@@ -75,7 +74,7 @@ UsersTableOrgCell.propTypes = {
     ),
   }),
   organizations: arrayOf(shape()),
-  onChangeUserOrg: func.isRequired,
+  onSelectAddUserToOrg: func.isRequired,
   onChooseFilter: func.isRequired,
 }
 
