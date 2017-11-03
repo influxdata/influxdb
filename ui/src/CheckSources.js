@@ -3,6 +3,8 @@ import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import {MEMBER_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
+
 import {getSources} from 'shared/apis'
 import {showDatabases} from 'shared/apis/metaQuery'
 
@@ -14,7 +16,7 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
-const {arrayOf, func, node, shape, string} = PropTypes
+const {arrayOf, bool, func, node, shape, string} = PropTypes
 const CheckSources = React.createClass({
   propTypes: {
     sources: arrayOf(
@@ -42,6 +44,10 @@ const CheckSources = React.createClass({
     }).isRequired,
     loadSources: func.isRequired,
     errorThrown: func.isRequired,
+    auth: shape({
+      isUsingAuth: bool,
+      me: shape(),
+    }),
   },
 
   childContextTypes: {
@@ -83,7 +89,14 @@ const CheckSources = React.createClass({
   },
 
   async componentWillUpdate(nextProps, nextState) {
-    const {router, location, params, errorThrown, sources} = nextProps
+    const {
+      router,
+      location,
+      params,
+      errorThrown,
+      sources,
+      auth: {isUsingAuth, me},
+    } = nextProps
     const {isFetching} = nextState
     const source = sources.find(s => s.id === params.sourceID)
     const defaultSource = sources.find(s => s.default === true)
@@ -92,6 +105,23 @@ const CheckSources = React.createClass({
       const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
       const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
 
+      if (isUsingAuth && me.role === MEMBER_ROLE) {
+        // if you're a member, go to limbo.
+        return router.push('/limbo')
+      }
+
+      if (isUsingAuth && me.role === VIEWER_ROLE) {
+        if (defaultSource) {
+          return router.push(`/sources/${defaultSource.id}/${restString}`)
+        } else if (sources[0]) {
+          return router.push(`/sources/${sources[0].id}/${restString}`)
+        }
+        // if you're a viewer and there are no sources, go to limbo.
+        return router.push('/limbo')
+      }
+
+      // if you're an editor or not using auth, try for sources or otherwise
+      // create one
       if (defaultSource) {
         return router.push(`/sources/${defaultSource.id}/${restString}`)
       } else if (sources[0]) {
@@ -112,11 +142,16 @@ const CheckSources = React.createClass({
   },
 
   render() {
-    const {params, sources} = this.props
+    const {params, sources, auth: {isUsingAuth, me}} = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)
 
-    if (isFetching || !source) {
+    if (
+      isFetching ||
+      !source ||
+      typeof isUsingAuth !== 'boolean' ||
+      (me && me.role === undefined) // TODO: not sure this happens
+    ) {
       return <div className="page-spinner" />
     }
 
@@ -132,8 +167,10 @@ const CheckSources = React.createClass({
   },
 })
 
-const mapStateToProps = ({sources}) => ({
+const mapStateToProps = ({sources, auth, me}) => ({
   sources,
+  auth,
+  me,
 })
 
 const mapDispatchToProps = dispatch => ({
