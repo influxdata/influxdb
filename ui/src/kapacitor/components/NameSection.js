@@ -27,13 +27,13 @@ class NameSection extends Component {
   }
 
   render() {
-    const {isEditing, defaultName} = this.props
+    const {ruleID, defaultName} = this.props
     const {reset} = this.state
 
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">
-          {isEditing ? 'Name' : 'Name this Alert Rule'}
+          {ruleID === 'new' ? 'Name this Alert Rule' : 'Name'}
         </h3>
         <div className="rule-section--body">
           <div className="rule-section--row rule-section--row-first rule-section--row-last">
@@ -53,10 +53,9 @@ class NameSection extends Component {
   }
 }
 
-const {bool, func, string} = PropTypes
+const {func, string} = PropTypes
 
 NameSection.propTypes = {
-  isEditing: bool,
   defaultName: string.isRequired,
   onRuleRename: func.isRequired,
   ruleID: string.isRequired,
