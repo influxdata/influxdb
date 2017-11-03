@@ -24,14 +24,14 @@ const UsersTableOrgCell = ({
       <td style={{width: colOrg}}>
         <Dropdown
           items={organizations
-            .filter(org => {
-              return !(org.name === DEFAULT_ORG_NAME || org.name === NO_ORG)
-            })
+            .filter(
+              org => !(org.name === DEFAULT_ORG_NAME || org.name === NO_ORG)
+            )
             .map(r => ({
               ...r,
               text: r.name,
             }))}
-          selected={NO_ORG}
+          selected={'Add to organization'}
           // TODO: assigning role here may not be necessary especially once
           // default organization roles are implemented
           onChoose={onChangeUserOrg(user, MEMBER_ROLE)}
