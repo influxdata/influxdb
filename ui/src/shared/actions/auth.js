@@ -1,3 +1,8 @@
+import {updateMe as updateMeAJAX} from 'shared/apis/auth'
+
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {errorThrown} from 'shared/actions/errors'
+
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',
   payload: {
@@ -20,6 +25,18 @@ export const meRequested = () => ({
   type: 'ME_REQUESTED',
 })
 
+export const meChangeOrganizationRequested = () => ({
+  type: 'ME_CHANGE_ORGANIZATION_REQUESTED',
+})
+
+export const meChangeOrganizationCompleted = () => ({
+  type: 'ME_CHANGE_ORGANIZATION_COMPLETED',
+})
+
+export const meChangeOrganizationFailed = () => ({
+  type: 'ME_CHANGE_ORGANIZATION_FAILED',
+})
+
 export const meReceived = me => ({
   type: 'ME_RECEIVED',
   payload: {
@@ -33,3 +50,24 @@ export const logoutLinkReceived = logoutLink => ({
     logoutLink,
   },
 })
+
+export const meChangeOrganizationAsync = (
+  url,
+  organization
+) => async dispatch => {
+  dispatch(meChangeOrganizationRequested())
+  try {
+    const {data} = await updateMeAJAX(url, organization)
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        `Now signed into ${data.currentOrganization.name}`
+      )
+    )
+    dispatch(meChangeOrganizationCompleted())
+    dispatch(meReceived(data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(meChangeOrganizationFailed())
+  }
+}

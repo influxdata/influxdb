@@ -1,9 +1,19 @@
 import React, {PropTypes, Component} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import classnames from 'classnames'
+
+import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
 class UserNavBlock extends Component {
   constructor(props) {
     super(props)
+  }
+
+  handleChangeCurrentOrganization = organizationID => () => {
+    const {links, meChangeOrganization} = this.props
+    meChangeOrganization(links.me, {organization: organizationID})
   }
 
   render() {
@@ -28,17 +38,19 @@ class UserNavBlock extends Component {
             const isLinkCurrentOrg =
               currentOrganization.id === role.organization
             return (
-              <a
+              <span
                 key={i}
                 className={classnames({
                   'sidebar-menu--item': true,
                   active: isLinkCurrentOrg,
                 })}
-                href="#"
+                onClick={this.handleChangeCurrentOrganization(
+                  role.organization
+                )}
               >
                 {organizations.find(o => o.id === role.organization).name}{' '}
                 <strong>({role.name})</strong>
-              </a>
+              </span>
             )
           })}
           <a className="sidebar-menu--item" href={logoutLink}>
@@ -67,7 +79,7 @@ class UserNavBlock extends Component {
   }
 }
 
-const {arrayOf, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 UserNavBlock.propTypes = {
   links: shape({
@@ -101,6 +113,11 @@ UserNavBlock.propTypes = {
       })
     ).isRequired,
   }).isRequired,
+  meChangeOrganization: func.isRequired,
 }
 
-export default UserNavBlock
+const mapDispatchToProps = dispatch => ({
+  meChangeOrganization: bindActionCreators(meChangeOrganizationAsync, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(UserNavBlock)

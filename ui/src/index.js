@@ -100,12 +100,13 @@ const Root = React.createClass({
         external,
         users,
         organizations,
+        meLink,
       } = await getMe()
       if (shouldDispatchResponse) {
         dispatch(authReceived(auth))
         dispatch(meReceived(me))
         dispatch(logoutLinkReceived(logoutLink))
-        dispatch(linksReceived({external, users, organizations}))
+        dispatch(linksReceived({external, users, organizations, me: meLink}))
       }
 
       setTimeout(() => {

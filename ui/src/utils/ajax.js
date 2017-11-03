@@ -10,7 +10,7 @@ const addBasepath = (url, excludeBasepath) => {
 }
 
 const generateResponseWithLinks = (response, newLinks) => {
-  const {auth, logout, external, users, organizations} = newLinks
+  const {auth, logout, external, users, organizations, me: meLink} = newLinks
   return {
     ...response,
     auth: {links: auth},
@@ -18,6 +18,7 @@ const generateResponseWithLinks = (response, newLinks) => {
     external,
     users,
     organizations,
+    meLink,
   }
 }
 
