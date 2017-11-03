@@ -9,8 +9,12 @@ class UsersTableHeader extends Component {
     super(props)
   }
 
+  handleChooseFilter = () => organization => {
+    this.props.onFilterUsers({organization})
+  }
+
   render() {
-    const {onFilterUsers, organizations, organizationName} = this.props
+    const {organizations, organizationName} = this.props
 
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -30,7 +34,7 @@ class UsersTableHeader extends Component {
                 text: org.name,
               }))}
               selected={organizationName}
-              onChoose={onFilterUsers}
+              onChoose={this.handleChooseFilter()}
               buttonSize="btn-md"
               className="dropdown-220"
             />

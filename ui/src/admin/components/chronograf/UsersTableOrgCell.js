@@ -4,6 +4,7 @@ import Dropdown from 'shared/components/Dropdown'
 
 import {
   DEFAULT_ORG_NAME,
+  DEFAULT_ORG_ID,
   NO_ORG,
   MEMBER_ROLE,
 } from 'src/admin/constants/dummyUsers'
@@ -42,27 +43,37 @@ const UsersTableOrgCell = ({
     )
   }
 
-  return (
-    <td style={{width: colOrg}}>
-      {user.roles
-        .filter(role => {
-          return !(role.organizationName === DEFAULT_ORG_NAME)
-        })
-        .map((role, i) =>
-          <span key={i} className="chronograf-user--org">
-            <a href="#" onClick={onChooseFilter(role.organizationName)}>
-              {role.organizationName}
-            </a>
-          </span>
-        )}
-    </td>
-  )
+  return organizations.length
+    ? <td style={{width: colOrg}}>
+        {user.roles
+          .filter(role => {
+            return !(role.organization === DEFAULT_ORG_ID)
+          })
+          .map((role, i) => {
+            const org = organizations.find(o => o.id === role.organization)
+            return (
+              <span key={i} className="chronograf-user--org">
+                <a href="#" onClick={onChooseFilter(org)}>
+                  {org.name}
+                </a>
+              </span>
+            )
+          })}
+      </td>
+    : null
 }
 
-const {arrayOf, func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 UsersTableOrgCell.propTypes = {
-  user: shape(),
+  user: shape({
+    roles: arrayOf(
+      shape({
+        name: string.isRequired,
+        organization: string.isRequired,
+      })
+    ),
+  }),
   organizations: arrayOf(shape()),
   onChangeUserOrg: func.isRequired,
   onChooseFilter: func.isRequired,

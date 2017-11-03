@@ -30,7 +30,7 @@ class AdminChronografPage extends Component {
 
     this.state = {
       // TODO: pass around organization object instead of just name
-      organizationName: this.props.currentOrganization.name,
+      organization: this.props.currentOrganization,
       selectedUsers: [],
       filteredUsers: this.props.users,
       showManageOverlay: false,
@@ -43,7 +43,7 @@ class AdminChronografPage extends Component {
     const {users, currentOrganization} = nextProps
 
     this.handleFilterUsers({
-      name: currentOrganization.name,
+      organization: currentOrganization,
       users,
     })
   }
@@ -68,26 +68,26 @@ class AdminChronografPage extends Component {
     this.setState({showManageOverlay: false, showCreateUserOverlay: false})
   }
 
-  handleFilterUsers = ({users, name}) => {
+  handleFilterUsers = ({users, organization}) => {
     const nextUsers = users || this.props.users
-    const nextOrganizationName = name || this.props.currentOrganization.name
+    const nextOrganization = organization || this.props.currentOrganization
 
     const filteredUsers =
-      nextOrganizationName === DEFAULT_ORG_NAME
+      nextOrganization.name === DEFAULT_ORG_NAME
         ? nextUsers
         : nextUsers.filter(
             user =>
-              nextOrganizationName === NO_ORG
+              nextOrganization.name === NO_ORG
                 ? user.roles.length === 1 // Filter out if user is only part of Default Org
                 : user.roles.find(
-                    role => role.organizationName === nextOrganizationName
+                    role => role.organization === nextOrganization.id
                   )
           )
     this.setState({
       filteredUsers,
-      organizationName: nextOrganizationName,
+      organization: nextOrganization,
       selectedUsers:
-        nextOrganizationName === DEFAULT_ORG_NAME
+        nextOrganization.name === DEFAULT_ORG_NAME
           ? this.state.selectedUsers
           : [],
     })
@@ -205,7 +205,7 @@ class AdminChronografPage extends Component {
   render() {
     const {users, organizations} = this.props
     const {
-      organizationName,
+      organization,
       selectedUsers,
       filteredUsers,
       showManageOverlay,
@@ -228,13 +228,13 @@ class AdminChronografPage extends Component {
                   <div className="col-xs-12">
                     <div className="panel panel-minimal">
                       <UsersTableHeader
-                        organizationName={organizationName}
+                        organizationName={organization.name}
                         organizations={organizations}
                         onFilterUsers={this.handleFilterUsers}
                       />
                       <BatchActionsBar
                         numUsersSelected={numUsersSelected}
-                        organizationName={organizationName}
+                        organizationName={organization.name}
                         organizations={organizations}
                         onDeleteUsers={this.handleBatchDeleteUsers}
                         onAddUsersToOrg={this.handleBatchAddUsersToOrg}
@@ -246,11 +246,11 @@ class AdminChronografPage extends Component {
                       <div className="panel-body chronograf-admin-table--panel">
                         <Authorized
                           requiredRole={SUPERADMIN_ROLE}
-                          propsOverride={{organizationName}}
+                          propsOverride={{organizationName: organization.name}}
                         >
                           <UsersTable
                             filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
-                            organizationName={organizationName}
+                            organizationName={organization.name}
                             organizations={organizations}
                             onFilterUsers={this.handleFilterUsers}
                             onToggleUserSelected={this.handleToggleUserSelected}

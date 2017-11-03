@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {DEFAULT_ORG_NAME, USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_ID, USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const UsersTableRoleCell = ({user, onChangeUserRole}) => {
@@ -21,7 +21,7 @@ const UsersTableRoleCell = ({user, onChangeUserRole}) => {
     <td style={{width: colRole}}>
       {user.roles
         .filter(role => {
-          return !(role.organizationName === DEFAULT_ORG_NAME)
+          return !(role.organization === DEFAULT_ORG_ID)
         })
         .map((role, i) =>
           <Dropdown
@@ -41,10 +41,17 @@ const UsersTableRoleCell = ({user, onChangeUserRole}) => {
   )
 }
 
-const {func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 UsersTableRoleCell.propTypes = {
-  user: shape(),
+  user: shape({
+    roles: arrayOf(
+      shape({
+        name: string.isRequired,
+        organization: string.isRequired,
+      })
+    ),
+  }),
   onChangeUserRole: func.isRequired,
 }
 

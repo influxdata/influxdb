@@ -15,8 +15,8 @@ class ChronografUsersTable extends Component {
     super(props)
   }
 
-  handleChooseFilter = filterString => () => {
-    this.props.onFilterUsers({name: filterString})
+  handleChooseFilter = organization => () => {
+    this.props.onFilterUsers({organization})
   }
 
   // currentOrg is a role object that contains the organization id being updated
