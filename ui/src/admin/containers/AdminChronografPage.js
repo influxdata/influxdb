@@ -162,7 +162,16 @@ class AdminChronografPage extends Component {
 
     updateUserAsync(user, {...user, roles: newRoles})
   }
-  handleUpdateUserRole = () => (_user, _currentRole, _newRole) => {}
+  handleUpdateUserRole = () => (user, currentRole, {name}) => {
+    const {actions: {updateUserAsync}} = this.props
+
+    const updatedRole = {...currentRole, name}
+    const newRoles = user.roles.map(
+      r => (r.organization === currentRole.organization ? updatedRole : r)
+    )
+
+    updateUserAsync(user, {...user, roles: newRoles})
+  }
   handleDeleteUser = user => {
     const {actions: {deleteUserAsync}} = this.props
     deleteUserAsync(user)
