@@ -15,6 +15,8 @@ import CreateUserOverlay from 'src/admin/components/chronograf/CreateUserOverlay
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
+import {isSameUser} from 'shared/reducers/helpers/auth'
+
 import {
   DEFAULT_ORG_NAME,
   NO_ORG,
@@ -56,14 +58,6 @@ class AdminChronografPage extends Component {
     loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
-  isSameUser = (userA, userB) => {
-    return (
-      userA.name === userB.name &&
-      userA.provider === userB.provider &&
-      userA.scheme === userB.scheme
-    )
-  }
-
   handleFilterUsers = ({users, name}) => {
     const nextUsers = users || this.props.users
     const nextOrganizationName = name || this.props.currentOrganization.name
@@ -94,10 +88,10 @@ class AdminChronografPage extends Component {
 
     const {selectedUsers} = this.state
 
-    const isUserSelected = selectedUsers.find(u => this.isSameUser(user, u))
+    const isUserSelected = selectedUsers.find(u => isSameUser(user, u))
 
     const newSelectedUsers = isUserSelected
-      ? selectedUsers.filter(u => !this.isSameUser(user, u))
+      ? selectedUsers.filter(u => !isSameUser(user, u))
       : [...selectedUsers, user]
 
     this.setState({selectedUsers: newSelectedUsers})
@@ -193,7 +187,7 @@ class AdminChronografPage extends Component {
                             onFilterUsers={this.handleFilterUsers}
                             onToggleUserSelected={this.handleToggleUserSelected}
                             selectedUsers={selectedUsers}
-                            isSameUser={this.isSameUser}
+                            isSameUser={isSameUser}
                             onToggleAllUsersSelected={
                               this.handleToggleAllUsersSelected
                             }

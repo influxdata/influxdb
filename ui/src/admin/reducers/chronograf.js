@@ -1,3 +1,5 @@
+import {isSameUser} from 'shared/reducers/helpers/auth'
+
 const initialState = {
   users: [],
   organizations: [],
@@ -23,13 +25,8 @@ const adminChronograf = (state = initialState, action) => {
       return {
         ...state,
         users: state.users.map(
-          u =>
-            // stale user does not have links, so uniqueness is on name, provider, & scheme
-            u.name === staleUser.name &&
-            u.provider === staleUser.provider &&
-            u.scheme === staleUser.scheme
-              ? {...syncedUser}
-              : u
+          // stale user does not have links, so uniqueness is on name, provider, & scheme
+          u => (isSameUser(u, staleUser) ? {...syncedUser} : u)
         ),
       }
     }
@@ -38,7 +35,8 @@ const adminChronograf = (state = initialState, action) => {
       const {user} = action.payload
       return {
         ...state,
-        users: state.users.filter(u => u.links.self !== user.links.self),
+        // stale user does not have links, so uniqueness is on name, provider, & scheme
+        users: state.users.filter(u => !isSameUser(u, user)),
       }
     }
   }
