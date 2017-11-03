@@ -1,5 +1,5 @@
 import React, {PropTypes, Component} from 'react'
-import {connect} from 'react-redux'
+import classnames from 'classnames'
 
 class UserNavBlock extends Component {
   constructor(props) {
@@ -11,6 +11,7 @@ class UserNavBlock extends Component {
       logoutLink,
       links: {external: {custom: customLinks}},
       me,
+      me: {currentOrganization, organizations, roles},
     } = this.props
 
     return (
@@ -23,12 +24,23 @@ class UserNavBlock extends Component {
             {me.name}
           </div>
           <div className="sidebar-menu--section">Organizations</div>
-          <a className="sidebar-menu--item active" href="#">
-            OrganizationName1 <strong>(Viewer)</strong>
-          </a>
-          <a className="sidebar-menu--item" href="#">
-            OrganizationName2 <strong>(Editor)</strong>
-          </a>
+          {roles.map((role, i) => {
+            const isLinkCurrentOrg =
+              currentOrganization.id === role.organization
+            return (
+              <a
+                key={i}
+                className={classnames({
+                  'sidebar-menu--item': true,
+                  active: isLinkCurrentOrg,
+                })}
+                href="#"
+              >
+                {organizations.find(o => o.id === role.organization).name}{' '}
+                <strong>({role.name})</strong>
+              </a>
+            )
+          })}
           <a className="sidebar-menu--item" href={logoutLink}>
             Logout
           </a>
@@ -71,12 +83,24 @@ UserNavBlock.propTypes = {
   }),
   logoutLink: string.isRequired,
   me: shape({
+    currentOrganization: shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    }).isRequired,
     name: string.isRequired,
+    organizations: arrayOf(
+      shape({
+        id: string.isRequired,
+        name: string.isRequired,
+      })
+    ).isRequired,
+    roles: arrayOf(
+      shape({
+        id: string.isRequired,
+        name: string.isRequired,
+      })
+    ).isRequired,
   }).isRequired,
 }
 
-const mapStateToProps = ({auth: {me}}) => ({
-  me,
-})
-
-export default connect(mapStateToProps)(UserNavBlock)
+export default UserNavBlock

@@ -38,6 +38,25 @@ const SideNav = React.createClass({
         ),
       }),
     }),
+    me: shape({
+      currentOrganization: shape({
+        id: string.isRequired,
+        name: string.isRequired,
+      }).isRequired,
+      name: string.isRequired,
+      organizations: arrayOf(
+        shape({
+          id: string.isRequired,
+          name: string.isRequired,
+        })
+      ).isRequired,
+      roles: arrayOf(
+        shape({
+          id: string.isRequired,
+          name: string.isRequired,
+        })
+      ).isRequired,
+    }).isRequired,
   },
 
   render() {
@@ -48,6 +67,7 @@ const SideNav = React.createClass({
       isUsingAuth,
       logoutLink,
       links,
+      me,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
@@ -133,13 +153,13 @@ const SideNav = React.createClass({
             />
           </NavBlock>
           {isUsingAuth
-            ? <UserNavBlock logoutLink={logoutLink} links={links} />
+            ? <UserNavBlock logoutLink={logoutLink} links={links} me={me} />
             : null}
         </NavBar>
   },
 })
 const mapStateToProps = ({
-  auth: {isUsingAuth, logoutLink},
+  auth: {isUsingAuth, logoutLink, me},
   app: {ephemeral: {inPresentationMode}},
   links,
 }) => ({
@@ -147,6 +167,7 @@ const mapStateToProps = ({
   isUsingAuth,
   logoutLink,
   links,
+  me,
 })
 
 export default connect(mapStateToProps)(withRouter(SideNav))
