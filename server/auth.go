@@ -139,6 +139,7 @@ func AuthorizedUser(
 		}
 
 		if hasAuthorizedRole(u, role) {
+			r = r.WithContext(ctx)
 			next(w, r)
 			return
 		}
