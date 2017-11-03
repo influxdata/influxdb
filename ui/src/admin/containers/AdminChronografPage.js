@@ -241,8 +241,6 @@ class AdminChronografPage extends Component {
       showCreateUserOverlay,
     } = this.state
 
-    const numUsersSelected = Object.keys(selectedUsers).length
-
     return (
       <div className="page">
         <PageHeader
@@ -262,7 +260,7 @@ class AdminChronografPage extends Component {
                         onFilterUsers={this.handleFilterUsers}
                       />
                       <BatchActionsBar
-                        numUsersSelected={numUsersSelected}
+                        numUsersSelected={selectedUsers.length}
                         organizationName={organization.name}
                         organizations={organizations}
                         onDeleteUsers={this.handleBatchDeleteUsers}
