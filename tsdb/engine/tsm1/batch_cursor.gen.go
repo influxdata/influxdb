@@ -406,9 +406,10 @@ type floatAscendingRangeBatchCursor struct {
 func (l *floatAscendingRangeBatchCursor) Next() ([]int64, []float64) {
 	k, v := l.FloatBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[len(k)-1] >= l.t {
 		k = k[:len(k)-1]
+		v = v[:len(k)-1]
 	}
 
 	return k, v
@@ -422,9 +423,10 @@ type floatDescendingRangeBatchCursor struct {
 func (l *floatDescendingRangeBatchCursor) Next() ([]int64, []float64) {
 	k, v := l.FloatBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[0] <= l.t {
 		k = k[1:]
+		v = v[1:]
 	}
 
 	return k, v
@@ -740,9 +742,10 @@ type integerAscendingRangeBatchCursor struct {
 func (l *integerAscendingRangeBatchCursor) Next() ([]int64, []int64) {
 	k, v := l.IntegerBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[len(k)-1] >= l.t {
 		k = k[:len(k)-1]
+		v = v[:len(k)-1]
 	}
 
 	return k, v
@@ -756,9 +759,10 @@ type integerDescendingRangeBatchCursor struct {
 func (l *integerDescendingRangeBatchCursor) Next() ([]int64, []int64) {
 	k, v := l.IntegerBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[0] <= l.t {
 		k = k[1:]
+		v = v[1:]
 	}
 
 	return k, v
@@ -1074,9 +1078,10 @@ type unsignedAscendingRangeBatchCursor struct {
 func (l *unsignedAscendingRangeBatchCursor) Next() ([]int64, []uint64) {
 	k, v := l.UnsignedBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[len(k)-1] >= l.t {
 		k = k[:len(k)-1]
+		v = v[:len(k)-1]
 	}
 
 	return k, v
@@ -1090,9 +1095,10 @@ type unsignedDescendingRangeBatchCursor struct {
 func (l *unsignedDescendingRangeBatchCursor) Next() ([]int64, []uint64) {
 	k, v := l.UnsignedBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[0] <= l.t {
 		k = k[1:]
+		v = v[1:]
 	}
 
 	return k, v
@@ -1408,9 +1414,10 @@ type stringAscendingRangeBatchCursor struct {
 func (l *stringAscendingRangeBatchCursor) Next() ([]int64, []string) {
 	k, v := l.StringBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[len(k)-1] >= l.t {
 		k = k[:len(k)-1]
+		v = v[:len(k)-1]
 	}
 
 	return k, v
@@ -1424,9 +1431,10 @@ type stringDescendingRangeBatchCursor struct {
 func (l *stringDescendingRangeBatchCursor) Next() ([]int64, []string) {
 	k, v := l.StringBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[0] <= l.t {
 		k = k[1:]
+		v = v[1:]
 	}
 
 	return k, v
@@ -1742,9 +1750,10 @@ type booleanAscendingRangeBatchCursor struct {
 func (l *booleanAscendingRangeBatchCursor) Next() ([]int64, []bool) {
 	k, v := l.BooleanBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[len(k)-1] >= l.t {
 		k = k[:len(k)-1]
+		v = v[:len(k)-1]
 	}
 
 	return k, v
@@ -1758,9 +1767,10 @@ type booleanDescendingRangeBatchCursor struct {
 func (l *booleanDescendingRangeBatchCursor) Next() ([]int64, []bool) {
 	k, v := l.BooleanBatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[0] <= l.t {
 		k = k[1:]
+		v = v[1:]
 	}
 
 	return k, v

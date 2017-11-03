@@ -343,9 +343,10 @@ type {{.name}}AscendingRangeBatchCursor struct {
 func (l *{{.name}}AscendingRangeBatchCursor) Next() ([]int64, []{{.Type}}) {
 	k, v := l.{{.Name}}BatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[len(k)-1] >= l.t {
 		k = k[:len(k)-1]
+		v = v[:len(k)-1]
 	}
 
 	return k, v
@@ -359,9 +360,10 @@ type {{.name}}DescendingRangeBatchCursor struct {
 func (l *{{.name}}DescendingRangeBatchCursor) Next() ([]int64, []{{.Type}}) {
 	k, v := l.{{.Name}}BatchCursor.Next()
 
-	// strip out remaining time the is outside range
+	// strip out remaining time that is outside range
 	for len(k) > 0 && k[0] <= l.t {
 		k = k[1:]
+		v = v[1:]
 	}
 
 	return k, v
