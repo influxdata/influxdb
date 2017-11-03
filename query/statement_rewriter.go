@@ -214,12 +214,7 @@ func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityS
 }
 
 func rewriteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement) (influxql.Statement, error) {
-	// Check for time in WHERE clause (not supported).
-	if influxql.HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW TAG VALUES doesn't support time in WHERE clause")
-	}
-
-	var expr influxql.Expr
+	var expr Expr
 	if list, ok := stmt.TagKeyExpr.(*influxql.ListLiteral); ok {
 		for _, tagKey := range list.Vals {
 			tagExpr := &influxql.BinaryExpr{

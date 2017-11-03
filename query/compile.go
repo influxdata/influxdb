@@ -792,7 +792,7 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	// we need to limit the possible time range that can be used when mapping shards but not when actually executing
 	// the select statement. Determine the shard time range here.
 	timeRange := c.TimeRange
-	if sopt.MaxBucketsN > 0 && !c.stmt.IsRawQuery && timeRange.MinTime() == influxql.MinTime {
+	if sopt.MaxBucketsN > 0 && !c.stmt.IsRawQuery && timeRange.MinTimeNano() == influxql.MinTime {
 		interval, err := c.stmt.GroupByInterval()
 		if err != nil {
 			return nil, err
@@ -811,7 +811,7 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 					Offset:   offset,
 				},
 			}
-			last, _ := opt.Window(c.TimeRange.MaxTime() - 1)
+			last, _ := opt.Window(c.TimeRange.MaxTimeNano() - 1)
 
 			// Determine the time difference using the number of buckets.
 			// Determine the maximum difference between the buckets based on the end time.
@@ -843,10 +843,10 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 		shards.Close()
 		return nil, err
 	}
-	opt.StartTime, opt.EndTime = c.TimeRange.MinTime(), c.TimeRange.MaxTime()
+	opt.StartTime, opt.EndTime = c.TimeRange.MinTimeNano(), c.TimeRange.MaxTimeNano()
 	opt.Ascending = c.Ascending
 
-	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery && c.TimeRange.MinTime() > influxql.MinTime {
+	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery && c.TimeRange.MinTimeNano() > influxql.MinTime {
 		interval, err := stmt.GroupByInterval()
 		if err != nil {
 			shards.Close()

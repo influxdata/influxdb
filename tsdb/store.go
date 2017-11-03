@@ -1013,11 +1013,23 @@ func (a tagValuesSlice) Len() int           { return len(a) }
 func (a tagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
-// TagValues returns the tag keys and values in the given database, matching the condition.
-func (s *Store) TagValues(auth query.Authorizer, database string, cond influxql.Expr) ([]TagValues, error) {
+// TagValues returns the tag keys and values for the provided shards, where the
+// tag values satisfy the provided condition.
+func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
 	if cond == nil {
 		return nil, errors.New("a condition is required")
 	}
+
+	cond = influxql.Reduce(influxql.RewriteExpr(cond, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			// Remove time clause from condition
+			if ref, ok := e.LHS.(*influxql.VarRef); ok && strings.ToLower(ref.Val) == "time" {
+				return nil
+			}
+		}
+		return e
+	}), nil)
 
 	measurementExpr := influxql.CloneExpr(cond)
 	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
@@ -1049,9 +1061,16 @@ func (s *Store) TagValues(auth query.Authorizer, database string, cond influxql.
 		return e
 	}), nil)
 
-	// Get all measurements for the shards we're interested in.
+	// Get set of Shards to work on.
+	shards := make([]*Shard, 0, len(shardIDs))
 	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
+	for _, sid := range shardIDs {
+		shard, ok := s.shards[sid]
+		if !ok {
+			return nil, fmt.Errorf("Store doesn't have shard with ID: %d", sid)
+		}
+		shards = append(shards, shard)
+	}
 	s.mu.RUnlock()
 
 	// If we're using the inmem index then all shards contain a duplicate

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -34,7 +35,7 @@ func TestLocalShardMapper(t *testing.T) {
 		}, nil
 	}
 
-	var tsdbStore TSDBStore
+	tsdbStore := &internal.TSDBStoreMock{}
 	tsdbStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
 		if !reflect.DeepEqual(ids, []uint64{1, 2, 3, 4}) {
 			t.Errorf("unexpected shard ids: %#v", ids)
@@ -53,7 +54,7 @@ func TestLocalShardMapper(t *testing.T) {
 	// Initialize the shard mapper.
 	shardMapper := &coordinator.LocalShardMapper{
 		MetaClient: &metaClient,
-		TSDBStore:  &tsdbStore,
+		TSDBStore:  tsdbStore,
 	}
 
 	// Normal measurement.

@@ -263,7 +263,7 @@ type QueryExecutor struct {
 	*query.QueryExecutor
 
 	MetaClient        MetaClient
-	TSDBStore         TSDBStore
+	TSDBStore         *internal.TSDBStoreMock
 	StatementExecutor *coordinator.StatementExecutor
 	LogOutput         bytes.Buffer
 }
@@ -273,13 +273,27 @@ type QueryExecutor struct {
 func NewQueryExecutor() *QueryExecutor {
 	e := &QueryExecutor{
 		QueryExecutor: query.NewQueryExecutor(),
+		TSDBStore:     &internal.TSDBStoreMock{},
 	}
+
+	e.TSDBStore.CreateShardFn = func(database, policy string, shardID uint64, enabled bool) error {
+		return nil
+	}
+
+	e.TSDBStore.MeasurementNamesFn = func(database string, cond influxql.Expr) ([][]byte, error) {
+		return nil, nil
+	}
+
+	e.TSDBStore.TagValuesFn = func(_ query.Authorizer, _ []uint64, _ influxql.Expr) ([]tsdb.TagValues, error) {
+		return nil, nil
+	}
+
 	e.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient: &e.MetaClient,
-		TSDBStore:  &e.TSDBStore,
+		TSDBStore:  e.TSDBStore,
 		ShardMapper: &coordinator.LocalShardMapper{
 			MetaClient: &e.MetaClient,
-			TSDBStore:  &e.TSDBStore,
+			TSDBStore:  e.TSDBStore,
 		},
 	}
 	e.QueryExecutor.StatementExecutor = e.StatementExecutor
@@ -309,87 +323,6 @@ func (e *QueryExecutor) ExecuteQuery(q, database string, chunkSize int) <-chan *
 		Database:  database,
 		ChunkSize: chunkSize,
 	}, make(chan struct{}))
-}
-
-// TSDBStore is a mockable implementation of coordinator.TSDBStore.
-type TSDBStore struct {
-	CreateShardFn  func(database, policy string, shardID uint64, enabled bool) error
-	WriteToShardFn func(shardID uint64, points []models.Point) error
-
-	RestoreShardFn func(id uint64, r io.Reader) error
-	BackupShardFn  func(id uint64, since time.Time, w io.Writer) error
-
-	DeleteDatabaseFn          func(name string) error
-	DeleteMeasurementFn       func(database, name string) error
-	DeleteRetentionPolicyFn   func(database, name string) error
-	DeleteShardFn             func(id uint64) error
-	DeleteSeriesFn            func(database string, sources []influxql.Source, condition influxql.Expr) error
-	ShardGroupFn              func(ids []uint64) tsdb.ShardGroup
-	MeasurementsCardinalityFn func(database string) (int64, error)
-	SeriesCardinalityFn       func(database string) (int64, error)
-}
-
-func (s *TSDBStore) CreateShard(database, policy string, shardID uint64, enabled bool) error {
-	if s.CreateShardFn == nil {
-		return nil
-	}
-	return s.CreateShardFn(database, policy, shardID, enabled)
-}
-
-func (s *TSDBStore) WriteToShard(shardID uint64, points []models.Point) error {
-	return s.WriteToShardFn(shardID, points)
-}
-
-func (s *TSDBStore) RestoreShard(id uint64, r io.Reader) error {
-	return s.RestoreShardFn(id, r)
-}
-
-func (s *TSDBStore) BackupShard(id uint64, since time.Time, w io.Writer) error {
-	return s.BackupShardFn(id, since, w)
-}
-
-func (s *TSDBStore) DeleteDatabase(name string) error {
-	return s.DeleteDatabaseFn(name)
-}
-
-func (s *TSDBStore) DeleteMeasurement(database, name string) error {
-	return s.DeleteMeasurementFn(database, name)
-}
-
-func (s *TSDBStore) DeleteRetentionPolicy(database, name string) error {
-	return s.DeleteRetentionPolicyFn(database, name)
-}
-
-func (s *TSDBStore) DeleteShard(id uint64) error {
-	return s.DeleteShardFn(id)
-}
-
-func (s *TSDBStore) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
-	return s.DeleteSeriesFn(database, sources, condition)
-}
-
-func (s *TSDBStore) ShardGroup(ids []uint64) tsdb.ShardGroup {
-	return s.ShardGroupFn(ids)
-}
-
-func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string, error) {
-	return nil, nil
-}
-
-func (s *TSDBStore) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
-	return nil, nil
-}
-
-func (s *TSDBStore) MeasurementsCardinality(database string) (int64, error) {
-	return s.MeasurementsCardinalityFn(database)
-}
-
-func (s *TSDBStore) TagValues(_ query.Authorizer, database string, cond influxql.Expr) ([]tsdb.TagValues, error) {
-	return nil, nil
-}
-
-func (s *TSDBStore) SeriesCardinality(database string) (int64, error) {
-	return s.SeriesCardinalityFn(database)
 }
 
 type MockShard struct {

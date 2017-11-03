@@ -236,6 +236,54 @@ func TestRewriteStatement(t *testing.T) {
 			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu WHERE region = 'uswest' AND time > 0`,
 		},
 		{
+			stmt: `SHOW TAG VALUES WITH KEY = "region"`,
+			s:    `SHOW TAG VALUES WITH KEY = region WHERE _tagKey = 'region'`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY = "region" WHERE "region" = 'uswest'`,
+			s:    `SHOW TAG VALUES WITH KEY = region WHERE (region = 'uswest') AND (_tagKey = 'region')`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY IN ("region", "server") WHERE "platform" = 'cloud'`,
+			s:    `SHOW TAG VALUES WITH KEY IN (region, server) WHERE (platform = 'cloud') AND (_tagKey = 'region' OR _tagKey = 'server')`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY = "region" WHERE "region" = 'uswest' AND time > 0`,
+			s:    `SHOW TAG VALUES WITH KEY = region WHERE (region = 'uswest' AND time > 0) AND (_tagKey = 'region')`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY = "region" ON db0`,
+			s:    `SHOW TAG VALUES WITH KEY = region WHERE _tagKey = 'region'`,
+		},
+		{
+			stmt: `SHOW TAG VALUES FROM cpu WITH KEY = "region"`,
+			s:    `SHOW TAG VALUES WITH KEY = region WHERE (_name = 'cpu') AND (_tagKey = 'region')`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY != "region"`,
+			s:    `SHOW TAG VALUES WITH KEY != region WHERE _tagKey != 'region'`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY =~ /re.*/`,
+			s:    `SHOW TAG VALUES WITH KEY =~ /re.*/ WHERE _tagKey =~ /re.*/`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY =~ /re.*/ WHERE time > 0`,
+			s:    `SHOW TAG VALUES WITH KEY =~ /re.*/ WHERE (time > 0) AND (_tagKey =~ /re.*/)`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY !~ /re.*/`,
+			s:    `SHOW TAG VALUES WITH KEY !~ /re.*/ WHERE _tagKey !~ /re.*/`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY !~ /re.*/ LIMIT 1`,
+			s:    `SHOW TAG VALUES WITH KEY !~ /re.*/ WHERE _tagKey !~ /re.*/ LIMIT 1`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY !~ /re.*/ OFFSET 2`,
+			s:    `SHOW TAG VALUES WITH KEY !~ /re.*/ WHERE _tagKey !~ /re.*/ OFFSET 2`,
+		},
+		{
 			stmt: `SELECT value FROM cpu`,
 			s:    `SELECT value FROM cpu`,
 		},

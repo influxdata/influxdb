@@ -5104,18 +5104,40 @@ func (t TimeRange) IsZero() bool {
 	return t.Min.IsZero() && t.Max.IsZero()
 }
 
-// MinTime returns the minimum time in nanoseconds since the epoch.
+// These are defined here so we only allocate them once.
+var minTime = time.Unix(0, MinTime)
+var maxTime = time.Unix(0, MaxTime)
+
+// MinTime returns the minimum time of the TimeRange.
 // If the minimum time is zero, this returns the minimum possible time.
-func (t TimeRange) MinTime() int64 {
+func (t TimeRange) MinTime() time.Time {
+	if t.Min.IsZero() {
+		return minTime
+	}
+	return t.Min
+}
+
+// MaxTime returns the maximum time of the TimeRange.
+// If the maximum time is zero, this returns the maximum possible time.
+func (t TimeRange) MaxTime() time.Time {
+	if t.Max.IsZero() {
+		return maxTime
+	}
+	return t.Max
+}
+
+// MinTimeNano returns the minimum time in nanoseconds since the epoch.
+// If the minimum time is zero, this returns the minimum possible time.
+func (t TimeRange) MinTimeNano() int64 {
 	if t.Min.IsZero() {
 		return MinTime
 	}
 	return t.Min.UnixNano()
 }
 
-// MaxTime returns the maximum time in nanoseconds since the epoch.
+// MaxTimeNano returns the maximum time in nanoseconds since the epoch.
 // If the maximum time is zero, this returns the maximum possible time.
-func (t TimeRange) MaxTime() int64 {
+func (t TimeRange) MaxTimeNano() int64 {
 	if t.Max.IsZero() {
 		return MaxTime
 	}

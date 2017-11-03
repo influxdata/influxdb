@@ -912,7 +912,7 @@ func TestStore_TagValues(t *testing.T) {
 	}
 
 	var s *Store
-	setup := func(index string) {
+	setup := func(index string) []uint64 { // returns shard ids
 		s = MustOpenStore(index)
 
 		fmtStr := `cpu%[1]d,foo=a,ignoreme=nope,host=tv%[2]d,shard=s%[3]d value=1 %[4]d
@@ -932,16 +932,19 @@ func TestStore_TagValues(t *testing.T) {
 		}
 
 		// Create data across 3 shards.
+		var ids []uint64
 		for i := 0; i < 3; i++ {
+			ids = append(ids, uint64(i))
 			s.MustCreateShardWithData("db0", "rp0", i, genPoints(i)...)
 		}
+		return ids
 	}
 
 	for _, example := range examples {
 		for _, index := range tsdb.RegisteredIndexes() {
-			setup(index)
+			shardIDs := setup(index)
 			t.Run(example.Name+"_"+index, func(t *testing.T) {
-				got, err := s.TagValues(nil, "db0", example.Expr)
+				got, err := s.TagValues(nil, shardIDs, example.Expr)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1085,7 +1088,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 	}
 
 	var s *Store
-	setup := func(shards, measurements, tagValues int, index string, useRandom bool) {
+	setup := func(shards, measurements, tagValues int, index string, useRandom bool) []uint64 { // returns shard ids
 		s = NewStore()
 		s.EngineOptions.IndexVersion = index
 		if err := s.Open(); err != nil {
@@ -1117,9 +1120,12 @@ func BenchmarkStore_TagValues(b *testing.B) {
 		}
 
 		// Create data across chosen number of shards.
+		var shardIDs []uint64
 		for i := 0; i < shards; i++ {
+			shardIDs = append(shardIDs, uint64(i))
 			s.MustCreateShardWithData("db0", "rp0", i, genPoints(i, useRandom)...)
 		}
+		return shardIDs
 	}
 
 	teardown := func() {
@@ -1164,14 +1170,14 @@ func BenchmarkStore_TagValues(b *testing.B) {
 		for useRand := 0; useRand < 2; useRand++ {
 			for c, condition := range []influxql.Expr{cond1, cond2} {
 				for _, bm := range benchmarks {
-					setup(bm.shards, bm.measurements, bm.tagValues, index, useRand == 1)
+					shardIDs := setup(bm.shards, bm.measurements, bm.tagValues, index, useRand == 1)
 					cnd := "Unfiltered"
 					if c == 0 {
 						cnd = "Filtered"
 					}
 					b.Run("random_values="+fmt.Sprint(useRand == 1)+"_index="+index+"_"+cnd+"_"+bm.name, func(b *testing.B) {
 						for i := 0; i < b.N; i++ {
-							if tvResult, err = s.TagValues(nil, "db0", condition); err != nil {
+							if tvResult, err = s.TagValues(nil, shardIDs, condition); err != nil {
 								b.Fatal(err)
 							}
 						}

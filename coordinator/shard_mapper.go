@@ -35,8 +35,8 @@ func (e *LocalShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRa
 		ShardMap: make(map[Source]tsdb.ShardGroup),
 	}
 
-	tmin := time.Unix(0, t.MinTime())
-	tmax := time.Unix(0, t.MaxTime())
+	tmin := time.Unix(0, t.MinTimeNano())
+	tmax := time.Unix(0, t.MaxTimeNano())
 	if err := e.mapShards(a, sources, tmin, tmax); err != nil {
 		return nil, err
 	}
