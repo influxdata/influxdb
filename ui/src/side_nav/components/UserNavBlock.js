@@ -34,7 +34,12 @@ class UserNavBlock extends Component {
             : null}
           {customLinks
             ? customLinks.map((link, i) =>
-                <a key={i} className="sidebar-menu--item" href={link.url}>
+                <a
+                  key={i}
+                  className="sidebar-menu--item"
+                  href={link.url}
+                  target="_blank"
+                >
                   {link.name}
                 </a>
               )
