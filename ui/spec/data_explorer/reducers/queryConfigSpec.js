@@ -1,7 +1,9 @@
 import reducer from 'src/data_explorer/reducers/queryConfigs'
+
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
   fill,
+  timeShift,
   chooseTag,
   groupByTag,
   groupByTime,
@@ -467,6 +469,20 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       const nextState = reducer(initialState, action)
 
       expect(nextState[queryID].fill).to.equal(FLOAT_STRING)
+    })
+  })
+
+  describe('DE_TIME_SHIFT', () => {
+    it('can shift the time', () => {
+      const initialState = {
+        [queryID]: buildInitialState(queryID),
+      }
+
+      const shift = {multiple: 1, unit: 'd', duration: '1d'}
+      const action = timeShift(queryID, shift)
+      const nextState = reducer(initialState, action)
+
+      expect(nextState[queryID].shift).to.deep.equal(shift)
     })
   })
 })

@@ -147,6 +147,14 @@ export const editQueryStatus = (queryID, status) => ({
   },
 })
 
+export const timeShift = (queryID, shift) => ({
+  type: 'DE_TIME_SHIFT',
+  payload: {
+    queryID,
+    shift,
+  },
+})
+
 // Async actions
 export const editRawTextAsync = (url, id, text) => async dispatch => {
   try {

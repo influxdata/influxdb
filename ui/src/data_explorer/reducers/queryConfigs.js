@@ -3,6 +3,7 @@ import _ from 'lodash'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
   fill,
+  timeShift,
   chooseTag,
   groupByTag,
   removeFuncs,
@@ -168,6 +169,13 @@ const queryConfigs = (state = {}, action) => {
     case 'DE_ADD_INITIAL_FIELD': {
       const {queryID, field, groupBy} = action.payload
       const nextQuery = addInitialField(state[queryID], field, groupBy)
+
+      return {...state, [queryID]: nextQuery}
+    }
+
+    case 'DE_TIME_SHIFT': {
+      const {queryID, shift} = action.payload
+      const nextQuery = timeShift(state[queryID], shift)
 
       return {...state, [queryID]: nextQuery}
     }
