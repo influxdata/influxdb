@@ -5,8 +5,9 @@ import (
 )
 
 type Config struct {
-	Format string        `toml:"format"`
-	Level  zapcore.Level `toml:"level"`
+	Format       string        `toml:"format"`
+	Level        zapcore.Level `toml:"level"`
+	SuppressLogo bool          `toml:"suppress-logo"`
 }
 
 // NewConfig returns a new instance of Config with defaults.

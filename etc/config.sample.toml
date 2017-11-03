@@ -285,6 +285,9 @@
   # Determines which level of logs will be emitted.
   # level = "info"
 
+  # Suppresses the logo output that is printed when the program is started.
+  # suppress-logo = false
+
 ###
 ### [subscriber]
 ###

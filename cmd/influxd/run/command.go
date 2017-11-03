@@ -73,7 +73,9 @@ func (cmd *Command) Run(args ...string) error {
 
 	// Attempt to parse the config once in advance. If this fails, use the
 	// default logging configuration.
+	var suppressLogo bool
 	if config, err := cmd.ParseConfig(options.GetConfigPath()); err == nil {
+		suppressLogo = config.Logging.SuppressLogo
 		if l, err := config.Logging.New(cmd.Stderr); err == nil {
 			cmd.Logger = l
 		}
@@ -84,7 +86,9 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Print sweet InfluxDB logo.
-	fmt.Fprint(cmd.Stdout, logo)
+	if !suppressLogo {
+		fmt.Fprint(cmd.Stdout, logo)
+	}
 
 	// Mark start-up in log.
 	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
