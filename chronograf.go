@@ -116,7 +116,7 @@ type Role struct {
 	Name         string      `json:"name"`
 	Permissions  Permissions `json:"permissions,omitempty"`
 	Users        []User      `json:"users,omitempty"`
-	Organization string      `json:"organization,string,omitempty"`
+	Organization string      `json:"organization,omitempty"`
 }
 
 // RolesStore is the Storage and retrieval of authentication information

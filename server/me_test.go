@@ -120,7 +120,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","roles":[{"name":"member","organization":"\"0\""}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/secret"},"organizations":[{"id":"0","name":"The Bad Place"}],"currentOrganization":{"id":"0","name":"The Bad Place"}}
+			wantBody: `{"name":"secret","roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/secret"},"organizations":[{"id":"0","name":"The Bad Place"}],"currentOrganization":{"id":"0","name":"The Bad Place"}}
 `,
 		},
 		{
@@ -293,7 +293,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -345,7 +345,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","roles":[{"name":"admin","organization":"\"1337\""}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"},"organizations":[{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}
+			wantBody: `{"name":"me","roles":[{"name":"admin","organization":"1337"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/me"},"organizations":[{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}
 `,
 		},
 		{
