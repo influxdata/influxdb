@@ -2,7 +2,11 @@ import React, {PropTypes} from 'react'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {DEFAULT_ORG_NAME, NO_ORG, NO_ROLE} from 'src/admin/constants/dummyUsers'
+import {
+  DEFAULT_ORG_NAME,
+  NO_ORG,
+  MEMBER_ROLE,
+} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const UsersTableOrgCell = ({
@@ -27,7 +31,7 @@ const UsersTableOrgCell = ({
               text: r.name,
             }))}
           selected={NO_ORG}
-          onChoose={onChangeUserRole(user, NO_ROLE)}
+          onChoose={onChangeUserRole(user, MEMBER_ROLE)}
           buttonColor="btn-primary"
           buttonSize="btn-xs"
           className="dropdown-190"

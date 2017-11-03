@@ -11,7 +11,7 @@ const users = [
     provider: 'GitHub',
     scheme: 'OAuth2',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Green Team', organizationID: 1234, name: 'admin'},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'editor'},
     ],
@@ -23,7 +23,7 @@ const users = [
     provider: 'Auth0',
     scheme: 'OAuth2',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Green Team', organizationID: 1234, name: 'viewer'},
       {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
     ],
@@ -35,7 +35,7 @@ const users = [
     provider: 'Heroku',
     scheme: 'LDAP',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Green Team', organizationID: 1234, name: 'editor'},
     ],
     links: {self: '/chronograf/v1/users/720'},
@@ -46,7 +46,7 @@ const users = [
     provider: 'GitHub',
     scheme: 'OAuth2',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'editor'},
     ],
     links: {self: '/chronograf/v1/users/271'},
@@ -57,7 +57,7 @@ const users = [
     provider: 'Heroku',
     scheme: 'OAuth2',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Red Team', organizationID: 1236, name: 'viewer'},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'viewer'},
     ],
@@ -69,7 +69,7 @@ const users = [
     provider: 'GitHub',
     scheme: 'OAuth2',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Green Team', organizationID: 1234, name: 'viewer'},
       {organizationName: 'Blue Team', organizationID: 1235, name: 'viewer'},
       {organizationName: 'Red Team', organizationID: 1236, name: 'viewer'},
@@ -82,7 +82,7 @@ const users = [
     provider: 'Generic',
     scheme: 'LDAP',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
     ],
     links: {self: '/chronograf/v1/users/3786'},
@@ -93,7 +93,7 @@ const users = [
     provider: 'Generic',
     scheme: 'LDAP',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
     ],
     links: {self: '/chronograf/v1/users/112345'},
   },
@@ -103,7 +103,7 @@ const users = [
     provider: 'Heroku',
     scheme: 'LDAP',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
     ],
     links: {self: '/chronograf/v1/users/23'},
   },
@@ -113,7 +113,7 @@ const users = [
     provider: 'Auth0',
     scheme: 'OAuth2',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
     ],
     links: {self: '/chronograf/v1/users/7'},
   },
@@ -123,7 +123,7 @@ const users = [
     provider: 'Heroku',
     scheme: 'LDAP',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
     ],
     links: {self: '/chronograf/v1/users/0'},
@@ -134,7 +134,7 @@ const users = [
     provider: 'Google',
     scheme: 'OAuth2',
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
       {organizationName: 'Blue Team', organizationID: 1234, name: 'admin'},
     ],
     links: {self: '/chronograf/v1/users/2891'},
@@ -146,7 +146,7 @@ const users = [
     scheme: 'OAuth2',
     superadmin: true,
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
     ],
     links: {self: '/chronograf/v1/users/2645'},
   },
@@ -157,8 +157,8 @@ const users = [
     scheme: 'OAuth2',
     superadmin: true,
     roles: [
-      {organizationName: 'All Users', organizationID: 666, name: NO_ROLE},
-      {organizationName: 'Blue Team', organizationID: 1234, name: NO_ROLE},
+      {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
+      {organizationName: 'Blue Team', organizationID: 1234, name: MEMBER_ROLE},
     ],
     links: {self: '/chronograf/v1/users/47119'},
   },

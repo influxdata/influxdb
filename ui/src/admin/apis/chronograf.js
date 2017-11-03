@@ -23,3 +23,16 @@ export const getOrganizations = async url => {
     throw error
   }
 }
+
+export const createUser = async (url, user) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: user,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

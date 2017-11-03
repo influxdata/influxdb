@@ -5,6 +5,7 @@ import {bindActionCreators} from 'redux'
 import {
   loadUsersAsync,
   loadOrganizationsAsync,
+  createUserAsync,
 } from 'src/admin/actions/chronograf'
 
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
@@ -136,7 +137,11 @@ class AdminChronografPage extends Component {
   handleDeleteOrganization = _organization => {}
   handleRenameOrganization = (_organization, _newOrgName) => {}
 
-  handleCreateUser = _newUser => {}
+  handleCreateUser = user => {
+    const {links, createUser} = this.props
+
+    createUser(links.users, user)
+  }
 
   render() {
     const {users, organizations} = this.props
@@ -217,7 +222,7 @@ class AdminChronografPage extends Component {
               onDismiss={this.handleHideOverlays}
               onCreateUser={this.handleCreateUser}
               userRoles={USER_ROLES}
-              organizations={MOAR_DUMMY_ORGS}
+              organizations={organizations}
             />
           : null}
       </div>
@@ -245,6 +250,7 @@ AdminChronografPage.propTypes = {
   }).isRequired,
   loadUsers: func.isRequired,
   loadOrganizations: func.isRequired,
+  createUser: func.isRequired,
 }
 
 const mapStateToProps = ({
@@ -261,6 +267,7 @@ const mapStateToProps = ({
 const mapDispatchToProps = dispatch => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadOrganizations: bindActionCreators(loadOrganizationsAsync, dispatch),
+  createUser: bindActionCreators(createUserAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminChronografPage)

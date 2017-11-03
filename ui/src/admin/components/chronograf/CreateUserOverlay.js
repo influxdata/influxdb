@@ -4,8 +4,6 @@ import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {NO_ROLE} from 'src/admin/constants/dummyUsers'
-
 const superAdminItems = [
   {value: true, text: 'True'},
   {value: false, text: 'False'},
@@ -18,8 +16,8 @@ class CreateUserOverlay extends Component {
     this.state = {
       userName: '',
       userProvider: '',
-      userScheme: 'OAuth2',
-      userRole: NO_ROLE,
+      userScheme: 'oauth2',
+      userRole: null,
       userSuperAdmin: superAdminItems[1],
       userOrganization: null,
     }
@@ -44,12 +42,11 @@ class CreateUserOverlay extends Component {
       name: userName,
       provider: userProvider,
       scheme: userScheme,
-      superAdmin: userSuperAdmin.text,
+      superAdmin: userSuperAdmin.value,
       roles: [
         {
           name: userRole,
-          organizationName: userOrganization ? userOrganization.name : null,
-          organizatioID: userOrganization ? userOrganization.id : null,
+          organization: userOrganization ? userOrganization.id : null,
         },
       ],
     }
@@ -71,7 +68,7 @@ class CreateUserOverlay extends Component {
   }
 
   handleSelectOrganization = newUserOrganization => {
-    this.setState({userOrganization: newUserOrganization.text})
+    this.setState({userOrganization: newUserOrganization})
   }
 
   render() {
@@ -124,7 +121,7 @@ class CreateUserOverlay extends Component {
               />
               <Dropdown
                 items={userRoles.map(role => ({...role, text: role.name}))}
-                selected={userRole}
+                selected={userRole || 'Assign a Role'}
                 onChoose={this.handleSelectRole}
               />
               <Authorized requiredRole={SUPERADMIN_ROLE}>
@@ -147,7 +144,11 @@ class CreateUserOverlay extends Component {
               >
                 <Dropdown
                   items={organizations.map(org => ({...org, text: org.name}))}
-                  selected={userOrganization || 'Add to Organization'}
+                  selected={
+                    userOrganization
+                      ? userOrganization.name
+                      : 'Add to Organization'
+                  }
                   onChoose={this.handleSelectOrganization}
                 />
               </Authorized>

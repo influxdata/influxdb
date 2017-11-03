@@ -1,13 +1,22 @@
-export const NO_ROLE = 'No Role'
+import {
+  MEMBER_ROLE,
+  VIEWER_ROLE,
+  EDITOR_ROLE,
+  ADMIN_ROLE,
+} from 'src/auth/Authorized'
 
 export const USER_ROLES = [
-  {name: NO_ROLE},
-  {name: 'viewer'},
-  {name: 'editor'},
-  {name: 'admin'},
+  {name: MEMBER_ROLE},
+  {name: VIEWER_ROLE},
+  {name: EDITOR_ROLE},
+  {name: ADMIN_ROLE},
 ]
 export const DEFAULT_ORG_ID = '0'
 export const DEFAULT_ORG_NAME = '__default'
+export const DEFAULT_ORG = {
+  id: DEFAULT_ORG_ID,
+  name: DEFAULT_ORG_NAME,
+}
 export const NO_ORG = 'No Org'
 
 export const DUMMY_ORGS = [

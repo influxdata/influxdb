@@ -8,7 +8,7 @@ import {
   USER_ROLES,
   DEFAULT_ORG_NAME,
   NO_ORG,
-  NO_ROLE,
+  MEMBER_ROLE,
   DUMMY_ORGS,
 } from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -58,7 +58,7 @@ const OrgTableRow = ({
                 text: r.name,
               }))}
               selected={NO_ORG}
-              onChoose={onChangeUserRole(user, NO_ROLE)}
+              onChoose={onChangeUserRole(user, MEMBER_ROLE)}
               buttonColor="btn-primary"
               buttonSize="btn-xs"
               className="dropdown-190"
