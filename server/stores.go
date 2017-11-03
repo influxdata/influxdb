@@ -6,6 +6,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/noop"
 	"github.com/influxdata/chronograf/organizations"
+	"github.com/influxdata/chronograf/roles"
 )
 
 // hasOrganizationContext retrieves organization specified on context
@@ -24,6 +25,27 @@ func hasOrganizationContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return orgID, true
+}
+
+// hasRoleContext retrieves organization specified on context
+// under the organizations.ContextKey
+func hasRoleContext(ctx context.Context) (string, bool) {
+	// prevents panic in case of nil context
+	if ctx == nil {
+		return "", false
+	}
+	role, ok := ctx.Value(roles.ContextKey).(string)
+	// should never happen
+	if !ok {
+		return "", false
+	}
+	switch role {
+	// TODO(desa): make real roles
+	case "member", "viewer", "editor", "admin":
+		return role, true
+	default:
+		return "", false
+	}
 }
 
 type superAdminKey string
@@ -75,7 +97,10 @@ type Store struct {
 // and a organization.SourcesStore otherwise.
 func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
 	if org, ok := hasOrganizationContext(ctx); ok {
-		return organizations.NewSourcesStore(s.SourcesStore, org)
+		store := organizations.NewSourcesStore(s.SourcesStore, org)
+		if role, ok := hasRoleContext(ctx); ok {
+			return roles.NewSourcesStore(store, role)
+		}
 	}
 
 	return &noop.SourcesStore{}
