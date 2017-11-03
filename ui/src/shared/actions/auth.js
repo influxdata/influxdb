@@ -25,6 +25,20 @@ export const meRequested = () => ({
   type: 'ME_REQUESTED',
 })
 
+export const meReceivedNotUsingAuth = me => ({
+  type: 'ME_RECEIVED__NON_AUTH',
+  payload: {
+    me,
+  },
+})
+
+export const meReceivedUsingAuth = me => ({
+  type: 'ME_RECEIVED__AUTH',
+  payload: {
+    me,
+  },
+})
+
 export const meChangeOrganizationRequested = () => ({
   type: 'ME_CHANGE_ORGANIZATION_REQUESTED',
 })
@@ -35,13 +49,6 @@ export const meChangeOrganizationCompleted = () => ({
 
 export const meChangeOrganizationFailed = () => ({
   type: 'ME_CHANGE_ORGANIZATION_FAILED',
-})
-
-export const meReceived = me => ({
-  type: 'ME_RECEIVED',
-  payload: {
-    me,
-  },
 })
 
 export const logoutLinkReceived = logoutLink => ({
@@ -65,7 +72,7 @@ export const meChangeOrganizationAsync = (
       )
     )
     dispatch(meChangeOrganizationCompleted())
-    dispatch(meReceived(data))
+    dispatch(meReceivedUsingAuth(data))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(meChangeOrganizationFailed())

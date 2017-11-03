@@ -28,7 +28,15 @@ const authReducer = (state = initialState, action) => {
     case 'ME_REQUESTED': {
       return {...state, isMeLoading: true}
     }
-    case 'ME_RECEIVED': {
+    case 'ME_RECEIVED__NON_AUTH': {
+      const {me} = action.payload
+      return {
+        ...state,
+        me: {...me},
+        isMeLoading: false,
+      }
+    }
+    case 'ME_RECEIVED__AUTH': {
       const {me, me: {currentOrganization}} = action.payload
       return {
         ...state,
@@ -42,7 +50,8 @@ const authReducer = (state = initialState, action) => {
     }
     case 'LOGOUT_LINK_RECEIVED': {
       const {logoutLink} = action.payload
-      return {...state, logoutLink, isUsingAuth: !!logoutLink}
+      const isUsingAuth = !!logoutLink
+      return {...state, logoutLink, isUsingAuth}
     }
   }
 

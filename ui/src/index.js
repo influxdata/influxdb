@@ -36,7 +36,8 @@ import {
   authRequested,
   authReceived,
   meRequested,
-  meReceived,
+  meReceivedNotUsingAuth,
+  meReceivedUsingAuth,
   logoutLinkReceived,
 } from 'shared/actions/auth'
 import {linksReceived} from 'shared/actions/links'
@@ -103,8 +104,11 @@ const Root = React.createClass({
         meLink,
       } = await getMe()
       if (shouldDispatchResponse) {
+        const isUsingAuth = !!logoutLink
+        dispatch(
+          isUsingAuth ? meReceivedUsingAuth(me) : meReceivedNotUsingAuth(me)
+        )
         dispatch(authReceived(auth))
-        dispatch(meReceived(me))
         dispatch(logoutLinkReceived(logoutLink))
         dispatch(linksReceived({external, users, organizations, me: meLink}))
       }
