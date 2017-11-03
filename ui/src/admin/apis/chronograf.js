@@ -62,6 +62,19 @@ export const createOrganization = async (url, organization) => {
   }
 }
 
+export const renameOrganization = async organization => {
+  try {
+    return await AJAX({
+      method: 'PATCH',
+      url: organization.links.self,
+      data: organization,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const deleteOrganization = async url => {
   try {
     return await AJAX({

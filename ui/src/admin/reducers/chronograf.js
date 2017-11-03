@@ -45,6 +45,17 @@ const adminChronograf = (state = initialState, action) => {
       return {...state, organizations: [organization, ...state.organizations]}
     }
 
+    case 'CHRONOGRAF_RENAME_ORGANIZATION': {
+      const {organization, newName} = action.payload
+      return {
+        ...state,
+        organizations: state.organizations.map(
+          o =>
+            o.links.self === organization.links.self ? {...o, name: newName} : o
+        ),
+      }
+    }
+
     case 'CHRONOGRAF_SYNC_ORGANIZATION': {
       const {staleOrganization, syncedOrganization} = action.payload
       return {

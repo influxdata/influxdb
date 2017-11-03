@@ -4,6 +4,7 @@ import {
   createUser as createUserAJAX,
   deleteUser as deleteUserAJAX,
   createOrganization as createOrganizationAJAX,
+  renameOrganization as renameOrganizationAJAX,
   deleteOrganization as deleteOrganizationAJAX,
 } from 'src/admin/apis/chronograf'
 
@@ -53,6 +54,14 @@ export const addOrganization = organization => ({
   type: 'CHRONOGRAF_ADD_ORGANIZATION',
   payload: {
     organization,
+  },
+})
+
+export const renameOrganization = (organization, newName) => ({
+  type: 'CHRONOGRAF_RENAME_ORGANIZATION',
+  payload: {
+    organization,
+    newName,
   },
 })
 
@@ -128,6 +137,22 @@ export const createOrganizationAsync = (
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(removeOrganization(organization))
+  }
+}
+
+export const renameOrganizationAsync = (
+  organization,
+  updatedOrganization
+) => async dispatch => {
+  dispatch(renameOrganization(organization, updatedOrganization.name))
+  try {
+    const {data} = await renameOrganizationAJAX(updatedOrganization)
+    // it's not necessary to syncOrganization again but it's useful for good
+    // measure and for the clarity of insight in the redux story
+    dispatch(syncOrganization(updatedOrganization, data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(syncOrganization(organization, organization)) // restore if fail
   }
 }
 

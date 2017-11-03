@@ -154,7 +154,10 @@ class AdminChronografPage extends Component {
     const {links, actions: {createOrganizationAsync}} = this.props
     createOrganizationAsync(links.organizations, {name: organizationName})
   }
-  handleRenameOrganization = (_organization, _newOrgName) => {}
+  handleRenameOrganization = (organization, name) => {
+    const {actions: {renameOrganizationAsync}} = this.props
+    renameOrganizationAsync(organization, {...organization, name})
+  }
   handleDeleteOrganization = organization => {
     const {actions: {deleteOrganizationAsync}} = this.props
     deleteOrganizationAsync(organization)
@@ -259,6 +262,7 @@ AdminChronografPage.propTypes = {
     shape({
       id: string, // when optimistically created, it will not have an id
       name: string.isRequired,
+      link: string,
     })
   ),
   currentOrganization: shape({
@@ -271,6 +275,7 @@ AdminChronografPage.propTypes = {
     createUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
     createOrganizationAsync: func.isRequired,
+    renameOrganizationAsync: func.isRequired,
     deleteOrganizationAsync: func.isRequired,
   }),
   notify: func.isRequired,
