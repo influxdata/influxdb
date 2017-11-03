@@ -10,14 +10,37 @@ import Dropdown from 'shared/components/Dropdown'
 
 import {DEFAULT_ALERTS, RULE_ALERT_OPTIONS} from 'src/kapacitor/constants'
 
+const alertNodesToEndpoints = rule => {
+  const endpointsOfKind = {}
+  const endpointsOnThisAlert = []
+  rule.alertNodes.forEach(ep => {
+    const count = _.get(endpointsOfKind, ep.name, 0) + 1
+    endpointsOfKind[ep.name] = count
+    endpointsOnThisAlert.push({
+      text: ep.name + count,
+      kind: ep.name,
+      ruleID: rule.id,
+    })
+  })
+  const selectedEndpoint = endpointsOnThisAlert.length
+    ? endpointsOnThisAlert[0]
+    : null
+  return {endpointsOnThisAlert, selectedEndpoint, endpointsOfKind}
+}
+
 class RuleMessage extends Component {
   constructor(props) {
     super(props)
+    const {
+      endpointsOnThisAlert,
+      selectedEndpoint,
+      endpointsOfKind,
+    } = alertNodesToEndpoints(this.props.rule)
 
     this.state = {
-      endpointsOnThisAlert: [],
-      selectedEndpoint: null,
-      endpointsOfKind: {},
+      selectedEndpoint,
+      endpointsOnThisAlert,
+      endpointsOfKind,
     }
   }
 
@@ -28,7 +51,7 @@ class RuleMessage extends Component {
 
   handleChooseAlert = item => () => {
     const {actions} = this.props
-    actions.updateAlerts(item.ruleID, [item.text]) // TODO: this seems to be doing a lot more than it needs to.
+    actions.updateAlerts(item.ruleID, [item.text])
     actions.updateAlertNodes(item.ruleID, item.text, '')
     this.setState({selectedEndpoint: item})
   }
@@ -43,7 +66,7 @@ class RuleMessage extends Component {
       ruleID: selectedItem.ruleID,
     }
     this.setState({
-      endpointsOnThisAlert: _.concat(endpointsOnThisAlert, newEndpoint),
+      endpointsOnThisAlert: [...endpointsOnThisAlert, newEndpoint],
       endpointsOfKind: {
         ...endpointsOfKind,
         [selectedItem.text]: newItemNumbering,
@@ -51,13 +74,25 @@ class RuleMessage extends Component {
       selectedEndpoint: newEndpoint,
     })
   }
-  handleRemoveEndpoint = alert => () => {
-    const {endpointsOnThisAlert, endpointsOfKind} = this.state
-    const filteredEndpoints = _.reject(
-      endpointsOnThisAlert,
-      ep => ep.text == alert.text
-    )
-    this.setState({endpointsOnThisAlert: filteredEndpoints})
+
+  handleRemoveEndpoint = alert => e => {
+    e.stopPropagation()
+    const {endpointsOnThisAlert, selectedEndpoint} = this.state
+    const removedIndex = _.findIndex(endpointsOnThisAlert, ['text', alert.text])
+    const remainingEndpoints = _.reject(endpointsOnThisAlert, [
+      'text',
+      alert.text,
+    ])
+    if (selectedEndpoint.text === alert.text) {
+      const selectedIndex = removedIndex > 0 ? removedIndex - 1 : 0
+      const newSelected = remainingEndpoints.length
+        ? remainingEndpoints[selectedIndex]
+        : null
+      this.setState({selectedEndpoint: newSelected})
+    }
+    this.setState({
+      endpointsOnThisAlert: remainingEndpoints,
+    })
   }
 
   render() {
@@ -66,16 +101,12 @@ class RuleMessage extends Component {
     const defaultAlertEndpoints = DEFAULT_ALERTS.map(text => {
       return {text, kind: text, ruleID: rule.id}
     })
-
     const alerts = [
       ...defaultAlertEndpoints,
       ...enabledAlerts.map(text => {
         return {text, kind: text, ruleID: rule.id}
       }),
     ]
-
-    // const selectedAlertNode = rule.alerts[0] || alerts[0].text
-
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">Alert Message</h3>
@@ -87,13 +118,13 @@ class RuleMessage extends Component {
                   {endpointsOnThisAlert
                     .filter(alert =>
                       _.get(RULE_ALERT_OPTIONS, alert.kind, false)
-                    ) // / TODO this looks like a problem
+                    )
                     .map(alert =>
                       <li
                         key={uuid.v4()}
                         className={classnames({
                           active:
-                            alert.text ==
+                            alert.text ===
                             (selectedEndpoint && selectedEndpoint.text),
                         })}
                         onClick={this.handleChooseAlert(alert)}
@@ -115,7 +146,7 @@ class RuleMessage extends Component {
               className="dropdown-140 rule-message--add-endpoint"
             />
           </div>
-          {selectedEndpoint
+          {endpointsOnThisAlert.length
             ? <div>
                 <RuleMessageOptions
                   rule={rule}
