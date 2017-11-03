@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 )
 
@@ -68,6 +69,18 @@ func (cmd *Command) Run(args ...string) error {
 	options, err := cmd.ParseFlags(args...)
 	if err != nil {
 		return err
+	}
+
+	// Attempt to parse the config once in advance. If this fails, use the
+	// default logging configuration.
+	if config, err := cmd.ParseConfig(options.GetConfigPath()); err == nil {
+		if l, err := config.Logging.New(cmd.Stderr); err == nil {
+			cmd.Logger = l
+		}
+	}
+	// We were unable to read the configuration file. Use the default logging format.
+	if cmd.Logger == nil {
+		cmd.Logger = logger.New(cmd.Stderr)
 	}
 
 	// Print sweet InfluxDB logo.

@@ -271,6 +271,21 @@
 
 
 ###
+### [logging]
+###
+### Controls how the logger emits logs to the output.
+###
+
+[logging]
+  # Determines which log encoder to use for logs. Available options
+  # are logfmt, console, and json. console is a more user-friendly
+  # output format, but not as easily machine-readable.
+  # format = "logfmt"
+
+  # Determines which level of logs will be emitted.
+  # level = "info"
+
+###
 ### [subscriber]
 ###
 ### Controls the subscriptions, which can be used to fork a copy of all data
