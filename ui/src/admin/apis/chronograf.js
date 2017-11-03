@@ -36,3 +36,15 @@ export const createUser = async (url, user) => {
     throw error
   }
 }
+
+export const deleteUser = async url => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

@@ -2,8 +2,10 @@ import {
   getUsers as getUsersAJAX,
   getOrganizations as getOrganizationsAJAX,
   createUser as createUserAJAX,
+  deleteUser as deleteUserAJAX,
 } from 'src/admin/apis/chronograf'
 
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
 // action creators
@@ -72,5 +74,21 @@ export const createUserAsync = (url, user) => async dispatch => {
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(removeUser(user))
+  }
+}
+
+export const deleteUserAsync = user => async dispatch => {
+  dispatch(removeUser(user))
+  try {
+    await deleteUserAJAX(user.links.self)
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        `User deleted: ${user.scheme}::${user.provider}::${user.name}`
+      )
+    )
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(addUser(user))
   }
 }

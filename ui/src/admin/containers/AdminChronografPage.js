@@ -3,6 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
@@ -107,7 +108,23 @@ class AdminChronografPage extends Component {
     }
   }
 
-  handleBatchDeleteUsers = () => {}
+  // TODO: make this work for batch. was made to work for a single user since
+  // there's not currently UI to delete a single user
+  handleBatchDeleteUsers = () => {
+    const {actions: {deleteUserAsync}, notify} = this.props
+    const {selectedUsers} = this.state
+
+    if (selectedUsers.length > 1) {
+      notify(
+        'error',
+        'Batch actions for more than 1 user not currently supported'
+      )
+      return
+    }
+
+    deleteUserAsync(selectedUsers[0])
+  }
+
   handleBatchRemoveOrgFromUsers = () => {}
   handleBatchAddOrgToUsers = () => {}
   handleBatchChangeUsersRole = () => {}
@@ -245,7 +262,9 @@ AdminChronografPage.propTypes = {
     loadUsersAsync: func.isRequired,
     loadOrganizationsAsync: func.isRequired,
     createUserAsync: func.isRequired,
+    deleteUserAsync: func.isRequired,
   }),
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({
@@ -261,6 +280,7 @@ const mapStateToProps = ({
 
 const mapDispatchToProps = dispatch => ({
   actions: bindActionCreators(adminChronografActionCreators, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminChronografPage)
