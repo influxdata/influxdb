@@ -85,9 +85,15 @@ func TestAuthorizedUser(t *testing.T) {
 		{
 			name: "Not using auth",
 			fields: fields{
-				UsersStore:         &mocks.UsersStore{},
-				OrganizationsStore: &mocks.OrganizationsStore{},
-				Logger:             clog.New(clog.DebugLevel),
+				UsersStore: &mocks.UsersStore{},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID: 0,
+						}, nil
+					},
+				},
+				Logger: clog.New(clog.DebugLevel),
 			},
 			args: args{
 				useAuth: false,
