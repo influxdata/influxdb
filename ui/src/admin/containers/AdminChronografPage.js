@@ -19,6 +19,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {isSameUser} from 'shared/reducers/helpers/auth'
 
 import {
+  DEFAULT_ORG_ID,
   DEFAULT_ORG_NAME,
   NO_ORG,
   USER_ROLES,
@@ -124,46 +125,28 @@ class AdminChronografPage extends Component {
   // handleAddUserToOrg will add a user to an organization as a 'member'. if
   // the user already has a role in that organization, it will do nothing.
   handleAddUserToOrg = (user, organization) => {
-    const {actions: {updateUserAsync}, notify} = this.props
+    const {actions: {updateUserAsync}} = this.props
 
-    const isCurrentlyInOrg = !!user.roles.find(
-      r => r.organization === organization.id
-    )
-    if (isCurrentlyInOrg) {
-      notify(
-        'error',
-        `User ${user.name} is already a member of ${organization.name}`
-      )
-    } else {
-      updateUserAsync(user, {
-        ...user,
-        roles: [
-          ...user.roles,
-          {
-            name: MEMBER_ROLE, // TODO: remove this to let server decide when default org role is implemented
-            organization: organization.id,
-          },
-        ],
-      })
-    }
+    updateUserAsync(user, {
+      ...user,
+      roles: [
+        ...user.roles,
+        {
+          name: MEMBER_ROLE, // TODO: remove this to let server decide when default org role is implemented
+          organization: organization.id,
+        },
+      ],
+    })
   }
   handleRemoveUserFromOrg = (user, organization) => {
-    const {actions: {updateUserAsync}, notify} = this.props
+    const {actions: {updateUserAsync}} = this.props
 
-    const isCurrentlyInOrg = !!user.roles.find(
-      r => r.organization === organization.id
-    )
-    if (isCurrentlyInOrg) {
-      updateUserAsync(user, {
-        ...user,
-        roles: user.roles.filter(r => r.organization !== organization.id),
-      })
-    } else {
-      notify(
-        'error',
-        `User ${user.name} is not a member of ${organization.name}`
-      )
+    let newRoles = user.roles.filter(r => r.organization !== organization.id)
+    if (newRoles.length === 0) {
+      newRoles = [{organization: DEFAULT_ORG_ID, name: MEMBER_ROLE}]
     }
+
+    updateUserAsync(user, {...user, roles: newRoles})
   }
   // currentOrg is a role that contains the organization id being updated
   handleUpdateUserOrg = () => (_user, _currentOrg, _newOrg) => {}
