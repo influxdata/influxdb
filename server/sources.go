@@ -259,6 +259,9 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	if req.Telegraf != "" {
 		src.Telegraf = req.Telegraf
 	}
+	if req.Role != "" {
+		src.Role = req.Role
+	}
 
 	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
 	if err != nil {
@@ -309,6 +312,11 @@ func ValidSourceRequest(s chronograf.Source, defaultOrgID string) error {
 	}
 	if len(url.Scheme) == 0 {
 		return fmt.Errorf("Invalid URL; no URL scheme defined")
+	}
+
+	if s.Role == "" {
+		// TODO(desa): removed bare string here
+		s.Role = "viewer"
 	}
 	return nil
 }
