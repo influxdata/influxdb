@@ -1,11 +1,12 @@
 import React, {PropTypes} from 'react'
 
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 import UsersTableRoleCell from 'src/admin/components/chronograf/UsersTableRoleCell'
 import UsersTableOrgCell from 'src/admin/components/chronograf/UsersTableOrgCell'
 import UsersTableSuperAdminCell from 'src/admin/components/chronograf/UsersTableSuperAdminCell'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
-import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 const UsersTableRow = ({
   user,
@@ -44,11 +45,13 @@ const UsersTableRow = ({
         onChooseFilter={onChooseFilter}
       />
       <UsersTableRoleCell user={user} onChangeUserRole={onChangeUserRole} />
-      <UsersTableSuperAdminCell
-        superAdmin={user.role === SUPERADMIN_ROLE}
-        user={user}
-        onChangeSuperAdmin={onChangeSuperAdmin}
-      />
+      <Authorized requiredRole={SUPERADMIN_ROLE}>
+        <UsersTableSuperAdminCell
+          superAdmin={user.role === SUPERADMIN_ROLE}
+          user={user}
+          onChangeSuperAdmin={onChangeSuperAdmin}
+        />
+      </Authorized>
       <td style={{width: colProvider}}>
         {user.provider}
       </td>
