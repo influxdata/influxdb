@@ -303,6 +303,7 @@ class AdminChronografPage extends Component {
           : null}
         {showCreateUserOverlay
           ? <CreateUserOverlay
+              currentOrganization={organization}
               onDismiss={this.handleHideOverlays}
               onCreateUser={this.handleCreateUser}
               userRoles={USER_ROLES}

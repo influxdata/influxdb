@@ -16,7 +16,7 @@ class CreateUserOverlay extends Component {
       userScheme: 'oauth2',
       userRole: null,
       userSuperAdmin: SUPERADMIN_OPTION_ITEMS[1],
-      userOrganization: null,
+      userOrganization: this.props.currentOrganization,
     }
   }
 
@@ -121,7 +121,7 @@ class CreateUserOverlay extends Component {
                 replaceWith={
                   <input
                     type="text"
-                    value="currentOrganization"
+                    value={userOrganization.name}
                     disabled={true}
                     className="form-control input-sm disabled"
                   />
@@ -174,6 +174,10 @@ class CreateUserOverlay extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 CreateUserOverlay.propTypes = {
+  currentOrganization: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+  }),
   onDismiss: func.isRequired,
   onCreateUser: func.isRequired,
   userRoles: arrayOf(shape()).isRequired,
