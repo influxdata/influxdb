@@ -18,7 +18,7 @@ const QueryOptions = ({
       onChooseGroupByTime={onGroupByTime}
     />
     <TimeShiftDropdown
-      selected={shift.duration}
+      selected={shift && shift.duration}
       onChooseTimeShift={onTimeShift}
     />
     {isKapacitorRule ? null : <FillQuery value={fill} onChooseFill={onFill} />}

@@ -15,6 +15,7 @@ const defaultQueryConfig = ({id, isKapacitorRule = false}) => {
     areTagsAccepted: true,
     rawText: null,
     status: null,
+    shift: null,
   }
 
   return isKapacitorRule ? queryConfig : {...queryConfig, fill: NULL_STRING}

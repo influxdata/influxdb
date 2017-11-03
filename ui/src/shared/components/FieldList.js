@@ -107,7 +107,7 @@ class FieldList extends Component {
   }
 
   handleTimeShift = shift => {
-    console.log('you just got shifted: ', shift)
+    this.props.onTimeShift(shift)
   }
 
   _getFields = () => {
@@ -132,13 +132,12 @@ class FieldList extends Component {
 
   render() {
     const {
-      query: {database, measurement, fields = [], groupBy, fill},
+      query: {database, measurement, fields = [], groupBy, fill, shift},
       isKapacitorRule,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
     const noDBorMeas = !database || !measurement
-    const shift = {duration: ''}
 
     return (
       <div className="query-builder--column">
@@ -214,7 +213,11 @@ FieldList.propTypes = {
     database: string,
     retentionPolicy: string,
     measurement: string,
+    shift: shape({
+      duration: string,
+    }),
   }).isRequired,
+  onTimeShift: func.isRequired,
   onToggleField: func.isRequired,
   onGroupByTime: func.isRequired,
   onFill: func,
