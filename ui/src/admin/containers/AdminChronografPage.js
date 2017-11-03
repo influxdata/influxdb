@@ -43,8 +43,8 @@ class AdminChronografPage extends Component {
     const {users, currentOrganization} = nextProps
 
     this.handleFilterUsers({
-      organization: currentOrganization,
       users,
+      organization: currentOrganization,
     })
   }
 
@@ -126,27 +126,44 @@ class AdminChronografPage extends Component {
   handleAddUserToOrg = (user, organization) => {
     const {actions: {updateUserAsync}, notify} = this.props
 
-    const isAlreadyInOrg = user.roles.find(
+    const isCurrentlyInOrg = !!user.roles.find(
       r => r.organization === organization.id
     )
-    if (isAlreadyInOrg) {
+    if (isCurrentlyInOrg) {
       notify(
         'error',
         `User ${user.name} is already a member of ${organization.name}`
       )
-      return
+    } else {
+      updateUserAsync(user, {
+        ...user,
+        roles: [
+          ...user.roles,
+          {
+            name: MEMBER_ROLE, // TODO: remove this to let server decide when default org role is implemented
+            organization: organization.id,
+          },
+        ],
+      })
     }
+  }
+  handleRemoveUserFromOrg = (user, organization) => {
+    const {actions: {updateUserAsync}, notify} = this.props
 
-    updateUserAsync(user, {
-      ...user,
-      roles: [
-        ...user.roles,
-        {
-          name: MEMBER_ROLE, // TODO: remove this to let server decide when default org role is implemented
-          organization: organization.id,
-        },
-      ],
-    })
+    const isCurrentlyInOrg = !!user.roles.find(
+      r => r.organization === organization.id
+    )
+    if (isCurrentlyInOrg) {
+      updateUserAsync(user, {
+        ...user,
+        roles: user.roles.filter(r => r.organization !== organization.id),
+      })
+    } else {
+      notify(
+        'error',
+        `User ${user.name} is not a member of ${organization.name}`
+      )
+    }
   }
   // currentOrg is a role that contains the organization id being updated
   handleUpdateUserOrg = () => (_user, _currentOrg, _newOrg) => {}
@@ -157,6 +174,8 @@ class AdminChronografPage extends Component {
   }
 
   // BATCH USER ACTIONS
+  // TODO: make batch actions work for batch. currently only work for one user
+  // since batch actions have not been implemented in the API.
   handleBatchChangeUsersRole = () => {}
   handleBatchAddUsersToOrg = organization => {
     const {notify} = this.props
@@ -171,9 +190,19 @@ class AdminChronografPage extends Component {
       this.handleAddUserToOrg(selectedUsers[0], organization)
     }
   }
-  handleBatchRemoveUsersFromOrg = () => {}
-  // TODO: make batch actions work for batch. currently only work for one user
-  // since batch actions have not been implemented in the API.
+  handleBatchRemoveUsersFromOrg = organization => {
+    const {notify} = this.props
+    const {selectedUsers} = this.state
+
+    if (selectedUsers.length > 1) {
+      notify(
+        'error',
+        'Batch actions for more than 1 user not currently supported'
+      )
+    } else {
+      this.handleRemoveUserFromOrg(selectedUsers[0], organization)
+    }
+  }
   handleBatchDeleteUsers = () => {
     const {notify} = this.props
     const {selectedUsers} = this.state
