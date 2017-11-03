@@ -129,7 +129,7 @@ ConfirmDeleteOrg.propTypes = {
 
 Organization.propTypes = {
   organization: shape({
-    id: string.isRequired,
+    id: string, // when optimistically created, organization will not have an id
     name: string.isRequired,
   }).isRequired,
   onDelete: func.isRequired,

@@ -61,7 +61,7 @@ class ManageOrgsOverlay extends Component {
               : null}
             {organizations.map(org =>
               <Organization
-                key={org.id}
+                key={org.name}
                 organization={org}
                 onDelete={onDeleteOrg}
                 onRename={onRenameOrg}
@@ -74,10 +74,15 @@ class ManageOrgsOverlay extends Component {
   }
 }
 
-const {arrayOf, func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 ManageOrgsOverlay.propTypes = {
-  organizations: arrayOf(shape()).isRequired,
+  organizations: arrayOf(
+    shape({
+      id: string, // when optimistically created, organization will not have an id
+      name: string.isRequired,
+    })
+  ).isRequired,
   onDismiss: func.isRequired,
   onCreateOrg: func.isRequired,
   onDeleteOrg: func.isRequired,

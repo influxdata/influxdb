@@ -257,7 +257,7 @@ AdminChronografPage.propTypes = {
   users: arrayOf(shape),
   organizations: arrayOf(
     shape({
-      id: string.isRequired,
+      id: string, // when optimistically created, it will not have an id
       name: string.isRequired,
     })
   ),
