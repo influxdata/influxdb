@@ -12,6 +12,7 @@ import (
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/roles"
 )
 
 const (
@@ -71,7 +72,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		return AuthorizedUser(
 			service.Store,
 			opts.UseAuth,
-			ViewerRoleName,
+			roles.ViewerRoleName,
 			opts.Logger,
 			next,
 		)
@@ -80,7 +81,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		return AuthorizedUser(
 			service.Store,
 			opts.UseAuth,
-			EditorRoleName,
+			roles.EditorRoleName,
 			opts.Logger,
 			next,
 		)
@@ -89,7 +90,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		return AuthorizedUser(
 			service.Store,
 			opts.UseAuth,
-			AdminRoleName,
+			roles.AdminRoleName,
 			opts.Logger,
 			next,
 		)
@@ -98,7 +99,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		return AuthorizedUser(
 			service.Store,
 			opts.UseAuth,
-			SuperAdminRoleName,
+			roles.SuperAdminRoleName,
 			opts.Logger,
 			next,
 		)

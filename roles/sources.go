@@ -111,21 +111,20 @@ func (s *SourcesStore) Update(ctx context.Context, d chronograf.Source) error {
 }
 
 func hasAuthorizedRole(sourceRole, providedRole string) bool {
-	// TODO(desa): make real roles
 	switch sourceRole {
-	case "viewer":
+	case ViewerRoleName:
 		switch providedRole {
-		case "viewer", "editor", "admin":
+		case ViewerRoleName, EditorRoleName, AdminRoleName:
 			return true
 		}
-	case "editor":
+	case EditorRoleName:
 		switch providedRole {
-		case "editor", "admin":
+		case EditorRoleName, AdminRoleName:
 			return true
 		}
-	case "admin":
+	case AdminRoleName:
 		switch providedRole {
-		case "admin":
+		case AdminRoleName:
 			return true
 		}
 	}

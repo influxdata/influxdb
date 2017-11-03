@@ -10,6 +10,7 @@ import (
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/chronograf/roles"
 )
 
 type sourceLinks struct {
@@ -315,8 +316,7 @@ func ValidSourceRequest(s chronograf.Source, defaultOrgID string) error {
 	}
 
 	if s.Role == "" {
-		// TODO(desa): removed bare string here
-		s.Role = "viewer"
+		s.Role = roles.ViewerRoleName
 	}
 	return nil
 }

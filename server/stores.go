@@ -40,8 +40,7 @@ func hasRoleContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	switch role {
-	// TODO(desa): make real roles
-	case "member", "viewer", "editor", "admin":
+	case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
 		return role, true
 	default:
 		return "", false

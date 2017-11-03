@@ -12,6 +12,7 @@ import (
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/roles"
 	"github.com/influxdata/chronograf/server"
 )
 
@@ -115,7 +116,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.ViewerRoleName,
+									Name:         roles.ViewerRoleName,
 									Organization: "1337",
 								},
 							},
@@ -167,7 +168,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.EditorRoleName,
+									Name:         roles.EditorRoleName,
 									Organization: "1337",
 								},
 							},
@@ -219,7 +220,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -271,7 +272,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.ViewerRoleName,
+									Name:         roles.ViewerRoleName,
 									Organization: "1337",
 								},
 							},
@@ -323,7 +324,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.EditorRoleName,
+									Name:         roles.EditorRoleName,
 									Organization: "1337",
 								},
 							},
@@ -375,7 +376,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -427,7 +428,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.ViewerRoleName,
+									Name:         roles.ViewerRoleName,
 									Organization: "1337",
 								},
 							},
@@ -479,7 +480,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.EditorRoleName,
+									Name:         roles.EditorRoleName,
 									Organization: "1337",
 								},
 							},
@@ -531,7 +532,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -872,7 +873,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.ViewerRoleName,
+									Name:         roles.ViewerRoleName,
 									Organization: "1337",
 								},
 							},
@@ -924,7 +925,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.EditorRoleName,
+									Name:         roles.EditorRoleName,
 									Organization: "1337",
 								},
 							},
@@ -976,7 +977,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1029,7 +1030,7 @@ func TestAuthorizedUser(t *testing.T) {
 							SuperAdmin: true,
 							Roles: []chronograf.Role{
 								{
-									Name:         server.MemberRoleName,
+									Name:         roles.MemberRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1082,7 +1083,7 @@ func TestAuthorizedUser(t *testing.T) {
 							SuperAdmin: true,
 							Roles: []chronograf.Role{
 								{
-									Name:         server.MemberRoleName,
+									Name:         roles.MemberRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1135,7 +1136,7 @@ func TestAuthorizedUser(t *testing.T) {
 							SuperAdmin: true,
 							Roles: []chronograf.Role{
 								{
-									Name:         server.MemberRoleName,
+									Name:         roles.MemberRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1188,7 +1189,7 @@ func TestAuthorizedUser(t *testing.T) {
 							SuperAdmin: true,
 							Roles: []chronograf.Role{
 								{
-									Name:         server.MemberRoleName,
+									Name:         roles.MemberRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1240,7 +1241,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1288,7 +1289,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1339,7 +1340,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1391,7 +1392,7 @@ func TestAuthorizedUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         server.AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -1450,7 +1451,7 @@ func TestAuthorizedUser(t *testing.T) {
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
 									{
-										Name:         server.AdminRoleName,
+										Name:         roles.AdminRoleName,
 										Organization: "1337",
 									},
 								},

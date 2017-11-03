@@ -70,7 +70,7 @@ func AuthorizedUser(
 			}
 			ctx = context.WithValue(ctx, organizations.ContextKey, fmt.Sprintf("%d", defaultOrg.ID))
 			// TODO(desa): remove this in place of actual string value
-			ctx = context.WithValue(ctx, roles.ContextKey, "admin")
+			ctx = context.WithValue(ctx, roles.ContextKey, roles.AdminRoleName)
 			r = r.WithContext(ctx)
 			next(w, r)
 			return
@@ -124,8 +124,7 @@ func AuthorizedUser(
 		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 		serverCtx := context.WithValue(ctx, SuperAdminKey, true)
 		// the DataStore expects that the roles context key be set for future calls
-		// TODO(desa): remove hard coding
-		serverCtx = context.WithValue(serverCtx, roles.ContextKey, "admin")
+		serverCtx = context.WithValue(serverCtx, roles.ContextKey, roles.AdminRoleName)
 		// TODO: seems silly to look up a user twice
 		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
 			Name:     &p.Subject,
@@ -178,28 +177,28 @@ func hasAuthorizedRole(u *chronograf.User, role string) bool {
 	}
 
 	switch role {
-	case ViewerRoleName:
+	case roles.ViewerRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {
-			case ViewerRoleName, EditorRoleName, AdminRoleName:
+			case roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
 				return true
 			}
 		}
-	case EditorRoleName:
+	case roles.EditorRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {
-			case EditorRoleName, AdminRoleName:
+			case roles.EditorRoleName, roles.AdminRoleName:
 				return true
 			}
 		}
-	case AdminRoleName:
+	case roles.AdminRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {
-			case AdminRoleName:
+			case roles.AdminRoleName:
 				return true
 			}
 		}
-	case SuperAdminRoleName:
+	case roles.SuperAdminRoleName:
 		// SuperAdmins should have been authorized before this.
 		// This is only meant to restrict access for non-superadmins.
 		return false

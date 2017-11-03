@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/roles"
 )
 
 type MockUsers struct{}
@@ -295,7 +296,7 @@ func TestService_MeOrganizations(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -354,7 +355,7 @@ func TestService_MeOrganizations(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},
@@ -465,7 +466,7 @@ func TestService_MeOrganizations(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "1337",
 								},
 							},

@@ -10,6 +10,7 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/roles"
 )
 
 type userRequest struct {
@@ -64,10 +65,10 @@ func (r *userRequest) ValidRoles() error {
 			}
 			orgs[r.Organization] = true
 			switch r.Name {
-			case MemberRoleName, ViewerRoleName, EditorRoleName, AdminRoleName:
+			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
 				continue
 			default:
-				return fmt.Errorf("Unknown role %s. Valid roles are 'viewer', 'editor', 'admin', and 'superadmin'", r.Name)
+				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', 'admin', and 'superadmin'", r.Name)
 			}
 		}
 	}
@@ -124,37 +125,6 @@ func newUsersResponse(users []chronograf.User) *usersResponse {
 		},
 	}
 }
-
-// Chronograf User Roles
-const (
-	MemberRoleName     = "member"
-	ViewerRoleName     = "viewer"
-	EditorRoleName     = "editor"
-	AdminRoleName      = "admin"
-	SuperAdminRoleName = "superadmin"
-)
-
-var (
-	// MemberRole is the role for a user who can only perform No operations.
-	MemberRole = chronograf.Role{
-		Name: MemberRoleName,
-	}
-
-	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
-	ViewerRole = chronograf.Role{
-		Name: ViewerRoleName,
-	}
-
-	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, and Sources
-	EditorRole = chronograf.Role{
-		Name: EditorRoleName,
-	}
-
-	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Users
-	AdminRole = chronograf.Role{
-		Name: AdminRoleName,
-	}
-)
 
 // UserID retrieves a Chronograf user with ID from store
 func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {

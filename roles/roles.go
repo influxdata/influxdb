@@ -3,6 +3,8 @@ package roles
 import (
 	"context"
 	"fmt"
+
+	"github.com/influxdata/chronograf"
 )
 
 type contextKey string
@@ -22,10 +24,40 @@ func validRole(ctx context.Context) error {
 		return fmt.Errorf("expected role key to be a string")
 	}
 	switch role {
-	// TODO(desa): make real roles
-	case "member", "viewer", "editor", "admin":
+	case MemberRoleName, ViewerRoleName, EditorRoleName, AdminRoleName:
 		return nil
 	default:
 		return fmt.Errorf("expected role key to be set")
 	}
 }
+
+// Chronograf User Roles
+const (
+	MemberRoleName     = "member"
+	ViewerRoleName     = "viewer"
+	EditorRoleName     = "editor"
+	AdminRoleName      = "admin"
+	SuperAdminRoleName = "superadmin"
+)
+
+var (
+	// MemberRole is the role for a user who can only perform No operations.
+	MemberRole = chronograf.Role{
+		Name: MemberRoleName,
+	}
+
+	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
+	ViewerRole = chronograf.Role{
+		Name: ViewerRoleName,
+	}
+
+	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, and Sources
+	EditorRole = chronograf.Role{
+		Name: EditorRoleName,
+	}
+
+	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Users
+	AdminRole = chronograf.Role{
+		Name: AdminRoleName,
+	}
+)
