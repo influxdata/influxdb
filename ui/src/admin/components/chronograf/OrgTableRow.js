@@ -83,7 +83,7 @@ const OrgTableRow = ({
       </td>
       <Authorized requiredRole={SUPERADMIN_ROLE}>
         <td style={{width: colSuperAdmin}}>
-          {user.superadmin ? 'Yes' : '--'}
+          {user.superadmin ? 'yes' : '--'}
         </td>
       </Authorized>
       <td style={{width: colProvider}}>

@@ -4,10 +4,7 @@ import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import Dropdown from 'shared/components/Dropdown'
 
-const superAdminItems = [
-  {value: true, text: 'True'},
-  {value: false, text: 'False'},
-]
+import {SUPERADMIN_OPTION_ITEMS} from 'src/admin/constants/dummyUsers'
 
 class CreateUserOverlay extends Component {
   constructor(props) {
@@ -18,7 +15,7 @@ class CreateUserOverlay extends Component {
       userProvider: '',
       userScheme: 'oauth2',
       userRole: null,
-      userSuperAdmin: superAdminItems[1],
+      userSuperAdmin: SUPERADMIN_OPTION_ITEMS[1],
       userOrganization: null,
     }
   }
@@ -126,7 +123,7 @@ class CreateUserOverlay extends Component {
               />
               <Authorized requiredRole={SUPERADMIN_ROLE}>
                 <Dropdown
-                  items={superAdminItems}
+                  items={SUPERADMIN_OPTION_ITEMS}
                   selected={userSuperAdmin.text}
                   onChoose={this.handleSelectSuperAdmin}
                 />

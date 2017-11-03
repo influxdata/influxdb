@@ -2,20 +2,17 @@ import React, {PropTypes} from 'react'
 
 import Dropdown from 'shared/components/Dropdown'
 
+import {SUPERADMIN_OPTION_ITEMS} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const UsersTableSuperAdminCell = ({user, superAdmin, onChangeSuperAdmin}) => {
   const {colSuperAdmin} = USERS_TABLE
 
-  const items = [{text: 'True'}, {text: 'False'}]
-  const selected =
-    String(superAdmin).charAt(0).toUpperCase() + String(superAdmin).slice(1)
-
   return (
     <td style={{width: colSuperAdmin}}>
       <Dropdown
-        items={items}
-        selected={selected}
+        items={SUPERADMIN_OPTION_ITEMS}
+        selected={superAdmin ? 'yes' : 'no'}
         onChoose={onChangeSuperAdmin(user, superAdmin)}
         buttonColor="btn-primary"
         buttonSize="btn-xs"

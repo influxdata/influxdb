@@ -26,3 +26,8 @@ export const DUMMY_ORGS = [
   {id: '2', name: 'Blue Team'},
   {id: '3', name: 'Green Team'},
 ]
+
+export const SUPERADMIN_OPTION_ITEMS = [
+  {value: true, text: 'yes'},
+  {value: false, text: 'no'},
+]

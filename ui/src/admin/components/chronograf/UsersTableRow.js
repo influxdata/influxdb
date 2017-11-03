@@ -48,7 +48,7 @@ const UsersTableRow = ({
       <UsersTableRoleCell user={user} onChangeUserRole={onChangeUserRole} />
       <Authorized requiredRole={SUPERADMIN_ROLE}>
         <UsersTableSuperAdminCell
-          superAdmin={user.role === SUPERADMIN_ROLE}
+          superAdmin={user.superAdmin}
           user={user}
           onChangeSuperAdmin={onChangeSuperAdmin}
         />
