@@ -2,6 +2,13 @@ import reducer from 'src/admin/reducers/chronograf'
 
 import {loadUsers} from 'src/admin/actions/chronograf'
 
+import {
+  MEMBER_ROLE,
+  VIEWER_ROLE,
+  EDITOR_ROLE,
+  ADMIN_ROLE,
+} from 'src/auth/Authorized'
+
 let state
 
 const users = [
@@ -12,8 +19,8 @@ const users = [
     scheme: 'OAuth2',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Green Team', organizationID: 1234, name: 'admin'},
-      {organizationName: 'Blue Team', organizationID: 1235, name: 'editor'},
+      {organizationName: 'Green Team', organizationID: 1234, name: ADMIN_ROLE},
+      {organizationName: 'Blue Team', organizationID: 1235, name: EDITOR_ROLE},
     ],
     links: {self: '/chronograf/v1/users/666'},
   },
@@ -24,8 +31,8 @@ const users = [
     scheme: 'OAuth2',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Green Team', organizationID: 1234, name: 'viewer'},
-      {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
+      {organizationName: 'Green Team', organizationID: 1234, name: VIEWER_ROLE},
+      {organizationName: 'Red Team', organizationID: 1236, name: EDITOR_ROLE},
     ],
     links: {self: '/chronograf/v1/users/667'},
   },
@@ -36,7 +43,7 @@ const users = [
     scheme: 'LDAP',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Green Team', organizationID: 1234, name: 'editor'},
+      {organizationName: 'Green Team', organizationID: 1234, name: EDITOR_ROLE},
     ],
     links: {self: '/chronograf/v1/users/720'},
   },
@@ -47,7 +54,7 @@ const users = [
     scheme: 'OAuth2',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Blue Team', organizationID: 1235, name: 'editor'},
+      {organizationName: 'Blue Team', organizationID: 1235, name: EDITOR_ROLE},
     ],
     links: {self: '/chronograf/v1/users/271'},
   },
@@ -58,8 +65,8 @@ const users = [
     scheme: 'OAuth2',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Red Team', organizationID: 1236, name: 'viewer'},
-      {organizationName: 'Blue Team', organizationID: 1235, name: 'viewer'},
+      {organizationName: 'Red Team', organizationID: 1236, name: VIEWER_ROLE},
+      {organizationName: 'Blue Team', organizationID: 1235, name: VIEWER_ROLE},
     ],
     links: {self: '/chronograf/v1/users/6389'},
   },
@@ -70,9 +77,9 @@ const users = [
     scheme: 'OAuth2',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Green Team', organizationID: 1234, name: 'viewer'},
-      {organizationName: 'Blue Team', organizationID: 1235, name: 'viewer'},
-      {organizationName: 'Red Team', organizationID: 1236, name: 'viewer'},
+      {organizationName: 'Green Team', organizationID: 1234, name: VIEWER_ROLE},
+      {organizationName: 'Blue Team', organizationID: 1235, name: VIEWER_ROLE},
+      {organizationName: 'Red Team', organizationID: 1236, name: VIEWER_ROLE},
     ],
     links: {self: '/chronograf/v1/users/99181'},
   },
@@ -83,7 +90,7 @@ const users = [
     scheme: 'LDAP',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
+      {organizationName: 'Red Team', organizationID: 1236, name: EDITOR_ROLE},
     ],
     links: {self: '/chronograf/v1/users/3786'},
   },
@@ -124,7 +131,7 @@ const users = [
     scheme: 'LDAP',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Red Team', organizationID: 1236, name: 'editor'},
+      {organizationName: 'Red Team', organizationID: 1236, name: EDITOR_ROLE},
     ],
     links: {self: '/chronograf/v1/users/0'},
   },
@@ -135,7 +142,7 @@ const users = [
     scheme: 'OAuth2',
     roles: [
       {organizationName: 'All Users', organizationID: 666, name: MEMBER_ROLE},
-      {organizationName: 'Blue Team', organizationID: 1234, name: 'admin'},
+      {organizationName: 'Blue Team', organizationID: 1234, name: ADMIN_ROLE},
     ],
     links: {self: '/chronograf/v1/users/2891'},
   },
