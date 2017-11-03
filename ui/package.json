@@ -17,7 +17,7 @@
     "test": "karma start",
     "test:integration": "nightwatch tests --skip",
     "test:lint": "yarn run lint; yarn run test",
-    "test:dev": "concurrently \"yarn run lint -- --watch\" \"yarn run test -- --no-single-run --reporters=verbose\"",
+    "test:dev": "concurrently \"yarn run lint --watch\" \"yarn run test --no-single-run --reporters=verbose\"",
     "clean": "rm -rf build",
     "storybook": "node ./storybook.js",
     "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix"
