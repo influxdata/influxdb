@@ -69,19 +69,26 @@ $manage-orgs--gutter: 30px;
   font-weight: 500;
 }
 .manage-orgs-form--name,
+.manage-orgs-form--name-disabled,
 input[type="text"].form-control.manage-orgs-form--input {
   flex: 1 0 0;
   font-weight: 600;
   font-size: 13px;
 }
-.manage-orgs-form--name {
+.manage-orgs-form--name,
+.manage-orgs-form--name-disabled {
+  @include no-user-select();
   padding: 0 11px;
-  border: 2px solid $g2-kevlar;
-  background-color: $g2-kevlar;
-  color: $g13-mist;
   border-radius: 4px;
   height: 30px;
   line-height: 28px;
+  border-style: solid;
+  border-width: 2px;
+}
+.manage-orgs-form--name {
+  border-color: $g2-kevlar;
+  background-color: $g2-kevlar;
+  color: $g13-mist;
   position: relative;
   transition:
     color 0.4s ease,
@@ -106,6 +113,12 @@ input[type="text"].form-control.manage-orgs-form--input {
 
     > span.icon {opacity: 1;}
   }
+}
+.manage-orgs-form--name-disabled {
+  border-color: $g4-onyx;
+  background-color: $g4-onyx;
+  font-style: italic;
+  color: $g9-mountain;
 }
 .manage-orgs-form--body .manage-orgs-form--org .btn.btn-sm.btn-square.manage-orgs-form--delete {
   position: relative;

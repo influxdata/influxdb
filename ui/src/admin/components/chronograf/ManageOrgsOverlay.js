@@ -2,6 +2,9 @@ import React, {Component, PropTypes} from 'react'
 
 import Organization from 'src/admin/components/chronograf/Organization'
 import NewOrganization from 'src/admin/components/chronograf/NewOrganization'
+import DefaultOrganization from 'src/admin/components/chronograf/DefaultOrganization'
+
+import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
 
 class ManageOrgsOverlay extends Component {
   constructor(props) {
@@ -59,13 +62,16 @@ class ManageOrgsOverlay extends Component {
                   }
                 />
               : null}
-            {organizations.map(org =>
-              <Organization
-                key={org.name}
-                organization={org}
-                onDelete={onDeleteOrg}
-                onRename={onRenameOrg}
-              />
+            {organizations.map(
+              org =>
+                org.id === DEFAULT_ORG_ID
+                  ? <DefaultOrganization key={org.name} organization={org} />
+                  : <Organization
+                      key={org.name}
+                      organization={org}
+                      onDelete={onDeleteOrg}
+                      onRename={onRenameOrg}
+                    />
             )}
           </div>
         </div>
