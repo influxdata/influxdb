@@ -1,63 +1,63 @@
-export const chooseNamespace = (queryId, {database, retentionPolicy}) => ({
+export const chooseNamespace = (queryID, {database, retentionPolicy}) => ({
   type: 'KAPA_CHOOSE_NAMESPACE',
   payload: {
-    queryId,
+    queryID,
     database,
     retentionPolicy,
   },
 })
 
-export const chooseMeasurement = (queryId, measurement) => ({
+export const chooseMeasurement = (queryID, measurement) => ({
   type: 'KAPA_CHOOSE_MEASUREMENT',
   payload: {
-    queryId,
+    queryID,
     measurement,
   },
 })
 
-export const chooseTag = (queryId, tag) => ({
+export const chooseTag = (queryID, tag) => ({
   type: 'KAPA_CHOOSE_TAG',
   payload: {
-    queryId,
+    queryID,
     tag,
   },
 })
 
-export const groupByTag = (queryId, tagKey) => ({
+export const groupByTag = (queryID, tagKey) => ({
   type: 'KAPA_GROUP_BY_TAG',
   payload: {
-    queryId,
+    queryID,
     tagKey,
   },
 })
 
-export const toggleTagAcceptance = queryId => ({
+export const toggleTagAcceptance = queryID => ({
   type: 'KAPA_TOGGLE_TAG_ACCEPTANCE',
   payload: {
-    queryId,
+    queryID,
   },
 })
 
-export const toggleField = (queryId, fieldFunc) => ({
+export const toggleField = (queryID, fieldFunc) => ({
   type: 'KAPA_TOGGLE_FIELD',
   payload: {
-    queryId,
+    queryID,
     fieldFunc,
   },
 })
 
-export const applyFuncsToField = (queryId, fieldFunc) => ({
+export const applyFuncsToField = (queryID, fieldFunc) => ({
   type: 'KAPA_APPLY_FUNCS_TO_FIELD',
   payload: {
-    queryId,
+    queryID,
     fieldFunc,
   },
 })
 
-export const groupByTime = (queryId, time) => ({
+export const groupByTime = (queryID, time) => ({
   type: 'KAPA_GROUP_BY_TIME',
   payload: {
-    queryId,
+    queryID,
     time,
   },
 })

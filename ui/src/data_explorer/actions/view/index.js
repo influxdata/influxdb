@@ -18,26 +18,26 @@ export const deleteQuery = queryID => ({
   },
 })
 
-export const toggleField = (queryId, fieldFunc) => ({
+export const toggleField = (queryID, fieldFunc) => ({
   type: 'DE_TOGGLE_FIELD',
   payload: {
-    queryId,
+    queryID,
     fieldFunc,
   },
 })
 
-export const groupByTime = (queryId, time) => ({
+export const groupByTime = (queryID, time) => ({
   type: 'DE_GROUP_BY_TIME',
   payload: {
-    queryId,
+    queryID,
     time,
   },
 })
 
-export const fill = (queryId, value) => ({
+export const fill = (queryID, value) => ({
   type: 'DE_FILL',
   payload: {
-    queryId,
+    queryID,
     value,
   },
 })
@@ -51,44 +51,44 @@ export const removeFuncs = (queryID, fields, groupBy) => ({
   },
 })
 
-export const applyFuncsToField = (queryId, fieldFunc, groupBy) => ({
+export const applyFuncsToField = (queryID, fieldFunc, groupBy) => ({
   type: 'DE_APPLY_FUNCS_TO_FIELD',
   payload: {
-    queryId,
+    queryID,
     fieldFunc,
     groupBy,
   },
 })
 
-export const chooseTag = (queryId, tag) => ({
+export const chooseTag = (queryID, tag) => ({
   type: 'DE_CHOOSE_TAG',
   payload: {
-    queryId,
+    queryID,
     tag,
   },
 })
 
-export const chooseNamespace = (queryId, {database, retentionPolicy}) => ({
+export const chooseNamespace = (queryID, {database, retentionPolicy}) => ({
   type: 'DE_CHOOSE_NAMESPACE',
   payload: {
-    queryId,
+    queryID,
     database,
     retentionPolicy,
   },
 })
 
-export const chooseMeasurement = (queryId, measurement) => ({
+export const chooseMeasurement = (queryID, measurement) => ({
   type: 'DE_CHOOSE_MEASUREMENT',
   payload: {
-    queryId,
+    queryID,
     measurement,
   },
 })
 
-export const editRawText = (queryId, rawText) => ({
+export const editRawText = (queryID, rawText) => ({
   type: 'DE_EDIT_RAW_TEXT',
   payload: {
-    queryId,
+    queryID,
     rawText,
   },
 })
@@ -100,18 +100,18 @@ export const setTimeRange = bounds => ({
   },
 })
 
-export const groupByTag = (queryId, tagKey) => ({
+export const groupByTag = (queryID, tagKey) => ({
   type: 'DE_GROUP_BY_TAG',
   payload: {
-    queryId,
+    queryID,
     tagKey,
   },
 })
 
-export const toggleTagAcceptance = queryId => ({
+export const toggleTagAcceptance = queryID => ({
   type: 'DE_TOGGLE_TAG_ACCEPTANCE',
   payload: {
-    queryId,
+    queryID,
   },
 })
 

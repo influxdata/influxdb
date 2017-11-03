@@ -18,142 +18,142 @@ const fakeAddQueryAction = (panelID, queryID) => {
   }
 }
 
-function buildInitialState(queryId, params) {
+function buildInitialState(queryID, params) {
   return Object.assign(
     {},
-    defaultQueryConfig({id: queryId, isKapacitorRule: true}),
+    defaultQueryConfig({id: queryID, isKapacitorRule: true}),
     params
   )
 }
 
 describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
-  const queryId = 123
+  const queryID = 123
 
   it('can add a query', () => {
-    const state = reducer({}, fakeAddQueryAction('blah', queryId))
+    const state = reducer({}, fakeAddQueryAction('blah', queryID))
 
-    const actual = state[queryId]
-    const expected = defaultQueryConfig({id: queryId, isKapacitorRule: true})
+    const actual = state[queryID]
+    const expected = defaultQueryConfig({id: queryID, isKapacitorRule: true})
     expect(actual).to.deep.equal(expected)
   })
 
   describe('choosing db, rp, and measurement', () => {
     let state
     beforeEach(() => {
-      state = reducer({}, fakeAddQueryAction('any', queryId))
+      state = reducer({}, fakeAddQueryAction('any', queryID))
     })
 
     it('sets the db and rp', () => {
       const newState = reducer(
         state,
-        chooseNamespace(queryId, {
+        chooseNamespace(queryID, {
           database: 'telegraf',
           retentionPolicy: 'monitor',
         })
       )
 
-      expect(newState[queryId].database).to.equal('telegraf')
-      expect(newState[queryId].retentionPolicy).to.equal('monitor')
+      expect(newState[queryID].database).to.equal('telegraf')
+      expect(newState[queryID].retentionPolicy).to.equal('monitor')
     })
 
     it('sets the measurement', () => {
-      const newState = reducer(state, chooseMeasurement(queryId, 'mem'))
+      const newState = reducer(state, chooseMeasurement(queryID, 'mem'))
 
-      expect(newState[queryId].measurement).to.equal('mem')
+      expect(newState[queryID].measurement).to.equal('mem')
     })
   })
 
   describe('a query has measurements and fields', () => {
     let state
     beforeEach(() => {
-      const one = reducer({}, fakeAddQueryAction('any', queryId))
+      const one = reducer({}, fakeAddQueryAction('any', queryID))
       const two = reducer(
         one,
-        chooseNamespace(queryId, {
+        chooseNamespace(queryID, {
           database: '_internal',
           retentionPolicy: 'daily',
         })
       )
-      const three = reducer(two, chooseMeasurement(queryId, 'disk'))
+      const three = reducer(two, chooseMeasurement(queryID, 'disk'))
       state = reducer(
         three,
-        toggleField(queryId, {value: 'a great field', funcs: []})
+        toggleField(queryID, {value: 'a great field', funcs: []})
       )
     })
 
     describe('choosing a new namespace', () => {
       it('clears out the old measurement and fields', () => {
         // what about tags?
-        expect(state[queryId].measurement).to.exist
-        expect(state[queryId].fields.length).to.equal(1)
+        expect(state[queryID].measurement).to.exist
+        expect(state[queryID].fields.length).to.equal(1)
 
         const newState = reducer(
           state,
-          chooseNamespace(queryId, {
+          chooseNamespace(queryID, {
             database: 'newdb',
             retentionPolicy: 'newrp',
           })
         )
 
-        expect(newState[queryId].measurement).not.to.exist
-        expect(newState[queryId].fields.length).to.equal(0)
+        expect(newState[queryID].measurement).not.to.exist
+        expect(newState[queryID].fields.length).to.equal(0)
       })
     })
 
     describe('choosing a new measurement', () => {
       it('leaves the namespace and clears out the old fields', () => {
         // what about tags?
-        expect(state[queryId].fields.length).to.equal(1)
+        expect(state[queryID].fields.length).to.equal(1)
 
         const newState = reducer(
           state,
-          chooseMeasurement(queryId, 'newmeasurement')
+          chooseMeasurement(queryID, 'newmeasurement')
         )
 
-        expect(state[queryId].database).to.equal(newState[queryId].database)
-        expect(state[queryId].retentionPolicy).to.equal(
-          newState[queryId].retentionPolicy
+        expect(state[queryID].database).to.equal(newState[queryID].database)
+        expect(state[queryID].retentionPolicy).to.equal(
+          newState[queryID].retentionPolicy
         )
-        expect(newState[queryId].fields.length).to.equal(0)
+        expect(newState[queryID].fields.length).to.equal(0)
       })
     })
 
     describe('when the query is part of a kapacitor rule', () => {
       it('only allows one field', () => {
-        expect(state[queryId].fields.length).to.equal(1)
+        expect(state[queryID].fields.length).to.equal(1)
 
         const newState = reducer(
           state,
-          toggleField(queryId, {value: 'a different field', type: 'field'})
+          toggleField(queryID, {value: 'a different field', type: 'field'})
         )
 
-        expect(newState[queryId].fields.length).to.equal(1)
-        expect(newState[queryId].fields[0].value).to.equal('a different field')
+        expect(newState[queryID].fields.length).to.equal(1)
+        expect(newState[queryID].fields[0].value).to.equal('a different field')
       })
     })
 
     describe('KAPA_TOGGLE_FIELD', () => {
       it('cannot toggle multiple fields', () => {
-        expect(state[queryId].fields.length).to.equal(1)
+        expect(state[queryID].fields.length).to.equal(1)
 
         const newState = reducer(
           state,
-          toggleField(queryId, {value: 'a different field', type: 'field'})
+          toggleField(queryID, {value: 'a different field', type: 'field'})
         )
 
-        expect(newState[queryId].fields.length).to.equal(1)
-        expect(newState[queryId].fields[0].value).to.equal('a different field')
+        expect(newState[queryID].fields.length).to.equal(1)
+        expect(newState[queryID].fields[0].value).to.equal('a different field')
       })
 
       it('applies no funcs to newly selected fields', () => {
-        expect(state[queryId].fields.length).to.equal(1)
+        expect(state[queryID].fields.length).to.equal(1)
 
         const newState = reducer(
           state,
-          toggleField(queryId, {value: 'a different field', type: 'field'})
+          toggleField(queryID, {value: 'a different field', type: 'field'})
         )
 
-        expect(newState[queryId].fields[0].type).to.equal('field')
+        expect(newState[queryID].fields[0].type).to.equal('field')
       })
     })
   })
@@ -162,7 +162,7 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
     it('applies functions to a field without any existing functions', () => {
       const f1 = {value: 'f1', type: 'field'}
       const initialState = {
-        [queryId]: {
+        [queryID]: {
           id: 123,
           database: 'db1',
           measurement: 'm1',
@@ -174,13 +174,13 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
         },
       }
 
-      const action = applyFuncsToField(queryId, {
+      const action = applyFuncsToField(queryID, {
         field: {value: 'f1', type: 'field'},
         funcs: [{value: 'fn3', type: 'func'}, {value: 'fn4', type: 'func'}],
       })
 
       const nextState = reducer(initialState, action)
-      const actual = nextState[queryId].fields
+      const actual = nextState[queryID].fields
       const expected = [
         {value: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.value}`},
         {value: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.value}`},
@@ -193,21 +193,21 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
   describe('KAPA_CHOOSE_TAG', () => {
     it('adds a tag key/value to the query', () => {
       const initialState = {
-        [queryId]: buildInitialState(queryId, {
+        [queryID]: buildInitialState(queryID, {
           tags: {
             k1: ['v0'],
             k2: ['foo'],
           },
         }),
       }
-      const action = chooseTag(queryId, {
+      const action = chooseTag(queryID, {
         key: 'k1',
         value: 'v1',
       })
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].tags).to.eql({
+      expect(nextState[queryID].tags).to.eql({
         k1: ['v0', 'v1'],
         k2: ['foo'],
       })
@@ -215,31 +215,31 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
     it("creates a new entry if it's the first key", () => {
       const initialState = {
-        [queryId]: buildInitialState(queryId, {
+        [queryID]: buildInitialState(queryID, {
           tags: {},
         }),
       }
-      const action = chooseTag(queryId, {
+      const action = chooseTag(queryID, {
         key: 'k1',
         value: 'v1',
       })
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].tags).to.eql({
+      expect(nextState[queryID].tags).to.eql({
         k1: ['v1'],
       })
     })
 
     it('removes a value that is already in the list', () => {
       const initialState = {
-        [queryId]: buildInitialState(queryId, {
+        [queryID]: buildInitialState(queryID, {
           tags: {
             k1: ['v1'],
           },
         }),
       }
-      const action = chooseTag(queryId, {
+      const action = chooseTag(queryID, {
         key: 'k1',
         value: 'v1',
       })
@@ -247,14 +247,14 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
       const nextState = reducer(initialState, action)
 
       // TODO: this should probably remove the `k1` property entirely from the tags object
-      expect(nextState[queryId].tags).to.eql({})
+      expect(nextState[queryID].tags).to.eql({})
     })
   })
 
   describe('KAPA_GROUP_BY_TAG', () => {
     it('adds a tag key/value to the query', () => {
       const initialState = {
-        [queryId]: {
+        [queryID]: {
           id: 123,
           database: 'db1',
           measurement: 'm1',
@@ -263,11 +263,11 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
           groupBy: {tags: [], time: null},
         },
       }
-      const action = groupByTag(queryId, 'k1')
+      const action = groupByTag(queryID, 'k1')
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].groupBy).to.eql({
+      expect(nextState[queryID].groupBy).to.eql({
         time: null,
         tags: ['k1'],
       })
@@ -275,7 +275,7 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
     it('removes a tag if the given tag key is already in the GROUP BY list', () => {
       const initialState = {
-        [queryId]: {
+        [queryID]: {
           id: 123,
           database: 'db1',
           measurement: 'm1',
@@ -284,11 +284,11 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
           groupBy: {tags: ['k1'], time: null},
         },
       }
-      const action = groupByTag(queryId, 'k1')
+      const action = groupByTag(queryID, 'k1')
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].groupBy).to.eql({
+      expect(nextState[queryID].groupBy).to.eql({
         time: null,
         tags: [],
       })
@@ -298,14 +298,14 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
   describe('KAPA_TOGGLE_TAG_ACCEPTANCE', () => {
     it('it toggles areTagsAccepted', () => {
       const initialState = {
-        [queryId]: buildInitialState(queryId),
+        [queryID]: buildInitialState(queryID),
       }
-      const action = toggleTagAcceptance(queryId)
+      const action = toggleTagAcceptance(queryID)
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].areTagsAccepted).to.equal(
-        !initialState[queryId].areTagsAccepted
+      expect(nextState[queryID].areTagsAccepted).to.equal(
+        !initialState[queryID].areTagsAccepted
       )
     })
   })
@@ -314,14 +314,14 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
     it('applys the appropriate group by time', () => {
       const time = '100y'
       const initialState = {
-        [queryId]: buildInitialState(queryId),
+        [queryID]: buildInitialState(queryID),
       }
 
-      const action = groupByTime(queryId, time)
+      const action = groupByTime(queryID, time)
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].groupBy.time).to.equal(time)
+      expect(nextState[queryID].groupBy.time).to.equal(time)
     })
   })
 })
