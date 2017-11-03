@@ -30,6 +30,7 @@ func TestSourceStore(t *testing.T) {
 			URL:          "toyota-hilux.lyon-estates.local",
 			Default:      true,
 			Organization: "1337",
+			Role:         "member",
 		},
 		chronograf.Source{
 			Name:         "HipToBeSquare",
@@ -39,6 +40,7 @@ func TestSourceStore(t *testing.T) {
 			URL:          "toyota-hilux.lyon-estates.local",
 			Default:      true,
 			Organization: "1337",
+			Role:         "admin",
 		},
 		chronograf.Source{
 			Name:               "HipToBeSquare",
@@ -49,6 +51,7 @@ func TestSourceStore(t *testing.T) {
 			InsecureSkipVerify: true,
 			Default:            false,
 			Organization:       "1337",
+			Role:               "viewer",
 		},
 	}
 
