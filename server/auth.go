@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/organizations"
+	"github.com/influxdata/chronograf/roles"
 )
 
 // AuthorizedToken extracts the token and validates; if valid the next handler
@@ -68,6 +69,8 @@ func AuthorizedUser(
 				return
 			}
 			ctx = context.WithValue(ctx, organizations.ContextKey, fmt.Sprintf("%d", defaultOrg.ID))
+			// TODO(desa): remove this in place of actual string value
+			ctx = context.WithValue(ctx, roles.ContextKey, "admin")
 			r = r.WithContext(ctx)
 			next(w, r)
 			return
@@ -120,6 +123,9 @@ func AuthorizedUser(
 
 		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 		serverCtx := context.WithValue(ctx, SuperAdminKey, true)
+		// the DataStore expects that the roles context key be set for future calls
+		// TODO(desa): remove hard coding
+		serverCtx = context.WithValue(serverCtx, roles.ContextKey, "admin")
 		// TODO: seems silly to look up a user twice
 		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
 			Name:     &p.Subject,
@@ -152,6 +158,10 @@ func AuthorizedUser(
 		}
 
 		if hasAuthorizedRole(u, role) {
+			// use the first role, since there should only ever be one
+			// for any particular organization and hasAuthorizedRole
+			// should ensure that at least one role for the org exists
+			ctx = context.WithValue(ctx, roles.ContextKey, u.Roles[0].Name)
 			r = r.WithContext(ctx)
 			next(w, r)
 			return
