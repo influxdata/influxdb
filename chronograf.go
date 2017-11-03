@@ -771,8 +771,9 @@ type LayoutsStore interface {
 
 // Organization is a group of resources under a common name
 type Organization struct {
-	ID          uint64 `json:"id,string"`
-	Name        string `json:"name"`
+	ID   uint64 `json:"id,string"`
+	Name string `json:"name"`
+	// DefaultRole is the name of the role that is the default for any users added to the organization
 	DefaultRole string `json:"defaultRole,omitempty"`
 }
 
