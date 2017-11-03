@@ -164,8 +164,8 @@ func rewriteShowSeriesStatement(stmt *influxql.ShowSeriesStatement) (influxql.St
 		IsRawQuery: true,
 	}
 	// Check if we can exclusively use the index.
-	if !HasTimeExpr(stmt.Condition) {
-		s.Fields = []*Field{{Expr: &VarRef{Val: "key"}}}
+	if !influxql.HasTimeExpr(stmt.Condition) {
+		s.Fields = []*influxql.Field{{Expr: &influxql.VarRef{Val: "key"}}}
 		s.Sources = rewriteSources(stmt.Sources, "_series", stmt.Database)
 		s.Condition = rewriteSourcesCondition(s.Sources, s.Condition)
 		return s, nil
@@ -173,8 +173,8 @@ func rewriteShowSeriesStatement(stmt *influxql.ShowSeriesStatement) (influxql.St
 
 	// The query is bounded by time then it will have to query TSM data rather
 	// than utilising the index via system iterators.
-	s.Fields = []*Field{
-		{Expr: &VarRef{Val: "_seriesKey"}, Alias: "key"},
+	s.Fields = []*influxql.Field{
+		{Expr: &influxql.VarRef{Val: "_seriesKey"}, Alias: "key"},
 	}
 	s.Sources = rewriteSources2(stmt.Sources, stmt.Database)
 	return s, nil
@@ -214,7 +214,7 @@ func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityS
 }
 
 func rewriteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement) (influxql.Statement, error) {
-	var expr Expr
+	var expr influxql.Expr
 	if list, ok := stmt.TagKeyExpr.(*influxql.ListLiteral); ok {
 		for _, tagKey := range list.Vals {
 			tagExpr := &influxql.BinaryExpr{
@@ -348,8 +348,8 @@ func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.
 	}
 
 	// Check if we can exclusively use the index.
-	if !HasTimeExpr(stmt.Condition) {
-		s.Fields = []*Field{{Expr: &VarRef{Val: "tagKey"}}}
+	if !influxql.HasTimeExpr(stmt.Condition) {
+		s.Fields = []*influxql.Field{{Expr: &influxql.VarRef{Val: "tagKey"}}}
 		s.Sources = rewriteSources(stmt.Sources, "_tagKeys", stmt.Database)
 		s.Condition = rewriteSourcesCondition(s.Sources, stmt.Condition)
 		return s, nil
@@ -357,11 +357,11 @@ func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.
 
 	// The query is bounded by time then it will have to query TSM data rather
 	// than utilising the index via system iterators.
-	s.Fields = []*Field{
+	s.Fields = []*influxql.Field{
 		{
-			Expr: &Call{
+			Expr: &influxql.Call{
 				Name: "distinct",
-				Args: []Expr{&VarRef{Val: "_tagKey"}},
+				Args: []influxql.Expr{&influxql.VarRef{Val: "_tagKey"}},
 			},
 			Alias: "tagKey",
 		},

@@ -3,6 +3,7 @@ package query_test
 import (
 	"testing"
 
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
 
@@ -295,7 +296,7 @@ func TestRewriteStatement(t *testing.T) {
 			if err != nil {
 				t.Errorf("error parsing statement: %s", err)
 			} else {
-				stmt, err = influxql.RewriteStatement(stmt)
+				stmt, err = query.RewriteStatement(stmt)
 				if err != nil {
 					t.Errorf("error rewriting statement: %s", err)
 				} else if s := stmt.String(); s != test.s {
