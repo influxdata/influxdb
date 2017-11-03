@@ -58,6 +58,16 @@ class AdminChronografPage extends Component {
     loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
+  handleShowManageOrgsOverlay = () => {
+    this.setState({showManageOverlay: true})
+  }
+  handleShowCreateUserOverlay = () => {
+    this.setState({showCreateUserOverlay: true})
+  }
+  handleHideOverlays = () => {
+    this.setState({showManageOverlay: false, showCreateUserOverlay: false})
+  }
+
   handleFilterUsers = ({users, name}) => {
     const nextUsers = users || this.props.users
     const nextOrganizationName = name || this.props.currentOrganization.name
@@ -96,7 +106,6 @@ class AdminChronografPage extends Component {
 
     this.setState({selectedUsers: newSelectedUsers})
   }
-
   handleToggleAllUsersSelected = areAllSelected => () => {
     const {filteredUsers} = this.state
 
@@ -107,10 +116,27 @@ class AdminChronografPage extends Component {
     }
   }
 
-  // TODO: make this work for batch. was made to work for a single user since
-  // there's not currently UI to delete a single user
+  // SINGLE USER ACTIONS
+  handleCreateUser = user => {
+    const {links, actions: {createUserAsync}} = this.props
+    createUserAsync(links.users, user)
+  }
+  // handleUpdateUserRole is used for both org and role changes since a user
+  // cannot have a role outside of an organization (other than superadmin)
+  handleUpdateUserRole = () => (_user, _currentRole, _newRole) => {}
+  handleDeleteUser = user => {
+    const {actions: {deleteUserAsync}} = this.props
+    deleteUserAsync(user)
+  }
+
+  // BATCH USER ACTIONS
+  handleBatchChangeUsersRole = () => {}
+  handleBatchAddOrgToUsers = () => {}
+  handleBatchRemoveOrgFromUsers = () => {}
+  // TODO: make batch actions work for batch. currently only work for one user
+  // since batch actions have not been implemented in the API.
   handleBatchDeleteUsers = () => {
-    const {actions: {deleteUserAsync}, notify} = this.props
+    const {notify} = this.props
     const {selectedUsers} = this.state
 
     if (selectedUsers.length > 1) {
@@ -118,48 +144,20 @@ class AdminChronografPage extends Component {
         'error',
         'Batch actions for more than 1 user not currently supported'
       )
-      return
+    } else {
+      this.handleDeleteUser(selectedUsers[0])
     }
-
-    deleteUserAsync(selectedUsers[0])
   }
 
-  handleBatchRemoveOrgFromUsers = () => {}
-  handleBatchAddOrgToUsers = () => {}
-  handleBatchChangeUsersRole = () => {}
-
-  handleUpdateUserRole = () => (_user, _currentRole, _newRole) => {}
-
-  handleShowManageOrgsOverlay = () => {
-    this.setState({showManageOverlay: true})
-  }
-
-  handleShowCreateUserOverlay = () => {
-    this.setState({showCreateUserOverlay: true})
-  }
-
-  handleHideOverlays = () => {
-    this.setState({showManageOverlay: false, showCreateUserOverlay: false})
-  }
-
+  // SINGLE ORGANIZATION ACTIONS
   handleCreateOrganization = organizationName => {
     const {links, actions: {createOrganizationAsync}} = this.props
-
     createOrganizationAsync(links.organizations, {name: organizationName})
   }
-
+  handleRenameOrganization = (_organization, _newOrgName) => {}
   handleDeleteOrganization = organization => {
     const {actions: {deleteOrganizationAsync}} = this.props
-
     deleteOrganizationAsync(organization)
-  }
-
-  handleRenameOrganization = (_organization, _newOrgName) => {}
-
-  handleCreateUser = user => {
-    const {links, actions: {createUserAsync}} = this.props
-
-    createUserAsync(links.users, user)
   }
 
   render() {
