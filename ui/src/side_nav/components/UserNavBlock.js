@@ -83,7 +83,7 @@ const {arrayOf, func, shape, string} = PropTypes
 
 UserNavBlock.propTypes = {
   links: shape({
-    me: string.isRequired,
+    me: string,
     external: shape({
       custom: arrayOf(
         shape({
@@ -98,20 +98,20 @@ UserNavBlock.propTypes = {
     currentOrganization: shape({
       id: string.isRequired,
       name: string.isRequired,
-    }).isRequired,
-    name: string.isRequired,
+    }),
+    name: string,
     organizations: arrayOf(
       shape({
         id: string.isRequired,
         name: string.isRequired,
       })
-    ).isRequired,
+    ),
     roles: arrayOf(
       shape({
-        id: string.isRequired,
-        name: string.isRequired,
+        id: string,
+        name: string,
       })
-    ).isRequired,
+    ),
   }).isRequired,
   meChangeOrganization: func.isRequired,
 }

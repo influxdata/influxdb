@@ -28,7 +28,7 @@ const SideNav = React.createClass({
     isUsingAuth: bool,
     logoutLink: string,
     links: shape({
-      me: string.isRequired,
+      me: string,
       external: shape({
         custom: arrayOf(
           shape({
@@ -42,20 +42,20 @@ const SideNav = React.createClass({
       currentOrganization: shape({
         id: string.isRequired,
         name: string.isRequired,
-      }).isRequired,
-      name: string.isRequired,
+      }),
+      name: string,
       organizations: arrayOf(
         shape({
           id: string.isRequired,
           name: string.isRequired,
         })
-      ).isRequired,
+      ),
       roles: arrayOf(
         shape({
-          id: string.isRequired,
-          name: string.isRequired,
+          id: string,
+          name: string,
         })
-      ).isRequired,
+      ),
     }).isRequired,
   },
 
