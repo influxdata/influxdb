@@ -43,7 +43,7 @@ class CreateUserOverlay extends Component {
       roles: [
         {
           name: userRole,
-          organization: userOrganization ? userOrganization.id : null,
+          organization: userOrganization.id,
         },
       ],
     }
@@ -79,8 +79,8 @@ class CreateUserOverlay extends Component {
       userOrganization,
     } = this.state
 
-    const isUserNameEmpty = userName === '' || userName === null
-    const isUserProviderEmpty = userProvider === '' || userProvider === null
+    const allowCreate =
+      !userName || !userProvider || !userRole || !userOrganization
 
     return (
       <div className="overlay-technology">
@@ -157,7 +157,7 @@ class CreateUserOverlay extends Component {
               <button
                 className="btn btn-sm btn-success"
                 onClick={this.handleClickCreateUser}
-                disabled={isUserNameEmpty || isUserProviderEmpty}
+                disabled={allowCreate}
               >
                 Create
               </button>
