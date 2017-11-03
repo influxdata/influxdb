@@ -29,7 +29,7 @@ func newMeResponse(usr *chronograf.User) meResponse {
 	base := "/chronograf/v1/users"
 	name := "me"
 	if usr != nil {
-		name = PathEscape(usr.Name)
+		name = PathEscape(fmt.Sprintf("%d", usr.ID))
 	}
 
 	return meResponse{
