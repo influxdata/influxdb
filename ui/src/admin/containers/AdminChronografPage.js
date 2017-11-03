@@ -2,11 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {
-  loadUsersAsync,
-  loadOrganizationsAsync,
-  createUserAsync,
-} from 'src/admin/actions/chronograf'
+import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
@@ -51,10 +47,13 @@ class AdminChronografPage extends Component {
   }
 
   componentDidMount() {
-    const {links, loadUsers, loadOrganizations} = this.props
+    const {
+      links,
+      actions: {loadUsersAsync, loadOrganizationsAsync},
+    } = this.props
 
-    loadUsers(links.users)
-    loadOrganizations(links.organizations) // TODO: make sure server allows admin to hit this for safety
+    loadUsersAsync(links.users)
+    loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
   isSameUser = (userA, userB) => {
@@ -138,9 +137,9 @@ class AdminChronografPage extends Component {
   handleRenameOrganization = (_organization, _newOrgName) => {}
 
   handleCreateUser = user => {
-    const {links, createUser} = this.props
+    const {links, actions: {createUserAsync}} = this.props
 
-    createUser(links.users, user)
+    createUserAsync(links.users, user)
   }
 
   render() {
@@ -248,9 +247,11 @@ AdminChronografPage.propTypes = {
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
-  loadUsers: func.isRequired,
-  loadOrganizations: func.isRequired,
-  createUser: func.isRequired,
+  actions: shape({
+    loadUsersAsync: func.isRequired,
+    loadOrganizationsAsync: func.isRequired,
+    createUserAsync: func.isRequired,
+  }),
 }
 
 const mapStateToProps = ({
@@ -265,9 +266,7 @@ const mapStateToProps = ({
 })
 
 const mapDispatchToProps = dispatch => ({
-  loadUsers: bindActionCreators(loadUsersAsync, dispatch),
-  loadOrganizations: bindActionCreators(loadOrganizationsAsync, dispatch),
-  createUser: bindActionCreators(createUserAsync, dispatch),
+  actions: bindActionCreators(adminChronografActionCreators, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminChronografPage)
