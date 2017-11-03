@@ -2,6 +2,7 @@ import {
   getUsers as getUsersAJAX,
   getOrganizations as getOrganizationsAJAX,
   createUser as createUserAJAX,
+  updateUser as updateUserAJAX,
   deleteUser as deleteUserAJAX,
   createOrganization as createOrganizationAJAX,
   renameOrganization as renameOrganizationAJAX,
@@ -32,6 +33,14 @@ export const addUser = user => ({
   type: 'CHRONOGRAF_ADD_USER',
   payload: {
     user,
+  },
+})
+
+export const updateUser = (user, updatedUser) => ({
+  type: 'CHRONOGRAF_UPDATE_USER',
+  payload: {
+    user,
+    updatedUser,
   },
 })
 
@@ -107,6 +116,19 @@ export const createUserAsync = (url, user) => async dispatch => {
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(removeUser(user))
+  }
+}
+
+export const updateUserAsync = (user, updatedUser) => async dispatch => {
+  dispatch(updateUser(user, updatedUser))
+  try {
+    const {data} = await updateUserAJAX(updatedUser)
+    // it's not necessary to syncUser again but it's useful for good
+    // measure and for the clarity of insight in the redux story
+    dispatch(syncUser(user, data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(syncUser(user, user))
   }
 }
 

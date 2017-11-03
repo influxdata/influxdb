@@ -37,6 +37,19 @@ export const createUser = async (url, user) => {
   }
 }
 
+export const updateUser = async user => {
+  try {
+    return await AJAX({
+      method: 'PATCH',
+      url: user.links.self,
+      data: user,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const deleteUser = async url => {
   try {
     return await AJAX({

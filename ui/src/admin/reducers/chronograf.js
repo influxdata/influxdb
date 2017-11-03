@@ -20,6 +20,15 @@ const adminChronograf = (state = initialState, action) => {
       return {...state, users: [user, ...state.users]}
     }
 
+    case 'CHRONOGRAF_UPDATE_USER': {
+      const {user, updatedUser} = action.payload
+      return {
+        ...state,
+        users: state.users.map(
+          u => (u.links.self === user.links.self ? {...updatedUser} : u)
+        ),
+      }
+    }
     case 'CHRONOGRAF_SYNC_USER': {
       const {staleUser, syncedUser} = action.payload
       return {
