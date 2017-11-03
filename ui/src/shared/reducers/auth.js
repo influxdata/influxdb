@@ -8,7 +8,7 @@ const getInitialState = () => ({
 
 import {getMeRole} from 'shared/reducers/helpers/auth'
 
-import {DEFAULT_ORG} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_NAME} from 'src/admin/constants/dummyUsers'
 
 export const initialState = getInitialState()
 
@@ -35,7 +35,7 @@ const authReducer = (state = initialState, action) => {
         me: {
           ...me,
           role: getMeRole(me),
-          currentOrganization: currentOrganization || DEFAULT_ORG, // TODO: make sure currentOrganization is received as non-superadmin
+          currentOrganization: currentOrganization || DEFAULT_ORG_NAME, // TODO: make sure currentOrganization is received as non-superadmin
         },
         isMeLoading: false,
       }

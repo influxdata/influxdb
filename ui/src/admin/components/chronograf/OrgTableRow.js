@@ -6,7 +6,7 @@ import Dropdown from 'shared/components/Dropdown'
 
 import {
   USER_ROLES,
-  DEFAULT_ORG,
+  DEFAULT_ORG_NAME,
   NO_ORG,
   NO_ROLE,
   DUMMY_ORGS,
@@ -52,7 +52,7 @@ const OrgTableRow = ({
             </span>
           : <Dropdown
               items={DUMMY_ORGS.filter(org => {
-                return !(org.name === DEFAULT_ORG || org.name === NO_ORG)
+                return !(org.name === DEFAULT_ORG_NAME || org.name === NO_ORG)
               }).map(r => ({
                 ...r,
                 text: r.name,

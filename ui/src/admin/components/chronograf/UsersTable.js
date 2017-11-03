@@ -7,7 +7,7 @@ import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
 
-import {DEFAULT_ORG} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_NAME} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 class ChronografUsersTable extends Component {
@@ -36,6 +36,7 @@ class ChronografUsersTable extends Component {
   render() {
     const {
       organizationName,
+      organizations,
       filteredUsers,
       onToggleAllUsersSelected,
       onToggleUserSelected,
@@ -74,10 +75,11 @@ class ChronografUsersTable extends Component {
           {filteredUsers.length
             ? filteredUsers.map(
                 (user, i) =>
-                  organizationName === DEFAULT_ORG
+                  organizationName === DEFAULT_ORG_NAME
                     ? <UsersTableRow
                         user={user}
                         key={i}
+                        organizations={organizations}
                         onToggleUserSelected={onToggleUserSelected}
                         selectedUsers={selectedUsers}
                         isSameUser={isSameUser}
@@ -125,6 +127,7 @@ ChronografUsersTable.propTypes = {
   onToggleAllUsersSelected: func.isRequired,
   isSameUser: func.isRequired,
   organizationName: string,
+  organizations: arrayOf(shape),
   onUpdateUserRole: func.isRequired,
 }
 export default ChronografUsersTable

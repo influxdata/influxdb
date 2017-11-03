@@ -9,6 +9,7 @@ import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 const UsersTableRow = ({
   user,
+  organizations,
   onToggleUserSelected,
   selectedUsers,
   isSameUser,
@@ -38,6 +39,7 @@ const UsersTableRow = ({
       </td>
       <UsersTableOrgCell
         user={user}
+        organizations={organizations}
         onChangeUserRole={onChangeUserRole}
         onChooseFilter={onChooseFilter}
       />
@@ -61,6 +63,7 @@ const {arrayOf, func, shape} = PropTypes
 
 UsersTableRow.propTypes = {
   user: shape(),
+  organizations: arrayOf(shape),
   onToggleUserSelected: func.isRequired,
   selectedUsers: arrayOf(shape()),
   isSameUser: func.isRequired,

@@ -93,12 +93,19 @@ const Root = React.createClass({
   async startHeartbeat({shouldDispatchResponse}) {
     try {
       // These non-me objects are added to every response by some AJAX trickery
-      const {data: me, auth, logoutLink, external, users} = await getMe()
+      const {
+        data: me,
+        auth,
+        logoutLink,
+        external,
+        users,
+        organizations,
+      } = await getMe()
       if (shouldDispatchResponse) {
         dispatch(authReceived(auth))
         dispatch(meReceived(me))
         dispatch(logoutLinkReceived(logoutLink))
-        dispatch(linksReceived({external, users}))
+        dispatch(linksReceived({external, users, organizations}))
       }
 
       setTimeout(() => {

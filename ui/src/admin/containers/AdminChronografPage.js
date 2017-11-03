@@ -2,7 +2,10 @@ import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {loadUsersAsync} from 'src/admin/actions/chronograf'
+import {
+  loadUsersAsync,
+  loadOrganizationsAsync,
+} from 'src/admin/actions/chronograf'
 
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
@@ -16,8 +19,7 @@ import CreateUserOverlay from 'src/admin/components/chronograf/CreateUserOverlay
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {
-  DUMMY_ORGS,
-  DEFAULT_ORG,
+  DEFAULT_ORG_NAME,
   NO_ORG,
   USER_ROLES,
   MOAR_DUMMY_ORGS,
@@ -48,9 +50,10 @@ class AdminChronografPage extends Component {
   }
 
   componentDidMount() {
-    const {links, loadUsers} = this.props
+    const {links, loadUsers, loadOrganizations} = this.props
 
     loadUsers(links.users)
+    loadOrganizations(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
   isSameUser = (userA, userB) => {
@@ -66,7 +69,7 @@ class AdminChronografPage extends Component {
     const nextOrganizationName = name || this.props.currentOrganization.name
 
     const filteredUsers =
-      nextOrganizationName === DEFAULT_ORG
+      nextOrganizationName === DEFAULT_ORG_NAME
         ? nextUsers
         : nextUsers.filter(
             user =>
@@ -80,7 +83,9 @@ class AdminChronografPage extends Component {
       filteredUsers,
       organizationName: nextOrganizationName,
       selectedUsers:
-        nextOrganizationName === DEFAULT_ORG ? this.state.selectedUsers : [],
+        nextOrganizationName === DEFAULT_ORG_NAME
+          ? this.state.selectedUsers
+          : [],
     })
   }
 
@@ -180,6 +185,7 @@ class AdminChronografPage extends Component {
                           <UsersTable
                             filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
                             organizationName={organizationName}
+                            organizations={organizations}
                             onFilterUsers={this.handleFilterUsers}
                             onToggleUserSelected={this.handleToggleUserSelected}
                             selectedUsers={selectedUsers}
@@ -224,32 +230,37 @@ const {arrayOf, func, shape, string} = PropTypes
 AdminChronografPage.propTypes = {
   links: shape({
     users: string.isRequired,
+    organizations: string.isRequired,
   }),
   users: arrayOf(shape),
+  organizations: arrayOf(
+    shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    })
+  ),
   currentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
-  organizations: arrayOf(shape),
   loadUsers: func.isRequired,
-}
-
-AdminChronografPage.defaultProps = {
-  organizations: DUMMY_ORGS,
+  loadOrganizations: func.isRequired,
 }
 
 const mapStateToProps = ({
   links,
-  adminChronograf: {users},
+  adminChronograf: {users, organizations},
   auth: {me: {currentOrganization}},
 }) => ({
   links,
   users,
+  organizations,
   currentOrganization,
 })
 
 const mapDispatchToProps = dispatch => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
+  loadOrganizations: bindActionCreators(loadOrganizationsAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminChronografPage)

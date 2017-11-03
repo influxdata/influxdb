@@ -8,6 +8,10 @@ const adminChronograf = (state = initialState, action) => {
     case 'CHRONOGRAF_LOAD_USERS': {
       return {...state, ...action.payload}
     }
+
+    case 'CHRONOGRAF_LOAD_ORGANIZATIONS': {
+      return {...state, ...action.payload}
+    }
   }
 
   return state

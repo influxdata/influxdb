@@ -11,3 +11,15 @@ export const getUsers = async url => {
     throw error
   }
 }
+
+export const getOrganizations = async url => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

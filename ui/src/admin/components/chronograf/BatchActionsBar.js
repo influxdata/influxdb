@@ -2,7 +2,11 @@ import React, {PropTypes} from 'react'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {DEFAULT_ORG, NO_ORG, USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {
+  DEFAULT_ORG_NAME,
+  NO_ORG,
+  USER_ROLES,
+} from 'src/admin/constants/dummyUsers'
 
 const BatchActionsBar = ({
   onDeleteUsers,
@@ -13,12 +17,12 @@ const BatchActionsBar = ({
   organizationName,
   organizations,
 }) => {
-  const showWhenAllUsers = organizationName === DEFAULT_ORG
-  const showWhenNotAllUser = organizationName !== DEFAULT_ORG
+  const showWhenAllUsers = organizationName === DEFAULT_ORG_NAME
+  const showWhenNotAllUser = organizationName !== DEFAULT_ORG_NAME
 
   const sanitizedOrgs = organizations
     .filter(org => {
-      return !(org.name === DEFAULT_ORG || org.name === NO_ORG)
+      return !(org.name === DEFAULT_ORG_NAME || org.name === NO_ORG)
     })
     .map(org => ({
       ...org,
