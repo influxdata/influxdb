@@ -1,9 +1,8 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 
+import QueryOptions from 'shared/components/QueryOptions'
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
-import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
-import FillQuery from 'shared/components/FillQuery'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
@@ -134,7 +133,6 @@ class FieldList extends Component {
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
-    const hasGroupByTime = groupBy.time
     const noDBorMeas = !database || !measurement
 
     return (
@@ -142,16 +140,13 @@ class FieldList extends Component {
         <div className="query-builder--heading">
           <span>Fields</span>
           {hasAggregates
-            ? <div className="query-builder--groupby-fill-container">
-                <GroupByTimeDropdown
-                  isOpen={!hasGroupByTime}
-                  selected={groupBy.time}
-                  onChooseGroupByTime={this.handleGroupByTime}
-                />
-                {isKapacitorRule
-                  ? null
-                  : <FillQuery value={fill} onChooseFill={this.handleFill} />}
-              </div>
+            ? <QueryOptions
+                fill={fill}
+                groupBy={groupBy}
+                onFill={this.handleFill}
+                isKapacitorRule={isKapacitorRule}
+                onGroupByTime={this.handleGroupByTime}
+              />
             : null}
         </div>
         {noDBorMeas
