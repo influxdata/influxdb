@@ -160,6 +160,110 @@ func TestService_NewUser(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
+		{
+			name: "Create a new Chronograf User with multiple roles",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"POST",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:     "bob",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         AdminRoleName,
+							Organization: "bobbetta org",
+						},
+						{
+							Name:         ViewerRoleName,
+							Organization: "billieta org",
+						},
+					},
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         AdminRoleName,
+									Organization: "bobbetta org",
+								},
+								{
+									Name:         ViewerRoleName,
+									Organization: "billieta org",
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			wantStatus:      http.StatusCreated,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[{"name":"admin","organization":"bobbetta org"},{"name":"viewer","organization":"billieta org"}],"links":{"self":"/chronograf/v1/users/1338"}}`,
+		},
+		{
+			name: "Create a new Chronograf User with multiple roles same org",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"POST",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:     "bob",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         AdminRoleName,
+							Organization: "bobbetta org",
+						},
+						{
+							Name:         ViewerRoleName,
+							Organization: "bobbetta org",
+						},
+					},
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         AdminRoleName,
+									Organization: "bobbetta org",
+								},
+								{
+									Name:         ViewerRoleName,
+									Organization: "bobbetta org",
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			wantStatus:      http.StatusUnprocessableEntity,
+			wantContentType: "application/json",
+			wantBody:        `{"code":422,"message":"duplicate organization \"bobbetta org\" in roles"}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -345,6 +449,110 @@ func TestService_UpdateUser(t *testing.T) {
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
 			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
+		},
+		{
+			name: "Update a Chronograf user roles different orgs",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID: 1336,
+					Roles: []chronograf.Role{
+						{
+							Name:         AdminRoleName,
+							Organization: "bobbetta org",
+						},
+						{
+							Name:         ViewerRoleName,
+							Organization: "billieta org",
+						},
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"bobbetta org"},{"name":"viewer","organization":"billieta org"}]}`,
+		},
+		{
+			name: "Update a Chronograf user roles same org",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID: 1336,
+					Roles: []chronograf.Role{
+						{
+							Name:         AdminRoleName,
+							Organization: "bobbetta org",
+						},
+						{
+							Name:         ViewerRoleName,
+							Organization: "bobbetta org",
+						},
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusUnprocessableEntity,
+			wantContentType: "application/json",
+			wantBody:        `{"code":422,"message":"duplicate organization \"bobbetta org\" in roles"}`,
 		},
 	}
 	for _, tt := range tests {

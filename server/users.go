@@ -55,8 +55,13 @@ func (r *userRequest) ValidUpdate() error {
 }
 
 func (r *userRequest) ValidRoles() error {
+	orgs := map[string]bool{}
 	if len(r.Roles) > 0 {
 		for _, r := range r.Roles {
+			if _, ok := orgs[r.Organization]; ok {
+				return fmt.Errorf("duplicate organization %q in roles", r.Organization)
+			}
+			orgs[r.Organization] = true
 			switch r.Name {
 			case MemberRoleName, ViewerRoleName, EditorRoleName, AdminRoleName:
 				continue
