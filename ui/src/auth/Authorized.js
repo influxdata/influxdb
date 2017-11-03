@@ -39,6 +39,7 @@ const Authorized = ({
   isUsingAuth,
   requiredRole,
   replaceWith,
+  replaceWithWhenNotUsingAuth,
   propsOverride,
 }) => {
   // if me response has not been received yet, render nothing
@@ -49,8 +50,12 @@ const Authorized = ({
   // React.isValidElement guards against multiple children wrapped by Authorized
   const firstChild = React.isValidElement(children) ? children : children[0]
 
-  if (!isUsingAuth || isUserAuthorized(meRole, requiredRole)) {
-    return firstChild
+  if (!isUsingAuth) {
+    return replaceWithWhenNotUsingAuth || firstChild
+  }
+
+  if (isUserAuthorized(meRole, requiredRole)) {
+    return replaceWith || firstChild
   }
 
   if (propsOverride) {
@@ -64,6 +69,7 @@ const {bool, node, shape, string} = PropTypes
 
 Authorized.propTypes = {
   isUsingAuth: bool,
+  replaceWithWhenNotUsingAuth: node,
   replaceWith: node,
   children: node.isRequired,
   me: shape({

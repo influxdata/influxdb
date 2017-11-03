@@ -124,7 +124,22 @@ const SideNav = React.createClass({
               Create
             </NavListItem>
           </NavBlock>
-          <Authorized requiredRole={ADMIN_ROLE}>
+
+          <Authorized
+            requiredRole={ADMIN_ROLE}
+            replaceWithWhenNotUsingAuth={
+              <NavBlock
+                icon="crown2"
+                link={`${sourcePrefix}/admin-influxdb`}
+                location={location}
+              >
+                <NavHeader
+                  link={`${sourcePrefix}/admin-influxdb`}
+                  title="Admin"
+                />
+              </NavBlock>
+            }
+          >
             <NavBlock
               icon="crown2"
               link={`${sourcePrefix}/admin-chronograf`}
@@ -142,6 +157,7 @@ const SideNav = React.createClass({
               </NavListItem>
             </NavBlock>
           </Authorized>
+
           <NavBlock
             icon="cog-thick"
             link={`${sourcePrefix}/manage-sources`}
