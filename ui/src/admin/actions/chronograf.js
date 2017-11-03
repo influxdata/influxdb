@@ -133,6 +133,12 @@ export const updateUserAsync = (user, updatedUser) => async dispatch => {
       provider: null,
       scheme: null,
     })
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        `User updated: ${user.scheme}::${user.provider}::${user.name}`
+      )
+    )
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))
