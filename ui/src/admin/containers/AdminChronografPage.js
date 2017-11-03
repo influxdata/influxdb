@@ -288,7 +288,7 @@ class AdminChronografPage extends Component {
                         >
                           <UsersTable
                             filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
-                            organizationName={organization.name}
+                            organization={organization}
                             organizations={organizations}
                             onFilterUsers={this.handleFilterUsers}
                             onToggleUserSelected={this.handleToggleUserSelected}

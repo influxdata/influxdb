@@ -41,7 +41,7 @@ class ChronografUsersTable extends Component {
 
   render() {
     const {
-      organizationName,
+      organization,
       organizations,
       filteredUsers,
       onToggleAllUsersSelected,
@@ -81,7 +81,7 @@ class ChronografUsersTable extends Component {
           {filteredUsers.length
             ? filteredUsers.map(
                 (user, i) =>
-                  organizationName === DEFAULT_ORG_NAME
+                  organization.name === DEFAULT_ORG_NAME
                     ? <UsersTableRow
                         user={user}
                         key={i}
@@ -102,7 +102,10 @@ class ChronografUsersTable extends Component {
                         onToggleUserSelected={onToggleUserSelected}
                         selectedUsers={selectedUsers}
                         isSameUser={isSameUser}
-                        organizationName={organizationName}
+                        organization={organization}
+                        onSelectAddUserToOrg={this.handleSelectAddUserToOrg(
+                          user
+                        )}
                         onChangeUserRole={this.handleChangeUserRole}
                       />
               )
@@ -135,8 +138,16 @@ ChronografUsersTable.propTypes = {
   onToggleUserSelected: func.isRequired,
   onToggleAllUsersSelected: func.isRequired,
   isSameUser: func.isRequired,
-  organizationName: string,
-  organizations: arrayOf(shape),
+  organization: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }),
+  organizations: arrayOf(
+    shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    })
+  ),
   onAddUserToOrg: func.isRequired,
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,

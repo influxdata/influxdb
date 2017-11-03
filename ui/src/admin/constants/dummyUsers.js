@@ -31,3 +31,5 @@ export const SUPERADMIN_OPTION_ITEMS = [
   {value: true, text: 'yes'},
   {value: false, text: 'no'},
 ]
+
+export const ADD_TO_ORGANIZATION = 'Add to organization'

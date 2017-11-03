@@ -3,6 +3,7 @@ import React, {PropTypes} from 'react'
 import Dropdown from 'shared/components/Dropdown'
 
 import {
+  ADD_TO_ORGANIZATION,
   DEFAULT_ORG_NAME,
   DEFAULT_ORG_ID,
   NO_ORG,
@@ -30,7 +31,7 @@ const UsersTableOrgCell = ({
               ...r,
               text: r.name,
             }))}
-          selected={'Add to organization'}
+          selected={ADD_TO_ORGANIZATION}
           // TODO: assigning role here may not be necessary especially once
           // default organization roles are implemented
           onChoose={onSelectAddUserToOrg}
