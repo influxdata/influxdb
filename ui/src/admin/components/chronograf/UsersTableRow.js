@@ -14,6 +14,7 @@ const UsersTableRow = ({
   onToggleUserSelected,
   selectedUsers,
   isSameUser,
+  onChangeUserOrg,
   onChangeUserRole,
   onChooseFilter,
   onChangeSuperAdmin,
@@ -41,7 +42,7 @@ const UsersTableRow = ({
       <UsersTableOrgCell
         user={user}
         organizations={organizations}
-        onChangeUserRole={onChangeUserRole}
+        onChangeUserOrg={onChangeUserOrg}
         onChooseFilter={onChooseFilter}
       />
       <UsersTableRoleCell user={user} onChangeUserRole={onChangeUserRole} />
@@ -70,6 +71,7 @@ UsersTableRow.propTypes = {
   onToggleUserSelected: func.isRequired,
   selectedUsers: arrayOf(shape()),
   isSameUser: func.isRequired,
+  onChangeUserOrg: func.isRequired,
   onChangeUserRole: func.isRequired,
   onChooseFilter: func.isRequired,
   onChangeSuperAdmin: func.isRequired,

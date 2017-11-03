@@ -37,12 +37,15 @@ export const createUser = async (url, user) => {
   }
 }
 
-export const updateUser = async user => {
+// TODO: change updatedUserWithRolesOnly to a whole user that can have the
+// original name, provider, and scheme once the change to allow this is
+// implemented server-side
+export const updateUser = async updatedUserWithRolesOnly => {
   try {
     return await AJAX({
       method: 'PATCH',
-      url: user.links.self,
-      data: user,
+      url: updatedUserWithRolesOnly.links.self,
+      data: updatedUserWithRolesOnly,
     })
   } catch (error) {
     console.error(error)

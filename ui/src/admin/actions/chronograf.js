@@ -122,7 +122,17 @@ export const createUserAsync = (url, user) => async dispatch => {
 export const updateUserAsync = (user, updatedUser) => async dispatch => {
   dispatch(updateUser(user, updatedUser))
   try {
-    const {data} = await updateUserAJAX(updatedUser)
+    // currently the request will be rejected if name, provider, or scheme, or
+    // no roles are sent with the request.
+    // TODO: remove the null assignments below so that the user request can have
+    // the original name, provider, and scheme once the change to allow this is
+    // implemented server-side
+    const {data} = await updateUserAJAX({
+      ...updatedUser,
+      name: null,
+      provider: null,
+      scheme: null,
+    })
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))

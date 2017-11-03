@@ -12,7 +12,7 @@ import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 const UsersTableOrgCell = ({
   user,
   organizations,
-  onChangeUserRole,
+  onChangeUserOrg,
   onChooseFilter,
 }) => {
   const {colOrg} = USERS_TABLE
@@ -31,7 +31,9 @@ const UsersTableOrgCell = ({
               text: r.name,
             }))}
           selected={NO_ORG}
-          onChoose={onChangeUserRole(user, MEMBER_ROLE)}
+          // TODO: assigning role here may not be necessary especially once
+          // default organization roles are implemented
+          onChoose={onChangeUserOrg(user, MEMBER_ROLE)}
           buttonColor="btn-primary"
           buttonSize="btn-xs"
           className="dropdown-190"
@@ -62,7 +64,7 @@ const {arrayOf, func, shape} = PropTypes
 UsersTableOrgCell.propTypes = {
   user: shape(),
   organizations: arrayOf(shape()),
-  onChangeUserRole: func.isRequired,
+  onChangeUserOrg: func.isRequired,
   onChooseFilter: func.isRequired,
 }
 

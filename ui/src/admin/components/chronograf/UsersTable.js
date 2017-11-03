@@ -19,6 +19,11 @@ class ChronografUsersTable extends Component {
     this.props.onFilterUsers({name: filterString})
   }
 
+  // currentOrg is a role object that contains the organization id being updated
+  handleChangeUserOrg = (user, currentOrg) => newOrg => {
+    this.props.onUpdateUserOrg(user, currentOrg, newOrg)
+  }
+
   handleChangeUserRole = (user, currentRole) => newRole => {
     this.props.onUpdateUserRole(user, currentRole, newRole)
   }
@@ -83,6 +88,7 @@ class ChronografUsersTable extends Component {
                         onToggleUserSelected={onToggleUserSelected}
                         selectedUsers={selectedUsers}
                         isSameUser={isSameUser}
+                        onChangeUserOrg={this.handleChangeUserOrg}
                         onChangeUserRole={this.handleChangeUserRole}
                         onChooseFilter={this.handleChooseFilter}
                         onChangeSuperAdmin={this.handleChangeSuperAdmin}
@@ -128,6 +134,7 @@ ChronografUsersTable.propTypes = {
   isSameUser: func.isRequired,
   organizationName: string,
   organizations: arrayOf(shape),
+  onUpdateUserOrg: func.isRequired,
   onUpdateUserRole: func.isRequired,
 }
 export default ChronografUsersTable

@@ -10,8 +10,8 @@ import {
 
 const BatchActionsBar = ({
   onDeleteUsers,
-  onAddOrgs,
-  onRemoveOrgs,
+  onAddUsersToOrg,
+  onRemoveUsersFromOrg,
   onChangeRoles,
   numUsersSelected,
   organizationName,
@@ -43,7 +43,7 @@ const BatchActionsBar = ({
               ? <Dropdown
                   items={sanitizedOrgs}
                   selected={'Add to Organization'}
-                  onChoose={onAddOrgs}
+                  onChoose={onAddUsersToOrg}
                   buttonColor="btn-primary"
                   className="dropdown-200"
                 />
@@ -52,7 +52,7 @@ const BatchActionsBar = ({
               ? <Dropdown
                   items={sanitizedOrgs}
                   selected={'Remove from Organization'}
-                  onChoose={onRemoveOrgs}
+                  onChoose={onRemoveUsersFromOrg}
                   buttonColor="btn-primary"
                   className="dropdown-200"
                 />
@@ -79,8 +79,8 @@ const {arrayOf, func, number, shape, string} = PropTypes
 
 BatchActionsBar.propTypes = {
   onDeleteUsers: func.isRequired,
-  onAddOrgs: func.isRequired,
-  onRemoveOrgs: func.isRequired,
+  onAddUsersToOrg: func.isRequired,
+  onRemoveUsersFromOrg: func.isRequired,
   onChangeRoles: func.isRequired,
   organizations: arrayOf(shape),
   numUsersSelected: number.isRequired,

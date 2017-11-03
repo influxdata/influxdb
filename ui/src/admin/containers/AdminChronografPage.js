@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+import Authorized, {SUPERADMIN_ROLE, MEMBER_ROLE} from 'src/auth/Authorized'
 
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
@@ -121,8 +121,35 @@ class AdminChronografPage extends Component {
     const {links, actions: {createUserAsync}} = this.props
     createUserAsync(links.users, user)
   }
-  // handleUpdateUserRole is used for both org and role changes since a user
-  // cannot have a role outside of an organization (other than superadmin)
+  // handleAddUserToOrg will add a user to an organization as a 'member'. if
+  // the user already has a role in that organization, it will do nothing.
+  handleAddUserToOrg = (user, organization) => {
+    const {actions: {updateUserAsync}, notify} = this.props
+
+    const isAlreadyInOrg = user.roles.find(
+      r => r.organization === organization.id
+    )
+    if (isAlreadyInOrg) {
+      notify(
+        'error',
+        `User ${user.name} is already a member of ${organization.name}`
+      )
+      return
+    }
+
+    updateUserAsync(user, {
+      ...user,
+      roles: [
+        ...user.roles,
+        {
+          name: MEMBER_ROLE, // TODO: remove this to let server decide when default org role is implemented
+          organization: organization.id,
+        },
+      ],
+    })
+  }
+  // currentOrg is a role that contains the organization id being updated
+  handleUpdateUserOrg = () => (_user, _currentOrg, _newOrg) => {}
   handleUpdateUserRole = () => (_user, _currentRole, _newRole) => {}
   handleDeleteUser = user => {
     const {actions: {deleteUserAsync}} = this.props
@@ -131,8 +158,20 @@ class AdminChronografPage extends Component {
 
   // BATCH USER ACTIONS
   handleBatchChangeUsersRole = () => {}
-  handleBatchAddOrgToUsers = () => {}
-  handleBatchRemoveOrgFromUsers = () => {}
+  handleBatchAddUsersToOrg = organization => {
+    const {notify} = this.props
+    const {selectedUsers} = this.state
+
+    if (selectedUsers.length > 1) {
+      notify(
+        'error',
+        'Batch actions for more than 1 user not currently supported'
+      )
+    } else {
+      this.handleAddUserToOrg(selectedUsers[0], organization)
+    }
+  }
+  handleBatchRemoveUsersFromOrg = () => {}
   // TODO: make batch actions work for batch. currently only work for one user
   // since batch actions have not been implemented in the API.
   handleBatchDeleteUsers = () => {
@@ -198,8 +237,10 @@ class AdminChronografPage extends Component {
                         organizationName={organizationName}
                         organizations={organizations}
                         onDeleteUsers={this.handleBatchDeleteUsers}
-                        onAddOrgs={this.handleBatchAddOrgToUsers}
-                        onRemoveOrgs={this.handleBatchRemoveOrgFromUsers}
+                        onAddUsersToOrg={this.handleBatchAddUsersToOrg}
+                        onRemoveUsersFromOrg={
+                          this.handleBatchRemoveUsersFromOrg
+                        }
                         onChangeRoles={this.handleBatchChangeUsersRole}
                       />
                       <div className="panel-body chronograf-admin-table--panel">
@@ -218,6 +259,7 @@ class AdminChronografPage extends Component {
                             onToggleAllUsersSelected={
                               this.handleToggleAllUsersSelected
                             }
+                            onUpdateUserOrg={this.handleUpdateUserOrg()}
                             onUpdateUserRole={this.handleUpdateUserRole()}
                           />
                         </Authorized>
@@ -273,6 +315,7 @@ AdminChronografPage.propTypes = {
     loadUsersAsync: func.isRequired,
     loadOrganizationsAsync: func.isRequired,
     createUserAsync: func.isRequired,
+    updateUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
     createOrganizationAsync: func.isRequired,
     renameOrganizationAsync: func.isRequired,
