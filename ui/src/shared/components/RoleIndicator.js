@@ -39,6 +39,10 @@ const {arrayOf, bool, shape, string} = PropTypes
 RoleIndicator.propTypes = {
   isUsingAuth: bool.isRequired,
   me: shape({
+    currentOrganization: shape({
+      name: string.isRequired,
+      id: string.isRequired,
+    }),
     roles: arrayOf(
       shape({
         name: string.isRequired,
