@@ -27,7 +27,9 @@ class ChronografUsersTable extends Component {
     this.props.onUpdateUserRole(user, currentRole, newRole)
   }
 
-  handleChangeSuperAdmin = (_user, _currentState) => _newState => {}
+  handleChangeSuperAdmin = (user, currentStatus) => newStatus => {
+    this.props.onUpdateUserSuperAdmin(user, currentStatus, newStatus)
+  }
 
   areSameUsers = (usersA, usersB) => {
     if (usersA.length === 0 && usersB.length === 0) {
@@ -137,5 +139,6 @@ ChronografUsersTable.propTypes = {
   organizations: arrayOf(shape),
   onAddUserToOrg: func.isRequired,
   onUpdateUserRole: func.isRequired,
+  onUpdateUserSuperAdmin: func.isRequired,
 }
 export default ChronografUsersTable
