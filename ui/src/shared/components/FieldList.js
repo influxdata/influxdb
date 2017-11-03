@@ -106,6 +106,10 @@ class FieldList extends Component {
     applyFuncsToField(fieldFunc, groupBy)
   }
 
+  handleTimeShift = shift => {
+    console.log('you just got shifted: ', shift)
+  }
+
   _getFields = () => {
     const {database, measurement, retentionPolicy} = this.props.query
     const {source} = this.context
@@ -134,6 +138,7 @@ class FieldList extends Component {
 
     const hasAggregates = numFunctions(fields) > 0
     const noDBorMeas = !database || !measurement
+    const shift = {duration: ''}
 
     return (
       <div className="query-builder--column">
@@ -142,9 +147,11 @@ class FieldList extends Component {
           {hasAggregates
             ? <QueryOptions
                 fill={fill}
+                shift={shift}
                 groupBy={groupBy}
                 onFill={this.handleFill}
                 isKapacitorRule={isKapacitorRule}
+                onTimeShift={this.handleTimeShift}
                 onGroupByTime={this.handleGroupByTime}
               />
             : null}

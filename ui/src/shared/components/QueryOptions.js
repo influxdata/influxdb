@@ -1,11 +1,14 @@
 import React, {PropTypes} from 'react'
 import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
+import TimeShiftDropdown from 'src/shared/components/TimeShiftDropdown'
 import FillQuery from 'shared/components/FillQuery'
 
 const QueryOptions = ({
   fill,
+  shift,
   onFill,
   groupBy,
+  onTimeShift,
   onGroupByTime,
   isKapacitorRule,
 }) =>
@@ -13,6 +16,10 @@ const QueryOptions = ({
     <GroupByTimeDropdown
       selected={groupBy.time}
       onChooseGroupByTime={onGroupByTime}
+    />
+    <TimeShiftDropdown
+      selected={shift.duration}
+      onChooseTimeShift={onTimeShift}
     />
     {isKapacitorRule ? null : <FillQuery value={fill} onChooseFill={onFill} />}
   </div>
@@ -25,8 +32,12 @@ QueryOptions.propTypes = {
   groupBy: shape({
     time: string,
   }).isRequired,
+  shift: shape({
+    duration: string,
+  }),
   onGroupByTime: func.isRequired,
   isKapacitorRule: bool.isRequired,
+  onTimeShift: func.isRequired,
 }
 
 export default QueryOptions
