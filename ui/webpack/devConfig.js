@@ -19,7 +19,7 @@ module.exports = {
   output: {
     publicPath: '/',
     path: path.resolve(__dirname, '../build'),
-    filename: '[name].[chunkhash].dev.js',
+    filename: '[name].[hash].dev.js',
   },
   resolve: {
     alias: {
@@ -88,6 +88,7 @@ module.exports = {
     failOnError: false,
   },
   plugins: [
+    new webpack.HotModuleReplacementPlugin(),
     new webpack.ProvidePlugin({
       $: 'jquery',
       jQuery: 'jquery',
@@ -132,4 +133,22 @@ module.exports = {
   ],
   postcss: require('./postcss'),
   target: 'web',
+  devServer: {
+    hot: true,
+    historyApiFallback: true,
+    clientLogLevel: "info",
+    stats: { colors: true },
+    contentBase: 'build',
+    quiet: false,
+    watchOptions: {
+      aggregateTimeout: 300,
+      poll: 1000
+    },
+    proxy: {
+      '/chronograf/v1': {
+        target: 'http://localhost:8888',
+        secure: false,
+      },
+    },
+  },
 }
