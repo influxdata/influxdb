@@ -88,6 +88,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		}
 
 		ss := len(res.Frames)
+		pc := 0
 
 		next := rs.Tags()
 		sf := ReadResponse_SeriesFrame{Tags: make([]Tag, len(next))}
@@ -111,6 +112,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				frame.Values = append(frame.Values, vs...)
 
 				b += len(ts)
+				pc += b
 				if b >= batchSize {
 					frame = &ReadResponse_IntegerPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]int64, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_IntegerPoints{frame}})
@@ -132,6 +134,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				frame.Values = append(frame.Values, vs...)
 
 				b += len(ts)
+				pc += b
 				if b >= batchSize {
 					frame = &ReadResponse_FloatPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]float64, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_FloatPoints{frame}})
@@ -153,6 +156,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				frame.Values = append(frame.Values, vs...)
 
 				b += len(ts)
+				pc += b
 				if b >= batchSize {
 					frame = &ReadResponse_UnsignedPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]uint64, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_UnsignedPoints{frame}})
@@ -174,6 +178,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				frame.Values = append(frame.Values, vs...)
 
 				b += len(ts)
+				pc += b
 				if b >= batchSize {
 					frame = &ReadResponse_BooleanPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]bool, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_BooleanPoints{frame}})
@@ -195,6 +200,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				frame.Values = append(frame.Values, vs...)
 
 				b += len(ts)
+				pc += b
 				if b >= batchSize {
 					frame = &ReadResponse_StringPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]string, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_StringPoints{frame}})
@@ -208,7 +214,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 
 		cur.Close()
 
-		if len(res.Frames) == ss+1 {
+		if pc == 0 {
 			// no points collected, so strip series
 			res.Frames = res.Frames[:ss]
 		}
