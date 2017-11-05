@@ -41,7 +41,7 @@ type QueriesResponse struct {
 	Queries []QueryResponse `json:"queries"`
 }
 
-// Queries parses InfluxQL and returns mostly importantly a structured QueryConfig
+// Queries analyzes InfluxQL to produce front-end friendly QueryConfig
 func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
