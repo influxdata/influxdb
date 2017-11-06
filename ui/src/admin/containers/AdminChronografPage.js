@@ -256,7 +256,6 @@ class AdminChronografPage extends Component {
       <div className="page">
         <PageHeader
           onShowManageOrgsOverlay={this.handleShowManageOrgsOverlay}
-          onShowCreateUserOverlay={this.handleShowCreateUserOverlay}
         />
 
         <FancyScrollbar className="page-contents">
@@ -269,6 +268,9 @@ class AdminChronografPage extends Component {
                         organizationName={organization.name}
                         organizations={organizations}
                         onFilterUsers={this.handleFilterUsers}
+                        onShowCreateUserOverlay={
+                          this.handleShowCreateUserOverlay
+                        }
                       />
                       <BatchActionsBar
                         numUsersSelected={selectedUsers.length}
