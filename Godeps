@@ -10,7 +10,7 @@ github.com/dgryski/go-bitstream 7d46cd22db7004f0cceb6f7975824b560cf0e486
 github.com/gogo/protobuf 1c2b16bc280d6635de6c52fc1471ab962dc36ec9
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/google/go-cmp 18107e6c56edb2d51f965f7d68e59404f0daee54
-github.com/influxdata/influxql 646caf45ff3239d4366ef0fa89cbe8fef2b55e89
+github.com/influxdata/influxql eff3015bb0a902c59a2d5967a3bbc46054ccd017
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/influxdata/yamux a40d23b4fb6c9b7ec123eb353a412498e7236889
 github.com/influxdata/yarpc 036268cdec22b7074cd6d50cc6d7315c667063c7
