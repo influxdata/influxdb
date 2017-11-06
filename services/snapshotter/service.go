@@ -120,13 +120,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 
 	switch RequestType(Type[0]) {
 	case RequestShardUpdate:
-		var sidBytes [8]byte
-		conn.Read(sidBytes[:])
-		sid := binary.BigEndian.Uint64(sidBytes[:])
-		s.TSDBStore.RestoreShard(sid, conn)
-		s.TSDBStore.SetShardEnabled(sid, true)
-		return nil
-
+		return s.updateShardsLive(conn)
 	}
 
 	r, bytes, err := s.readRequest(conn)
@@ -159,6 +153,23 @@ func (s *Service) handleConn(conn net.Conn) error {
 
 	return nil
 }
+
+func (s *Service) updateShardsLive(conn net.Conn) error {
+	var sidBytes [8]byte
+	_, err := conn.Read(sidBytes[:])
+	if err != nil {
+		return err
+	}
+	sid := binary.BigEndian.Uint64(sidBytes[:])
+	if err := s.TSDBStore.RestoreShard(sid, conn); err != nil {
+		return err
+	}
+	if err := s.TSDBStore.SetShardEnabled(sid, true); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Service) updateMetaStore(conn net.Conn, bits []byte, newDBName, newRPName string) error {
 	md := meta.Data{}
 	err := md.UnmarshalBinary(bits)

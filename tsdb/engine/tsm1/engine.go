@@ -713,7 +713,7 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		r.Close()
 
 		// the TSM file is 100% inside the range, so we can just write it without scanning each block
-		if min > start.UnixNano() && max < end.UnixNano() {
+		if min >= start.UnixNano() && max <= end.UnixNano() {
 			if err := e.writeFileToBackup(file, basePath, filepath.Join(path, file), tw); err != nil {
 				return err
 			}
