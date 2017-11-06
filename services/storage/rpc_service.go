@@ -30,9 +30,26 @@ func (r *rpcService) Hints(context.Context, *types.Empty) (*HintsResponse, error
 	return nil, errors.New("not implemented")
 }
 
+func flushFrames(stream Storage_ReadServer, res *ReadResponse, logger zap.Logger) error {
+	if err := stream.Send(res); err != nil {
+		logger.Error("stream.Send failed", zap.Error(err))
+		return err
+	}
+
+	for i := range res.Frames {
+		res.Frames[i].Data = nil
+	}
+	res.Frames = res.Frames[:0]
+	return nil
+}
+
 func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
-	const batchSize = 1000
-	const frameCount = 50
+	// TODO(sgc): implement frameWriter that handles the details of streaming frames
+
+	const (
+		batchSize  = 1000
+		frameCount = 50
+	)
 
 	if r.loggingEnabled {
 		r.Logger.Info("request",
@@ -62,25 +79,12 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 	if rs == nil {
 		return nil
 	}
+	defer rs.Close()
 
 	b := 0
 	res := &ReadResponse{Frames: make([]ReadResponse_Frame, 0, frameCount)}
 
 	for rs.Next() {
-		if len(res.Frames) >= frameCount {
-			// TODO(sgc): if last frame is a series, strip it
-			if err = stream.Send(res); err != nil {
-				r.Logger.Error("stream.Send failed", zap.Error(err))
-				rs.Close()
-				return nil
-			}
-
-			for i := range res.Frames {
-				res.Frames[i].Data = nil
-			}
-			res.Frames = res.Frames[:0]
-		}
-
 		cur := rs.Cursor()
 		if cur == nil {
 			// no data for series key + field combination
@@ -116,6 +120,12 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				b += len(ts)
 				pc += b
 				if b >= batchSize {
+					if len(res.Frames) >= frameCount {
+						if err = flushFrames(stream, res, r.Logger); err != nil {
+							return nil
+						}
+					}
+
 					frame = &ReadResponse_IntegerPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]int64, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_IntegerPoints{frame}})
 					b = 0
@@ -140,6 +150,12 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				b += len(ts)
 				pc += b
 				if b >= batchSize {
+					if len(res.Frames) >= frameCount {
+						if err = flushFrames(stream, res, r.Logger); err != nil {
+							return nil
+						}
+					}
+
 					frame = &ReadResponse_FloatPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]float64, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_FloatPoints{frame}})
 					b = 0
@@ -164,6 +180,12 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				b += len(ts)
 				pc += b
 				if b >= batchSize {
+					if len(res.Frames) >= frameCount {
+						if err = flushFrames(stream, res, r.Logger); err != nil {
+							return nil
+						}
+					}
+
 					frame = &ReadResponse_UnsignedPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]uint64, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_UnsignedPoints{frame}})
 					b = 0
@@ -188,6 +210,12 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				b += len(ts)
 				pc += b
 				if b >= batchSize {
+					if len(res.Frames) >= frameCount {
+						if err = flushFrames(stream, res, r.Logger); err != nil {
+							return nil
+						}
+					}
+
 					frame = &ReadResponse_BooleanPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]bool, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_BooleanPoints{frame}})
 					b = 0
@@ -212,6 +240,12 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				b += len(ts)
 				pc += b
 				if b >= batchSize {
+					if len(res.Frames) >= frameCount {
+						if err = flushFrames(stream, res, r.Logger); err != nil {
+							return nil
+						}
+					}
+
 					frame = &ReadResponse_StringPointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]string, 0, batchSize)}
 					res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_StringPoints{frame}})
 					b = 0
@@ -230,9 +264,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		}
 	}
 
-	if len(res.Frames) > 0 {
-		stream.Send(res)
-	}
+	flushFrames(stream, res, r.Logger)
 
 	return nil
 }
