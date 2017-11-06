@@ -322,18 +322,19 @@ func TestService_NewUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
-							ID:       1338,
-							Name:     "bob",
-							Provider: "github",
-							Scheme:   "oauth2",
-							Roles:    []chronograf.Role{},
+							ID:         1338,
+							Name:       "bob",
+							Provider:   "github",
+							Scheme:     "oauth2",
+							Roles:      []chronograf.Role{},
+							SuperAdmin: true,
 						}, nil
 					},
 				},
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
+			wantBody:        `{"id":"1338","superAdmin":true,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 	}
 
