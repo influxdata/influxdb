@@ -1,24 +1,41 @@
 import moment from 'moment'
-import {ABSOLUTE} from 'shared/constants/timeRange'
+import {
+  INFLUXQL,
+  ABSOLUTE,
+  INVALID,
+  RELATIVE_LOWER,
+  RELATIVE_UPPER,
+} from 'shared/constants/timeRange'
+const now = /^now/
 
-// calc time range type
 export const timeRangeType = ({upper, lower, type}) => {
   if (!upper && !lower) {
-    return 'invalid'
+    return INVALID
   }
 
-  if (!type || type === 'influxql') {
-    const mUpper = moment(upper)
-    const mLower = moment(lower)
-    const isUpperValid = mUpper.isValid()
-    const isLowerValid = mLower.isValid()
-
-    if (isUpperValid && isLowerValid) {
-      return ABSOLUTE
-    }
+  if (type && type !== INFLUXQL) {
+    return INVALID
   }
 
-  return 'none'
+  const isUpperValid = moment(upper).isValid()
+  const isLowerValid = moment(lower).isValid()
+
+  // {lower: <Date>, upper: <Date>}
+  if (isLowerValid && isUpperValid) {
+    return ABSOLUTE
+  }
+
+  // {lower: now - <Duration>, upper: <empty>}
+  if (now.test(lower) && !upper) {
+    return RELATIVE_LOWER
+  }
+
+  // {lower: <Date>, upper: now() - <Duration>}
+  if (isLowerValid && now.test(upper)) {
+    return RELATIVE_UPPER
+  }
+
+  return INVALID
 }
 
 // based on time range type, calc the time shifted dates
