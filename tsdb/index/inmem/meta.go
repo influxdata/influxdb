@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
@@ -280,10 +282,22 @@ func (m *Measurement) Rebuild() *Measurement {
 
 	// Re-add each series to allow the measurement indexes to get re-created.  If there were
 	// deletes, the existing measurment may have references to deleted series that need to be
-	// expunged.  Note: we're using SeriesIDs which returns the series in sorted order so that
-	// re-adding does not incur a sort for each series added.
-	for _, id := range m.SeriesIDs() {
-		if s := m.SeriesByID(id); s != nil {
+	// expunged.  Note: we're NOT using SeriesIDs which returns the series in sorted order because
+	// we need to do this under a write lock to prevent races.  The series are added in sorted
+	// order to prevent resorting them again after they are all re-added.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for k, v := range m.seriesByID {
+		if v.Deleted() {
+			continue
+		}
+		m.sortedSeriesIDs = append(m.sortedSeriesIDs, k)
+	}
+	sort.Sort(m.sortedSeriesIDs)
+
+	for _, id := range m.sortedSeriesIDs {
+		if s := m.seriesByID[id]; s != nil {
 			nm.AddSeries(s)
 		}
 	}
@@ -1137,18 +1151,25 @@ type Series struct {
 	measurement *Measurement
 	shardIDs    map[uint64]struct{} // shards that have this series defined
 	deleted     bool
+
+	// lastModified tracks the last time the series was created.  If the series
+	// already exists and a request to create is received (a no-op), lastModified
+	// is increased to track that it is still in use.
+	lastModified int64
 }
 
 // NewSeries returns an initialized series struct
 func NewSeries(key []byte, tags models.Tags) *Series {
 	return &Series{
-		Key:      string(key),
-		tags:     tags,
-		shardIDs: make(map[uint64]struct{}),
+		Key:          string(key),
+		tags:         tags,
+		shardIDs:     make(map[uint64]struct{}),
+		lastModified: time.Now().UTC().UnixNano(),
 	}
 }
 
 func (s *Series) AssignShard(shardID uint64) {
+	atomic.StoreInt64(&s.lastModified, time.Now().UTC().UnixNano())
 	if s.Assigned(shardID) {
 		return
 	}
@@ -1156,13 +1177,16 @@ func (s *Series) AssignShard(shardID uint64) {
 	s.mu.Lock()
 	// Skip the existence check under the write lock because we're just storing
 	// and empty struct.
+	s.deleted = false
 	s.shardIDs[shardID] = struct{}{}
 	s.mu.Unlock()
 }
 
-func (s *Series) UnassignShard(shardID uint64) {
+func (s *Series) UnassignShard(shardID uint64, ts int64) {
 	s.mu.Lock()
-	delete(s.shardIDs, shardID)
+	if s.LastModified() < ts {
+		delete(s.shardIDs, shardID)
+	}
 	s.mu.Unlock()
 }
 
@@ -1171,6 +1195,10 @@ func (s *Series) Assigned(shardID uint64) bool {
 	_, ok := s.shardIDs[shardID]
 	s.mu.RUnlock()
 	return ok
+}
+
+func (s *Series) LastModified() int64 {
+	return atomic.LoadInt64(&s.lastModified)
 }
 
 func (s *Series) ShardN() int {
@@ -1221,9 +1249,11 @@ func (s *Series) GetTagString(key string) string {
 }
 
 // Delete marks this series as deleted.  A deleted series should not be returned for queries.
-func (s *Series) Delete() {
+func (s *Series) Delete(ts int64) {
 	s.mu.Lock()
-	s.deleted = true
+	if s.LastModified() < ts {
+		s.deleted = true
+	}
 	s.mu.Unlock()
 }
 

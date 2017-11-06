@@ -559,7 +559,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return nil
 }
 
-func (i *Index) DropSeries(key []byte) error {
+func (i *Index) DropSeries(key []byte, ts int64) error {
 	if err := func() error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
@@ -879,9 +879,9 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 func (i *Index) RemoveShard(shardID uint64)                   {}
 func (i *Index) AssignShard(k string, shardID uint64)         {}
 
-func (i *Index) UnassignShard(k string, shardID uint64) error {
+func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k))
+	return i.DropSeries([]byte(k), ts)
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.

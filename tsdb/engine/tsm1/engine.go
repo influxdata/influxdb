@@ -30,7 +30,6 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
-	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 )
@@ -981,7 +980,7 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 		batch = batch[:0]
 	}
 
-	go e.index.Rebuild()
+	e.index.Rebuild()
 	return nil
 }
 
@@ -989,6 +988,7 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 // does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
 // and not directly.
 func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+	ts := time.Now().UTC().UnixNano()
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -1153,7 +1153,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				continue
 			}
 
-			if err := e.index.UnassignShard(string(k), e.id); err != nil {
+			if err := e.index.UnassignShard(string(k), e.id, ts); err != nil {
 				return err
 			}
 		}
@@ -1554,61 +1554,6 @@ func (e *Engine) compactFull(grp CompactionGroup) bool {
 	return false
 }
 
-// onFileStoreReplace is callback handler invoked when the FileStore
-// has replaced one set of TSM files with a new set.
-func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
-	if e.index.Type() == tsi1.IndexName {
-		return
-	}
-
-	// Load any new series keys to the index
-	readers := make([]chan seriesKey, 0, len(newFiles))
-	for _, r := range newFiles {
-		ch := make(chan seriesKey, 1)
-		readers = append(readers, ch)
-
-		go func(c chan seriesKey, r TSMFile) {
-			n := r.KeyCount()
-			for i := 0; i < n; i++ {
-				key, typ := r.KeyAt(i)
-				c <- seriesKey{key, typ}
-			}
-			close(c)
-		}(ch, r)
-	}
-
-	// Merge and dedup all the series keys across each reader to reduce
-	// lock contention on the index.
-	merged := merge(readers...)
-	for v := range merged {
-		fieldType, err := tsmFieldTypeToInfluxQLDataType(v.typ)
-		if err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (1): %v", err))
-			continue
-		}
-
-		if err := e.addToIndexFromKey(v.key, fieldType); err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (2): %v", err))
-			continue
-		}
-	}
-
-	// load metadata from the Cache
-	e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
-		fieldType, err := entry.InfluxQLType()
-		if err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (3): %v", err))
-			return nil
-		}
-
-		if err := e.addToIndexFromKey(key, fieldType); err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (4): %v", err))
-			return nil
-		}
-		return nil
-	})
-}
-
 // compactionStrategy holds the details of what to do in a compaction.
 type compactionStrategy struct {
 	group CompactionGroup
@@ -1681,7 +1626,7 @@ func (s *compactionStrategy) compactGroup() {
 		return
 	}
 
-	if err := s.fileStore.ReplaceWithCallback(group, files, s.engine.onFileStoreReplace); err != nil {
+	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
 		s.logger.Info(fmt.Sprintf("error replacing new TSM files: %v", err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)

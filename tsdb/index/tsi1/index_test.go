@@ -93,7 +93,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	})
 
 	// Delete one series.
-	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "east"}))); err != nil {
+	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "east"})), 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,7 +107,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	})
 
 	// Delete second series.
-	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "west"}))); err != nil {
+	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "west"})), 0); err != nil {
 		t.Fatal(err)
 	}
 

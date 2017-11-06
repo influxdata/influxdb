@@ -27,7 +27,7 @@ type Index interface {
 	InitializeSeries(key, name []byte, tags models.Tags) error
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
-	DropSeries(key []byte) error
+	DropSeries(key []byte, ts int64) error
 
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
@@ -55,7 +55,7 @@ type Index interface {
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
 	AssignShard(k string, shardID uint64)
-	UnassignShard(k string, shardID uint64) error
+	UnassignShard(k string, shardID uint64, ts int64) error
 	RemoveShard(shardID uint64)
 
 	Type() string
