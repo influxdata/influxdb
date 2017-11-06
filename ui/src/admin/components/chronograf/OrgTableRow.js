@@ -31,7 +31,13 @@ const OrgTableRow = ({
   )
 
   return (
-    <tr className={isSelected ? 'selected' : null}>
+    <tr
+      className={
+        isSelected
+          ? 'chronograf-admin-table--user selected'
+          : 'chronograf-admin-table--user'
+      }
+    >
       <td
         onClick={onToggleUserSelected(user)}
         className="chronograf-admin-table--check-col chronograf-admin-table--selectable"

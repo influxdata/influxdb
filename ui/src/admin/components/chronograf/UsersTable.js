@@ -79,8 +79,12 @@ class ChronografUsersTable extends Component {
               />
             </th>
             <th>Username</th>
-            <th style={{width: colOrg}}>Organization</th>
-            <th style={{width: colRole}}>Role</th>
+            <th style={{width: colOrg}} className="align-with-col-text">
+              Organization
+            </th>
+            <th style={{width: colRole}} className="align-with-col-text">
+              Role
+            </th>
             <Authorized requiredRole={SUPERADMIN_ROLE}>
               <th style={{width: colSuperAdmin}} className="text-center">
                 SuperAdmin
