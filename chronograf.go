@@ -20,19 +20,20 @@ import (
 
 // General errors.
 const (
-	ErrUpstreamTimeout       = Error("request to backend timed out")
-	ErrSourceNotFound        = Error("source not found")
-	ErrServerNotFound        = Error("server not found")
-	ErrLayoutNotFound        = Error("layout not found")
-	ErrDashboardNotFound     = Error("dashboard not found")
-	ErrUserNotFound          = Error("user not found")
-	ErrOrganizationNotFound  = Error("organization not found")
-	ErrLayoutInvalid         = Error("layout is invalid")
-	ErrAlertNotFound         = Error("alert not found")
-	ErrAuthentication        = Error("user not authenticated")
-	ErrUninitialized         = Error("client uninitialized. Call Open() method")
-	ErrInvalidAxis           = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
-	ErrOrganizationNameTaken = Error("organization name is taken")
+	ErrUpstreamTimeout                 = Error("request to backend timed out")
+	ErrSourceNotFound                  = Error("source not found")
+	ErrServerNotFound                  = Error("server not found")
+	ErrLayoutNotFound                  = Error("layout not found")
+	ErrDashboardNotFound               = Error("dashboard not found")
+	ErrUserNotFound                    = Error("user not found")
+	ErrOrganizationNotFound            = Error("organization not found")
+	ErrLayoutInvalid                   = Error("layout is invalid")
+	ErrAlertNotFound                   = Error("alert not found")
+	ErrAuthentication                  = Error("user not authenticated")
+	ErrUninitialized                   = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis                     = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrOrganizationNameTaken           = Error("organization name is taken")
+	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -806,4 +807,8 @@ type OrganizationsStore interface {
 	Get(context.Context, OrganizationQuery) (*Organization, error)
 	// Update updates an Organization in the OrganizationsStore
 	Update(context.Context, *Organization) error
+	// CreateDefault creates the default organization
+	CreateDefault(ctx context.Context) error
+	// DefaultOrganization returns the DefaultOrganization
+	DefaultOrganization(ctx context.Context) (*Organization, error)
 }

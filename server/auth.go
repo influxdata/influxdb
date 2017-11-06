@@ -61,6 +61,14 @@ func AuthorizedUser(
 ) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !useAuth {
+			ctx := r.Context()
+			defaultOrg, err := store.Organizations(ctx).DefaultOrganization(ctx)
+			if err != nil {
+				unknownErrorWithMessage(w, err, logger)
+				return
+			}
+			ctx = context.WithValue(ctx, organizations.ContextKey, fmt.Sprintf("%d", defaultOrg.ID))
+			r = r.WithContext(ctx)
 			next(w, r)
 			return
 		}
@@ -88,7 +96,12 @@ func AuthorizedUser(
 
 		// This is as if the user was logged into the default organization
 		if p.Organization == "" {
-			p.Organization = "0"
+			defaultOrg, err := store.Organizations(ctx).DefaultOrganization(ctx)
+			if err != nil {
+				unknownErrorWithMessage(w, err, logger)
+				return
+			}
+			p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
 		}
 
 		// validate that the organization exists

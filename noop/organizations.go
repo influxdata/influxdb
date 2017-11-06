@@ -12,6 +12,14 @@ var _ chronograf.OrganizationsStore = &OrganizationsStore{}
 
 type OrganizationsStore struct{}
 
+func (s *OrganizationsStore) CreateDefault(context.Context) error {
+	return fmt.Errorf("failed to add organization")
+}
+
+func (s *OrganizationsStore) DefaultOrganization(context.Context) (*chronograf.Organization, error) {
+	return nil, fmt.Errorf("failed to retrieve default organization")
+}
+
 func (s *OrganizationsStore) All(context.Context) ([]chronograf.Organization, error) {
 	return nil, fmt.Errorf("no organizations found")
 }

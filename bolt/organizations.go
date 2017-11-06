@@ -16,6 +16,15 @@ var _ chronograf.OrganizationsStore = &OrganizationsStore{}
 // OrganizationsBucket is the bucket where organizations are stored.
 var OrganizationsBucket = []byte("OrganizationsV1")
 
+const (
+	// DefaultOrganizationID is the ID of the default organization.
+	DefaultOrganizationID uint64 = 0
+	// DefaultOrganizationName is the Name of the default organization
+	DefaultOrganizationName string = "Default"
+	// DefaultOrganizationRole is the DefaultRole for the Default organization
+	DefaultOrganizationRole string = "member"
+)
+
 // OrganizationsStore uses bolt to store and retrieve Organizations
 type OrganizationsStore struct {
 	client *Client
@@ -23,10 +32,15 @@ type OrganizationsStore struct {
 
 // Migrate sets the default organization at runtime
 func (s *OrganizationsStore) Migrate(ctx context.Context) error {
+	return s.CreateDefault(ctx)
+}
+
+// CreateDefault does a findOrCreate on the default organization
+func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 	o := chronograf.Organization{
-		ID:          0,
-		Name:        "__default",
-		DefaultRole: "member",
+		ID:          DefaultOrganizationID,
+		Name:        DefaultOrganizationName,
+		DefaultRole: DefaultOrganizationRole,
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
@@ -52,6 +66,19 @@ func (s *OrganizationsStore) nameIsUnique(ctx context.Context, name string) bool
 	default:
 		return false
 	}
+}
+
+// DefaultOrganizationID returns the ID of the default organization
+func (s *OrganizationsStore) DefaultOrganization(ctx context.Context) (*chronograf.Organization, error) {
+	var org chronograf.Organization
+	if err := s.client.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(OrganizationsBucket).Get(u64tob(DefaultOrganizationID))
+		return internal.UnmarshalOrganization(v, &org)
+	}); err != nil {
+		return nil, err
+	}
+
+	return &org, nil
 }
 
 // Add creates a new Organization in the OrganizationsStore
@@ -96,6 +123,9 @@ func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization
 
 // Delete the organization from OrganizationsStore
 func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organization) error {
+	if o.ID == DefaultOrganizationID {
+		return chronograf.ErrCannotDeleteDefaultOrganization
+	}
 	_, err := s.get(ctx, o.ID)
 	if err != nil {
 		return err

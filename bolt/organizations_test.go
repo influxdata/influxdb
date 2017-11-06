@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/bolt"
 )
 
 var orgCmpOptions = cmp.Options{
@@ -183,8 +184,8 @@ func TestOrganizationsStore_All(t *testing.T) {
 			},
 			want: []chronograf.Organization{
 				{
-					Name:        "__default",
-					DefaultRole: "member",
+					Name:        bolt.DefaultOrganizationName,
+					DefaultRole: bolt.DefaultOrganizationRole,
 				},
 				{
 					Name: "EE - Evil Empire",
@@ -392,6 +393,44 @@ func TestOrganizationStore_Delete(t *testing.T) {
 	}
 }
 
+func TestOrganizationStore_DeleteDefaultOrg(t *testing.T) {
+	type args struct {
+		ctx context.Context
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "Delete the default organization",
+			args: args{
+				ctx: context.Background(),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		client, err := NewTestClient()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Open(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+		s := client.OrganizationsStore
+
+		defaultOrg, err := s.DefaultOrganization(tt.args.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Delete(tt.args.ctx, defaultOrg); (err != nil) != tt.wantErr {
+			t.Errorf("%q. OrganizationsStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+	}
+}
+
 func TestOrganizationsStore_Add(t *testing.T) {
 	type fields struct {
 		orgs []chronograf.Organization
@@ -458,6 +497,74 @@ func TestOrganizationsStore_Add(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get organization: %v", err)
 		}
+		if diff := cmp.Diff(got, tt.want, orgCmpOptions...); diff != "" {
+			t.Errorf("%q. OrganizationsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+		}
+	}
+}
+
+func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
+	type fields struct {
+		orgs []chronograf.Organization
+	}
+	type args struct {
+		ctx context.Context
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *chronograf.Organization
+		wantErr bool
+	}{
+		{
+			name: "Get Default Organization",
+			fields: fields{
+				orgs: []chronograf.Organization{
+					{
+						Name: "The Good Place",
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+			},
+			want: &chronograf.Organization{
+				ID:          bolt.DefaultOrganizationID,
+				Name:        bolt.DefaultOrganizationName,
+				DefaultRole: bolt.DefaultOrganizationRole,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		client, err := NewTestClient()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Open(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+		s := client.OrganizationsStore
+
+		for _, org := range tt.fields.orgs {
+			_, err = s.Add(tt.args.ctx, &org)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		got, err := s.DefaultOrganization(tt.args.ctx)
+
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. OrganizationsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+
+		if tt.want == nil {
+			continue
+		}
+
 		if diff := cmp.Diff(got, tt.want, orgCmpOptions...); diff != "" {
 			t.Errorf("%q. OrganizationsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}

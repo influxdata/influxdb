@@ -52,18 +52,24 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 // NewLayout adds a valid layout to store.
 func (s *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	var layout chronograf.Layout
+	var err error
 	if err := json.NewDecoder(r.Body).Decode(&layout); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
 
-	if err := ValidLayoutRequest(layout); err != nil {
+	ctx := r.Context()
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if err := ValidLayoutRequest(layout, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
 
-	var err error
-	ctx := r.Context()
 	if layout, err = s.Store.Layouts(ctx).Add(r.Context(), layout); err != nil {
 		msg := fmt.Errorf("Error storing layout %v: %v", layout, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
@@ -169,7 +175,13 @@ func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 	}
 	req.ID = id
 
-	if err := ValidLayoutRequest(req); err != nil {
+	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if err := ValidLayoutRequest(req, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -185,13 +197,13 @@ func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 }
 
 // ValidLayoutRequest checks if the layout has valid application, measurement and cells.
-func ValidLayoutRequest(l chronograf.Layout) error {
+func ValidLayoutRequest(l chronograf.Layout, defaultOrgID string) error {
 	if l.Application == "" || l.Measurement == "" || len(l.Cells) == 0 {
 		return fmt.Errorf("app, measurement, and cells required")
 	}
 
 	if l.Organization == "" {
-		l.Organization = "0"
+		l.Organization = defaultOrgID
 	}
 
 	for _, c := range l.Cells {
