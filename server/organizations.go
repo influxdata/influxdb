@@ -15,33 +15,50 @@ func parseOrganizationID(id string) (uint64, error) {
 }
 
 type organizationRequest struct {
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	DefaultRole string `json:"defaultRole"`
 }
 
 func (r *organizationRequest) ValidCreate() error {
 	if r.Name == "" {
 		return fmt.Errorf("Name required on Chronograf Organization request body")
 	}
-	return nil
+
+	return r.ValidDefaultRole()
 }
 
 func (r *organizationRequest) ValidUpdate() error {
-	if r.Name == "" {
+	if r.Name == "" && r.DefaultRole == "" {
 		return fmt.Errorf("No fields to update")
 	}
-	return nil
+	return r.ValidDefaultRole()
+}
+
+func (r *organizationRequest) ValidDefaultRole() error {
+	if r.DefaultRole == "" {
+		r.DefaultRole = MemberRoleName
+	}
+
+	switch r.DefaultRole {
+	case MemberRoleName, ViewerRoleName, EditorRoleName, AdminRoleName:
+		return nil
+	default:
+		return fmt.Errorf("default role must be member, viewer, editor, or admin")
+	}
 }
 
 type organizationResponse struct {
-	Links selfLinks `json:"links"`
-	ID    uint64    `json:"id,string"`
-	Name  string    `json:"name"`
+	Links       selfLinks `json:"links"`
+	ID          uint64    `json:"id,string"`
+	Name        string    `json:"name"`
+	DefaultRole string    `json:"defaultRole,omitempty"`
 }
 
 func newOrganizationResponse(o *chronograf.Organization) *organizationResponse {
 	return &organizationResponse{
-		ID:   o.ID,
-		Name: o.Name,
+		ID:          o.ID,
+		Name:        o.Name,
+		DefaultRole: o.DefaultRole,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/organizations/%d", o.ID),
 		},
@@ -95,7 +112,8 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	org := &chronograf.Organization{
-		Name: req.Name,
+		Name:        req.Name,
+		DefaultRole: req.DefaultRole,
 	}
 
 	res, err := s.Store.Organizations(ctx).Add(ctx, org)

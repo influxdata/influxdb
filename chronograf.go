@@ -773,6 +773,8 @@ type LayoutsStore interface {
 type Organization struct {
 	ID   uint64 `json:"id,string"`
 	Name string `json:"name"`
+	// DefaultRole is the name of the role that is the default for any users added to the organization
+	DefaultRole string `json:"defaultRole,omitempty"`
 }
 
 // OrganizationQuery represents the attributes that a organization may be retrieved by.

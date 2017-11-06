@@ -24,8 +24,9 @@ type OrganizationsStore struct {
 // Migrate sets the default organization at runtime
 func (s *OrganizationsStore) Migrate(ctx context.Context) error {
 	o := chronograf.Organization{
-		ID:   0,
-		Name: "__default",
+		ID:          0,
+		Name:        "__default",
+		DefaultRole: "member",
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)

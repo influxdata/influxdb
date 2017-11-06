@@ -70,6 +70,9 @@ func TestService_Me(t *testing.T) {
 							Scheme:   "oauth2",
 						}, nil
 					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
 				},
 			},
 			principal: oauth2.Principal{
@@ -78,7 +81,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"currentOrganization":{"id":"0","name":"The Bad Place"}}
+			wantBody: `{"name":"me","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"currentOrganization":{"id":"0","name":"The Bad Place"},"roles":[{"name":"member","organization":"0"}]}
 `,
 		},
 		{
@@ -111,6 +114,9 @@ func TestService_Me(t *testing.T) {
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
 					},
 				},
 			},
@@ -149,6 +155,9 @@ func TestService_Me(t *testing.T) {
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return nil, fmt.Errorf("Why Heavy?")
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
 					},
 				},
 				Logger: log.New(log.DebugLevel),
@@ -216,7 +225,10 @@ func TestService_Me(t *testing.T) {
 		if tt.wantContentType != "" && content != tt.wantContentType {
 			t.Errorf("%q. Me() = %v, want %v", tt.name, content, tt.wantContentType)
 		}
-		if tt.wantBody != "" && string(body) != tt.wantBody {
+		if tt.wantBody == "" {
+			continue
+		}
+		if eq, err := jsonEqual(tt.wantBody, string(body)); err != nil || !eq {
 			t.Errorf("%q. Me() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
 		}
 	}
@@ -274,6 +286,9 @@ func TestService_MeOrganizations(t *testing.T) {
 							},
 						}, nil
 					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
 				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -293,7 +308,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -325,6 +340,9 @@ func TestService_MeOrganizations(t *testing.T) {
 							},
 						}, nil
 					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
 				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -345,7 +363,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","roles":[{"name":"admin","organization":"1337"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}
+			wantBody: `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}
 `,
 		},
 		{
@@ -367,6 +385,9 @@ func TestService_MeOrganizations(t *testing.T) {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return nil, chronograf.ErrUserNotFound
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
 					},
 				},
 				OrganizationsStore: &mocks.OrganizationsStore{
@@ -419,6 +440,9 @@ func TestService_MeOrganizations(t *testing.T) {
 								},
 							},
 						}, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
 					},
 				},
 				OrganizationsStore: &mocks.OrganizationsStore{
