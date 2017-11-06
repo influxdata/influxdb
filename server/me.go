@@ -220,7 +220,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		if !hasRoleInDefaultOrganization(usr) {
 			usr.Roles = append(usr.Roles, chronograf.Role{
 				Organization: "0",
-				Name:         MemberRoleName,
+				Name:         roles.MemberRoleName,
 			})
 			if err := s.Store.Users(ctx).Update(ctx, usr); err != nil {
 				unknownErrorWithMessage(w, err, s.Logger)

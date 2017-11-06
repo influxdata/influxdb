@@ -177,11 +177,11 @@ func TestService_NewUser(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name:         AdminRoleName,
+							Name:         roles.AdminRoleName,
 							Organization: "bobbetta org",
 						},
 						{
-							Name:         ViewerRoleName,
+							Name:         roles.ViewerRoleName,
 							Organization: "billieta org",
 						},
 					},
@@ -198,11 +198,11 @@ func TestService_NewUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "bobbetta org",
 								},
 								{
-									Name:         ViewerRoleName,
+									Name:         roles.ViewerRoleName,
 									Organization: "billieta org",
 								},
 							},
@@ -229,11 +229,11 @@ func TestService_NewUser(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name:         AdminRoleName,
+							Name:         roles.AdminRoleName,
 							Organization: "bobbetta org",
 						},
 						{
-							Name:         ViewerRoleName,
+							Name:         roles.ViewerRoleName,
 							Organization: "bobbetta org",
 						},
 					},
@@ -250,11 +250,11 @@ func TestService_NewUser(t *testing.T) {
 							Scheme:   "oauth2",
 							Roles: []chronograf.Role{
 								{
-									Name:         AdminRoleName,
+									Name:         roles.AdminRoleName,
 									Organization: "bobbetta org",
 								},
 								{
-									Name:         ViewerRoleName,
+									Name:         roles.ViewerRoleName,
 									Organization: "bobbetta org",
 								},
 							},
@@ -547,7 +547,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Provider: "github",
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
-									EditorRole,
+									roles.EditorRole,
 								},
 							}, nil
 						default:
@@ -567,11 +567,11 @@ func TestService_UpdateUser(t *testing.T) {
 					ID: 1336,
 					Roles: []chronograf.Role{
 						{
-							Name:         AdminRoleName,
+							Name:         roles.AdminRoleName,
 							Organization: "bobbetta org",
 						},
 						{
-							Name:         ViewerRoleName,
+							Name:         roles.ViewerRoleName,
 							Organization: "billieta org",
 						},
 					},
@@ -599,7 +599,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Provider: "github",
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
-									EditorRole,
+									roles.EditorRole,
 								},
 							}, nil
 						default:
@@ -619,11 +619,11 @@ func TestService_UpdateUser(t *testing.T) {
 					ID: 1336,
 					Roles: []chronograf.Role{
 						{
-							Name:         AdminRoleName,
+							Name:         roles.AdminRoleName,
 							Organization: "bobbetta org",
 						},
 						{
-							Name:         ViewerRoleName,
+							Name:         roles.ViewerRoleName,
 							Organization: "bobbetta org",
 						},
 					},
@@ -651,7 +651,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Provider: "github",
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
-									EditorRole,
+									roles.EditorRole,
 								},
 							}, nil
 						default:
@@ -672,7 +672,7 @@ func TestService_UpdateUser(t *testing.T) {
 					ID:         1336,
 					SuperAdmin: true,
 					Roles: []chronograf.Role{
-						AdminRole,
+						roles.AdminRole,
 					},
 				},
 			},
@@ -698,7 +698,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Provider: "github",
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
-									EditorRole,
+									roles.EditorRole,
 								},
 							}, nil
 						default:
@@ -719,7 +719,7 @@ func TestService_UpdateUser(t *testing.T) {
 					ID:         1336,
 					SuperAdmin: true,
 					Roles: []chronograf.Role{
-						AdminRole,
+						roles.AdminRole,
 					},
 				},
 			},
