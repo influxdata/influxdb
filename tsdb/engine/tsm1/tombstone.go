@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
@@ -275,38 +276,48 @@ func (t *Tombstoner) prepareV4() error {
 		return nil
 	}
 
-	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
+	tmpPath := fmt.Sprintf("%s.%s", t.tombstonePath(), CompactionTempExtension)
+	tmp, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 	if err != nil {
 		return err
+	}
+
+	removeTmp := func() {
+		tmp.Close()
+		os.Remove(tmp.Name())
 	}
 
 	// Copy the existing v4 file if it exists
 	f, err := os.Open(t.tombstonePath())
 	if !os.IsNotExist(err) {
+		defer f.Close()
 		var b [4]byte
 		if n, err := f.Read(b[:]); n == 4 && err == nil {
 			header := binary.BigEndian.Uint32(b[:])
 			// There is an existing tombstone on disk and it's not a v3.  Just rewrite it as a v3
 			// version again.
 			if header != v4header {
+				removeTmp()
 				return errIncompatibleVersion
 			}
 
 			// Seek back to the beginning we copy the header
 			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				removeTmp()
 				return err
 			}
 
 			// Copy the while file
 			if _, err := io.Copy(tmp, f); err != nil {
 				f.Close()
+				removeTmp()
 				return err
 			}
 		}
 	} else if err != nil && !os.IsNotExist(err) {
+		removeTmp()
 		return err
 	}
-	f.Close()
 
 	var b [8]byte
 	bw := bufio.NewWriterSize(tmp, 64*1024)
@@ -315,6 +326,7 @@ func (t *Tombstoner) prepareV4() error {
 	if os.IsNotExist(err) {
 		binary.BigEndian.PutUint32(b[:4], v4header)
 		if _, err := bw.Write(b[:4]); err != nil {
+			removeTmp()
 			return err
 		}
 	}
