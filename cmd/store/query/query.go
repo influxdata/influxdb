@@ -240,7 +240,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 
 func (cmd *Command) processFramesSilent(frames []storage.ReadResponse_Frame) {
 	for _, frame := range frames {
-		switch f := frame.GetData().(type) {
+		switch f := frame.Data.(type) {
 		case *storage.ReadResponse_Frame_IntegerPoints:
 			for _, v := range f.IntegerPoints.Values {
 				cmd.integerSum += v
@@ -273,7 +273,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 	var line []byte
 
 	for _, frame := range frames {
-		switch f := frame.GetData().(type) {
+		switch f := frame.Data.(type) {
 		case *storage.ReadResponse_Frame_Series:
 			s := f.Series
 			wr.WriteString("\033[36m")

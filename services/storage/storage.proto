@@ -91,6 +91,16 @@ message ReadResponse {
     POINTS = 1 [(gogoproto.enumvalue_customname) = "FrameTypePoints"];
   }
 
+  enum DataType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    FLOAT = 0 [(gogoproto.enumvalue_customname) = "DataTypeFloat"];
+    INTEGER = 1 [(gogoproto.enumvalue_customname) = "DataTypeInteger"];
+    UNSIGNED = 2 [(gogoproto.enumvalue_customname) = "DataTypeUnsigned"];
+    BOOLEAN = 3 [(gogoproto.enumvalue_customname) = "DataTypeBoolean"];
+    STRING = 4 [(gogoproto.enumvalue_customname) = "DataTypeString"];
+  }
+
   message Frame {
     oneof data {
       SeriesFrame series = 1;
@@ -104,6 +114,7 @@ message ReadResponse {
 
   message SeriesFrame {
     repeated Tag tags = 1 [(gogoproto.nullable) = false];
+    DataType data_type = 2;
   }
 
   message FloatPointsFrame {
