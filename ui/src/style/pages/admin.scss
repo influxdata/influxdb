@@ -297,4 +297,9 @@ table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--selectabl
 }
 table.table.chronograf-admin-table tbody tr.chronograf-admin-table--new-user {
   background-color: $g4-onyx;
+
+  > td {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
 }
