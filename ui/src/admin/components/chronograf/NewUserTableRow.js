@@ -126,7 +126,7 @@ class NewUserTableRow extends Component {
                 }))}
                 selected={
                   userOrganization.id === DEFAULT_ORG_ID
-                    ? 'Add to Organization'
+                    ? 'Choose one'
                     : userOrganization.name
                 }
                 onChoose={this.handleSelectOrganization}
