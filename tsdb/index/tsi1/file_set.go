@@ -250,6 +250,17 @@ func (fs *FileSet) TagKeyIterator(name []byte) TagKeyIterator {
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
+	// Return all keys if no condition was passed in.
+	if expr == nil {
+		m := make(map[string]struct{})
+		if itr := fs.TagKeyIterator(name); itr != nil {
+			for e := itr.Next(); e != nil; e = itr.Next() {
+				m[string(e.Key())] = struct{}{}
+			}
+		}
+		return m, nil
+	}
+
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
