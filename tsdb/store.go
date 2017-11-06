@@ -956,6 +956,13 @@ func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte,
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	// If we're using the inmem index then all shards contain a duplicate
+	// version of the global index. We don't need to iterate over all shards
+	// since we have everything we need from the first shard.
+	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
+		shards = shards[:1]
+	}
+
 	// Map to deduplicate measurement names across all shards.  This is kind of naive
 	// and could be improved using a sorted merge of the already sorted measurements in
 	// each shard.
