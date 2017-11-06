@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -196,17 +197,9 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		Roles:    req.Roles,
 	}
 
-	// If req.SuperAdmin has been set, verify that it was done with the superadmin context.
-	// Even though req.SuperAdmin == true is logically equivalent to req.SuperAdmin it is
-	// more clear that this code should only be ran in the case that a user is trying to
-	// set the SuperAdmin field.
-	if req.SuperAdmin == true {
-		// Only allow users to set SuperAdmin if they have the superadmin context
-		if isSuperAdmin := hasSuperAdminContext(ctx); !isSuperAdmin {
-			Error(w, http.StatusBadRequest, "Cannot set SuperAdmin", s.Logger)
-			return
-		}
-		user.SuperAdmin = true
+	if err := setSuperAdmin(ctx, req, user); err != nil {
+		Error(w, http.StatusUnauthorized, err.Error(), s.Logger)
+		return
 	}
 
 	res, err := s.Store.Users(ctx).Add(ctx, user)
@@ -273,17 +266,9 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	// ValidUpdate should ensure that req.Roles is not nil
 	u.Roles = req.Roles
 
-	// If req.SuperAdmin has been set, verify that it was done with the superadmin context.
-	// Even though req.SuperAdmin == true is logically equivalent to req.SuperAdmin it is
-	// more clear that this code should only be ran in the case that a user is trying to
-	// set the SuperAdmin field.
-	if req.SuperAdmin == true {
-		// Only allow users to set SuperAdmin if they have the superadmin context
-		if isSuperAdmin := hasSuperAdminContext(ctx); !isSuperAdmin {
-			Error(w, http.StatusBadRequest, "Cannot set SuperAdmin", s.Logger)
-			return
-		}
-		u.SuperAdmin = true
+	if err := setSuperAdmin(ctx, req, u); err != nil {
+		Error(w, http.StatusUnauthorized, err.Error(), s.Logger)
+		return
 	}
 
 	err = s.Store.Users(ctx).Update(ctx, u)
@@ -309,4 +294,22 @@ func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 
 	res := newUsersResponse(users)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) error {
+	// Only allow users to set SuperAdmin if they have the superadmin context
+	// TODO(desa): Refactor this https://github.com/influxdata/chronograf/issues/2207
+	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+		user.SuperAdmin = req.SuperAdmin
+	} else if !isSuperAdmin && (req.SuperAdmin == true) {
+		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
+		// context, return error
+		//
+		// Even though req.SuperAdmin == true is logically equivalent to req.SuperAdmin it is
+		// more clear that this code should only be ran in the case that a user is trying to
+		// set the SuperAdmin field.
+		return fmt.Errorf("Cannot set SuperAdmin")
+	}
+
+	return nil
 }

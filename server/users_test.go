@@ -115,9 +115,10 @@ func TestService_NewUser(t *testing.T) {
 		Logger     chronograf.Logger
 	}
 	type args struct {
-		w    *httptest.ResponseRecorder
-		r    *http.Request
-		user *userRequest
+		w                     *httptest.ResponseRecorder
+		r                     *http.Request
+		user                  *userRequest
+		withSuperAdminContext bool
 	}
 	tests := []struct {
 		name            string
@@ -264,6 +265,76 @@ func TestService_NewUser(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"code":422,"message":"duplicate organization \"bobbetta org\" in roles"}`,
 		},
+		{
+			name: "Create a new SuperAdmin User - Not as superadmin",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"POST",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:       "bob",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+				withSuperAdminContext: false,
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles:    []chronograf.Role{},
+						}, nil
+					},
+				},
+			},
+			wantStatus:      http.StatusUnauthorized,
+			wantContentType: "application/json",
+			wantBody:        `{"code":401,"message":"Cannot set SuperAdmin"}`,
+		},
+		{
+			name: "Create a new SuperAdmin User - as superadmin",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"POST",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:       "bob",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+				withSuperAdminContext: true,
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles:    []chronograf.Role{},
+						}, nil
+					},
+				},
+			},
+			wantStatus:      http.StatusCreated,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -277,6 +348,13 @@ func TestService_NewUser(t *testing.T) {
 
 			buf, _ := json.Marshal(tt.args.user)
 			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
+
+			ctx := tt.args.r.Context()
+			if tt.args.withSuperAdminContext {
+				ctx = context.WithValue(ctx, SuperAdminKey, true)
+			}
+
+			tt.args.r = tt.args.r.WithContext(ctx)
 
 			s.NewUser(tt.args.w, tt.args.r)
 
@@ -392,9 +470,10 @@ func TestService_UpdateUser(t *testing.T) {
 		Logger     chronograf.Logger
 	}
 	type args struct {
-		w    *httptest.ResponseRecorder
-		r    *http.Request
-		user *userRequest
+		w                     *httptest.ResponseRecorder
+		r                     *http.Request
+		user                  *userRequest
+		withSuperAdminContext bool
 	}
 	tests := []struct {
 		name            string
@@ -554,6 +633,100 @@ func TestService_UpdateUser(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"code":422,"message":"duplicate organization \"bobbetta org\" in roles"}`,
 		},
+		{
+			name: "Update a Chronograf user to super admin - without super admin context",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				withSuperAdminContext: false,
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						AdminRole,
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusUnauthorized,
+			wantContentType: "application/json",
+			wantBody:        `{"code":401,"message":"Cannot set SuperAdmin"}`,
+		},
+		{
+			name: "Update a Chronograf user to super admin - with super admin context",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				withSuperAdminContext: true,
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						AdminRole,
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1336","superAdmin":true,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -573,6 +746,13 @@ func TestService_UpdateUser(t *testing.T) {
 				}))
 			buf, _ := json.Marshal(tt.args.user)
 			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
+
+			ctx := tt.args.r.Context()
+			if tt.args.withSuperAdminContext {
+				ctx = context.WithValue(ctx, SuperAdminKey, true)
+			}
+
+			tt.args.r = tt.args.r.WithContext(ctx)
 
 			s.UpdateUser(tt.args.w, tt.args.r)
 
