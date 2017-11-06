@@ -1076,7 +1076,7 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 	// If we're using the inmem index then all shards contain a duplicate
 	// version of the global index. We don't need to iterate over all shards
 	// since we have everything we need from the first shard.
-	if s.EngineOptions.IndexVersion == "inmem" && len(shards) > 0 {
+	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
 		shards = shards[:1]
 	}
 
