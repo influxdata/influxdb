@@ -295,3 +295,6 @@ table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--selectabl
 .super-admin-toggle .dropdown-toggle {
   width: 70px;
 }
+table.table.chronograf-admin-table tbody tr.chronograf-admin-table--new-user {
+  background-color: $g4-onyx;
+}

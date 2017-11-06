@@ -19,7 +19,7 @@ const UsersTableRow = ({
   onChooseFilter,
   onChangeSuperAdmin,
 }) => {
-  const {colProvider, colScheme} = USERS_TABLE
+  const {colProvider, colScheme, colActions} = USERS_TABLE
 
   const isSelected = selectedUsers.find(u => isSameUser(user, u))
 
@@ -56,9 +56,10 @@ const UsersTableRow = ({
       <td style={{width: colProvider}}>
         {user.provider}
       </td>
-      <td className="text-right" style={{width: colScheme}}>
+      <td style={{width: colScheme}}>
         {user.scheme}
       </td>
+      <td className="text-right" style={{width: colActions}} />
     </tr>
   )
 }

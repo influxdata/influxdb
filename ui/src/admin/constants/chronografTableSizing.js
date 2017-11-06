@@ -4,4 +4,5 @@ export const USERS_TABLE = {
   colSuperAdmin: 90,
   colProvider: 100,
   colScheme: 90,
+  colActions: 68,
 }

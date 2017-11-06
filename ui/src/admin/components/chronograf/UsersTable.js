@@ -6,6 +6,7 @@ import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
+import NewUserTableRow from 'src/admin/components/chronograf/NewUserTableRow'
 
 import {DEFAULT_ORG_NAME} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -41,6 +42,7 @@ class ChronografUsersTable extends Component {
 
   render() {
     const {
+      userRoles,
       organization,
       organizations,
       filteredUsers,
@@ -48,8 +50,19 @@ class ChronografUsersTable extends Component {
       onToggleUserSelected,
       selectedUsers,
       isSameUser,
+      isCreatingUserRow,
+      currentOrganization,
+      onCancelCreateUserRow,
+      onCreateUser,
     } = this.props
-    const {colOrg, colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
+    const {
+      colOrg,
+      colRole,
+      colSuperAdmin,
+      colProvider,
+      colScheme,
+      colActions,
+    } = USERS_TABLE
 
     const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
 
@@ -74,12 +87,20 @@ class ChronografUsersTable extends Component {
               </th>
             </Authorized>
             <th style={{width: colProvider}}>Provider</th>
-            <th className="text-right" style={{width: colScheme}}>
-              Scheme
-            </th>
+            <th style={{width: colScheme}}>Scheme</th>
+            <th className="text-right" style={{width: colActions}} />
           </tr>
         </thead>
         <tbody>
+          {isCreatingUserRow
+            ? <NewUserTableRow
+                currentOrganization={currentOrganization}
+                organizations={organizations}
+                userRoles={userRoles}
+                onCancelCreateUser={onCancelCreateUserRow}
+                onCreateUser={onCreateUser}
+              />
+            : null}
           {filteredUsers.length
             ? filteredUsers.map(
                 (user, i) =>
@@ -131,15 +152,17 @@ class ChronografUsersTable extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 ChronografUsersTable.propTypes = {
+  userRoles: arrayOf(shape()).isRequired,
   filteredUsers: arrayOf(shape()),
   selectedUsers: arrayOf(shape()),
   onFilterUsers: func.isRequired,
   onToggleUserSelected: func.isRequired,
   onToggleAllUsersSelected: func.isRequired,
   isSameUser: func.isRequired,
+  isCreatingUserRow: bool,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
@@ -152,6 +175,12 @@ ChronografUsersTable.propTypes = {
   ),
   onAddUserToOrg: func.isRequired,
   onUpdateUserRole: func.isRequired,
+  onCreateUser: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
+  onCancelCreateUserRow: func.isRequired,
+  currentOrganization: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+  }).isRequired,
 }
 export default ChronografUsersTable

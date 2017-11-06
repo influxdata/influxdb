@@ -22,6 +22,7 @@ class Dropdown extends Component {
     buttonColor: 'btn-default',
     menuWidth: '100%',
     useAutoComplete: false,
+    disabled: false,
   }
 
   handleClickOutside = () => {
@@ -29,6 +30,11 @@ class Dropdown extends Component {
   }
 
   handleClick = e => {
+    const {disabled} = this.props
+
+    if (disabled) {
+      return
+    }
     this.toggleMenu(e)
     if (this.props.onClick) {
       this.props.onClick(e)
@@ -208,10 +214,12 @@ class Dropdown extends Component {
       buttonColor,
       toggleStyle,
       useAutoComplete,
+      disabled,
     } = this.props
     const {isOpen, searchTerm, filteredItems} = this.state
     const menuItems = useAutoComplete ? filteredItems : items
 
+    const disabledClass = disabled ? 'disabled' : null
     return (
       <div
         onClick={this.handleClick}
@@ -222,7 +230,7 @@ class Dropdown extends Component {
       >
         {useAutoComplete && isOpen
           ? <div
-              className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor}`}
+              className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor} ${disabledClass}`}
               style={toggleStyle}
             >
               <input
@@ -239,7 +247,7 @@ class Dropdown extends Component {
               <span className="caret" />
             </div>
           : <div
-              className={`btn dropdown-toggle ${buttonSize} ${buttonColor}`}
+              className={`btn dropdown-toggle ${buttonSize} ${buttonColor} ${disabledClass}`}
               style={toggleStyle}
             >
               {iconName
@@ -297,6 +305,7 @@ Dropdown.propTypes = {
   menuClass: string,
   useAutoComplete: bool,
   toggleStyle: shape(),
+  disabled: bool,
 }
 
 export default OnClickOutside(Dropdown)

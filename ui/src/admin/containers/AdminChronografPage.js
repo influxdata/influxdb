@@ -12,7 +12,6 @@ import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 import ManageOrgsOverlay from 'src/admin/components/chronograf/ManageOrgsOverlay'
-import CreateUserOverlay from 'src/admin/components/chronograf/CreateUserOverlay'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -35,7 +34,7 @@ class AdminChronografPage extends Component {
       selectedUsers: [],
       filteredUsers: this.props.users,
       showManageOverlay: false,
-      showCreateUserOverlay: false,
+      isCreatingUserRow: false,
     }
   }
 
@@ -59,12 +58,18 @@ class AdminChronografPage extends Component {
     loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
+  handleClickCreateUserRow = () => {
+    this.setState({isCreatingUserRow: true})
+  }
+
+  handleCancelCreateUserRow = () => {
+    this.setState({isCreatingUserRow: false})
+  }
+
   handleShowManageOrgsOverlay = () => {
     this.setState({showManageOverlay: true})
   }
-  handleShowCreateUserOverlay = () => {
-    this.setState({showCreateUserOverlay: true})
-  }
+
   handleHideOverlays = () => {
     this.setState({showManageOverlay: false, showCreateUserOverlay: false})
   }
@@ -243,13 +248,13 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users, organizations} = this.props
+    const {users, organizations, currentOrganization} = this.props
     const {
       organization,
       selectedUsers,
       filteredUsers,
       showManageOverlay,
-      showCreateUserOverlay,
+      isCreatingUserRow,
     } = this.state
 
     return (
@@ -268,9 +273,7 @@ class AdminChronografPage extends Component {
                         organizationName={organization.name}
                         organizations={organizations}
                         onFilterUsers={this.handleFilterUsers}
-                        onShowCreateUserOverlay={
-                          this.handleShowCreateUserOverlay
-                        }
+                        onCreateUserRow={this.handleClickCreateUserRow}
                       />
                       <BatchActionsBar
                         numUsersSelected={selectedUsers.length}
@@ -289,6 +292,7 @@ class AdminChronografPage extends Component {
                           propsOverride={{organizationName: organization.name}}
                         >
                           <UsersTable
+                            userRoles={USER_ROLES}
                             filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
                             organization={organization}
                             organizations={organizations}
@@ -296,6 +300,12 @@ class AdminChronografPage extends Component {
                             onToggleUserSelected={this.handleToggleUserSelected}
                             selectedUsers={selectedUsers}
                             isSameUser={isSameUser}
+                            isCreatingUserRow={isCreatingUserRow}
+                            currentOrganization={currentOrganization}
+                            onCreateUser={this.handleCreateUser}
+                            onCancelCreateUserRow={
+                              this.handleCancelCreateUserRow
+                            }
                             onToggleAllUsersSelected={
                               this.handleToggleAllUsersSelected
                             }
@@ -317,15 +327,6 @@ class AdminChronografPage extends Component {
               onCreateOrg={this.handleCreateOrganization}
               onDeleteOrg={this.handleDeleteOrganization}
               onRenameOrg={this.handleRenameOrganization}
-              organizations={organizations}
-            />
-          : null}
-        {showCreateUserOverlay
-          ? <CreateUserOverlay
-              currentOrganization={organization}
-              onDismiss={this.handleHideOverlays}
-              onCreateUser={this.handleCreateUser}
-              userRoles={USER_ROLES}
               organizations={organizations}
             />
           : null}
