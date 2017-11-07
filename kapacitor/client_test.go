@@ -131,7 +131,7 @@ func TestClient_All(t *testing.T) {
 						ID:         "howdy",
 						Name:       "howdy",
 						TICKScript: "",
-						Type:       "unknown TaskType 0",
+						Type:       "invalid",
 						Status:     "enabled",
 						DBRPs:      []chronograf.DBRP{},
 					},

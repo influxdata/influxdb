@@ -65,13 +65,13 @@
 [[projects]]
   name = "github.com/influxdata/influxdb"
   packages = ["influxql","influxql/internal","influxql/neldermead","models","pkg/escape"]
-  revision = "af72d9b0e4ebe95be30e89b160f43eabaf0529ed"
+  revision = "cd9363b52cac452113b95554d98a6be51beda24e"
+  version = "v1.1.5"
 
 [[projects]]
   name = "github.com/influxdata/kapacitor"
-  packages = ["client/v1","pipeline","services/k8s/client","tick","tick/ast","tick/stateful","udf/agent"]
-  revision = "3b5512f7276483326577907803167e4bb213c613"
-  version = "v1.3.1"
+  packages = ["client/v1","pipeline","pipeline/tick","services/k8s/client","tick","tick/ast","tick/stateful","udf/agent"]
+  revision = "599f07a300c4178cb5b5f8c07415cf8fc67b8528"
 
 [[projects]]
   name = "github.com/influxdata/usage-client"
