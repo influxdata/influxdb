@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/boltdb/bolt"
@@ -54,7 +55,27 @@ func (d *DashboardsStore) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return d.AddIDs(ctx, boards)
+	if err := d.AddIDs(ctx, boards); err != nil {
+		return nil
+	}
+
+	defaultOrg, err := d.client.OrganizationsStore.DefaultOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+
+	for _, board := range boards {
+		if board.Organization == "" {
+			board.Organization = defaultOrgID
+			if err := d.Update(ctx, board); err != nil {
+				return nil
+			}
+		}
+	}
+
+	return nil
 }
 
 // All returns all known dashboards
