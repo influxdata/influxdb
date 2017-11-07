@@ -175,6 +175,12 @@ func AuthorizedUser(
 		}
 
 		if hasAuthorizedRole(u, role) {
+			if len(u.Roles) != 1 {
+				msg := `User %d has too many role in organization. User: %#v.Please report this log at https://github.com/influxdata/chronograf/issues/new"`
+				log.Error(fmt.Sprint(msg, u.ID, u))
+				unknownErrorWithMessage(w, fmt.Errorf("please have administrator check logs and report error"), logger)
+				return
+			}
 			// use the first role, since there should only ever be one
 			// for any particular organization and hasAuthorizedRole
 			// should ensure that at least one role for the org exists
