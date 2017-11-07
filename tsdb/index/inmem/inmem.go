@@ -715,6 +715,9 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr
 
 // SeriesPointIterator returns an influxql iterator over all series.
 func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
 	// Read and sort all measurements.
 	mms := make(Measurements, 0, len(i.measurements))
 	for _, mm := range i.measurements {
