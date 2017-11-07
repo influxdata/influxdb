@@ -31,7 +31,7 @@ export const OUTSIDE_RANGE = 'outside range'
 export const EQUAL_TO_OR_GREATER_THAN = 'equal to or greater'
 export const EQUAL_TO_OR_LESS_THAN = 'equal to or less than'
 
-export const OPERATORS = [
+export const THRESHOLD_OPERATORS = [
   GREATER_THAN,
   EQUAL_TO_OR_GREATER_THAN,
   EQUAL_TO_OR_LESS_THAN,
@@ -40,6 +40,15 @@ export const OPERATORS = [
   NOT_EQUAL_TO,
   INSIDE_RANGE,
   OUTSIDE_RANGE,
+]
+
+export const RELATIVE_OPERATORS = [
+  GREATER_THAN,
+  EQUAL_TO_OR_GREATER_THAN,
+  EQUAL_TO_OR_LESS_THAN,
+  LESS_THAN,
+  EQUAL_TO,
+  NOT_EQUAL_TO,
 ]
 
 // export const RELATIONS = ['once', 'more than ', 'less than'];

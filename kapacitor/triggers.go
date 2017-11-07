@@ -1,7 +1,10 @@
 package kapacitor
 
-import "github.com/influxdata/chronograf"
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/influxdata/chronograf"
+)
 
 const (
 	// Deadman triggers when data is missing for a period of time
