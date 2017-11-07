@@ -1,27 +1,44 @@
 import {buildQuery} from 'utils/influxql'
+import {shiftTimeRange} from 'shared/query/helpers'
 import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
 
-const buildQueries = (proxy, queryConfigs, timeRange) => {
+const buildQueries = (proxy, queryConfigs, tR) => {
   const statements = queryConfigs.map(query => {
-    const text =
-      query.rawText ||
-      buildQuery(TYPE_QUERY_CONFIG, query.range || timeRange, query)
-    return {text, id: query.id, queryConfig: query}
-  })
+    const {rawText, range, id, shift, database, measurement, fields} = query
+    const timeRange = range || tR
+    const text = rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, query)
+    const isParsable = database && measurement && fields.length
 
-  const queries = statements.filter(s => s.text !== null).map(s => {
-    let queryProxy = ''
-    if (s.queryConfig.source) {
-      queryProxy = `${s.queryConfig.source.links.proxy}`
+    if (shift && isParsable) {
+      const shiftedQuery = buildQuery(
+        TYPE_QUERY_CONFIG,
+        shiftTimeRange(timeRange, shift),
+        query
+      )
+
+      return {text: `${text};${shiftedQuery}`, id, queryConfig: query}
     }
 
-    return {
-      host: [queryProxy || proxy],
-      text: s.text,
-      id: s.id,
-      queryConfig: s.queryConfig,
-    }
+    return {text, id, queryConfig: query}
   })
+
+  const queries = statements
+    .filter(s => s.text !== null)
+    .map(({queryConfig, text, id}) => {
+      let queryProxy = ''
+      if (queryConfig.source) {
+        queryProxy = `${queryConfig.source.links.proxy}`
+      }
+
+      const host = [queryProxy || proxy]
+
+      return {
+        host,
+        text,
+        id,
+        queryConfig,
+      }
+    })
 
   return queries
 }

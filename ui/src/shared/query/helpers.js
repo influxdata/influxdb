@@ -46,6 +46,7 @@ export const shiftTimeRange = (timeRange, shift) => {
   const type = 'shifted'
 
   switch (trType) {
+    case RELATIVE_UPPER:
     case ABSOLUTE: {
       return {
         lower: `${lower} - ${duration}`,
