@@ -38,4 +38,32 @@ export const timeRangeType = ({upper, lower, type}) => {
   return INVALID
 }
 
-// based on time range type, calc the time shifted dates
+export const shiftTimeRange = (timeRange, shift) => {
+  const {upper, lower} = timeRange
+  const {multiple, unit} = shift
+  const trType = timeRangeType(timeRange)
+  const duration = `${multiple}${unit}`
+  const type = 'shifted'
+
+  switch (trType) {
+    case ABSOLUTE: {
+      return {
+        lower: `${lower} - ${duration}`,
+        upper: `${upper} - ${duration}`,
+        type,
+      }
+    }
+
+    case RELATIVE_LOWER: {
+      return {
+        lower: `${lower} - ${duration}`,
+        upper: `now() - ${duration}`,
+        type,
+      }
+    }
+
+    default: {
+      return {lower, upper, type: 'unshifted'}
+    }
+  }
+}

@@ -49,4 +49,61 @@ describe('Shared.Query.Helpers', () => {
       expect(timeRangeType(timeRange)).to.equal(RELATIVE_UPPER)
     })
   })
+
+  describe('timeRangeShift', () => {
+    it('can calculate the shift for absolute timeRanges', () => {
+      const upper = Date.now()
+      const oneMinute = 60000
+      const lower = Date.now() - oneMinute
+      const shift = {multiple: 7, unit: 'd'}
+      const timeRange = {upper, lower}
+
+      const type = timeRangeType(timeRange)
+      const actual = shiftTimeRange(timeRange, shift)
+      const expected = {
+        lower: `${lower} - 7d`,
+        upper: `${upper} - 7d`,
+        type: 'shifted',
+      }
+
+      expect(type).to.equal(ABSOLUTE)
+      expect(actual).to.deep.equal(expected)
+    })
+
+    it('can calculate the shift for relative lower timeRanges', () => {
+      const shift = {multiple: 7, unit: 'd'}
+      const lower = 'now() - 15m'
+      const timeRange = {lower, upper: null}
+
+      const type = timeRangeType(timeRange)
+      const actual = shiftTimeRange(timeRange, shift)
+      const expected = {
+        lower: `${lower} - 7d`,
+        upper: `now() - 7d`,
+        type: 'shifted',
+      }
+
+      expect(type).to.equal(RELATIVE_LOWER)
+      expect(actual).to.deep.equal(expected)
+    })
+
+    it('can calculate the shift for relative upper timeRanges', () => {
+      const upper = Date.now()
+      const oneMinute = 60000
+      const lower = Date.now() - oneMinute
+      const shift = {multiple: 7, unit: 'd'}
+      const timeRange = {upper, lower}
+
+      const type = timeRangeType(timeRange)
+      const actual = shiftTimeRange(timeRange, shift)
+      const expected = {
+        lower: `${lower} - 7d`,
+        upper: `${upper} - 7d`,
+        type: 'shifted',
+      }
+
+      expect(type).to.equal(ABSOLUTE)
+      expect(actual).to.deep.equal(expected)
+    })
+  })
 })
