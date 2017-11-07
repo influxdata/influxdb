@@ -33,11 +33,11 @@ func validRole(ctx context.Context) error {
 
 // Chronograf User Roles
 const (
-	MemberRoleName     = "member"
-	ViewerRoleName     = "viewer"
-	EditorRoleName     = "editor"
-	AdminRoleName      = "admin"
-	SuperAdminRoleName = "superadmin"
+	MemberRoleName   = "member"
+	ViewerRoleName   = "viewer"
+	EditorRoleName   = "editor"
+	AdminRoleName    = "admin"
+	SuperAdminStatus = "superadmin"
 )
 
 var (

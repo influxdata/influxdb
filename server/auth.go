@@ -197,7 +197,7 @@ func hasAuthorizedRole(u *chronograf.User, role string) bool {
 				return true
 			}
 		}
-	case roles.SuperAdminRoleName:
+	case roles.SuperAdminStatus:
 		// SuperAdmins should have been authorized before this.
 		// This is only meant to restrict access for non-superadmins.
 		return false

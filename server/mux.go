@@ -99,7 +99,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		return AuthorizedUser(
 			service.Store,
 			opts.UseAuth,
-			roles.SuperAdminRoleName,
+			roles.SuperAdminStatus,
 			opts.Logger,
 			next,
 		)
