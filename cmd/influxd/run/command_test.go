@@ -22,13 +22,21 @@ func TestCommand_PIDFile(t *testing.T) {
 	cmd := run.NewCommand()
 	cmd.Getenv = func(key string) string {
 		switch key {
+		case "INFLUXDB_DATA_DIR":
+			return filepath.Join(tmpdir, "data")
+		case "INFLUXDB_META_DIR":
+			return filepath.Join(tmpdir, "meta")
+		case "INFLUXDB_DATA_WAL_DIR":
+			return filepath.Join(tmpdir, "wal")
 		case "INFLUXDB_BIND_ADDRESS", "INFLUXDB_HTTP_BIND_ADDRESS":
 			return "127.0.0.1:0"
+		case "INFLUXDB_REPORTING_DISABLED":
+			return "true"
 		default:
 			return os.Getenv(key)
 		}
 	}
-	if err := cmd.Run("-pidfile", pidFile); err != nil {
+	if err := cmd.Run("-pidfile", pidFile, "-config", os.DevNull); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
