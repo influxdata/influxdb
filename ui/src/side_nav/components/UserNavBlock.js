@@ -31,9 +31,18 @@ class UserNavBlock extends Component {
         </div>
         <div className="sidebar-menu">
           <div className="sidebar-menu--heading">
+            {currentOrganization.name} (Member)
+          </div>
+          <div className="sidebar-menu--section">
             {me.name}
           </div>
-          <div className="sidebar-menu--section">Organizations</div>
+          <a className="sidebar-menu--item" href="#">
+            Manage Organizations
+          </a>
+          <a className="sidebar-menu--item" href={logoutLink}>
+            Logout
+          </a>
+          <div className="sidebar-menu--section">Switch Organizations</div>
           {roles.map((role, i) => {
             const isLinkCurrentOrg =
               currentOrganization.id === role.organization
@@ -53,10 +62,6 @@ class UserNavBlock extends Component {
               </span>
             )
           })}
-          <a className="sidebar-menu--item" href={logoutLink}>
-            Logout
-          </a>
-          {customLinks ? <div className="sidebar-menu--divider" /> : null}
           {customLinks
             ? <div className="sidebar-menu--section">Custom Links</div>
             : null}
