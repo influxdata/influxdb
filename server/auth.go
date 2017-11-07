@@ -68,6 +68,16 @@ func AuthorizedUser(
 				unknownErrorWithMessage(w, err, logger)
 				return
 			}
+			// To access resources (servers, sources, databases, layouts) within a DataStore,
+			// an organization and a role are required even if you are a super admin or are
+			// not using auth. Every user's current organization is set on context to filter
+			// the resources accessed within a DataStore, including for super admin or when
+			// not using auth. In this way, a DataStore can treat all requests the same,
+			// including those from a super admin and when not using auth.
+			//
+			// As for roles, in the case of super admin or when not using auth, the user's
+			// role on context (though not on their JWT or user) is set to be admin. In order
+			// to access all resources belonging to their current organization.
 			ctx = context.WithValue(ctx, organizations.ContextKey, fmt.Sprintf("%d", defaultOrg.ID))
 			ctx = context.WithValue(ctx, roles.ContextKey, roles.AdminRoleName)
 			r = r.WithContext(ctx)
@@ -122,7 +132,16 @@ func AuthorizedUser(
 
 		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 		serverCtx := context.WithValue(ctx, SuperAdminKey, true)
-		// the DataStore expects that the roles context key be set for future calls
+		// To access resources (servers, sources, databases, layouts) within a DataStore,
+		// an organization and a role are required even if you are a super admin or are
+		// not using auth. Every user's current organization is set on context to filter
+		// the resources accessed within a DataStore, including for super admin or when
+		// not using auth. In this way, a DataStore can treat all requests the same,
+		// including those from a super admin and when not using auth.
+		//
+		// As for roles, in the case of super admin or when not using auth, the user's
+		// role on context (though not on their JWT or user) is set to be admin. In order
+		// to access all resources belonging to their current organization.
 		serverCtx = context.WithValue(serverCtx, roles.ContextKey, roles.AdminRoleName)
 		// TODO: seems silly to look up a user twice
 		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
