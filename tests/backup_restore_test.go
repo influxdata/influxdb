@@ -143,7 +143,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	}
 
 	if res != partialExpected {
-		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", expected, res)
+		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
 	}
 
 	fmt.Printf("result: %v", res)
