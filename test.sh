@@ -90,7 +90,7 @@ function build_docker_image {
     local imagename=$2
 
     echo "Building docker image $imagename"
-    exit_if_fail docker build -f "$dockerfile" -t "$imagename" .
+    exit_if_fail docker build --rm=$DOCKER_RM -f "$dockerfile" -t "$imagename" .
 }
 
 
