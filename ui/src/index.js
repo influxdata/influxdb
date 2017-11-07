@@ -11,7 +11,12 @@ import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
 import App from 'src/App'
-import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
+import {
+  Login,
+  UserIsAuthenticated,
+  UserIsNotAuthenticated,
+  Purgatory,
+} from 'src/auth'
 import CheckSources from 'src/CheckSources'
 import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
@@ -137,6 +142,7 @@ const Root = React.createClass({
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
           <Route path="/login" component={UserIsNotAuthenticated(Login)} />
+          <Route path="/purgatory" component={Purgatory} />
           <Route
             path="/sources/new"
             component={UserIsAuthenticated(SourcePage)}

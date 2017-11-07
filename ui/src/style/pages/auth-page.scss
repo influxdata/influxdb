@@ -38,12 +38,14 @@
 
   h1 {
     color: $g20-white;
+    @include no-user-select();
     font-weight: 200;
     font-size: 52px;
     letter-spacing: -2px;
   }
   p {
     color: $g11-sidewalk;
+    @include no-user-select();
   }
 
   .btn {
@@ -65,12 +67,14 @@
   height: 100px;
 }
 .auth-credits {
+  @include no-user-select();
+  font-weight: 600;
   z-index: 90;
   position: absolute;
   bottom: ($sidebar--width / 4);
   left: 50%;
   transform: translateX(-50%);
-  font-size: 12px;
+  font-size: 13px;
   color: $g11-sidewalk;
 
   .icon {
@@ -78,6 +82,27 @@
     vertical-align: middle;
     position: relative;
     top: -1px;
-    margin-right: 1px;
+    margin-right: 2px;
+  }
+}
+
+/* Purgatory */
+.auth--purgatory {
+  margin-top: 30px;
+  min-width: 400px;
+  background-color: $g3-castle;
+  border-radius: 4px;
+  height: 200px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  > h3 {
+    white-space: nowrap;
+  }
+  > p {
+    text-align: center;
   }
 }
