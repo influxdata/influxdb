@@ -884,6 +884,14 @@ func (m *Measurement) SeriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 
 // tagKeysByExpr extracts the tag keys wanted by the expression.
 func (m *Measurement) TagKeysByExpr(expr influxql.Expr) (map[string]struct{}, error) {
+	if expr == nil {
+		set := make(map[string]struct{})
+		for _, key := range m.TagKeys() {
+			set[key] = struct{}{}
+		}
+		return set, nil
+	}
+
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {

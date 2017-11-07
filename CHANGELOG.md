@@ -47,6 +47,7 @@
 - [#8986](https://github.com/influxdata/influxdb/issues/8986): Add long-line support to client importer. Thanks @lets00!
 - [#9021](https://github.com/influxdata/influxdb/pull/9021): Update to go 1.9.2
 - [#8891](https://github.com/influxdata/influxdb/pull/8891): Allow human-readable byte sizes in config
+- [#9073](https://github.com/influxdata/influxdb/pull/9073): Improve SHOW TAG KEYS performance.
 
 ### Bugfixes
 

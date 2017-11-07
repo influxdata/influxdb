@@ -7869,12 +7869,6 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "show tag keys where",
-			command: "SHOW TAG KEYS WHERE host = 'server03'",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
 			name:    "show tag keys measurement not found",
 			command: "SHOW TAG KEYS FROM doesntexist",
 			exp:     `{"results":[{"statement_id":0}]}`,
@@ -7917,12 +7911,14 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var initialized bool
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			if !initialized {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
+				initialized = true
 			}
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)

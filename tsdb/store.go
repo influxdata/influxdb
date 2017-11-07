@@ -1000,6 +1000,148 @@ func (s *Store) MeasurementSeriesCounts(database string) (measuments int, series
 	return 0, 0
 }
 
+type TagKeys struct {
+	Measurement string
+	Keys        []string
+}
+
+type TagKeysSlice []TagKeys
+
+func (a TagKeysSlice) Len() int           { return len(a) }
+func (a TagKeysSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a TagKeysSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
+
+type tagKeys struct {
+	name []byte
+	keys []string
+}
+
+type tagKeysSlice []tagKeys
+
+func (a tagKeysSlice) Len() int           { return len(a) }
+func (a tagKeysSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a tagKeysSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
+
+// TagKeys returns the tag keys in the given database, matching the condition.
+func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagKeys, error) {
+	measurementExpr := influxql.CloneExpr(cond)
+	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val != "_name" {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	filterExpr := influxql.CloneExpr(cond)
+	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || strings.HasPrefix(tag.Val, "_") {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	// Get all the shards we're interested in.
+	shards := make([]*Shard, 0, len(shardIDs))
+	s.mu.RLock()
+	for _, sid := range shardIDs {
+		shard, ok := s.shards[sid]
+		if !ok {
+			return nil, fmt.Errorf("Store doesn't have shard with ID: %d", sid)
+		}
+		shards = append(shards, shard)
+	}
+	s.mu.RUnlock()
+
+	// If we're using the inmem index then all shards contain a duplicate
+	// version of the global index. We don't need to iterate over all shards
+	// since we have everything we need from the first shard.
+	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
+		shards = shards[:1]
+	}
+
+	// Determine list of measurements.
+	nameSet := make(map[string]struct{})
+	for _, sh := range shards {
+		names, err := sh.MeasurementNamesByExpr(measurementExpr)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range names {
+			nameSet[string(name)] = struct{}{}
+		}
+	}
+
+	// Sort names.
+	names := make([]string, 0, len(nameSet))
+	for name := range nameSet {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Iterate over each measurement.
+	var results []TagKeys
+	for _, name := range names {
+		// Build keyset over all shards for measurement.
+		keySet := make(map[string]struct{})
+		for _, sh := range shards {
+			shardKeySet, err := sh.MeasurementTagKeysByExpr([]byte(name), nil)
+			if err != nil {
+				return nil, err
+			} else if len(shardKeySet) == 0 {
+				continue
+			}
+
+			// Sort the tag keys.
+			shardKeys := make([]string, 0, len(shardKeySet))
+			for k := range shardKeySet {
+				shardKeys = append(shardKeys, k)
+			}
+			sort.Strings(shardKeys)
+
+			// Filter against tag values, skip if no values exist.
+			shardValues, err := sh.MeasurementTagKeyValuesByExpr(auth, []byte(name), shardKeys, filterExpr, true)
+			if err != nil {
+				return nil, err
+			}
+
+			for i := range shardKeys {
+				if len(shardValues[i]) == 0 {
+					continue
+				}
+				keySet[shardKeys[i]] = struct{}{}
+			}
+		}
+
+		// Sort key set.
+		keys := make([]string, 0, len(keySet))
+		for key := range keySet {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		// Add to resultset.
+		results = append(results, TagKeys{
+			Measurement: name,
+			Keys:        keys,
+		})
+	}
+	return results, nil
+}
+
 type TagValues struct {
 	Measurement string
 	Values      []KeyValue

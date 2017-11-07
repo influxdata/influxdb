@@ -337,38 +337,15 @@ func rewriteShowTagValuesCardinalityStatement(stmt *influxql.ShowTagValuesCardin
 }
 
 func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.Statement, error) {
-	s := &influxql.SelectStatement{
-		Condition:  stmt.Condition,
-		Offset:     stmt.Offset,
-		Limit:      stmt.Limit,
+	return &influxql.ShowTagKeysStatement{
+		Database:   stmt.Database,
+		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
 		SortFields: stmt.SortFields,
-		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
-	}
-
-	// Check if we can exclusively use the index.
-	if !influxql.HasTimeExpr(stmt.Condition) {
-		s.Fields = []*influxql.Field{{Expr: &influxql.VarRef{Val: "tagKey"}}}
-		s.Sources = rewriteSources(stmt.Sources, "_tagKeys", stmt.Database)
-		s.Condition = rewriteSourcesCondition(s.Sources, stmt.Condition)
-		return s, nil
-	}
-
-	// The query is bounded by time then it will have to query TSM data rather
-	// than utilising the index via system iterators.
-	s.Fields = []*influxql.Field{
-		{
-			Expr: &influxql.Call{
-				Name: "distinct",
-				Args: []influxql.Expr{&influxql.VarRef{Val: "_tagKey"}},
-			},
-			Alias: "tagKey",
-		},
-	}
-
-	s.Sources = rewriteSources2(stmt.Sources, stmt.Database)
-	return s, nil
+		Limit:      stmt.Limit,
+		Offset:     stmt.Offset,
+		SLimit:     stmt.SLimit,
+		SOffset:    stmt.SOffset,
+	}, nil
 }
 
 func rewriteShowTagKeyCardinalityStatement(stmt *influxql.ShowTagKeyCardinalityStatement) (influxql.Statement, error) {

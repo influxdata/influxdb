@@ -126,115 +126,115 @@ func TestRewriteStatement(t *testing.T) {
 		},
 		{
 			stmt: `SHOW TAG KEYS`,
-			s:    `SELECT tagKey FROM _tagKeys`,
+			s:    `SHOW TAG KEYS`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0`,
-			s:    `SELECT tagKey FROM db0.._tagKeys`,
+			s:    `SHOW TAG KEYS ON db0`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM cpu`,
-			s:    `SELECT tagKey FROM _tagKeys WHERE _name = 'cpu'`,
+			s:    `SHOW TAG KEYS WHERE _name = 'cpu'`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM cpu`,
-			s:    `SELECT tagKey FROM db0.._tagKeys WHERE _name = 'cpu'`,
+			s:    `SHOW TAG KEYS ON db0 WHERE _name = 'cpu'`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM /c.*/`,
-			s:    `SELECT tagKey FROM _tagKeys WHERE _name =~ /c.*/`,
+			s:    `SHOW TAG KEYS WHERE _name =~ /c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM /c.*/`,
-			s:    `SELECT tagKey FROM db0.._tagKeys WHERE _name =~ /c.*/`,
+			s:    `SHOW TAG KEYS ON db0 WHERE _name =~ /c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM _tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SHOW TAG KEYS WHERE (_name = 'cpu') AND (region = 'uswest')`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM db0.._tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name = 'cpu') AND (region = 'uswest')`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name = 'cpu'`,
+			s:    `SHOW TAG KEYS WHERE _name = 'cpu'`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1.cpu`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name = 'cpu'`,
+			s:    `SHOW TAG KEYS ON db0 WHERE _name = 'cpu'`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1./c.*/`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name =~ /c.*/`,
+			s:    `SHOW TAG KEYS WHERE _name =~ /c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1./c.*/`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name =~ /c.*/`,
+			s:    `SHOW TAG KEYS ON db0 WHERE _name =~ /c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SHOW TAG KEYS WHERE (_name = 'cpu') AND (region = 'uswest')`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1.cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name = 'cpu') AND (region = 'uswest')`,
 		},
 		{
 			stmt: `SHOW TAG KEYS WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM /.+/ WHERE time > 0`,
+			s:    `SHOW TAG KEYS WHERE time > 0`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0../.+/ WHERE time > 0`,
+			s:    `SHOW TAG KEYS ON db0 WHERE time > 0`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM cpu WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM cpu WHERE time > 0`,
+			s:    `SHOW TAG KEYS WHERE (_name = 'cpu') AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM cpu WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0..cpu WHERE time > 0`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name = 'cpu') AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM /c.*/ WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM /c.*/ WHERE time > 0`,
+			s:    `SHOW TAG KEYS WHERE (_name =~ /c.*/) AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM /c.*/ WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0../c.*/ WHERE time > 0`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name =~ /c.*/) AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM cpu WHERE region = 'uswest' AND time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM cpu WHERE region = 'uswest' AND time > 0`,
+			s:    `SHOW TAG KEYS WHERE (_name = 'cpu') AND (region = 'uswest' AND time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM cpu WHERE region = 'uswest' AND time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0..cpu WHERE region = 'uswest' AND time > 0`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name = 'cpu') AND (region = 'uswest' AND time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu WHERE time > 0`,
+			s:    `SHOW TAG KEYS WHERE (_name = 'cpu') AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1.cpu WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu WHERE time > 0`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name = 'cpu') AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1./c.*/ WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1./c.*/ WHERE time > 0`,
+			s:    `SHOW TAG KEYS WHERE (_name =~ /c.*/) AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1./c.*/ WHERE time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1./c.*/ WHERE time > 0`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name =~ /c.*/) AND (time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu WHERE region = 'uswest' AND time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu WHERE region = 'uswest' AND time > 0`,
+			s:    `SHOW TAG KEYS WHERE (_name = 'cpu') AND (region = 'uswest' AND time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1.cpu WHERE region = 'uswest' AND time > 0`,
-			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu WHERE region = 'uswest' AND time > 0`,
+			s:    `SHOW TAG KEYS ON db0 WHERE (_name = 'cpu') AND (region = 'uswest' AND time > 0)`,
 		},
 		{
 			stmt: `SHOW TAG VALUES WITH KEY = "region"`,
