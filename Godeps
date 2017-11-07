@@ -12,7 +12,7 @@ github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/google/go-cmp 18107e6c56edb2d51f965f7d68e59404f0daee54
 github.com/influxdata/influxql eff3015bb0a902c59a2d5967a3bbc46054ccd017
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
-github.com/influxdata/yamux a40d23b4fb6c9b7ec123eb353a412498e7236889
+github.com/influxdata/yamux 1f58ded512de5feabbe30b60c7d33a7a896c5f16
 github.com/influxdata/yarpc 036268cdec22b7074cd6d50cc6d7315c667063c7
 github.com/jwilder/encoding 27894731927e49b0a9023f00312be26733744815
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
