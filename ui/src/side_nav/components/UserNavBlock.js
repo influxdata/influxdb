@@ -2,6 +2,8 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 import classnames from 'classnames'
 
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
@@ -36,9 +38,11 @@ class UserNavBlock extends Component {
           <div className="sidebar-menu--section">
             {me.name}
           </div>
-          <a className="sidebar-menu--item" href="/organizations">
-            Manage Organizations
-          </a>
+          <Authorized requiredRole={SUPERADMIN_ROLE}>
+            <a className="sidebar-menu--item" href="/organizations">
+              Manage Organizations
+            </a>
+          </Authorized>
           <a className="sidebar-menu--item" href={logoutLink}>
             Logout
           </a>
