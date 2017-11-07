@@ -36,7 +36,7 @@ class UserNavBlock extends Component {
           <div className="sidebar-menu--section">
             {me.name}
           </div>
-          <a className="sidebar-menu--item" href="#">
+          <a className="sidebar-menu--item" href="/organizations">
             Manage Organizations
           </a>
           <a className="sidebar-menu--item" href={logoutLink}>
