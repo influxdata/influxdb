@@ -178,9 +178,11 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 
 // Organizations returns the underlying OrganizationsStore.
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {
-	// TODO(desa): added for when https://github.com/influxdata/chronograf/pull/2294 lands
 	if isServer := hasServerContext(ctx); isServer {
 		return s.OrganizationsStore
 	}
-	return s.OrganizationsStore
+	if org, ok := hasOrganizationContext(ctx); ok {
+		return organizations.NewOrganizationsStore(s.OrganizationsStore, org)
+	}
+	return &noop.OrganizationsStore{}
 }

@@ -115,7 +115,6 @@ func AuthorizedUser(
 			return
 		}
 		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
-
 		// TODO: seems silly to look up a user twice
 		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
 			Name:     &p.Subject,

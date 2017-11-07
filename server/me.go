@@ -82,6 +82,7 @@ type meOrganizationRequest struct {
 func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		serverCtx := serverContext(ctx)
 		principal, err := auth.Validate(ctx, r)
 		if err != nil {
 			s.Logger.Error(fmt.Sprintf("Invalid principal: %v", err))
@@ -100,7 +101,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 			return
 		}
-		_, err = s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		_, err = s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
 		if err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
@@ -115,7 +116,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			return
 		}
 		if p.Organization == "" {
-			defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+			defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 			if err != nil {
 				unknownErrorWithMessage(w, err, s.Logger)
 				return

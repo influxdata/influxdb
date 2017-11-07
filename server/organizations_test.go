@@ -70,7 +70,7 @@ func TestService_OrganizationID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				Store: &Store{
+				Store: &mocks.Store{
 					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
 				Logger: tt.fields.Logger,
@@ -157,7 +157,7 @@ func TestService_Organizations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				Store: &Store{
+				Store: &mocks.Store{
 					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
 				Logger: tt.fields.Logger,
@@ -238,7 +238,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				Store: &Store{
+				Store: &mocks.Store{
 					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
 				Logger: tt.fields.Logger,
@@ -325,7 +325,7 @@ func TestService_RemoveOrganization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				Store: &Store{
+				Store: &mocks.Store{
 					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
 				Logger: tt.fields.Logger,

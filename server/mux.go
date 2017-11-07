@@ -111,10 +111,10 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	/* API */
 	// Organizations
-	router.GET("/chronograf/v1/organizations", EnsureSuperAdmin(service.Organizations))
+	router.GET("/chronograf/v1/organizations", EnsureAdmin(service.Organizations))
 	router.POST("/chronograf/v1/organizations", EnsureSuperAdmin(service.NewOrganization))
 
-	router.GET("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.OrganizationID))
+	router.GET("/chronograf/v1/organizations/:id", EnsureAdmin(service.OrganizationID))
 	router.PATCH("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.UpdateOrganization))
 	router.DELETE("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.RemoveOrganization))
 
