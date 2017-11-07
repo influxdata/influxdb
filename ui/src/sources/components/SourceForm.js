@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
+import {connect} from 'react-redux'
+
 import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
 import _ from 'lodash'
 
@@ -9,10 +11,19 @@ const SourceForm = ({
   onSubmit,
   onInputChange,
   onBlurSourceURL,
+  isUsingAuth,
+  me,
 }) =>
   <div className="panel-body">
-    <h4 className="text-center">Connection Details</h4>
-    <br />
+    {isUsingAuth
+      ? <div className="text-center">
+          <h3>
+            No sources connected to{' '}
+            <strong>{me.currentOrganization.name}</strong>
+          </h3>
+          <h6>Add a Source below:</h6>
+        </div>
+      : <h4 className="text-center">Connection Details</h4>}
 
     <form onSubmit={onSubmit}>
       <div className="form-group col-xs-12 col-sm-6">
@@ -152,6 +163,15 @@ SourceForm.propTypes = {
   onInputChange: func.isRequired,
   onSubmit: func.isRequired,
   onBlurSourceURL: func.isRequired,
+  me: shape({
+    currentOrganization: shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    }),
+  }),
+  isUsingAuth: bool,
 }
 
-export default SourceForm
+const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
+
+export default connect(mapStateToProps)(SourceForm)
