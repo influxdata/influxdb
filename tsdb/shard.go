@@ -818,18 +818,21 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 }
 
 // CreateIterator returns an iterator for the data in the shard.
-func (s *Shard) CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error) {
+func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	engine, err := s.engine()
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(measurement, "_") {
-		if itr, ok, err := s.createSystemIterator(engine, measurement, opt); ok {
-			return itr, err
-		}
-		// Unknown system source so pass this to the engine.
+
+	switch m.SystemIterator {
+	case "_fieldKeys":
+		return NewFieldKeysIterator(engine, opt)
+	case "_series":
+		return s.createSeriesIterator(opt)
+	case "_tagKeys":
+		return NewTagKeysIterator(engine, opt)
 	}
-	return engine.CreateIterator(ctx, measurement, opt)
+	return engine.CreateIterator(ctx, m.Name, opt)
 }
 
 func (s *Shard) CreateCursor(ctx context.Context, r *CursorRequest) (Cursor, error) {
@@ -838,23 +841,6 @@ func (s *Shard) CreateCursor(ctx context.Context, r *CursorRequest) (Cursor, err
 		return nil, err
 	}
 	return engine.CreateCursor(ctx, r)
-}
-
-// createSystemIterator returns an iterator for a field of system source.
-func (s *Shard) createSystemIterator(engine Engine, measurement string, opt query.IteratorOptions) (query.Iterator, bool, error) {
-	switch measurement {
-	case "_fieldKeys":
-		itr, err := NewFieldKeysIterator(engine, opt)
-		return itr, true, err
-	case "_series":
-		itr, err := s.createSeriesIterator(opt)
-		return itr, true, err
-	case "_tagKeys":
-		itr, err := NewTagKeysIterator(engine, opt)
-		return itr, true, err
-	default:
-		return nil, false, nil
-	}
 }
 
 // createSeriesIterator returns a new instance of SeriesIterator.
@@ -958,26 +944,24 @@ func (s *Shard) mapType(measurement, field string) (influxql.DataType, error) {
 	}
 
 	// Process system measurements.
-	if strings.HasPrefix(measurement, "_") {
-		switch measurement {
-		case "_fieldKeys":
-			if field == "fieldKey" || field == "fieldType" {
-				return influxql.String, nil
-			}
-			return influxql.Unknown, nil
-		case "_series":
-			if field == "key" {
-				return influxql.String, nil
-			}
-			return influxql.Unknown, nil
-		case "_tagKeys":
-			if field == "tagKey" {
-				return influxql.String, nil
-			}
-			return influxql.Unknown, nil
+	switch measurement {
+	case "_fieldKeys":
+		if field == "fieldKey" || field == "fieldType" {
+			return influxql.String, nil
 		}
-		// Unknown system source so default to looking for a measurement.
+		return influxql.Unknown, nil
+	case "_series":
+		if field == "key" {
+			return influxql.String, nil
+		}
+		return influxql.Unknown, nil
+	case "_tagKeys":
+		if field == "tagKey" {
+			return influxql.String, nil
+		}
+		return influxql.Unknown, nil
 	}
+	// Unknown system source so default to looking for a measurement.
 
 	if exists, _ := engine.MeasurementExists([]byte(measurement)); !exists {
 		return influxql.Unknown, nil
@@ -1172,7 +1156,7 @@ type ShardGroup interface {
 	MeasurementsByRegex(re *regexp.Regexp) []string
 	FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	MapType(measurement, field string) influxql.DataType
-	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
+	CreateIterator(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
 	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
 	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
 }
@@ -1253,7 +1237,7 @@ func (a Shards) MapType(measurement, field string) influxql.DataType {
 	return typ
 }
 
-func (a Shards) CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error) {
+func (a Shards) CreateIterator(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	itrs := make([]query.Iterator, 0, len(a))
 	for _, sh := range a {
 		itr, err := sh.CreateIterator(ctx, measurement, opt)
@@ -1690,7 +1674,6 @@ type measurementKeyFunc func(name []byte) ([][]byte, error)
 
 func newMeasurementKeysIterator(engine Engine, fn measurementKeyFunc, opt query.IteratorOptions) (*measurementKeysIterator, error) {
 	itr := &measurementKeysIterator{fn: fn}
-
 	names, err := engine.MeasurementNamesByExpr(opt.Condition)
 	if err != nil {
 		return nil, err

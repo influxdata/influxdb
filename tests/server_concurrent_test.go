@@ -83,7 +83,19 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 		if !ok {
 			t.Fatal("Not a local server")
 		}
-		srv.TSDBStore.TagValues(nil, "db0", cond)
+
+		sgis, err := s.(*LocalServer).MetaClient.ShardGroupsByTimeRange("db0", "rp0", time.Time{}, time.Time{})
+		if err != nil {
+			return
+		}
+
+		var ids []uint64
+		for _, sgi := range sgis {
+			for _, si := range sgi.Shards {
+				ids = append(ids, si.ID)
+			}
+		}
+		srv.TSDBStore.TagValues(nil, ids, cond)
 	}
 
 	var f3 = func() { s.DropDatabase("db0") }

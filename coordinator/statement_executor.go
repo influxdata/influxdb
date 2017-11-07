@@ -937,7 +937,38 @@ func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatem
 		return ErrDatabaseNameRequired
 	}
 
-	tagValues, err := e.TSDBStore.TagValues(ctx.Authorizer, q.Database, q.Condition)
+	// Determine shard set based on database and time range.
+	// SHOW TAG VALUES returns all tag values for the default retention policy.
+	di := e.MetaClient.Database(q.Database)
+	if di == nil {
+		return fmt.Errorf("database not found: %s", q.Database)
+	}
+
+	if di.DefaultRetentionPolicy == "" {
+		return fmt.Errorf("database %s does not have default retention policy", q.Database)
+	}
+
+	// Determine appropriate time range. If one or fewer time boundaries provided
+	// then min/max possible time should be used instead.
+	valuer := &influxql.NowValuer{Now: time.Now()}
+	cond, timeRange, err := influxql.ConditionExpr(q.Condition, valuer)
+	if err != nil {
+		return err
+	}
+
+	sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, di.DefaultRetentionPolicy, timeRange.MinTime(), timeRange.MaxTime())
+	if err != nil {
+		return err
+	}
+
+	var shardIDs []uint64
+	for _, sgi := range sgis {
+		for _, si := range sgi.Shards {
+			shardIDs = append(shardIDs, si.ID)
+		}
+	}
+
+	tagValues, err := e.TSDBStore.TagValues(ctx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ctx.Send(&query.Result{
 			StatementID: ctx.StatementID,
@@ -1198,7 +1229,7 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDatabase string) error {
 	// Targets (measurements in an INTO clause) can have blank names, which means it will be
 	// the same as the measurement name it came from in the FROM clause.
-	if !m.IsTarget && m.Name == "" && m.Regex == nil {
+	if !m.IsTarget && m.Name == "" && m.SystemIterator == "" && m.Regex == nil {
 		return errors.New("invalid measurement")
 	}
 
@@ -1225,7 +1256,6 @@ func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaul
 		}
 		m.RetentionPolicy = di.DefaultRetentionPolicy
 	}
-
 	return nil
 }
 
@@ -1251,7 +1281,7 @@ type TSDBStore interface {
 	DeleteShard(id uint64) error
 
 	MeasurementNames(database string, cond influxql.Expr) ([][]byte, error)
-	TagValues(auth query.Authorizer, database string, cond influxql.Expr) ([]tsdb.TagValues, error)
+	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 
 	SeriesCardinality(database string) (int64, error)
 	MeasurementsCardinality(database string) (int64, error)

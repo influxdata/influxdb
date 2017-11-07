@@ -825,11 +825,11 @@ func newIteratorOptionsSubstatement(stmt *influxql.SelectStatement, opt Iterator
 	subOpt.Condition = cond
 	// If the time range is more constrained, use it instead. A less constrained time
 	// range should be ignored.
-	if !t.Min.IsZero() && t.MinTime() > opt.StartTime {
-		subOpt.StartTime = t.MinTime()
+	if !t.Min.IsZero() && t.MinTimeNano() > opt.StartTime {
+		subOpt.StartTime = t.MinTimeNano()
 	}
-	if !t.Max.IsZero() && t.MaxTime() < opt.EndTime {
-		subOpt.EndTime = t.MaxTime()
+	if !t.Max.IsZero() && t.MaxTimeNano() < opt.EndTime {
+		subOpt.EndTime = t.MaxTimeNano()
 	}
 
 	// Propagate the SLIMIT and SOFFSET from the outer query.

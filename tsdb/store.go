@@ -132,6 +132,11 @@ func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.opened {
+		// Already open
+		return nil
+	}
+
 	s.closing = make(chan struct{})
 	s.shards = map[uint64]*Shard{}
 
@@ -291,12 +296,13 @@ func (s *Store) loadShards() error {
 // shards through the Store will result in ErrStoreClosed being returned.
 func (s *Store) Close() error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.opened {
 		close(s.closing)
 	}
+	s.mu.Unlock()
+
 	s.wg.Wait()
+	// No other goroutines accessing the store, so no need for a Lock.
 
 	// Close all the shards in parallel.
 	if err := s.walkShards(s.shardsSlice(), func(sh *Shard) error {
@@ -305,9 +311,10 @@ func (s *Store) Close() error {
 		return err
 	}
 
-	s.opened = false
+	s.mu.Lock()
 	s.shards = nil
-
+	s.opened = false // Store may now be opened again.
+	s.mu.Unlock()
 	return nil
 }
 
@@ -956,6 +963,13 @@ func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte,
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	// If we're using the inmem index then all shards contain a duplicate
+	// version of the global index. We don't need to iterate over all shards
+	// since we have everything we need from the first shard.
+	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
+		shards = shards[:1]
+	}
+
 	// Map to deduplicate measurement names across all shards.  This is kind of naive
 	// and could be improved using a sorted merge of the already sorted measurements in
 	// each shard.
@@ -1013,11 +1027,23 @@ func (a tagValuesSlice) Len() int           { return len(a) }
 func (a tagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
-// TagValues returns the tag keys and values in the given database, matching the condition.
-func (s *Store) TagValues(auth query.Authorizer, database string, cond influxql.Expr) ([]TagValues, error) {
+// TagValues returns the tag keys and values for the provided shards, where the
+// tag values satisfy the provided condition.
+func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
 	if cond == nil {
 		return nil, errors.New("a condition is required")
 	}
+
+	cond = influxql.Reduce(influxql.RewriteExpr(cond, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			// Remove time clause from condition
+			if ref, ok := e.LHS.(*influxql.VarRef); ok && strings.ToLower(ref.Val) == "time" {
+				return nil
+			}
+		}
+		return e
+	}), nil)
 
 	measurementExpr := influxql.CloneExpr(cond)
 	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
@@ -1049,15 +1075,22 @@ func (s *Store) TagValues(auth query.Authorizer, database string, cond influxql.
 		return e
 	}), nil)
 
-	// Get all measurements for the shards we're interested in.
+	// Get set of Shards to work on.
+	shards := make([]*Shard, 0, len(shardIDs))
 	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
+	for _, sid := range shardIDs {
+		shard, ok := s.shards[sid]
+		if !ok {
+			return nil, fmt.Errorf("Store doesn't have shard with ID: %d", sid)
+		}
+		shards = append(shards, shard)
+	}
 	s.mu.RUnlock()
 
 	// If we're using the inmem index then all shards contain a duplicate
 	// version of the global index. We don't need to iterate over all shards
 	// since we have everything we need from the first shard.
-	if s.EngineOptions.IndexVersion == "inmem" && len(shards) > 0 {
+	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
 		shards = shards[:1]
 	}
 

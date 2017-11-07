@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -34,16 +35,16 @@ func TestLocalShardMapper(t *testing.T) {
 		}, nil
 	}
 
-	var tsdbStore TSDBStore
+	tsdbStore := &internal.TSDBStoreMock{}
 	tsdbStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
 		if !reflect.DeepEqual(ids, []uint64{1, 2, 3, 4}) {
 			t.Errorf("unexpected shard ids: %#v", ids)
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error) {
-			if measurement != "cpu" {
-				t.Errorf("unexpected measurement: %s", measurement)
+		sh.CreateIteratorFn = func(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+			if measurement.Name != "cpu" {
+				t.Errorf("unexpected measurement: %s", measurement.Name)
 			}
 			return &FloatIterator{}, nil
 		}
@@ -53,7 +54,7 @@ func TestLocalShardMapper(t *testing.T) {
 	// Initialize the shard mapper.
 	shardMapper := &coordinator.LocalShardMapper{
 		MetaClient: &metaClient,
-		TSDBStore:  &tsdbStore,
+		TSDBStore:  tsdbStore,
 	}
 
 	// Normal measurement.

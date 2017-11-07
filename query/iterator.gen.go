@@ -140,7 +140,6 @@ func newFloatMergeIterator(inputs []FloatIterator, opt IteratorOptions) *floatMe
 		// Append to the heap.
 		itr.heap.items = append(itr.heap.items, &floatMergeHeapItem{itr: bufInput})
 	}
-
 	return itr
 }
 
