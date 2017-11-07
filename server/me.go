@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/organizations"
+	"github.com/influxdata/chronograf/roles"
 )
 
 type meLinks struct {
@@ -219,7 +220,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		if !hasRoleInDefaultOrganization(usr) {
 			usr.Roles = append(usr.Roles, chronograf.Role{
 				Organization: "0",
-				Name:         MemberRoleName,
+				Name:         roles.MemberRoleName,
 			})
 			if err := s.Store.Users(ctx).Update(ctx, usr); err != nil {
 				unknownErrorWithMessage(w, err, s.Logger)
@@ -249,7 +250,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		Scheme: scheme,
 		Roles: []chronograf.Role{
 			{
-				Name: MemberRoleName,
+				Name: roles.MemberRoleName,
 				// This is the ID of the default organization
 				Organization: fmt.Sprintf("%d", defaultOrg.ID),
 			},

@@ -14,6 +14,7 @@ message Source {
 	string MetaURL            = 10; // MetaURL is the connection URL for the meta node.
 	string SharedSecret       = 11; // SharedSecret signs the optional InfluxDB JWT Authorization
 	string Organization       = 12; // Organization is the organization ID that resource belongs to
+	string Role               = 13; // Role is the name of the miniumum role that a user must possess to access the resource
 }
 
 message Dashboard {

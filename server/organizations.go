@@ -8,6 +8,7 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/roles"
 )
 
 func parseOrganizationID(id string) (uint64, error) {
@@ -36,11 +37,11 @@ func (r *organizationRequest) ValidUpdate() error {
 
 func (r *organizationRequest) ValidDefaultRole() error {
 	if r.DefaultRole == "" {
-		r.DefaultRole = MemberRoleName
+		r.DefaultRole = roles.MemberRoleName
 	}
 
 	switch r.DefaultRole {
-	case MemberRoleName, ViewerRoleName, EditorRoleName, AdminRoleName:
+	case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
 		return nil
 	default:
 		return fmt.Errorf("default role must be member, viewer, editor, or admin")

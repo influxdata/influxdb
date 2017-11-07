@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/organizations"
+	"github.com/influxdata/chronograf/roles"
 )
 
 // AuthorizedToken extracts the token and validates; if valid the next handler
@@ -67,7 +68,18 @@ func AuthorizedUser(
 				unknownErrorWithMessage(w, err, logger)
 				return
 			}
+			// To access resources (servers, sources, databases, layouts) within a DataStore,
+			// an organization and a role are required even if you are a super admin or are
+			// not using auth. Every user's current organization is set on context to filter
+			// the resources accessed within a DataStore, including for super admin or when
+			// not using auth. In this way, a DataStore can treat all requests the same,
+			// including those from a super admin and when not using auth.
+			//
+			// As for roles, in the case of super admin or when not using auth, the user's
+			// role on context (though not on their JWT or user) is set to be admin. In order
+			// to access all resources belonging to their current organization.
 			ctx = context.WithValue(ctx, organizations.ContextKey, fmt.Sprintf("%d", defaultOrg.ID))
+			ctx = context.WithValue(ctx, roles.ContextKey, roles.AdminRoleName)
 			r = r.WithContext(ctx)
 			next(w, r)
 			return
@@ -120,6 +132,17 @@ func AuthorizedUser(
 
 		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 		serverCtx := context.WithValue(ctx, SuperAdminKey, true)
+		// To access resources (servers, sources, databases, layouts) within a DataStore,
+		// an organization and a role are required even if you are a super admin or are
+		// not using auth. Every user's current organization is set on context to filter
+		// the resources accessed within a DataStore, including for super admin or when
+		// not using auth. In this way, a DataStore can treat all requests the same,
+		// including those from a super admin and when not using auth.
+		//
+		// As for roles, in the case of super admin or when not using auth, the user's
+		// role on context (though not on their JWT or user) is set to be admin. In order
+		// to access all resources belonging to their current organization.
+		serverCtx = context.WithValue(serverCtx, roles.ContextKey, roles.AdminRoleName)
 		// TODO: seems silly to look up a user twice
 		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
 			Name:     &p.Subject,
@@ -152,6 +175,16 @@ func AuthorizedUser(
 		}
 
 		if hasAuthorizedRole(u, role) {
+			if len(u.Roles) != 1 {
+				msg := `User %d has too many role in organization. User: %#v.Please report this log at https://github.com/influxdata/chronograf/issues/new"`
+				log.Error(fmt.Sprint(msg, u.ID, u))
+				unknownErrorWithMessage(w, fmt.Errorf("please have administrator check logs and report error"), logger)
+				return
+			}
+			// use the first role, since there should only ever be one
+			// for any particular organization and hasAuthorizedRole
+			// should ensure that at least one role for the org exists
+			ctx = context.WithValue(ctx, roles.ContextKey, u.Roles[0].Name)
 			r = r.WithContext(ctx)
 			next(w, r)
 			return
@@ -168,28 +201,28 @@ func hasAuthorizedRole(u *chronograf.User, role string) bool {
 	}
 
 	switch role {
-	case ViewerRoleName:
+	case roles.ViewerRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {
-			case ViewerRoleName, EditorRoleName, AdminRoleName:
+			case roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
 				return true
 			}
 		}
-	case EditorRoleName:
+	case roles.EditorRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {
-			case EditorRoleName, AdminRoleName:
+			case roles.EditorRoleName, roles.AdminRoleName:
 				return true
 			}
 		}
-	case AdminRoleName:
+	case roles.AdminRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {
-			case AdminRoleName:
+			case roles.AdminRoleName:
 				return true
 			}
 		}
-	case SuperAdminRoleName:
+	case roles.SuperAdminStatus:
 		// SuperAdmins should have been authorized before this.
 		// This is only meant to restrict access for non-superadmins.
 		return false
