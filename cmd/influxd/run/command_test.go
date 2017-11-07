@@ -20,6 +20,14 @@ func TestCommand_PIDFile(t *testing.T) {
 	pidFile := filepath.Join(tmpdir, "influxdb.pid")
 
 	cmd := run.NewCommand()
+	cmd.Getenv = func(key string) string {
+		switch key {
+		case "INFLUXDB_BIND_ADDRESS", "INFLUXDB_HTTP_BIND_ADDRESS":
+			return "127.0.0.1:0"
+		default:
+			return os.Getenv(key)
+		}
+	}
 	if err := cmd.Run("-pidfile", pidFile); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
