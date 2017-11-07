@@ -7261,6 +7261,10 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 }
 
 func TestServer_Query_ShowSeriesCardinalityEstimation(t *testing.T) {
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
 	t.Parallel()
 	s := OpenServer(NewConfig())
 	defer s.Close()
@@ -7626,8 +7630,8 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 }
 
 func TestServer_Query_ShowMeasurementCardinalityEstimation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping expensive test")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
 	t.Parallel()
