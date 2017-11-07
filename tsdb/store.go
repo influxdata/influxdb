@@ -132,6 +132,11 @@ func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.opened {
+		// Already open
+		return nil
+	}
+
 	s.closing = make(chan struct{})
 	s.shards = map[uint64]*Shard{}
 
@@ -291,12 +296,13 @@ func (s *Store) loadShards() error {
 // shards through the Store will result in ErrStoreClosed being returned.
 func (s *Store) Close() error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.opened {
 		close(s.closing)
 	}
+	s.mu.Unlock()
+
 	s.wg.Wait()
+	// No other goroutines accessing the store, so no need for a Lock.
 
 	// Close all the shards in parallel.
 	if err := s.walkShards(s.shardsSlice(), func(sh *Shard) error {
@@ -305,9 +311,10 @@ func (s *Store) Close() error {
 		return err
 	}
 
-	s.opened = false
+	s.mu.Lock()
 	s.shards = nil
-
+	s.opened = false // Store may now be opened again.
+	s.mu.Unlock()
 	return nil
 }
 
