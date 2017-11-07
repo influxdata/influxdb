@@ -86,7 +86,6 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 
 		sgis, err := s.(*LocalServer).MetaClient.ShardGroupsByTimeRange("db0", "rp0", time.Time{}, time.Time{})
 		if err != nil {
-			t.Log(err)
 			return
 		}
 
