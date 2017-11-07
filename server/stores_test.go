@@ -16,7 +16,6 @@ func TestStore_SourcesGet(t *testing.T) {
 		SourcesStore chronograf.SourcesStore
 	}
 	type args struct {
-		superAdmin   bool
 		organization string
 		role         string
 		id           int
@@ -261,7 +260,7 @@ func TestStore_SourcesGet(t *testing.T) {
 			},
 		},
 		{
-			name: "Get source as super admin",
+			name: "No organization or role set on context",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
@@ -274,22 +273,13 @@ func TestStore_SourcesGet(t *testing.T) {
 					},
 				},
 			},
-			args: args{
-				organization: "0",
-				role:         "viewer",
-				superAdmin:   true,
-			},
+			args: args{},
 			wants: wants{
-				source: chronograf.Source{
-					ID:           1,
-					Name:         "my sweet name",
-					Organization: "0",
-					Role:         "viewer",
-				},
+				err: true,
 			},
 		},
 		{
-			name: "Get source as super admin - no organization or role",
+			name: "Get source as viewer - no organization specified on context",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
@@ -303,14 +293,14 @@ func TestStore_SourcesGet(t *testing.T) {
 				},
 			},
 			args: args{
-				superAdmin: true,
+				role: "viewer",
 			},
 			wants: wants{
 				err: true,
 			},
 		},
 		{
-			name: "Get source as super admin - no role",
+			name: "Get source as editor - no organization specified on context",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
@@ -324,15 +314,14 @@ func TestStore_SourcesGet(t *testing.T) {
 				},
 			},
 			args: args{
-				superAdmin:   true,
-				organization: "0",
+				role: "editor",
 			},
 			wants: wants{
 				err: true,
 			},
 		},
 		{
-			name: "Get source as super admin - no organization",
+			name: "Get source as admin - no organization specified on context",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
@@ -346,8 +335,7 @@ func TestStore_SourcesGet(t *testing.T) {
 				},
 			},
 			args: args{
-				superAdmin: true,
-				role:       "viewer",
+				role: "admin",
 			},
 			wants: wants{
 				err: true,
@@ -362,10 +350,6 @@ func TestStore_SourcesGet(t *testing.T) {
 			}
 
 			ctx := context.Background()
-
-			if tt.args.superAdmin {
-				ctx = context.WithValue(ctx, SuperAdminKey, true)
-			}
 
 			if tt.args.organization != "" {
 				ctx = context.WithValue(ctx, organizations.ContextKey, tt.args.organization)
