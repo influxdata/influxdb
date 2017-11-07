@@ -91,6 +91,10 @@ func (n *NotEmpty) Valid(name, s string) error {
 	return n.Err
 }
 
+func Escape(str string) string {
+	return strings.Replace(str, "'", `\'`, -1)
+}
+
 func commonVars(rule chronograf.AlertRule) (string, error) {
 	n := new(NotEmpty)
 	n.Valid("database", rule.Query.Database)
@@ -129,14 +133,14 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var triggerType = '%s'
     `
 	res := fmt.Sprintf(common,
-		rule.Query.Database,
-		rule.Query.RetentionPolicy,
-		rule.Query.Measurement,
+		Escape(rule.Query.Database),
+		Escape(rule.Query.RetentionPolicy),
+		Escape(rule.Query.Measurement),
 		groupBy(rule.Query),
 		whereFilter(rule.Query),
 		wind,
-		rule.Name,
-		rule.Message,
+		Escape(rule.Name),
+		Escape(rule.Message),
 		IDTag,
 		LevelTag,
 		MessageField,

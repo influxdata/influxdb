@@ -1291,7 +1291,7 @@ func TestClient_Create(t *testing.T) {
 				ctx: context.Background(),
 				rule: chronograf.AlertRule{
 					ID:   "howdy",
-					Name: "mynames",
+					Name: "myname's",
 					Query: &chronograf.QueryConfig{
 						Database:        "db",
 						RetentionPolicy: "rp",
@@ -1330,7 +1330,7 @@ var whereFilter = lambda: TRUE
 
 var period = 1d
 
-var name = 'mynames'
+var name = 'myname\'s'
 
 var idVar = name + ':{{.Group}}'
 
