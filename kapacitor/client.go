@@ -319,6 +319,9 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 	} else {
 		opt, err = c.updateFromTick(rule)
 	}
+	if err != nil {
+		return nil, err
+	}
 
 	task, err := kapa.UpdateTask(client.Link{Href: href}, *opt)
 	if err != nil {

@@ -76,7 +76,41 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 	}
 }
 
+type NotEmpty struct {
+	Err error
+}
+
+func (n *NotEmpty) Valid(name, s string) error {
+	if n.Err != nil {
+		return n.Err
+
+	}
+	if s == "" {
+		n.Err = fmt.Errorf("%s cannot be an empty string", name)
+	}
+	return n.Err
+}
+
+func Escape(str string) string {
+	return strings.Replace(str, "'", `\'`, -1)
+}
+
 func commonVars(rule chronograf.AlertRule) (string, error) {
+	n := new(NotEmpty)
+	n.Valid("database", rule.Query.Database)
+	n.Valid("retention policy", rule.Query.RetentionPolicy)
+	n.Valid("measurement", rule.Query.Measurement)
+	n.Valid("alert name", rule.Name)
+	n.Valid("trigger type", rule.Trigger)
+	if n.Err != nil {
+		return "", n.Err
+	}
+
+	wind, err := window(rule)
+	if err != nil {
+		return "", err
+	}
+
 	common := `
         var db = '%s'
         var rp = '%s'
@@ -99,14 +133,14 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var triggerType = '%s'
     `
 	res := fmt.Sprintf(common,
-		rule.Query.Database,
-		rule.Query.RetentionPolicy,
-		rule.Query.Measurement,
+		Escape(rule.Query.Database),
+		Escape(rule.Query.RetentionPolicy),
+		Escape(rule.Query.Measurement),
 		groupBy(rule.Query),
 		whereFilter(rule.Query),
-		window(rule),
-		rule.Name,
-		rule.Message,
+		wind,
+		Escape(rule.Name),
+		Escape(rule.Message),
 		IDTag,
 		LevelTag,
 		MessageField,
@@ -127,17 +161,27 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 
 // window is only used if deadman or threshold/relative with aggregate.  Will return empty
 // if no period.
-func window(rule chronograf.AlertRule) string {
+func window(rule chronograf.AlertRule) (string, error) {
 	if rule.Trigger == Deadman {
-		return fmt.Sprintf("var period = %s", rule.TriggerValues.Period)
+		if rule.TriggerValues.Period == "" {
+			return "", fmt.Errorf("period cannot be an empty string in deadman alert")
+		}
+		return fmt.Sprintf("var period = %s", rule.TriggerValues.Period), nil
+
 	}
 	// Period only makes sense if the field has a been grouped via a time duration.
 	for _, field := range rule.Query.Fields {
 		if field.Type == "func" {
-			return fmt.Sprintf("var period = %s\nvar every = %s", rule.Query.GroupBy.Time, rule.Every)
+			n := new(NotEmpty)
+			n.Valid("group by time", rule.Query.GroupBy.Time)
+			n.Valid("every", rule.Every)
+			if n.Err != nil {
+				return "", n.Err
+			}
+			return fmt.Sprintf("var period = %s\nvar every = %s", rule.Query.GroupBy.Time, rule.Every), nil
 		}
 	}
-	return ""
+	return "", nil
 }
 
 func groupBy(q *chronograf.QueryConfig) string {

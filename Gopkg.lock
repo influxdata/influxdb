@@ -49,7 +49,7 @@
 
 [[projects]]
   name = "github.com/google/go-cmp"
-  packages = ["cmp"]
+  packages = ["cmp","cmp/cmpopts"]
   revision = "79b2d888f100ec053545168aa94bcfb322e8bfc8"
 
 [[projects]]
@@ -140,6 +140,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f34fb88755292baba8b52c14bf5b9a028daff96a763368a7cf1de90004d33695"
+  inputs-digest = "85a5451fc9e0596e486a676204eb2de0b12900522341ee0804cf9ec86fb2765e"
   solver-name = "gps-cdcl"
   solver-version = 1
