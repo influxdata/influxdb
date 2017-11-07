@@ -69,7 +69,6 @@ func AuthorizedUser(
 				return
 			}
 			ctx = context.WithValue(ctx, organizations.ContextKey, fmt.Sprintf("%d", defaultOrg.ID))
-			// TODO(desa): remove this in place of actual string value
 			ctx = context.WithValue(ctx, roles.ContextKey, roles.AdminRoleName)
 			r = r.WithContext(ctx)
 			next(w, r)

@@ -10,7 +10,10 @@ import (
 var _ chronograf.SourcesStore = &SourcesStore{}
 
 // SourcesStore facade on a SourceStore that filters sources
-// by role.
+// by minimum role required to access the source.
+//
+// The role is passed around on the context and set when the
+// SourcesStore is instantiated.
 type SourcesStore struct {
 	store chronograf.SourcesStore
 	role  string
@@ -110,6 +113,8 @@ func (s *SourcesStore) Update(ctx context.Context, d chronograf.Source) error {
 	return s.store.Update(ctx, d)
 }
 
+// hasAuthorizedRole checks that the role provided has at least
+// the minimum role required.
 func hasAuthorizedRole(sourceRole, providedRole string) bool {
 	switch sourceRole {
 	case ViewerRoleName:

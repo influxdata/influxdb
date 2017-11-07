@@ -33,7 +33,7 @@ func TestStore_SourcesGet(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "Get user as super admin",
+			name: "Get viewer source as viewer",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
@@ -47,7 +47,6 @@ func TestStore_SourcesGet(t *testing.T) {
 				},
 			},
 			args: args{
-				superAdmin:   true,
 				organization: "0",
 				role:         "viewer",
 			},
@@ -61,7 +60,236 @@ func TestStore_SourcesGet(t *testing.T) {
 			},
 		},
 		{
-			name: "Get user as super admin",
+			name: "Get viewer source as editor",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "editor",
+			},
+			wants: wants{
+				source: chronograf.Source{
+					ID:           1,
+					Name:         "my sweet name",
+					Organization: "0",
+					Role:         "viewer",
+				},
+			},
+		},
+		{
+			name: "Get viewer source as admin",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "admin",
+			},
+			wants: wants{
+				source: chronograf.Source{
+					ID:           1,
+					Name:         "my sweet name",
+					Organization: "0",
+					Role:         "viewer",
+				},
+			},
+		},
+		{
+			name: "Get admin source as viewer",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "admin",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "viewer",
+			},
+			wants: wants{
+				err: true,
+			},
+		},
+		{
+			name: "Get editor source as viewer",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "editor",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "viewer",
+			},
+			wants: wants{
+				err: true,
+			},
+		},
+		{
+			name: "Get editor source as editor",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "editor",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "editor",
+			},
+			wants: wants{
+				source: chronograf.Source{
+					ID:           1,
+					Name:         "my sweet name",
+					Organization: "0",
+					Role:         "editor",
+				},
+			},
+		},
+		{
+			name: "Get editor source as admin",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "editor",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "admin",
+			},
+			wants: wants{
+				source: chronograf.Source{
+					ID:           1,
+					Name:         "my sweet name",
+					Organization: "0",
+					Role:         "editor",
+				},
+			},
+		},
+		{
+			name: "Get editor source as viewer",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "editor",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "viewer",
+			},
+			wants: wants{
+				err: true,
+			},
+		},
+		{
+			name: "Get admin source as admin",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "admin",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "admin",
+			},
+			wants: wants{
+				source: chronograf.Source{
+					ID:           1,
+					Name:         "my sweet name",
+					Organization: "0",
+					Role:         "admin",
+				},
+			},
+		},
+		{
+			name: "Get source as super admin",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "viewer",
+				superAdmin:   true,
+			},
+			wants: wants{
+				source: chronograf.Source{
+					ID:           1,
+					Name:         "my sweet name",
+					Organization: "0",
+					Role:         "viewer",
+				},
+			},
+		},
+		{
+			name: "Get source as super admin - no organization or role",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
@@ -82,7 +310,29 @@ func TestStore_SourcesGet(t *testing.T) {
 			},
 		},
 		{
-			name: "Get user as super admin",
+			name: "Get source as super admin - no role",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID:           1,
+							Name:         "my sweet name",
+							Organization: "0",
+							Role:         "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				superAdmin:   true,
+				organization: "0",
+			},
+			wants: wants{
+				err: true,
+			},
+		},
+		{
+			name: "Get source as super admin - no organization",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, id int) (chronograf.Source, error) {
@@ -97,6 +347,7 @@ func TestStore_SourcesGet(t *testing.T) {
 			},
 			args: args{
 				superAdmin: true,
+				role:       "viewer",
 			},
 			wants: wants{
 				err: true,

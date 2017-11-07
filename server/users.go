@@ -68,7 +68,7 @@ func (r *userRequest) ValidRoles() error {
 			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
 				continue
 			default:
-				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', 'admin', and 'superadmin'", r.Name)
+				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', and 'admin'", r.Name)
 			}
 		}
 	}

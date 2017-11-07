@@ -46,17 +46,17 @@ var (
 		Name: MemberRoleName,
 	}
 
-	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
+	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, Sources, and Servers,
 	ViewerRole = chronograf.Role{
 		Name: ViewerRoleName,
 	}
 
-	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, and Sources
+	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Servers.
 	EditorRole = chronograf.Role{
 		Name: EditorRoleName,
 	}
 
-	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Users
+	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, Servers, and Users
 	AdminRole = chronograf.Role{
 		Name: AdminRoleName,
 	}

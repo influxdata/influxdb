@@ -984,7 +984,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', 'admin', and 'superadmin'"),
+			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', and 'admin'"),
 		},
 	}
 
