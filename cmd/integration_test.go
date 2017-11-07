@@ -38,7 +38,7 @@ func NewTestRunCommand(env map[string]string) *TestRunCommand {
 			return filepath.Join(dir, "data")
 		case "INFLUXDB_META_DIR":
 			return filepath.Join(dir, "meta")
-		case "INFLUXDB_WAL_DIR":
+		case "INFLUXDB_DATA_WAL_DIR":
 			return filepath.Join(dir, "wal")
 		case "INFLUXDB_HTTP_BIND_ADDRESS":
 			return "localhost:0"
