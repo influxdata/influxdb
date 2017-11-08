@@ -25,11 +25,7 @@ import {
   KapacitorTasksPage,
   TickscriptPage,
 } from 'src/kapacitor'
-import {
-  AdminChronografPage,
-  AdminInfluxDBPage,
-  OrganizationsPage,
-} from 'src/admin'
+import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
 
@@ -141,10 +137,6 @@ const Root = React.createClass({
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
           <Route path="/login" component={UserIsNotAuthenticated(Login)} />
-          <Route
-            path="/organizations"
-            component={UserIsAuthenticated(OrganizationsPage)}
-          />
           <Route
             path="/sources/new"
             component={UserIsAuthenticated(SourcePage)}
