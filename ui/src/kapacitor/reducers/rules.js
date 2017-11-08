@@ -76,65 +76,57 @@ export default function rules(state = {}, action) {
 
     case 'UPDATE_RULE_ALERTS': {
       const {ruleID, alerts} = action.payload
+      const culledalerts = alerts.map(a => a.type)
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
-          alerts,
+          alerts: culledalerts,
         }),
       })
     }
 
     case 'UPDATE_RULE_ALERT_NODES': {
-      const {ruleID, alertNodeName, alertNodesText} = action.payload
-
-      let alertNodesByType
-
-      switch (alertNodeName) {
-        case 'http':
-        case 'tcp':
-        case 'log':
-          alertNodesByType = [
-            {
-              name: alertNodeName,
-              args: [alertNodesText],
+      const {ruleID, alerts} = action.payload
+      const alertNodesByType = alerts.map(alert => {
+        const {type, alias} = alert
+        switch (type) {
+          case 'http':
+          case 'tcp':
+          case 'log':
+            return {
+              name: type,
+              args: [alias],
               properties: [],
-            },
-          ]
-          break
-        case 'exec':
-        case 'smtp':
-          alertNodesByType = [
-            {
-              name: alertNodeName,
-              args: alertNodesText.split(' '),
-              properties: [],
-            },
-          ]
-          break
-        case 'alerta':
-          alertNodesByType = [
-            {
-              name: alertNodeName,
+            }
+          case 'exec':
+          case 'smtp':
+            return [
+              {
+                name: type,
+                args: alias.split(' '),
+                properties: [],
+              },
+            ]
+          case 'alerta':
+            return {
+              name: type,
               args: [],
-              properties: parseAlerta(alertNodesText),
-            },
-          ]
-          break
-        case 'hipchat':
-        case 'opsgenie':
-        case 'pagerduty':
-        case 'slack':
-        case 'telegram':
-        case 'victorops':
-        case 'pushover':
-        default:
-          alertNodesByType = [
-            {
-              name: alertNodeName,
+              properties: parseAlerta(alias),
+            }
+          case 'hipchat':
+          case 'opsgenie':
+          case 'pagerduty':
+          case 'slack':
+          case 'telegram':
+          case 'victorops':
+          case 'pushover':
+          default:
+            return {
+              name: type,
               args: [],
               properties: [],
-            },
-          ]
-      }
+            }
+        }
+      })
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
           alertNodes: alertNodesByType,
