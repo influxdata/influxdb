@@ -92,7 +92,7 @@
   min-width: 400px;
   background-color: $g3-castle;
   border-radius: 4px;
-  height: 200px;
+  min-height: 200px;
   padding: 30px;
   display: flex;
   flex-direction: column;
@@ -104,5 +104,9 @@
   }
   > p {
     text-align: center;
+  }
+
+  hr {
+    width: 100%;
   }
 }

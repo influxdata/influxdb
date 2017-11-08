@@ -13,7 +13,7 @@ const viewerCopy = (
   </p>
 )
 
-const Purgatory = ({currentOrganization, role}) =>
+const Purgatory = ({name, provider, scheme, currentOrganization, role}) =>
   <div>
     <div className="auth-page">
       <div className="auth-box">
@@ -25,6 +25,16 @@ const Purgatory = ({currentOrganization, role}) =>
           </h3>
           {role === MEMBER_ROLE ? memberCopy : viewerCopy}
           <p>Contact your Administrator for assistance.</p>
+          <hr />
+          <pre>
+            <code>
+              username: {name}
+              <br />
+              provider: {provider}
+              <br />
+              scheme: {scheme}
+            </code>
+          </pre>
         </div>
       </div>
       <p className="auth-credits">
@@ -37,6 +47,9 @@ const Purgatory = ({currentOrganization, role}) =>
 const {shape, string} = PropTypes
 
 Purgatory.propTypes = {
+  name: string.isRequired,
+  provider: string.isRequired,
+  scheme: string.isRequired,
   currentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,
@@ -44,7 +57,12 @@ Purgatory.propTypes = {
   role: string.isRequired,
 }
 
-const mapStateToProps = ({auth: {me: {currentOrganization, role}}}) => ({
+const mapStateToProps = ({
+  auth: {me: {name, provider, scheme, currentOrganization, role}},
+}) => ({
+  name,
+  provider,
+  scheme,
   currentOrganization,
   role,
 })
