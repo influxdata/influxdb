@@ -142,7 +142,7 @@ const Root = React.createClass({
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
           <Route path="/login" component={UserIsNotAuthenticated(Login)} />
-          <Route path="/purgatory" component={Purgatory} />
+          <Route path="/purgatory" component={UserIsAuthenticated(Purgatory)} />
           <Route
             path="/sources/new"
             component={UserIsAuthenticated(SourcePage)}
