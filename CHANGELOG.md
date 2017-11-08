@@ -7,6 +7,7 @@
 1. [#2222](https://github.com/influxdata/chronograf/pull/2222): Fix template variables in dashboard query building.
 1. [#2291](https://github.com/influxdata/chronograf/pull/2291): Fix several kapacitor alert creation panics.
 1. [#2303](https://github.com/influxdata/chronograf/pull/2303): Add shadow-utils to RPM release packages
+1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
 
 ### Features
 ### UI Improvements
