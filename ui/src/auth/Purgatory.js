@@ -1,6 +1,7 @@
-import React from 'react'
+import React, {PropTypes} from 'react'
+import {connect} from 'react-redux'
 
-const Purgatory = () => {
+const Purgatory = ({currentOrganization}) => {
   return (
     <div>
       <div className="auth-page">
@@ -8,7 +9,7 @@ const Purgatory = () => {
           <div className="auth-logo" />
           <div className="auth--purgatory">
             <h3>
-              Logged in to <strong>[ORGNAME]</strong>
+              Logged in to <strong>{currentOrganization.name}</strong>
             </h3>
             <p>
               You have not been assigned a Role yet<br />Contact your
@@ -25,4 +26,17 @@ const Purgatory = () => {
   )
 }
 
-export default Purgatory
+const {shape, string} = PropTypes
+
+Purgatory.propTypes = {
+  currentOrganization: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+  }).isRequired,
+}
+
+const mapStateToProps = ({auth: {me: {currentOrganization}}}) => ({
+  currentOrganization,
+})
+
+export default connect(mapStateToProps)(Purgatory)
