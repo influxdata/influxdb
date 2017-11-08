@@ -4,7 +4,13 @@ import Dropdown from 'shared/components/Dropdown'
 
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 
-const BatchActionsBar = ({onDeleteUsers, onChangeRoles, numUsersSelected}) => {
+const BatchActionsBar = ({
+  organizations,
+  onDeleteUsers,
+  onChangeRoles,
+  numUsersSelected,
+  onAddUserToOrg,
+}) => {
   const rolesDropdownItems = USER_ROLES.map(role => ({
     ...role,
     text: role.name,
@@ -27,18 +33,27 @@ const BatchActionsBar = ({onDeleteUsers, onChangeRoles, numUsersSelected}) => {
               buttonColor="btn-primary"
               className="dropdown-140"
             />
+            <Dropdown
+              items={organizations.map(org => ({...org, text: org.name}))}
+              selected={'Add to Org'}
+              onChoose={onAddUserToOrg}
+              buttonColor="btn-primary"
+              className="dropdown-240"
+            />
           </div>
         : null}
     </div>
   )
 }
 
-const {func, number} = PropTypes
+const {arrayOf, func, number, shape} = PropTypes
 
 BatchActionsBar.propTypes = {
+  organizations: arrayOf(shape()),
   onDeleteUsers: func.isRequired,
   onChangeRoles: func.isRequired,
   numUsersSelected: number.isRequired,
+  onAddUserToOrg: func.isRequired,
 }
 
 export default BatchActionsBar

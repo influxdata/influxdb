@@ -42,9 +42,13 @@ class AdminChronografPage extends Component {
   }
 
   loadUsers = () => {
-    const {links, actions: {loadUsersAsync}} = this.props
+    const {
+      links,
+      actions: {loadUsersAsync, loadOrganizationsAsync},
+    } = this.props
 
     loadUsersAsync(links.users)
+    loadOrganizationsAsync(links.organizations)
   }
 
   handleToggleUserSelected = user => e => {
@@ -91,6 +95,7 @@ class AdminChronografPage extends Component {
   }
   // handleAddUserToOrg will add a user to an organization as a 'member'. if
   // the user already has a role in that organization, it will do nothing.
+
   handleAddUserToOrg = (user, organization) => {
     const {actions: {updateUserAsync}} = this.props
 
@@ -183,7 +188,7 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users, currentOrganization} = this.props
+    const {users, organizations, currentOrganization} = this.props
     const {selectedUsers} = this.state
 
     return (
@@ -195,7 +200,9 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <UsersTable
+                      onAddUserToOrg={this.handleBatchAddUsersToOrg}
                       users={users}
+                      organizations={organizations}
                       selectedUsers={selectedUsers}
                       onToggleUserSelected={this.handleToggleUserSelected}
                       onToggleAllUsersSelected={
@@ -227,12 +234,14 @@ AdminChronografPage.propTypes = {
     organizations: string.isRequired,
   }),
   users: arrayOf(shape),
+  organizations: arrayOf(shape),
   currentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
   actions: shape({
     loadUsersAsync: func.isRequired,
+    loadOrganizationsAsync: func.isRequired,
     createUserAsync: func.isRequired,
     updateUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
@@ -242,11 +251,12 @@ AdminChronografPage.propTypes = {
 
 const mapStateToProps = ({
   links,
-  adminChronograf: {users},
+  adminChronograf: {users, organizations},
   auth: {me: {currentOrganization}},
 }) => ({
   links,
   users,
+  organizations,
   currentOrganization,
 })
 

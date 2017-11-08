@@ -48,6 +48,7 @@ class UsersTable extends Component {
     const {
       organization,
       users,
+      organizations,
       onToggleAllUsersSelected,
       onToggleUserSelected,
       selectedUsers,
@@ -55,6 +56,7 @@ class UsersTable extends Component {
       onCreateUser,
       onDeleteUsers,
       onChangeRoles,
+      onAddUserToOrg,
     } = this.props
 
     const {isCreatingUser} = this.state
@@ -75,9 +77,11 @@ class UsersTable extends Component {
           onCreateUserRow={this.handleClickCreateUserRow}
         />
         <BatchActionsBar
+          organizations={organizations}
           numUsersSelected={selectedUsers.length}
           onDeleteUsers={onDeleteUsers}
           onChangeRoles={onChangeRoles}
+          onAddUserToOrg={onAddUserToOrg}
         />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">
@@ -154,6 +158,7 @@ const {arrayOf, func, shape, string} = PropTypes
 
 UsersTable.propTypes = {
   users: arrayOf(shape()),
+  organizations: arrayOf(shape()),
   selectedUsers: arrayOf(shape()),
   onToggleUserSelected: func.isRequired,
   onToggleAllUsersSelected: func.isRequired,
@@ -167,5 +172,6 @@ UsersTable.propTypes = {
   onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUsers: func.isRequired,
   onChangeRoles: func.isRequired,
+  onAddUserToOrg: func.isRequired,
 }
 export default UsersTable
