@@ -193,22 +193,24 @@ class KapacitorRule extends Component {
   }
 }
 
+const {arrayOf, func, shape, string} = PropTypes
+
 KapacitorRule.propTypes = {
-  source: PropTypes.shape({}).isRequired,
-  rule: PropTypes.shape({
-    values: PropTypes.shape({}),
+  source: shape({}).isRequired,
+  rule: shape({
+    values: shape({}),
   }).isRequired,
-  query: PropTypes.shape({}).isRequired,
-  queryConfigs: PropTypes.shape({}).isRequired,
-  queryConfigActions: PropTypes.shape({}).isRequired,
-  ruleActions: PropTypes.shape({}).isRequired,
-  addFlashMessage: PropTypes.func.isRequired,
-  ruleID: PropTypes.string.isRequired,
-  enabledAlerts: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
-  router: PropTypes.shape({
-    push: PropTypes.func.isRequired,
+  query: shape({}).isRequired,
+  queryConfigs: shape({}).isRequired,
+  queryConfigActions: shape({}).isRequired,
+  ruleActions: shape({}).isRequired,
+  addFlashMessage: func.isRequired,
+  ruleID: string.isRequired,
+  enabledAlerts: arrayOf(shape({})).isRequired,
+  router: shape({
+    push: func.isRequired,
   }).isRequired,
-  kapacitor: PropTypes.shape({}).isRequired,
+  kapacitor: shape({}).isRequired,
 }
 
 export default KapacitorRule

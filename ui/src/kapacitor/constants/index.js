@@ -79,7 +79,12 @@ export const RULE_MESSAGE_TEMPLATES = {
   },
 }
 
-export const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'log']
+export const DEFAULT_ALERTS = [
+  {type: 'http', options: {}},
+  {type: 'tcp', options: {}},
+  {type: 'exec', options: {}},
+  {type: 'log', options: {}},
+]
 
 export const RULE_ALERT_OPTIONS = {
   http: {
