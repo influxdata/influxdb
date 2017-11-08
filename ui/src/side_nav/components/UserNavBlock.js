@@ -24,7 +24,7 @@ class UserNavBlock extends Component {
       logoutLink,
       links: {external: {custom: customLinks}},
       me,
-      me: {currentOrganization, organizations, roles},
+      me: {currentOrganization, organizations, roles, role},
     } = this.props
 
     return (
@@ -34,7 +34,7 @@ class UserNavBlock extends Component {
         </div>
         <div className="sidebar-menu">
           <div className="sidebar-menu--heading">
-            {currentOrganization.name} (Member)
+            {currentOrganization.name} ({role})
           </div>
           <div className="sidebar-menu--section">
             {me.name}
@@ -53,9 +53,8 @@ class UserNavBlock extends Component {
             Logout
           </a>
           <div className="sidebar-menu--section">Switch Organizations</div>
-          {roles.map((role, i) => {
-            const isLinkCurrentOrg =
-              currentOrganization.id === role.organization
+          {roles.map((r, i) => {
+            const isLinkCurrentOrg = currentOrganization.id === r.organization
             return (
               <span
                 key={i}
@@ -63,12 +62,10 @@ class UserNavBlock extends Component {
                   'sidebar-menu--item': true,
                   active: isLinkCurrentOrg,
                 })}
-                onClick={this.handleChangeCurrentOrganization(
-                  role.organization
-                )}
+                onClick={this.handleChangeCurrentOrganization(r.organization)}
               >
-                {organizations.find(o => o.id === role.organization).name}{' '}
-                <strong>({role.name})</strong>
+                {organizations.find(o => o.id === r.organization).name}{' '}
+                <strong>({r.name})</strong>
               </span>
             )
           })}
@@ -127,6 +124,7 @@ UserNavBlock.propTypes = {
         name: string,
       })
     ),
+    role: string,
   }).isRequired,
   meChangeOrganization: func.isRequired,
 }
