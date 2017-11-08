@@ -69,14 +69,6 @@ export const shiftTimeRange = (timeRange, shift) => {
   }
 }
 
-export const shiftDate = (date, multiple, unit) => {
-  if (!date && !multiple && !unit) {
-    return moment(date)
-  }
-
-  return moment(date).add(multiple, getMomentUnit(unit))
-}
-
 const getMomentUnit = unit => {
   switch (unit) {
     case 'ms': {
@@ -107,4 +99,12 @@ const getMomentUnit = unit => {
       return unit
     }
   }
+}
+
+export const shiftDate = (date, multiple, unit) => {
+  if (!date && !multiple && !unit) {
+    return moment(date)
+  }
+
+  return moment(date).add(multiple, getMomentUnit(unit))
 }

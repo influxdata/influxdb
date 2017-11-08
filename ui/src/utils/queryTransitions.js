@@ -243,4 +243,4 @@ export const chooseTag = (query, tag) => {
   return updateTagValues(query.tags[tag.key].concat(tag.value))
 }
 
-export const timeShift = (query, shift) => ({...query, shift})
+export const timeShift = (query, shift) => ({...query, shift: [shift]})

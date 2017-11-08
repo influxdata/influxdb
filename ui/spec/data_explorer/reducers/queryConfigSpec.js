@@ -482,7 +482,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       const action = timeShift(queryID, shift)
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].shift).to.deep.equal(shift)
+      expect(nextState[queryID].shift).to.deep.equal([shift])
     })
   })
 })
