@@ -28,13 +28,20 @@ class OrganizationsTable extends Component {
     const {organizations, onDeleteOrg, onRenameOrg} = this.props
     const {isAddingOrganization} = this.state
 
+    const tableTitle =
+      organizations.length === 1
+        ? '1 Organizations'
+        : `${organizations.length} Organizations`
+
     return (
       <div className="container-fluid">
         <div className="row">
           <div className="col-xs-12">
             <div className="panel panel-minimal">
               <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                <h2 className="panel-title">22 Organizations</h2>
+                <h2 className="panel-title">
+                  {tableTitle}
+                </h2>
                 <button
                   className="btn btn-sm btn-primary"
                   onClick={this.handleClickCreateOrganization}
