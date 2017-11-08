@@ -16,7 +16,7 @@ class OrganizationsPage extends Component {
   componentDidMount() {
     const {links, actions: {loadOrganizationsAsync}} = this.props
 
-    loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
+    loadOrganizationsAsync(links.organizations)
   }
 
   handleCreateOrganization = organizationName => {
