@@ -80,7 +80,7 @@ class NewUserTableRow extends Component {
     } = this.props
     const {name, provider, scheme, role, superAdmin, organization} = this.state
 
-    const allowCreate = !name || !provider || !role || !organization
+    const preventCreate = !name || !provider || !role || !organization
 
     const isDefaultOrg = currentOrganization.id === DEFAULT_ORG_ID
 
@@ -171,7 +171,7 @@ class NewUserTableRow extends Component {
           </button>
           <button
             className="btn btn-xs btn-square btn-success"
-            disabled={allowCreate}
+            disabled={preventCreate}
             onClick={this.handleClickCreateUser}
           >
             <span className="icon checkmark" />
