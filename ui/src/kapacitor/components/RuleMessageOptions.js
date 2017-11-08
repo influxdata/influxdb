@@ -1,9 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import {
-  RULE_ALERT_OPTIONS,
-  ALERT_NODES_ACCESSORS,
-} from 'src/kapacitor/constants'
+import {RULE_ALERT_OPTIONS} from 'src/kapacitor/constants'
 
 class RuleMessageOptions extends Component {
   constructor(props) {
@@ -31,8 +28,8 @@ class RuleMessageOptions extends Component {
   }
 
   handleUpdateAlertNodes = e => {
-    const {updateAlertNodes, alertNode, rule} = this.props
-    updateAlertNodes(rule.id, alertNode, e.target.value)
+    const {handleUpdateArg, selectedEndpoint} = this.props
+    handleUpdateArg(selectedEndpoint, e.target.value)
   }
 
   handleUpdateAlertProperty = propertyName => e => {
@@ -44,8 +41,10 @@ class RuleMessageOptions extends Component {
   }
 
   render() {
-    const {rule, alertNode} = this.props
-    const {args, details, properties} = RULE_ALERT_OPTIONS[alertNode.kind]
+    const {rule, selectedEndpoint, handleEditAlert} = this.props
+    const {args, details, properties} = RULE_ALERT_OPTIONS[
+      selectedEndpoint.type
+    ]
 
     return (
       <div>
@@ -61,7 +60,7 @@ class RuleMessageOptions extends Component {
                     type="text"
                     placeholder={args.placeholder}
                     onChange={this.handleUpdateAlertNodes}
-                    value={ALERT_NODES_ACCESSORS[alertNode.kind](rule)}
+                    value={selectedEndpoint.args}
                     autoComplete="off"
                     spellCheck="false"
                   />
@@ -116,7 +115,7 @@ const {func, shape} = PropTypes
 
 RuleMessageOptions.propTypes = {
   rule: shape({}).isRequired,
-  alertNode: shape({}),
+  selectedEndpoint: shape({}),
   updateAlertNodes: func.isRequired,
   updateDetails: func.isRequired,
   updateAlertProperty: func.isRequired,
