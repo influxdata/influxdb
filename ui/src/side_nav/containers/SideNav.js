@@ -89,7 +89,12 @@ const SideNav = React.createClass({
             </Link>
           </div>
           {isUsingAuth
-            ? <UserNavBlock logoutLink={logoutLink} links={links} me={me} />
+            ? <UserNavBlock
+                logoutLink={logoutLink}
+                links={links}
+                me={me}
+                sourcePrefix={sourcePrefix}
+              />
             : null}
           <NavBlock
             icon="cubo-node"

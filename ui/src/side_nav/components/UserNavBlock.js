@@ -25,6 +25,7 @@ class UserNavBlock extends Component {
       links: {external: {custom: customLinks}},
       me,
       me: {currentOrganization, organizations, roles, role},
+      sourcePrefix,
     } = this.props
 
     return (
@@ -40,12 +41,15 @@ class UserNavBlock extends Component {
             {me.name}
           </div>
           <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <Link className="sidebar-menu--item" to="/admin/users">
+            <Link className="sidebar-menu--item" to={`${sourcePrefix}/users`}>
               Manage Users
             </Link>
           </Authorized>
           <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <Link className="sidebar-menu--item" to="/admin/organizations">
+            <Link
+              className="sidebar-menu--item"
+              to={`${sourcePrefix}/organizations`}
+            >
               Manage Organizations
             </Link>
           </Authorized>
@@ -127,6 +131,7 @@ UserNavBlock.propTypes = {
     role: string,
   }).isRequired,
   meChangeOrganization: func.isRequired,
+  sourcePrefix: string.isRequired, // TODO: remove this prop once we move /users & /organizations above sources
 }
 
 const mapDispatchToProps = dispatch => ({
