@@ -244,25 +244,25 @@ func encodeAux(aux []interface{}) []*internal.Aux {
 	for i := range aux {
 		switch v := aux[i].(type) {
 		case float64:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Float), FloatValue: proto.Float64(v)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Float)), FloatValue: proto.Float64(v)}
 		case *float64:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Float)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Float))}
 		case int64:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Integer), IntegerValue: proto.Int64(v)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Integer)), IntegerValue: proto.Int64(v)}
 		case *int64:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Integer)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Integer))}
 		case uint64:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Unsigned), UnsignedValue: proto.Uint64(v)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Unsigned)), UnsignedValue: proto.Uint64(v)}
 		case *uint64:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Unsigned)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Unsigned))}
 		case string:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.String), StringValue: proto.String(v)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.String)), StringValue: proto.String(v)}
 		case *string:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.String)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.String))}
 		case bool:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Boolean), BooleanValue: proto.Bool(v)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Boolean)), BooleanValue: proto.Bool(v)}
 		case *bool:
-			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Boolean)}
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Boolean))}
 		default:
 			pb[i] = &internal.Aux{DataType: proto.Int32(int32(influxql.Unknown))}
 		}
@@ -277,7 +277,7 @@ func decodeAux(pb []*internal.Aux) []interface{} {
 
 	aux := make([]interface{}, len(pb))
 	for i := range pb {
-		switch pb[i].GetDataType() {
+		switch influxql.DataType(pb[i].GetDataType()) {
 		case influxql.Float:
 			if pb[i].FloatValue != nil {
 				aux[i] = *pb[i].FloatValue
