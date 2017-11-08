@@ -20,7 +20,7 @@ class LogsTable extends Component {
     return objElements
   }
 
-  renderTableRow = (logItem, i) => {
+  renderTableRow = logItem => {
     let rowDetails
 
     if (logItem.service === 'sessions') {
@@ -111,7 +111,7 @@ class LogsTable extends Component {
     }
 
     return (
-      <div className="logs-table--row" key={i}>
+      <div className="logs-table--row" key={logItem.key}>
         <div className="logs-table--divider">
           <div className={`logs-table--level ${logItem.lvl}`} />
           <div className="logs-table--timestamp">
@@ -140,7 +140,7 @@ class LogsTable extends Component {
         </div>
         <div className="logs-table--panel">
           <div className="logs-table">
-            {logs.map((l, i) => this.renderTableRow(l, i))}
+            {logs.map(l => this.renderTableRow(l))}
           </div>
         </div>
       </div>

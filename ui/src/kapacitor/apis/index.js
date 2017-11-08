@@ -100,3 +100,15 @@ export const updateTask = async (
     throw error
   }
 }
+
+export const getLogStream = kapacitor =>
+  fetch(`${kapacitor.links.proxy}?path=/kapacitor/v1/logs`, {
+    method: 'GET',
+    headers: {'Content-Type': 'application/json'},
+  })
+
+export const getLogStreamByRuleID = (kapacitor, ruleID) =>
+  fetch(`${kapacitor.links.proxy}?path=/kapacitor/v1/logs?task=${ruleID}`, {
+    method: 'GET',
+    headers: {'Content-Type': 'application/json'},
+  })

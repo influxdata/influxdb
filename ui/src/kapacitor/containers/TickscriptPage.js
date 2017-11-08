@@ -1,11 +1,14 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import uuid from 'node-uuid'
 
 import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
+import {getLogStreamByRuleID} from 'src/kapacitor/apis'
+import {publishNotification} from 'shared/actions/notifications'
 
 class TickscriptPage extends Component {
   constructor(props) {
@@ -29,26 +32,16 @@ class TickscriptPage extends Component {
 
   shouldFetch = null
 
-  logKey = j => (log, i) => ({
-    ...log,
-    key: `${log.ts}-${j}-${i}`,
-  })
-
   fetchChunkedLogs = async (kapacitor, ruleID) => {
+    const {notify} = this.props
+
     try {
-      const response = await fetch(
-        `${kapacitor.links.proxy}?path=/kapacitor/v1/logs?task=${ruleID}`,
-        {
-          method: 'GET',
-          headers: {'Content-Type': 'application/json'},
-        }
-      )
+      const response = await getLogStreamByRuleID(kapacitor, ruleID)
 
       const reader = await response.body.getReader()
       const decoder = new TextDecoder()
 
       let result
-      let j = 0
 
       while (this.shouldFetch === true && !(result && result.done)) {
         result = await reader.read()
@@ -57,20 +50,21 @@ class TickscriptPage extends Component {
           stream: !result.done,
         })
 
-        const json = `[${chunk.split('}{').join('},{')}]`
+        const json = `[${chunk.split('}\n{').join('},{')}]`
 
-        const logs = JSON.parse(json).map(this.logKey(j))
+        const logs = JSON.parse(json).map(log => ({
+          ...log,
+          key: uuid.v4(),
+        }))
 
         this.setState({
-          logs: [...this.state.logs, ...logs],
+          logs: [...logs, ...this.state.logs],
         })
-
-        j += 1
       }
     } catch (error) {
       console.error(error)
+      notify('error', error)
       throw error
-      // TODO error handling
     }
   }
 
@@ -205,6 +199,7 @@ TickscriptPage.propTypes = {
     ruleID: string,
   }).isRequired,
   rules: arrayOf(shape()),
+  notify: func.isRequired,
 }
 
 const mapStateToProps = state => {
@@ -216,6 +211,7 @@ const mapStateToProps = state => {
 const mapDispatchToProps = dispatch => ({
   kapacitorActions: bindActionCreators(kapactiorActionCreators, dispatch),
   errorActions: bindActionCreators(errorActionCreators, dispatch),
+  notify: bindActionCreators(publishNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TickscriptPage)

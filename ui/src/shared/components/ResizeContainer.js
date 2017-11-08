@@ -97,7 +97,7 @@ class ResizeContainer extends Component {
 
   render() {
     const {bottomHeightPixels, topHeight, bottomHeight, isDragging} = this.state
-    const {containerClass, children, isKapacitorTheme} = this.props
+    const {containerClass, children, theme} = this.props
 
     if (React.Children.count(children) > maximumNumChildren) {
       console.error(
@@ -122,7 +122,7 @@ class ResizeContainer extends Component {
           })}
         </div>
         <ResizeHandle
-          isKapacitorTheme={isKapacitorTheme}
+          theme={theme}
           isDragging={isDragging}
           onHandleStartDrag={this.handleStartDrag}
           top={topHeight}
@@ -141,7 +141,7 @@ class ResizeContainer extends Component {
   }
 }
 
-const {bool, node, number, string} = PropTypes
+const {node, number, string} = PropTypes
 
 ResizeContainer.propTypes = {
   children: node.isRequired,
@@ -150,7 +150,7 @@ ResizeContainer.propTypes = {
   minBottomHeight: number,
   initialTopHeight: string,
   initialBottomHeight: string,
-  isKapacitorTheme: bool,
+  theme: string,
 }
 
 export default ResizeContainer
