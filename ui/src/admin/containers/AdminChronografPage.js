@@ -261,8 +261,8 @@ class AdminChronografPage extends Component {
       <div className="page">
         <PageHeader
           onShowManageOrgsOverlay={this.handleShowManageOrgsOverlay}
+          currentOrganization={currentOrganization}
         />
-
         <FancyScrollbar className="page-contents">
           {users
             ? <div className="container-fluid">
