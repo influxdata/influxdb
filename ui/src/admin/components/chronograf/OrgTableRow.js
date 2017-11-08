@@ -15,7 +15,14 @@ const OrgTableRow = ({
   isSameUser,
   onChangeUserRole,
 }) => {
-  const {colOrg, colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
+  const {
+    colOrg,
+    colRole,
+    colSuperAdmin,
+    colProvider,
+    colScheme,
+    colActions,
+  } = USERS_TABLE
 
   const isSelected = selectedUsers.find(u => isSameUser(user, u))
 
@@ -24,7 +31,13 @@ const OrgTableRow = ({
   )
 
   return (
-    <tr className={isSelected ? 'selected' : null}>
+    <tr
+      className={
+        isSelected
+          ? 'chronograf-admin-table--user selected'
+          : 'chronograf-admin-table--user'
+      }
+    >
       <td
         onClick={onToggleUserSelected(user)}
         className="chronograf-admin-table--check-col chronograf-admin-table--selectable"
@@ -67,9 +80,10 @@ const OrgTableRow = ({
       <td style={{width: colProvider}}>
         {user.provider}
       </td>
-      <td className="text-right" style={{width: colScheme}}>
+      <td style={{width: colScheme}}>
         {user.scheme}
       </td>
+      <td className="text-right" style={{width: colActions}} />
     </tr>
   )
 }

@@ -6,6 +6,7 @@ import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
+import NewUserTableRow from 'src/admin/components/chronograf/NewUserTableRow'
 
 import {DEFAULT_ORG_NAME} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -41,6 +42,7 @@ class ChronografUsersTable extends Component {
 
   render() {
     const {
+      userRoles,
       organization,
       organizations,
       filteredUsers,
@@ -48,8 +50,19 @@ class ChronografUsersTable extends Component {
       onToggleUserSelected,
       selectedUsers,
       isSameUser,
+      isCreatingUser,
+      currentOrganization,
+      onBlurCreateUserRow,
+      onCreateUser,
     } = this.props
-    const {colOrg, colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
+    const {
+      colOrg,
+      colRole,
+      colSuperAdmin,
+      colProvider,
+      colScheme,
+      colActions,
+    } = USERS_TABLE
 
     const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
 
@@ -66,18 +79,32 @@ class ChronografUsersTable extends Component {
               />
             </th>
             <th>Username</th>
-            <th style={{width: colOrg}}>Organization</th>
-            <th style={{width: colRole}}>Role</th>
+            <th style={{width: colOrg}} className="align-with-col-text">
+              Organization
+            </th>
+            <th style={{width: colRole}} className="align-with-col-text">
+              Role
+            </th>
             <Authorized requiredRole={SUPERADMIN_ROLE}>
-              <th style={{width: colSuperAdmin}}>SuperAdmin</th>
+              <th style={{width: colSuperAdmin}} className="text-center">
+                SuperAdmin
+              </th>
             </Authorized>
             <th style={{width: colProvider}}>Provider</th>
-            <th className="text-right" style={{width: colScheme}}>
-              Scheme
-            </th>
+            <th style={{width: colScheme}}>Scheme</th>
+            <th className="text-right" style={{width: colActions}} />
           </tr>
         </thead>
         <tbody>
+          {isCreatingUser
+            ? <NewUserTableRow
+                currentOrganization={currentOrganization}
+                organizations={organizations}
+                roles={userRoles}
+                onBlur={onBlurCreateUserRow}
+                onCreateUser={onCreateUser}
+              />
+            : null}
           {filteredUsers.length
             ? filteredUsers.map(
                 (user, i) =>
@@ -129,15 +156,17 @@ class ChronografUsersTable extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 ChronografUsersTable.propTypes = {
+  userRoles: arrayOf(shape()).isRequired,
   filteredUsers: arrayOf(shape()),
   selectedUsers: arrayOf(shape()),
   onFilterUsers: func.isRequired,
   onToggleUserSelected: func.isRequired,
   onToggleAllUsersSelected: func.isRequired,
   isSameUser: func.isRequired,
+  isCreatingUser: bool,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
@@ -150,6 +179,12 @@ ChronografUsersTable.propTypes = {
   ),
   onAddUserToOrg: func.isRequired,
   onUpdateUserRole: func.isRequired,
+  onCreateUser: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
+  onBlurCreateUserRow: func.isRequired,
+  currentOrganization: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+  }).isRequired,
 }
 export default ChronografUsersTable

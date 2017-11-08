@@ -1,6 +1,5 @@
 import React, {Component, PropTypes} from 'react'
-
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+import Authorized, {ADMIN_ROLE, SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import Dropdown from 'shared/components/Dropdown'
 
@@ -14,7 +13,7 @@ class UsersTableHeader extends Component {
   }
 
   render() {
-    const {organizations, organizationName} = this.props
+    const {organizations, organizationName, onCreateUserRow} = this.props
 
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -35,10 +34,16 @@ class UsersTableHeader extends Component {
               }))}
               selected={organizationName}
               onChoose={this.handleChooseFilter()}
-              buttonSize="btn-md"
+              buttonSize="btn-sm"
               className="dropdown-220"
             />
           </div>
+        </Authorized>
+        <Authorized requiredRole={ADMIN_ROLE}>
+          <button className="btn btn-primary btn-sm" onClick={onCreateUserRow}>
+            <span className="icon plus" />
+            Create User
+          </button>
         </Authorized>
       </div>
     )
@@ -51,6 +56,7 @@ UsersTableHeader.propTypes = {
   organizationName: string.isRequired,
   organizations: arrayOf(shape),
   onFilterUsers: func.isRequired,
+  onCreateUserRow: func.isRequired,
 }
 
 export default UsersTableHeader

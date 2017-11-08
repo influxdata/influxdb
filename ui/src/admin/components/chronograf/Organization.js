@@ -2,8 +2,6 @@ import React, {Component, PropTypes} from 'react'
 
 import OnClickOutside from 'react-onclickoutside'
 
-import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
-
 class Organization extends Component {
   constructor(props) {
     super(props)
@@ -64,8 +62,6 @@ class Organization extends Component {
     const {workingName, reset, isEditing, isDeleting} = this.state
     const {organization} = this.props
 
-    const isDefaultOrg = organization.id === DEFAULT_ORG_ID
-
     return (
       <div className="manage-orgs-form--org">
         <div className="manage-orgs-form--id">
@@ -101,7 +97,6 @@ class Organization extends Component {
           : <button
               className="btn btn-sm btn-default btn-square manage-orgs-form--delete"
               onClick={this.handleDeleteClick}
-              disabled={isDefaultOrg}
             >
               <span className="icon trash" />
             </button>}

@@ -204,6 +204,12 @@ table.table.chronograf-admin-table .dropdown {
     margin: 0;
   }
 }
+.chronograf-user--org {
+  padding-left: 7px;
+}
+table.table.chronograf-admin-table thead tr th.align-with-col-text {
+  padding-left: 15px;
+}
 .user-checkbox {
   display: inline-block;
   vertical-align: middle;
@@ -294,4 +300,43 @@ table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--selectabl
 }
 .super-admin-toggle .dropdown-toggle {
   width: 70px;
+}
+
+/* Make dropdowns in admin table appear as plaintext until hover */
+table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user td div.dropdown div.btn.dropdown-toggle {
+  transition: none;
+  background-color: $g3-castle;
+  color: $g13-mist;
+
+  > .caret {opacity: 0;}
+}
+table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user.selected td div.dropdown div.btn.dropdown-toggle {
+  background-color: $g5-pepper;
+}
+table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user:hover td div.dropdown div.btn.dropdown-toggle {
+  background-color: $c-pool;
+  color: $g20-white;
+
+  > .caret {opacity: 1;}
+
+  &:hover {
+    background-color: $c-laser;
+  }
+}
+table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user td div.dropdown.open div.btn.dropdown-toggle,
+table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user td div.dropdown.open div.btn.dropdown-toggle:hover {
+  background-color: $c-hydrogen;
+  color: $g20-white;
+
+  > .caret {opacity: 1;}
+}
+
+/* Styles for new user row */
+table.table.chronograf-admin-table tbody tr.chronograf-admin-table--new-user {
+  background-color: $g4-onyx;
+
+  > td {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
 }
