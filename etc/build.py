@@ -674,7 +674,7 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                             package_build_root,
                             current_location)
                         if package_type == "rpm":
-                            fpm_command += "--depends coreutils"
+                            fpm_command += "--depends coreutils --depends shadow-utils"
                         # TODO: Check for changelog
                         # elif package_type == "deb":
                         #     fpm_command += "--deb-changelog {} ".format(os.path.join(os.getcwd(), "CHANGELOG.md"))
