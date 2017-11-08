@@ -26,10 +26,7 @@ class AdminChronografPage extends Component {
     super(props)
 
     this.state = {
-      // TODO: pass around organization object instead of just name
-      organization: this.props.currentOrganization,
       selectedUsers: [],
-      filteredUsers: this.props.users,
       showManageOverlay: false,
     }
   }
@@ -37,21 +34,19 @@ class AdminChronografPage extends Component {
   // TODO: revisit this, possibly don't call setState if both are deep equal
   componentWillReceiveProps(nextProps) {
     const {users, currentOrganization} = nextProps
+    const {links} = this.props
 
-    this.handleFilterUsers({
-      users,
-      organization: currentOrganization,
-    })
+    const hasChangedCurrentOrganization =
+      currentOrganization.id !== this.props.currentOrganization.id
+
+    if (hasChangedCurrentOrganization) {
+      this.loadUsers()
+    }
   }
 
   componentDidMount() {
-    const {
-      links,
-      actions: {loadUsersAsync, loadOrganizationsAsync},
-    } = this.props
-
-    loadUsersAsync(links.users)
-    loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
+    this.loadUsers()
+    this.loadOrgs()
   }
 
   handleShowManageOrgsOverlay = () => {
@@ -62,29 +57,16 @@ class AdminChronografPage extends Component {
     this.setState({showManageOverlay: false})
   }
 
-  handleFilterUsers = ({users, organization}) => {
-    const nextUsers = users || this.props.users
-    const nextOrganization = organization || this.props.currentOrganization
+  loadUsers = () => {
+    const {links, actions: {loadUsersAsync}} = this.props
 
-    const filteredUsers =
-      nextOrganization.name === DEFAULT_ORG_NAME
-        ? nextUsers
-        : nextUsers.filter(
-            user =>
-              nextOrganization.name === NO_ORG
-                ? user.roles.length === 1 // Filter out if user is only part of Default Org
-                : user.roles.find(
-                    role => role.organization === nextOrganization.id
-                  )
-          )
-    this.setState({
-      filteredUsers,
-      organization: nextOrganization,
-      selectedUsers:
-        nextOrganization.name === DEFAULT_ORG_NAME
-          ? this.state.selectedUsers
-          : [],
-    })
+    loadUsersAsync(links.users)
+  }
+
+  loadOrgs = () => {
+    const {links, actions: {loadOrganizationsAsync}} = this.props
+
+    loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
   handleToggleUserSelected = user => e => {
@@ -101,12 +83,12 @@ class AdminChronografPage extends Component {
     this.setState({selectedUsers: newSelectedUsers})
   }
   handleToggleAllUsersSelected = areAllSelected => () => {
-    const {filteredUsers} = this.state
+    const {users} = this.props
 
     if (areAllSelected) {
       this.setState({selectedUsers: []})
     } else {
-      this.setState({selectedUsers: filteredUsers})
+      this.setState({selectedUsers: users})
     }
   }
 
@@ -214,12 +196,10 @@ class AdminChronografPage extends Component {
 
   render() {
     const {users, organizations, currentOrganization} = this.props
-    const {
-      organization,
-      selectedUsers,
-      filteredUsers,
-      showManageOverlay,
-    } = this.state
+    const {selectedUsers, showManageOverlay} = this.state
+
+    console.log('currentOrg:', currentOrganization)
+    console.log('Users:', users)
 
     return (
       <div className="page">
@@ -233,14 +213,14 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <UsersTable
-                      users={filteredUsers} // TODO: change to users upon separating Orgs & Users views
+                      users={users}
                       selectedUsers={selectedUsers}
                       onToggleUserSelected={this.handleToggleUserSelected}
                       onToggleAllUsersSelected={
                         this.handleToggleAllUsersSelected
                       }
                       isSameUser={isSameUser}
-                      organization={organization}
+                      organization={currentOrganization}
                       onUpdateUserRole={this.handleUpdateUserRole()}
                       onCreateUser={this.handleCreateUser}
                       onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
