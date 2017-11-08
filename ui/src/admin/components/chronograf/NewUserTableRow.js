@@ -27,7 +27,7 @@ class NewUserTableRow extends Component {
   }
 
   handleClickCreateUser = () => {
-    const {onCancelCreateUser, onCreateUser} = this.props
+    const {onBlur, onCreateUser} = this.props
     const {name, provider, scheme, role, superAdmin, organization} = this.state
 
     const newUser = {
@@ -44,7 +44,7 @@ class NewUserTableRow extends Component {
     }
 
     onCreateUser(newUser)
-    onCancelCreateUser()
+    onBlur()
   }
 
   handleInputFocus = e => {
@@ -72,12 +72,7 @@ class NewUserTableRow extends Component {
       colSuperAdmin,
       colActions,
     } = USERS_TABLE
-    const {
-      onCancelCreateUser,
-      roles,
-      organizations,
-      currentOrganization,
-    } = this.props
+    const {onBlur, roles, organizations, currentOrganization} = this.props
     const {name, provider, scheme, role, superAdmin, organization} = this.state
 
     const preventCreate = !name || !provider || !role || !organization
@@ -163,10 +158,7 @@ class NewUserTableRow extends Component {
           />
         </td>
         <td className="text-right" style={{width: colActions}}>
-          <button
-            className="btn btn-xs btn-square btn-info"
-            onClick={onCancelCreateUser}
-          >
+          <button className="btn btn-xs btn-square btn-info" onClick={onBlur}>
             <span className="icon remove" />
           </button>
           <button
@@ -189,7 +181,7 @@ NewUserTableRow.propTypes = {
     id: string.isRequired,
     name: string.isRequired,
   }),
-  onCancelCreateUser: func.isRequired,
+  onBlur: func.isRequired,
   onCreateUser: func.isRequired,
   roles: arrayOf(shape()).isRequired,
   organizations: arrayOf(

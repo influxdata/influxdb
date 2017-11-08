@@ -50,9 +50,9 @@ class ChronografUsersTable extends Component {
       onToggleUserSelected,
       selectedUsers,
       isSameUser,
-      isCreatingUserRow,
+      isCreatingUser,
       currentOrganization,
-      onCancelCreateUserRow,
+      onBlurCreateUserRow,
       onCreateUser,
     } = this.props
     const {
@@ -96,12 +96,12 @@ class ChronografUsersTable extends Component {
           </tr>
         </thead>
         <tbody>
-          {isCreatingUserRow
+          {isCreatingUser
             ? <NewUserTableRow
                 currentOrganization={currentOrganization}
                 organizations={organizations}
                 roles={userRoles}
-                onCancelCreateUser={onCancelCreateUserRow}
+                onBlur={onBlurCreateUserRow}
                 onCreateUser={onCreateUser}
               />
             : null}
@@ -166,7 +166,7 @@ ChronografUsersTable.propTypes = {
   onToggleUserSelected: func.isRequired,
   onToggleAllUsersSelected: func.isRequired,
   isSameUser: func.isRequired,
-  isCreatingUserRow: bool,
+  isCreatingUser: bool,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
@@ -181,7 +181,7 @@ ChronografUsersTable.propTypes = {
   onUpdateUserRole: func.isRequired,
   onCreateUser: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
-  onCancelCreateUserRow: func.isRequired,
+  onBlurCreateUserRow: func.isRequired,
   currentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,

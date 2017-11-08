@@ -34,7 +34,7 @@ class AdminChronografPage extends Component {
       selectedUsers: [],
       filteredUsers: this.props.users,
       showManageOverlay: false,
-      isCreatingUserRow: false,
+      isCreatingUser: false,
     }
   }
 
@@ -59,11 +59,11 @@ class AdminChronografPage extends Component {
   }
 
   handleClickCreateUserRow = () => {
-    this.setState({isCreatingUserRow: true})
+    this.setState({isCreatingUser: true})
   }
 
-  handleCancelCreateUserRow = () => {
-    this.setState({isCreatingUserRow: false})
+  handleBlurCreateUserRow = () => {
+    this.setState({isCreatingUser: false})
   }
 
   handleShowManageOrgsOverlay = () => {
@@ -254,7 +254,7 @@ class AdminChronografPage extends Component {
       selectedUsers,
       filteredUsers,
       showManageOverlay,
-      isCreatingUserRow,
+      isCreatingUser,
     } = this.state
 
     return (
@@ -300,12 +300,10 @@ class AdminChronografPage extends Component {
                             onToggleUserSelected={this.handleToggleUserSelected}
                             selectedUsers={selectedUsers}
                             isSameUser={isSameUser}
-                            isCreatingUserRow={isCreatingUserRow}
+                            isCreatingUser={isCreatingUser}
                             currentOrganization={currentOrganization}
                             onCreateUser={this.handleCreateUser}
-                            onCancelCreateUserRow={
-                              this.handleCancelCreateUserRow
-                            }
+                            onBlurCreateUserRow={this.handleBlurCreateUserRow}
                             onToggleAllUsersSelected={
                               this.handleToggleAllUsersSelected
                             }
