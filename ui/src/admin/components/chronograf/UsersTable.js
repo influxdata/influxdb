@@ -100,7 +100,7 @@ class ChronografUsersTable extends Component {
             ? <NewUserTableRow
                 currentOrganization={currentOrganization}
                 organizations={organizations}
-                userRoles={userRoles}
+                roles={userRoles}
                 onCancelCreateUser={onCancelCreateUserRow}
                 onCreateUser={onCreateUser}
               />

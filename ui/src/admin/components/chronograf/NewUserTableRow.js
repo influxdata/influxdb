@@ -13,12 +13,12 @@ class NewUserTableRow extends Component {
     super(props)
 
     this.state = {
-      userName: '',
-      userProvider: '',
-      userScheme: 'oauth2',
-      userRole: null,
-      userSuperAdmin: false,
-      userOrganization: this.props.currentOrganization,
+      name: '',
+      provider: '',
+      scheme: 'oauth2',
+      role: null,
+      superAdmin: false,
+      organization: this.props.currentOrganization,
     }
   }
 
@@ -28,24 +28,17 @@ class NewUserTableRow extends Component {
 
   handleClickCreateUser = () => {
     const {onCancelCreateUser, onCreateUser} = this.props
-    const {
-      userName,
-      userProvider,
-      userScheme,
-      userRole,
-      userSuperAdmin,
-      userOrganization,
-    } = this.state
+    const {name, provider, scheme, role, superAdmin, organization} = this.state
 
     const newUser = {
-      name: userName,
-      provider: userProvider,
-      scheme: userScheme,
-      superAdmin: userSuperAdmin.value,
+      name,
+      provider,
+      scheme,
+      superAdmin: superAdmin.value,
       roles: [
         {
-          name: userRole,
-          organization: userOrganization.id,
+          name: role,
+          organization: organization.id,
         },
       ],
     }
@@ -59,15 +52,15 @@ class NewUserTableRow extends Component {
   }
 
   handleSelectRole = newRole => {
-    this.setState({userRole: newRole.text})
+    this.setState({role: newRole.text})
   }
 
-  handleSelectSuperAdmin = userSuperAdmin => {
-    this.setState({userSuperAdmin})
+  handleSelectSuperAdmin = superAdmin => {
+    this.setState({superAdmin})
   }
 
   handleSelectOrganization = newUserOrganization => {
-    this.setState({userOrganization: newUserOrganization})
+    this.setState({organization: newUserOrganization})
   }
 
   render() {
@@ -81,21 +74,13 @@ class NewUserTableRow extends Component {
     } = USERS_TABLE
     const {
       onCancelCreateUser,
-      userRoles,
+      roles,
       organizations,
       currentOrganization,
     } = this.props
-    const {
-      userName,
-      userProvider,
-      userScheme,
-      userRole,
-      userSuperAdmin,
-      userOrganization,
-    } = this.state
+    const {name, provider, scheme, role, superAdmin, organization} = this.state
 
-    const allowCreate =
-      !userName || !userProvider || !userRole || !userOrganization
+    const allowCreate = !name || !provider || !role || !organization
 
     const isDefaultOrg = currentOrganization.id === DEFAULT_ORG_ID
 
@@ -104,6 +89,7 @@ class NewUserTableRow extends Component {
         return org
       }
     })
+
     return (
       <tr className="chronograf-admin-table--new-user">
         <td className="chronograf-admin-table--check-col" />
@@ -113,8 +99,8 @@ class NewUserTableRow extends Component {
             type="text"
             placeholder="OAuth Username..."
             autoFocus={true}
-            value={userName}
-            onChange={this.handleInputChange('userName')}
+            value={name}
+            onChange={this.handleInputChange('name')}
           />
         </td>
         <td style={{width: colOrg}}>
@@ -125,9 +111,9 @@ class NewUserTableRow extends Component {
                   text: org.name,
                 }))}
                 selected={
-                  userOrganization.id === DEFAULT_ORG_ID
+                  organization.id === DEFAULT_ORG_ID
                     ? 'Choose one'
-                    : userOrganization.name
+                    : organization.name
                 }
                 onChoose={this.handleSelectOrganization}
                 buttonColor="btn-primary"
@@ -140,19 +126,19 @@ class NewUserTableRow extends Component {
         </td>
         <td style={{width: colRole}}>
           <Dropdown
-            items={userRoles.map(role => ({...role, text: role.name}))}
-            selected={userRole || 'Assign'}
+            items={roles.map(r => ({...r, text: r.name}))}
+            selected={role || 'Assign'}
             onChoose={this.handleSelectRole}
             buttonColor="btn-primary"
             buttonSize="btn-xs"
             className="dropdown-80"
-            disabled={userOrganization.id === DEFAULT_ORG_ID}
+            disabled={organization.id === DEFAULT_ORG_ID}
           />
         </td>
         <Authorized requiredRole={SUPERADMIN_ROLE}>
           <td style={{width: colSuperAdmin}} className="text-center">
             <SlideToggle
-              active={userSuperAdmin}
+              active={superAdmin}
               size="xs"
               onToggle={this.handleSelectSuperAdmin}
             />
@@ -163,8 +149,8 @@ class NewUserTableRow extends Component {
             className="form-control input-xs"
             type="text"
             placeholder="OAuth Provider..."
-            value={userProvider}
-            onChange={this.handleInputChange('userProvider')}
+            value={provider}
+            onChange={this.handleInputChange('provider')}
           />
         </td>
         <td style={{width: colScheme}}>
@@ -173,7 +159,7 @@ class NewUserTableRow extends Component {
             type="text"
             disabled={true}
             placeholder="OAuth Scheme..."
-            value={userScheme}
+            value={scheme}
           />
         </td>
         <td className="text-right" style={{width: colActions}}>
@@ -205,7 +191,7 @@ NewUserTableRow.propTypes = {
   }),
   onCancelCreateUser: func.isRequired,
   onCreateUser: func.isRequired,
-  userRoles: arrayOf(shape()).isRequired,
+  roles: arrayOf(shape()).isRequired,
   organizations: arrayOf(
     shape({
       id: string.isRequired,
