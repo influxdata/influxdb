@@ -1,8 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-
-const PageHeader = ({onShowManageOrgsOverlay, currentOrganization}) =>
+const PageHeader = ({currentOrganization}) =>
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
@@ -10,24 +8,12 @@ const PageHeader = ({onShowManageOrgsOverlay, currentOrganization}) =>
           {currentOrganization.name}
         </h1>
       </div>
-      <div className="page-header__right">
-        <Authorized requiredRole={SUPERADMIN_ROLE}>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={onShowManageOrgsOverlay}
-          >
-            <span className="icon cog-thick" />
-            Manage Organizations
-          </button>
-        </Authorized>
-      </div>
     </div>
   </div>
 
-const {func, shape, string} = PropTypes
+const {shape, string} = PropTypes
 
 PageHeader.propTypes = {
-  onShowManageOrgsOverlay: func.isRequired,
   currentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,

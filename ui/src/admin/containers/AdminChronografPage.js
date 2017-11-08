@@ -9,7 +9,6 @@ import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
-import ManageOrgsOverlay from 'src/admin/components/chronograf/ManageOrgsOverlay'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -23,7 +22,6 @@ class AdminChronografPage extends Component {
 
     this.state = {
       selectedUsers: [],
-      showManageOverlay: false,
     }
   }
 
@@ -41,27 +39,12 @@ class AdminChronografPage extends Component {
 
   componentDidMount() {
     this.loadUsers()
-    this.loadOrgs()
-  }
-
-  handleShowManageOrgsOverlay = () => {
-    this.setState({showManageOverlay: true})
-  }
-
-  handleHideOverlays = () => {
-    this.setState({showManageOverlay: false})
   }
 
   loadUsers = () => {
     const {links, actions: {loadUsersAsync}} = this.props
 
     loadUsersAsync(links.users)
-  }
-
-  loadOrgs = () => {
-    const {links, actions: {loadOrganizationsAsync}} = this.props
-
-    loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
   handleToggleUserSelected = user => e => {
@@ -174,30 +157,13 @@ class AdminChronografPage extends Component {
     }
   }
 
-  // SINGLE ORGANIZATION ACTIONS
-  handleCreateOrganization = organizationName => {
-    const {links, actions: {createOrganizationAsync}} = this.props
-    createOrganizationAsync(links.organizations, {name: organizationName})
-  }
-  handleRenameOrganization = (organization, name) => {
-    const {actions: {renameOrganizationAsync}} = this.props
-    renameOrganizationAsync(organization, {...organization, name})
-  }
-  handleDeleteOrganization = organization => {
-    const {actions: {deleteOrganizationAsync}} = this.props
-    deleteOrganizationAsync(organization)
-  }
-
   render() {
-    const {users, organizations, currentOrganization} = this.props
-    const {selectedUsers, showManageOverlay} = this.state
+    const {users, currentOrganization} = this.props
+    const {selectedUsers} = this.state
 
     return (
       <div className="page">
-        <PageHeader
-          onShowManageOrgsOverlay={this.handleShowManageOrgsOverlay}
-          currentOrganization={currentOrganization}
-        />
+        <PageHeader currentOrganization={currentOrganization} />
         <FancyScrollbar className="page-contents">
           {users
             ? <div className="container-fluid">
@@ -223,15 +189,6 @@ class AdminChronografPage extends Component {
               </div>
             : <div className="page-spinner" />}
         </FancyScrollbar>
-        {showManageOverlay
-          ? <ManageOrgsOverlay
-              onDismiss={this.handleHideOverlays}
-              onCreateOrg={this.handleCreateOrganization}
-              onDeleteOrg={this.handleDeleteOrganization}
-              onRenameOrg={this.handleRenameOrganization}
-              organizations={organizations}
-            />
-          : null}
       </div>
     )
   }
@@ -245,38 +202,26 @@ AdminChronografPage.propTypes = {
     organizations: string.isRequired,
   }),
   users: arrayOf(shape),
-  organizations: arrayOf(
-    shape({
-      id: string, // when optimistically created, it will not have an id
-      name: string.isRequired,
-      link: string,
-    })
-  ),
   currentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
   actions: shape({
     loadUsersAsync: func.isRequired,
-    loadOrganizationsAsync: func.isRequired,
     createUserAsync: func.isRequired,
     updateUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
-    createOrganizationAsync: func.isRequired,
-    renameOrganizationAsync: func.isRequired,
-    deleteOrganizationAsync: func.isRequired,
   }),
   notify: func.isRequired,
 }
 
 const mapStateToProps = ({
   links,
-  adminChronograf: {users, organizations},
+  adminChronograf: {users},
   auth: {me: {currentOrganization}},
 }) => ({
   links,
   users,
-  organizations,
   currentOrganization,
 })
 
