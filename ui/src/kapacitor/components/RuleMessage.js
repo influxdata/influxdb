@@ -57,11 +57,11 @@ class RuleMessage extends Component {
 
   handleAddEndpoint = selectedItem => {
     const {endpointsOnThisAlert, endpointsOfKind} = this.state
-    const newItemNumbering = _.get(endpointsOfKind, selectedItem.alias, 0) + 1
-    const newItemName = selectedItem.alias + newItemNumbering
+    const newItemNumbering = _.get(endpointsOfKind, selectedItem.type, 0) + 1
+    const newItemName = selectedItem.type + newItemNumbering
     const newEndpoint = {
       alias: newItemName,
-      type: selectedItem.alias,
+      type: selectedItem.type,
       ruleID: selectedItem.ruleID,
     }
     this.setState(
