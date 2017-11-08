@@ -71,9 +71,7 @@ class ChronografUsersTable extends Component {
     return (
       <div className="panel panel-minimal">
         <UsersTableHeader
-          organizationName={organization.name}
-          organizations={organizations}
-          onFilterUsers={this.handleFilterUsers}
+          numUsers={filteredUsers.length}
           onCreateUserRow={this.handleClickCreateUserRow}
         />
         <BatchActionsBar
