@@ -47,6 +47,10 @@ const CheckSources = React.createClass({
     auth: shape({
       isUsingAuth: bool,
       me: shape(),
+      currentOrganization: shape({
+        name: string.isRequired,
+        id: string.isRequired,
+      }),
     }),
   },
 
@@ -142,7 +146,11 @@ const CheckSources = React.createClass({
   },
 
   render() {
-    const {params, sources, auth: {isUsingAuth, me}} = this.props
+    const {
+      params,
+      sources,
+      auth: {isUsingAuth, me, currentOrganization},
+    } = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)
 
@@ -150,7 +158,8 @@ const CheckSources = React.createClass({
       isFetching ||
       !source ||
       typeof isUsingAuth !== 'boolean' ||
-      (me && me.role === undefined) // TODO: not sure this happens
+      (me && me.role === undefined) || // TODO: not sure this happens
+      !currentOrganization
     ) {
       return <div className="page-spinner" />
     }
