@@ -8,10 +8,16 @@ const buildQueries = (proxy, queryConfigs, tR) => {
     const text = rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, query)
     const isParsable = database && measurement && fields.length
 
-    if (shift && shift.multiple && isParsable) {
-      const shiftedQuery = buildQuery(TYPE_SHIFTED, timeRange, query, shift)
+    if (shift && shift.length && isParsable) {
+      const shiftedQueries = shift
+        .filter(s => s.unit)
+        .map(s => buildQuery(TYPE_SHIFTED, timeRange, query, s))
 
-      return {text: `${text};${shiftedQuery}`, id, queryConfig: query}
+      return {
+        text: `${text};${shiftedQueries.join(';')}`,
+        id,
+        queryConfig: query,
+      }
     }
 
     return {text, id, queryConfig: query}

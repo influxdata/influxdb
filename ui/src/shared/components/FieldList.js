@@ -146,7 +146,7 @@ class FieldList extends Component {
           {hasAggregates
             ? <QueryOptions
                 fill={fill}
-                shift={shift}
+                shift={_.first(shift)}
                 groupBy={groupBy}
                 onFill={this.handleFill}
                 isKapacitorRule={isKapacitorRule}
@@ -193,7 +193,7 @@ class FieldList extends Component {
   }
 }
 
-const {bool, func, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 FieldList.defaultProps = {
   isKapacitorRule: false,
@@ -213,9 +213,13 @@ FieldList.propTypes = {
     database: string,
     retentionPolicy: string,
     measurement: string,
-    shift: shape({
-      duration: string,
-    }),
+    shift: arrayOf(
+      shape({
+        label: string,
+        unit: string,
+        multiple: number,
+      })
+    ),
   }).isRequired,
   onTimeShift: func.isRequired,
   onToggleField: func.isRequired,
