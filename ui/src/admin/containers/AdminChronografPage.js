@@ -19,7 +19,6 @@ import {
   DEFAULT_ORG_ID,
   DEFAULT_ORG_NAME,
   NO_ORG,
-  USER_ROLES,
 } from 'src/admin/constants/dummyUsers'
 
 class AdminChronografPage extends Component {
@@ -32,7 +31,6 @@ class AdminChronografPage extends Component {
       selectedUsers: [],
       filteredUsers: this.props.users,
       showManageOverlay: false,
-      isCreatingUser: false,
     }
   }
 
@@ -56,20 +54,12 @@ class AdminChronografPage extends Component {
     loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
-  handleClickCreateUserRow = () => {
-    this.setState({isCreatingUser: true})
-  }
-
-  handleBlurCreateUserRow = () => {
-    this.setState({isCreatingUser: false})
-  }
-
   handleShowManageOrgsOverlay = () => {
     this.setState({showManageOverlay: true})
   }
 
   handleHideOverlays = () => {
-    this.setState({showManageOverlay: false, showCreateUserOverlay: false})
+    this.setState({showManageOverlay: false})
   }
 
   handleFilterUsers = ({users, organization}) => {
@@ -219,15 +209,17 @@ class AdminChronografPage extends Component {
   }
   handleBatchDeleteUsers = () => {
     const {notify} = this.props
-    const {selectedUsers} = this.state
+    // const {selectedUsers} = this.state
 
-    if (selectedUsers.length > 1) {
+    if (this.state.selectedUsers.length > 1) {
       notify(
         'error',
         'Batch actions for more than 1 user not currently supported'
       )
     } else {
-      this.handleDeleteUser(selectedUsers[0])
+      this.handleDeleteUser(this.state.selectedUsers[0])
+      console.log('reset selectedUsers')
+      this.setState({selectedUsers: []})
     }
   }
 
@@ -252,7 +244,6 @@ class AdminChronografPage extends Component {
       selectedUsers,
       filteredUsers,
       showManageOverlay,
-      isCreatingUser,
     } = this.state
 
     return (
@@ -267,30 +258,18 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <div className="col-xs-12">
                     <UsersTable
-                      userRoles={USER_ROLES}
-                      filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
-                      organization={organization}
-                      organizations={organizations}
-                      onFilterUsers={this.handleFilterUsers}
-                      onToggleUserSelected={this.handleToggleUserSelected}
+                      users={filteredUsers} // TODO: change to users upon separating Orgs & Users views
                       selectedUsers={selectedUsers}
-                      isSameUser={isSameUser}
-                      isCreatingUser={isCreatingUser}
-                      currentOrganization={currentOrganization}
-                      onCreateUser={this.handleCreateUser}
-                      onBlurCreateUserRow={this.handleBlurCreateUserRow}
+                      onToggleUserSelected={this.handleToggleUserSelected}
                       onToggleAllUsersSelected={
                         this.handleToggleAllUsersSelected
                       }
-                      onAddUserToOrg={this.handleAddUserToOrg}
+                      isSameUser={isSameUser}
+                      organization={organization}
                       onUpdateUserRole={this.handleUpdateUserRole()}
+                      onCreateUser={this.handleCreateUser}
                       onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
-                      onCreateUserRow={this.handleClickCreateUserRow}
-                      numUsersSelected={selectedUsers.length}
-                      organizationName={organization.name}
                       onDeleteUsers={this.handleBatchDeleteUsers}
-                      onAddUsersToOrg={this.handleBatchAddUsersToOrg}
-                      onRemoveUsersFromOrg={this.handleBatchRemoveUsersFromOrg}
                       onChangeRoles={this.handleBatchChangeUsersRole}
                     />
                   </div>

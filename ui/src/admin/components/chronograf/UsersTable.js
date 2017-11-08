@@ -5,25 +5,19 @@ import _ from 'lodash'
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
-import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
 import NewUserTableRow from 'src/admin/components/chronograf/NewUserTableRow'
 import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 
-import {DEFAULT_ORG_NAME} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-class ChronografUsersTable extends Component {
+class UsersTable extends Component {
   constructor(props) {
     super(props)
-  }
 
-  handleChooseFilter = organization => () => {
-    this.props.onFilterUsers({organization})
-  }
-
-  handleSelectAddUserToOrg = user => organization => {
-    this.props.onAddUserToOrg(user, organization)
+    this.state = {
+      isCreatingUser: false,
+    }
   }
 
   handleChangeUserRole = (user, currentRole) => newRole => {
@@ -32,6 +26,14 @@ class ChronografUsersTable extends Component {
 
   handleChangeSuperAdmin = (user, currentStatus) => newStatus => {
     this.props.onUpdateUserSuperAdmin(user, currentStatus, newStatus)
+  }
+
+  handleClickCreateUserRow = () => {
+    this.setState({isCreatingUser: true})
+  }
+
+  handleBlurCreateUserRow = () => {
+    this.setState({isCreatingUser: false})
   }
 
   areSameUsers = (usersA, usersB) => {
@@ -44,21 +46,19 @@ class ChronografUsersTable extends Component {
 
   render() {
     const {
-      userRoles,
       organization,
-      organizations,
-      filteredUsers,
+      users,
       onToggleAllUsersSelected,
       onToggleUserSelected,
       selectedUsers,
       isSameUser,
-      isCreatingUser,
-      currentOrganization,
-      onBlurCreateUserRow,
       onCreateUser,
+      onDeleteUsers,
+      onChangeRoles,
     } = this.props
+
+    const {isCreatingUser} = this.state
     const {
-      colOrg,
       colRole,
       colSuperAdmin,
       colProvider,
@@ -66,22 +66,18 @@ class ChronografUsersTable extends Component {
       colActions,
     } = USERS_TABLE
 
-    const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
+    const areAllSelected = this.areSameUsers(users, selectedUsers)
 
     return (
       <div className="panel panel-minimal">
         <UsersTableHeader
-          numUsers={filteredUsers.length}
+          numUsers={users.length}
           onCreateUserRow={this.handleClickCreateUserRow}
         />
         <BatchActionsBar
           numUsersSelected={selectedUsers.length}
-          organizationName={organization.name}
-          organizations={organizations}
-          onDeleteUsers={this.handleBatchDeleteUsers}
-          onAddUsersToOrg={this.handleBatchAddUsersToOrg}
-          onRemoveUsersFromOrg={this.handleBatchRemoveUsersFromOrg}
-          onChangeRoles={this.handleBatchChangeUsersRole}
+          onDeleteUsers={onDeleteUsers}
+          onChangeRoles={onChangeRoles}
         />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">
@@ -98,9 +94,6 @@ class ChronografUsersTable extends Component {
                   />
                 </th>
                 <th>Username</th>
-                <th style={{width: colOrg}} className="align-with-col-text">
-                  Organization
-                </th>
                 <th style={{width: colRole}} className="align-with-col-text">
                   Role
                 </th>
@@ -117,54 +110,34 @@ class ChronografUsersTable extends Component {
             <tbody>
               {isCreatingUser
                 ? <NewUserTableRow
-                    currentOrganization={currentOrganization}
-                    organizations={organizations}
-                    roles={userRoles}
-                    onBlur={onBlurCreateUserRow}
+                    organization={organization}
+                    onBlur={this.handleBlurCreateUserRow}
                     onCreateUser={onCreateUser}
                   />
                 : null}
-              {filteredUsers.length
-                ? filteredUsers.map(
-                    (user, i) =>
-                      organization.name === DEFAULT_ORG_NAME
-                        ? <UsersTableRow
-                            user={user}
-                            key={i}
-                            organizations={organizations}
-                            onToggleUserSelected={onToggleUserSelected}
-                            selectedUsers={selectedUsers}
-                            isSameUser={isSameUser}
-                            onSelectAddUserToOrg={this.handleSelectAddUserToOrg(
-                              user
-                            )}
-                            onChangeUserRole={this.handleChangeUserRole}
-                            onChooseFilter={this.handleChooseFilter}
-                            onChangeSuperAdmin={this.handleChangeSuperAdmin}
-                          />
-                        : <OrgTableRow
-                            user={user}
-                            key={i}
-                            onToggleUserSelected={onToggleUserSelected}
-                            selectedUsers={selectedUsers}
-                            isSameUser={isSameUser}
-                            organization={organization}
-                            onSelectAddUserToOrg={this.handleSelectAddUserToOrg(
-                              user
-                            )}
-                            onChangeUserRole={this.handleChangeUserRole}
-                          />
+              {users.length || !isCreatingUser
+                ? users.map((user, i) =>
+                    <OrgTableRow
+                      user={user}
+                      key={i}
+                      onToggleUserSelected={onToggleUserSelected}
+                      selectedUsers={selectedUsers}
+                      isSameUser={isSameUser}
+                      organization={organization}
+                      onChangeUserRole={this.handleChangeUserRole}
+                      onChangeSuperAdmin={this.handleChangeSuperAdmin}
+                    />
                   )
                 : <tr className="table-empty-state">
                     <Authorized
                       requiredRole={SUPERADMIN_ROLE}
                       replaceWith={
-                        <th colSpan="6">
+                        <th colSpan="5">
                           <p>No Users to display</p>
                         </th>
                       }
                     >
-                      <th colSpan="7">
+                      <th colSpan="6">
                         <p>No Users to display</p>
                       </th>
                     </Authorized>
@@ -177,35 +150,22 @@ class ChronografUsersTable extends Component {
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
-ChronografUsersTable.propTypes = {
-  userRoles: arrayOf(shape()).isRequired,
-  filteredUsers: arrayOf(shape()),
+UsersTable.propTypes = {
+  users: arrayOf(shape()),
   selectedUsers: arrayOf(shape()),
-  onFilterUsers: func.isRequired,
   onToggleUserSelected: func.isRequired,
   onToggleAllUsersSelected: func.isRequired,
   isSameUser: func.isRequired,
-  isCreatingUser: bool,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
   }),
-  organizations: arrayOf(
-    shape({
-      id: string.isRequired,
-      name: string.isRequired,
-    })
-  ),
-  onAddUserToOrg: func.isRequired,
   onUpdateUserRole: func.isRequired,
   onCreateUser: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
-  onBlurCreateUserRow: func.isRequired,
-  currentOrganization: shape({
-    id: string.isRequired,
-    name: string.isRequired,
-  }).isRequired,
+  onDeleteUsers: func.isRequired,
+  onChangeRoles: func.isRequired,
 }
-export default ChronografUsersTable
+export default UsersTable

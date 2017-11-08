@@ -6,7 +6,8 @@ import Dropdown from 'shared/components/Dropdown'
 import SlideToggle from 'shared/components/SlideToggle'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
-import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
+import {USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 class NewUserTableRow extends Component {
   constructor(props) {
@@ -16,9 +17,8 @@ class NewUserTableRow extends Component {
       name: '',
       provider: '',
       scheme: 'oauth2',
-      role: null,
+      role: MEMBER_ROLE,
       superAdmin: false,
-      organization: this.props.currentOrganization,
     }
   }
 
@@ -27,8 +27,8 @@ class NewUserTableRow extends Component {
   }
 
   handleClickCreateUser = () => {
-    const {onBlur, onCreateUser} = this.props
-    const {name, provider, scheme, role, superAdmin, organization} = this.state
+    const {onBlur, onCreateUser, organization} = this.props
+    const {name, provider, scheme, role, superAdmin} = this.state
 
     const newUser = {
       name,
@@ -59,31 +59,18 @@ class NewUserTableRow extends Component {
     this.setState({superAdmin})
   }
 
-  handleSelectOrganization = newUserOrganization => {
-    this.setState({organization: newUserOrganization})
-  }
-
   render() {
     const {
-      colOrg,
       colRole,
       colProvider,
       colScheme,
       colSuperAdmin,
       colActions,
     } = USERS_TABLE
-    const {onBlur, roles, organizations, currentOrganization} = this.props
-    const {name, provider, scheme, role, superAdmin, organization} = this.state
+    const {onBlur} = this.props
+    const {name, provider, scheme, role, superAdmin} = this.state
 
-    const preventCreate = !name || !provider || !role || !organization
-
-    const isDefaultOrg = currentOrganization.id === DEFAULT_ORG_ID
-
-    const editableOrganizations = organizations.filter(org => {
-      if (org.id !== DEFAULT_ORG_ID) {
-        return org
-      }
-    })
+    const preventCreate = !name || !provider
 
     return (
       <tr className="chronograf-admin-table--new-user">
@@ -98,36 +85,14 @@ class NewUserTableRow extends Component {
             onChange={this.handleInputChange('name')}
           />
         </td>
-        <td style={{width: colOrg}}>
-          {isDefaultOrg
-            ? <Dropdown
-                items={editableOrganizations.map(org => ({
-                  ...org,
-                  text: org.name,
-                }))}
-                selected={
-                  organization.id === DEFAULT_ORG_ID
-                    ? 'Choose one'
-                    : organization.name
-                }
-                onChoose={this.handleSelectOrganization}
-                buttonColor="btn-primary"
-                buttonSize="btn-xs"
-                className="dropdown-stretch"
-              />
-            : <span className="chronograf-user--org">
-                {currentOrganization.name}
-              </span>}
-        </td>
         <td style={{width: colRole}}>
           <Dropdown
-            items={roles.map(r => ({...r, text: r.name}))}
-            selected={role || 'Assign'}
+            items={USER_ROLES.map(r => ({...r, text: r.name}))}
+            selected={role}
             onChoose={this.handleSelectRole}
             buttonColor="btn-primary"
             buttonSize="btn-xs"
-            className="dropdown-80"
-            disabled={organization.id === DEFAULT_ORG_ID}
+            className="dropdown-stretch"
           />
         </td>
         <Authorized requiredRole={SUPERADMIN_ROLE}>
@@ -174,22 +139,15 @@ class NewUserTableRow extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {func, shape, string} = PropTypes
 
 NewUserTableRow.propTypes = {
-  currentOrganization: shape({
+  organization: shape({
     id: string.isRequired,
     name: string.isRequired,
   }),
   onBlur: func.isRequired,
   onCreateUser: func.isRequired,
-  roles: arrayOf(shape()).isRequired,
-  organizations: arrayOf(
-    shape({
-      id: string.isRequired,
-      name: string.isRequired,
-    })
-  ).isRequired,
 }
 
 export default NewUserTableRow

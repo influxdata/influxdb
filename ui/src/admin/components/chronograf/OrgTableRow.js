@@ -3,6 +3,7 @@ import React, {PropTypes} from 'react'
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import Dropdown from 'shared/components/Dropdown'
+import SlideToggle from 'shared/components/SlideToggle'
 
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -14,9 +15,9 @@ const OrgTableRow = ({
   selectedUsers,
   isSameUser,
   onChangeUserRole,
+  onChangeSuperAdmin,
 }) => {
   const {
-    colOrg,
     colRole,
     colSuperAdmin,
     colProvider,
@@ -52,11 +53,6 @@ const OrgTableRow = ({
           {user.name}
         </strong>
       </td>
-      <td style={{width: colOrg}}>
-        <span className="chronograf-user--org">
-          {organization.name}
-        </span>
-      </td>
       <td style={{width: colRole}}>
         <span className="chronograf-user--role">
           <Dropdown
@@ -68,13 +64,17 @@ const OrgTableRow = ({
             onChoose={onChangeUserRole(user, currentRole)}
             buttonColor="btn-primary"
             buttonSize="btn-xs"
-            className="dropdown-80"
+            className="dropdown-stretch"
           />
         </span>
       </td>
       <Authorized requiredRole={SUPERADMIN_ROLE}>
-        <td style={{width: colSuperAdmin}}>
-          {user.superadmin ? 'yes' : '--'}
+        <td style={{width: colSuperAdmin}} className="text-center">
+          <SlideToggle
+            active={user.superAdmin}
+            onToggle={onChangeSuperAdmin(user, user.superAdmin)}
+            size="xs"
+          />
         </td>
       </Authorized>
       <td style={{width: colProvider}}>
@@ -99,8 +99,8 @@ OrgTableRow.propTypes = {
   onToggleUserSelected: func.isRequired,
   selectedUsers: arrayOf(shape()),
   isSameUser: func.isRequired,
-  onSelectAddUserToOrg: func.isRequired,
   onChangeUserRole: func.isRequired,
+  onChangeSuperAdmin: func.isRequired,
 }
 
 export default OrgTableRow
