@@ -4,7 +4,7 @@ import {TIME_SHIFTS} from 'shared/constants/timeShift'
 
 const TimeShiftDropdown = ({selected, onChooseTimeShift}) =>
   <div className="group-by-time">
-    <label className="group-by-time--label">Time Shift:</label>
+    <label className="group-by-time--label">Compare:</label>
     <Dropdown
       className="group-by-time--dropdown"
       buttonColor="btn-info"

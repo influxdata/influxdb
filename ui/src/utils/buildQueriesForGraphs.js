@@ -1,5 +1,4 @@
 import {buildQuery} from 'utils/influxql'
-import {shiftTimeRange} from 'shared/query/helpers'
 import {TYPE_QUERY_CONFIG, TYPE_SHIFTED} from 'src/dashboards/constants'
 
 const buildQueries = (proxy, queryConfigs, tR) => {
@@ -9,7 +8,7 @@ const buildQueries = (proxy, queryConfigs, tR) => {
     const text = rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, query)
     const isParsable = database && measurement && fields.length
 
-    if (shift && isParsable) {
+    if (shift && shift.multiple && isParsable) {
       const shiftedQuery = buildQuery(TYPE_SHIFTED, timeRange, query, shift)
 
       return {text: `${text};${shiftedQuery}`, id, queryConfig: query}
