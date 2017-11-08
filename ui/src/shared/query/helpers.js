@@ -68,3 +68,43 @@ export const shiftTimeRange = (timeRange, shift) => {
     }
   }
 }
+
+export const shiftDate = (date, multiple, unit) => {
+  if (!date && !multiple && !unit) {
+    return moment(date)
+  }
+
+  return moment(date).add(multiple, getMomentUnit(unit))
+}
+
+const getMomentUnit = unit => {
+  switch (unit) {
+    case 'ms': {
+      return 'milliseconds' // (1 thousandth of a second)
+    }
+
+    case 's': {
+      return 'seconds'
+    }
+
+    case 'm': {
+      return 'minute'
+    }
+
+    case 'h': {
+      return 'hour'
+    }
+
+    case 'd': {
+      return 'day'
+    }
+
+    case 'w': {
+      return 'week'
+    }
+
+    default: {
+      return unit
+    }
+  }
+}

@@ -2,7 +2,12 @@ import _ from 'lodash'
 
 import {TEMP_VAR_INTERVAL, AUTO_GROUP_BY} from 'shared/constants'
 import {NULL_STRING} from 'shared/constants/queryFillOptions'
-import {TYPE_QUERY_CONFIG, TYPE_IFQL} from 'src/dashboards/constants'
+import {
+  TYPE_QUERY_CONFIG,
+  TYPE_SHIFTED,
+  TYPE_IFQL,
+} from 'src/dashboards/constants'
+import {shiftTimeRange} from 'shared/query/helpers'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 
 /* eslint-disable quotes */
@@ -19,11 +24,11 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 }
 /* eslint-enable quotes */
 
-export default function buildInfluxQLQuery(timeRange, config) {
+export default function buildInfluxQLQuery(timeRange, config, shift) {
   const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
   const {upper, lower} = quoteIfTimestamp(timeRange)
 
-  const select = _buildSelect(config)
+  const select = _buildSelect(config, shift)
   if (select === null) {
     return null
   }
@@ -35,26 +40,35 @@ export default function buildInfluxQLQuery(timeRange, config) {
   return `${select}${condition}${dimensions}${fillClause}`
 }
 
-function _buildSelect({fields, database, retentionPolicy, measurement}) {
+function _buildSelect({fields, database, retentionPolicy, measurement}, shift) {
   if (!database || !measurement || !fields || !fields.length) {
     return null
   }
 
   const rpSegment = retentionPolicy ? `"${retentionPolicy}"` : ''
-  const fieldsClause = _buildFields(fields)
+  const fieldsClause = _buildFields(fields, shift)
   const fullyQualifiedMeasurement = `"${database}".${rpSegment}."${measurement}"`
   const statement = `SELECT ${fieldsClause} FROM ${fullyQualifiedMeasurement}`
   return statement
 }
 
 // type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
-export const buildQuery = (type, timeRange, config) => {
+export const buildQuery = (type, timeRange, config, shift) => {
   switch (type) {
-    case `${TYPE_QUERY_CONFIG}`: {
+    case TYPE_QUERY_CONFIG: {
       return buildInfluxQLQuery(timeRange, config)
     }
 
-    case `${TYPE_IFQL}`: {
+    case TYPE_SHIFTED: {
+      const {multiple, unit} = shift
+      return buildInfluxQLQuery(
+        shiftTimeRange(timeRange, shift),
+        config,
+        `_shifted__${multiple}__${unit}`
+      )
+    }
+
+    case TYPE_IFQL: {
       // build query usining IFQL here
     }
   }
@@ -66,7 +80,7 @@ export function buildSelectStatement(config) {
   return _buildSelect(config)
 }
 
-function _buildFields(fieldFuncs) {
+function _buildFields(fieldFuncs, shift = '') {
   if (!fieldFuncs) {
     return ''
   }
@@ -79,7 +93,7 @@ function _buildFields(fieldFuncs) {
         }
         case 'func': {
           const args = _buildFields(f.args)
-          const alias = f.alias ? ` AS "${f.alias}"` : ''
+          const alias = f.alias ? ` AS "${f.alias}${shift}"` : ''
           return `${f.value}(${args})${alias}`
         }
       }
