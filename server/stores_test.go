@@ -370,3 +370,296 @@ func TestStore_SourcesGet(t *testing.T) {
 		})
 	}
 }
+
+func TestStore_SourcesAll(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+	}
+	type args struct {
+		organization string
+		role         string
+	}
+	type wants struct {
+		sources []chronograf.Source
+		err     bool
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "Get viewer sources as viewer",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					AllF: func(ctx context.Context) ([]chronograf.Source, error) {
+						return []chronograf.Source{
+							{
+								ID:           1,
+								Name:         "my sweet name",
+								Organization: "0",
+								Role:         "viewer",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "viewer",
+			},
+			wants: wants{
+				sources: []chronograf.Source{
+					{
+						ID:           1,
+						Name:         "my sweet name",
+						Organization: "0",
+						Role:         "viewer",
+					},
+				},
+			},
+		},
+		{
+			name: "Get viewer sources as viewer - multiple orgs and multiple roles",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					AllF: func(ctx context.Context) ([]chronograf.Source, error) {
+						return []chronograf.Source{
+							{
+								ID:           1,
+								Name:         "my sweet name",
+								Organization: "0",
+								Role:         "viewer",
+							},
+							{
+								ID:           2,
+								Name:         "A bad source",
+								Organization: "0",
+								Role:         "editor",
+							},
+							{
+								ID:           3,
+								Name:         "A good source",
+								Organization: "0",
+								Role:         "admin",
+							},
+							{
+								ID:           4,
+								Name:         "a source I can has",
+								Organization: "0",
+								Role:         "viewer",
+							},
+							{
+								ID:           5,
+								Name:         "i'm in the wrong org",
+								Organization: "1",
+								Role:         "viewer",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "viewer",
+			},
+			wants: wants{
+				sources: []chronograf.Source{
+					{
+						ID:           1,
+						Name:         "my sweet name",
+						Organization: "0",
+						Role:         "viewer",
+					},
+					{
+						ID:           4,
+						Name:         "a source I can has",
+						Organization: "0",
+						Role:         "viewer",
+					},
+				},
+			},
+		},
+		{
+			name: "Get editor sources as editor - multiple orgs and multiple roles",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					AllF: func(ctx context.Context) ([]chronograf.Source, error) {
+						return []chronograf.Source{
+							{
+								ID:           1,
+								Name:         "my sweet name",
+								Organization: "0",
+								Role:         "viewer",
+							},
+							{
+								ID:           2,
+								Name:         "A bad source",
+								Organization: "0",
+								Role:         "editor",
+							},
+							{
+								ID:           3,
+								Name:         "A good source",
+								Organization: "0",
+								Role:         "admin",
+							},
+							{
+								ID:           4,
+								Name:         "a source I can has",
+								Organization: "0",
+								Role:         "viewer",
+							},
+							{
+								ID:           5,
+								Name:         "i'm in the wrong org",
+								Organization: "1",
+								Role:         "viewer",
+							},
+							{
+								ID:           2,
+								Name:         "i'm an editor, but wrong org",
+								Organization: "3",
+								Role:         "editor",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "editor",
+			},
+			wants: wants{
+				sources: []chronograf.Source{
+					{
+						ID:           1,
+						Name:         "my sweet name",
+						Organization: "0",
+						Role:         "viewer",
+					},
+					{
+						ID:           2,
+						Name:         "A bad source",
+						Organization: "0",
+						Role:         "editor",
+					},
+					{
+						ID:           4,
+						Name:         "a source I can has",
+						Organization: "0",
+						Role:         "viewer",
+					},
+				},
+			},
+		},
+		{
+			name: "Get admin sources as admin - multiple orgs and multiple roles",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					AllF: func(ctx context.Context) ([]chronograf.Source, error) {
+						return []chronograf.Source{
+							{
+								ID:           1,
+								Name:         "my sweet name",
+								Organization: "0",
+								Role:         "viewer",
+							},
+							{
+								ID:           2,
+								Name:         "A bad source",
+								Organization: "0",
+								Role:         "editor",
+							},
+							{
+								ID:           3,
+								Name:         "A good source",
+								Organization: "0",
+								Role:         "admin",
+							},
+							{
+								ID:           4,
+								Name:         "a source I can has",
+								Organization: "0",
+								Role:         "viewer",
+							},
+							{
+								ID:           5,
+								Name:         "i'm in the wrong org",
+								Organization: "1",
+								Role:         "viewer",
+							},
+							{
+								ID:           2,
+								Name:         "i'm an editor, but wrong org",
+								Organization: "3",
+								Role:         "editor",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "0",
+				role:         "admin",
+			},
+			wants: wants{
+				sources: []chronograf.Source{
+					{
+						ID:           1,
+						Name:         "my sweet name",
+						Organization: "0",
+						Role:         "viewer",
+					},
+					{
+						ID:           2,
+						Name:         "A bad source",
+						Organization: "0",
+						Role:         "editor",
+					},
+					{
+						ID:           3,
+						Name:         "A good source",
+						Organization: "0",
+						Role:         "admin",
+					},
+					{
+						ID:           4,
+						Name:         "a source I can has",
+						Organization: "0",
+						Role:         "viewer",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &Store{
+				SourcesStore: tt.fields.SourcesStore,
+			}
+
+			ctx := context.Background()
+
+			if tt.args.organization != "" {
+				ctx = context.WithValue(ctx, organizations.ContextKey, tt.args.organization)
+			}
+
+			if tt.args.role != "" {
+				ctx = context.WithValue(ctx, roles.ContextKey, tt.args.role)
+			}
+
+			sources, err := store.Sources(ctx).All(ctx)
+			if (err != nil) != tt.wants.err {
+				t.Errorf("%q. Store.Sources().Get() error = %v, wantErr %v", tt.name, err, tt.wants.err)
+				return
+			}
+			if diff := cmp.Diff(sources, tt.wants.sources); diff != "" {
+				t.Errorf("%q. Store.Sources().Get():\n-got/+want\ndiff %s", tt.name, diff)
+			}
+		})
+	}
+}

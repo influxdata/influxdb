@@ -76,7 +76,7 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidSourceRequest(src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+	if err := ValidSourceRequest(&src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -270,7 +270,7 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidSourceRequest(src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+	if err := ValidSourceRequest(&src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -291,7 +291,10 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 }
 
 // ValidSourceRequest checks if name, url and type are valid
-func ValidSourceRequest(s chronograf.Source, defaultOrgID string) error {
+func ValidSourceRequest(s *chronograf.Source, defaultOrgID string) error {
+	if s == nil {
+		return fmt.Errorf("source must be non-nil")
+	}
 	// Name and URL areq required
 	if s.URL == "" {
 		return fmt.Errorf("url required")
@@ -318,6 +321,14 @@ func ValidSourceRequest(s chronograf.Source, defaultOrgID string) error {
 	if s.Role == "" {
 		s.Role = roles.ViewerRoleName
 	}
+
+	switch s.Role {
+	case roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
+		return nil
+	default:
+		return fmt.Errorf("Unknown role %s. Valid roles are 'viewer', 'editor', and 'admin'", s.Role)
+	}
+
 	return nil
 }
 
@@ -345,7 +356,7 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 	}
 
 	for _, sk := range srcsKaps {
-		if err := ValidSourceRequest(sk.Source, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+		if err := ValidSourceRequest(&sk.Source, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
 			return err
 		}
 		// Add any new sources and kapacitors as specified via server flag
