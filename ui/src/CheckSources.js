@@ -47,6 +47,10 @@ const CheckSources = React.createClass({
     auth: shape({
       isUsingAuth: bool,
       me: shape(),
+      currentOrganization: shape({
+        name: string.isRequired,
+        id: string.isRequired,
+      }),
     }),
   },
 
@@ -106,8 +110,8 @@ const CheckSources = React.createClass({
       const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
 
       if (isUsingAuth && me.role === MEMBER_ROLE) {
-        // if you're a member, go to limbo.
-        return router.push('/limbo')
+        // if you're a member, go to purgatory.
+        return router.push('/purgatory')
       }
 
       if (isUsingAuth && me.role === VIEWER_ROLE) {
@@ -116,8 +120,8 @@ const CheckSources = React.createClass({
         } else if (sources[0]) {
           return router.push(`/sources/${sources[0].id}/${restString}`)
         }
-        // if you're a viewer and there are no sources, go to limbo.
-        return router.push('/limbo')
+        // if you're a viewer and there are no sources, go to purgatory.
+        return router.push('/purgatory')
       }
 
       // if you're an editor or not using auth, try for sources or otherwise
@@ -142,7 +146,11 @@ const CheckSources = React.createClass({
   },
 
   render() {
-    const {params, sources, auth: {isUsingAuth, me}} = this.props
+    const {
+      params,
+      sources,
+      auth: {isUsingAuth, me, currentOrganization},
+    } = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)
 
@@ -150,7 +158,8 @@ const CheckSources = React.createClass({
       isFetching ||
       !source ||
       typeof isUsingAuth !== 'boolean' ||
-      (me && me.role === undefined) // TODO: not sure this happens
+      (me && me.role === undefined) || // TODO: not sure this happens
+      !currentOrganization
     ) {
       return <div className="page-spinner" />
     }

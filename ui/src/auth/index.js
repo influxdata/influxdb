@@ -1,7 +1,15 @@
 import Login from './Login'
+import Purgatory from './Purgatory'
+
 import {
   UserIsAuthenticated,
   Authenticated,
   UserIsNotAuthenticated,
 } from './Authenticated'
-export {Login, UserIsAuthenticated, Authenticated, UserIsNotAuthenticated}
+export {
+  Login,
+  Purgatory,
+  UserIsAuthenticated,
+  Authenticated,
+  UserIsNotAuthenticated,
+}
