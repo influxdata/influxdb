@@ -135,7 +135,7 @@ const SideNav = React.createClass({
 
           <Authorized
             requiredRole={ADMIN_ROLE}
-            replaceWithWhenNotUsingAuth={
+            replaceWithIfNotUsingAuth={
               <NavBlock
                 icon="crown2"
                 link={`${sourcePrefix}/admin-influxdb`}

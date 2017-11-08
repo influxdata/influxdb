@@ -135,7 +135,7 @@ class UsersTable extends Component {
                 : <tr className="table-empty-state">
                     <Authorized
                       requiredRole={SUPERADMIN_ROLE}
-                      replaceWith={
+                      replaceWithIfNotAuthorized={
                         <th colSpan="5">
                           <p>No Users to display</p>
                         </th>

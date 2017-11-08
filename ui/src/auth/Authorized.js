@@ -38,8 +38,9 @@ const Authorized = ({
   meRole,
   isUsingAuth,
   requiredRole,
-  replaceWith,
-  replaceWithWhenNotUsingAuth,
+  replaceWithIfNotAuthorized,
+  replaceWithIfNotUsingAuth,
+  replaceWithIfAuthorized,
   propsOverride,
 }) => {
   // if me response has not been received yet, render nothing
@@ -51,26 +52,27 @@ const Authorized = ({
   const firstChild = React.isValidElement(children) ? children : children[0]
 
   if (!isUsingAuth) {
-    return replaceWithWhenNotUsingAuth || firstChild
+    return replaceWithIfNotUsingAuth || firstChild
   }
 
   if (isUserAuthorized(meRole, requiredRole)) {
-    return replaceWith || firstChild
+    return replaceWithIfAuthorized || firstChild
   }
 
   if (propsOverride) {
     return React.cloneElement(firstChild, {...propsOverride})
   }
 
-  return replaceWith || null
+  return replaceWithIfNotAuthorized || null
 }
 
 const {bool, node, shape, string} = PropTypes
 
 Authorized.propTypes = {
   isUsingAuth: bool,
-  replaceWithWhenNotUsingAuth: node,
-  replaceWith: node,
+  replaceWithIfNotUsingAuth: node,
+  replaceWithIfAuthorized: node,
+  replaceWithIfNotAuthorized: node,
   children: node.isRequired,
   me: shape({
     role: string.isRequired,
