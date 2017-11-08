@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import OnClickOutside from 'react-onclickoutside'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 class Organization extends Component {
   constructor(props) {
@@ -52,8 +52,8 @@ class Organization extends Component {
     this.setState({isDeleting: false})
   }
 
-  handleDeleteOrg = () => {
-    const {onDelete, organization} = this.props
+  handleDeleteOrg = organization => {
+    const {onDelete} = this.props
     this.setState({isDeleting: false})
     onDelete(organization)
   }
@@ -87,15 +87,13 @@ class Organization extends Component {
               <span className="icon pencil" />
             </div>}
         {isDeleting
-          ? <div className="btn btn-sm btn-default btn-square manage-orgs-form--delete active">
-              <span className="icon trash" />
-              <ConfirmDeleteOrg
-                onDelete={this.handleDeleteOrg}
-                handleClickOutside={this.handleDismissDeleteConfirmation}
-              />
-            </div>
+          ? <ConfirmButtons
+              item={organization}
+              onCancel={this.handleDismissDeleteConfirmation}
+              onConfirm={this.handleDeleteOrg}
+            />
           : <button
-              className="btn btn-sm btn-default btn-square manage-orgs-form--delete"
+              className="btn btn-sm btn-default btn-square"
               onClick={this.handleDeleteClick}
             >
               <span className="icon trash" />
@@ -105,22 +103,7 @@ class Organization extends Component {
   }
 }
 
-const ConfirmDeleteOrg = OnClickOutside(({onDelete}) =>
-  <div className="manage-orgs-form--confirm-delete">
-    <span>
-      This cannot be undone.<br />Are you sure?
-    </span>
-    <button className="btn btn-xs btn-default" onClick={onDelete}>
-      Delete
-    </button>
-  </div>
-)
-
 const {func, shape, string} = PropTypes
-
-ConfirmDeleteOrg.propTypes = {
-  onDelete: func.isRequired,
-}
 
 Organization.propTypes = {
   organization: shape({

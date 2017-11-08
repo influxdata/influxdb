@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
+import ConfirmButtons from 'shared/components/ConfirmButtons'
+
 class Organization extends Component {
   constructor(props) {
     super(props)
@@ -58,19 +60,11 @@ class Organization extends Component {
           autoFocus={true}
           ref={r => (this.inputRef = r)}
         />
-        <button
-          className="btn btn-sm btn-square btn-default"
-          onClick={onCancelCreateOrganization}
-        >
-          <span className="icon remove" />
-        </button>
-        <button
-          className="btn btn-sm btn-square btn-success"
-          onClick={this.handleClickSave}
+        <ConfirmButtons
           disabled={isSaveDisabled}
-        >
-          <span className="icon checkmark" />
-        </button>
+          onCancel={onCancelCreateOrganization}
+          onConfirm={this.handleClickSave}
+        />
       </div>
     )
   }

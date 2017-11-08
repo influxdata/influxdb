@@ -76,6 +76,7 @@ input[type="text"].form-control.manage-orgs-form--input {
   flex: 1 0 0;
   font-weight: 600;
   font-size: 13px;
+  margin-right: 4px;
 }
 .manage-orgs-form--name,
 .manage-orgs-form--name-disabled {
@@ -121,48 +122,6 @@ input[type="text"].form-control.manage-orgs-form--input {
   background-color: $g4-onyx;
   font-style: italic;
   color: $g9-mountain;
-}
-.manage-orgs-form--body .manage-orgs-form--org .btn.btn-sm.btn-square.manage-orgs-form--delete {
-  position: relative;
-  margin-left: 4px;
-}
-.manage-orgs-form--confirm-delete {
-  position: absolute;
-  left: calc(100% + 14px);
-  top: 50%;
-  display: inline-flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  transform: translateY(-50%);
-  @include gradient-h($c-star,$c-curacao);
-  color: $c-marmelade;
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 13px;
-  padding: 8px 10px;
-  border-radius: 4px;
-  z-index: 6;
-  transition: background-color 0.25s ease;
-
-  > span {
-    text-align: left;
-  }
-  > .btn {
-    margin-left: 10px;
-  }
-
-  &:after {
-    content: '';
-    border-width: 6px;
-    border-style: solid;
-    border-color: transparent;
-    border-right-color: $c-star;
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    left: -12px;
-    transition: border-color 0.25s ease;
-  }
 }
 
 .manage-orgs-form--org-labels {
