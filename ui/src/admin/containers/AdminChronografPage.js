@@ -181,32 +181,7 @@ class AdminChronografPage extends Component {
   // TODO: make batch actions work for batch. currently only work for one user
   // since batch actions have not been implemented in the API.
   handleBatchChangeUsersRole = () => {}
-  handleBatchAddUsersToOrg = organization => {
-    const {notify} = this.props
-    const {selectedUsers} = this.state
 
-    if (selectedUsers.length > 1) {
-      notify(
-        'error',
-        'Batch actions for more than 1 user not currently supported'
-      )
-    } else {
-      this.handleAddUserToOrg(selectedUsers[0], organization)
-    }
-  }
-  handleBatchRemoveUsersFromOrg = organization => {
-    const {notify} = this.props
-    const {selectedUsers} = this.state
-
-    if (selectedUsers.length > 1) {
-      notify(
-        'error',
-        'Batch actions for more than 1 user not currently supported'
-      )
-    } else {
-      this.handleRemoveUserFromOrg(selectedUsers[0], organization)
-    }
-  }
   handleBatchDeleteUsers = () => {
     const {notify} = this.props
     // const {selectedUsers} = this.state
