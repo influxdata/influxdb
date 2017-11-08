@@ -169,16 +169,6 @@ export function updateAlertNodes(ruleID, alerts) {
     payload: {ruleID, alerts},
   }
 }
-// export function updateAlertNodes(ruleID, alertNodeName, alertNodesText) {
-//   return {
-//     type: 'UPDATE_RULE_ALERT_NODES',
-//     payload: {
-//       ruleID,
-//       alertNodeName,
-//       alertNodesText,
-//     },
-//   }
-// }
 
 export function updateRuleName(ruleID, name) {
   return {
