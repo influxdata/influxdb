@@ -4,9 +4,11 @@ import _ from 'lodash'
 
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
+import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
 import NewUserTableRow from 'src/admin/components/chronograf/NewUserTableRow'
+import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 
 import {DEFAULT_ORG_NAME} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -67,91 +69,112 @@ class ChronografUsersTable extends Component {
     const areAllSelected = this.areSameUsers(filteredUsers, selectedUsers)
 
     return (
-      <table className="table table-highlight v-center chronograf-admin-table">
-        <thead>
-          <tr>
-            <th className="chronograf-admin-table--check-col">
-              <div
-                className={
-                  areAllSelected ? 'user-checkbox selected' : 'user-checkbox'
-                }
-                onClick={onToggleAllUsersSelected(areAllSelected)}
-              />
-            </th>
-            <th>Username</th>
-            <th style={{width: colOrg}} className="align-with-col-text">
-              Organization
-            </th>
-            <th style={{width: colRole}} className="align-with-col-text">
-              Role
-            </th>
-            <Authorized requiredRole={SUPERADMIN_ROLE}>
-              <th style={{width: colSuperAdmin}} className="text-center">
-                SuperAdmin
-              </th>
-            </Authorized>
-            <th style={{width: colProvider}}>Provider</th>
-            <th style={{width: colScheme}}>Scheme</th>
-            <th className="text-right" style={{width: colActions}} />
-          </tr>
-        </thead>
-        <tbody>
-          {isCreatingUser
-            ? <NewUserTableRow
-                currentOrganization={currentOrganization}
-                organizations={organizations}
-                roles={userRoles}
-                onBlur={onBlurCreateUserRow}
-                onCreateUser={onCreateUser}
-              />
-            : null}
-          {filteredUsers.length
-            ? filteredUsers.map(
-                (user, i) =>
-                  organization.name === DEFAULT_ORG_NAME
-                    ? <UsersTableRow
-                        user={user}
-                        key={i}
-                        organizations={organizations}
-                        onToggleUserSelected={onToggleUserSelected}
-                        selectedUsers={selectedUsers}
-                        isSameUser={isSameUser}
-                        onSelectAddUserToOrg={this.handleSelectAddUserToOrg(
-                          user
-                        )}
-                        onChangeUserRole={this.handleChangeUserRole}
-                        onChooseFilter={this.handleChooseFilter}
-                        onChangeSuperAdmin={this.handleChangeSuperAdmin}
-                      />
-                    : <OrgTableRow
-                        user={user}
-                        key={i}
-                        onToggleUserSelected={onToggleUserSelected}
-                        selectedUsers={selectedUsers}
-                        isSameUser={isSameUser}
-                        organization={organization}
-                        onSelectAddUserToOrg={this.handleSelectAddUserToOrg(
-                          user
-                        )}
-                        onChangeUserRole={this.handleChangeUserRole}
-                      />
-              )
-            : <tr className="table-empty-state">
-                <Authorized
-                  requiredRole={SUPERADMIN_ROLE}
-                  replaceWith={
-                    <th colSpan="6">
-                      <p>No Users to display</p>
-                    </th>
-                  }
-                >
-                  <th colSpan="7">
-                    <p>No Users to display</p>
+      <div className="panel panel-minimal">
+        <UsersTableHeader
+          organizationName={organization.name}
+          organizations={organizations}
+          onFilterUsers={this.handleFilterUsers}
+          onCreateUserRow={this.handleClickCreateUserRow}
+        />
+        <BatchActionsBar
+          numUsersSelected={selectedUsers.length}
+          organizationName={organization.name}
+          organizations={organizations}
+          onDeleteUsers={this.handleBatchDeleteUsers}
+          onAddUsersToOrg={this.handleBatchAddUsersToOrg}
+          onRemoveUsersFromOrg={this.handleBatchRemoveUsersFromOrg}
+          onChangeRoles={this.handleBatchChangeUsersRole}
+        />
+        <div className="panel-body">
+          <table className="table table-highlight v-center chronograf-admin-table">
+            <thead>
+              <tr>
+                <th className="chronograf-admin-table--check-col">
+                  <div
+                    className={
+                      areAllSelected
+                        ? 'user-checkbox selected'
+                        : 'user-checkbox'
+                    }
+                    onClick={onToggleAllUsersSelected(areAllSelected)}
+                  />
+                </th>
+                <th>Username</th>
+                <th style={{width: colOrg}} className="align-with-col-text">
+                  Organization
+                </th>
+                <th style={{width: colRole}} className="align-with-col-text">
+                  Role
+                </th>
+                <Authorized requiredRole={SUPERADMIN_ROLE}>
+                  <th style={{width: colSuperAdmin}} className="text-center">
+                    SuperAdmin
                   </th>
                 </Authorized>
-              </tr>}
-        </tbody>
-      </table>
+                <th style={{width: colProvider}}>Provider</th>
+                <th style={{width: colScheme}}>Scheme</th>
+                <th className="text-right" style={{width: colActions}} />
+              </tr>
+            </thead>
+            <tbody>
+              {isCreatingUser
+                ? <NewUserTableRow
+                    currentOrganization={currentOrganization}
+                    organizations={organizations}
+                    roles={userRoles}
+                    onBlur={onBlurCreateUserRow}
+                    onCreateUser={onCreateUser}
+                  />
+                : null}
+              {filteredUsers.length
+                ? filteredUsers.map(
+                    (user, i) =>
+                      organization.name === DEFAULT_ORG_NAME
+                        ? <UsersTableRow
+                            user={user}
+                            key={i}
+                            organizations={organizations}
+                            onToggleUserSelected={onToggleUserSelected}
+                            selectedUsers={selectedUsers}
+                            isSameUser={isSameUser}
+                            onSelectAddUserToOrg={this.handleSelectAddUserToOrg(
+                              user
+                            )}
+                            onChangeUserRole={this.handleChangeUserRole}
+                            onChooseFilter={this.handleChooseFilter}
+                            onChangeSuperAdmin={this.handleChangeSuperAdmin}
+                          />
+                        : <OrgTableRow
+                            user={user}
+                            key={i}
+                            onToggleUserSelected={onToggleUserSelected}
+                            selectedUsers={selectedUsers}
+                            isSameUser={isSameUser}
+                            organization={organization}
+                            onSelectAddUserToOrg={this.handleSelectAddUserToOrg(
+                              user
+                            )}
+                            onChangeUserRole={this.handleChangeUserRole}
+                          />
+                  )
+                : <tr className="table-empty-state">
+                    <Authorized
+                      requiredRole={SUPERADMIN_ROLE}
+                      replaceWith={
+                        <th colSpan="6">
+                          <p>No Users to display</p>
+                        </th>
+                      }
+                    >
+                      <th colSpan="7">
+                        <p>No Users to display</p>
+                      </th>
+                    </Authorized>
+                  </tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
     )
   }
 }

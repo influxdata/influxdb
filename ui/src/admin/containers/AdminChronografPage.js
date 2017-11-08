@@ -5,12 +5,10 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import Authorized, {SUPERADMIN_ROLE, MEMBER_ROLE} from 'src/auth/Authorized'
+import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
-import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
-import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 import ManageOrgsOverlay from 'src/admin/components/chronograf/ManageOrgsOverlay'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -268,52 +266,33 @@ class AdminChronografPage extends Component {
             ? <div className="container-fluid">
                 <div className="row">
                   <div className="col-xs-12">
-                    <div className="panel panel-minimal">
-                      <UsersTableHeader
-                        organizationName={organization.name}
-                        organizations={organizations}
-                        onFilterUsers={this.handleFilterUsers}
-                        onCreateUserRow={this.handleClickCreateUserRow}
-                      />
-                      <BatchActionsBar
-                        numUsersSelected={selectedUsers.length}
-                        organizationName={organization.name}
-                        organizations={organizations}
-                        onDeleteUsers={this.handleBatchDeleteUsers}
-                        onAddUsersToOrg={this.handleBatchAddUsersToOrg}
-                        onRemoveUsersFromOrg={
-                          this.handleBatchRemoveUsersFromOrg
-                        }
-                        onChangeRoles={this.handleBatchChangeUsersRole}
-                      />
-                      <div className="panel-body chronograf-admin-table--panel">
-                        <Authorized
-                          requiredRole={SUPERADMIN_ROLE}
-                          propsOverride={{organizationName: organization.name}}
-                        >
-                          <UsersTable
-                            userRoles={USER_ROLES}
-                            filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
-                            organization={organization}
-                            organizations={organizations}
-                            onFilterUsers={this.handleFilterUsers}
-                            onToggleUserSelected={this.handleToggleUserSelected}
-                            selectedUsers={selectedUsers}
-                            isSameUser={isSameUser}
-                            isCreatingUser={isCreatingUser}
-                            currentOrganization={currentOrganization}
-                            onCreateUser={this.handleCreateUser}
-                            onBlurCreateUserRow={this.handleBlurCreateUserRow}
-                            onToggleAllUsersSelected={
-                              this.handleToggleAllUsersSelected
-                            }
-                            onAddUserToOrg={this.handleAddUserToOrg}
-                            onUpdateUserRole={this.handleUpdateUserRole()}
-                            onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
-                          />
-                        </Authorized>
-                      </div>
-                    </div>
+                    <UsersTable
+                      userRoles={USER_ROLES}
+                      filteredUsers={filteredUsers} // TODO: change to users upon separating Orgs & Users views
+                      organization={organization}
+                      organizations={organizations}
+                      onFilterUsers={this.handleFilterUsers}
+                      onToggleUserSelected={this.handleToggleUserSelected}
+                      selectedUsers={selectedUsers}
+                      isSameUser={isSameUser}
+                      isCreatingUser={isCreatingUser}
+                      currentOrganization={currentOrganization}
+                      onCreateUser={this.handleCreateUser}
+                      onBlurCreateUserRow={this.handleBlurCreateUserRow}
+                      onToggleAllUsersSelected={
+                        this.handleToggleAllUsersSelected
+                      }
+                      onAddUserToOrg={this.handleAddUserToOrg}
+                      onUpdateUserRole={this.handleUpdateUserRole()}
+                      onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
+                      onCreateUserRow={this.handleClickCreateUserRow}
+                      numUsersSelected={selectedUsers.length}
+                      organizationName={organization.name}
+                      onDeleteUsers={this.handleBatchDeleteUsers}
+                      onAddUsersToOrg={this.handleBatchAddUsersToOrg}
+                      onRemoveUsersFromOrg={this.handleBatchRemoveUsersFromOrg}
+                      onChangeRoles={this.handleBatchChangeUsersRole}
+                    />
                   </div>
                 </div>
               </div>
