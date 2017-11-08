@@ -6,16 +6,11 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import OrganizationsTable from 'src/admin/components/chronograf/OrganizationsTable'
-import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class OrganizationsPage extends Component {
   constructor(props) {
     super(props)
-
-    // this.state = {
-    //
-    // }
   }
 
   componentDidMount() {
@@ -24,15 +19,16 @@ class OrganizationsPage extends Component {
     loadOrganizationsAsync(links.organizations) // TODO: make sure server allows admin to hit this for safety
   }
 
-  // SINGLE ORGANIZATION ACTIONS
   handleCreateOrganization = organizationName => {
     const {links, actions: {createOrganizationAsync}} = this.props
     createOrganizationAsync(links.organizations, {name: organizationName})
   }
+
   handleRenameOrganization = (organization, name) => {
     const {actions: {renameOrganizationAsync}} = this.props
     renameOrganizationAsync(organization, {...organization, name})
   }
+
   handleDeleteOrganization = organization => {
     const {actions: {deleteOrganizationAsync}} = this.props
     deleteOrganizationAsync(organization)
@@ -47,9 +43,6 @@ class OrganizationsPage extends Component {
           <div className="page-header__container">
             <div className="page-header__left">
               <h1 className="page-header__title">Admin</h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator />
             </div>
           </div>
         </div>
@@ -72,7 +65,6 @@ const {arrayOf, func, shape, string} = PropTypes
 
 OrganizationsPage.propTypes = {
   links: shape({
-    users: string.isRequired,
     organizations: string.isRequired,
   }),
   organizations: arrayOf(

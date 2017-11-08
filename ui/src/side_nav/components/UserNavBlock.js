@@ -1,4 +1,5 @@
 import React, {PropTypes, Component} from 'react'
+import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -39,9 +40,14 @@ class UserNavBlock extends Component {
             {me.name}
           </div>
           <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <a className="sidebar-menu--item" href="/organizations">
+            <Link className="sidebar-menu--item" to="/admin/users">
+              Manage Users
+            </Link>
+          </Authorized>
+          <Authorized requiredRole={SUPERADMIN_ROLE}>
+            <Link className="sidebar-menu--item" to="/admin/organizations">
               Manage Organizations
-            </a>
+            </Link>
           </Authorized>
           <a className="sidebar-menu--item" href={logoutLink}>
             Logout
