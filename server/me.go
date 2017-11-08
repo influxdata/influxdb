@@ -83,8 +83,8 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 		ctx := r.Context()
 		principal, err := auth.Validate(ctx, r)
 		if err != nil {
-			s.Logger.Error("Invalid principal")
-			w.WriteHeader(http.StatusForbidden)
+			s.Logger.Error(fmt.Sprintf("Invalid principal: %v", err))
+			Error(w, http.StatusForbidden, "invalid principal", s.Logger)
 			return
 		}
 		var req meOrganizationRequest
@@ -176,10 +176,10 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
-	ctx = context.WithValue(ctx, SuperAdminKey, true)
+	serverCtx := serverContext(ctx)
 
 	if p.Organization == "" {
-		defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+		defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
@@ -187,7 +187,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
 	}
 
-	usr, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{
+	usr, err := s.Store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
 		Name:     &p.Subject,
 		Provider: &p.Issuer,
 		Scheme:   &scheme,
@@ -198,17 +198,12 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if usr != nil {
-		orgs, err := s.usersOrganizations(ctx, usr)
-		if err != nil {
-			unknownErrorWithMessage(w, err, s.Logger)
-			return
-		}
 		orgID, err := parseOrganizationID(p.Organization)
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
-		currentOrg, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
@@ -222,10 +217,15 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 				Organization: "0",
 				Name:         roles.MemberRoleName,
 			})
-			if err := s.Store.Users(ctx).Update(ctx, usr); err != nil {
+			if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
 				unknownErrorWithMessage(w, err, s.Logger)
 				return
 			}
+		}
+		orgs, err := s.usersOrganizations(serverCtx, usr)
+		if err != nil {
+			unknownErrorWithMessage(w, err, s.Logger)
+			return
 		}
 		res := newMeResponse(usr)
 		res.Organizations = orgs
@@ -234,7 +234,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
+	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 	if err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
@@ -258,14 +258,14 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		SuperAdmin: s.firstUser(),
 	}
 
-	newUser, err := s.Store.Users(ctx).Add(ctx, user)
+	newUser, err := s.Store.Users(serverCtx).Add(serverCtx, user)
 	if err != nil {
 		msg := fmt.Errorf("error storing user %s: %v", user.Name, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
 
-	orgs, err := s.usersOrganizations(ctx, newUser)
+	orgs, err := s.usersOrganizations(serverCtx, newUser)
 	if err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
@@ -275,7 +275,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
-	currentOrg, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+	currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
 	if err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
@@ -288,8 +288,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 // TODO(desa): very slow
 func (s *Service) firstUser() bool {
-	ctx := context.WithValue(context.Background(), SuperAdminKey, true)
-	users, err := s.Store.Users(ctx).All(ctx)
+	serverCtx := serverContext(context.Background())
+	users, err := s.Store.Users(serverCtx).All(serverCtx)
 	if err != nil {
 		return false
 	}
