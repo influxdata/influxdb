@@ -1,6 +1,9 @@
 import React, {PropTypes, Component} from 'react'
+import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import classnames from 'classnames'
 
@@ -31,9 +34,25 @@ class UserNavBlock extends Component {
         </div>
         <div className="sidebar-menu">
           <div className="sidebar-menu--heading">
+            {currentOrganization.name} (Member)
+          </div>
+          <div className="sidebar-menu--section">
             {me.name}
           </div>
-          <div className="sidebar-menu--section">Organizations</div>
+          <Authorized requiredRole={SUPERADMIN_ROLE}>
+            <Link className="sidebar-menu--item" to="/admin/users">
+              Manage Users
+            </Link>
+          </Authorized>
+          <Authorized requiredRole={SUPERADMIN_ROLE}>
+            <Link className="sidebar-menu--item" to="/admin/organizations">
+              Manage Organizations
+            </Link>
+          </Authorized>
+          <a className="sidebar-menu--item" href={logoutLink}>
+            Logout
+          </a>
+          <div className="sidebar-menu--section">Switch Organizations</div>
           {roles.map((role, i) => {
             const isLinkCurrentOrg =
               currentOrganization.id === role.organization
@@ -53,10 +72,6 @@ class UserNavBlock extends Component {
               </span>
             )
           })}
-          <a className="sidebar-menu--item" href={logoutLink}>
-            Logout
-          </a>
-          {customLinks ? <div className="sidebar-menu--divider" /> : null}
           {customLinks
             ? <div className="sidebar-menu--section">Custom Links</div>
             : null}

@@ -204,11 +204,7 @@ $sidebar-menu--gutter: 18px;
   left: 0px;
   transform: translate(-50%,-50%) rotate(45deg);
 }
-.sidebar-menu--divider {
-  width: 100%;
-  height: 2px;
-  @include gradient-h($c-laser,$c-potassium);
-}
+
 .sidebar-menu--section {
   white-space: nowrap;
   font-size: 13px;
@@ -217,4 +213,16 @@ $sidebar-menu--gutter: 18px;
   padding: 4px $sidebar-menu--gutter;
   text-transform: uppercase;
   color: $c-hydrogen;
+  @include no-user-select();
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    @include gradient-h($c-laser,$c-potassium);
+  }
 }
