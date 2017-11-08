@@ -4,7 +4,7 @@ import {
   TcpConfig,
   ExecConfig,
   LogConfig,
-  EmailConfig,
+  SmtpConfig,
   AlertaConfig,
   HipchatConfig,
   OpsgenieConfig,
@@ -16,8 +16,6 @@ import {
   TelegramConfig,
   VictoropsConfig,
 } from './configEP'
-
-import {RULE_ALERT_OPTIONS} from 'src/kapacitor/constants'
 
 class RuleMessageOptions extends Component {
   constructor(props) {

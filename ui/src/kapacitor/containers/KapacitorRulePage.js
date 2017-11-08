@@ -7,8 +7,21 @@ import * as kapacitorQueryConfigActionCreators from 'src/kapacitor/actions/query
 
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
-import {RULE_ALERT_OPTIONS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
+
+const getEnabled = config => {
+  const {data: {sections}} = config
+  const allAlerts = _.map(sections, (v, k) => {
+    return {type: k, options: _.get(v, ['elements', '0', 'options'], {})}
+  })
+  let enabledAlerts = _.filter(allAlerts, v =>
+    _.get(v, ['options', 'enabled'], false)
+  )
+  enabledAlerts = _.reject(enabledAlerts, v => v.type === 'influxdb')
+  // _.get(RULE_ALERT_OPTIONS, section, false)
+  return enabledAlerts
+}
 
 class KapacitorRulePage extends Component {
   constructor(props) {
@@ -35,16 +48,8 @@ class KapacitorRulePage extends Component {
     }
 
     try {
-      const {data: {sections}} = await getKapacitorConfig(kapacitor)
-      const enabledAlerts = Object.keys(sections).filter(
-        section =>
-          _.get(
-            sections,
-            [section, 'elements', '0', 'options', 'enabled'],
-            false
-          ) && _.get(RULE_ALERT_OPTIONS, section, false)
-      )
-
+      const kapacitorConfig = await getKapacitorConfig(kapacitor)
+      const enabledAlerts = getEnabled(kapacitorConfig)
       this.setState({kapacitor, enabledAlerts})
     } catch (error) {
       addFlashMessage({

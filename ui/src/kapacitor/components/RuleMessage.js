@@ -18,10 +18,9 @@ const alertNodesToEndpoints = rule => {
     endpointsOnThisAlert.push({
       alias: ep.name + count,
       type: ep.name,
-      text: ep.name,
-      ruleID: rule.id,
-      args: ep.args,
+      args: ep.args, // TODO args+properties= options?
       properties: ep.properties,
+      options: {},
     })
   })
   const selectedEndpoint = endpointsOnThisAlert.length
@@ -51,8 +50,8 @@ class RuleMessage extends Component {
     actions.updateMessage(rule.id, e.target.value)
   }
 
-  handleChooseAlert = item => () => {
-    this.setState({selectedEndpoint: item})
+  handleChooseAlert = ep => () => {
+    this.setState({selectedEndpoint: ep})
   }
 
   handleAddEndpoint = selectedItem => {
@@ -60,35 +59,33 @@ class RuleMessage extends Component {
     const newItemNumbering = _.get(endpointsOfKind, selectedItem.type, 0) + 1
     const newItemName = selectedItem.type + newItemNumbering
     const newEndpoint = {
+      ...selectedItem,
       alias: newItemName,
-      type: selectedItem.type,
-      ruleID: selectedItem.ruleID,
     }
     this.setState(
       {
         endpointsOnThisAlert: [...endpointsOnThisAlert, newEndpoint],
         endpointsOfKind: {
           ...endpointsOfKind,
-          [selectedItem.alias]: newItemNumbering,
+          [selectedItem.type]: newItemNumbering,
         },
         selectedEndpoint: newEndpoint,
       },
       this.handleUpdateAllAlerts
     )
   }
-
-  handleRemoveEndpoint = alert => e => {
+  handleRemoveEndpoint = removedEP => e => {
     e.stopPropagation()
     const {endpointsOnThisAlert, selectedEndpoint} = this.state
     const removedIndex = _.findIndex(endpointsOnThisAlert, [
       'alias',
-      alert.alias,
+      removedEP.alias,
     ])
     const remainingEndpoints = _.reject(endpointsOnThisAlert, [
       'alias',
-      alert.alias,
+      removedEP.alias,
     ])
-    if (selectedEndpoint.alias === alert.alias) {
+    if (selectedEndpoint.alias === removedEP.alias) {
       const selectedIndex = removedIndex > 0 ? removedIndex - 1 : 0
       const newSelected = remainingEndpoints.length
         ? remainingEndpoints[selectedIndex]
@@ -96,9 +93,7 @@ class RuleMessage extends Component {
       this.setState({selectedEndpoint: newSelected})
     }
     this.setState(
-      {
-        endpointsOnThisAlert: remainingEndpoints,
-      },
+      {endpointsOnThisAlert: remainingEndpoints},
       this.handleUpdateAllAlerts
     )
   }
@@ -113,15 +108,9 @@ class RuleMessage extends Component {
   render() {
     const {rule, actions, enabledAlerts} = this.props
     const {endpointsOnThisAlert, selectedEndpoint} = this.state
-    const defaultAlertEndpoints = DEFAULT_ALERTS.map(alias => {
-      return {alias, text: alias, type: alias, ruleID: rule.id}
+    const alerts = _.map([...DEFAULT_ALERTS, ...enabledAlerts], a => {
+      return {...a, text: a.type}
     })
-    const alerts = [
-      ...defaultAlertEndpoints,
-      ...enabledAlerts.map(alias => {
-        return {text: alias, type: alias, ruleID: rule.id}
-      }),
-    ]
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">Alert Message</h3>
@@ -172,7 +161,7 @@ class RuleMessage extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, func, shape} = PropTypes
 
 RuleMessage.propTypes = {
   rule: shape({}).isRequired,
@@ -182,7 +171,7 @@ RuleMessage.propTypes = {
     updateDetails: func.isRequired,
     updateAlertProperty: func.isRequired,
   }).isRequired,
-  enabledAlerts: arrayOf(string.isRequired).isRequired,
+  enabledAlerts: arrayOf(shape({})),
 }
 
 export default RuleMessage
