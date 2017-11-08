@@ -46,10 +46,11 @@ const CheckSources = React.createClass({
     errorThrown: func.isRequired,
     auth: shape({
       isUsingAuth: bool,
-      me: shape(),
-      currentOrganization: shape({
-        name: string.isRequired,
-        id: string.isRequired,
+      me: shape({
+        currentOrganization: shape({
+          name: string.isRequired,
+          id: string.isRequired,
+        }),
       }),
     }),
   },
@@ -149,7 +150,7 @@ const CheckSources = React.createClass({
     const {
       params,
       sources,
-      auth: {isUsingAuth, me, currentOrganization},
+      auth: {isUsingAuth, me, me: {currentOrganization}},
     } = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)
