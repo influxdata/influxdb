@@ -946,10 +946,6 @@ func (e *StatementExecutor) executeShowTagKeys(q *influxql.ShowTagKeysStatement,
 		return fmt.Errorf("database not found: %s", q.Database)
 	}
 
-	if di.DefaultRetentionPolicy == "" {
-		return fmt.Errorf("database %s does not have default retention policy", q.Database)
-	}
-
 	// Determine appropriate time range. If one or fewer time boundaries provided
 	// then min/max possible time should be used instead.
 	valuer := &influxql.NowValuer{Now: time.Now()}
@@ -958,13 +954,18 @@ func (e *StatementExecutor) executeShowTagKeys(q *influxql.ShowTagKeysStatement,
 		return err
 	}
 
-	sgis, err := e.MetaClient.ShardGroupsByTimeRange(di.Name, di.DefaultRetentionPolicy, timeRange.MinTime(), timeRange.MaxTime())
-	if err != nil {
-		return err
+	// Get all shards for all retention policies.
+	var allGroups []meta.ShardGroupInfo
+	for _, rpi := range di.RetentionPolicies {
+		sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, rpi.Name, timeRange.MinTime(), timeRange.MaxTime())
+		if err != nil {
+			return err
+		}
+		allGroups = append(allGroups, sgis...)
 	}
 
 	var shardIDs []uint64
-	for _, sgi := range sgis {
+	for _, sgi := range allGroups {
 		for _, si := range sgi.Shards {
 			shardIDs = append(shardIDs, si.ID)
 		}
@@ -1036,10 +1037,6 @@ func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatem
 		return fmt.Errorf("database not found: %s", q.Database)
 	}
 
-	if di.DefaultRetentionPolicy == "" {
-		return fmt.Errorf("database %s does not have default retention policy", q.Database)
-	}
-
 	// Determine appropriate time range. If one or fewer time boundaries provided
 	// then min/max possible time should be used instead.
 	valuer := &influxql.NowValuer{Now: time.Now()}
@@ -1048,13 +1045,18 @@ func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatem
 		return err
 	}
 
-	sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, di.DefaultRetentionPolicy, timeRange.MinTime(), timeRange.MaxTime())
-	if err != nil {
-		return err
+	// Get all shards for all retention policies.
+	var allGroups []meta.ShardGroupInfo
+	for _, rpi := range di.RetentionPolicies {
+		sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, rpi.Name, timeRange.MinTime(), timeRange.MaxTime())
+		if err != nil {
+			return err
+		}
+		allGroups = append(allGroups, sgis...)
 	}
 
 	var shardIDs []uint64
-	for _, sgi := range sgis {
+	for _, sgi := range allGroups {
 		for _, si := range sgi.Shards {
 			shardIDs = append(shardIDs, si.ID)
 		}
