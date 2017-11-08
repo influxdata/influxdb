@@ -84,7 +84,7 @@ class NewUserTableRow extends Component {
 
     const isDefaultOrg = currentOrganization.id === DEFAULT_ORG_ID
 
-    const organizationsMinusDefault = organizations.filter(org => {
+    const editableOrganizations = organizations.filter(org => {
       if (org.id !== DEFAULT_ORG_ID) {
         return org
       }
@@ -106,7 +106,7 @@ class NewUserTableRow extends Component {
         <td style={{width: colOrg}}>
           {isDefaultOrg
             ? <Dropdown
-                items={organizationsMinusDefault.map(org => ({
+                items={editableOrganizations.map(org => ({
                   ...org,
                   text: org.name,
                 }))}
