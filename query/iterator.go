@@ -1199,6 +1199,7 @@ func encodeMeasurement(mm *influxql.Measurement) *internal.Measurement {
 		Database:        proto.String(mm.Database),
 		RetentionPolicy: proto.String(mm.RetentionPolicy),
 		Name:            proto.String(mm.Name),
+		SystemIterator:  proto.String(mm.SystemIterator),
 		IsTarget:        proto.Bool(mm.IsTarget),
 	}
 	if mm.Regex != nil {
@@ -1212,6 +1213,7 @@ func decodeMeasurement(pb *internal.Measurement) (*influxql.Measurement, error) 
 		Database:        pb.GetDatabase(),
 		RetentionPolicy: pb.GetRetentionPolicy(),
 		Name:            pb.GetName(),
+		SystemIterator:  pb.GetSystemIterator(),
 		IsTarget:        pb.GetIsTarget(),
 	}
 
