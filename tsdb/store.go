@@ -1060,7 +1060,7 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 	for _, sid := range shardIDs {
 		shard, ok := s.shards[sid]
 		if !ok {
-			return nil, fmt.Errorf("Store doesn't have shard with ID: %d", sid)
+			continue
 		}
 		shards = append(shards, shard)
 	}
@@ -1176,17 +1176,6 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 		return nil, errors.New("a condition is required")
 	}
 
-	cond = influxql.Reduce(influxql.RewriteExpr(cond, func(e influxql.Expr) influxql.Expr {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			// Remove time clause from condition
-			if ref, ok := e.LHS.(*influxql.VarRef); ok && strings.ToLower(ref.Val) == "time" {
-				return nil
-			}
-		}
-		return e
-	}), nil)
-
 	measurementExpr := influxql.CloneExpr(cond)
 	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
 		switch e := e.(type) {
@@ -1223,7 +1212,7 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 	for _, sid := range shardIDs {
 		shard, ok := s.shards[sid]
 		if !ok {
-			return nil, fmt.Errorf("Store doesn't have shard with ID: %d", sid)
+			continue
 		}
 		shards = append(shards, shard)
 	}
