@@ -3,7 +3,7 @@ import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+import Authorized, {ADMIN_ROLE, SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import classnames from 'classnames'
 
@@ -41,16 +41,16 @@ class UserNavBlock extends Component {
             {me.name}
           </div>
           <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <Link className="sidebar-menu--item" to={`${sourcePrefix}/users`}>
-              Manage Users
-            </Link>
-          </Authorized>
-          <Authorized requiredRole={SUPERADMIN_ROLE}>
             <Link
               className="sidebar-menu--item"
               to={`${sourcePrefix}/organizations`}
             >
               Manage Organizations
+            </Link>
+          </Authorized>
+          <Authorized requiredRole={ADMIN_ROLE}>
+            <Link className="sidebar-menu--item" to={`${sourcePrefix}/users`}>
+              Manage Users
             </Link>
           </Authorized>
           <a className="sidebar-menu--item" href={logoutLink}>
