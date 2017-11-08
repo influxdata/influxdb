@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 
+// This is a non-editable organization row, used currently for DEFAULT_ORG
 const DefaultOrganization = ({organization}) =>
   <div className="manage-orgs-form--org">
     <div className="manage-orgs-form--id">
