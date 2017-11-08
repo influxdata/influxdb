@@ -15,11 +15,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {isSameUser} from 'shared/reducers/helpers/auth'
 
-import {
-  DEFAULT_ORG_ID,
-  DEFAULT_ORG_NAME,
-  NO_ORG,
-} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
 
 class AdminChronografPage extends Component {
   constructor(props) {
@@ -33,8 +29,7 @@ class AdminChronografPage extends Component {
 
   // TODO: revisit this, possibly don't call setState if both are deep equal
   componentWillReceiveProps(nextProps) {
-    const {users, currentOrganization} = nextProps
-    const {links} = this.props
+    const {currentOrganization} = nextProps
 
     const hasChangedCurrentOrganization =
       currentOrganization.id !== this.props.currentOrganization.id
@@ -175,7 +170,6 @@ class AdminChronografPage extends Component {
       )
     } else {
       this.handleDeleteUser(this.state.selectedUsers[0])
-      console.log('reset selectedUsers')
       this.setState({selectedUsers: []})
     }
   }
@@ -197,9 +191,6 @@ class AdminChronografPage extends Component {
   render() {
     const {users, organizations, currentOrganization} = this.props
     const {selectedUsers, showManageOverlay} = this.state
-
-    console.log('currentOrg:', currentOrganization)
-    console.log('Users:', users)
 
     return (
       <div className="page">
