@@ -1,6 +1,10 @@
 import React, {Component, PropTypes} from 'react'
 
 import ConfirmButtons from 'shared/components/ConfirmButtons'
+import Dropdown from 'shared/components/Dropdown'
+
+import {USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 class Organization extends Component {
   constructor(props) {
@@ -11,6 +15,7 @@ class Organization extends Component {
       isEditing: false,
       isDeleting: false,
       workingName: this.props.organization.name,
+      defaultRole: MEMBER_ROLE,
     }
   }
 
@@ -58,9 +63,22 @@ class Organization extends Component {
     onDelete(organization)
   }
 
+  handleChooseDefaultRole = role => {
+    this.setState({defaultRole: role.name})
+  }
+
   render() {
-    const {workingName, reset, isEditing, isDeleting} = this.state
+    const {workingName, reset, isEditing, isDeleting, defaultRole} = this.state
     const {organization} = this.props
+
+    const defaultRoleItems = USER_ROLES.map(role => ({
+      ...role,
+      text: role.name,
+    }))
+
+    const defaultRoleClassName = isDeleting
+      ? 'orgs-table--default-role editing'
+      : 'orgs-table--default-role'
 
     return (
       <div className="orgs-table--org">
@@ -83,6 +101,14 @@ class Organization extends Component {
               {workingName}
               <span className="icon pencil" />
             </div>}
+        <div className={defaultRoleClassName}>
+          <Dropdown
+            items={defaultRoleItems}
+            onChoose={this.handleChooseDefaultRole}
+            selected={defaultRole}
+            className="dropdown-stretch"
+          />
+        </div>
         {isDeleting
           ? <ConfirmButtons
               item={organization}

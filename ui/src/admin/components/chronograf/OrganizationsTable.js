@@ -57,6 +57,8 @@ class OrganizationsTable extends Component {
                 <div className="orgs-table--org-labels">
                   <div className="orgs-table--id">ID</div>
                   <div className="orgs-table--name">Name</div>
+                  <div className="orgs-table--default-role">Default Role</div>
+                  <div className="orgs-table--delete" />
                 </div>
                 {isAddingOrganization
                   ? <NewOrganization

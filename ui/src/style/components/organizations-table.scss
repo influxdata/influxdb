@@ -78,12 +78,39 @@ input[type="text"].form-control.orgs-table--input {
   color: $g9-mountain;
 }
 
+.orgs-table--default-role,
+.orgs-table--default-role-disabled {
+  width: 130px;
+  height: 30px;
+  margin-right: 4px;
+}
+.orgs-table--default-role.editing {
+  width: 96px;
+}
+.orgs-table--default-role-disabled {
+  background-color: $g4-onyx;
+  font-style: italic;
+  color: $g9-mountain;
+  padding: 0 11px;
+  line-height: 30px;
+  font-size: 13px;
+  font-weight: 600;
+  @include no-user-select();
+}
+.orgs-table--delete {
+  height: 30px;
+  width: 30px;
+}
+
+
+/* Table Headers */
 .orgs-table--org-labels {
   display: flex;
   align-items: center;
-  border-bottom: 2px solid $g3-castle;
-  margin-bottom: 8px;
+  border-bottom: 2px solid $g5-pepper;
+  margin-bottom: 10px;
   width: 100%;
+  @include no-user-select();
 
   > .orgs-table--name,
   > .orgs-table--name:hover {
@@ -94,13 +121,14 @@ input[type="text"].form-control.orgs-table--input {
 
   > .orgs-table--id,
   > .orgs-table--name,
-  > .orgs-table--name:hover {
+  > .orgs-table--name:hover,
+  > .orgs-table--default-role {
     color: $g15-platinum;
     font-weight: 700;
   }
-}
-.orgs-table--org.orgs-table--new-org {
-  .btn {
-    margin-left: 4px;
+  > .orgs-table--default-role {
+    line-height: 30px;
+    font-size: 13px;
+    padding: 0 11px;
   }
 }
