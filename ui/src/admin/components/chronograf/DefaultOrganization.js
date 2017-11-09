@@ -2,15 +2,15 @@ import React, {PropTypes} from 'react'
 
 // This is a non-editable organization row, used currently for DEFAULT_ORG
 const DefaultOrganization = ({organization}) =>
-  <div className="manage-orgs-form--org">
-    <div className="manage-orgs-form--id">
+  <div className="orgs-table--org">
+    <div className="orgs-table--id">
       {organization.id}
     </div>
-    <div className="manage-orgs-form--name-disabled">
+    <div className="orgs-table--name-disabled">
       {organization.name}
     </div>
     <button
-      className="btn btn-sm btn-default btn-square manage-orgs-form--delete"
+      className="btn btn-sm btn-default btn-square orgs-table--delete"
       disabled={true}
     >
       <span className="icon trash" />

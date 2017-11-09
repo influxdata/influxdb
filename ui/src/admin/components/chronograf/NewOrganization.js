@@ -47,11 +47,11 @@ class Organization extends Component {
     const isSaveDisabled = organizationName === null || organizationName === ''
 
     return (
-      <div className="manage-orgs-form--org manage-orgs-form--new-org">
-        <div className="manage-orgs-form--id">&mdash;</div>
+      <div className="orgs-table--org orgs-table--new-org">
+        <div className="orgs-table--id">&mdash;</div>
         <input
           type="text"
-          className="form-control input-sm manage-orgs-form--input"
+          className="form-control input-sm orgs-table--input"
           value={organizationName}
           onKeyDown={this.handleKeyDown}
           onChange={this.handleInputChange}

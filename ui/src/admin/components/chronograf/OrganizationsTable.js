@@ -54,9 +54,9 @@ class OrganizationsTable extends Component {
                 </button>
               </div>
               <div className="panel-body">
-                <div className="manage-orgs-form--org-labels">
-                  <div className="manage-orgs-form--id">ID</div>
-                  <div className="manage-orgs-form--name">Name</div>
+                <div className="orgs-table--org-labels">
+                  <div className="orgs-table--id">ID</div>
+                  <div className="orgs-table--name">Name</div>
                 </div>
                 {isAddingOrganization
                   ? <NewOrganization

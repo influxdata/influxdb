@@ -63,14 +63,14 @@ class Organization extends Component {
     const {organization} = this.props
 
     return (
-      <div className="manage-orgs-form--org">
-        <div className="manage-orgs-form--id">
+      <div className="orgs-table--org">
+        <div className="orgs-table--id">
           {organization.id}
         </div>
         {isEditing
           ? <input
               type="text"
-              className="form-control input-sm manage-orgs-form--input"
+              className="form-control input-sm orgs-table--input"
               defaultValue={workingName}
               onBlur={this.handleInputBlur(reset)}
               onKeyDown={this.handleKeyDown}
@@ -79,10 +79,7 @@ class Organization extends Component {
               onFocus={this.handleFocus}
               ref={r => (this.inputRef = r)}
             />
-          : <div
-              className="manage-orgs-form--name"
-              onClick={this.handleNameClick}
-            >
+          : <div className="orgs-table--name" onClick={this.handleNameClick}>
               {workingName}
               <span className="icon pencil" />
             </div>}
