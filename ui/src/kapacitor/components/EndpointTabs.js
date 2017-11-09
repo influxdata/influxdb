@@ -1,8 +1,6 @@
 import React, {PropTypes} from 'react'
-import _ from 'lodash'
 import classnames from 'classnames'
 import uuid from 'node-uuid'
-import {RULE_ALERT_OPTIONS} from 'src/kapacitor/constants'
 
 const EndpointTabs = ({
   endpointsOnThisAlert,
@@ -12,24 +10,21 @@ const EndpointTabs = ({
 }) => {
   return endpointsOnThisAlert.length
     ? <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
-        {endpointsOnThisAlert
-          .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.type, false))
-          .map(alert =>
-            <li
-              key={uuid.v4()}
-              className={classnames({
-                active:
-                  alert.alias === (selectedEndpoint && selectedEndpoint.alias),
-              })}
-              onClick={handleChooseAlert(alert)}
-            >
-              {alert.alias}
-              <div
-                className="nav-tab--delete"
-                onClick={handleRemoveEndpoint(alert)}
-              />
-            </li>
-          )}
+        {endpointsOnThisAlert.map(ep =>
+          <li
+            key={uuid.v4()}
+            className={classnames({
+              active: ep.alias === (selectedEndpoint && selectedEndpoint.alias),
+            })}
+            onClick={handleChooseAlert(ep)}
+          >
+            {ep.alias}
+            <div
+              className="nav-tab--delete"
+              onClick={handleRemoveEndpoint(ep)}
+            />
+          </li>
+        )}
       </ul>
     : null
 }

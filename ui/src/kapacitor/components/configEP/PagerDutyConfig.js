@@ -1,11 +1,28 @@
 import React, {PropTypes} from 'react'
+import EndpointInput from 'src/kapacitor/components/EndpointInput'
 
-const PagerdutyConfig = () => {
-  return <div>this is PagerdutyConfig</div>
+const PagerdutyConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
+  return (
+    <div className="rule-section--row rule-section--border-bottom">
+      <p>Alert Parameters:</p>
+      <div className="optional-alert-parameters">
+        <EndpointInput
+          selectedEndpoint={selectedEndpoint}
+          handleModifyEndpoint={handleModifyEndpoint}
+          fieldName="serviceKey"
+          fieldDisplay="Servive Key:"
+          placeholder="Ex: a_key"
+        />
+      </div>
+    </div>
+  )
 }
 
-const {bool, func, shape, string} = PropTypes
+const {func, shape} = PropTypes
 
-PagerdutyConfig.propTypes = {}
+PagerdutyConfig.propTypes = {
+  selectedEndpoint: shape({}).isRequired,
+  handleModifyEndpoint: func.isRequired,
+}
 
 export default PagerdutyConfig
