@@ -1,3 +1,9 @@
+## v1.5.0 [unreleased]
+
+### Bugfixes
+
+- [#8538](https://github.com/influxdata/influxdb/pull/8538): Fix panic: runtime error: slice bounds out of range
+
 ## v1.4.0 [unreleased]
 
 ### Breaking changes

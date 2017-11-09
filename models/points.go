@@ -1064,7 +1064,7 @@ func scanLine(buf []byte, i int) (int, []byte) {
 		}
 
 		// skip past escaped characters
-		if buf[i] == '\\' {
+		if buf[i] == '\\' && i+2 < len(buf) {
 			i += 2
 			continue
 		}
