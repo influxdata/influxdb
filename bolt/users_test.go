@@ -2,6 +2,7 @@ package bolt_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -181,8 +182,9 @@ func TestUsersStore_GetInvalid(t *testing.T) {
 
 func TestUsersStore_Add(t *testing.T) {
 	type args struct {
-		ctx context.Context
-		u   *chronograf.User
+		ctx      context.Context
+		u        *chronograf.User
+		addFirst bool
 	}
 	tests := []struct {
 		name    string
@@ -216,6 +218,24 @@ func TestUsersStore_Add(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "User already exists",
+			args: args{
+				ctx:      context.Background(),
+				addFirst: true,
+				u: &chronograf.User{
+					Name:     "docbrown",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name: "editor",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		client, err := NewTestClient()
@@ -227,9 +247,16 @@ func TestUsersStore_Add(t *testing.T) {
 		}
 		defer client.Close()
 		s := client.UsersStore
+		if tt.args.addFirst {
+			_, _ = s.Add(tt.args.ctx, tt.args.u)
+		}
 		got, err := s.Add(tt.args.ctx, tt.args.u)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+
+		if tt.wantErr {
 			continue
 		}
 
@@ -287,7 +314,9 @@ func TestUsersStore_Delete(t *testing.T) {
 		s := client.UsersStore
 
 		if tt.addFirst {
-			tt.args.user, _ = s.Add(tt.args.ctx, tt.args.user)
+			var err error
+			tt.args.user, err = s.Add(tt.args.ctx, tt.args.user)
+			fmt.Println(err)
 		}
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)

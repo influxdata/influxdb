@@ -26,6 +26,7 @@ const (
 	ErrLayoutNotFound                  = Error("layout not found")
 	ErrDashboardNotFound               = Error("dashboard not found")
 	ErrUserNotFound                    = Error("user not found")
+	ErrUserAlreadyExists               = Error("user already exists")
 	ErrOrganizationNotFound            = Error("organization not found")
 	ErrLayoutInvalid                   = Error("layout is invalid")
 	ErrAlertNotFound                   = Error("alert not found")
@@ -633,6 +634,9 @@ type User struct {
 
 // UserQuery represents the attributes that a user may be retrieved by.
 // It is predominantly used in the UsersStore.Get method.
+//
+// It is expected that only one of ID or Name, Provider, and Scheme will be
+// specified, but all are provided UserStores should prefer ID.
 type UserQuery struct {
 	ID       *uint64
 	Name     *string
@@ -641,6 +645,11 @@ type UserQuery struct {
 }
 
 // UsersStore is the Storage and retrieval of authentication information
+//
+// While not necessary for the app to function correctly, it is
+// expected that Implementors of the UsersStore will take
+// care to guarantee that the combinartion of a  users Name, Provider,
+// and Scheme are unique.
 type UsersStore interface {
 	// All lists all users from the UsersStore
 	All(context.Context) ([]User, error)
