@@ -1,6 +1,8 @@
 import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 
+import OnClickOutside from 'shared/components/OnClickOutside'
+
 class ConfirmButtons extends Component {
   constructor(props) {
     super(props)
@@ -12,6 +14,10 @@ class ConfirmButtons extends Component {
 
   handleCancel = item => () => {
     this.props.onCancel(item)
+  }
+
+  handleClickOutside = () => {
+    this.props.onClickOutside(this.props.item)
   }
 
   render() {
@@ -50,9 +56,11 @@ ConfirmButtons.propTypes = {
   onCancel: func.isRequired,
   buttonSize: string,
   isDisabled: bool,
+  onClickOutside: func,
 }
 
 ConfirmButtons.defaultProps = {
   buttonSize: 'btn-sm',
+  onClickOutside: () => {},
 }
-export default ConfirmButtons
+export default OnClickOutside(ConfirmButtons)
