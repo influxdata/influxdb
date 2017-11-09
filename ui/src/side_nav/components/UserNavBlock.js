@@ -24,9 +24,16 @@ class UserNavBlock extends Component {
       logoutLink,
       links: {external: {custom: customLinks}},
       me,
-      me: {currentOrganization, organizations, roles, role},
+      me: {currentOrganization, organizations, roles},
       sourcePrefix,
     } = this.props
+
+    // TODO: find a better way to glean this information.
+    // Need this method for when a user is a superadmin,
+    // which doesn't reflect their role in the current org
+    const currentRole = roles.find(cr => {
+      return cr.organization === currentOrganization.id
+    }).name
 
     return (
       <div className="sidebar--item">
@@ -35,7 +42,7 @@ class UserNavBlock extends Component {
         </div>
         <div className="sidebar-menu">
           <div className="sidebar-menu--heading">
-            {currentOrganization.name} ({role})
+            {currentOrganization.name} ({currentRole})
           </div>
           <div className="sidebar-menu--section">
             {me.name}
