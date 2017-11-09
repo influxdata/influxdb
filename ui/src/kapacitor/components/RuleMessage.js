@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
-import RuleMessageOptions from 'src/kapacitor/components/RuleMessageOptions'
+import EndpointOptions from 'src/kapacitor/components/EndpointOptions'
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 import EndpointTabs from 'src/kapacitor/components/EndpointTabs'
@@ -10,18 +10,17 @@ import Dropdown from 'shared/components/Dropdown'
 import {DEFAULT_ALERTS} from 'src/kapacitor/constants'
 
 const alertNodesToEndpoints = rule => {
-  const endpointsOfKind = {}
+  const endpointsOfKind = {} // TODO why are these consts?
   const endpointsOnThisAlert = []
-  rule.alertNodes.forEach(ep => {
-    const count = _.get(endpointsOfKind, ep.name, 0) + 1
-    endpointsOfKind[ep.name] = count
-    endpointsOnThisAlert.push({
-      alias: ep.name + count,
-      type: ep.name,
-      args: ep.args, // TODO args+properties= options?
-      properties: ep.properties,
-      options: {},
-    })
+  rule.alertNodes.forEach(an => {
+    const count = _.get(endpointsOfKind, an.name, 0) + 1
+    endpointsOfKind[an.name] = count
+    const ep = {
+      alias: an.name + count,
+      type: an.name,
+      options: {...an.properties, args: an.args || {}},
+    }
+    endpointsOnThisAlert.push(ep)
   })
   const selectedEndpoint = endpointsOnThisAlert.length
     ? endpointsOnThisAlert[0]
@@ -74,6 +73,7 @@ class RuleMessage extends Component {
       this.handleUpdateAllAlerts
     )
   }
+
   handleRemoveEndpoint = removedEP => e => {
     e.stopPropagation()
     const {endpointsOnThisAlert, selectedEndpoint} = this.state
@@ -105,6 +105,25 @@ class RuleMessage extends Component {
     actions.updateAlerts(rule.id, endpointsOnThisAlert)
   }
 
+  handleModifyEndpoint = (selectedEndpoint, fieldName) => e => {
+    const {endpointsOnThisAlert} = this.state
+    const modifiedEP = {
+      ...selectedEndpoint,
+      options: {...selectedEndpoint.options, [fieldName]: e.target.value},
+    }
+    const remainingEndpoints = _.reject(endpointsOnThisAlert, [
+      'alias',
+      modifiedEP.alias,
+    ])
+    this.setState(
+      {
+        selectedEndpoint: modifiedEP,
+        endpointsOnThisAlert: [...remainingEndpoints, modifiedEP],
+      },
+      this.handleUpdateAllAlerts
+    )
+  }
+
   render() {
     const {rule, actions, enabledAlerts} = this.props
     const {endpointsOnThisAlert, selectedEndpoint} = this.state
@@ -133,25 +152,17 @@ class RuleMessage extends Component {
           </div>
           {endpointsOnThisAlert.length
             ? <div>
-                <RuleMessageOptions
-                  rule={rule}
-                  alertNode={selectedEndpoint}
+                <EndpointOptions
                   selectedEndpoint={selectedEndpoint}
-                  updateAlertNodes={actions.updateAlertNodes}
-                  updateDetails={actions.updateDetails}
-                  updateAlertProperty={actions.updateAlertProperty}
-                  handleEditAlert={this.handleEditAlert}
-                  handleUpdateArg={this.handleUpdateArg}
+                  handleModifyEndpoint={this.handleModifyEndpoint}
                 />
                 <RuleMessageText
                   rule={rule}
                   updateMessage={this.handleChangeMessage}
-                  alertNodeName={selectedEndpoint}
                 />
                 <RuleMessageTemplates
                   rule={rule}
                   updateMessage={actions.updateMessage}
-                  alertNodeName={selectedEndpoint}
                 />
               </div>
             : null}

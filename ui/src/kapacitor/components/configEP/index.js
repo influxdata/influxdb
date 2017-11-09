@@ -9,7 +9,7 @@ import PagerdutyConfig from './PagerdutyConfig'
 import PushoverConfig from './PushoverConfig'
 import SensuConfig from './SensuConfig'
 import SlackConfig from './SlackConfig'
-import SMTPConfig from './SMTPConfig'
+import SmtpConfig from './SmtpConfig'
 import TalkConfig from './TalkConfig'
 import TelegramConfig from './TelegramConfig'
 import VictoropsConfig from './VictoropsConfig'
@@ -19,7 +19,7 @@ export {
   TcpConfig,
   ExecConfig,
   LogConfig,
-  SMTPConfig,
+  SmtpConfig,
   AlertaConfig,
   HipchatConfig,
   OpsgenieConfig,

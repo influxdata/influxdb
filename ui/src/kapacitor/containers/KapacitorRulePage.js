@@ -18,8 +18,7 @@ const getEnabled = config => {
   let enabledAlerts = _.filter(allAlerts, v =>
     _.get(v, ['options', 'enabled'], false)
   )
-  enabledAlerts = _.reject(enabledAlerts, v => v.type === 'influxdb')
-  // _.get(RULE_ALERT_OPTIONS, section, false)
+  enabledAlerts = _.reject(enabledAlerts, v => v.type === 'influxdb') // TODO: should I be whitelisting here??
   return enabledAlerts
 }
 
