@@ -7,6 +7,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
+	"github.com/influxdata/chronograf/roles"
 )
 
 // Ensure SourcesStore implements chronograf.SourcesStore.
@@ -36,9 +37,12 @@ func (s *SourcesStore) Migrate(ctx context.Context) error {
 	for _, source := range sources {
 		if source.Organization == "" {
 			source.Organization = defaultOrgID
-			if err := s.Update(ctx, source); err != nil {
-				return nil
-			}
+		}
+		if source.Role == "" {
+			source.Role = roles.ViewerRoleName
+		}
+		if err := s.Update(ctx, source); err != nil {
+			return nil
 		}
 	}
 
