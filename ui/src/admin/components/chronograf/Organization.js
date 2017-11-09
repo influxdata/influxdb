@@ -88,6 +88,7 @@ class Organization extends Component {
               item={organization}
               onCancel={this.handleDismissDeleteConfirmation}
               onConfirm={this.handleDeleteOrg}
+              onClickOutside={this.handleDismissDeleteConfirmation}
             />
           : <button
               className="btn btn-sm btn-default btn-square"
