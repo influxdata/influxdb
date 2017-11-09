@@ -112,22 +112,17 @@ module.exports = {
       fs.readdir(path.resolve(buildDir), (err, files) => {
         files.forEach(file => {
           if (!newlyCreatedAssets[file]) {
-            console.log('Removed ', file)
             const del = path.resolve(buildDir + file)
             fs.stat(del, function(err, stat) {
               if (err == null) {
                 try {
                   fs.unlink(path.resolve(buildDir + file))
-                  console.log('Removed ', file)
                   unlinked.push(file)
                 } catch (e) {}
               }
             })
           }
         })
-        if (unlinked.length > 0) {
-          console.log('Removed old assets: ', unlinked)
-        }
       })
     }),
   ],
@@ -136,13 +131,13 @@ module.exports = {
   devServer: {
     hot: true,
     historyApiFallback: true,
-    clientLogLevel: "info",
-    stats: { colors: true },
+    clientLogLevel: 'info',
+    stats: {colors: true},
     contentBase: 'build',
     quiet: false,
     watchOptions: {
       aggregateTimeout: 300,
-      poll: 1000
+      poll: 1000,
     },
     proxy: {
       '/chronograf/v1': {
