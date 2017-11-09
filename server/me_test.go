@@ -349,7 +349,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas"},{"id":"0","name":"Default"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default"},{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -419,8 +419,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ThrillShilliettos"},{"id":"0","name":"Default"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}
-`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default"},{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",

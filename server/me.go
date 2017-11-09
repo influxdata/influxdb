@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"golang.org/x/net/context"
 
@@ -317,6 +318,10 @@ func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([
 		}
 		orgs = append(orgs, *org)
 	}
+
+	sort.Slice(orgs, func(i, j int) bool {
+		return orgs[i].ID < orgs[j].ID
+	})
 
 	return orgs, nil
 }
