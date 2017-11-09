@@ -52,19 +52,29 @@ type userKey string
 // UserKey is the context key for retrieving the user off of context
 const UserKey = userKey("user")
 
-// hasSuperAdminContext speficies if the context contains
-// the SuperAdminKey and that the value stored there is true
-func hasSuperAdminContext(ctx context.Context) bool {
+// hasUserContext speficies if the context contains
+// the UserKey and that the value stored there is chronograf.User
+func hasUserContext(ctx context.Context) (*chronograf.User, bool) {
 	// prevents panic in case of nil context
 	if ctx == nil {
-		return false
+		return nil, false
 	}
 	u, ok := ctx.Value(UserKey).(*chronograf.User)
 	// should never happen
 	if !ok {
-		return false
+		return nil, false
 	}
 	if u == nil {
+		return nil, false
+	}
+	return u, true
+}
+
+// hasSuperAdminContext speficies if the context contains
+// the UserKey user is a super admin
+func hasSuperAdminContext(ctx context.Context) bool {
+	u, ok := hasUserContext(ctx)
+	if !ok {
 		return false
 	}
 	return u.SuperAdmin

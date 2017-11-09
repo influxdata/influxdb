@@ -397,15 +397,15 @@ func TestService_RemoveUser(t *testing.T) {
 	type args struct {
 		w    *httptest.ResponseRecorder
 		r    *http.Request
-		user *userRequest
+		user *chronograf.User
+		id   string
 	}
 	tests := []struct {
 		name       string
 		fields     fields
 		args       args
-		user       *chronograf.User
-		id         string
 		wantStatus int
+		wantBody   string
 	}{
 		{
 			name: "Delete a Chronograf User",
@@ -437,15 +437,56 @@ func TestService_RemoveUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: &userRequest{
+				user: &chronograf.User{
+					ID:       1338,
+					Name:     "helena",
+					Provider: "heroku",
+					Scheme:   "oauth2",
+				},
+				id: "1339",
+			},
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name: "Deleting yourself",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1339:
+							return &chronograf.User{
+								ID:       1339,
+								Name:     "helena",
+								Provider: "heroku",
+								Scheme:   "oauth2",
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+					DeleteF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"DELETE",
+					"http://any.url",
+					nil,
+				),
+				user: &chronograf.User{
 					ID:       1339,
 					Name:     "helena",
 					Provider: "heroku",
 					Scheme:   "oauth2",
 				},
+				id: "1339",
 			},
-			id:         "1339",
-			wantStatus: http.StatusNoContent,
+			wantStatus: http.StatusForbidden,
+			wantBody:   `{"code":403,"message":"user cannot delete themselves"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -462,17 +503,30 @@ func TestService_RemoveUser(t *testing.T) {
 				httprouter.Params{
 					{
 						Key:   "id",
-						Value: tt.id,
+						Value: tt.args.id,
 					},
 				},
 			))
 
+			if tt.args.user != nil {
+				ctx := tt.args.r.Context()
+				ctx = context.WithValue(ctx, UserKey, tt.args.user)
+				tt.args.r = tt.args.r.WithContext(ctx)
+			}
+
 			s.RemoveUser(tt.args.w, tt.args.r)
 
 			resp := tt.args.w.Result()
+			body, _ := ioutil.ReadAll(resp.Body)
 
 			if resp.StatusCode != tt.wantStatus {
 				t.Errorf("%q. RemoveUser() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantStatus == http.StatusNoContent {
+				return
+			}
+			if eq, _ := jsonEqual(string(body), tt.wantBody); !eq {
+				t.Errorf("%q. RemoveUser() = %v, want %v", tt.name, string(body), tt.wantBody)
 			}
 		})
 	}
