@@ -116,10 +116,10 @@ func TestService_NewUser(t *testing.T) {
 		Logger     chronograf.Logger
 	}
 	type args struct {
-		w                     *httptest.ResponseRecorder
-		r                     *http.Request
-		user                  *userRequest
-		withSuperAdminContext bool
+		w           *httptest.ResponseRecorder
+		r           *http.Request
+		user        *userRequest
+		userKeyUser *chronograf.User
 	}
 	tests := []struct {
 		name            string
@@ -281,7 +281,13 @@ func TestService_NewUser(t *testing.T) {
 					Scheme:     "oauth2",
 					SuperAdmin: true,
 				},
-				withSuperAdminContext: false,
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
@@ -316,7 +322,13 @@ func TestService_NewUser(t *testing.T) {
 					Scheme:     "oauth2",
 					SuperAdmin: true,
 				},
-				withSuperAdminContext: true,
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
@@ -352,8 +364,8 @@ func TestService_NewUser(t *testing.T) {
 			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 
 			ctx := tt.args.r.Context()
-			if tt.args.withSuperAdminContext {
-				ctx = context.WithValue(ctx, SuperAdminKey, true)
+			if tt.args.userKeyUser != nil {
+				ctx = context.WithValue(ctx, UserKey, tt.args.userKeyUser)
 			}
 
 			tt.args.r = tt.args.r.WithContext(ctx)
@@ -472,10 +484,10 @@ func TestService_UpdateUser(t *testing.T) {
 		Logger     chronograf.Logger
 	}
 	type args struct {
-		w                     *httptest.ResponseRecorder
-		r                     *http.Request
-		user                  *userRequest
-		withSuperAdminContext bool
+		w           *httptest.ResponseRecorder
+		r           *http.Request
+		user        *userRequest
+		userKeyUser *chronograf.User
 	}
 	tests := []struct {
 		name            string
@@ -668,13 +680,19 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				withSuperAdminContext: false,
 				user: &userRequest{
 					ID:         1336,
 					SuperAdmin: true,
 					Roles: []chronograf.Role{
 						roles.AdminRole,
 					},
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
 				},
 			},
 			id:              "1336",
@@ -715,13 +733,19 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				withSuperAdminContext: true,
 				user: &userRequest{
 					ID:         1336,
 					SuperAdmin: true,
 					Roles: []chronograf.Role{
 						roles.AdminRole,
 					},
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
 				},
 			},
 			id:              "1336",
@@ -750,8 +774,8 @@ func TestService_UpdateUser(t *testing.T) {
 			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 
 			ctx := tt.args.r.Context()
-			if tt.args.withSuperAdminContext {
-				ctx = context.WithValue(ctx, SuperAdminKey, true)
+			if tt.args.userKeyUser != nil {
+				ctx = context.WithValue(ctx, UserKey, tt.args.userKeyUser)
 			}
 
 			tt.args.r = tt.args.r.WithContext(ctx)

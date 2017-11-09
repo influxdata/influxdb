@@ -128,6 +128,9 @@ func AuthorizedUser(
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
+		// In particular this is used by sever/users.go so that we know when and when not to
+		// allow users to make someone a super admin
+		ctx = context.WithValue(ctx, UserKey, u)
 
 		if u.SuperAdmin {
 			// To access resources (servers, sources, databases, layouts) within a DataStore,
@@ -141,9 +144,6 @@ func AuthorizedUser(
 			// role on context (though not on their JWT or user) is set to be admin. In order
 			// to access all resources belonging to their current organization.
 			ctx = context.WithValue(ctx, roles.ContextKey, roles.AdminRoleName)
-			// In particular this is used by sever/users.go so that we know when and when not to
-			// allow users to make someone a super admin
-			ctx = context.WithValue(ctx, SuperAdminKey, true)
 			r = r.WithContext(ctx)
 			next(w, r)
 			return

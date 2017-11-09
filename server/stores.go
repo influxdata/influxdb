@@ -47,11 +47,10 @@ func hasRoleContext(ctx context.Context) (string, bool) {
 	}
 }
 
-type superAdminKey string
+type userKey string
 
-// SuperAdminKey is the context key for retrieving is the context
-// is for a super admin
-const SuperAdminKey = superAdminKey("superadmin")
+// UserKey is the context key for retrieving the user off of context
+const UserKey = userKey("user")
 
 // hasSuperAdminContext speficies if the context contains
 // the SuperAdminKey and that the value stored there is true
@@ -60,12 +59,15 @@ func hasSuperAdminContext(ctx context.Context) bool {
 	if ctx == nil {
 		return false
 	}
-	sa, ok := ctx.Value(SuperAdminKey).(bool)
+	u, ok := ctx.Value(UserKey).(*chronograf.User)
 	// should never happen
 	if !ok {
 		return false
 	}
-	return sa
+	if u == nil {
+		return false
+	}
+	return u.SuperAdmin
 }
 
 // DataStore is collection of resources that are used by the Service
