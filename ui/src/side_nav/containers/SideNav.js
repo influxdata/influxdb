@@ -143,26 +143,20 @@ const SideNav = React.createClass({
               >
                 <NavHeader
                   link={`${sourcePrefix}/admin-influxdb`}
-                  title="Admin"
+                  title="InfluxDB Admin"
                 />
               </NavBlock>
             }
           >
             <NavBlock
               icon="crown2"
-              link={`${sourcePrefix}/admin-chronograf`}
+              link={`${sourcePrefix}/admin-influxdb`}
               location={location}
             >
               <NavHeader
-                link={`${sourcePrefix}/admin-chronograf`}
-                title="Admin"
+                link={`${sourcePrefix}/admin-influxdb`}
+                title="InfluxDB Admin"
               />
-              <NavListItem link={`${sourcePrefix}/admin-chronograf`}>
-                Chronograf
-              </NavListItem>
-              <NavListItem link={`${sourcePrefix}/admin-influxdb`}>
-                InfluxDB
-              </NavListItem>
             </NavBlock>
           </Authorized>
 
