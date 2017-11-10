@@ -8,6 +8,8 @@
 1. [#2291](https://github.com/influxdata/chronograf/pull/2291): Fix several kapacitor alert creation panics.
 1. [#2303](https://github.com/influxdata/chronograf/pull/2303): Add shadow-utils to RPM release packages
 1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
+1. [#2327](https://github.com/influxdata/chronograf/pull/2327): After CREATE/DELETE queries, refresh list of databases in Data Explorer
+1. [#2327](https://github.com/influxdata/chronograf/pull/2327): Visualize CREATE/DELETE queries with Table view in Data Explorer
 
 ### Features
 ### UI Improvements
