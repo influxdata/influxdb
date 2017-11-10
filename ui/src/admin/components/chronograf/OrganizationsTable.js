@@ -31,7 +31,12 @@ class OrganizationsTable extends Component {
   }
 
   render() {
-    const {organizations, onDeleteOrg, onRenameOrg} = this.props
+    const {
+      organizations,
+      onDeleteOrg,
+      onRenameOrg,
+      onChooseDefaultRole,
+    } = this.props
     const {isCreatingOrganization} = this.state
 
     const tableTitle = `${organizations.length} Organization${organizations.length ===
@@ -78,6 +83,7 @@ class OrganizationsTable extends Component {
                     organization={org}
                     onDelete={onDeleteOrg}
                     onRename={onRenameOrg}
+                    onChooseDefaultRole={onChooseDefaultRole}
                   />
           )}
         </div>
@@ -98,5 +104,6 @@ OrganizationsTable.propTypes = {
   onCreateOrg: func.isRequired,
   onDeleteOrg: func.isRequired,
   onRenameOrg: func.isRequired,
+  onChooseDefaultRole: func.isRequired,
 }
 export default OrganizationsTable

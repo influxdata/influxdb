@@ -4,7 +4,6 @@ import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
 
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
-import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 class OrganizationsTableRow extends Component {
   constructor(props) {
@@ -14,7 +13,6 @@ class OrganizationsTableRow extends Component {
       isEditing: false,
       isDeleting: false,
       workingName: this.props.organization.name,
-      defaultRole: MEMBER_ROLE,
     }
   }
 
@@ -80,11 +78,12 @@ class OrganizationsTableRow extends Component {
   }
 
   handleChooseDefaultRole = role => {
-    this.setState({defaultRole: role.name})
+    const {organization, onChooseDefaultRole} = this.props
+    onChooseDefaultRole(organization, role.name)
   }
 
   render() {
-    const {workingName, isEditing, isDeleting, defaultRole} = this.state
+    const {workingName, isEditing, isDeleting} = this.state
     const {organization} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
@@ -122,7 +121,7 @@ class OrganizationsTableRow extends Component {
           <Dropdown
             items={dropdownRolesItems}
             onChoose={this.handleChooseDefaultRole}
-            selected={defaultRole}
+            selected={organization.defaultRole}
             className="dropdown-stretch"
           />
         </div>
@@ -151,9 +150,11 @@ OrganizationsTableRow.propTypes = {
   organization: shape({
     id: string, // when optimistically created, organization will not have an id
     name: string.isRequired,
+    defaultRole: string.isRequired,
   }).isRequired,
   onDelete: func.isRequired,
   onRename: func.isRequired,
+  onChooseDefaultRole: func.isRequired,
 }
 
 export default OrganizationsTableRow

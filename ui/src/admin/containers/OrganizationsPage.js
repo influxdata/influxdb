@@ -29,6 +29,11 @@ class OrganizationsPage extends Component {
     deleteOrganizationAsync(organization)
   }
 
+  handleChooseDefaultRole = (organization, defaultRole) => {
+    const {actions: {updateOrganizationAsync}} = this.props
+    updateOrganizationAsync(organization, {...organization, defaultRole})
+  }
+
   render() {
     const {organizations} = this.props
 
@@ -38,6 +43,7 @@ class OrganizationsPage extends Component {
         onCreateOrg={this.handleCreateOrganization}
         onDeleteOrg={this.handleDeleteOrganization}
         onRenameOrg={this.handleRenameOrganization}
+        onChooseDefaultRole={this.handleChooseDefaultRole}
       />
     )
   }
