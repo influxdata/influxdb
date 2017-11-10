@@ -24,9 +24,9 @@ class OrganizationsTable extends Component {
     this.setState({isCreatingOrganization: false})
   }
 
-  handleCreateOrganization = newOrganization => {
+  handleCreateOrganization = organization => {
     const {onCreateOrg} = this.props
-    onCreateOrg(newOrganization)
+    onCreateOrg(organization)
     this.setState({isCreatingOrganization: false})
   }
 

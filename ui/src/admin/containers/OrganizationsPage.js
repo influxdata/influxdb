@@ -14,9 +14,9 @@ class OrganizationsPage extends Component {
     loadOrganizationsAsync(links.organizations)
   }
 
-  handleCreateOrganization = organizationName => {
+  handleCreateOrganization = organization => {
     const {links, actions: {createOrganizationAsync}} = this.props
-    createOrganizationAsync(links.organizations, {name: organizationName})
+    createOrganizationAsync(links.organizations, organization)
   }
 
   handleRenameOrganization = (organization, name) => {

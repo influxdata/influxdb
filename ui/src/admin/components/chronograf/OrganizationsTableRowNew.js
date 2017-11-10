@@ -39,7 +39,7 @@ class OrganizationsTableRowNew extends Component {
     const {onCreateOrganization} = this.props
     const {name, defaultRole} = this.state
 
-    onCreateOrganization(name, defaultRole)
+    onCreateOrganization({name, defaultRole})
   }
 
   handleChooseDefaultRole = role => {

@@ -102,13 +102,7 @@ export const loadUsersAsync = url => async dispatch => {
 export const loadOrganizationsAsync = url => async dispatch => {
   try {
     const {data} = await getOrganizationsAJAX(url)
-
-    const orgs = data.organizations.map(o => {
-      o.defaultRole = o.defaultRole || 'member'
-      return o
-    })
-
-    dispatch(loadOrganizations({organizations: orgs}))
+    dispatch(loadOrganizations(data))
   } catch (error) {
     dispatch(errorThrown(error))
   }
