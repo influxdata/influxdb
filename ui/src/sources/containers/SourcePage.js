@@ -221,6 +221,7 @@ class SourcePage extends Component {
                     onInputChange={this.handleInputChange}
                     onSubmit={this.handleSubmit}
                     onBlurSourceURL={this.handleBlurSourceURL}
+                    isInitialSource={isInitialSource}
                   />
                 </div>
               </div>

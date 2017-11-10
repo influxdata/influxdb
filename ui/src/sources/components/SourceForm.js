@@ -12,10 +12,11 @@ const SourceForm = ({
   onInputChange,
   onBlurSourceURL,
   isUsingAuth,
+  isInitialSource,
   me,
 }) =>
   <div className="panel-body">
-    {isUsingAuth
+    {isUsingAuth && isInitialSource
       ? <div className="text-center">
           <h3>
             No sources connected to{' '}
@@ -170,6 +171,7 @@ SourceForm.propTypes = {
     }),
   }),
   isUsingAuth: bool,
+  isInitialSource: bool,
 }
 
 const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
