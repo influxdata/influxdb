@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/organizations"
 	"github.com/influxdata/chronograf/roles"
 )
 
@@ -120,6 +122,34 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 	res, err := s.Store.Organizations(ctx).Add(ctx, org)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
+	}
+
+	// Now that the organization was created, add the user
+	// making the request to the organization
+	user, ok := hasUserContext(ctx)
+	if !ok {
+		// Best attempt at cleanup the organization if there were any errors
+		_ = s.Store.Organizations(ctx).Delete(ctx, res)
+		Error(w, http.StatusInternalServerError, "failed to retrieve user from context", s.Logger)
+		return
+	}
+
+	orgID := fmt.Sprintf("%d", res.ID)
+	user.Roles = []chronograf.Role{
+		{
+			Organization: orgID,
+			Name:         roles.AdminRoleName,
+		},
+	}
+
+	orgCtx := context.WithValue(ctx, organizations.ContextKey, orgID)
+	_, err = s.Store.Users(orgCtx).Add(orgCtx, user)
+	if err != nil {
+		// Best attempt at cleanup the organization if there were any errors adding user to org
+		_ = s.Store.Organizations(ctx).Delete(ctx, res)
+		s.Logger.Error("failed to add user to organization", err.Error())
+		Error(w, http.StatusInternalServerError, "failed to add user to organization", s.Logger)
 		return
 	}
 
