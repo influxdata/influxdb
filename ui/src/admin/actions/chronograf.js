@@ -151,7 +151,7 @@ export const updateUserAsync = (user, updatedUser) => async dispatch => {
 export const deleteUserAsync = user => async dispatch => {
   dispatch(removeUser(user))
   try {
-    await deleteUserAJAX(user.links.self)
+    await deleteUserAJAX(user)
     dispatch(
       publishAutoDismissingNotification(
         'success',
@@ -197,7 +197,7 @@ export const renameOrganizationAsync = (
 export const deleteOrganizationAsync = organization => async dispatch => {
   dispatch(removeOrganization(organization))
   try {
-    await deleteOrganizationAJAX(organization.links.self)
+    await deleteOrganizationAJAX(organization)
     dispatch(
       publishAutoDismissingNotification(
         'success',

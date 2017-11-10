@@ -53,11 +53,11 @@ export const updateUser = async updatedUserWithRolesOnly => {
   }
 }
 
-export const deleteUser = async url => {
+export const deleteUser = async user => {
   try {
     return await AJAX({
       method: 'DELETE',
-      url,
+      url: user.links.self,
     })
   } catch (error) {
     console.error(error)
@@ -91,11 +91,11 @@ export const renameOrganization = async organization => {
   }
 }
 
-export const deleteOrganization = async url => {
+export const deleteOrganization = async organization => {
   try {
     return await AJAX({
       method: 'DELETE',
-      url,
+      url: organization.links.self,
     })
   } catch (error) {
     console.error(error)
