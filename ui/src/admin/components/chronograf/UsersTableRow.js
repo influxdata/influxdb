@@ -4,6 +4,7 @@ import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import Dropdown from 'shared/components/Dropdown'
 import SlideToggle from 'shared/components/SlideToggle'
+import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -13,6 +14,7 @@ const UsersTableRow = ({
   organization,
   onChangeUserRole,
   onChangeSuperAdmin,
+  onDelete,
 }) => {
   const {
     colRole,
@@ -65,6 +67,11 @@ const UsersTableRow = ({
         {user.scheme}
       </td>
       <td className="text-right" style={{width: colActions}} />
+      <DeleteConfirmTableCell
+        onDelete={onDelete}
+        item={user}
+        buttonSize="btn-xs"
+      />
     </tr>
   )
 }
@@ -79,6 +86,7 @@ UsersTableRow.propTypes = {
   }),
   onChangeUserRole: func.isRequired,
   onChangeSuperAdmin: func.isRequired,
+  onDelete: func.isRequired,
 }
 
 export default UsersTableRow

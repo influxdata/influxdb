@@ -57,8 +57,9 @@ class AdminChronografPage extends Component {
 
     updateUserAsync(user, updatedUser)
   }
-  handleDeleteUser = user => {
+  handleDeleteUser = () => user => {
     const {actions: {deleteUserAsync}} = this.props
+
     deleteUserAsync(user)
   }
 
@@ -79,7 +80,7 @@ class AdminChronografPage extends Component {
                       onCreateUser={this.handleCreateUser}
                       onUpdateUserRole={this.handleUpdateUserRole()}
                       onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
-                      onDeleteUser={this.handleDeleteUser}
+                      onDeleteUser={this.handleDeleteUser()}
                     />
                   </div>
                 </div>

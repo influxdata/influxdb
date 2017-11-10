@@ -27,6 +27,10 @@ class UsersTable extends Component {
     this.props.onUpdateUserSuperAdmin(user, currentStatus, newStatus)
   }
 
+  handleDeleteUser = user => {
+    this.props.onDeleteUser(user)
+  }
+
   handleClickCreateUser = () => {
     this.setState({isCreatingUser: true})
   }
@@ -70,6 +74,7 @@ class UsersTable extends Component {
                 <th style={{width: colProvider}}>Provider</th>
                 <th style={{width: colScheme}}>Scheme</th>
                 <th className="text-right" style={{width: colActions}} />
+                <th /* for DeleteConfirmTableCell */ />
               </tr>
             </thead>
             <tbody>
@@ -88,6 +93,7 @@ class UsersTable extends Component {
                       organization={organization}
                       onChangeUserRole={this.handleChangeUserRole}
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
+                      onDelete={this.handleDeleteUser}
                     />
                   )
                 : <tr className="table-empty-state">
@@ -123,5 +129,6 @@ UsersTable.propTypes = {
   onCreateUser: func.isRequired,
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
+  onDeleteUser: func.isRequired,
 }
 export default UsersTable
