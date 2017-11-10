@@ -130,7 +130,7 @@ func AuthorizedUser(
 		}
 		// In particular this is used by sever/users.go so that we know when and when not to
 		// allow users to make someone a super admin
-		ctx = context.WithValue(ctx, UserKey, u)
+		ctx = context.WithValue(ctx, UserContextKey, u)
 
 		if u.SuperAdmin {
 			// To access resources (servers, sources, databases, layouts) within a DataStore,

@@ -47,19 +47,19 @@ func hasRoleContext(ctx context.Context) (string, bool) {
 	}
 }
 
-type userKey string
+type userContextKey string
 
-// UserKey is the context key for retrieving the user off of context
-const UserKey = userKey("user")
+// UserContextKey is the context key for retrieving the user off of context
+const UserContextKey = userContextKey("user")
 
 // hasUserContext speficies if the context contains
-// the UserKey and that the value stored there is chronograf.User
+// the UserContextKey and that the value stored there is chronograf.User
 func hasUserContext(ctx context.Context) (*chronograf.User, bool) {
 	// prevents panic in case of nil context
 	if ctx == nil {
 		return nil, false
 	}
-	u, ok := ctx.Value(UserKey).(*chronograf.User)
+	u, ok := ctx.Value(UserContextKey).(*chronograf.User)
 	// should never happen
 	if !ok {
 		return nil, false
@@ -71,7 +71,7 @@ func hasUserContext(ctx context.Context) (*chronograf.User, bool) {
 }
 
 // hasSuperAdminContext speficies if the context contains
-// the UserKey user is a super admin
+// the UserContextKey user is a super admin
 func hasSuperAdminContext(ctx context.Context) bool {
 	u, ok := hasUserContext(ctx)
 	if !ok {

@@ -365,7 +365,7 @@ func TestService_NewUser(t *testing.T) {
 
 			ctx := tt.args.r.Context()
 			if tt.args.userKeyUser != nil {
-				ctx = context.WithValue(ctx, UserKey, tt.args.userKeyUser)
+				ctx = context.WithValue(ctx, UserContextKey, tt.args.userKeyUser)
 			}
 
 			tt.args.r = tt.args.r.WithContext(ctx)
@@ -510,7 +510,7 @@ func TestService_RemoveUser(t *testing.T) {
 
 			if tt.args.user != nil {
 				ctx := tt.args.r.Context()
-				ctx = context.WithValue(ctx, UserKey, tt.args.user)
+				ctx = context.WithValue(ctx, UserContextKey, tt.args.user)
 				tt.args.r = tt.args.r.WithContext(ctx)
 			}
 
@@ -829,7 +829,7 @@ func TestService_UpdateUser(t *testing.T) {
 
 			ctx := tt.args.r.Context()
 			if tt.args.userKeyUser != nil {
-				ctx = context.WithValue(ctx, UserKey, tt.args.userKeyUser)
+				ctx = context.WithValue(ctx, UserContextKey, tt.args.userKeyUser)
 			}
 
 			tt.args.r = tt.args.r.WithContext(ctx)
