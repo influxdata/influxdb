@@ -21,11 +21,9 @@ class NewOrganization extends Component {
 
     if (e.key === 'Escape') {
       onCancelCreateOrganization()
-      this.inputRef.blur()
     }
     if (e.key === 'Enter') {
       this.handleClickSave()
-      this.inputRef.blur()
     }
   }
 
