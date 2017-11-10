@@ -40,54 +40,46 @@ class OrganizationsTable extends Component {
       : 's'}`
 
     return (
-      <div className="container-fluid">
-        <div className="row">
-          <div className="col-xs-12">
-            <div className="panel panel-minimal">
-              <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                <h2 className="panel-title">
-                  {tableTitle}
-                </h2>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={this.handleClickCreateOrganization}
-                  disabled={isCreatingOrganization}
-                >
-                  <span className="icon plus" /> Create Organization
-                </button>
-              </div>
-              <div className="panel-body">
-                <div className="orgs-table--org-labels">
-                  <div className="orgs-table--id">ID</div>
-                  <div className="orgs-table--name">Name</div>
-                  <div className="orgs-table--default-role">Default Role</div>
-                  <div className="orgs-table--delete" />
-                </div>
-                {isCreatingOrganization
-                  ? <OrganizationsTableRowNew
-                      onCreateOrganization={this.handleCreateOrganization}
-                      onCancelCreateOrganization={
-                        this.handleCancelCreateOrganization
-                      }
-                    />
-                  : null}
-                {organizations.map(
-                  org =>
-                    org.id === DEFAULT_ORG_ID
-                      ? <OrganizationsTableRowDefault
-                          key={uuid.v4()}
-                          organization={org}
-                        />
-                      : <OrganizationsTableRow
-                          key={uuid.v4()}
-                          organization={org}
-                          onDelete={onDeleteOrg}
-                          onRename={onRenameOrg}
-                        />
-                )}
-              </div>
-            </div>
+      <div className="panel panel-default">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h2 className="panel-title">
+            {tableTitle}
+          </h2>
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={this.handleClickCreateOrganization}
+            disabled={isCreatingOrganization}
+          >
+            <span className="icon plus" /> Create Organization
+          </button>
+        </div>
+        <div className="panel-body">
+          <div className="orgs-table--org-labels">
+            <div className="orgs-table--id">ID</div>
+            <div className="orgs-table--name">Name</div>
+            <div className="orgs-table--default-role">Default Role</div>
+            <div className="orgs-table--delete" />
           </div>
+          {isCreatingOrganization
+            ? <OrganizationsTableRowNew
+                onCreateOrganization={this.handleCreateOrganization}
+                onCancelCreateOrganization={this.handleCancelCreateOrganization}
+              />
+            : null}
+          {organizations.map(
+            org =>
+              org.id === DEFAULT_ORG_ID
+                ? <OrganizationsTableRowDefault
+                    key={uuid.v4()}
+                    organization={org}
+                  />
+                : <OrganizationsTableRow
+                    key={uuid.v4()}
+                    organization={org}
+                    onDelete={onDeleteOrg}
+                    onRename={onRenameOrg}
+                  />
+          )}
         </div>
       </div>
     )

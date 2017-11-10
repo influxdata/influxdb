@@ -52,7 +52,7 @@ class UsersTable extends Component {
     } = USERS_TABLE
 
     return (
-      <div className="panel panel-minimal">
+      <div className="panel panel-default">
         <UsersTableHeader
           numUsers={users.length}
           onClickCreateUser={this.handleClickCreateUser}

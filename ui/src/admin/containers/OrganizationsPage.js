@@ -6,13 +6,8 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import OrganizationsTable from 'src/admin/components/chronograf/OrganizationsTable'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class OrganizationsPage extends Component {
-  constructor(props) {
-    super(props)
-  }
-
   componentDidMount() {
     const {links, actions: {loadOrganizationsAsync}} = this.props
 
@@ -38,25 +33,12 @@ class OrganizationsPage extends Component {
     const {organizations} = this.props
 
     return (
-      <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Admin</h1>
-            </div>
-          </div>
-        </div>
-        <FancyScrollbar className="page-contents">
-          {organizations
-            ? <OrganizationsTable
-                organizations={organizations}
-                onCreateOrg={this.handleCreateOrganization}
-                onDeleteOrg={this.handleDeleteOrganization}
-                onRenameOrg={this.handleRenameOrganization}
-              />
-            : <div className="page-spinner" />}
-        </FancyScrollbar>
-      </div>
+      <OrganizationsTable
+        organizations={organizations}
+        onCreateOrg={this.handleCreateOrganization}
+        onDeleteOrg={this.handleDeleteOrganization}
+        onRenameOrg={this.handleRenameOrganization}
+      />
     )
   }
 }
