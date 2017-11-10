@@ -10,10 +10,6 @@ import classnames from 'classnames'
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
 class UserNavBlock extends Component {
-  constructor(props) {
-    super(props)
-  }
-
   handleChangeCurrentOrganization = organizationID => () => {
     const {links, meChangeOrganization} = this.props
     meChangeOrganization(links.me, {organization: organizationID})
