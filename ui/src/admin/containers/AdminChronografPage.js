@@ -5,14 +5,10 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import {MEMBER_ROLE} from 'src/auth/Authorized'
-
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-
-import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
 
 class AdminChronografPage extends Component {
   // TODO: revisit this, possibly don't call setState if both are deep equal
@@ -40,21 +36,8 @@ class AdminChronografPage extends Component {
   // SINGLE USER ACTIONS
   handleCreateUser = user => {
     const {links, actions: {createUserAsync}} = this.props
-    let newUser = user
 
-    if (
-      user.roles.length === 1 &&
-      user.roles[0].organization !== DEFAULT_ORG_ID
-    ) {
-      newUser = {
-        ...newUser,
-        roles: [
-          ...newUser.roles,
-          {organization: DEFAULT_ORG_ID, name: MEMBER_ROLE},
-        ],
-      }
-    }
-    createUserAsync(links.users, newUser)
+    createUserAsync(links.users, user)
   }
 
   handleUpdateUserRole = () => (user, currentRole, {name}) => {
