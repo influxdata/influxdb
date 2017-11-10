@@ -75,7 +75,6 @@ class UsersTable extends Component {
                 <th style={{width: colProvider}}>Provider</th>
                 <th style={{width: colScheme}}>Scheme</th>
                 <th className="text-right" style={{width: colActions}} />
-                <th /* for DeleteConfirmTableCell */ />
               </tr>
             </thead>
             <tbody>
