@@ -312,7 +312,7 @@ func TestService_Me(t *testing.T) {
 	}
 }
 
-func TestService_MeOrganizations(t *testing.T) {
+func TestService_UpdateMe(t *testing.T) {
 	type fields struct {
 		UsersStore         chronograf.UsersStore
 		OrganizationsStore chronograf.OrganizationsStore
@@ -322,7 +322,7 @@ func TestService_MeOrganizations(t *testing.T) {
 	type args struct {
 		w          *httptest.ResponseRecorder
 		r          *http.Request
-		orgRequest *meOrganizationRequest
+		orgRequest *meRequest
 		auth       mocks.Authenticator
 	}
 	tests := []struct {
@@ -339,7 +339,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meOrganizationRequest{
+				orgRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -408,7 +408,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meOrganizationRequest{
+				orgRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -478,7 +478,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meOrganizationRequest{
+				orgRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -529,16 +529,16 @@ func TestService_MeOrganizations(t *testing.T) {
 				Issuer:       "github",
 				Organization: "1338",
 			},
-			wantStatus:      http.StatusBadRequest,
+			wantStatus:      http.StatusForbidden,
 			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"user not found"}`,
+			wantBody:        `{"code":403,"message":"user not found"}`,
 		},
 		{
 			name: "Unable to find requested organization",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meOrganizationRequest{
+				orgRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -603,20 +603,20 @@ func TestService_MeOrganizations(t *testing.T) {
 		tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 		tt.args.auth.Principal = tt.principal
 
-		s.MeOrganization(&tt.args.auth)(tt.args.w, tt.args.r)
+		s.UpdateMe(&tt.args.auth)(tt.args.w, tt.args.r)
 
 		resp := tt.args.w.Result()
 		content := resp.Header.Get("Content-Type")
 		body, _ := ioutil.ReadAll(resp.Body)
 
 		if resp.StatusCode != tt.wantStatus {
-			t.Errorf("%q. Me() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			t.Errorf("%q. UpdateMe() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
 		}
 		if tt.wantContentType != "" && content != tt.wantContentType {
-			t.Errorf("%q. Me() = %v, want %v", tt.name, content, tt.wantContentType)
+			t.Errorf("%q. UpdateMe() = %v, want %v", tt.name, content, tt.wantContentType)
 		}
 		if eq, err := jsonEqual(tt.wantBody, string(body)); err != nil || !eq {
-			t.Errorf("%q. Me() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+			t.Errorf("%q. UpdateMe() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
 		}
 	}
 }
