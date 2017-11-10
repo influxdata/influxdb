@@ -41,6 +41,7 @@
 @import 'components/input-tag-list';
 @import 'components/newsfeed';
 @import 'components/opt-in';
+@import 'components/organizations-table';
 @import 'components/page-header-dropdown';
 @import 'components/page-header-editable';
 @import 'components/page-spinner';
@@ -49,6 +50,7 @@
 @import 'components/redacted-input';
 @import 'components/resizer';
 @import 'components/search-widget';
+@import 'components/slide-toggle';
 @import 'components/info-indicators';
 @import 'components/source-selector';
 @import 'components/tables';
@@ -60,6 +62,7 @@
 @import 'pages/kapacitor';
 @import 'pages/dashboards';
 @import 'pages/admin';
+@import 'pages/users';
 
 // TODO
 @import 'unsorted';

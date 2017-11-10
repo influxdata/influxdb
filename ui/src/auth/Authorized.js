@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
+export const MEMBER_ROLE = 'member'
 export const VIEWER_ROLE = 'viewer'
 export const EDITOR_ROLE = 'editor'
 export const ADMIN_ROLE = 'admin'
@@ -26,21 +26,21 @@ export const isUserAuthorized = (meRole, requiredRole) => {
       return meRole === ADMIN_ROLE || meRole === SUPERADMIN_ROLE
     case SUPERADMIN_ROLE:
       return meRole === SUPERADMIN_ROLE
+    // 'member' is the default role and has no authorization for anything currently
+    case MEMBER_ROLE:
     default:
       return false
   }
 }
 
-export const getMeRole = me => {
-  return _.get(_.first(_.get(me, 'roles', [])), 'name', 'none') // TODO: TBD if 'none' should be returned if none
-}
-
 const Authorized = ({
   children,
-  me,
+  meRole,
   isUsingAuth,
   requiredRole,
-  replaceWith,
+  replaceWithIfNotAuthorized,
+  replaceWithIfNotUsingAuth,
+  replaceWithIfAuthorized,
   propsOverride,
 }) => {
   // if me response has not been received yet, render nothing
@@ -51,38 +51,38 @@ const Authorized = ({
   // React.isValidElement guards against multiple children wrapped by Authorized
   const firstChild = React.isValidElement(children) ? children : children[0]
 
-  const meRole = getMeRole(me)
+  if (!isUsingAuth) {
+    return replaceWithIfNotUsingAuth || firstChild
+  }
 
-  if (!isUsingAuth || isUserAuthorized(meRole, requiredRole)) {
-    return firstChild
+  if (isUserAuthorized(meRole, requiredRole)) {
+    return replaceWithIfAuthorized || firstChild
   }
 
   if (propsOverride) {
     return React.cloneElement(firstChild, {...propsOverride})
   }
 
-  return replaceWith || null
+  return replaceWithIfNotAuthorized || null
 }
 
-const {arrayOf, bool, node, shape, string} = PropTypes
+const {bool, node, shape, string} = PropTypes
 
 Authorized.propTypes = {
   isUsingAuth: bool,
-  replaceWith: node,
+  replaceWithIfNotUsingAuth: node,
+  replaceWithIfAuthorized: node,
+  replaceWithIfNotAuthorized: node,
   children: node.isRequired,
   me: shape({
-    roles: arrayOf(
-      shape({
-        name: string.isRequired,
-      })
-    ),
+    role: string.isRequired,
   }),
   requiredRole: string.isRequired,
   propsOverride: shape(),
 }
 
-const mapStateToProps = ({auth: {me, isUsingAuth}}) => ({
-  me,
+const mapStateToProps = ({auth: {me: {role}, isUsingAuth}}) => ({
+  meRole: role,
   isUsingAuth,
 })
 

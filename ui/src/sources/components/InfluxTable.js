@@ -144,7 +144,7 @@ const InfluxTable = ({
                       <h5 className="margin-zero">
                         <Authorized
                           requiredRole={EDITOR_ROLE}
-                          replaceWith={
+                          replaceWithIfNotAuthorized={
                             <strong>
                               {s.name}
                             </strong>

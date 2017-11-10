@@ -50,7 +50,7 @@ const DashboardHeader = ({
             {dashboard
               ? <Authorized
                   requiredRole={EDITOR_ROLE}
-                  replaceWith={
+                  replaceWithIfNotAuthorized={
                     <h1 className="page-header__title">
                       {activeDashboard}
                     </h1>

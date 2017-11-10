@@ -5,7 +5,7 @@ import {
   authRequested,
   authReceived,
   meRequested,
-  meReceived,
+  meReceivedNotUsingAuth,
 } from 'shared/actions/auth'
 
 const defaultAuth = {
@@ -22,7 +22,6 @@ const defaultAuth = {
 
 const defaultMe = {
   name: 'wishful_modal@overlay.technology',
-  password: '',
   links: {
     self: '/chronograf/v1/users/wishful_modal@overlay.technology',
   },
@@ -58,9 +57,12 @@ describe('Shared.Reducers.authReducer', () => {
     expect(reducedState.isMeLoading).to.equal(true)
   })
 
-  it('should handle ME_RECEIVED', () => {
-    const loadingState = Object.assign({}, initialState, {isMeLoading: true})
-    const reducedState = authReducer(loadingState, meReceived(defaultMe))
+  it('should handle ME_RECEIVED__NON_AUTH', () => {
+    const loadingState = {...initialState, isMeLoading: true}
+    const reducedState = authReducer(
+      loadingState,
+      meReceivedNotUsingAuth(defaultMe)
+    )
 
     expect(reducedState.me).to.deep.equal(defaultMe)
     expect(reducedState.isAuthLoading).to.equal(false)

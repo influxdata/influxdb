@@ -151,6 +151,7 @@ $sidebar-menu--gutter: 18px;
     cursor: pointer;
   }
 }
+.sidebar-menu--item,
 .sidebar-menu--item:link,
 .sidebar-menu--item:active,
 .sidebar-menu--item:visited {
@@ -163,13 +164,15 @@ $sidebar-menu--gutter: 18px;
   transition: none;
 
   // Rounding bottom outside corner of match container
-  &:last-child {border-bottom-right-radius: $radius;}
+  &:nth-last-child(2) {border-bottom-right-radius: $radius;}
 }
+.sidebar-menu--item.active,
 .sidebar-menu--item.active:link,
 .sidebar-menu--item.active:active,
 .sidebar-menu--item.active:visited {
   @include gradient-h($sidebar-menu--item-bg,$sidebar-menu--item-bg-accent);
   color: $sidebar-menu--item-text-active;
+  font-weight: 700;
 }
 .sidebar-menu--item:hover,
 .sidebar-menu--item.active:hover {
@@ -188,6 +191,9 @@ $sidebar-menu--gutter: 18px;
   font-weight: 400;
   padding: 0px $sidebar-menu--gutter;
 }
+.sidebar-menu--item > strong {
+  opacity: 0.6;
+}
 // Invisible triangle for easier mouse movement when navigating to sub items
 .sidebar-menu--item + .sidebar-menu--triangle {
   position: absolute;
@@ -197,4 +203,26 @@ $sidebar-menu--gutter: 18px;
   top: $sidebar--width;
   left: 0px;
   transform: translate(-50%,-50%) rotate(45deg);
+}
+
+.sidebar-menu--section {
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 22px;
+  font-weight: 600;
+  padding: 4px $sidebar-menu--gutter;
+  text-transform: uppercase;
+  color: $c-hydrogen;
+  @include no-user-select();
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    @include gradient-h($c-laser,$c-potassium);
+  }
 }

@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 
 import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
 
+import UserNavBlock from 'src/side_nav/components/UserNavBlock'
 import {
   NavBar,
   NavBlock,
@@ -26,37 +27,36 @@ const SideNav = React.createClass({
     isHidden: bool.isRequired,
     isUsingAuth: bool,
     logoutLink: string,
-    customLinks: arrayOf(
-      shape({
-        name: string.isRequired,
-        url: string.isRequired,
-      })
-    ),
-  },
-
-  renderUserMenuBlockWithCustomLinks(customLinks, logoutLink) {
-    return [
-      <NavHeader key={0} title="User" />,
-      ...customLinks
-        .sort((a, b) => a.name.toLowerCase() > b.name.toLowerCase())
-        .map(({name, url}, i) =>
-          <NavListItem
-            key={i + 1}
-            useAnchor={true}
-            isExternal={true}
-            link={url}
-          >
-            {name}
-          </NavListItem>
+    links: shape({
+      me: string,
+      external: shape({
+        custom: arrayOf(
+          shape({
+            name: string.isRequired,
+            url: string.isRequired,
+          })
         ),
-      <NavListItem
-        key={customLinks.length + 1}
-        useAnchor={true}
-        link={logoutLink}
-      >
-        Logout
-      </NavListItem>,
-    ]
+      }),
+    }),
+    me: shape({
+      currentOrganization: shape({
+        id: string.isRequired,
+        name: string.isRequired,
+      }),
+      name: string,
+      organizations: arrayOf(
+        shape({
+          id: string.isRequired,
+          name: string.isRequired,
+        })
+      ),
+      roles: arrayOf(
+        shape({
+          id: string,
+          name: string,
+        })
+      ),
+    }).isRequired,
   },
 
   render() {
@@ -66,7 +66,8 @@ const SideNav = React.createClass({
       isHidden,
       isUsingAuth,
       logoutLink,
-      customLinks,
+      links,
+      me,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
@@ -123,13 +124,37 @@ const SideNav = React.createClass({
               Create
             </NavListItem>
           </NavBlock>
-          <Authorized requiredRole={ADMIN_ROLE}>
+
+          <Authorized
+            requiredRole={ADMIN_ROLE}
+            replaceWithIfNotUsingAuth={
+              <NavBlock
+                icon="crown2"
+                link={`${sourcePrefix}/admin-influxdb`}
+                location={location}
+              >
+                <NavHeader
+                  link={`${sourcePrefix}/admin-influxdb`}
+                  title="InfluxDB Admin"
+                />
+              </NavBlock>
+            }
+          >
             <NavBlock
               icon="crown2"
-              link={`${sourcePrefix}/admin`}
+              link={`${sourcePrefix}/admin-chronograf`}
               location={location}
             >
-              <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
+              <NavHeader
+                link={`${sourcePrefix}/admin-chronograf`}
+                title="Admin"
+              />
+              <NavListItem link={`${sourcePrefix}/admin-chronograf`}>
+                Chronograf
+              </NavListItem>
+              <NavListItem link={`${sourcePrefix}/admin-influxdb`}>
+                InfluxDB
+              </NavListItem>
             </NavBlock>
           </Authorized>
           <NavBlock
@@ -143,32 +168,26 @@ const SideNav = React.createClass({
             />
           </NavBlock>
           {isUsingAuth
-            ? <NavBlock icon="user" location={location}>
-                {customLinks
-                  ? this.renderUserMenuBlockWithCustomLinks(
-                      customLinks,
-                      logoutLink
-                    )
-                  : <NavHeader
-                      useAnchor={true}
-                      link={logoutLink}
-                      title="Logout"
-                    />}
-              </NavBlock>
+            ? <UserNavBlock
+                logoutLink={logoutLink}
+                links={links}
+                me={me}
+                sourcePrefix={sourcePrefix}
+              />
             : null}
         </NavBar>
   },
 })
-
 const mapStateToProps = ({
-  auth: {isUsingAuth, logoutLink},
+  auth: {isUsingAuth, logoutLink, me},
   app: {ephemeral: {inPresentationMode}},
-  links: {external: {custom: customLinks}},
+  links,
 }) => ({
   isHidden: inPresentationMode,
   isUsingAuth,
   logoutLink,
-  customLinks,
+  links,
+  me,
 })
 
 export default connect(mapStateToProps)(withRouter(SideNav))

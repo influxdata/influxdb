@@ -22,7 +22,7 @@ import {
   updateUserPermissionsAsync,
   filterUsers as filterUsersAction,
   filterRoles as filterRolesAction,
-} from 'src/admin/actions'
+} from 'src/admin/actions/influxdb'
 
 import AdminTabs from 'src/admin/components/AdminTabs'
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -40,7 +40,7 @@ const isValidRole = role => {
   return role.name.length >= minLen
 }
 
-class AdminPage extends Component {
+class AdminInfluxDBPage extends Component {
   constructor(props) {
     super(props)
   }
@@ -151,7 +151,7 @@ class AdminPage extends Component {
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1 className="page-header__title">Admin</h1>
+              <h1 className="page-header__title">InfluxDB Admin</h1>
             </div>
             <div className="page-header__right">
               <SourceIndicator />
@@ -198,7 +198,7 @@ class AdminPage extends Component {
 
 const {arrayOf, func, shape, string} = PropTypes
 
-AdminPage.propTypes = {
+AdminInfluxDBPage.propTypes = {
   source: shape({
     id: string.isRequired,
     links: shape({
@@ -231,7 +231,7 @@ AdminPage.propTypes = {
   notify: func,
 }
 
-const mapStateToProps = ({admin: {users, roles, permissions}}) => ({
+const mapStateToProps = ({adminInfluxDB: {users, roles, permissions}}) => ({
   users,
   roles,
   permissions,
@@ -267,4 +267,4 @@ const mapDispatchToProps = dispatch => ({
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)
+export default connect(mapStateToProps, mapDispatchToProps)(AdminInfluxDBPage)

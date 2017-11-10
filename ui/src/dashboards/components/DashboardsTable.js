@@ -38,7 +38,10 @@ const DashboardsTable = ({
                     )
                   : <span className="empty-string">None</span>}
               </td>
-              <Authorized requiredRole={EDITOR_ROLE} replaceWith={<td />}>
+              <Authorized
+                requiredRole={EDITOR_ROLE}
+                replaceWithIfNotAuthorized={<td />}
+              >
                 <DeleteConfirmTableCell
                   onDelete={onDeleteDashboard}
                   item={dashboard}
