@@ -226,3 +226,34 @@ $sidebar-menu--gutter: 18px;
     @include gradient-h($c-laser,$c-potassium);
   }
 }
+
+// SuperAdminIndicator
+span.icon.sidebar--icon.sidebar--icon__superadmin {
+  font-size: 10px;
+  top: 23%;
+}
+.sidebar-menu--superadmin {
+  padding: 4px $sidebar-menu--gutter;
+  font-size: 15px;
+  font-weight: 500;
+  @include no-user-select();
+
+  > div {
+    display: flex;
+    padding: 4px 8px;
+    align-items: center;
+    border-radius: 3px;
+    // background-color: $c-ocean;
+    @include gradient-h($c-pineapple,$c-tiger);
+    color: $c-sapphire;
+  }
+  span.icon {
+    display: inline-block;
+    margin-right: 6px;
+    position: relative;
+    top: -2px;
+  }
+  &:hover {
+    cursor: default;
+  }
+}

@@ -6,6 +6,8 @@ import classnames from 'classnames'
 
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
+import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 class UserNavBlock extends Component {
   handleChangeCurrentOrganization = organizationID => () => {
     const {links, meChangeOrganization} = this.props
@@ -18,18 +20,31 @@ class UserNavBlock extends Component {
       links: {external: {custom: customLinks}},
       me,
       me: {currentOrganization, organizations, roles},
+      me: {role},
     } = this.props
+
+    const isSuperAdmin = role === SUPERADMIN_ROLE
 
     return (
       <div className="sidebar--item">
         <div className="sidebar--square">
           <div className="sidebar--icon icon user" />
+          {isSuperAdmin
+            ? <div className="sidebar--icon sidebar--icon__superadmin icon crown2" />
+            : null}
         </div>
         <div className="sidebar-menu">
           <div className="sidebar-menu--heading">
             {me.name}
           </div>
           <div className="sidebar-menu--section">Account</div>
+          {isSuperAdmin
+            ? <div className="sidebar-menu--superadmin">
+                <div>
+                  <span className="icon crown2" /> You are a SuperAdmin
+                </div>
+              </div>
+            : null}
           <a className="sidebar-menu--item" href={logoutLink}>
             Logout
           </a>
