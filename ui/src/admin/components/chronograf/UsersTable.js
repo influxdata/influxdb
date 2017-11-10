@@ -1,13 +1,10 @@
 import React, {Component, PropTypes} from 'react'
 
-import _ from 'lodash'
-
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
 import NewUserTableRow from 'src/admin/components/chronograf/NewUserTableRow'
-import BatchActionsBar from 'src/admin/components/chronograf/BatchActionsBar'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
@@ -36,28 +33,8 @@ class UsersTable extends Component {
     this.setState({isCreatingUser: false})
   }
 
-  areSameUsers = (usersA, usersB) => {
-    if (usersA.length === 0 && usersB.length === 0) {
-      return false
-    }
-    const {isSameUser} = this.props
-    return !_.differenceWith(usersA, usersB, isSameUser).length
-  }
-
   render() {
-    const {
-      organization,
-      users,
-      organizations,
-      onToggleAllUsersSelected,
-      onToggleUserSelected,
-      selectedUsers,
-      isSameUser,
-      onCreateUser,
-      onDeleteUsers,
-      onChangeRoles,
-      onAddUserToOrg,
-    } = this.props
+    const {organization, users, onCreateUser} = this.props
 
     const {isCreatingUser} = this.state
     const {
@@ -68,35 +45,16 @@ class UsersTable extends Component {
       colActions,
     } = USERS_TABLE
 
-    const areAllSelected = this.areSameUsers(users, selectedUsers)
-
     return (
       <div className="panel panel-minimal">
         <UsersTableHeader
           numUsers={users.length}
           onCreateUserRow={this.handleClickCreateUserRow}
         />
-        <BatchActionsBar
-          organizations={organizations}
-          numUsersSelected={selectedUsers.length}
-          onDeleteUsers={onDeleteUsers}
-          onChangeRoles={onChangeRoles}
-          onAddUserToOrg={onAddUserToOrg}
-        />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">
             <thead>
               <tr>
-                <th className="chronograf-admin-table--check-col">
-                  <div
-                    className={
-                      areAllSelected
-                        ? 'user-checkbox selected'
-                        : 'user-checkbox'
-                    }
-                    onClick={onToggleAllUsersSelected(areAllSelected)}
-                  />
-                </th>
                 <th>Username</th>
                 <th style={{width: colRole}} className="align-with-col-text">
                   Role
@@ -124,9 +82,6 @@ class UsersTable extends Component {
                     <OrgTableRow
                       user={user}
                       key={i}
-                      onToggleUserSelected={onToggleUserSelected}
-                      selectedUsers={selectedUsers}
-                      isSameUser={isSameUser}
                       organization={organization}
                       onChangeUserRole={this.handleChangeUserRole}
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
@@ -158,20 +113,12 @@ const {arrayOf, func, shape, string} = PropTypes
 
 UsersTable.propTypes = {
   users: arrayOf(shape()),
-  organizations: arrayOf(shape()),
-  selectedUsers: arrayOf(shape()),
-  onToggleUserSelected: func.isRequired,
-  onToggleAllUsersSelected: func.isRequired,
-  isSameUser: func.isRequired,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
   }),
-  onUpdateUserRole: func.isRequired,
   onCreateUser: func.isRequired,
+  onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
-  onDeleteUsers: func.isRequired,
-  onChangeRoles: func.isRequired,
-  onAddUserToOrg: func.isRequired,
 }
 export default UsersTable

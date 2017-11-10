@@ -74,7 +74,6 @@ class NewUserTableRow extends Component {
 
     return (
       <tr className="chronograf-admin-table--new-user">
-        <td className="chronograf-admin-table--check-col" />
         <td>
           <input
             className="form-control input-xs"

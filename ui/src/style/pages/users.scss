@@ -25,57 +25,6 @@ table.table.chronograf-admin-table .dropdown {
 table.table.chronograf-admin-table thead tr th.align-with-col-text {
   padding-left: 15px;
 }
-.user-checkbox {
-  display: inline-block;
-  vertical-align: middle;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background-color: $g2-kevlar;
-  position: relative;
-
-  &:after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(1, 1);
-    width: 20px;
-    height: 20px;
-    opacity: 0;
-    background-color: $c-pool;
-    border-radius: 50%;
-    transition: transform 0.25s ease, opacity 0.25s ease;
-  }
-
-  &:hover {
-    cursor: pointer;
-  }
-}
-tr.selected .user-checkbox:after,
-.user-checkbox.selected:after {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(0.4, 0.4);
-}
-
-table.table.chronograf-admin-table tbody tr.selected {
-  background-color: $g5-pepper;
-}
-table.table.chronograf-admin-table tbody tr.selected td {
-  color: $g18-cloud;
-  font-weight: 700;
-}
-
-table.table.chronograf-admin-table thead tr th.chronograf-admin-table--check-col,
-table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--check-col {
-  width: 28px;
-  padding-right: 0;
-}
-table.table.chronograf-admin-table thead tr th.chronograf-admin-table--selectable,
-table.table.chronograf-admin-table tbody tr td.chronograf-admin-table--selectable {
-  &:hover {cursor: pointer;}
-}
-
 .dropdown-label {
   margin: 0 8px 0 0;
   font-weight: 700;
@@ -123,7 +72,9 @@ table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user td div.
   background-color: $g3-castle;
   color: $g13-mist;
 
-  > .caret {opacity: 0;}
+  > .caret {
+    opacity: 0;
+  }
 }
 table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user.selected td div.dropdown div.btn.dropdown-toggle {
   background-color: $g5-pepper;
@@ -132,7 +83,9 @@ table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user:hover t
   background-color: $c-pool;
   color: $g20-white;
 
-  > .caret {opacity: 1;}
+  > .caret {
+    opacity: 1;
+  }
 
   &:hover {
     background-color: $c-laser;
@@ -143,7 +96,9 @@ table.table.chronograf-admin-table tbody tr.chronograf-admin-table--user td div.
   background-color: $c-hydrogen;
   color: $g20-white;
 
-  > .caret {opacity: 1;}
+  > .caret {
+    opacity: 1;
+  }
 }
 
 /* Styles for new user row */

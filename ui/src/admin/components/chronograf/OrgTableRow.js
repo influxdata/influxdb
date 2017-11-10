@@ -11,9 +11,6 @@ import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 const OrgTableRow = ({
   user,
   organization,
-  onToggleUserSelected,
-  selectedUsers,
-  isSameUser,
   onChangeUserRole,
   onChangeSuperAdmin,
 }) => {
@@ -25,30 +22,13 @@ const OrgTableRow = ({
     colActions,
   } = USERS_TABLE
 
-  const isSelected = selectedUsers.find(u => isSameUser(user, u))
-
   const currentRole = user.roles.find(
     role => role.organization === organization.id
   )
 
   return (
-    <tr
-      className={
-        isSelected
-          ? 'chronograf-admin-table--user selected'
-          : 'chronograf-admin-table--user'
-      }
-    >
-      <td
-        onClick={onToggleUserSelected(user)}
-        className="chronograf-admin-table--check-col chronograf-admin-table--selectable"
-      >
-        <div className="user-checkbox" />
-      </td>
-      <td
-        onClick={onToggleUserSelected(user)}
-        className="chronograf-admin-table--selectable"
-      >
+    <tr className={'chronograf-admin-table--user'}>
+      <td>
         <strong>
           {user.name}
         </strong>
@@ -88,7 +68,7 @@ const OrgTableRow = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {func, shape, string} = PropTypes
 
 OrgTableRow.propTypes = {
   user: shape(),
@@ -96,9 +76,6 @@ OrgTableRow.propTypes = {
     name: string.isRequired,
     id: string.isRequired,
   }),
-  onToggleUserSelected: func.isRequired,
-  selectedUsers: arrayOf(shape()),
-  isSameUser: func.isRequired,
   onChangeUserRole: func.isRequired,
   onChangeSuperAdmin: func.isRequired,
 }
