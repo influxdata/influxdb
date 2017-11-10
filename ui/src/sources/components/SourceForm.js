@@ -5,6 +5,8 @@ import {connect} from 'react-redux'
 import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
 import _ from 'lodash'
 
+import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 const SourceForm = ({
   source,
   editMode,
@@ -18,10 +20,14 @@ const SourceForm = ({
   <div className="panel-body">
     {isUsingAuth && isInitialSource
       ? <div className="text-center">
-          <h3>
-            No sources connected to{' '}
-            <strong>{me.currentOrganization.name}</strong>
-          </h3>
+          {me.role === SUPERADMIN_ROLE
+            ? <h3>
+                <strong>{me.currentOrganization.name}</strong> has no sources
+              </h3>
+            : <h3>
+                <strong>{me.currentOrganization.name}</strong> has no sources
+                available to <em>{me.role}s</em>
+              </h3>}
           <h6>Add a Source below:</h6>
         </div>
       : <h4 className="text-center">Connection Details</h4>}
@@ -165,6 +171,7 @@ SourceForm.propTypes = {
   onSubmit: func.isRequired,
   onBlurSourceURL: func.isRequired,
   me: shape({
+    role: string.isRequired,
     currentOrganization: shape({
       id: string.isRequired,
       name: string.isRequired,
