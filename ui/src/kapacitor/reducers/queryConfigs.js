@@ -125,6 +125,13 @@ const queryConfigs = (state = {}, action) => {
       // fields with no functions cannot have a group by time
       return {...state, [queryID]: nextQuery}
     }
+
+    case 'KAPA_TIME_SHIFT': {
+      const {queryID, shift} = action.payload
+      const nextQuery = timeShift(state[queryID], shift)
+
+      return {...state, [queryID]: nextQuery}
+    }
   }
   return state
 }

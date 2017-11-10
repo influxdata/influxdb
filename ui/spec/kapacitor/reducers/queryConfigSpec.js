@@ -325,4 +325,18 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
       expect(nextState[queryID].groupBy.time).to.equal(time)
     })
   })
+
+  describe('KAPA_TIME_SHIFT', () => {
+    it('can shift the time', () => {
+      const initialState = {
+        [queryID]: buildInitialState(queryID),
+      }
+
+      const shift = {quantity: 1, unit: 'd', duration: '1d'}
+      const action = timeShift(queryID, shift)
+      const nextState = reducer(initialState, action)
+
+      expect(nextState[queryID].shift).to.deep.equal([shift])
+    })
+  })
 })

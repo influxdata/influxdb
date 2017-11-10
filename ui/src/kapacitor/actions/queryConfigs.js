@@ -69,3 +69,11 @@ export const removeFuncs = (queryID, fields) => ({
     fields,
   },
 })
+
+export const timeShift = (queryID, shift) => ({
+  type: 'KAPA_TIME_SHIFT',
+  payload: {
+    queryID,
+    shift,
+  },
+})
