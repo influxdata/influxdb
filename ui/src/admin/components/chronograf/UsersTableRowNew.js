@@ -9,7 +9,7 @@ import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
-class NewUserTableRow extends Component {
+class UsersTableRowNew extends Component {
   constructor(props) {
     super(props)
 
@@ -141,7 +141,7 @@ class NewUserTableRow extends Component {
 
 const {func, shape, string} = PropTypes
 
-NewUserTableRow.propTypes = {
+UsersTableRowNew.propTypes = {
   organization: shape({
     id: string.isRequired,
     name: string.isRequired,
@@ -150,4 +150,4 @@ NewUserTableRow.propTypes = {
   onCreateUser: func.isRequired,
 }
 
-export default NewUserTableRow
+export default UsersTableRowNew

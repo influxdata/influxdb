@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 // This is a non-editable organization row, used currently for DEFAULT_ORG
-const DefaultOrganization = ({organization}) =>
+const OrganizationsTableRowDefault = ({organization}) =>
   <div className="orgs-table--org">
     <div className="orgs-table--id">
       {organization.id}
@@ -24,11 +24,11 @@ const DefaultOrganization = ({organization}) =>
 
 const {shape, string} = PropTypes
 
-DefaultOrganization.propTypes = {
+OrganizationsTableRowDefault.propTypes = {
   organization: shape({
     id: string,
     name: string.isRequired,
   }).isRequired,
 }
 
-export default DefaultOrganization
+export default OrganizationsTableRowDefault

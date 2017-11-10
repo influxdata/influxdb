@@ -6,7 +6,7 @@ import Dropdown from 'shared/components/Dropdown'
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
-class NewOrganization extends Component {
+class OrganizationsTableRowNew extends Component {
   constructor(props) {
     super(props)
 
@@ -91,9 +91,9 @@ class NewOrganization extends Component {
 
 const {func} = PropTypes
 
-NewOrganization.propTypes = {
+OrganizationsTableRowNew.propTypes = {
   onCreateOrganization: func.isRequired,
   onCancelCreateOrganization: func.isRequired,
 }
 
-export default NewOrganization
+export default OrganizationsTableRowNew

@@ -5,8 +5,8 @@ import uuid from 'node-uuid'
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
-import OrgTableRow from 'src/admin/components/chronograf/OrgTableRow'
-import NewUserTableRow from 'src/admin/components/chronograf/NewUserTableRow'
+import UsersTableRowNew from 'src/admin/components/chronograf/UsersTableRowNew'
+import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
@@ -74,7 +74,7 @@ class UsersTable extends Component {
             </thead>
             <tbody>
               {isCreatingUser
-                ? <NewUserTableRow
+                ? <UsersTableRowNew
                     organization={organization}
                     onBlur={this.handleBlurCreateUserRow}
                     onCreateUser={onCreateUser}
@@ -82,7 +82,7 @@ class UsersTable extends Component {
                 : null}
               {users.length || !isCreatingUser
                 ? users.map(user =>
-                    <OrgTableRow
+                    <UsersTableRow
                       user={user}
                       key={uuid.v4()}
                       organization={organization}

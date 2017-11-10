@@ -8,7 +8,7 @@ import SlideToggle from 'shared/components/SlideToggle'
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-const OrgTableRow = ({
+const UsersTableRow = ({
   user,
   organization,
   onChangeUserRole,
@@ -71,7 +71,7 @@ const OrgTableRow = ({
 
 const {func, shape, string} = PropTypes
 
-OrgTableRow.propTypes = {
+UsersTableRow.propTypes = {
   user: shape(),
   organization: shape({
     name: string.isRequired,
@@ -81,4 +81,4 @@ OrgTableRow.propTypes = {
   onChangeSuperAdmin: func.isRequired,
 }
 
-export default OrgTableRow
+export default UsersTableRow

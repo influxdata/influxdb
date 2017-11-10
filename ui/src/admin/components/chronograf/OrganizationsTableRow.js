@@ -6,7 +6,7 @@ import Dropdown from 'shared/components/Dropdown'
 import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
-class Organization extends Component {
+class OrganizationsTableRow extends Component {
   constructor(props) {
     super(props)
 
@@ -129,7 +129,7 @@ class Organization extends Component {
 
 const {func, shape, string} = PropTypes
 
-Organization.propTypes = {
+OrganizationsTableRow.propTypes = {
   organization: shape({
     id: string, // when optimistically created, organization will not have an id
     name: string.isRequired,
@@ -138,4 +138,4 @@ Organization.propTypes = {
   onRename: func.isRequired,
 }
 
-export default Organization
+export default OrganizationsTableRow

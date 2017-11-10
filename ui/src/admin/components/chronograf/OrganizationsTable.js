@@ -2,9 +2,9 @@ import React, {Component, PropTypes} from 'react'
 
 import uuid from 'node-uuid'
 
-import Organization from 'src/admin/components/chronograf/Organization'
-import DefaultOrganization from 'src/admin/components/chronograf/DefaultOrganization'
-import NewOrganization from 'src/admin/components/chronograf/NewOrganization'
+import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
+import OrganizationsTableRowDefault from 'src/admin/components/chronograf/OrganizationsTableRowDefault'
+import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
 
 import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
 
@@ -64,7 +64,7 @@ class OrganizationsTable extends Component {
                   <div className="orgs-table--delete" />
                 </div>
                 {isCreatingOrganization
-                  ? <NewOrganization
+                  ? <OrganizationsTableRowNew
                       onCreateOrganization={this.handleCreateOrganization}
                       onCancelCreateOrganization={
                         this.handleCancelCreateOrganization
@@ -74,11 +74,11 @@ class OrganizationsTable extends Component {
                 {organizations.map(
                   org =>
                     org.id === DEFAULT_ORG_ID
-                      ? <DefaultOrganization
+                      ? <OrganizationsTableRowDefault
                           key={uuid.v4()}
                           organization={org}
                         />
-                      : <Organization
+                      : <OrganizationsTableRow
                           key={uuid.v4()}
                           organization={org}
                           onDelete={onDeleteOrg}
