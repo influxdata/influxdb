@@ -78,7 +78,7 @@ export const createOrganization = async (url, organization) => {
   }
 }
 
-export const renameOrganization = async organization => {
+export const updateOrganization = async organization => {
   try {
     return await AJAX({
       method: 'PATCH',

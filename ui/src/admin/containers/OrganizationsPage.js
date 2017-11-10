@@ -25,8 +25,8 @@ class OrganizationsPage extends Component {
   }
 
   handleRenameOrganization = (organization, name) => {
-    const {actions: {renameOrganizationAsync}} = this.props
-    renameOrganizationAsync(organization, {...organization, name})
+    const {actions: {updateOrganizationAsync}} = this.props
+    updateOrganizationAsync(organization, {...organization, name})
   }
 
   handleDeleteOrganization = organization => {
@@ -77,7 +77,7 @@ OrganizationsPage.propTypes = {
   actions: shape({
     loadOrganizationsAsync: func.isRequired,
     createOrganizationAsync: func.isRequired,
-    renameOrganizationAsync: func.isRequired,
+    updateOrganizationAsync: func.isRequired,
     deleteOrganizationAsync: func.isRequired,
   }),
   notify: func.isRequired,

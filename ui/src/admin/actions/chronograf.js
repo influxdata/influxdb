@@ -5,7 +5,7 @@ import {
   updateUser as updateUserAJAX,
   deleteUser as deleteUserAJAX,
   createOrganization as createOrganizationAJAX,
-  renameOrganization as renameOrganizationAJAX,
+  updateOrganization as updateOrganizationAJAX,
   deleteOrganization as deleteOrganizationAJAX,
 } from 'src/admin/apis/chronograf'
 
@@ -178,13 +178,13 @@ export const createOrganizationAsync = (
   }
 }
 
-export const renameOrganizationAsync = (
+export const updateOrganizationAsync = (
   organization,
   updatedOrganization
 ) => async dispatch => {
   dispatch(renameOrganization(organization, updatedOrganization.name))
   try {
-    const {data} = await renameOrganizationAJAX(updatedOrganization)
+    const {data} = await updateOrganizationAJAX(updatedOrganization)
     // it's not necessary to syncOrganization again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncOrganization(updatedOrganization, data))
