@@ -23,15 +23,15 @@ message Dashboard {
 }
 
 message DashboardCell {
-	int32 x                = 1; // X-coordinate of Cell in the Dashboard
-	int32 y                = 2; // Y-coordinate of Cell in the Dashboard
-	int32 w                = 3; // Width of Cell in the Dashboard
-	int32 h                = 4; // Height of Cell in the Dashboard
-	repeated Query queries = 5; // Time-series data queries for Dashboard
-	string name            = 6; // User-facing name for this Dashboard
-	string type            = 7; // Dashboard visualization type
-	string ID              = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
-	map<string, Axis> axes = 9; // Axes represent the graphical viewport for a cell's visualizations
+	int32 x                 = 1; // X-coordinate of Cell in the Dashboard
+	int32 y                 = 2; // Y-coordinate of Cell in the Dashboard
+	int32 w                 = 3; // Width of Cell in the Dashboard
+	int32 h                 = 4; // Height of Cell in the Dashboard
+	repeated Query queries  = 5; // Time-series data queries for Dashboard
+	string name             = 6; // User-facing name for this Dashboard
+	string type             = 7; // Dashboard visualization type
+	string ID               = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
+	map<string, Axis> axes  = 9; // Axes represent the graphical viewport for a cell's visualizations
 }
 
 message Axis {
@@ -54,18 +54,18 @@ message Template {
 }
 
 message TemplateValue {
-	string type                   = 1; // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
-	string value                  = 2; // Value is the specific value used to replace a template in an InfluxQL query
-	bool selected                 = 3; // Selected states that this variable has been picked to use for replacement
+	string type             = 1; // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
+	string value            = 2; // Value is the specific value used to replace a template in an InfluxQL query
+	bool selected           = 3; // Selected states that this variable has been picked to use for replacement
 }
 
 message TemplateQuery {
-	string command                = 1; // Command is the query itself
-	string db                     = 2; // DB the database for the query (optional)
-	string rp                     = 3; // RP is a retention policy and optional;
-	string measurement            = 4; // Measurement is the optinally selected measurement for the query
-	string tag_key                = 5; // TagKey is the optionally selected tag key for the query
-	string field_key              = 6; // FieldKey is the optionally selected field key for the query
+	string command          = 1; // Command is the query itself
+	string db               = 2; // DB the database for the query (optional)
+	string rp               = 3; // RP is a retention policy and optional;
+	string measurement      = 4; // Measurement is the optinally selected measurement for the query
+	string tag_key          = 5; // TagKey is the optionally selected tag key for the query
+	string field_key        = 6; // FieldKey is the optionally selected field key for the query
 }
 
 message Server {
@@ -101,31 +101,38 @@ message Cell {
 }
 
 message Query {
-	string Command          = 1; // Command is the query itself
-	string DB               = 2; // DB the database for the query (optional)
-	string RP               = 3; // RP is a retention policy and optional;
-	repeated string GroupBys= 4; // GroupBys define the groups to combine in the query
-	repeated string Wheres  = 5; // Wheres define the restrictions on the query
-	string Label            = 6; // Label is the name of the Y-Axis
-	Range Range             = 7; // Range is the upper and lower bound of the Y-Axis
-	string Source           = 8; // Source is the optional URI to the data source
+	string Command            = 1; // Command is the query itself
+	string DB                 = 2; // DB the database for the query (optional)
+	string RP                 = 3; // RP is a retention policy and optional;
+	repeated string GroupBys  = 4; // GroupBys define the groups to combine in the query
+	repeated string Wheres    = 5; // Wheres define the restrictions on the query
+	string Label              = 6; // Label is the name of the Y-Axis
+	Range Range               = 7; // Range is the upper and lower bound of the Y-Axis
+	string Source             = 8; // Source is the optional URI to the data source
+	repeated TimeShift Shifts = 9; // TimeShift represents a shift to apply to an influxql query's time range
+}
+
+message TimeShift {
+	string Label              = 1; // user facing description
+	string Unit               = 2; // influxql time unit representation i.e. ms, s, m, h, d
+	string Quantity           = 3; // number of units
 }
 
 message Range {
-	int64 Upper             = 1; // Upper is the upper-bound of the range
-	int64 Lower             = 2; // Lower is the lower-bound of the range
+	int64 Upper               = 1; // Upper is the upper-bound of the range
+	int64 Lower               = 2; // Lower is the lower-bound of the range
 }
 
 message AlertRule {
-	string ID               = 1; // ID is the unique ID of this alert rule
-	string JSON             = 2; // JSON byte representation of the alert
-	int64 SrcID             = 3; // SrcID is the id of the source this alert is associated with
-	int64 KapaID            = 4; // KapaID is the id of the kapacitor this alert is associated with
+	string ID                 = 1; // ID is the unique ID of this alert rule
+	string JSON               = 2; // JSON byte representation of the alert
+	int64 SrcID               = 3; // SrcID is the id of the source this alert is associated with
+	int64 KapaID              = 4; // KapaID is the id of the kapacitor this alert is associated with
 }
 
 message User {
-	uint64 ID               = 1; // ID is the unique ID of this user
-	string Name             = 2; // Name is the user's login name
+	uint64 ID                 = 1; // ID is the unique ID of this user
+	string Name               = 2; // Name is the user's login name
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

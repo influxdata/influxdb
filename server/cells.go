@@ -31,7 +31,6 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 	cells := make([]dashboardCellResponse, len(dcells))
 	for i, cell := range dcells {
 		newCell := chronograf.DashboardCell{}
-
 		newCell.Queries = make([]chronograf.DashboardQuery, len(cell.Queries))
 		copy(newCell.Queries, cell.Queries)
 
@@ -121,6 +120,8 @@ func CorrectWidthHeight(c *chronograf.DashboardCell) {
 func AddQueryConfig(c *chronograf.DashboardCell) {
 	for i, q := range c.Queries {
 		qc := ToQueryConfig(q.Command)
+		qc.Shifts = append([]chronograf.TimeShift(nil), q.Shifts...)
+		q.Shifts = nil
 		q.QueryConfig = qc
 		c.Queries[i] = q
 	}

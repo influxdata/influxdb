@@ -60,7 +60,7 @@ func TestService_Queries(t *testing.T) {
 						"id": "82b60d37-251e-4afe-ac93-ca20a3642b11"
 					  }
 					]}`))),
-			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM db.\"monitor\".\"httpd\" WHERE time \u003e now() - 1m","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"db","measurement":"httpd","retentionPolicy":"monitor","fields":[{"value":"pingReq","type":"field","alias":""}],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":null,"range":{"upper":"","lower":"now() - 1m"}},"queryAST":{"condition":{"expr":"binary","op":"\u003e","lhs":{"expr":"reference","val":"time"},"rhs":{"expr":"binary","op":"-","lhs":{"expr":"call","name":"now"},"rhs":{"expr":"literal","val":"1m","type":"duration"}}},"fields":[{"column":{"expr":"reference","val":"pingReq"}}],"sources":[{"database":"db","retentionPolicy":"monitor","name":"httpd","type":"measurement"}]}}]}
+			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM db.\"monitor\".\"httpd\" WHERE time \u003e now() - 1m","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"db","measurement":"httpd","retentionPolicy":"monitor","fields":[{"value":"pingReq","type":"field","alias":""}],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":null,"range":{"upper":"","lower":"now() - 1m"},"shifts":[]},"queryAST":{"condition":{"expr":"binary","op":"\u003e","lhs":{"expr":"reference","val":"time"},"rhs":{"expr":"binary","op":"-","lhs":{"expr":"call","name":"now"},"rhs":{"expr":"literal","val":"1m","type":"duration"}}},"fields":[{"column":{"expr":"reference","val":"pingReq"}}],"sources":[{"database":"db","retentionPolicy":"monitor","name":"httpd","type":"measurement"}]}}]}
 `,
 		},
 		{
@@ -81,7 +81,7 @@ func TestService_Queries(t *testing.T) {
 						"id": "82b60d37-251e-4afe-ac93-ca20a3642b11"
 					  }
 					]}`))),
-			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SHOW DATABASES","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"","measurement":"","retentionPolicy":"","fields":[],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SHOW DATABASES","range":null}}]}
+			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SHOW DATABASES","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"","measurement":"","retentionPolicy":"","fields":[],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SHOW DATABASES","range":null,"shifts":[]}}]}
 `,
 		},
 		{
@@ -166,7 +166,7 @@ func TestService_Queries(t *testing.T) {
 					  }
 					]
 				  }`))),
-			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"","measurement":"","retentionPolicy":"","fields":[],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","range":null},"queryTemplated":"SELECT \"pingReq\" FROM \"_internal\".\"monitor\".\"httpd\" WHERE time \u003e now() - 15m AND time \u003c now() GROUP BY time(2s)","tempVars":[{"tempVar":":upperDashboardTime:","values":[{"value":"now()","type":"constant","selected":true}]},{"tempVar":":dashboardTime:","values":[{"value":"now() - 15m","type":"constant","selected":true}]},{"tempVar":":dbs:","values":[{"value":"_internal","type":"database","selected":true}]},{"tempVar":":interval:","values":[{"value":"1000","type":"resolution","selected":false},{"value":"3","type":"pointsPerPixel","selected":false}]}]}]}
+			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"","measurement":"","retentionPolicy":"","fields":[],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","range":null,"shifts":[]},"queryTemplated":"SELECT \"pingReq\" FROM \"_internal\".\"monitor\".\"httpd\" WHERE time \u003e now() - 15m AND time \u003c now() GROUP BY time(2s)","tempVars":[{"tempVar":":upperDashboardTime:","values":[{"value":"now()","type":"constant","selected":true}]},{"tempVar":":dashboardTime:","values":[{"value":"now() - 15m","type":"constant","selected":true}]},{"tempVar":":dbs:","values":[{"value":"_internal","type":"database","selected":true}]},{"tempVar":":interval:","values":[{"value":"1000","type":"resolution","selected":false},{"value":"3","type":"pointsPerPixel","selected":false}]}]}]}
 `,
 		},
 	}

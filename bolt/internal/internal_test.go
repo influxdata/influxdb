@@ -163,6 +163,13 @@ func Test_MarshalDashboard(t *testing.T) {
 							Upper: int64(100),
 						},
 						Source: "/chronograf/v1/sources/1",
+						Shifts: []chronograf.TimeShift{
+							{
+								Label:    "Best Week Ever",
+								Unit:     "d",
+								Quantity: "7",
+							},
+						},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
@@ -210,6 +217,7 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
@@ -241,6 +249,7 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
@@ -285,6 +294,7 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
@@ -316,6 +326,7 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
