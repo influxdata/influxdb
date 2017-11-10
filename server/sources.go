@@ -290,7 +290,7 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, newSourceResponse(src), s.Logger)
 }
 
-// ValidSourceRequest checks if name, url and type are valid
+// ValidSourceRequest checks if name, url, type, and role are valid
 func ValidSourceRequest(s *chronograf.Source, defaultOrgID string) error {
 	if s == nil {
 		return fmt.Errorf("source must be non-nil")
