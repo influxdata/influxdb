@@ -6,7 +6,7 @@ import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'shared/constants'
 import _ from 'lodash'
 
-const META_QUERY_REGEX = /^show/i
+const META_QUERY_REGEX = /^(show|create|drop)/i
 
 class Visualization extends Component {
   constructor(props) {
