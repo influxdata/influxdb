@@ -6,8 +6,7 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import PageHeader from 'src/admin/components/chronograf/PageHeader'
-import UsersTable from 'src/admin/components/chronograf/UsersTable'
-
+import AdminTabs from 'src/admin/components/chronograf/AdminTabs'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class AdminChronografPage extends Component {
@@ -64,7 +63,7 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users, currentOrganization} = this.props
+    const {users, currentOrganization, meRole} = this.props
 
     return (
       <div className="page">
@@ -74,7 +73,9 @@ class AdminChronografPage extends Component {
             ? <div className="container-fluid">
                 <div className="row">
                   <div className="col-xs-12">
-                    <UsersTable
+                    <AdminTabs
+                      meRole={meRole}
+                      // UsersTable
                       users={users}
                       organization={currentOrganization}
                       onCreateUser={this.handleCreateUser}
@@ -103,6 +104,7 @@ AdminChronografPage.propTypes = {
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
+  meRole: string.isRequired,
   actions: shape({
     loadUsersAsync: func.isRequired,
     createUserAsync: func.isRequired,
@@ -115,11 +117,12 @@ AdminChronografPage.propTypes = {
 const mapStateToProps = ({
   links,
   adminChronograf: {users},
-  auth: {me: {currentOrganization}},
+  auth: {me: {currentOrganization, role: meRole}},
 }) => ({
   links,
   users,
   currentOrganization,
+  meRole,
 })
 
 const mapDispatchToProps = dispatch => ({
