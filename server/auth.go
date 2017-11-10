@@ -63,24 +63,8 @@ func AuthorizedUser(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !useAuth {
 			ctx := r.Context()
-			defaultOrg, err := store.Organizations(ctx).DefaultOrganization(ctx)
-			if err != nil {
-				unknownErrorWithMessage(w, err, logger)
-				return
-			}
-			// To access resources (servers, sources, databases, layouts) within a DataStore,
-			// an organization and a role are required even if you are a super admin or are
-			// not using auth. Every user's current organization is set on context to filter
-			// the resources accessed within a DataStore, including for super admin or when
-			// not using auth. In this way, a DataStore can treat all requests the same,
-			// including those from a super admin and when not using auth.
-			//
-			// As for roles, in the case of super admin or when not using auth, the user's
-			// role on context (though not on their JWT or user) is set to be admin. In order
-			// to access all resources belonging to their current organization.
-			ctx = context.WithValue(ctx, organizations.ContextKey, fmt.Sprintf("%d", defaultOrg.ID))
-			ctx = context.WithValue(ctx, roles.ContextKey, roles.AdminRoleName)
-			r = r.WithContext(ctx)
+			// If there is no auth, then give the user raw access to the DataStore
+			r = r.WithContext(serverContext(ctx))
 			next(w, r)
 			return
 		}
@@ -92,6 +76,7 @@ func AuthorizedUser(
 			WithField("url", r.URL)
 
 		ctx := r.Context()
+		serverCtx := serverContext(ctx)
 
 		p, err := getValidPrincipal(ctx)
 		if err != nil {
@@ -108,7 +93,7 @@ func AuthorizedUser(
 
 		// This is as if the user was logged into the default organization
 		if p.Organization == "" {
-			defaultOrg, err := store.Organizations(ctx).DefaultOrganization(ctx)
+			defaultOrg, err := store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 			if err != nil {
 				unknownErrorWithMessage(w, err, logger)
 				return
@@ -123,26 +108,14 @@ func AuthorizedUser(
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
-		_, err = store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+		_, err = store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
 		if err != nil {
 			log.Error(fmt.Sprintf("Failed to retrieve organization %d from organizations store", orgID))
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
-
 		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
-		serverCtx := context.WithValue(ctx, SuperAdminKey, true)
-		// To access resources (servers, sources, databases, layouts) within a DataStore,
-		// an organization and a role are required even if you are a super admin or are
-		// not using auth. Every user's current organization is set on context to filter
-		// the resources accessed within a DataStore, including for super admin or when
-		// not using auth. In this way, a DataStore can treat all requests the same,
-		// including those from a super admin and when not using auth.
-		//
-		// As for roles, in the case of super admin or when not using auth, the user's
-		// role on context (though not on their JWT or user) is set to be admin. In order
-		// to access all resources belonging to their current organization.
-		serverCtx = context.WithValue(serverCtx, roles.ContextKey, roles.AdminRoleName)
+
 		// TODO: seems silly to look up a user twice
 		u, err := store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
 			Name:     &p.Subject,
@@ -155,10 +128,23 @@ func AuthorizedUser(
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
+		// In particular this is used by sever/users.go so that we know when and when not to
+		// allow users to make someone a super admin
+		ctx = context.WithValue(ctx, UserContextKey, u)
 
 		if u.SuperAdmin {
-			// This context is where superadmin gets set for all things
-			r = r.WithContext(serverCtx)
+			// To access resources (servers, sources, databases, layouts) within a DataStore,
+			// an organization and a role are required even if you are a super admin or are
+			// not using auth. Every user's current organization is set on context to filter
+			// the resources accessed within a DataStore, including for super admin or when
+			// not using auth. In this way, a DataStore can treat all requests the same,
+			// including those from a super admin and when not using auth.
+			//
+			// As for roles, in the case of super admin or when not using auth, the user's
+			// role on context (though not on their JWT or user) is set to be admin. In order
+			// to access all resources belonging to their current organization.
+			ctx = context.WithValue(ctx, roles.ContextKey, roles.AdminRoleName)
+			r = r.WithContext(ctx)
 			next(w, r)
 			return
 		}

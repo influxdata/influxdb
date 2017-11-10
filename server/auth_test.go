@@ -1,4 +1,4 @@
-package server_test
+package server
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/roles"
-	"github.com/influxdata/chronograf/server"
 )
 
 func TestAuthorizedToken(t *testing.T) {
@@ -55,7 +54,7 @@ func TestAuthorizedToken(t *testing.T) {
 		}
 
 		logger := clog.New(clog.DebugLevel)
-		handler := server.AuthorizedToken(a, logger, next)
+		handler := AuthorizedToken(a, logger, next)
 		handler.ServeHTTP(w, req)
 		if w.Code != test.Code {
 			t.Errorf("Status code expected: %d actual %d", test.Code, w.Code)
@@ -78,10 +77,14 @@ func TestAuthorizedUser(t *testing.T) {
 		role      string
 	}
 	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		authorized bool
+		name                   string
+		fields                 fields
+		args                   args
+		hasOrganizationContext bool
+		hasSuperAdminContext   bool
+		hasRoleContext         bool
+		hasServerContext       bool
+		authorized             bool
 	}{
 		{
 			name: "Not using auth",
@@ -99,7 +102,11 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				useAuth: false,
 			},
-			authorized: true,
+			hasOrganizationContext: false,
+			hasSuperAdminContext:   false,
+			hasRoleContext:         false,
+			hasServerContext:       true,
+			authorized:             true,
 		},
 		{
 			name: "User with viewer role is viewer authorized",
@@ -151,7 +158,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "viewer",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   false,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "User with editor role is viewer authorized",
@@ -203,7 +214,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "viewer",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   false,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "User with admin role is viewer authorized",
@@ -255,7 +270,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "viewer",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   false,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "User with viewer role is editor unauthorized",
@@ -359,7 +378,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "editor",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   false,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "User with admin role is editor authorized",
@@ -411,7 +434,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "editor",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   false,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "User with viewer role is admin unauthorized",
@@ -567,7 +594,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "admin",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   false,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "User with no role is viewer unauthorized",
@@ -1065,7 +1096,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "viewer",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   true,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "SuperAdmin is Editor authorized",
@@ -1118,7 +1153,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "editor",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   true,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "SuperAdmin is Admin authorized",
@@ -1171,7 +1210,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "admin",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   true,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "SuperAdmin is SuperAdmin authorized",
@@ -1224,7 +1267,11 @@ func TestAuthorizedUser(t *testing.T) {
 				role:    "superadmin",
 				useAuth: true,
 			},
-			authorized: true,
+			authorized:             true,
+			hasOrganizationContext: true,
+			hasSuperAdminContext:   true,
+			hasRoleContext:         true,
+			hasServerContext:       false,
 		},
 		{
 			name: "Invalid principal – principal is nil",
@@ -1496,11 +1543,20 @@ func TestAuthorizedUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var authorized bool
+			var hasServerCtx bool
+			var hasSuperAdminCtx bool
+			var hasOrganizationCtx bool
+			var hasRoleCtx bool
 			next := func(w http.ResponseWriter, r *http.Request) {
+				ctx := r.Context()
+				hasServerCtx = hasServerContext(ctx)
+				hasSuperAdminCtx = hasSuperAdminContext(ctx)
+				_, hasOrganizationCtx = hasOrganizationContext(ctx)
+				_, hasRoleCtx = hasRoleContext(ctx)
 				authorized = true
 			}
-			fn := server.AuthorizedUser(
-				&server.Store{
+			fn := AuthorizedUser(
+				&Store{
 					UsersStore:         tt.fields.UsersStore,
 					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
@@ -1525,6 +1581,22 @@ func TestAuthorizedUser(t *testing.T) {
 
 			if authorized != tt.authorized {
 				t.Errorf("%q. AuthorizedUser() = %v, expected %v", tt.name, authorized, tt.authorized)
+			}
+
+			if hasServerCtx != tt.hasServerContext {
+				t.Errorf("%q. AuthorizedUser().Context().Server = %v, expected %v", tt.name, hasServerCtx, tt.hasServerContext)
+			}
+
+			if hasSuperAdminCtx != tt.hasSuperAdminContext {
+				t.Errorf("%q. AuthorizedUser().Context().SuperAdmin = %v, expected %v", tt.name, hasSuperAdminCtx, tt.hasSuperAdminContext)
+			}
+
+			if hasOrganizationCtx != tt.hasOrganizationContext {
+				t.Errorf("%q. AuthorizedUser.Context().Organization = %v, expected %v", tt.name, hasOrganizationCtx, tt.hasOrganizationContext)
+			}
+
+			if hasRoleCtx != tt.hasRoleContext {
+				t.Errorf("%q. AuthorizedUser().Context().Role = %v, expected %v", tt.name, hasRoleCtx, tt.hasRoleContext)
 			}
 
 		})

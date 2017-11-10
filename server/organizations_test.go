@@ -352,12 +352,14 @@ func TestService_RemoveOrganization(t *testing.T) {
 func TestService_NewOrganization(t *testing.T) {
 	type fields struct {
 		OrganizationsStore chronograf.OrganizationsStore
+		UsersStore         chronograf.UsersStore
 		Logger             chronograf.Logger
 	}
 	type args struct {
-		w   *httptest.ResponseRecorder
-		r   *http.Request
-		org *organizationRequest
+		w    *httptest.ResponseRecorder
+		r    *http.Request
+		org  *organizationRequest
+		user *chronograf.User
 	}
 	tests := []struct {
 		name            string
@@ -377,12 +379,28 @@ func TestService_NewOrganization(t *testing.T) {
 					"http://any.url", // can be any valid URL as we are bypassing mux
 					nil,
 				),
+				user: &chronograf.User{
+					ID:       1,
+					Name:     "bobetta",
+					Provider: "github",
+					Scheme:   "oauth2",
+				},
 				org: &organizationRequest{
 					Name: "The Good Place",
 				},
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1,
+							Name:     "bobetta",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					AddF: func(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -396,16 +414,104 @@ func TestService_NewOrganization(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"id":"1337","name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
 		},
+		{
+			name: "Create Organization - no user on context",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+				org: &organizationRequest{
+					Name: "The Good Place",
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1,
+							Name:     "bobetta",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					AddF: func(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The Good Place",
+						}, nil
+					},
+					DeleteF: func(ctx context.Context, o *chronograf.Organization) error {
+						return nil
+					},
+				},
+			},
+			wantStatus:      http.StatusInternalServerError,
+			wantContentType: "application/json",
+			wantBody:        `{"code":500,"message":"failed to retrieve user from context"}`,
+		},
+		{
+			name: "Create Organization - failed to add user to organization",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+				org: &organizationRequest{
+					Name: "The Good Place",
+				},
+				user: &chronograf.User{
+					ID:       1,
+					Name:     "bobetta",
+					Provider: "github",
+					Scheme:   "oauth2",
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return nil, fmt.Errorf("failed to add user to org")
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					AddF: func(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:   1337,
+							Name: "The Good Place",
+						}, nil
+					},
+					DeleteF: func(ctx context.Context, o *chronograf.Organization) error {
+						return nil
+					},
+				},
+			},
+			wantStatus:      http.StatusInternalServerError,
+			wantContentType: "application/json",
+			wantBody:        `{"code":500,"message":"failed to add user to organization"}`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
-				Store: &Store{
+				Store: &mocks.Store{
 					OrganizationsStore: tt.fields.OrganizationsStore,
+					UsersStore:         tt.fields.UsersStore,
 				},
 				Logger: tt.fields.Logger,
 			}
+
+			ctx := tt.args.r.Context()
+			ctx = context.WithValue(ctx, UserContextKey, tt.args.user)
+			tt.args.r = tt.args.r.WithContext(ctx)
 
 			buf, _ := json.Marshal(tt.args.org)
 			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))

@@ -51,14 +51,24 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID:   0,
+							Name: "Default",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
-						return &chronograf.Organization{
-							ID:   0,
-							Name: "The Bad Place",
-						}, nil
+						switch *q.ID {
+						case 0:
+							return &chronograf.Organization{
+								ID:   0,
+								Name: "Default",
+							}, nil
+						case 1:
+							return &chronograf.Organization{
+								ID:   1,
+								Name: "The Bad Place",
+							}, nil
+						}
+						return nil, nil
 					},
 				},
 				UsersStore: &mocks.UsersStore{
@@ -87,7 +97,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"currentOrganization":{"id":"0","name":"The Bad Place"},"roles":[{"name":"member","organization":"0"}]}
+			wantBody: `{"name":"me","roles":[{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default"}],"currentOrganization":{"id":"0","name":"Default"}}
 `,
 		},
 		{
@@ -309,17 +319,27 @@ func TestService_MeOrganizations(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID:   0,
+							Name: "Default",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
-						return &chronograf.Organization{
-							ID:   1337,
-							Name: "The ShillBillThrilliettas",
-						}, nil
+						switch *q.ID {
+						case 0:
+							return &chronograf.Organization{
+								ID:   0,
+								Name: "Default",
+							}, nil
+						case 1337:
+							return &chronograf.Organization{
+								ID:   1337,
+								Name: "The ShillBillThrilliettas",
+							}, nil
+						}
+						return nil, nil
 					},
 				},
 			},
@@ -329,7 +349,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default"},{"id":"1337","name":"The ShillBillThrilliettas"}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas"}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -368,17 +388,27 @@ func TestService_MeOrganizations(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID:   0,
+							Name: "Default",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
-						return &chronograf.Organization{
-							ID:   1337,
-							Name: "The ThrillShilliettos",
-						}, nil
+						switch *q.ID {
+						case 1337:
+							return &chronograf.Organization{
+								ID:   1337,
+								Name: "The ThrillShilliettos",
+							}, nil
+						case 0:
+							return &chronograf.Organization{
+								ID:   0,
+								Name: "Default",
+							}, nil
+						}
+						return nil, nil
 					},
 				},
 			},
@@ -389,8 +419,7 @@ func TestService_MeOrganizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}
-`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"member","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default"},{"id":"1337","name":"The ThrillShilliettos"}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos"}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
@@ -410,7 +439,17 @@ func TestService_MeOrganizations(t *testing.T) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
 						}
-						return nil, chronograf.ErrUserNotFound
+						return &chronograf.User{
+							Name:     "me",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         roles.AdminRoleName,
+									Organization: "1338",
+								},
+							},
+						}, nil
 					},
 					UpdateF: func(ctx context.Context, u *chronograf.User) error {
 						return nil
