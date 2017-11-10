@@ -36,11 +36,10 @@ class NewOrganization extends Component {
   }
 
   handleClickSave = () => {
-    const {onCancelCreateOrganization, onCreateOrganization} = this.props
+    const {onCreateOrganization} = this.props
     const {name, defaultRole} = this.state
 
     onCreateOrganization(name, defaultRole)
-    onCancelCreateOrganization()
   }
 
   handleChooseDefaultRole = role => {

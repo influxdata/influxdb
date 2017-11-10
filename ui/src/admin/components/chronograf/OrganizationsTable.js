@@ -25,6 +25,7 @@ class OrganizationsTable extends Component {
   handleCreateOrganization = newOrganization => {
     const {onCreateOrg} = this.props
     onCreateOrg(newOrganization)
+    this.setState({isCreatingOrganization: false})
   }
 
   render() {
