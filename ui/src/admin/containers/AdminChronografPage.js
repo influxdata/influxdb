@@ -5,7 +5,6 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import PageHeader from 'src/admin/components/chronograf/PageHeader'
 import AdminTabs from 'src/admin/components/chronograf/AdminTabs'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -67,23 +66,27 @@ class AdminChronografPage extends Component {
 
     return (
       <div className="page">
-        <PageHeader currentOrganization={currentOrganization} />
+        <div className="page-header">
+          <div className="page-header__container">
+            <div className="page-header__left">
+              <h1 className="page-header__title">Chronograf Admin</h1>
+            </div>
+          </div>
+        </div>
         <FancyScrollbar className="page-contents">
           {users
             ? <div className="container-fluid">
                 <div className="row">
-                  <div className="col-xs-12">
-                    <AdminTabs
-                      meRole={meRole}
-                      // UsersTable
-                      users={users}
-                      organization={currentOrganization}
-                      onCreateUser={this.handleCreateUser}
-                      onUpdateUserRole={this.handleUpdateUserRole()}
-                      onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
-                      onDeleteUser={this.handleDeleteUser()}
-                    />
-                  </div>
+                  <AdminTabs
+                    meRole={meRole}
+                    // UsersTable
+                    users={users}
+                    organization={currentOrganization}
+                    onCreateUser={this.handleCreateUser}
+                    onUpdateUserRole={this.handleUpdateUserRole()}
+                    onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
+                    onDeleteUser={this.handleDeleteUser()}
+                  />
                 </div>
               </div>
             : <div className="page-spinner" />}

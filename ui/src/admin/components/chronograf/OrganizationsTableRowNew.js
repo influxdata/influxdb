@@ -83,6 +83,7 @@ class OrganizationsTableRowNew extends Component {
           disabled={isSaveDisabled}
           onCancel={onCancelCreateOrganization}
           onConfirm={this.handleClickSave}
+          confirmLeft={true}
         />
       </div>
     )
