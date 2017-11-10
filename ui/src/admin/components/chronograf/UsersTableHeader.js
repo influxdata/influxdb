@@ -19,7 +19,7 @@ class UsersTableHeader extends Component {
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">
-          {panelTitle} in {organization.name}
+          {panelTitle} in <em>{organization.name}</em>
         </h2>
         <Authorized requiredRole={ADMIN_ROLE}>
           <button
