@@ -26,7 +26,7 @@ class NewUserTableRow extends Component {
     this.setState({[fieldName]: e.target.value.trim()})
   }
 
-  handleClickCreateUser = () => {
+  handleConfirmCreateUser = () => {
     const {onBlur, onCreateUser, organization} = this.props
     const {name, provider, scheme, role, superAdmin} = this.state
 
@@ -128,7 +128,7 @@ class NewUserTableRow extends Component {
           <button
             className="btn btn-xs btn-square btn-success"
             disabled={preventCreate}
-            onClick={this.handleClickCreateUser}
+            onClick={this.handleConfirmCreateUser}
           >
             <span className="icon checkmark" />
           </button>

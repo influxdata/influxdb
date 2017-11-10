@@ -25,7 +25,7 @@ class UsersTable extends Component {
     this.props.onUpdateUserSuperAdmin(user, currentStatus, newStatus)
   }
 
-  handleClickCreateUserRow = () => {
+  handleClickCreateUser = () => {
     this.setState({isCreatingUser: true})
   }
 
@@ -49,7 +49,7 @@ class UsersTable extends Component {
       <div className="panel panel-minimal">
         <UsersTableHeader
           numUsers={users.length}
-          onCreateUserRow={this.handleClickCreateUserRow}
+          onClickCreateUser={this.handleClickCreateUser}
         />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">

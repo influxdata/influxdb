@@ -7,7 +7,7 @@ class UsersTableHeader extends Component {
   }
 
   render() {
-    const {onCreateUserRow, numUsers} = this.props
+    const {onClickCreateUser, numUsers} = this.props
 
     const panelTitle = numUsers === 1 ? `${numUsers} User` : `${numUsers} Users`
 
@@ -17,7 +17,10 @@ class UsersTableHeader extends Component {
           {panelTitle}
         </h2>
         <Authorized requiredRole={ADMIN_ROLE}>
-          <button className="btn btn-primary btn-sm" onClick={onCreateUserRow}>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={onClickCreateUser}
+          >
             <span className="icon plus" />
             Create User
           </button>
@@ -31,7 +34,7 @@ const {func, number} = PropTypes
 
 UsersTableHeader.propTypes = {
   numUsers: number.isRequired,
-  onCreateUserRow: func.isRequired,
+  onClickCreateUser: func.isRequired,
 }
 
 export default UsersTableHeader
