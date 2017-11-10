@@ -1049,6 +1049,14 @@ func (s *Shard) Backup(w io.Writer, basePath string, since time.Time) error {
 	return engine.Backup(w, basePath, since)
 }
 
+func (s *Shard) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
+	engine, err := s.engine()
+	if err != nil {
+		return err
+	}
+	return engine.Export(w, basePath, start, end)
+}
+
 // Restore restores data to the underlying engine for the shard.
 // The shard is reopened after restore.
 func (s *Shard) Restore(r io.Reader, basePath string) error {

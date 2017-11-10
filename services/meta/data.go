@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"fmt"
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
@@ -755,6 +756,52 @@ func (data *Data) hasAdminUser() bool {
 		}
 	}
 	return false
+}
+
+// ImportData imports selected data into the current metadata.
+// opts provides options to possibly rename the Database or Retention Policy, or change the Replication Factor.
+func (data *Data) ImportData(other Data, newDBName, newRPName string) (map[uint64]uint64, error) {
+
+	shardIDMap := make(map[uint64]uint64)
+
+	if len(other.Databases) != 1 {
+		return shardIDMap, fmt.Errorf("imported metadata has more than one database")
+	}
+
+	dbImport := other.Databases[0]
+
+	if newDBName == "" {
+		newDBName = dbImport.Name
+	}
+
+	// change the names if we want/need to
+	dbImport.Name = newDBName
+	if newRPName != "" {
+		if len(dbImport.RetentionPolicies) != 1 {
+			return shardIDMap, errors.New("cannot rename more than one imported retention policy")
+		}
+		dbImport.RetentionPolicies[0].Name = newRPName
+	}
+
+	if data.Database(newDBName) != nil {
+		return shardIDMap, errors.New("database already exists")
+	}
+
+	for _, rpImport := range dbImport.RetentionPolicies {
+		for j, sgImport := range rpImport.ShardGroups {
+			data.MaxShardGroupID++
+			rpImport.ShardGroups[j].ID = data.MaxShardGroupID
+			for k, _ := range sgImport.Shards {
+				data.MaxShardID++
+				shardIDMap[sgImport.Shards[k].ID] = data.MaxShardID
+				sgImport.Shards[k].ID = data.MaxShardID
+			}
+		}
+	}
+
+	data.Databases = append(data.Databases, dbImport)
+
+	return shardIDMap, nil
 }
 
 // NodeInfo represents information about a single node in the cluster.

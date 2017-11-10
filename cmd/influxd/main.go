@@ -123,6 +123,7 @@ func (m *Main) Run(args ...string) error {
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("restore: %s", err)
 		}
+
 	case "config":
 		if err := run.NewPrintConfigCommand().Run(args...); err != nil {
 			return fmt.Errorf("config: %s", err)
