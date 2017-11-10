@@ -510,7 +510,7 @@ func TestService_NewOrganization(t *testing.T) {
 			}
 
 			ctx := tt.args.r.Context()
-			ctx = context.WithValue(ctx, UserKey, tt.args.user)
+			ctx = context.WithValue(ctx, UserContextKey, tt.args.user)
 			tt.args.r = tt.args.r.WithContext(ctx)
 
 			buf, _ := json.Marshal(tt.args.org)
