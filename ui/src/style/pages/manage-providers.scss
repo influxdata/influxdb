@@ -1,0 +1,163 @@
+/*
+  Styles for the Manage Poviders Page
+  ------------------------------------------------------------------------------
+*/
+
+$provider--id-width: 60px;
+$provider--scheme-width: 170px;
+$provider--provider-width: 170px;
+$provider--providerorg-width: 220px;
+$provider--redirect-width: 220px;
+$provider--delete-width: 30px;
+
+$provider--margin: 4px;
+
+.provider,
+.providers-labels {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+
+  > div:not(.confirm-buttons) {
+    height: 30px;
+    margin-right: $provider--margin;
+  }
+}
+.provider {
+  margin-bottom: 8px;
+  position: relative;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+.providers-labels {
+  border-bottom: 2px solid $g5-pepper;
+  margin-bottom: 10px;
+  @include no-user-select();
+
+  > div {
+    color: $g15-platinum;
+    font-weight: 700;
+    line-height: 30px;
+    font-size: 13px;
+    padding: 0 11px;
+
+    &:last-of-type {
+      margin-right: 0;
+    }
+  }
+}
+
+.providers-labels--id,
+.provider--id {width: $provider--id-width;}
+.providers-labels--scheme,
+.provider--scheme {width: $provider--scheme-width;}
+.providers-labels--provider,
+.provider--provider {width: $provider--provider-width;}
+.providers-labels--providerorg,
+.provider--providerorg {width: $provider--providerorg-width;}
+.providers-labels--redirect,
+.provider--redirect {width: $provider--redirect-width;}
+.providers-labels--delete {width: $provider--delete-width;}
+.providers-labels--arrow,
+.provider--arrow {flex: 1 0 0;}
+
+.provider--redirect.deleting {
+  width: ($provider--redirect-width - $provider--margin - $provider--delete-width);
+}
+
+
+.provider--id {
+  padding: 0 11px;
+  line-height: 30px;
+  font-size: 13px;
+  color: $g13-mist;
+  font-weight: 500;
+}
+
+
+.provider--arrow {
+  position: relative;
+
+  > span,
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  > span {
+    height: 2px;
+    @include gradient-h($c-pool,$c-star);
+    width: calc(100% - 22px);
+    left: 11px;
+  }
+  &:before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: $c-pool;
+    left: 11px;
+  }
+  &:after {
+    right: 5px;
+    border-style: solid;
+    border-color: transparent;
+    border-width: 6px;
+    border-left-color: $c-star;
+  }
+}
+.provider--editable,
+input[type="text"].form-control.provider--input {
+  width: 100%;
+  font-weight: 600;
+  font-size: 13px;
+}
+.provider--editable,
+.provider--editable-disabled {
+  @include no-user-select();
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 4px;
+  line-height: 28px;
+  border-style: solid;
+  border-width: 2px;
+}
+.provider--editable {
+  border-color: $g2-kevlar;
+  background-color: $g2-kevlar;
+  color: $g13-mist;
+  position: relative;
+  transition:
+    color 0.4s ease,
+    background-color 0.4s ease,
+    border-color 0.4s ease;
+
+  > span.icon {
+    position: absolute;
+    top: 50%;
+    right: 11px;
+    transform: translateY(-50%);
+    color: $g8-storm;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  &:hover {
+    color: $g20-white;
+    background-color: $g5-pepper;
+    border-color: $g5-pepper;
+    cursor: text;
+
+    > span.icon {opacity: 1;}
+  }
+}
+.provider--editable-disabled {
+  border-color: $g4-onyx;
+  background-color: $g4-onyx;
+  font-style: italic;
+  color: $g9-mountain;
+}
