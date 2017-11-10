@@ -134,7 +134,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			Scheme:   &scheme,
 		})
 		if err == chronograf.ErrUserNotFound {
-			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+			Error(w, http.StatusForbidden, err.Error(), s.Logger)
 			return
 		}
 		if err != nil {
@@ -242,6 +242,13 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If users must be explicitly added to the default organization, respond with 403
+	// forbidden
+	if defaultOrg.WhitelistOnly {
+		Error(w, http.StatusForbidden, "users must be explicitly added", s.Logger)
+		return
+	}
+
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
 		Name:     p.Subject,
@@ -252,7 +259,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		Scheme: scheme,
 		Roles: []chronograf.Role{
 			{
-				Name: roles.MemberRoleName,
+				Name: defaultOrg.DefaultRole,
 				// This is the ID of the default organization
 				Organization: fmt.Sprintf("%d", defaultOrg.ID),
 			},

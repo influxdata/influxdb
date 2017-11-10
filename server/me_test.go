@@ -112,7 +112,8 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID:          0,
+							DefaultRole: roles.MemberRoleName,
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -226,6 +227,57 @@ func TestService_Me(t *testing.T) {
 				Subject: "",
 				Issuer:  "",
 			},
+		},
+		{
+			name: "New user - WhitelistOnly",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+			},
+			fields: fields{
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:            0,
+							DefaultRole:   roles.MemberRoleName,
+							WhitelistOnly: true,
+						}, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:   0,
+							Name: "The Bad Place",
+						}, nil
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						// This function gets to verify that there is at least one first user
+						return []chronograf.User{{}}, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return nil, chronograf.ErrUserNotFound
+					},
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject: "secret",
+				Issuer:  "auth0",
+			},
+			wantStatus:      http.StatusForbidden,
+			wantContentType: "application/json",
+			wantBody:        `{"code":403,"message":"users must be explicitly added"}`,
 		},
 	}
 	for _, tt := range tests {
