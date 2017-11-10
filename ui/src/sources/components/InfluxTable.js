@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import {Link, withRouter} from 'react-router'
+import {connect} from 'react-redux'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -88,12 +89,18 @@ const InfluxTable = ({
   setActiveKapacitor,
   handleDeleteSource,
   handleDeleteKapacitor,
+  isUsingAuth,
+  me,
 }) =>
   <div className="row">
     <div className="col-md-12">
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">InfluxDB Sources</h2>
+          <h2 className="panel-title">
+            {isUsingAuth
+              ? `InfluxDB Sources from ${me.currentOrganization.name}`
+              : 'InfluxDB Sources'}
+          </h2>
           <Authorized requiredRole={EDITOR_ROLE}>
             <Link
               to={`/sources/${source.id}/manage-sources/new`}
@@ -197,7 +204,7 @@ const InfluxTable = ({
     </div>
   </div>
 
-const {array, func, shape, string} = PropTypes
+const {array, bool, func, shape, string} = PropTypes
 
 InfluxTable.propTypes = {
   handleDeleteSource: func.isRequired,
@@ -217,6 +224,15 @@ InfluxTable.propTypes = {
   sources: array.isRequired,
   setActiveKapacitor: func.isRequired,
   handleDeleteKapacitor: func.isRequired,
+  me: shape({
+    currentOrganization: shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    }),
+  }),
+  isUsingAuth: bool,
 }
 
-export default withRouter(InfluxTable)
+const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
+
+export default connect(mapStateToProps)(withRouter(InfluxTable))
