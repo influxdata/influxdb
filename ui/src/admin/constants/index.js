@@ -46,3 +46,6 @@ export const NEW_DEFAULT_DATABASE = {
   isNew: true,
   retentionPolicies: [NEW_DEFAULT_RP],
 }
+
+export const WHITELIST_TOOLTIP =
+  'If set to <code>true</code> users cannot<br/>authenticate unless an <strong>Admin</strong> adds<br/>them to the organization manually'

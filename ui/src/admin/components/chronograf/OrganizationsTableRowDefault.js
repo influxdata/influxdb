@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import SlideToggle from 'shared/components/SlideToggle'
+
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 // This is a non-editable organization row, used currently for DEFAULT_ORG
@@ -10,6 +12,15 @@ const OrganizationsTableRowDefault = ({organization}) =>
     </div>
     <div className="orgs-table--name-disabled">
       {organization.name}
+    </div>
+    <div className="orgs-table--whitelist">
+      <SlideToggle
+        size="xs"
+        active={true}
+        onToggle={arg => {
+          console.log(arg)
+        }}
+      />
     </div>
     <div className="orgs-table--default-role-disabled">
       {MEMBER_ROLE}

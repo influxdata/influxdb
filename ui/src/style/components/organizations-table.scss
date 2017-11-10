@@ -78,6 +78,29 @@ input[type="text"].form-control.orgs-table--input {
   color: $g9-mountain;
 }
 
+.orgs-table--whitelist {
+  height: 30px;
+  margin-right: 4px;
+  text-align: center;
+  width: 104px;
+  background-color: $g4-onyx;
+  border-radius: 4px;
+  line-height: 30px;
+  position: relative;
+
+  > .slide-toggle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+  }
+
+  &.disabled {
+    color: $g9-mountain;
+    @include no-user-select();
+  }
+}
+
 .orgs-table--default-role,
 .orgs-table--default-role-disabled {
   width: 130px;
@@ -113,7 +136,8 @@ input[type="text"].form-control.orgs-table--input {
   @include no-user-select();
 
   > .orgs-table--name,
-  > .orgs-table--name:hover {
+  > .orgs-table--name:hover,
+  > .orgs-table--whitelist {
     transition: none;
     background-color: transparent;
     border-color: transparent;
@@ -122,11 +146,13 @@ input[type="text"].form-control.orgs-table--input {
   > .orgs-table--id,
   > .orgs-table--name,
   > .orgs-table--name:hover,
-  > .orgs-table--default-role {
+  > .orgs-table--default-role,
+  > .orgs-table--whitelist {
     color: $g15-platinum;
     font-weight: 700;
   }
-  > .orgs-table--default-role {
+  > .orgs-table--default-role,
+  > .orgs-table--whitelist {
     line-height: 30px;
     font-size: 13px;
     padding: 0 11px;

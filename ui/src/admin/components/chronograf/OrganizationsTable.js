@@ -5,8 +5,10 @@ import uuid from 'node-uuid'
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowDefault from 'src/admin/components/chronograf/OrganizationsTableRowDefault'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
 import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
+import {WHITELIST_TOOLTIP} from 'src/admin/constants/index'
 
 class OrganizationsTable extends Component {
   constructor(props) {
@@ -57,6 +59,13 @@ class OrganizationsTable extends Component {
           <div className="orgs-table--org-labels">
             <div className="orgs-table--id">ID</div>
             <div className="orgs-table--name">Name</div>
+            <div className="orgs-table--whitelist">
+              Whitelist{' '}
+              <QuestionMarkTooltip
+                tipID="whitelist"
+                tipContent={WHITELIST_TOOLTIP}
+              />
+            </div>
             <div className="orgs-table--default-role">Default Role</div>
             <div className="orgs-table--delete" />
           </div>
