@@ -7,7 +7,7 @@ class UsersTableHeader extends Component {
   }
 
   render() {
-    const {onClickCreateUser, numUsers} = this.props
+    const {onClickCreateUser, numUsers, isCreatingUser} = this.props
 
     const panelTitle = numUsers === 1 ? `${numUsers} User` : `${numUsers} Users`
 
@@ -20,6 +20,7 @@ class UsersTableHeader extends Component {
           <button
             className="btn btn-primary btn-sm"
             onClick={onClickCreateUser}
+            disabled={isCreatingUser}
           >
             <span className="icon plus" />
             Create User
@@ -30,11 +31,12 @@ class UsersTableHeader extends Component {
   }
 }
 
-const {func, number} = PropTypes
+const {bool, func, number} = PropTypes
 
 UsersTableHeader.propTypes = {
   numUsers: number.isRequired,
   onClickCreateUser: func.isRequired,
+  isCreatingUser: bool.isRequired,
 }
 
 export default UsersTableHeader

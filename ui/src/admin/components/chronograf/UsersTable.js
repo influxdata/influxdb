@@ -50,6 +50,7 @@ class UsersTable extends Component {
         <UsersTableHeader
           numUsers={users.length}
           onClickCreateUser={this.handleClickCreateUser}
+          isCreatingUser={isCreatingUser}
         />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">
