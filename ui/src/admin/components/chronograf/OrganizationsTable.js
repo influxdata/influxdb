@@ -77,6 +77,7 @@ class OrganizationsTable extends Component {
                 ? <OrganizationsTableRowDefault
                     key={uuid.v4()}
                     organization={org}
+                    onChooseDefaultRole={onChooseDefaultRole}
                   />
                 : <OrganizationsTableRow
                     key={uuid.v4()}
