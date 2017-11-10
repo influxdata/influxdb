@@ -88,14 +88,6 @@ const SideNav = React.createClass({
               <span className="sidebar--icon icon cubo-uniform" />
             </Link>
           </div>
-          {isUsingAuth
-            ? <UserNavBlock
-                logoutLink={logoutLink}
-                links={links}
-                me={me}
-                sourcePrefix={sourcePrefix}
-              />
-            : null}
           <NavBlock
             icon="cubo-node"
             link={`${sourcePrefix}/hosts`}
@@ -165,7 +157,6 @@ const SideNav = React.createClass({
               </NavListItem>
             </NavBlock>
           </Authorized>
-
           <NavBlock
             icon="cog-thick"
             link={`${sourcePrefix}/manage-sources`}
@@ -176,6 +167,14 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
+          {isUsingAuth
+            ? <UserNavBlock
+                logoutLink={logoutLink}
+                links={links}
+                me={me}
+                sourcePrefix={sourcePrefix}
+              />
+            : null}
         </NavBar>
   },
 })
