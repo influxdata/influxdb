@@ -133,6 +133,7 @@ class OrganizationsTableRow extends Component {
               onCancel={this.handleDismissDeleteConfirmation}
               onConfirm={this.handleDeleteOrg}
               onClickOutside={this.handleDismissDeleteConfirmation}
+              confirmLeft={true}
             />
           : <button
               className="btn btn-sm btn-default btn-square"
