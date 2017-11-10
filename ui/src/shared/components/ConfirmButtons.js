@@ -21,30 +21,49 @@ class ConfirmButtons extends Component {
   }
 
   render() {
-    const {item, buttonSize, isDisabled} = this.props
+    const {item, buttonSize, isDisabled, confirmLeft} = this.props
 
-    return (
-      <div className="confirm-buttons">
-        <button
-          className={classnames('btn btn-info btn-square', {
-            [buttonSize]: buttonSize,
-          })}
-          onClick={this.handleCancel(item)}
-        >
-          <span className="icon remove" />
-        </button>
-        <button
-          className={classnames('btn btn-success btn-square', {
-            [buttonSize]: buttonSize,
-          })}
-          disabled={isDisabled}
-          title={isDisabled ? 'Cannot Save' : 'Save'}
-          onClick={this.handleConfirm(item)}
-        >
-          <span className="icon checkmark" />
-        </button>
-      </div>
-    )
+    return confirmLeft
+      ? <div className="confirm-buttons">
+          <button
+            className={classnames('btn btn-success btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            disabled={isDisabled}
+            title={isDisabled ? 'Cannot Save' : 'Save'}
+            onClick={this.handleConfirm(item)}
+          >
+            <span className="icon checkmark" />
+          </button>
+          <button
+            className={classnames('btn btn-info btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            onClick={this.handleCancel(item)}
+          >
+            <span className="icon remove" />
+          </button>
+        </div>
+      : <div className="confirm-buttons">
+          <button
+            className={classnames('btn btn-info btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            onClick={this.handleCancel(item)}
+          >
+            <span className="icon remove" />
+          </button>
+          <button
+            className={classnames('btn btn-success btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            disabled={isDisabled}
+            title={isDisabled ? 'Cannot Save' : 'Save'}
+            onClick={this.handleConfirm(item)}
+          >
+            <span className="icon checkmark" />
+          </button>
+        </div>
   }
 }
 
@@ -57,6 +76,7 @@ ConfirmButtons.propTypes = {
   buttonSize: string,
   isDisabled: bool,
   onClickOutside: func,
+  confirmLeft: bool,
 }
 
 ConfirmButtons.defaultProps = {
