@@ -34,7 +34,7 @@ class UsersTableRowNew extends Component {
       name,
       provider,
       scheme,
-      superAdmin: superAdmin.value,
+      superAdmin,
       roles: [
         {
           name: role,
