@@ -88,7 +88,14 @@ class ChronoTable extends Component {
     )
   }
 
-  makeTabName = ({name, tags}) => (tags ? `${name}.${tags[name]}` : name)
+  makeTabName = ({name, tags}) => {
+    if (!tags) {
+      return name
+    }
+    const tagKeys = Object.keys(tags).sort()
+    const tagValues = tagKeys.map(key => tags[key]).join('.')
+    return `${name}.${tagValues}`
+  }
 
   render() {
     const {containerWidth, height, query} = this.props
@@ -135,9 +142,13 @@ class ChronoTable extends Component {
             </div>
           : <Dropdown
               className="dropdown-160 table--tabs-dropdown"
-              items={series.map((s, index) => ({...s, text: s.name, index}))}
+              items={series.map((s, index) => ({
+                ...s,
+                text: this.makeTabName(s),
+                index,
+              }))}
               onChoose={this.handleClickDropdown}
-              selected={series[activeSeriesIndex].name}
+              selected={this.makeTabName(series[activeSeriesIndex])}
               buttonSize="btn-xs"
             />}
         <div className="table--tabs-content">
