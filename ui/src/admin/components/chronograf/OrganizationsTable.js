@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
+import uuid from 'node-uuid'
+
 import Organization from 'src/admin/components/chronograf/Organization'
 import DefaultOrganization from 'src/admin/components/chronograf/DefaultOrganization'
 import NewOrganization from 'src/admin/components/chronograf/NewOrganization'
@@ -73,11 +75,11 @@ class OrganizationsTable extends Component {
                   org =>
                     org.id === DEFAULT_ORG_ID
                       ? <DefaultOrganization
-                          key={org.name}
+                          key={uuid.v4()}
                           organization={org}
                         />
                       : <Organization
-                          key={org.name}
+                          key={uuid.v4()}
                           organization={org}
                           onDelete={onDeleteOrg}
                           onRename={onRenameOrg}

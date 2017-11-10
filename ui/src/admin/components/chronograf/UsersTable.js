@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
+import uuid from 'node-uuid'
+
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
@@ -79,10 +81,10 @@ class UsersTable extends Component {
                   />
                 : null}
               {users.length || !isCreatingUser
-                ? users.map((user, i) =>
+                ? users.map(user =>
                     <OrgTableRow
                       user={user}
-                      key={i}
+                      key={uuid.v4()}
                       organization={organization}
                       onChangeUserRole={this.handleChangeUserRole}
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
