@@ -71,7 +71,7 @@ class Organization extends Component {
     const {workingName, reset, isEditing, isDeleting, defaultRole} = this.state
     const {organization} = this.props
 
-    const defaultRoleItems = USER_ROLES.map(role => ({
+    const dropdownRolesItems = USER_ROLES.map(role => ({
       ...role,
       text: role.name,
     }))
@@ -103,7 +103,7 @@ class Organization extends Component {
             </div>}
         <div className={defaultRoleClassName}>
           <Dropdown
-            items={defaultRoleItems}
+            items={dropdownRolesItems}
             onChoose={this.handleChooseDefaultRole}
             selected={defaultRole}
             className="dropdown-stretch"

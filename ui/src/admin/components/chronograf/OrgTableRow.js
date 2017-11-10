@@ -22,6 +22,10 @@ const OrgTableRow = ({
     colActions,
   } = USERS_TABLE
 
+  const dropdownRolesItems = USER_ROLES.map(r => ({
+    ...r,
+    text: r.name,
+  }))
   const currentRole = user.roles.find(
     role => role.organization === organization.id
   )
@@ -36,10 +40,7 @@ const OrgTableRow = ({
       <td style={{width: colRole}}>
         <span className="chronograf-user--role">
           <Dropdown
-            items={USER_ROLES.map(r => ({
-              ...r,
-              text: r.name,
-            }))}
+            items={dropdownRolesItems}
             selected={currentRole.name}
             onChoose={onChangeUserRole(user, currentRole)}
             buttonColor="btn-primary"

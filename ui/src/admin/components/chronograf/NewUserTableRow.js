@@ -70,6 +70,7 @@ class NewUserTableRow extends Component {
     const {onBlur} = this.props
     const {name, provider, scheme, role, superAdmin} = this.state
 
+    const dropdownRolesItems = USER_ROLES.map(r => ({...r, text: r.name}))
     const preventCreate = !name || !provider
 
     return (
@@ -86,7 +87,7 @@ class NewUserTableRow extends Component {
         </td>
         <td style={{width: colRole}}>
           <Dropdown
-            items={USER_ROLES.map(r => ({...r, text: r.name}))}
+            items={dropdownRolesItems}
             selected={role}
             onChoose={this.handleSelectRole}
             buttonColor="btn-primary"

@@ -52,7 +52,7 @@ class NewOrganization extends Component {
 
     const isSaveDisabled = name === null || name === ''
 
-    const defaultRoleItems = USER_ROLES.map(role => ({
+    const dropdownRolesItems = USER_ROLES.map(role => ({
       ...role,
       text: role.name,
     }))
@@ -73,7 +73,7 @@ class NewOrganization extends Component {
         />
         <div className="orgs-table--default-role editing">
           <Dropdown
-            items={defaultRoleItems}
+            items={dropdownRolesItems}
             onChoose={this.handleChooseDefaultRole}
             selected={defaultRole}
             className="dropdown-stretch"
