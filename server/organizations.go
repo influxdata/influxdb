@@ -34,7 +34,12 @@ func (r *organizationRequest) ValidUpdate() error {
 	if r.Name == "" && r.DefaultRole == "" {
 		return fmt.Errorf("No fields to update")
 	}
-	return r.ValidDefaultRole()
+
+	if r.DefaultRole != "" {
+		return r.ValidDefaultRole()
+	}
+
+	return nil
 }
 
 func (r *organizationRequest) ValidDefaultRole() error {
@@ -208,6 +213,10 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 
 	if req.Name != "" {
 		org.Name = req.Name
+	}
+
+	if req.DefaultRole != "" {
+		org.DefaultRole = req.DefaultRole
 	}
 
 	err = s.Store.Organizations(ctx).Update(ctx, org)
