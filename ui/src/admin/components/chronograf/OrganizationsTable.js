@@ -34,10 +34,10 @@ class OrganizationsTable extends Component {
     const {organizations, onDeleteOrg, onRenameOrg} = this.props
     const {isCreatingOrganization} = this.state
 
-    const tableTitle =
-      organizations.length === 1
-        ? '1 Organizations'
-        : `${organizations.length} Organizations`
+    const tableTitle = `${organizations.length} Organization${organizations.length ===
+    1
+      ? ''
+      : 's'}`
 
     return (
       <div className="container-fluid">
