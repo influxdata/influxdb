@@ -238,10 +238,11 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		orgs []chronograf.Organization
 	}
 	type args struct {
-		ctx         context.Context
-		org         *chronograf.Organization
-		name        string
-		defaultRole string
+		ctx           context.Context
+		org           *chronograf.Organization
+		name          string
+		defaultRole   string
+		whitelistOnly bool
 	}
 	tests := []struct {
 		name     string
@@ -313,6 +314,45 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			addFirst: true,
 		},
 		{
+			name:   "Update organization name, role, whitelist only",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				org: &chronograf.Organization{
+					Name:          "The Good Place",
+					DefaultRole:   roles.ViewerRoleName,
+					WhitelistOnly: false,
+				},
+				name:          "The Bad Place",
+				whitelistOnly: true,
+				defaultRole:   roles.AdminRoleName,
+			},
+			want: &chronograf.Organization{
+				Name:          "The Bad Place",
+				WhitelistOnly: true,
+				DefaultRole:   roles.AdminRoleName,
+			},
+			addFirst: true,
+		},
+		{
+			name:   "Update organization name and whitelist only",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				org: &chronograf.Organization{
+					Name:          "The Good Place",
+					WhitelistOnly: false,
+				},
+				name:          "The Bad Place",
+				whitelistOnly: true,
+			},
+			want: &chronograf.Organization{
+				Name:          "The Bad Place",
+				WhitelistOnly: true,
+			},
+			addFirst: true,
+		},
+		{
 			name: "Update organization name - name already taken",
 			fields: fields{
 				orgs: []chronograf.Organization{
@@ -359,6 +399,14 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		}
 		if tt.args.defaultRole != "" {
 			tt.args.org.DefaultRole = tt.args.defaultRole
+		}
+
+		if tt.args.defaultRole != "" {
+			tt.args.org.DefaultRole = tt.args.defaultRole
+		}
+
+		if tt.args.whitelistOnly != tt.args.org.WhitelistOnly {
+			tt.args.org.WhitelistOnly = tt.args.whitelistOnly
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.org); (err != nil) != tt.wantErr {

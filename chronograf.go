@@ -786,6 +786,9 @@ type Organization struct {
 	Name string `json:"name"`
 	// DefaultRole is the name of the role that is the default for any users added to the organization
 	DefaultRole string `json:"defaultRole,omitempty"`
+	// Whitelist only specifies that users must be explicitly added to the organization.
+	// It is currently only used by the default organization, but that may change in the future.
+	WhitelistOnly bool `json:"whitelistOnly,omitempty"`
 }
 
 // OrganizationQuery represents the attributes that a organization may be retrieved by.
