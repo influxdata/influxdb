@@ -11,7 +11,6 @@ class OrganizationsTableRow extends Component {
     super(props)
 
     this.state = {
-      reset: false,
       isEditing: false,
       isDeleting: false,
       workingName: this.props.organization.name,
@@ -23,25 +22,43 @@ class OrganizationsTableRow extends Component {
     this.setState({isEditing: true})
   }
 
-  handleInputBlur = reset => e => {
+  handleConfirmRename = () => {
     const {onRename, organization} = this.props
+    const {workingName} = this.state
 
-    if (!reset && organization.name !== e.target.value) {
-      onRename(organization, e.target.value)
+    onRename(organization, workingName)
+    this.setState({workingName, isEditing: false})
+  }
+
+  handleCancelRename = () => {
+    const {organization} = this.props
+
+    this.setState({
+      workingName: organization.name,
+      isEditing: false,
+    })
+  }
+
+  handleInputChange = e => {
+    this.setState({workingName: e.target.value})
+  }
+
+  handleInputBlur = () => {
+    const {organization} = this.props
+    const {workingName} = this.state
+
+    if (organization.name === workingName) {
+      this.handleCancelRename()
+    } else {
+      this.handleConfirmRename()
     }
-
-    this.setState({reset: false, isEditing: false})
   }
 
   handleKeyDown = e => {
     if (e.key === 'Enter') {
-      this.inputRef.blur()
-    }
-    if (e.key === 'Escape') {
-      this.setState(
-        {reset: true, workingName: this.props.organization.name},
-        () => this.inputRef.blur()
-      )
+      this.handleInputBlur()
+    } else if (e.key === 'Escape') {
+      this.handleCancelRename()
     }
   }
 
@@ -68,7 +85,7 @@ class OrganizationsTableRow extends Component {
   }
 
   render() {
-    const {workingName, reset, isEditing, isDeleting, defaultRole} = this.state
+    const {workingName, isEditing, isDeleting, defaultRole} = this.state
     const {organization} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
@@ -90,7 +107,8 @@ class OrganizationsTableRow extends Component {
               type="text"
               className="form-control input-sm orgs-table--input"
               defaultValue={workingName}
-              onBlur={this.handleInputBlur(reset)}
+              onChange={this.handleInputChange}
+              onBlur={this.handleInputBlur}
               onKeyDown={this.handleKeyDown}
               placeholder="Name this Organization..."
               autoFocus={true}
