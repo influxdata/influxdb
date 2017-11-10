@@ -11,15 +11,15 @@ class OrganizationsTable extends Component {
     super(props)
 
     this.state = {
-      isAddingOrganization: false,
+      isCreatingOrganization: false,
     }
   }
   handleClickCreateOrganization = () => {
-    this.setState({isAddingOrganization: true})
+    this.setState({isCreatingOrganization: true})
   }
 
   handleCancelCreateOrganization = () => {
-    this.setState({isAddingOrganization: false})
+    this.setState({isCreatingOrganization: false})
   }
 
   handleCreateOrganization = newOrganization => {
@@ -29,7 +29,7 @@ class OrganizationsTable extends Component {
 
   render() {
     const {organizations, onDeleteOrg, onRenameOrg} = this.props
-    const {isAddingOrganization} = this.state
+    const {isCreatingOrganization} = this.state
 
     const tableTitle =
       organizations.length === 1
@@ -48,7 +48,7 @@ class OrganizationsTable extends Component {
                 <button
                   className="btn btn-sm btn-primary"
                   onClick={this.handleClickCreateOrganization}
-                  disabled={isAddingOrganization}
+                  disabled={isCreatingOrganization}
                 >
                   <span className="icon plus" /> Create Organization
                 </button>
@@ -60,7 +60,7 @@ class OrganizationsTable extends Component {
                   <div className="orgs-table--default-role">Default Role</div>
                   <div className="orgs-table--delete" />
                 </div>
-                {isAddingOrganization
+                {isCreatingOrganization
                   ? <NewOrganization
                       onCreateOrganization={this.handleCreateOrganization}
                       onCancelCreateOrganization={
