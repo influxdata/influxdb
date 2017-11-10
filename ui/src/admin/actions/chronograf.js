@@ -155,7 +155,7 @@ export const deleteUserAsync = user => async dispatch => {
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `User deleted: ${user.scheme}::${user.provider}::${user.name}`
+        `User removed from organization: ${user.scheme}::${user.provider}::${user.name}`
       )
     )
   } catch (error) {

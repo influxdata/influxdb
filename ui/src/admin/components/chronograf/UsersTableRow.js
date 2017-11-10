@@ -68,6 +68,7 @@ const UsersTableRow = ({
       </td>
       <td className="text-right" style={{width: colActions}} />
       <DeleteConfirmTableCell
+        text="Remove"
         onDelete={onDelete}
         item={user}
         buttonSize="btn-xs"
