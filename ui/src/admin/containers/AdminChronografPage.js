@@ -72,18 +72,16 @@ class AdminChronografPage extends Component {
           {users
             ? <div className="container-fluid">
                 <div className="row">
-                  <div className="col-xs-12">
-                    <AdminTabs
-                      meRole={meRole}
-                      // UsersTable
-                      users={users}
-                      organization={currentOrganization}
-                      onCreateUser={this.handleCreateUser}
-                      onUpdateUserRole={this.handleUpdateUserRole()}
-                      onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
-                      onDeleteUser={this.handleDeleteUser()}
-                    />
-                  </div>
+                  <AdminTabs
+                    meRole={meRole}
+                    // UsersTable
+                    users={users}
+                    organization={currentOrganization}
+                    onCreateUser={this.handleCreateUser}
+                    onUpdateUserRole={this.handleUpdateUserRole()}
+                    onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
+                    onDeleteUser={this.handleDeleteUser()}
+                  />
                 </div>
               </div>
             : <div className="page-spinner" />}
