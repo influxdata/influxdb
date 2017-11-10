@@ -1,9 +1,6 @@
 import React, {PropTypes, Component} from 'react'
-import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-
-import Authorized, {ADMIN_ROLE, SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import classnames from 'classnames'
 
@@ -21,7 +18,6 @@ class UserNavBlock extends Component {
       links: {external: {custom: customLinks}},
       me,
       me: {currentOrganization, organizations, roles},
-      sourcePrefix,
     } = this.props
 
     // TODO: find a better way to glean this information.
@@ -43,19 +39,6 @@ class UserNavBlock extends Component {
           <div className="sidebar-menu--section">
             {me.name}
           </div>
-          <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <Link
-              className="sidebar-menu--item"
-              to={`${sourcePrefix}/organizations`}
-            >
-              Manage Organizations
-            </Link>
-          </Authorized>
-          <Authorized requiredRole={ADMIN_ROLE}>
-            <Link className="sidebar-menu--item" to={`${sourcePrefix}/users`}>
-              Manage Users
-            </Link>
-          </Authorized>
           <a className="sidebar-menu--item" href={logoutLink}>
             Logout
           </a>
@@ -134,7 +117,6 @@ UserNavBlock.propTypes = {
     role: string,
   }).isRequired,
   meChangeOrganization: func.isRequired,
-  sourcePrefix: string.isRequired, // TODO: remove this prop once we move /users & /organizations above sources
 }
 
 const mapDispatchToProps = dispatch => ({
