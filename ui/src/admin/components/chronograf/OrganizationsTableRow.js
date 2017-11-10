@@ -76,7 +76,6 @@ class OrganizationsTableRow extends Component {
 
   handleDeleteOrg = organization => {
     const {onDelete} = this.props
-    this.setState({isDeleting: false})
     onDelete(organization)
   }
 
