@@ -40,9 +40,9 @@ export const timeRangeType = ({upper, lower, type}) => {
 
 export const shiftTimeRange = (timeRange, shift) => {
   const {upper, lower} = timeRange
-  const {multiple, unit} = shift
+  const {quantity, unit} = shift
   const trType = timeRangeType(timeRange)
-  const duration = `${multiple}${unit}`
+  const duration = `${quantity}${unit}`
   const type = 'shifted'
 
   switch (trType) {
@@ -101,10 +101,10 @@ const getMomentUnit = unit => {
   }
 }
 
-export const shiftDate = (date, multiple, unit) => {
-  if (!date && !multiple && !unit) {
+export const shiftDate = (date, quantity, unit) => {
+  if (!date && !quantity && !unit) {
     return moment(date)
   }
 
-  return moment(date).add(multiple, getMomentUnit(unit))
+  return moment(date).add(quantity, getMomentUnit(unit))
 }

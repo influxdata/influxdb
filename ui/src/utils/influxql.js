@@ -60,11 +60,11 @@ export const buildQuery = (type, timeRange, config, shift) => {
     }
 
     case TYPE_SHIFTED: {
-      const {multiple, unit} = shift
+      const {quantity, unit} = shift
       return buildInfluxQLQuery(
         shiftTimeRange(timeRange, shift),
         config,
-        `_shifted__${multiple}__${unit}`
+        `_shifted__${quantity}__${unit}`
       )
     }
 

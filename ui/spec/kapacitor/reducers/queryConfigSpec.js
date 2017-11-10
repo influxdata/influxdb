@@ -1,14 +1,15 @@
 import reducer from 'src/kapacitor/reducers/queryConfigs'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
+  chooseTag,
+  timeShift,
+  groupByTag,
+  toggleField,
+  groupByTime,
   chooseNamespace,
   chooseMeasurement,
-  chooseTag,
-  groupByTag,
-  toggleTagAcceptance,
-  toggleField,
   applyFuncsToField,
-  groupByTime,
+  toggleTagAcceptance,
 } from 'src/kapacitor/actions/queryConfigs'
 
 const fakeAddQueryAction = (panelID, queryID) => {

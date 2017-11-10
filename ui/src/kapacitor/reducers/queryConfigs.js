@@ -1,13 +1,14 @@
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
-  applyFuncsToField,
-  chooseMeasurement,
-  chooseNamespace,
+  timeShift,
   chooseTag,
   groupByTag,
   groupByTime,
   removeFuncs,
+  chooseNamespace,
   toggleKapaField,
+  applyFuncsToField,
+  chooseMeasurement,
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
 

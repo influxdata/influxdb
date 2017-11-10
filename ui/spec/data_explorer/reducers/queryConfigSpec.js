@@ -478,7 +478,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         [queryID]: buildInitialState(queryID),
       }
 
-      const shift = {multiple: 1, unit: 'd', duration: '1d'}
+      const shift = {quantity: 1, unit: 'd', duration: '1d'}
       const action = timeShift(queryID, shift)
       const nextState = reducer(initialState, action)
 

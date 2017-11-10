@@ -33,7 +33,7 @@ QueryOptions.propTypes = {
     time: string,
   }).isRequired,
   shift: shape({
-    duration: string,
+    label: string,
   }),
   onGroupByTime: func.isRequired,
   isKapacitorRule: bool.isRequired,

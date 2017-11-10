@@ -55,7 +55,7 @@ describe('Shared.Query.Helpers', () => {
       const upper = Date.now()
       const oneMinute = 60000
       const lower = Date.now() - oneMinute
-      const shift = {multiple: 7, unit: 'd'}
+      const shift = {quantity: 7, unit: 'd'}
       const timeRange = {upper, lower}
 
       const type = timeRangeType(timeRange)
@@ -71,7 +71,7 @@ describe('Shared.Query.Helpers', () => {
     })
 
     it('can calculate the shift for relative lower timeRanges', () => {
-      const shift = {multiple: 7, unit: 'd'}
+      const shift = {quantity: 7, unit: 'd'}
       const lower = 'now() - 15m'
       const timeRange = {lower, upper: null}
 
@@ -91,7 +91,7 @@ describe('Shared.Query.Helpers', () => {
       const upper = Date.now()
       const oneMinute = 60000
       const lower = Date.now() - oneMinute
-      const shift = {multiple: 7, unit: 'd'}
+      const shift = {quantity: 7, unit: 'd'}
       const timeRange = {upper, lower}
 
       const type = timeRangeType(timeRange)

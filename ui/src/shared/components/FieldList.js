@@ -132,7 +132,7 @@ class FieldList extends Component {
 
   render() {
     const {
-      query: {database, measurement, fields = [], groupBy, fill, shift},
+      query: {database, measurement, fields = [], groupBy, fill, shifts},
       isKapacitorRule,
     } = this.props
 
@@ -146,7 +146,7 @@ class FieldList extends Component {
           {hasAggregates
             ? <QueryOptions
                 fill={fill}
-                shift={_.first(shift)}
+                shift={_.first(shifts)}
                 groupBy={groupBy}
                 onFill={this.handleFill}
                 isKapacitorRule={isKapacitorRule}
@@ -193,7 +193,7 @@ class FieldList extends Component {
   }
 }
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 FieldList.defaultProps = {
   isKapacitorRule: false,
@@ -213,11 +213,11 @@ FieldList.propTypes = {
     database: string,
     retentionPolicy: string,
     measurement: string,
-    shift: arrayOf(
+    shifts: arrayOf(
       shape({
         label: string,
         unit: string,
-        multiple: number,
+        quantity: string,
       })
     ),
   }).isRequired,

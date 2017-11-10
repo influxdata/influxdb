@@ -117,8 +117,8 @@ export default function timeSeriesToDygraph(raw = [], isInDataExplorer) {
     const seriesIndex = cells.seriesIndex[i]
 
     if (label.includes('_shifted__')) {
-      const [, multiple, duration] = label.split('__')
-      time = +shiftDate(time, multiple, duration).format('x')
+      const [, quantity, duration] = label.split('__')
+      time = +shiftDate(time, quantity, duration).format('x')
     }
 
     let existingRowIndex = tsMemo[time]
