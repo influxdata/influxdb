@@ -150,18 +150,12 @@ const CheckSources = React.createClass({
     const {
       params,
       sources,
-      auth: {isUsingAuth, me, me: {currentOrganization}},
+      auth: {isUsingAuth, me: {currentOrganization}},
     } = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)
 
-    if (
-      isFetching ||
-      !source ||
-      typeof isUsingAuth !== 'boolean' ||
-      (me && me.role === undefined) || // TODO: not sure this happens
-      !currentOrganization
-    ) {
+    if (isFetching || !source || (isUsingAuth && !currentOrganization)) {
       return <div className="page-spinner" />
     }
 

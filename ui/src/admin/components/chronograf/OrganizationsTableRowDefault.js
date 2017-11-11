@@ -1,8 +1,9 @@
 import React, {PropTypes, Component} from 'react'
 
 import SlideToggle from 'shared/components/SlideToggle'
+import Dropdown from 'shared/components/Dropdown'
 
-import {MEMBER_ROLE} from 'src/auth/Authorized'
+import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 
 // This is a non-editable organization row, used currently for DEFAULT_ORG
 class OrganizationsTableRowDefault extends Component {
@@ -11,8 +12,18 @@ class OrganizationsTableRowDefault extends Component {
     onToggleWhitelistOnly(organization)
   }
 
+  handleChooseDefaultRole = role => {
+    const {organization, onChooseDefaultRole} = this.props
+    onChooseDefaultRole(organization, role.name)
+  }
+
   render() {
     const {organization} = this.props
+
+    const dropdownRolesItems = USER_ROLES.map(role => ({
+      ...role,
+      text: role.name,
+    }))
 
     return (
       <div className="orgs-table--org">
@@ -29,8 +40,13 @@ class OrganizationsTableRowDefault extends Component {
             onToggle={this.toggleWhitelistOnly}
           />
         </div>
-        <div className="orgs-table--default-role-disabled">
-          {MEMBER_ROLE}
+        <div className="orgs-table--default-role">
+          <Dropdown
+            items={dropdownRolesItems}
+            onChoose={this.handleChooseDefaultRole}
+            selected={organization.defaultRole}
+            className="dropdown-stretch"
+          />
         </div>
         <button
           className="btn btn-sm btn-default btn-square orgs-table--delete"
@@ -51,6 +67,7 @@ OrganizationsTableRowDefault.propTypes = {
     name: string.isRequired,
   }).isRequired,
   onToggleWhitelistOnly: func.isRequired,
+  onChooseDefaultRole: func.isRequired,
 }
 
 export default OrganizationsTableRowDefault
