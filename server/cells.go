@@ -70,6 +70,12 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 // have the correct axes specified
 func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 	CorrectWidthHeight(c)
+	for _, q := range c.Queries {
+		if err := ValidateQueryConfig(&q.QueryConfig); err != nil {
+			return err
+		}
+	}
+	MoveTimeShift(c)
 	return HasCorrectAxes(c)
 }
 
@@ -111,6 +117,14 @@ func CorrectWidthHeight(c *chronograf.DashboardCell) {
 	}
 	if c.H < 1 {
 		c.H = DefaultHeight
+	}
+}
+
+// MoveTimeShift moves TimeShift from the QueryConfig to the DashboardQuery
+func MoveTimeShift(c *chronograf.DashboardCell) {
+	for i, query := range c.Queries {
+		query.Shifts = query.QueryConfig.Shifts
+		c.Queries[i] = query
 	}
 }
 
