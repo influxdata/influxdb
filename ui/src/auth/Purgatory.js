@@ -1,6 +1,9 @@
-import React, {PropTypes} from 'react'
-import {withRouter} from 'react-router'
+import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+import {withRouter} from 'react-router'
+
+import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
@@ -9,92 +12,98 @@ const getRoleNameByOrgID = (id, roles) => {
   return (role && role.name) || 'ghost'
 }
 
-const Purgatory = ({
-  router,
-  name,
-  provider,
-  scheme,
-  currentOrganization,
-  roles,
-  organizations,
-  logoutLink,
-}) => {
-  const rolesAndOrgs = organizations.map(({id, name: orgName}) => ({
-    id,
-    organization: orgName,
-    role: getRoleNameByOrgID(id, roles),
-    currentOrganization: id === currentOrganization.id,
-  }))
+class Purgatory extends Component {
+  handleClickLogin = organization => async e => {
+    e.preventDefault()
+    const {router, links, meChangeOrganization} = this.props
 
-  const subHeading =
-    rolesAndOrgs.length === 1
-      ? 'Authenticated in 1 Organization'
-      : `Authenticated in ${rolesAndOrgs.length} Organizations`
-
-  const loginLink = () => {
-    return router.push('')
+    await meChangeOrganization(links.me, {organization: organization.id})
+    router.push('')
   }
 
-  return (
-    <div>
-      <div className="auth-page">
-        <div className="auth-box">
-          <div className="auth-logo" />
-          <div className="auth--purgatory">
-            <h3>
-              {name}
-            </h3>
-            <h6>
-              {subHeading}{' '}
-              <code>
-                {scheme}/{provider}
-              </code>
-            </h6>
-            {rolesAndOrgs.length
-              ? <div className="auth--list">
-                  {rolesAndOrgs.map(rag =>
-                    <div
-                      key={rag.id}
-                      className={
-                        rag.currentOrganization
-                          ? 'auth--list-item current'
-                          : 'auth--list-item'
-                      }
-                    >
-                      <div className="auth--list-info">
-                        <div className="auth--list-org">
-                          {rag.organization}
+  render() {
+    const {
+      name,
+      provider,
+      scheme,
+      currentOrganization,
+      roles,
+      organizations,
+      logoutLink,
+    } = this.props
+
+    const rolesAndOrgs = organizations.map(organization => ({
+      organization,
+      role: getRoleNameByOrgID(organization.id, roles),
+      currentOrganization: organization.id === currentOrganization.id,
+    }))
+
+    const subHeading =
+      rolesAndOrgs.length === 1
+        ? 'Authenticated in 1 Organization'
+        : `Authenticated in ${rolesAndOrgs.length} Organizations`
+
+    return (
+      <div>
+        <div className="auth-page">
+          <div className="auth-box">
+            <div className="auth-logo" />
+            <div className="auth--purgatory">
+              <h3>
+                {name}
+              </h3>
+              <h6>
+                {subHeading}{' '}
+                <code>
+                  {scheme}/{provider}
+                </code>
+              </h6>
+              {rolesAndOrgs.length
+                ? <div className="auth--list">
+                    {rolesAndOrgs.map(rag =>
+                      <div
+                        key={rag.organization.id}
+                        className={
+                          rag.currentOrganization
+                            ? 'auth--list-item current'
+                            : 'auth--list-item'
+                        }
+                      >
+                        <div className="auth--list-info">
+                          <div className="auth--list-org">
+                            {rag.organization.name}
+                          </div>
+                          <div className="auth--list-role">
+                            {rag.role}
+                          </div>
                         </div>
-                        <div className="auth--list-role">
-                          {rag.role}
-                        </div>
+                        {rag.role === MEMBER_ROLE
+                          ? <span className="auth--list-blocked">
+                              Contact your Admin<br />for access
+                            </span>
+                          : <button
+                              className="btn btn-sm btn-primary"
+                              onClick={this.handleClickLogin(rag.organization)}
+                            >
+                              Login
+                            </button>}
                       </div>
-                      {rag.role === MEMBER_ROLE
-                        ? <span className="auth--list-blocked">
-                            Contact your Admin<br />for access
-                          </span>
-                        : <button
-                            className="btn btn-sm btn-primary"
-                            onClick={loginLink}
-                          >
-                            Login
-                          </button>}
-                    </div>
-                  )}
-                </div>
-              : <p>You are a Lost Soul</p>}
-            <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
-              Logout
-            </a>
+                    )}
+                  </div>
+                : <p>You are a Lost Soul</p>}
+              <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
+                Logout
+              </a>
+            </div>
           </div>
+          <p className="auth-credits">
+            Made by <span className="icon cubo-uniform" />InfluxData
+          </p>
+          <div className="auth-image" />
         </div>
-        <p className="auth-credits">
-          Made by <span className="icon cubo-uniform" />InfluxData
-        </p>
-        <div className="auth-image" />
       </div>
-    </div>
-  )
+    )
+  }
 }
 
 const {arrayOf, func, shape, string} = PropTypes
@@ -103,6 +112,9 @@ Purgatory.propTypes = {
   router: shape({
     push: func.isRequired,
   }).isRequired,
+  links: shape({
+    me: string.isRequired,
+  }),
   name: string.isRequired,
   provider: string.isRequired,
   scheme: string.isRequired,
@@ -123,14 +135,17 @@ Purgatory.propTypes = {
     })
   ).isRequired,
   logoutLink: string.isRequired,
+  meChangeOrganization: func.isRequired,
 }
 
 const mapStateToProps = ({
+  links,
   auth: {
     me: {name, provider, scheme, currentOrganization, roles, organizations},
     logoutLink,
   },
 }) => ({
+  links,
   name,
   provider,
   scheme,
@@ -140,4 +155,10 @@ const mapStateToProps = ({
   logoutLink,
 })
 
-export default connect(mapStateToProps)(withRouter(Purgatory))
+const mapDispatchToProps = dispatch => ({
+  meChangeOrganization: bindActionCreators(meChangeOrganizationAsync, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(
+  withRouter(Purgatory)
+)
