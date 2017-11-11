@@ -61,7 +61,7 @@ type organizationResponse struct {
 	ID            uint64    `json:"id,string"`
 	Name          string    `json:"name"`
 	DefaultRole   string    `json:"defaultRole,omitempty"`
-	WhitelistOnly bool      `json:"whitelistOnly,omitempty"`
+	WhitelistOnly bool      `json:"whitelistOnly"`
 }
 
 func newOrganizationResponse(o *chronograf.Organization) *organizationResponse {

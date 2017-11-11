@@ -29,6 +29,12 @@ class OrganizationsPage extends Component {
     deleteOrganizationAsync(organization)
   }
 
+  handleToggleWhitelistOnly = organization => {
+    const {actions: {updateOrganizationAsync}} = this.props
+    const whitelistOnly = !organization.whitelistOnly
+    updateOrganizationAsync(organization, {...organization, whitelistOnly})
+  }
+
   render() {
     const {organizations} = this.props
 
@@ -38,6 +44,7 @@ class OrganizationsPage extends Component {
         onCreateOrg={this.handleCreateOrganization}
         onDeleteOrg={this.handleDeleteOrganization}
         onRenameOrg={this.handleRenameOrganization}
+        onToggleWhitelistOnly={this.handleToggleWhitelistOnly}
       />
     )
   }

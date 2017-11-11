@@ -33,7 +33,12 @@ class OrganizationsTable extends Component {
   }
 
   render() {
-    const {organizations, onDeleteOrg, onRenameOrg} = this.props
+    const {
+      organizations,
+      onDeleteOrg,
+      onRenameOrg,
+      onToggleWhitelistOnly,
+    } = this.props
     const {isCreatingOrganization} = this.state
 
     const tableTitle = `${organizations.length} Organization${organizations.length ===
@@ -81,6 +86,7 @@ class OrganizationsTable extends Component {
                 ? <OrganizationsTableRowDefault
                     key={uuid.v4()}
                     organization={org}
+                    onToggleWhitelistOnly={onToggleWhitelistOnly}
                   />
                 : <OrganizationsTableRow
                     key={uuid.v4()}
@@ -107,5 +113,6 @@ OrganizationsTable.propTypes = {
   onCreateOrg: func.isRequired,
   onDeleteOrg: func.isRequired,
   onRenameOrg: func.isRequired,
+  onToggleWhitelistOnly: func.isRequired,
 }
 export default OrganizationsTable
