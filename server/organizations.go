@@ -57,19 +57,13 @@ func (r *organizationRequest) ValidDefaultRole() error {
 }
 
 type organizationResponse struct {
-	Links       selfLinks `json:"links"`
-	ID          uint64    `json:"id,string"`
-	Name        string    `json:"name"`
-	DefaultRole string    `json:"defaultRole,omitempty"`
-	Public      bool      `json:"public"`
+	Links selfLinks `json:"links"`
+	chronograf.Organization
 }
 
 func newOrganizationResponse(o *chronograf.Organization) *organizationResponse {
 	return &organizationResponse{
-		ID:          o.ID,
-		Name:        o.Name,
-		DefaultRole: o.DefaultRole,
-		Public:      o.Public,
+		Organization: *o,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/organizations/%d", o.ID),
 		},

@@ -788,7 +788,7 @@ type Organization struct {
 	DefaultRole string `json:"defaultRole,omitempty"`
 	// Public specifies whether users must be explicitly added to the organization.
 	// It is currently only used by the default organization, but that may change in the future.
-	Public bool `json:"public,omitempty"`
+	Public bool `json:"public"`
 }
 
 // OrganizationQuery represents the attributes that a organization may be retrieved by.
