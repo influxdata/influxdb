@@ -195,11 +195,15 @@ func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 		}
 	}
 
+	// Make a copy of the usr so that we dont modify the underlying add roles on to
+	// the user that was passed in
+	user := *usr
+
 	// Set the users roles to be the union of the roles set on the provided user
 	// and the user that was found in the underlying store
-	u.Roles = append(roles, usr.Roles...)
+	user.Roles = append(roles, usr.Roles...)
 
-	return s.store.Update(ctx, u)
+	return s.store.Update(ctx, &user)
 }
 
 // All returns all users where roles have been filters to be exclusively for

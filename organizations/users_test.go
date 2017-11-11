@@ -561,10 +561,11 @@ func TestUsersStore_Update(t *testing.T) {
 		UsersStore chronograf.UsersStore
 	}
 	type args struct {
-		ctx   context.Context
-		usr   *chronograf.User
-		roles []chronograf.Role
-		orgID string
+		ctx        context.Context
+		usr        *chronograf.User
+		roles      []chronograf.Role
+		superAdmin bool
+		orgID      string
 	}
 	tests := []struct {
 		name    string
@@ -646,6 +647,51 @@ func TestUsersStore_Update(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Update user super admin",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							Name:       "bobetta",
+							Provider:   "github",
+							Scheme:     "oauth2",
+							SuperAdmin: false,
+							Roles: []chronograf.Role{
+								{
+									Organization: "1337",
+									Name:         "viewer",
+								},
+								{
+									Organization: "1338",
+									Name:         "editor",
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				usr: &chronograf.User{
+					Name:     "bobetta",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles:    []chronograf.Role{},
+				},
+				superAdmin: true,
+				orgID:      "1338",
+			},
+			want: &chronograf.User{
+				Name:       "bobetta",
+				Provider:   "github",
+				Scheme:     "oauth2",
+				SuperAdmin: true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt.args.ctx = context.WithValue(tt.args.ctx, organizations.ContextKey, tt.args.orgID)
@@ -655,6 +701,10 @@ func TestUsersStore_Update(t *testing.T) {
 			tt.args.usr.Roles = tt.args.roles
 		}
 
+		if tt.args.superAdmin {
+			tt.args.usr.SuperAdmin = tt.args.superAdmin
+		}
+
 		if err := s.Update(tt.args.ctx, tt.args.usr); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
@@ -662,6 +712,10 @@ func TestUsersStore_Update(t *testing.T) {
 		// for the empty test
 		if tt.want == nil {
 			continue
+		}
+
+		if diff := cmp.Diff(tt.args.usr, tt.want, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 
 	}
