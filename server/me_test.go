@@ -229,7 +229,7 @@ func TestService_Me(t *testing.T) {
 			},
 		},
 		{
-			name: "New user - WhitelistOnly",
+			name: "New user - Public",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -240,9 +240,9 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:            0,
-							DefaultRole:   roles.MemberRoleName,
-							WhitelistOnly: true,
+							ID:          0,
+							DefaultRole: roles.MemberRoleName,
+							Public:      false,
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {

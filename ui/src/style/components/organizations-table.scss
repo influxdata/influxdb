@@ -78,7 +78,7 @@ input[type="text"].form-control.orgs-table--input {
   color: $g9-mountain;
 }
 
-.orgs-table--whitelist {
+.orgs-table--public {
   height: 30px;
   margin-right: 4px;
   text-align: center;
@@ -136,7 +136,7 @@ input[type="text"].form-control.orgs-table--input {
 
   > .orgs-table--name,
   > .orgs-table--name:hover,
-  > .orgs-table--whitelist {
+  > .orgs-table--public {
     transition: none;
     background-color: transparent;
     border-color: transparent;
@@ -146,12 +146,12 @@ input[type="text"].form-control.orgs-table--input {
   > .orgs-table--name,
   > .orgs-table--name:hover,
   > .orgs-table--default-role,
-  > .orgs-table--whitelist {
+  > .orgs-table--public {
     color: $g17-whisper;
     font-weight: 500;
   }
   > .orgs-table--default-role,
-  > .orgs-table--whitelist {
+  > .orgs-table--public {
     line-height: 30px;
     font-size: 13px;
     padding: 0 11px;

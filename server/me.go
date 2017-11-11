@@ -244,7 +244,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	// If users must be explicitly added to the default organization, respond with 403
 	// forbidden
-	if defaultOrg.WhitelistOnly {
+	if !defaultOrg.Public {
 		Error(w, http.StatusForbidden, "users must be explicitly added", s.Logger)
 		return
 	}

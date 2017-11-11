@@ -7,9 +7,9 @@ import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 
 // This is a non-editable organization row, used currently for DEFAULT_ORG
 class OrganizationsTableRowDefault extends Component {
-  toggleWhitelistOnly = () => {
-    const {organization, onToggleWhitelistOnly} = this.props
-    onToggleWhitelistOnly(organization)
+  togglePublic = () => {
+    const {organization, onTogglePublic} = this.props
+    onTogglePublic(organization)
   }
 
   handleChooseDefaultRole = role => {
@@ -33,11 +33,11 @@ class OrganizationsTableRowDefault extends Component {
         <div className="orgs-table--name-disabled">
           {organization.name}
         </div>
-        <div className="orgs-table--whitelist">
+        <div className="orgs-table--public">
           <SlideToggle
             size="xs"
-            active={organization.whitelistOnly}
-            onToggle={this.toggleWhitelistOnly}
+            active={organization.public}
+            onToggle={this.togglePublic}
           />
         </div>
         <div className="orgs-table--default-role">
@@ -66,7 +66,7 @@ OrganizationsTableRowDefault.propTypes = {
     id: string,
     name: string.isRequired,
   }).isRequired,
-  onToggleWhitelistOnly: func.isRequired,
+  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
 }
 

@@ -18,9 +18,9 @@ func parseOrganizationID(id string) (uint64, error) {
 }
 
 type organizationRequest struct {
-	Name          string `json:"name"`
-	DefaultRole   string `json:"defaultRole"`
-	WhitelistOnly *bool  `json:"whitelistOnly"`
+	Name        string `json:"name"`
+	DefaultRole string `json:"defaultRole"`
+	Public      *bool  `json:"public"`
 }
 
 func (r *organizationRequest) ValidCreate() error {
@@ -32,7 +32,7 @@ func (r *organizationRequest) ValidCreate() error {
 }
 
 func (r *organizationRequest) ValidUpdate() error {
-	if r.Name == "" && r.DefaultRole == "" && r.WhitelistOnly == nil {
+	if r.Name == "" && r.DefaultRole == "" && r.Public == nil {
 		return fmt.Errorf("No fields to update")
 	}
 
@@ -57,19 +57,19 @@ func (r *organizationRequest) ValidDefaultRole() error {
 }
 
 type organizationResponse struct {
-	Links         selfLinks `json:"links"`
-	ID            uint64    `json:"id,string"`
-	Name          string    `json:"name"`
-	DefaultRole   string    `json:"defaultRole,omitempty"`
-	WhitelistOnly bool      `json:"whitelistOnly"`
+	Links       selfLinks `json:"links"`
+	ID          uint64    `json:"id,string"`
+	Name        string    `json:"name"`
+	DefaultRole string    `json:"defaultRole,omitempty"`
+	Public      bool      `json:"public"`
 }
 
 func newOrganizationResponse(o *chronograf.Organization) *organizationResponse {
 	return &organizationResponse{
-		ID:            o.ID,
-		Name:          o.Name,
-		DefaultRole:   o.DefaultRole,
-		WhitelistOnly: o.WhitelistOnly,
+		ID:          o.ID,
+		Name:        o.Name,
+		DefaultRole: o.DefaultRole,
+		Public:      o.Public,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/organizations/%d", o.ID),
 		},
@@ -127,8 +127,8 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 		DefaultRole: req.DefaultRole,
 	}
 
-	if req.WhitelistOnly != nil {
-		org.WhitelistOnly = *req.WhitelistOnly
+	if req.Public != nil {
+		org.Public = *req.Public
 	}
 
 	res, err := s.Store.Organizations(ctx).Add(ctx, org)
@@ -226,8 +226,8 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 		org.DefaultRole = req.DefaultRole
 	}
 
-	if req.WhitelistOnly != nil {
-		org.WhitelistOnly = *req.WhitelistOnly
+	if req.Public != nil {
+		org.Public = *req.Public
 	}
 
 	err = s.Store.Organizations(ctx).Update(ctx, org)

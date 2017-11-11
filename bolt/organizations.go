@@ -23,8 +23,8 @@ const (
 	DefaultOrganizationName string = "Default"
 	// DefaultOrganizationRole is the DefaultRole for the Default organization
 	DefaultOrganizationRole string = "member"
-	// DefaultOrganizationWhitelistOnly bool is the WhitelistOnly setting for the Default organization.
-	DefaultOrganizationWhitelistOnly bool = false
+	// DefaultOrganizationPublic bool is the Public setting for the Default organization.
+	DefaultOrganizationPublic bool = true
 )
 
 // OrganizationsStore uses bolt to store and retrieve Organizations
@@ -40,10 +40,10 @@ func (s *OrganizationsStore) Migrate(ctx context.Context) error {
 // CreateDefault does a findOrCreate on the default organization
 func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 	o := chronograf.Organization{
-		ID:            DefaultOrganizationID,
-		Name:          DefaultOrganizationName,
-		DefaultRole:   DefaultOrganizationRole,
-		WhitelistOnly: DefaultOrganizationWhitelistOnly,
+		ID:          DefaultOrganizationID,
+		Name:        DefaultOrganizationName,
+		DefaultRole: DefaultOrganizationRole,
+		Public:      DefaultOrganizationPublic,
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)

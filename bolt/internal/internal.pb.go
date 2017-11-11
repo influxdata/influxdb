@@ -932,10 +932,10 @@ func (m *Role) GetName() string {
 }
 
 type Organization struct {
-	ID            uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Name          string `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
-	DefaultRole   string `protobuf:"bytes,3,opt,name=DefaultRole,proto3" json:"DefaultRole,omitempty"`
-	WhitelistOnly bool   `protobuf:"varint,4,opt,name=WhitelistOnly,proto3" json:"WhitelistOnly,omitempty"`
+	ID          uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Name        string `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	DefaultRole string `protobuf:"bytes,3,opt,name=DefaultRole,proto3" json:"DefaultRole,omitempty"`
+	Public      bool   `protobuf:"varint,4,opt,name=Public,proto3" json:"Public,omitempty"`
 }
 
 func (m *Organization) Reset()                    { *m = Organization{} }
@@ -964,9 +964,9 @@ func (m *Organization) GetDefaultRole() string {
 	return ""
 }
 
-func (m *Organization) GetWhitelistOnly() bool {
+func (m *Organization) GetPublic() bool {
 	if m != nil {
-		return m.WhitelistOnly
+		return m.Public
 	}
 	return false
 }

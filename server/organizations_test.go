@@ -189,11 +189,11 @@ func TestService_UpdateOrganization(t *testing.T) {
 		Logger             chronograf.Logger
 	}
 	type args struct {
-		w             *httptest.ResponseRecorder
-		r             *http.Request
-		org           *organizationRequest
-		whitelistOnly bool
-		setPtr        bool
+		w      *httptest.ResponseRecorder
+		r      *http.Request
+		org    *organizationRequest
+		public bool
+		setPtr bool
 	}
 	tests := []struct {
 		name            string
@@ -238,7 +238,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			wantBody:        `{"id":"1337","name":"The Bad Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"}}`,
 		},
 		{
-			name: "Update Organization whitelist only",
+			name: "Update Organization public",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
@@ -246,9 +246,9 @@ func TestService_UpdateOrganization(t *testing.T) {
 					"http://any.url", // can be any valid URL as we are bypassing mux
 					nil,
 				),
-				org:           &organizationRequest{},
-				whitelistOnly: true,
-				setPtr:        true,
+				org:    &organizationRequest{},
+				public: false,
+				setPtr: true,
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
@@ -268,7 +268,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Good Place","defaultRole":"viewer","whitelistOnly":true,"links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"id":"1337","name":"The Good Place","defaultRole":"viewer","public":false,"links":{"self":"/chronograf/v1/organizations/1337"}}`,
 		},
 		{
 			name: "Update Organization - nothing to update",
@@ -410,7 +410,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 				}))
 
 			if tt.args.setPtr {
-				tt.args.org.WhitelistOnly = &tt.args.whitelistOnly
+				tt.args.org.Public = &tt.args.public
 			}
 
 			buf, _ := json.Marshal(tt.args.org)
@@ -566,16 +566,16 @@ func TestService_NewOrganization(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					AddF: func(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:            1337,
-							Name:          "The Good Place",
-							WhitelistOnly: true,
+							ID:     1337,
+							Name:   "The Good Place",
+							Public: false,
 						}, nil
 					},
 				},
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","whitelistOnly":true,"name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"id":"1337","public":false,"name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
 		},
 		{
 			name: "Create Organization - no user on context",

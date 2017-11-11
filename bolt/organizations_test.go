@@ -238,11 +238,11 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		orgs []chronograf.Organization
 	}
 	type args struct {
-		ctx           context.Context
-		org           *chronograf.Organization
-		name          string
-		defaultRole   string
-		whitelistOnly bool
+		ctx         context.Context
+		org         *chronograf.Organization
+		name        string
+		defaultRole string
+		public      bool
 	}
 	tests := []struct {
 		name     string
@@ -314,41 +314,41 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			addFirst: true,
 		},
 		{
-			name:   "Update organization name, role, whitelist only",
+			name:   "Update organization name, role, public",
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
 				org: &chronograf.Organization{
-					Name:          "The Good Place",
-					DefaultRole:   roles.ViewerRoleName,
-					WhitelistOnly: false,
+					Name:        "The Good Place",
+					DefaultRole: roles.ViewerRoleName,
+					Public:      false,
 				},
-				name:          "The Bad Place",
-				whitelistOnly: true,
-				defaultRole:   roles.AdminRoleName,
+				name:        "The Bad Place",
+				public:      true,
+				defaultRole: roles.AdminRoleName,
 			},
 			want: &chronograf.Organization{
-				Name:          "The Bad Place",
-				WhitelistOnly: true,
-				DefaultRole:   roles.AdminRoleName,
+				Name:        "The Bad Place",
+				Public:      true,
+				DefaultRole: roles.AdminRoleName,
 			},
 			addFirst: true,
 		},
 		{
-			name:   "Update organization name and whitelist only",
+			name:   "Update organization name and public",
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
 				org: &chronograf.Organization{
-					Name:          "The Good Place",
-					WhitelistOnly: false,
+					Name:   "The Good Place",
+					Public: false,
 				},
-				name:          "The Bad Place",
-				whitelistOnly: true,
+				name:   "The Bad Place",
+				public: true,
 			},
 			want: &chronograf.Organization{
-				Name:          "The Bad Place",
-				WhitelistOnly: true,
+				Name:   "The Bad Place",
+				Public: true,
 			},
 			addFirst: true,
 		},
@@ -405,8 +405,8 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			tt.args.org.DefaultRole = tt.args.defaultRole
 		}
 
-		if tt.args.whitelistOnly != tt.args.org.WhitelistOnly {
-			tt.args.org.WhitelistOnly = tt.args.whitelistOnly
+		if tt.args.public != tt.args.org.Public {
+			tt.args.org.Public = tt.args.public
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.org); (err != nil) != tt.wantErr {
