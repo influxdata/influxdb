@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -35,7 +35,7 @@ type Engine interface {
 	SetEnabled(enabled bool)
 	SetCompactionsEnabled(enabled bool)
 
-	WithLogger(zap.Logger)
+	WithLogger(*zap.Logger)
 
 	LoadMetadataIndex(shardID uint64, index Index) error
 

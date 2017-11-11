@@ -3,24 +3,22 @@ package query
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
-
-	"errors"
-
 	"strings"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/yarpc"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Command represents the program execution for "influx_inspect export".
@@ -28,7 +26,7 @@ type Command struct {
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
 	Stdout io.Writer
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	addr            string
 	cpuProfile      string

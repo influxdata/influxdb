@@ -31,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
@@ -126,8 +126,8 @@ type Engine struct {
 	id           uint64
 	database     string
 	path         string
-	logger       zap.Logger // Logger to be used for important messages
-	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
+	logger       *zap.Logger // Logger to be used for important messages
+	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
 	index    tsdb.Index
@@ -174,7 +174,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		FileStore: fs,
 	}
 
-	logger := zap.New(zap.NullEncoder())
+	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
 		id:           id,
@@ -541,7 +541,7 @@ func (e *Engine) Close() error {
 }
 
 // WithLogger sets the logger for the engine.
-func (e *Engine) WithLogger(log zap.Logger) {
+func (e *Engine) WithLogger(log *zap.Logger) {
 	e.logger = log.With(zap.String("engine", "tsm1"))
 
 	if e.traceLogging {
@@ -1510,7 +1510,7 @@ type compactionStrategy struct {
 	successStat  *int64
 	errorStat    *int64
 
-	logger    zap.Logger
+	logger    *zap.Logger
 	compactor *Compactor
 	fileStore *FileStore
 

@@ -1,5 +1,9 @@
 ## v1.5.0 [unreleased]
 
+### Breaking changes
+
+* The default logging format has been changed. See [#9055](https://github.com/influxdata/influxdb/pull/9055) for details.
+
 ### Bugfixes
 
 - [#8538](https://github.com/influxdata/influxdb/pull/8538): Fix panic: runtime error: slice bounds out of range

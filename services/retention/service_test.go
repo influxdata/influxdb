@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/internal"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/toml"
-	"github.com/uber-go/zap"
 )
 
 func TestService_OpenDisabled(t *testing.T) {
@@ -220,12 +220,7 @@ func NewService(c retention.Config) *Service {
 		Service:    retention.NewService(c),
 	}
 
-	mls := zap.MultiWriteSyncer(zap.AddSync(&s.LogBuf))
-
-	l := zap.New(
-		zap.NewTextEncoder(),
-		zap.Output(mls),
-	)
+	l := logger.New(&s.LogBuf)
 	s.WithLogger(l)
 
 	s.Service.MetaClient = s.MetaClient

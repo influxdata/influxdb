@@ -16,7 +16,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Policy constants.
@@ -61,7 +61,7 @@ type Monitor struct {
 	// Writer for pushing stats back into the database.
 	PointsWriter PointsWriter
 
-	Logger zap.Logger
+	Logger *zap.Logger
 }
 
 // PointsWriter is a simplified interface for writing the points the monitor gathers.
@@ -79,7 +79,7 @@ func New(r Reporter, c Config) *Monitor {
 		storeDatabase:        c.StoreDatabase,
 		storeInterval:        time.Duration(c.StoreInterval),
 		storeRetentionPolicy: MonitorRetentionPolicy,
-		Logger:               zap.New(zap.NullEncoder()),
+		Logger:               zap.NewNop(),
 	}
 }
 
@@ -211,7 +211,7 @@ func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 }
 
 // WithLogger sets the logger for the Monitor.
-func (m *Monitor) WithLogger(log zap.Logger) {
+func (m *Monitor) WithLogger(log *zap.Logger) {
 	m.Logger = log.With(zap.String("service", "monitor"))
 }
 

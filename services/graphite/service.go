@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const udpBufferSize = 65536
@@ -56,7 +56,7 @@ type Service struct {
 	batcher *tsdb.PointBatcher
 	parser  *Parser
 
-	logger      zap.Logger
+	logger      *zap.Logger
 	stats       *Statistics
 	defaultTags models.StatisticTags
 
@@ -103,7 +103,7 @@ func NewService(c Config) (*Service, error) {
 		batchPending:    d.BatchPending,
 		udpReadBuffer:   d.UDPReadBuffer,
 		batchTimeout:    time.Duration(d.BatchTimeout),
-		logger:          zap.New(zap.NullEncoder()),
+		logger:          zap.NewNop(),
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"proto": d.Protocol, "bind": d.BindAddress},
 		tcpConnections:  make(map[string]*tcpConnection),
@@ -259,7 +259,7 @@ func (s *Service) createInternalStorage() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.logger = log.With(
 		zap.String("service", "graphite"),
 		zap.String("addr", s.bindAddress),

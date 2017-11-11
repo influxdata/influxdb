@@ -4,7 +4,7 @@ import (
 	"net"
 
 	"github.com/influxdata/yarpc"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type yarpcServer struct {
@@ -12,7 +12,7 @@ type yarpcServer struct {
 	loggingEnabled bool
 	rpc            *yarpc.Server
 	store          *Store
-	logger         zap.Logger
+	logger         *zap.Logger
 }
 
 func (s *yarpcServer) Open() error {

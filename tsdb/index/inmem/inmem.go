@@ -27,7 +27,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // IndexName is the name of this index.
@@ -81,7 +81,7 @@ func (i *Index) Type() string      { return IndexName }
 func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
 
-func (i *Index) WithLogger(zap.Logger) {}
+func (i *Index) WithLogger(*zap.Logger) {}
 
 // Series returns a series by key.
 func (i *Index) Series(key []byte) (*Series, error) {
