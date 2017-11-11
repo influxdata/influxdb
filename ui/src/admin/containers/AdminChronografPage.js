@@ -38,7 +38,7 @@ class AdminChronografPage extends Component {
     createUserAsync(links.users, user)
   }
 
-  handleUpdateUserRole = () => (user, currentRole, {name}) => {
+  handleUpdateUserRole = (user, currentRole, {name}) => {
     const {actions: {updateUserAsync}} = this.props
 
     const updatedRole = {...currentRole, name}
@@ -48,14 +48,16 @@ class AdminChronografPage extends Component {
 
     updateUserAsync(user, {...user, roles: newRoles})
   }
-  handleUpdateUserSuperAdmin = () => (user, currentStatus, {value}) => {
+
+  handleUpdateUserSuperAdmin = (user, superAdmin) => {
     const {actions: {updateUserAsync}} = this.props
 
-    const updatedUser = {...user, superAdmin: value}
+    const updatedUser = {...user, superAdmin}
 
     updateUserAsync(user, updatedUser)
   }
-  handleDeleteUser = () => user => {
+
+  handleDeleteUser = user => {
     const {actions: {deleteUserAsync}} = this.props
 
     deleteUserAsync(user)
@@ -83,9 +85,9 @@ class AdminChronografPage extends Component {
                     users={users}
                     organization={currentOrganization}
                     onCreateUser={this.handleCreateUser}
-                    onUpdateUserRole={this.handleUpdateUserRole()}
-                    onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin()}
-                    onDeleteUser={this.handleDeleteUser()}
+                    onUpdateUserRole={this.handleUpdateUserRole}
+                    onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
+                    onDeleteUser={this.handleDeleteUser}
                   />
                 </div>
               </div>

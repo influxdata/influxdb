@@ -49,7 +49,7 @@ const UsersTableRow = ({
         <td style={{width: colSuperAdmin}} className="text-center">
           <SlideToggle
             active={user.superAdmin}
-            onToggle={onChangeSuperAdmin(user, user.superAdmin)}
+            onToggle={onChangeSuperAdmin(user)}
             size="xs"
           />
         </td>

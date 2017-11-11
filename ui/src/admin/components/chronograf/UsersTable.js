@@ -23,8 +23,8 @@ class UsersTable extends Component {
     this.props.onUpdateUserRole(user, currentRole, newRole)
   }
 
-  handleChangeSuperAdmin = (user, currentStatus) => newStatus => {
-    this.props.onUpdateUserSuperAdmin(user, currentStatus, newStatus)
+  handleChangeSuperAdmin = user => newStatus => {
+    this.props.onUpdateUserSuperAdmin(user, newStatus)
   }
 
   handleDeleteUser = user => {
