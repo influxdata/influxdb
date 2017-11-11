@@ -6,6 +6,7 @@ import {Provider} from 'react-redux'
 import {Router, Route, useRouterHistory} from 'react-router'
 import {createHistory} from 'history'
 import {syncHistoryWithStore} from 'react-router-redux'
+import {bindActionCreators} from 'redux'
 
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
@@ -34,18 +35,9 @@ import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
 
-import {getMe} from 'shared/apis'
+import {getMeAsync} from 'shared/actions/auth'
 
 import {disablePresentationMode} from 'shared/actions/app'
-import {
-  authRequested,
-  authReceived,
-  meRequested,
-  meReceivedNotUsingAuth,
-  meReceivedUsingAuth,
-  logoutLinkReceived,
-} from 'shared/actions/auth'
-import {linksReceived} from 'shared/actions/links'
 import {errorThrown} from 'shared/actions/errors'
 
 import 'src/style/chronograf.scss'
@@ -87,45 +79,24 @@ const Root = React.createClass({
   },
 
   async checkAuth() {
-    dispatch(authRequested())
-    dispatch(meRequested())
     try {
-      await this.startHeartbeat({shouldDispatchResponse: true})
+      await this.startHeartbeat({shouldResetMe: true})
     } catch (error) {
       dispatch(errorThrown(error))
     }
   },
 
-  async startHeartbeat({shouldDispatchResponse}) {
-    try {
-      // These non-me objects are added to every response by some AJAX trickery
-      const {
-        data: me,
-        auth,
-        logoutLink,
-        external,
-        users,
-        organizations,
-        meLink,
-      } = await getMe()
-      if (shouldDispatchResponse) {
-        const isUsingAuth = !!logoutLink
-        dispatch(
-          isUsingAuth ? meReceivedUsingAuth(me) : meReceivedNotUsingAuth(me)
-        )
-        dispatch(authReceived(auth))
-        dispatch(logoutLinkReceived(logoutLink))
-        dispatch(linksReceived({external, users, organizations, me: meLink}))
-      }
+  getMe: bindActionCreators(getMeAsync, dispatch),
 
-      setTimeout(() => {
-        if (store.getState().auth.me !== null) {
-          this.startHeartbeat({shouldDispatchResponse: false})
-        }
-      }, HEARTBEAT_INTERVAL)
-    } catch (error) {
-      dispatch(errorThrown(error))
-    }
+  async startHeartbeat(config) {
+    // TODO: use destructure syntax with default {} value -- couldn't figure it out
+    await this.getMe({shouldResetMe: config && config.shouldResetMe})
+
+    setTimeout(() => {
+      if (store.getState().auth.me !== null) {
+        this.startHeartbeat()
+      }
+    }, HEARTBEAT_INTERVAL)
   },
 
   flushErrorsQueue() {

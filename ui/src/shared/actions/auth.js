@@ -1,4 +1,6 @@
-import {updateMe as updateMeAJAX} from 'shared/apis/auth'
+import {getMe as getMeAJAX, updateMe as updateMeAJAX} from 'shared/apis/auth'
+
+import {linksReceived} from 'shared/actions/links'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
@@ -21,8 +23,8 @@ export const authReceived = auth => ({
   },
 })
 
-export const meRequested = () => ({
-  type: 'ME_REQUESTED',
+export const meGetRequested = () => ({
+  type: 'ME_GET_REQUESTED',
 })
 
 export const meReceivedNotUsingAuth = me => ({
@@ -37,6 +39,10 @@ export const meReceivedUsingAuth = me => ({
   payload: {
     me,
   },
+})
+
+export const meGetFailed = () => ({
+  type: 'ME_GET_FAILED',
 })
 
 export const meChangeOrganizationRequested = () => ({
@@ -57,6 +63,37 @@ export const logoutLinkReceived = logoutLink => ({
     logoutLink,
   },
 })
+
+// shouldResetMe protects against `me` being nullified in Redux temporarily,
+// which currently causes the app to show a loading spinner until me is
+// re-hydrated. if `getMeAsync` is only being used to refresh me after creating
+// an organization, this is undesirable behavior
+export const getMeAsync = ({shouldResetMe}) => async dispatch => {
+  if (shouldResetMe) {
+    dispatch(authRequested())
+    dispatch(meGetRequested())
+  }
+  try {
+    // These non-me objects are added to every response by some AJAX trickery
+    const {
+      data: me,
+      auth,
+      logoutLink,
+      external,
+      users,
+      organizations,
+      meLink,
+    } = await getMeAJAX()
+    const isUsingAuth = !!logoutLink
+    dispatch(isUsingAuth ? meReceivedUsingAuth(me) : meReceivedNotUsingAuth(me))
+    dispatch(authReceived(auth))
+    dispatch(logoutLinkReceived(logoutLink))
+    dispatch(linksReceived({external, users, organizations, me: meLink}))
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(meGetFailed())
+  }
+}
 
 export const meChangeOrganizationAsync = (
   url,

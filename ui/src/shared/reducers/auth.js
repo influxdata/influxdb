@@ -25,7 +25,7 @@ const authReducer = (state = initialState, action) => {
       const {auth: {links}} = action.payload
       return {...state, links, isAuthLoading: false}
     }
-    case 'ME_REQUESTED': {
+    case 'ME_GET_REQUESTED': {
       return {...state, isMeLoading: true}
     }
     case 'ME_RECEIVED__NON_AUTH': {

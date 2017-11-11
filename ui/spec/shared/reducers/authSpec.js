@@ -4,7 +4,7 @@ import {
   authExpired,
   authRequested,
   authReceived,
-  meRequested,
+  meGetRequested,
   meReceivedNotUsingAuth,
 } from 'shared/actions/auth'
 
@@ -51,8 +51,8 @@ describe('Shared.Reducers.authReducer', () => {
     expect(reducedState.isAuthLoading).to.equal(false)
   })
 
-  it('should handle ME_REQUESTED', () => {
-    const reducedState = authReducer(initialState, meRequested())
+  it('should handle ME_GET_REQUESTED', () => {
+    const reducedState = authReducer(initialState, meGetRequested())
 
     expect(reducedState.isMeLoading).to.equal(true)
   })
