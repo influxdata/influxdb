@@ -663,3 +663,198 @@ func TestStore_SourcesAll(t *testing.T) {
 		})
 	}
 }
+
+func TestStore_OrganizationsAdd(t *testing.T) {
+	type fields struct {
+		OrganizationsStore chronograf.OrganizationsStore
+	}
+	type args struct {
+		orgID         uint64
+		serverContext bool
+		organization  string
+		user          *chronograf.User
+	}
+	type wants struct {
+		organization *chronograf.Organization
+		err          bool
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "Get organization with server context",
+			fields: fields{
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          21,
+							Name:        "my sweet name",
+							DefaultRole: "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				serverContext: true,
+				orgID:         21,
+			},
+			wants: wants{
+				organization: &chronograf.Organization{
+					ID:          21,
+					Name:        "my sweet name",
+					DefaultRole: "viewer",
+				},
+			},
+		},
+		{
+			name: "Get organization with super admin",
+			fields: fields{
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          21,
+							Name:        "my sweet name",
+							DefaultRole: "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				user: &chronograf.User{
+					ID:         1337,
+					Name:       "bobbetta",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+				orgID: 21,
+			},
+			wants: wants{
+				organization: &chronograf.Organization{
+					ID:          21,
+					Name:        "my sweet name",
+					DefaultRole: "viewer",
+				},
+			},
+		},
+		{
+			name: "Get organization not as super admin no organization",
+			fields: fields{
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          21,
+							Name:        "my sweet name",
+							DefaultRole: "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				user: &chronograf.User{
+					ID:       1337,
+					Name:     "bobbetta",
+					Provider: "github",
+					Scheme:   "oauth2",
+				},
+				orgID: 21,
+			},
+			wants: wants{
+				err: true,
+			},
+		},
+		{
+			name: "Get organization not as super admin with organization",
+			fields: fields{
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          21,
+							Name:        "my sweet name",
+							DefaultRole: "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				user: &chronograf.User{
+					ID:       1337,
+					Name:     "bobbetta",
+					Provider: "github",
+					Scheme:   "oauth2",
+				},
+				organization: "21",
+				orgID:        21,
+			},
+			wants: wants{
+				organization: &chronograf.Organization{
+					ID:          21,
+					Name:        "my sweet name",
+					DefaultRole: "viewer",
+				},
+			},
+		},
+		{
+			name: "Get different organization not as super admin with organization",
+			fields: fields{
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          22,
+							Name:        "my sweet name",
+							DefaultRole: "viewer",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				user: &chronograf.User{
+					ID:       1337,
+					Name:     "bobbetta",
+					Provider: "github",
+					Scheme:   "oauth2",
+				},
+				organization: "21",
+				orgID:        21,
+			},
+			wants: wants{
+				err: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &Store{
+				OrganizationsStore: tt.fields.OrganizationsStore,
+			}
+
+			ctx := context.Background()
+
+			if tt.args.serverContext {
+				ctx = serverContext(ctx)
+			}
+
+			if tt.args.organization != "" {
+				ctx = context.WithValue(ctx, organizations.ContextKey, tt.args.organization)
+			}
+
+			if tt.args.user != nil {
+				ctx = context.WithValue(ctx, UserContextKey, tt.args.user)
+			}
+
+			organization, err := store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &tt.args.orgID})
+			if (err != nil) != tt.wants.err {
+				t.Errorf("%q. Store.Organizations().Get() error = %v, wantErr %v", tt.name, err, tt.wants.err)
+				return
+			}
+			if diff := cmp.Diff(organization, tt.wants.organization); diff != "" {
+				t.Errorf("%q. Store.Organizations().Get():\n-got/+want\ndiff %s", tt.name, diff)
+			}
+		})
+	}
+}

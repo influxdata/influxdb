@@ -276,10 +276,9 @@ func (s *OrganizationsStore) Update(ctx context.Context, o *chronograf.Organizat
 		return chronograf.ErrOrganizationNameTaken
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
-		org.Name = o.Name
-		if v, err := internal.MarshalOrganization(org); err != nil {
+		if v, err := internal.MarshalOrganization(o); err != nil {
 			return err
-		} else if err := tx.Bucket(OrganizationsBucket).Put(u64tob(org.ID), v); err != nil {
+		} else if err := tx.Bucket(OrganizationsBucket).Put(u64tob(o.ID), v); err != nil {
 			return err
 		}
 		return nil

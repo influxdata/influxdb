@@ -57,6 +57,7 @@ class UsersTable extends Component {
           numUsers={users.length}
           onClickCreateUser={this.handleClickCreateUser}
           isCreatingUser={isCreatingUser}
+          organization={organization}
         />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">
@@ -74,7 +75,6 @@ class UsersTable extends Component {
                 <th style={{width: colProvider}}>Provider</th>
                 <th style={{width: colScheme}}>Scheme</th>
                 <th className="text-right" style={{width: colActions}} />
-                <th /* for DeleteConfirmTableCell */ />
               </tr>
             </thead>
             <tbody>

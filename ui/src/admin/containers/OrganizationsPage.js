@@ -14,9 +14,9 @@ class OrganizationsPage extends Component {
     loadOrganizationsAsync(links.organizations)
   }
 
-  handleCreateOrganization = organizationName => {
+  handleCreateOrganization = organization => {
     const {links, actions: {createOrganizationAsync}} = this.props
-    createOrganizationAsync(links.organizations, {name: organizationName})
+    createOrganizationAsync(links.organizations, organization)
   }
 
   handleRenameOrganization = (organization, name) => {
@@ -29,6 +29,11 @@ class OrganizationsPage extends Component {
     deleteOrganizationAsync(organization)
   }
 
+  handleChooseDefaultRole = (organization, defaultRole) => {
+    const {actions: {updateOrganizationAsync}} = this.props
+    updateOrganizationAsync(organization, {...organization, defaultRole})
+  }
+
   render() {
     const {organizations} = this.props
 
@@ -38,6 +43,7 @@ class OrganizationsPage extends Component {
         onCreateOrg={this.handleCreateOrganization}
         onDeleteOrg={this.handleDeleteOrganization}
         onRenameOrg={this.handleRenameOrganization}
+        onChooseDefaultRole={this.handleChooseDefaultRole}
       />
     )
   }

@@ -181,6 +181,9 @@ func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore
 	if isServer := hasServerContext(ctx); isServer {
 		return s.OrganizationsStore
 	}
+	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+		return s.OrganizationsStore
+	}
 	if org, ok := hasOrganizationContext(ctx); ok {
 		return organizations.NewOrganizationsStore(s.OrganizationsStore, org)
 	}

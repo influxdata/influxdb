@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
+	"github.com/influxdata/chronograf/roles"
 )
 
 var orgCmpOptions = cmp.Options{
@@ -237,9 +238,10 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		orgs []chronograf.Organization
 	}
 	type args struct {
-		ctx  context.Context
-		org  *chronograf.Organization
-		name string
+		ctx         context.Context
+		org         *chronograf.Organization
+		name        string
+		defaultRole string
 	}
 	tests := []struct {
 		name     string
@@ -273,6 +275,40 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			},
 			want: &chronograf.Organization{
 				Name: "The Bad Place",
+			},
+			addFirst: true,
+		},
+		{
+			name:   "Update organization default role",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				org: &chronograf.Organization{
+					Name: "The Good Place",
+				},
+				defaultRole: roles.ViewerRoleName,
+			},
+			want: &chronograf.Organization{
+				Name:        "The Good Place",
+				DefaultRole: roles.ViewerRoleName,
+			},
+			addFirst: true,
+		},
+		{
+			name:   "Update organization name and default role",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				org: &chronograf.Organization{
+					Name:        "The Good Place",
+					DefaultRole: roles.AdminRoleName,
+				},
+				name:        "The Bad Place",
+				defaultRole: roles.ViewerRoleName,
+			},
+			want: &chronograf.Organization{
+				Name:        "The Bad Place",
+				DefaultRole: roles.ViewerRoleName,
 			},
 			addFirst: true,
 		},
@@ -320,6 +356,9 @@ func TestOrganizationsStore_Update(t *testing.T) {
 
 		if tt.args.name != "" {
 			tt.args.org.Name = tt.args.name
+		}
+		if tt.args.defaultRole != "" {
+			tt.args.org.DefaultRole = tt.args.defaultRole
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.org); (err != nil) != tt.wantErr {

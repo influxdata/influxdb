@@ -16,13 +16,7 @@ const UsersTableRow = ({
   onChangeSuperAdmin,
   onDelete,
 }) => {
-  const {
-    colRole,
-    colSuperAdmin,
-    colProvider,
-    colScheme,
-    colActions,
-  } = USERS_TABLE
+  const {colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
 
   const dropdownRolesItems = USER_ROLES.map(r => ({
     ...r,
@@ -66,7 +60,6 @@ const UsersTableRow = ({
       <td style={{width: colScheme}}>
         {user.scheme}
       </td>
-      <td className="text-right" style={{width: colActions}} />
       <DeleteConfirmTableCell
         text="Remove"
         onDelete={onDelete}

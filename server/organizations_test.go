@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
+	"github.com/influxdata/chronograf/roles"
 )
 
 func TestService_OrganizationID(t *testing.T) {
@@ -232,6 +233,95 @@ func TestService_UpdateOrganization(t *testing.T) {
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
 			wantBody:        `{"id":"1337","name":"The Bad Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+		},
+		{
+			name: "Update Organization default role",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+				org: &organizationRequest{
+					DefaultRole: roles.ViewerRoleName,
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          1337,
+							Name:        "The Good Place",
+							DefaultRole: roles.MemberRoleName,
+						}, nil
+					},
+				},
+			},
+			id:              "1337",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1337","name":"The Good Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+		},
+		{
+			name: "Update Organization - invalid update",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+				org: &organizationRequest{},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return nil, nil
+					},
+				},
+			},
+			id:              "1337",
+			wantStatus:      http.StatusUnprocessableEntity,
+			wantContentType: "application/json",
+			wantBody:        `{"code":422,"message":"No fields to update"}`,
+		},
+		{
+			name: "Update Organization - invalid role",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+				org: &organizationRequest{
+					DefaultRole: "sillyrole",
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return nil, nil
+					},
+				},
+			},
+			id:              "1337",
+			wantStatus:      http.StatusUnprocessableEntity,
+			wantContentType: "application/json",
+			wantBody:        `{"code":422,"message":"default role must be member, viewer, editor, or admin"}`,
 		},
 	}
 
