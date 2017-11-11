@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import {withRouter, Link} from 'react-router'
+import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 
 import {MEMBER_ROLE} from 'src/auth/Authorized'
@@ -17,6 +17,7 @@ const Purgatory = ({
   currentOrganization,
   roles,
   organizations,
+  logoutLink,
 }) => {
   const rolesAndOrgs = organizations.map(({id, name: orgName}) => ({
     id,
@@ -82,9 +83,9 @@ const Purgatory = ({
                   )}
                 </div>
               : <p>You are a Lost Soul</p>}
-            <Link to={'/logout'} className="btn btn-sm btn-link auth--logout">
+            <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
               Logout
-            </Link>
+            </a>
           </div>
         </div>
         <p className="auth-credits">
@@ -121,11 +122,13 @@ Purgatory.propTypes = {
       name: string,
     })
   ).isRequired,
+  logoutLink: string.isRequired,
 }
 
 const mapStateToProps = ({
   auth: {
     me: {name, provider, scheme, currentOrganization, roles, organizations},
+    logoutLink,
   },
 }) => ({
   name,
@@ -134,6 +137,7 @@ const mapStateToProps = ({
   currentOrganization,
   roles,
   organizations,
+  logoutLink,
 })
 
 export default connect(mapStateToProps)(withRouter(Purgatory))
