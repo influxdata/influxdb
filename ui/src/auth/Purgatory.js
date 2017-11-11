@@ -1,52 +1,107 @@
 import React, {PropTypes} from 'react'
+import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
 
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
-const memberCopy = (
-  <p>This role does not grant you sufficient permissions to view Chronograf.</p>
-)
-const viewerCopy = (
-  <p>
-    This organization does not have any configured sources<br />and your role
-    does not have permission to configure a source.
-  </p>
-)
+const getRoleNameByOrgID = (id, roles) => {
+  const role = roles.find(r => r.organization === id)
+  return (role && role.name) || 'ghost'
+}
 
-const Purgatory = ({name, provider, scheme, currentOrganization, role}) =>
-  <div>
-    <div className="auth-page">
-      <div className="auth-box">
-        <div className="auth-logo" />
-        <div className="auth--purgatory">
-          <h3>
-            Logged in to <strong>{currentOrganization.name}</strong> as a{' '}
-            <em>{role}</em>.
-          </h3>
-          {role === MEMBER_ROLE ? memberCopy : viewerCopy}
-          <p>Contact your Administrator for assistance.</p>
-          <hr />
-          <pre>
-            <code>
-              username: {name}
-              <br />
-              provider: {provider}
-              <br />
-              scheme: {scheme}
-            </code>
-          </pre>
+const Purgatory = ({
+  router,
+  name,
+  provider,
+  scheme,
+  currentOrganization,
+  roles,
+  organizations,
+}) => {
+  const rolesAndOrgs = organizations.map(({id, name: orgName}) => ({
+    id,
+    organization: orgName,
+    role: getRoleNameByOrgID(id, roles),
+    currentOrganization: id === currentOrganization.id,
+  }))
+
+  const subHeading =
+    rolesAndOrgs.length === 1
+      ? 'Authenticated in 1 Organization'
+      : `Authenticated in ${rolesAndOrgs.length} Organizations`
+
+  const loginLink = () => {
+    return router.push('')
+  }
+
+  return (
+    <div>
+      <div className="auth-page">
+        <div className="auth-box">
+          <div className="auth-logo" />
+          <div className="auth--purgatory">
+            <h3>
+              {name}
+            </h3>
+            <h6>
+              {subHeading}{' '}
+              <code>
+                {scheme}/{provider}
+              </code>
+            </h6>
+            {rolesAndOrgs.length
+              ? <div className="auth--list">
+                  {rolesAndOrgs.map(rag =>
+                    <div
+                      key={rag.id}
+                      className={
+                        rag.currentOrganization
+                          ? 'auth--list-item current'
+                          : 'auth--list-item'
+                      }
+                    >
+                      <div className="auth--list-info">
+                        <div className="auth--list-org">
+                          {rag.organization}
+                        </div>
+                        <div className="auth--list-role">
+                          {rag.role}
+                        </div>
+                      </div>
+                      {rag.role === MEMBER_ROLE
+                        ? <span className="auth--list-blocked">
+                            Contact your Admin<br />for access
+                          </span>
+                        : <button
+                            className="btn btn-sm btn-primary"
+                            onClick={loginLink}
+                          >
+                            Login
+                          </button>}
+                    </div>
+                  )}
+                </div>
+              : <p>You are a Lost Soul</p>}
+            <Link to={'/logout'} className="btn btn-sm btn-link auth--logout">
+              Logout
+            </Link>
+          </div>
         </div>
+        <p className="auth-credits">
+          Made by <span className="icon cubo-uniform" />InfluxData
+        </p>
+        <div className="auth-image" />
       </div>
-      <p className="auth-credits">
-        Made by <span className="icon cubo-uniform" />InfluxData
-      </p>
-      <div className="auth-image" />
     </div>
-  </div>
+  )
+}
 
-const {shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 Purgatory.propTypes = {
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
   name: string.isRequired,
   provider: string.isRequired,
   scheme: string.isRequired,
@@ -54,17 +109,31 @@ Purgatory.propTypes = {
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
-  role: string.isRequired,
+  roles: arrayOf(
+    shape({
+      name: string,
+      organization: string,
+    })
+  ).isRequired,
+  organizations: arrayOf(
+    shape({
+      id: string,
+      name: string,
+    })
+  ).isRequired,
 }
 
 const mapStateToProps = ({
-  auth: {me: {name, provider, scheme, currentOrganization, role}},
+  auth: {
+    me: {name, provider, scheme, currentOrganization, roles, organizations},
+  },
 }) => ({
   name,
   provider,
   scheme,
   currentOrganization,
-  role,
+  roles,
+  organizations,
 })
 
-export default connect(mapStateToProps)(Purgatory)
+export default connect(mapStateToProps)(withRouter(Purgatory))
