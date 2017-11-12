@@ -5,7 +5,7 @@ import {
   authRequested,
   authReceived,
   meGetRequested,
-  meReceivedNotUsingAuth,
+  meGetCompletedNotUsingAuth,
 } from 'shared/actions/auth'
 
 const defaultAuth = {
@@ -57,11 +57,11 @@ describe('Shared.Reducers.authReducer', () => {
     expect(reducedState.isMeLoading).to.equal(true)
   })
 
-  it('should handle ME_RECEIVED__NON_AUTH', () => {
+  it('should handle ME_GET_COMPLETED__NON_AUTH', () => {
     const loadingState = {...initialState, isMeLoading: true}
     const reducedState = authReducer(
       loadingState,
-      meReceivedNotUsingAuth(defaultMe)
+      meGetCompletedNotUsingAuth(defaultMe)
     )
 
     expect(reducedState.me).to.deep.equal(defaultMe)

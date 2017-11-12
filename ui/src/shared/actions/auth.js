@@ -27,15 +27,15 @@ export const meGetRequested = () => ({
   type: 'ME_GET_REQUESTED',
 })
 
-export const meReceivedNotUsingAuth = me => ({
-  type: 'ME_RECEIVED__NON_AUTH',
+export const meGetCompletedNotUsingAuth = me => ({
+  type: 'ME_GET_COMPLETED__NON_AUTH',
   payload: {
     me,
   },
 })
 
-export const meReceivedUsingAuth = me => ({
-  type: 'ME_RECEIVED__AUTH',
+export const meGetCompletedUsingAuth = me => ({
+  type: 'ME_GET_COMPLETED__AUTH',
   payload: {
     me,
   },
@@ -85,7 +85,9 @@ export const getMeAsync = ({shouldResetMe}) => async dispatch => {
       meLink,
     } = await getMeAJAX()
     const isUsingAuth = !!logoutLink
-    dispatch(isUsingAuth ? meReceivedUsingAuth(me) : meReceivedNotUsingAuth(me))
+    dispatch(
+      isUsingAuth ? meGetCompletedUsingAuth(me) : meGetCompletedNotUsingAuth(me)
+    )
     dispatch(authReceived(auth))
     dispatch(logoutLinkReceived(logoutLink))
     dispatch(linksReceived({external, users, organizations, me: meLink}))
@@ -109,7 +111,7 @@ export const meChangeOrganizationAsync = (
       )
     )
     dispatch(meChangeOrganizationCompleted())
-    dispatch(meReceivedUsingAuth(data))
+    dispatch(meGetCompletedUsingAuth(data))
     // TODO: reload sources upon me change org if non-refresh behavior preferred
     // instead of current behavior on both invocations of meChangeOrganization,
     // which is to refresh index via router.push('')
