@@ -64,7 +64,7 @@ func TestService_OrganizationID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","public":false}`,
 		},
 	}
 
@@ -151,7 +151,7 @@ func TestService_Organizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"organizations":[{"id":"1337","name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}},{"id":"100","name":"The Bad Place","links":{"self":"/chronograf/v1/organizations/100"}}],"links":{"self":"/chronograf/v1/organizations"}}`,
+			wantBody:        `{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","public":false},{"links":{"self":"/chronograf/v1/organizations/100"},"id":"100","name":"The Bad Place","public":false}]}`,
 		},
 	}
 
@@ -235,7 +235,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Bad Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"id":"1337","name":"The Bad Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"},"public":false}`,
 		},
 		{
 			name: "Update Organization public",
@@ -332,7 +332,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Good Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","defaultRole":"viewer","public":false}`,
 		},
 		{
 			name: "Update Organization - invalid update",
