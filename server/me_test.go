@@ -122,8 +122,9 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   0,
-							Name: "The Bad Place",
+							ID:     0,
+							Name:   "The Bad Place",
+							Public: false,
 						}, nil
 					},
 				},
@@ -253,8 +254,9 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   0,
-							Name: "The Bad Place",
+							ID:     0,
+							Name:   "The Bad Place",
+							Public: false,
 						}, nil
 					},
 				},
@@ -461,8 +463,9 @@ func TestService_UpdateMe(t *testing.T) {
 						switch *q.ID {
 						case 1337:
 							return &chronograf.Organization{
-								ID:   1337,
-								Name: "The ThrillShilliettos",
+								ID:     1337,
+								Name:   "The ThrillShilliettos",
+								Public: false,
 							}, nil
 						case 0:
 							return &chronograf.Organization{

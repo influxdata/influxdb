@@ -187,7 +187,7 @@ func TestOrganizationsStore_All(t *testing.T) {
 				{
 					Name:        bolt.DefaultOrganizationName,
 					DefaultRole: bolt.DefaultOrganizationRole,
-					Public:      true,
+					Public:      bolt.DefaultOrganizationPublic,
 				},
 				{
 					Name: "EE - Evil Empire",
@@ -621,7 +621,7 @@ func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
 				ID:          bolt.DefaultOrganizationID,
 				Name:        bolt.DefaultOrganizationName,
 				DefaultRole: bolt.DefaultOrganizationRole,
-				Public:      true,
+				Public:      bolt.DefaultOrganizationPublic,
 			},
 			wantErr: false,
 		},
