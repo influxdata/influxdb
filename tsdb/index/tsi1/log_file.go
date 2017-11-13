@@ -1290,6 +1290,17 @@ type logMeasurement struct {
 
 func (m *logMeasurement) Name() []byte  { return m.name }
 func (m *logMeasurement) Deleted() bool { return m.deleted }
+func (m *logMeasurement) HasSeries() bool {
+	if m.deleted {
+		return false
+	}
+	for _, v := range m.series {
+		if !v.deleted {
+			return true
+		}
+	}
+	return false
+}
 
 func (m *logMeasurement) createTagSetIfNotExists(key []byte) logTagKey {
 	ts, ok := m.tagSet[string(key)]

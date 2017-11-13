@@ -575,11 +575,8 @@ func (i *Index) DropSeries(key []byte, ts int64) error {
 		fs := i.retainFileSet()
 		defer fs.Release()
 
-		// Check if that was the last series for the measurement in the entire index.
-		itr := fs.MeasurementSeriesIterator(mname)
-		if itr == nil {
-			return nil
-		} else if e := itr.Next(); e != nil {
+		mm := fs.Measurement(mname)
+		if mm == nil || mm.HasSeries() {
 			return nil
 		}
 

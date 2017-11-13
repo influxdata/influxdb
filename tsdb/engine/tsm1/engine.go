@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 )
@@ -936,6 +937,13 @@ func (e *Engine) WritePoints(points []models.Point) error {
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
 func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
 	var disableOnce bool
+
+	// Ensure that the index does not compact away the measurement or series we're
+	// going to delete before we're done with them.
+	if tsiIndex, ok := e.index.(*tsi1.Index); ok {
+		fs := tsiIndex.RetainFileSet()
+		defer fs.Release()
+	}
 
 	var sz int
 	batch := make([][]byte, 0, 10000)

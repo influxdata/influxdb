@@ -21,6 +21,7 @@ const LoadFactor = 80
 type MeasurementElem interface {
 	Name() []byte
 	Deleted() bool
+	HasSeries() bool
 }
 
 // MeasurementElems represents a list of MeasurementElem.
@@ -113,6 +114,15 @@ func (p measurementMergeElem) Deleted() bool {
 		return false
 	}
 	return p[0].Deleted()
+}
+
+func (p measurementMergeElem) HasSeries() bool {
+	for _, v := range p {
+		if v.HasSeries() {
+			return true
+		}
+	}
+	return false
 }
 
 // filterUndeletedMeasurementIterator returns all measurements which are not deleted.
