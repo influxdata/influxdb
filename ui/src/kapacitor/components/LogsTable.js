@@ -1,124 +1,57 @@
 import React, {Component, PropTypes} from 'react'
 
+import LogItemSession from 'src/kapacitor/components/LogItemSession'
+import LogItemHTTP from 'src/kapacitor/components/LogItemHTTP'
+import LogItemHTTPError from 'src/kapacitor/components/LogItemHTTPError'
+import LogItemKapacitorPoint from 'src/kapacitor/components/LogItemKapacitorPoint'
+import LogItemKapacitorError from 'src/kapacitor/components/LogItemKapacitorError'
+import LogItemKapacitorDebug from 'src/kapacitor/components/LogItemKapacitorDebug'
+import LogItemInfluxDBDebug from 'src/kapacitor/components/LogItemInfluxDBDebug'
+
 class LogsTable extends Component {
   constructor(props) {
     super(props)
   }
 
-  renderKeysAndValues = object => {
-    if (!object) {
-      return <span className="logs-table--empty-cell">--</span>
-    }
-    const objKeys = Object.keys(object)
-    const objValues = Object.values(object)
-
-    const objElements = objKeys.map((objKey, i) =>
-      <div key={i} className="logs-table--key-value">
-        {objKey}: <span>{objValues[i]}</span>
-      </div>
-    )
-    return objElements
-  }
-
-  renderTableRow = logItem => {
-    let rowDetails
-
+  renderTableRow = (logItem, index) => {
     if (logItem.service === 'sessions') {
-      rowDetails = (
-        <div className="logs-table--details">
-          <div className="logs-table--session">
-            {logItem.msg}
-          </div>
-        </div>
-      )
+      return <LogItemSession logItem={logItem} key={index} />
     }
     if (logItem.service === 'http' && logItem.msg === 'http request') {
-      rowDetails = (
-        <div className="logs-table--details">
-          <div className="logs-table--service">HTTP Request</div>
-          <div className="logs-table--http">
-            {logItem.method} {logItem.username}@{logItem.host} ({logItem.duration})
-          </div>
-        </div>
-      )
+      return <LogItemHTTP logItem={logItem} key={index} />
     }
     if (logItem.service === 'kapacitor' && logItem.msg === 'point') {
-      rowDetails = (
-        <div className="logs-table--details">
-          <div className="logs-table--service">Kapacitor Point</div>
-          <div className="logs-table--blah">
-            <div className="logs-table--key-values">
-              TAGS<br />
-              {this.renderKeysAndValues(logItem.tag)}
-            </div>
-            <div className="logs-table--key-values">
-              FIELDS<br />
-              {this.renderKeysAndValues(logItem.field)}
-            </div>
-          </div>
-        </div>
-      )
+      return <LogItemKapacitorPoint logItem={logItem} key={index} />
     }
     if (logItem.service === 'httpd_server_errors' && logItem.lvl === 'error') {
-      rowDetails = (
-        <div className="logs-table--details">
-          <div className="logs-table--service error">HTTP Server</div>
-          <div className="logs-table--blah">
-            <div className="logs-table--key-values error">
-              ERROR: {logItem.msg}
-            </div>
-          </div>
-        </div>
-      )
+      return <LogItemHTTPError logItem={logItem} key={index} />
     }
     if (logItem.service === 'kapacitor' && logItem.lvl === 'error') {
-      rowDetails = (
-        <div className="logs-table--details">
-          <div className="logs-table--service error">Kapacitor</div>
-          <div className="logs-table--blah">
-            <div className="logs-table--key-values error">
-              ERROR: {logItem.msg}
-            </div>
-          </div>
-        </div>
-      )
+      return <LogItemKapacitorError logItem={logItem} key={index} />
     }
     if (logItem.service === 'kapacitor' && logItem.lvl === 'debug') {
-      rowDetails = (
-        <div className="logs-table--details">
-          <div className="logs-table--service debug">Kapacitor</div>
-          <div className="logs-table--blah">
-            <div className="logs-table--key-values debug">
-              DEBUG: {logItem.msg}
-            </div>
-          </div>
-        </div>
-      )
+      return <LogItemKapacitorDebug logItem={logItem} key={index} />
     }
     if (logItem.service === 'influxdb' && logItem.lvl === 'debug') {
-      rowDetails = (
-        <div className="logs-table--details">
-          <div className="logs-table--service debug">InfluxDB</div>
-          <div className="logs-table--blah">
-            <div className="logs-table--key-values debug">
-              DEBUG: {logItem.msg}
-              <br />
-              Cluster: {logItem.cluster}
-            </div>
-          </div>
-        </div>
-      )
+      return <LogItemInfluxDBDebug logItem={logItem} key={index} />
     }
 
     return (
-      <div className="logs-table--row" key={logItem.key}>
+      <div className="logs-table--row" key={index}>
         <div className="logs-table--divider">
           <div className={`logs-table--level ${logItem.lvl}`} />
           <div className="logs-table--timestamp">
             {logItem.ts}
           </div>
         </div>
-        {rowDetails}
+        <div className="logs-table--details">
+          <div className="logs-table--service debug">Thing</div>
+          <div className="logs-table--blah">
+            <div className="logs-table--key-values">
+              <p>Thang</p>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -140,7 +73,7 @@ class LogsTable extends Component {
         </div>
         <div className="logs-table--panel">
           <div className="logs-table">
-            {logs.map(l => this.renderTableRow(l))}
+            {logs.map((log, i) => this.renderTableRow(log, i))}
           </div>
         </div>
       </div>
