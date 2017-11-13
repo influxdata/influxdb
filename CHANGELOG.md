@@ -7,6 +7,7 @@
 ### Bugfixes
 
 - [#8538](https://github.com/influxdata/influxdb/pull/8538): Fix panic: runtime error: slice bounds out of range
+- [#9065](https://github.com/influxdata/influxdb/pull/9065): Refuse extra arguments to influx CLI
 
 ## v1.4.0 [unreleased]
 
