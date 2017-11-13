@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
-	"github.com/influxdata/influxql"
 )
 
 // Log errors.
