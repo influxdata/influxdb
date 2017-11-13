@@ -73,7 +73,9 @@ class LogsTable extends Component {
         </div>
         <div className="logs-table--panel">
           <div className="logs-table">
-            {logs.map((log, i) => this.renderTableRow(log, i))}
+            {logs.length
+              ? logs.map((log, i) => this.renderTableRow(log, i))
+              : <div className="page-spinner" />}
           </div>
         </div>
       </div>
