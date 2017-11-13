@@ -109,7 +109,7 @@ Examples:
 	}
 	fs.Parse(os.Args[1:])
 
-	argsNotParsed := os.Args[len(os.Args)-fs.NArg():]
+	argsNotParsed := fs.Args()
 	if len(argsNotParsed) > 0 {
 		fmt.Fprintf(os.Stderr, "unknown arguments: %s\n", strings.Join(argsNotParsed, " "))
 		fs.Usage()
