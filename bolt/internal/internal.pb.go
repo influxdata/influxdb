@@ -968,7 +968,7 @@ func (m *Organization) GetPublic() bool {
 	if m != nil {
 		return m.Public
 	}
-	return false
+	return true
 }
 
 func init() {
