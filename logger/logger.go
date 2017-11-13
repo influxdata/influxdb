@@ -15,7 +15,7 @@ func New(w io.Writer) *zap.Logger {
 	}
 	return zap.New(zapcore.NewCore(
 		zapcore.NewConsoleEncoder(config),
-		zapcore.AddSync(w),
+		zapcore.Lock(zapcore.AddSync(w)),
 		zapcore.DebugLevel,
 	))
 }
