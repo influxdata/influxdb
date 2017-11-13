@@ -3,6 +3,7 @@ import classnames from 'classnames'
 import {connect} from 'react-redux'
 
 import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
+import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import _ from 'lodash'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
@@ -96,7 +97,7 @@ const SourceForm = ({
             />
           </div>
         : null}
-      <div className="form-group col-xs-12">
+      <div className={`form-group col-xs-12 ${isUsingAuth ? 'col-sm-6' : ''}`}>
         <label htmlFor="telegraf">Telegraf database</label>
         <input
           type="text"
@@ -107,6 +108,24 @@ const SourceForm = ({
           value={source.telegraf}
         />
       </div>
+      {isUsingAuth
+        ? <div className="form-group col-xs-12 col-sm-6">
+            <label htmlFor="sourceRole">Source's Role</label>
+            <select
+              className="form-control"
+              id="sourceRole"
+              name="role"
+              onChange={onInputChange}
+              value={source.role}
+            >
+              {USER_ROLES.map(({name}) =>
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              )}
+            </select>
+          </div>
+        : null}
       <div className="form-group col-xs-12">
         <div className="form-control-static">
           <input
@@ -171,7 +190,7 @@ SourceForm.propTypes = {
   onSubmit: func.isRequired,
   onBlurSourceURL: func.isRequired,
   me: shape({
-    role: string.isRequired,
+    role: string,
     currentOrganization: shape({
       id: string.isRequired,
       name: string.isRequired,
