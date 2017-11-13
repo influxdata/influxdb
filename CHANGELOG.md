@@ -4,6 +4,10 @@
 
 * The default logging format has been changed. See [#9055](https://github.com/influxdata/influxdb/pull/9055) for details.
 
+### Features
+
+- [#9088](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+
 ### Bugfixes
 
 - [#8538](https://github.com/influxdata/influxdb/pull/8538): Fix panic: runtime error: slice bounds out of range

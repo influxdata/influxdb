@@ -559,7 +559,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return nil
 }
 
-func (i *Index) DropSeries(key []byte) error {
+func (i *Index) DropSeries(key []byte, ts int64) error {
 	if err := func() error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
@@ -575,11 +575,8 @@ func (i *Index) DropSeries(key []byte) error {
 		fs := i.retainFileSet()
 		defer fs.Release()
 
-		// Check if that was the last series for the measurement in the entire index.
-		itr := fs.MeasurementSeriesIterator(mname)
-		if itr == nil {
-			return nil
-		} else if e := itr.Next(); e != nil {
+		mm := fs.Measurement(mname)
+		if mm == nil || mm.HasSeries() {
 			return nil
 		}
 
@@ -732,6 +729,19 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	itr, err := fs.MeasurementSeriesByExprIterator(name, condition, i.fieldset)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+	return itr, err
+}
+
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
@@ -866,9 +876,9 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 func (i *Index) RemoveShard(shardID uint64)                   {}
 func (i *Index) AssignShard(k string, shardID uint64)         {}
 
-func (i *Index) UnassignShard(k string, shardID uint64) error {
+func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k))
+	return i.DropSeries([]byte(k), ts)
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.
@@ -1170,7 +1180,7 @@ type seriesPointIterator struct {
 	fs       *FileSet
 	fieldset *tsdb.MeasurementFieldSet
 	mitr     MeasurementIterator
-	sitr     SeriesIterator
+	sitr     tsdb.SeriesIterator
 	opt      query.IteratorOptions
 
 	point query.FloatPoint // reusable point

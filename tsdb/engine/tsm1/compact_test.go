@@ -461,6 +461,10 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, math.MinInt64, math.MaxInt64)
 
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+
 	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a3},
@@ -562,6 +566,10 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 	// a1 should remain after compaction
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, math.MaxInt64)
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
 
 	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
@@ -669,6 +677,10 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	// a1, a3 should remain after compaction
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, 2)
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 4, 4)
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
 
 	a5 := tsm1.NewValue(5, 1.5)
 	writes = map[string][]tsm1.Value{

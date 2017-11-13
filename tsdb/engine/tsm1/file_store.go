@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
 	"go.uber.org/zap"
@@ -50,6 +52,12 @@ type TSMFile interface {
 	// key.
 	Contains(key []byte) bool
 
+	// OverlapsTimeRange returns true if the time range of the file intersect min and max.
+	OverlapsTimeRange(min, max int64) bool
+
+	// OverlapsKeyRange returns true if the key range of the file intersects min and max.
+	OverlapsKeyRange(min, max []byte) bool
+
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (int64, int64)
 
@@ -62,6 +70,9 @@ type TSMFile interface {
 	// KeyCount returns the number of distinct keys in the file.
 	KeyCount() int
 
+	// Seek returns the position in the index with the key <= key.
+	Seek(key []byte) int
+
 	// KeyAt returns the key located at index position idx.
 	KeyAt(idx int) ([]byte, byte)
 
@@ -69,6 +80,10 @@ type TSMFile interface {
 	// BlockFloat64, BlockInt64, BlockBoolean, BlockString.  If key does not exist,
 	// an error is returned.
 	Type(key []byte) (byte, error)
+
+	// BatchDelete return a BatchDeleter that allows for multiple deletes in batches
+	// and group commit or rollback.
+	BatchDelete() BatchDeleter
 
 	// Delete removes the keys from the set of keys available in this file.
 	Delete(keys [][]byte) error
@@ -281,7 +296,7 @@ func (f *FileStore) NextGeneration() int {
 
 // WalkKeys calls fn for every key in every TSM file known to the FileStore.  If the key
 // exists in multiple files, it will be invoked for each file.
-func (f *FileStore) WalkKeys(fn func(key []byte, typ byte) error) error {
+func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) error {
 	f.mu.RLock()
 	if len(f.files) == 0 {
 		f.mu.RUnlock()
@@ -289,15 +304,28 @@ func (f *FileStore) WalkKeys(fn func(key []byte, typ byte) error) error {
 	}
 
 	readers := make([]chan seriesKey, 0, len(f.files))
+	done := make(chan struct{})
 	for _, f := range f.files {
 		ch := make(chan seriesKey, 1)
 		readers = append(readers, ch)
 
 		go func(c chan seriesKey, r TSMFile) {
+
+			start := 0
+			if len(seek) > 0 {
+				start = r.Seek(seek)
+			}
 			n := r.KeyCount()
-			for i := 0; i < n; i++ {
+			for i := start; i < n; i++ {
+
 				key, typ := r.KeyAt(i)
-				c <- seriesKey{key, typ}
+				select {
+				case <-done:
+					// Abort iteration
+					break
+				case c <- seriesKey{key, typ}:
+				}
+
 			}
 			close(ch)
 		}(ch, f)
@@ -305,13 +333,19 @@ func (f *FileStore) WalkKeys(fn func(key []byte, typ byte) error) error {
 	f.mu.RUnlock()
 
 	merged := merge(readers...)
+	var err error
 	for v := range merged {
-		if err := fn(v.key, v.typ); err != nil {
-			return err
+		// Drain the remaing values so goroutines can exit
+		if err != nil {
+			continue
+		}
+		if err = fn(v.key, v.typ); err != nil {
+			// Signal that we should stop iterating
+			close(done)
 		}
 	}
 
-	return nil
+	return err
 }
 
 // Keys returns all keys and types for all files in the file store.
@@ -320,7 +354,7 @@ func (f *FileStore) Keys() map[string]byte {
 	defer f.mu.RUnlock()
 
 	uniqueKeys := map[string]byte{}
-	if err := f.WalkKeys(func(key []byte, typ byte) error {
+	if err := f.WalkKeys(nil, func(key []byte, typ byte) error {
 		uniqueKeys[string(key)] = typ
 		return nil
 	}); err != nil {
@@ -348,11 +382,65 @@ func (f *FileStore) Delete(keys [][]byte) error {
 	return f.DeleteRange(keys, math.MinInt64, math.MaxInt64)
 }
 
-// DeleteRange removes the values for keys between timestamps min and max.
+func (f *FileStore) Apply(fn func(r TSMFile) error) error {
+	// Limit apply fn to number of cores
+	limiter := limiter.NewFixed(runtime.GOMAXPROCS(0))
+
+	f.mu.RLock()
+	errC := make(chan error, len(f.files))
+
+	for _, f := range f.files {
+		go func(r TSMFile) {
+			limiter.Take()
+			defer limiter.Release()
+
+			r.Ref()
+			defer r.Unref()
+			errC <- fn(r)
+		}(f)
+	}
+
+	var applyErr error
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
+			applyErr = err
+		}
+	}
+	f.mu.RUnlock()
+
+	f.mu.Lock()
+	f.lastModified = time.Now().UTC()
+	f.lastFileStats = nil
+	f.mu.Unlock()
+
+	return applyErr
+}
+
+// DeleteRange removes the values for keys between timestamps min and max.  This should only
+// be used with smaller batches of series keys.
 func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
-	if err := f.walkFiles(func(tsm TSMFile) error {
-		return tsm.DeleteRange(keys, min, max)
-	}); err != nil {
+	var batches BatchDeleters
+	f.mu.RLock()
+	for _, f := range f.files {
+		if f.OverlapsTimeRange(min, max) {
+			batches = append(batches, f.BatchDelete())
+		}
+	}
+	f.mu.RUnlock()
+
+	if len(batches) == 0 {
+		return nil
+	}
+
+	if err := func() error {
+		if err := batches.DeleteRange(keys, min, max); err != nil {
+			return err
+		}
+
+		return batches.Commit()
+	}(); err != nil {
+		// Rollback the deletes
+		_ = batches.Rollback()
 		return err
 	}
 

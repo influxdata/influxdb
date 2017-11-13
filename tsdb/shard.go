@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -686,18 +685,13 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 	return nil
 }
 
-// DeleteSeries deletes a list of series.
-func (s *Shard) DeleteSeries(seriesKeys [][]byte) error {
-	return s.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
-}
-
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
-func (s *Shard) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+func (s *Shard) DeleteSeriesRange(itr SeriesIterator, min, max int64) error {
 	engine, err := s.engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteSeriesRange(seriesKeys, min, max)
+	return engine.DeleteSeriesRange(itr, min, max)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
@@ -753,6 +747,14 @@ func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 		return nil, err
 	}
 	return engine.MeasurementNamesByRegex(re)
+}
+
+func (s *Shard) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIterator, error) {
+	engine, err := s.engine()
+	if err != nil {
+		return nil, err
+	}
+	return engine.MeasurementSeriesKeysByExprIterator(name, expr)
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys from the shard

@@ -337,6 +337,8 @@ func (e *MeasurementBlockElem) SeriesID(i int) uint32 {
 	return binary.BigEndian.Uint32(e.series.data[i*SeriesIDSize:])
 }
 
+func (e *MeasurementBlockElem) HasSeries() bool { return e.series.n > 0 }
+
 // SeriesIDs returns a list of decoded series ids.
 //
 // NOTE: This should be used for testing and diagnostics purposes only.

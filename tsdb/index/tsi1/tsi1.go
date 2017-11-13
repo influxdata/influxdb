@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -20,6 +21,7 @@ const LoadFactor = 80
 type MeasurementElem interface {
 	Name() []byte
 	Deleted() bool
+	HasSeries() bool
 }
 
 // MeasurementElems represents a list of MeasurementElem.
@@ -112,6 +114,15 @@ func (p measurementMergeElem) Deleted() bool {
 		return false
 	}
 	return p[0].Deleted()
+}
+
+func (p measurementMergeElem) HasSeries() bool {
+	for _, v := range p {
+		if v.HasSeries() {
+			return true
+		}
+	}
+	return false
 }
 
 // filterUndeletedMeasurementIterator returns all measurements which are not deleted.
@@ -341,18 +352,8 @@ func (p tagValueMergeElem) Deleted() bool {
 	return p[0].Deleted()
 }
 
-// SeriesElem represents a generic series element.
-type SeriesElem interface {
-	Name() []byte
-	Tags() models.Tags
-	Deleted() bool
-
-	// InfluxQL expression associated with series during filtering.
-	Expr() influxql.Expr
-}
-
 // SeriesElemKey encodes e as a series key.
-func SeriesElemKey(e SeriesElem) []byte {
+func SeriesElemKey(e tsdb.SeriesElem) []byte {
 	name, tags := e.Name(), e.Tags()
 
 	// TODO: Precompute allocation size.
@@ -370,7 +371,7 @@ func SeriesElemKey(e SeriesElem) []byte {
 }
 
 // CompareSeriesElem returns -1 if a < b, 1 if a > b, and 0 if equal.
-func CompareSeriesElem(a, b SeriesElem) int {
+func CompareSeriesElem(a, b tsdb.SeriesElem) int {
 	if cmp := bytes.Compare(a.Name(), b.Name()); cmp != 0 {
 		return cmp
 	}
@@ -389,15 +390,10 @@ func (e *seriesElem) Tags() models.Tags   { return e.tags }
 func (e *seriesElem) Deleted() bool       { return e.deleted }
 func (e *seriesElem) Expr() influxql.Expr { return nil }
 
-// SeriesIterator represents a iterator over a list of series.
-type SeriesIterator interface {
-	Next() SeriesElem
-}
-
 // MergeSeriesIterators returns an iterator that merges a set of iterators.
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
-func MergeSeriesIterators(itrs ...SeriesIterator) SeriesIterator {
+func MergeSeriesIterators(itrs ...tsdb.SeriesIterator) tsdb.SeriesIterator {
 	if n := len(itrs); n == 0 {
 		return nil
 	} else if n == 1 {
@@ -405,22 +401,22 @@ func MergeSeriesIterators(itrs ...SeriesIterator) SeriesIterator {
 	}
 
 	return &seriesMergeIterator{
-		buf:  make([]SeriesElem, len(itrs)),
+		buf:  make([]tsdb.SeriesElem, len(itrs)),
 		itrs: itrs,
 	}
 }
 
 // seriesMergeIterator is an iterator that merges multiple iterators together.
 type seriesMergeIterator struct {
-	buf  []SeriesElem
-	itrs []SeriesIterator
+	buf  []tsdb.SeriesElem
+	itrs []tsdb.SeriesIterator
 }
 
 // Next returns the element with the next lowest name/tags across the iterators.
 //
 // If multiple iterators contain the same name/tags then the first is returned
 // and the remaining ones are skipped.
-func (itr *seriesMergeIterator) Next() SeriesElem {
+func (itr *seriesMergeIterator) Next() tsdb.SeriesElem {
 	// Find next lowest name/tags amongst the buffers.
 	var name []byte
 	var tags models.Tags
@@ -452,7 +448,7 @@ func (itr *seriesMergeIterator) Next() SeriesElem {
 	}
 
 	// Refill buffer.
-	var e SeriesElem
+	var e tsdb.SeriesElem
 	for i, buf := range itr.buf {
 		if buf == nil || !bytes.Equal(buf.Name(), name) || models.CompareTags(buf.Tags(), tags) != 0 {
 			continue
@@ -472,23 +468,23 @@ func (itr *seriesMergeIterator) Next() SeriesElem {
 // IntersectSeriesIterators returns an iterator that only returns series which
 // occur in both iterators. If both series have associated expressions then
 // they are combined together.
-func IntersectSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
+func IntersectSeriesIterators(itr0, itr1 tsdb.SeriesIterator) tsdb.SeriesIterator {
 	if itr0 == nil || itr1 == nil {
 		return nil
 	}
 
-	return &seriesIntersectIterator{itrs: [2]SeriesIterator{itr0, itr1}}
+	return &seriesIntersectIterator{itrs: [2]tsdb.SeriesIterator{itr0, itr1}}
 }
 
 // seriesIntersectIterator is an iterator that merges two iterators together.
 type seriesIntersectIterator struct {
 	e    seriesExprElem
-	buf  [2]SeriesElem
-	itrs [2]SeriesIterator
+	buf  [2]tsdb.SeriesElem
+	itrs [2]tsdb.SeriesIterator
 }
 
 // Next returns the next element which occurs in both iterators.
-func (itr *seriesIntersectIterator) Next() (e SeriesElem) {
+func (itr *seriesIntersectIterator) Next() (e tsdb.SeriesElem) {
 	for {
 		// Fill buffers.
 		if itr.buf[0] == nil {
@@ -538,7 +534,7 @@ func (itr *seriesIntersectIterator) Next() (e SeriesElem) {
 // UnionSeriesIterators returns an iterator that returns series from both
 // both iterators. If both series have associated expressions then they are
 // combined together.
-func UnionSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
+func UnionSeriesIterators(itr0, itr1 tsdb.SeriesIterator) tsdb.SeriesIterator {
 	// Return other iterator if either one is nil.
 	if itr0 == nil {
 		return itr1
@@ -546,18 +542,18 @@ func UnionSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
 		return itr0
 	}
 
-	return &seriesUnionIterator{itrs: [2]SeriesIterator{itr0, itr1}}
+	return &seriesUnionIterator{itrs: [2]tsdb.SeriesIterator{itr0, itr1}}
 }
 
 // seriesUnionIterator is an iterator that unions two iterators together.
 type seriesUnionIterator struct {
 	e    seriesExprElem
-	buf  [2]SeriesElem
-	itrs [2]SeriesIterator
+	buf  [2]tsdb.SeriesElem
+	itrs [2]tsdb.SeriesIterator
 }
 
 // Next returns the next element which occurs in both iterators.
-func (itr *seriesUnionIterator) Next() (e SeriesElem) {
+func (itr *seriesUnionIterator) Next() (e tsdb.SeriesElem) {
 	// Fill buffers.
 	if itr.buf[0] == nil {
 		itr.buf[0] = itr.itrs[0].Next()
@@ -606,23 +602,23 @@ func (itr *seriesUnionIterator) Next() (e SeriesElem) {
 
 // DifferenceSeriesIterators returns an iterator that only returns series which
 // occur the first iterator but not the second iterator.
-func DifferenceSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
+func DifferenceSeriesIterators(itr0, itr1 tsdb.SeriesIterator) tsdb.SeriesIterator {
 	if itr0 != nil && itr1 == nil {
 		return itr0
 	} else if itr0 == nil {
 		return nil
 	}
-	return &seriesDifferenceIterator{itrs: [2]SeriesIterator{itr0, itr1}}
+	return &seriesDifferenceIterator{itrs: [2]tsdb.SeriesIterator{itr0, itr1}}
 }
 
 // seriesDifferenceIterator is an iterator that merges two iterators together.
 type seriesDifferenceIterator struct {
-	buf  [2]SeriesElem
-	itrs [2]SeriesIterator
+	buf  [2]tsdb.SeriesElem
+	itrs [2]tsdb.SeriesIterator
 }
 
 // Next returns the next element which occurs only in the first iterator.
-func (itr *seriesDifferenceIterator) Next() (e SeriesElem) {
+func (itr *seriesDifferenceIterator) Next() (e tsdb.SeriesElem) {
 	for {
 		// Fill buffers.
 		if itr.buf[0] == nil {
@@ -658,18 +654,18 @@ func (itr *seriesDifferenceIterator) Next() (e SeriesElem) {
 
 // filterUndeletedSeriesIterator returns all series which are not deleted.
 type filterUndeletedSeriesIterator struct {
-	itr SeriesIterator
+	itr tsdb.SeriesIterator
 }
 
 // FilterUndeletedSeriesIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIterator(itr SeriesIterator) SeriesIterator {
+func FilterUndeletedSeriesIterator(itr tsdb.SeriesIterator) tsdb.SeriesIterator {
 	if itr == nil {
 		return nil
 	}
 	return &filterUndeletedSeriesIterator{itr: itr}
 }
 
-func (itr *filterUndeletedSeriesIterator) Next() SeriesElem {
+func (itr *filterUndeletedSeriesIterator) Next() tsdb.SeriesElem {
 	for {
 		e := itr.itr.Next()
 		if e == nil {
@@ -683,7 +679,7 @@ func (itr *filterUndeletedSeriesIterator) Next() SeriesElem {
 
 // seriesExprElem holds a series and its associated filter expression.
 type seriesExprElem struct {
-	SeriesElem
+	tsdb.SeriesElem
 	expr influxql.Expr
 }
 
@@ -692,12 +688,12 @@ func (e *seriesExprElem) Expr() influxql.Expr { return e.expr }
 
 // seriesExprIterator is an iterator that attaches an associated expression.
 type seriesExprIterator struct {
-	itr SeriesIterator
+	itr tsdb.SeriesIterator
 	e   seriesExprElem
 }
 
 // newSeriesExprIterator returns a new instance of seriesExprIterator.
-func newSeriesExprIterator(itr SeriesIterator, expr influxql.Expr) SeriesIterator {
+func newSeriesExprIterator(itr tsdb.SeriesIterator, expr influxql.Expr) tsdb.SeriesIterator {
 	if itr == nil {
 		return nil
 	}
@@ -711,7 +707,7 @@ func newSeriesExprIterator(itr SeriesIterator, expr influxql.Expr) SeriesIterato
 }
 
 // Next returns the next element in the iterator.
-func (itr *seriesExprIterator) Next() SeriesElem {
+func (itr *seriesExprIterator) Next() tsdb.SeriesElem {
 	itr.e.SeriesElem = itr.itr.Next()
 	if itr.e.SeriesElem == nil {
 		return nil

@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -80,7 +81,7 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags, buf []byte) (ex
 }
 
 // Series returns a series element.
-func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
+func (blk *SeriesBlock) Series(name []byte, tags models.Tags) tsdb.SeriesElem {
 	offset, _ := blk.Offset(name, tags, nil)
 	if offset == 0 {
 		return nil
@@ -162,7 +163,7 @@ func (blk *SeriesBlock) SeriesCount() uint32 {
 }
 
 // SeriesIterator returns an iterator over all the series.
-func (blk *SeriesBlock) SeriesIterator() SeriesIterator {
+func (blk *SeriesBlock) SeriesIterator() tsdb.SeriesIterator {
 	return &seriesBlockIterator{
 		n:      blk.SeriesCount(),
 		offset: 1,
@@ -250,7 +251,7 @@ type seriesBlockIterator struct {
 }
 
 // Next returns the next series element.
-func (itr *seriesBlockIterator) Next() SeriesElem {
+func (itr *seriesBlockIterator) Next() tsdb.SeriesElem {
 	for {
 		// Exit if at the end.
 		if itr.i == itr.n {
@@ -295,7 +296,7 @@ func newSeriesDecodeIterator(sblk *SeriesBlock, itr seriesIDIterator) *seriesDec
 }
 
 // Next returns the next series element.
-func (itr *seriesDecodeIterator) Next() SeriesElem {
+func (itr *seriesDecodeIterator) Next() tsdb.SeriesElem {
 	// Read next series id.
 	id := itr.itr.next()
 	if id == 0 {

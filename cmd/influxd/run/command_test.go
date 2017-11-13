@@ -19,6 +19,11 @@ func TestCommand_PIDFile(t *testing.T) {
 
 	pidFile := filepath.Join(tmpdir, "influxdb.pid")
 
+	// Override the default data/wal dir so it doesn't look in ~/.influxdb which
+	// might have junk not related to this test.
+	os.Setenv("INFLUXDB_DATA_DIR", tmpdir)
+	os.Setenv("INFLUXDB_DATA_WAL_DIR", tmpdir)
+
 	cmd := run.NewCommand()
 	cmd.Getenv = func(key string) string {
 		switch key {

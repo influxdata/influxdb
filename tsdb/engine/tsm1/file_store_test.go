@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2536,6 +2537,43 @@ func TestFileStore_Delete(t *testing.T) {
 	keys = fs.Keys()
 	if got, exp := len(keys), 2; got != exp {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestFileStore_Apply(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu,host=server2#!~#value", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu,host=server1#!~#value", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem,host=server1#!~#value", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Replace(nil, files)
+
+	keys := fs.Keys()
+	if got, exp := len(keys), 3; got != exp {
+		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
+	}
+
+	var n int64
+	if err := fs.Apply(func(r tsm1.TSMFile) error {
+		atomic.AddInt64(&n, 1)
+		return nil
+	}); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+
+	if got, exp := n, int64(3); got != exp {
+		t.Fatalf("apply mismatch: got %v, exp %v", got, exp)
 	}
 }
 

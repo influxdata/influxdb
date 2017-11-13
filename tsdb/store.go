@@ -897,23 +897,21 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		defer limit.Release()
 
 		// Find matching series keys for each measurement.
-		var keys [][]byte
 		for _, name := range names {
-			a, err := sh.MeasurementSeriesKeysByExpr([]byte(name), condition)
+
+			itr, err := sh.MeasurementSeriesKeysByExprIterator([]byte(name), condition)
 			if err != nil {
 				return err
+			} else if itr == nil {
+				continue
 			}
-			keys = append(keys, a...)
+
+			if err := sh.DeleteSeriesRange(itr, min, max); err != nil {
+				return err
+			}
+
 		}
 
-		if !bytesutil.IsSorted(keys) {
-			bytesutil.Sort(keys)
-		}
-
-		// Delete all matching keys.
-		if err := sh.DeleteSeriesRange(keys, min, max); err != nil {
-			return err
-		}
 		return nil
 	})
 }

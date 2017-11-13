@@ -5,6 +5,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -64,6 +65,9 @@ const (
 	// keyFieldSeparator separates the series key from the field name in the composite key
 	// that identifies a specific field in series
 	keyFieldSeparator = "#!~#"
+
+	// deleteFlushThreshold is the size in bytes of a batch of series keys to delete.
+	deleteFlushThreshold = 50 * 1024 * 1024
 )
 
 // Statistics gathered by the engine.
@@ -559,7 +563,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 
-	if err := e.FileStore.WalkKeys(func(key []byte, typ byte) error {
+	if err := e.FileStore.WalkKeys(nil, func(key []byte, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
 		if err != nil {
 			return err
@@ -930,41 +934,69 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
-// containsSeries returns a map of keys indicating whether the key exists and
-// has values or not.
-func (e *Engine) containsSeries(keys [][]byte) (map[string]bool, error) {
-	// keyMap is used to see if a given key exists.  keys
-	// are the measurement + tagset (minus separate & field)
-	keyMap := map[string]bool{}
-	for _, k := range keys {
-		keyMap[string(k)] = false
+// DeleteSeriesRange removes the values between min and max (inclusive) from all series
+func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
+	var disableOnce bool
+
+	// Ensure that the index does not compact away the measurement or series we're
+	// going to delete before we're done with them.
+	if tsiIndex, ok := e.index.(*tsi1.Index); ok {
+		fs := tsiIndex.RetainFileSet()
+		defer fs.Release()
 	}
 
-	for _, k := range e.Cache.unsortedKeys() {
-		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
-		keyMap[string(seriesKey)] = true
-	}
-
-	if err := e.FileStore.WalkKeys(func(k []byte, _ byte) error {
-		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
-		if _, ok := keyMap[string(seriesKey)]; ok {
-			keyMap[string(seriesKey)] = true
+	var sz int
+	batch := make([][]byte, 0, 10000)
+	for elem := itr.Next(); elem != nil; elem = itr.Next() {
+		if elem.Expr() != nil {
+			if v, ok := elem.Expr().(*influxql.BooleanLiteral); !ok || !v.Val {
+				return errors.New("fields not supported in WHERE clause during deletion")
+			}
 		}
-		return nil
-	}); err != nil {
-		return nil, err
+
+		if !disableOnce {
+			// Disable and abort running compactions so that tombstones added existing tsm
+			// files don't get removed.  This would cause deleted measurements/series to
+			// re-appear once the compaction completed.  We only disable the level compactions
+			// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
+			// and writing tombstones takes a long time, writes can get rejected due to the cache
+			// filling up.
+			e.disableLevelCompactions(true)
+			defer e.enableLevelCompactions(true)
+			disableOnce = true
+		}
+
+		key := models.MakeKey(elem.Name(), elem.Tags())
+		sz += len(key)
+		batch = append(batch, key)
+
+		if sz >= deleteFlushThreshold {
+			// Delete all matching batch.
+			if err := e.deleteSeriesRange(batch, min, max); err != nil {
+				return err
+			}
+			batch = batch[:0]
+			sz = 0
+		}
 	}
 
-	return keyMap, nil
+	if len(batch) > 0 {
+		// Delete all matching batch.
+		if err := e.deleteSeriesRange(batch, min, max); err != nil {
+			return err
+		}
+		batch = batch[:0]
+	}
+
+	e.index.Rebuild()
+	return nil
 }
 
-// deleteSeries removes all series keys from the engine.
-func (e *Engine) deleteSeries(seriesKeys [][]byte) error {
-	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
-}
-
-// DeleteSeriesRange removes the values between min and max (inclusive) from all series.
-func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+// deleteSeriesRange removes the values between min and max (inclusive) from all series.  This
+// does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
+// and not directly.
+func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+	ts := time.Now().UTC().UnixNano()
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -974,43 +1006,63 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		bytesutil.Sort(seriesKeys)
 	}
 
-	// Disable and abort running compactions so that tombstones added existing tsm
-	// files don't get removed.  This would cause deleted measurements/series to
-	// re-appear once the compaction completed.  We only disable the level compactions
-	// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
-	// and writing tombstones takes a long time, writes can get rejected due to the cache
-	// filling up.
-	e.disableLevelCompactions(true)
-	defer e.enableLevelCompactions(true)
+	// Min and max time in the engine are slightly different from the query language values.
+	if min == influxql.MinTime {
+		min = math.MinInt64
+	}
+	if max == influxql.MaxTime {
+		max = math.MaxInt64
+	}
 
-	tempKeys := seriesKeys[:]
-	deleteKeys := make([][]byte, 0, len(seriesKeys))
-	// go through the keys in the file store
-	if err := e.FileStore.WalkKeys(func(k []byte, _ byte) error {
-		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
+	// Run the delete on each TSM file in parallel
+	if err := e.FileStore.Apply(func(r TSMFile) error {
+		// See if this TSM file contains the keys and time range
+		minKey, maxKey := seriesKeys[0], seriesKeys[len(seriesKeys)-1]
+		tsmMin, tsmMax := r.KeyRange()
 
-		// Both tempKeys and keys walked are sorted, skip any passed in keys
-		// that don't exist in our key set.
-		for len(tempKeys) > 0 && bytes.Compare(tempKeys[0], seriesKey) < 0 {
-			tempKeys = tempKeys[1:]
+		tsmMin, _ = SeriesAndFieldFromCompositeKey(tsmMin)
+		tsmMax, _ = SeriesAndFieldFromCompositeKey(tsmMax)
+
+		overlaps := bytes.Compare(tsmMin, maxKey) <= 0 && bytes.Compare(tsmMax, minKey) >= 0
+		if !overlaps || !r.OverlapsTimeRange(min, max) {
+			return nil
 		}
 
-		// Keys match, add the full series key to delete.
-		if len(tempKeys) > 0 && bytes.Equal(tempKeys[0], seriesKey) {
-			deleteKeys = append(deleteKeys, k)
+		// Delete each key we find in the file.  We seek to the min key and walk from there.
+		batch := r.BatchDelete()
+		n := r.KeyCount()
+		var j int
+		for i := r.Seek(minKey); i < n; i++ {
+			indexKey, _ := r.KeyAt(i)
+			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
+
+			for j < len(seriesKeys) && bytes.Compare(seriesKeys[j], seriesKey) < 0 {
+				j++
+			}
+
+			if j >= len(seriesKeys) {
+				break
+			}
+			if bytes.Equal(seriesKeys[j], seriesKey) {
+				if err := batch.DeleteRange([][]byte{indexKey}, min, max); err != nil {
+					batch.Rollback()
+					return err
+				}
+			}
 		}
 
+		if err := batch.Commit(); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	if err := e.FileStore.DeleteRange(deleteKeys, min, max); err != nil {
-		return err
-	}
+	var abort = errors.New("iteration aborted") // sentinel error value
 
 	// find the keys in the cache and remove them
-	walKeys := deleteKeys[:0]
+	deleteKeys := make([][]byte, 0, len(seriesKeys))
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
@@ -1021,33 +1073,99 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		i := bytesutil.SearchBytes(seriesKeys, seriesKey)
 		if i < len(seriesKeys) && bytes.Equal(seriesKey, seriesKeys[i]) {
 			// k is the measurement + tags + sep + field
-			walKeys = append(walKeys, k)
+			deleteKeys = append(deleteKeys, k)
 		}
 		return nil
 	})
 
-	e.Cache.DeleteRange(walKeys, min, max)
+	e.Cache.DeleteRange(deleteKeys, min, max)
 
 	// delete from the WAL
-	if _, err := e.WAL.DeleteRange(walKeys, min, max); err != nil {
+	if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
 		return err
 	}
 
-	// Have we deleted all points for the series? If so, we need to remove
+	// The series are deleted on disk, but the index may still say they exist.
+	// Depending on the the min,max time passed in, the series may or not actually
+	// exists now.  To reconcile the index, we walk the series keys that still exists
+	// on disk and cross out any keys that match the passed in series.  Any series
+	// left in the slice at the end do not exist and can be deleted from the index.
+	// Note: this is inherently racy if writes are occuring to the same measurement/series are
+	// being removed.  A write could occur and exist in the cache at this point, but we
+	// would delete it from the index.
+	minKey, maxKey := seriesKeys[0], seriesKeys[len(seriesKeys)-1]
+	if err := e.FileStore.Apply(func(r TSMFile) error {
+		tsmMin, tsmMax := r.KeyRange()
+
+		tsmMin, _ = SeriesAndFieldFromCompositeKey(tsmMin)
+		tsmMax, _ = SeriesAndFieldFromCompositeKey(tsmMax)
+
+		overlaps := bytes.Compare(tsmMin, maxKey) <= 0 && bytes.Compare(tsmMax, minKey) >= 0
+		if !overlaps || !r.OverlapsTimeRange(min, max) {
+			return nil
+		}
+
+		n := r.KeyCount()
+		var j int
+		for i := r.Seek(minKey); i < n; i++ {
+			if j >= len(seriesKeys) {
+				return abort
+			}
+
+			indexKey, _ := r.KeyAt(i)
+			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
+
+			cmp := bytes.Compare(seriesKeys[j], seriesKey)
+			for j < len(seriesKeys) && cmp < 0 {
+				cmp = bytes.Compare(seriesKeys[j], seriesKey)
+				j++
+			}
+
+			if j < len(seriesKeys) && cmp == 0 {
+				seriesKeys[j] = nil
+				j++
+			}
+			return nil
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
-	existing, err := e.containsSeries(seriesKeys)
-	if err != nil {
-		return err
-	}
+	if len(seriesKeys) > 0 {
+		for _, k := range seriesKeys {
+			// This key was crossed out earlier, skip it
+			if k == nil {
+				continue
+			}
 
-	for k, exists := range existing {
-		if !exists {
-			if err := e.index.UnassignShard(k, e.id); err != nil {
+			// See if this series was found in the cache earlier
+			i := bytesutil.SearchBytes(deleteKeys, k)
+
+			var hasCacheValues bool
+			// If there are multiple fields, they will have the same prefix.  If any field
+			// has values, then we can't delete it from the index.
+			for i < len(deleteKeys) && bytes.HasPrefix(deleteKeys[i], k) {
+				if e.Cache.Values(deleteKeys[i]).Len() > 0 {
+					hasCacheValues = true
+					break
+				}
+				i++
+			}
+
+			// Some cache values still exists, leave the series in the index.
+			if hasCacheValues {
+				continue
+			}
+
+			if err := e.index.UnassignShard(string(k), e.id, ts); err != nil {
 				return err
 			}
 		}
 	}
-	go e.index.Rebuild()
 
 	return nil
 }
@@ -1079,7 +1197,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		}
 
 		// Check the filestore.
-		return e.FileStore.WalkKeys(func(k []byte, typ byte) error {
+		return e.FileStore.WalkKeys(name, func(k []byte, typ byte) error {
 			if bytes.HasPrefix(k, encodedName) {
 				return abortErr
 			}
@@ -1097,13 +1215,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) deleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
-	keys, err := e.index.MeasurementSeriesKeysByExpr(name, nil)
+	itr, err := e.index.MeasurementSeriesKeysByExprIterator(name, nil)
 	if err != nil {
 		return err
-	} else if len(keys) > 0 {
-		if err := e.deleteSeries(keys); err != nil {
-			return err
-		}
+	} else if itr != nil {
+		return e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64)
 	}
 	return nil
 }
@@ -1111,6 +1227,10 @@ func (e *Engine) deleteMeasurement(name []byte) error {
 // ForEachMeasurementName iterates over each measurement name in the engine.
 func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
 	return e.index.ForEachMeasurementName(fn)
+}
+
+func (e *Engine) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (tsdb.SeriesIterator, error) {
+	return e.index.MeasurementSeriesKeysByExprIterator(name, expr)
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
@@ -1442,61 +1562,6 @@ func (e *Engine) compactFull(grp CompactionGroup) bool {
 	return false
 }
 
-// onFileStoreReplace is callback handler invoked when the FileStore
-// has replaced one set of TSM files with a new set.
-func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
-	if e.index.Type() == tsi1.IndexName {
-		return
-	}
-
-	// Load any new series keys to the index
-	readers := make([]chan seriesKey, 0, len(newFiles))
-	for _, r := range newFiles {
-		ch := make(chan seriesKey, 1)
-		readers = append(readers, ch)
-
-		go func(c chan seriesKey, r TSMFile) {
-			n := r.KeyCount()
-			for i := 0; i < n; i++ {
-				key, typ := r.KeyAt(i)
-				c <- seriesKey{key, typ}
-			}
-			close(c)
-		}(ch, r)
-	}
-
-	// Merge and dedup all the series keys across each reader to reduce
-	// lock contention on the index.
-	merged := merge(readers...)
-	for v := range merged {
-		fieldType, err := tsmFieldTypeToInfluxQLDataType(v.typ)
-		if err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (1): %v", err))
-			continue
-		}
-
-		if err := e.addToIndexFromKey(v.key, fieldType); err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (2): %v", err))
-			continue
-		}
-	}
-
-	// load metadata from the Cache
-	e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
-		fieldType, err := entry.InfluxQLType()
-		if err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (3): %v", err))
-			return nil
-		}
-
-		if err := e.addToIndexFromKey(key, fieldType); err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (4): %v", err))
-			return nil
-		}
-		return nil
-	})
-}
-
 // compactionStrategy holds the details of what to do in a compaction.
 type compactionStrategy struct {
 	group CompactionGroup
@@ -1569,7 +1634,7 @@ func (s *compactionStrategy) compactGroup() {
 		return
 	}
 
-	if err := s.fileStore.ReplaceWithCallback(group, files, s.engine.onFileStoreReplace); err != nil {
+	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
 		s.logger.Info(fmt.Sprintf("error replacing new TSM files: %v", err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)

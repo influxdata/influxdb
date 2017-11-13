@@ -591,7 +591,7 @@ func (i *Index) dropMeasurement(name string) error {
 }
 
 // DropSeries removes the series key and its tags from the index.
-func (i *Index) DropSeries(key []byte) error {
+func (i *Index) DropSeries(key []byte, ts int64) error {
 	if key == nil {
 		return nil
 	}
@@ -605,6 +605,11 @@ func (i *Index) DropSeries(key []byte) error {
 		return nil
 	}
 
+	// Series was recently created, we can't drop it.
+	if series.LastModified() >= ts {
+		return nil
+	}
+
 	// Update the tombstone sketch.
 	i.seriesTSSketch.Add([]byte(k))
 
@@ -615,7 +620,7 @@ func (i *Index) DropSeries(key []byte) error {
 	series.Measurement().DropSeries(series)
 
 	// Mark the series as deleted.
-	series.Delete()
+	series.Delete(ts)
 
 	// If the measurement no longer has any series, remove it as well.
 	if !series.Measurement().HasSeries() {
@@ -678,6 +683,14 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 		}
 	}
 	return nil
+}
+
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
+	keys, err := i.MeasurementSeriesKeysByExpr(name, condition)
+	if err != nil {
+		return nil, err
+	}
+	return &seriesIterator{keys: keys}, err
 }
 
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {
@@ -747,18 +760,19 @@ func (i *Index) AssignShard(k string, shardID uint64) {
 }
 
 // UnassignShard updates the index to indicate that series k does not exist in
-// the given shardID.
-func (i *Index) UnassignShard(k string, shardID uint64) error {
+// the given shardID.  The series will be unassigned if ts is greater than the
+// last time the series was modified.
+func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	ss, _ := i.Series([]byte(k))
 	if ss != nil {
 		if ss.Assigned(shardID) {
 			// Remove the shard from any series
-			ss.UnassignShard(shardID)
+			ss.UnassignShard(shardID, ts)
 
 			// If this series no longer has shards assigned, remove the series
 			if ss.ShardN() == 0 {
 				// Remove the series key from the index.
-				return i.DropSeries([]byte(k))
+				return i.DropSeries([]byte(k), ts)
 			}
 		}
 	}
@@ -781,8 +795,9 @@ func (i *Index) Rebuild() {
 			return nil
 		}
 
-		nm := m.Rebuild()
 		i.mu.Lock()
+		nm := m.Rebuild()
+
 		i.measurements[string(name)] = nm
 		i.mu.Unlock()
 		return nil
@@ -794,7 +809,7 @@ func (i *Index) Rebuild() {
 // is removed from the index.
 func (i *Index) RemoveShard(shardID uint64) {
 	for _, k := range i.SeriesKeys() {
-		i.UnassignShard(k, shardID)
+		i.UnassignShard(k, shardID, 0)
 	}
 }
 
@@ -1016,3 +1031,32 @@ func (itr *seriesPointIterator) nextKeys() error {
 // errMaxSeriesPerDatabaseExceeded is a marker error returned during series creation
 // to indicate that a new series would exceed the limits of the database.
 var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceeded")
+
+type seriesIterator struct {
+	keys [][]byte
+	elem series
+}
+
+type series struct {
+	tsdb.SeriesElem
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (s series) Name() []byte        { return s.name }
+func (s series) Tags() models.Tags   { return s.tags }
+func (s series) Deleted() bool       { return s.deleted }
+func (s series) Expr() influxql.Expr { return nil }
+
+func (itr *seriesIterator) Next() tsdb.SeriesElem {
+	if len(itr.keys) == 0 {
+		return nil
+	}
+
+	name, tags := models.ParseKeyBytes(itr.keys[0])
+	itr.elem.name = name
+	itr.elem.tags = tags
+	itr.keys = itr.keys[1:]
+	return &itr.elem
+}
