@@ -49,7 +49,7 @@ type Config struct {
 	Monitor        monitor.Config    `toml:"monitor"`
 	Subscriber     subscriber.Config `toml:"subscriber"`
 	HTTPD          httpd.Config      `toml:"http"`
-	Storage        storage.Config    `toml:"storage"`
+	Storage        storage.Config    `toml:"ifql"`
 	GraphiteInputs []graphite.Config `toml:"graphite"`
 	CollectdInputs []collectd.Config `toml:"collectd"`
 	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`

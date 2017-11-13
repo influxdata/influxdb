@@ -252,6 +252,24 @@
   # The maximum size of a client request body, in bytes. Setting this value to 0 disables the limit.
   # max-body-size = 25000000
 
+
+###
+### [ifql]
+###
+### Configures the ifql RPC API.
+###
+
+[ifql]
+  # Determines whether the RPC service is enabled.
+  # enabled = true
+
+  # Determines whether additional logging is enabled.
+  # log-enabled = true
+
+  # The bind address used by the ifql RPC service.
+  # bind-address = ":8082"
+
+
 ###
 ### [subscriber]
 ###
