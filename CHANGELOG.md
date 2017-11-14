@@ -1,3 +1,9 @@
+## v1.4.1 [2017-11-13]
+
+### Bugfixes
+
+- [9105](https://github.com/influxdata/influxdb/pull/9105): Fix descending cursors and range queries via IFQL RPC API. 
+
 ## v1.4.0 [2017-11-13]
 
 ### Breaking changes

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -69,6 +70,12 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (*ResultSet, error) 
 
 	if len(groups) == 0 {
 		return nil, nil
+	}
+
+	if req.Descending {
+		sort.Sort(sort.Reverse(meta.ShardGroupInfos(groups)))
+	} else {
+		sort.Sort(meta.ShardGroupInfos(groups))
 	}
 
 	shardIDs := make([]uint64, 0, len(groups[0].Shards)*len(groups))
