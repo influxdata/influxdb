@@ -261,6 +261,6 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
   }
 }
 .fancy-scroll--container.sidebar-menu--scrollbar {
-  .fancy-scroll--thumb-h { @include gradient-h($g20-white,$c-neutrino); }
+  .fancy-scroll--thumb-h {display: none !important;}
   .fancy-scroll--thumb-v { @include gradient-v($g20-white,$c-neutrino); }
 }
