@@ -58,7 +58,7 @@ type Server struct {
 	TokenSecret  string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	AuthDuration time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 	// TODO(desa): think of a better name
-	NewUsersNotSuperAdmin bool `long:"new-users-not-super-admin" description:"All new users will not be given the Super Admin privilege" env:"NEW_USRES_NOT_SUPER_ADMIN"`
+	NewUsersNotSuperAdmin bool `long:"new-users-not-superadmin" description:"All new users will not be given the SuperAdmin status" env:"NEW_USERS_NOT_SUPERADMIN"`
 
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string   `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
