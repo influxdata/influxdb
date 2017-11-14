@@ -217,7 +217,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Bad Place"}],"currentOrganization":{"id":"0","name":"The Bad Place"}}
+			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}}
 `,
 		},
 		{
@@ -233,13 +233,18 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID:          0,
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   0,
-							Name: "The Bad Place",
+							ID:          0,
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
 						}, nil
 					},
 				},
