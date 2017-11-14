@@ -418,7 +418,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
-		opts.Authorizer = query.OpenAuthorizer{}
+		opts.Authorizer = query.OpenAuthorizer
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
@@ -960,7 +960,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
-		opts.Authorizer = query.OpenAuthorizer{}
+		opts.Authorizer = query.OpenAuthorizer
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
