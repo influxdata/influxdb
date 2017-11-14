@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -151,7 +152,7 @@ func TestMergeTagValueIterators(t *testing.T) {
 
 // Ensure iterator can operate over an in-memory list of series.
 func TestSeriesIDIterator(t *testing.T) {
-	elems := []tsi1.SeriesIDElem{
+	elems := []tsdb.SeriesIDElem{
 		{SeriesID: 1},
 		{SeriesID: 2},
 	}
@@ -169,13 +170,13 @@ func TestSeriesIDIterator(t *testing.T) {
 // Ensure iterator can merge multiple iterators together.
 func TestMergeSeriesIDIterators(t *testing.T) {
 	itr := tsi1.MergeSeriesIDIterators(
-		&SeriesIDIterator{Elems: []tsi1.SeriesIDElem{
+		&SeriesIDIterator{Elems: []tsdb.SeriesIDElem{
 			{SeriesID: 1},
 			{SeriesID: 2},
 			{SeriesID: 3},
 		}},
 		&SeriesIDIterator{},
-		&SeriesIDIterator{Elems: []tsi1.SeriesIDElem{
+		&SeriesIDIterator{Elems: []tsdb.SeriesIDElem{
 			{SeriesID: 1},
 			{SeriesID: 2},
 			{SeriesID: 3},
@@ -183,13 +184,13 @@ func TestMergeSeriesIDIterators(t *testing.T) {
 		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 1}) {
+	if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 1}) {
 		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 2}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 2}) {
 		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 3}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 3}) {
 		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 4}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 4}) {
 		t.Fatalf("unexpected elem(3): %#v", e)
 	} else if e := itr.Next(); e.SeriesID != 0 {
 		t.Fatalf("expected nil elem: %#v", e)
@@ -198,12 +199,15 @@ func TestMergeSeriesIDIterators(t *testing.T) {
 
 // MeasurementElem represents a test implementation of tsi1.MeasurementElem.
 type MeasurementElem struct {
-	name    []byte
-	deleted bool
+	name      []byte
+	deleted   bool
+	hasSeries bool
 }
 
-func (e *MeasurementElem) Name() []byte                        { return e.name }
-func (e *MeasurementElem) Deleted() bool                       { return e.deleted }
+func (e *MeasurementElem) Name() []byte    { return e.name }
+func (e *MeasurementElem) Deleted() bool   { return e.deleted }
+func (e *MeasurementElem) HasSeries() bool { return e.hasSeries }
+
 func (e *MeasurementElem) TagKeyIterator() tsi1.TagKeyIterator { return nil }
 
 // MeasurementIterator represents an iterator over a slice of measurements.
@@ -250,9 +254,8 @@ type TagValueElem struct {
 	deleted bool
 }
 
-func (e *TagValueElem) Value() []byte                           { return e.value }
-func (e *TagValueElem) Deleted() bool                           { return e.deleted }
-func (e *TagValueElem) SeriesIDIterator() tsi1.SeriesIDIterator { return nil }
+func (e *TagValueElem) Value() []byte { return e.value }
+func (e *TagValueElem) Deleted() bool { return e.deleted }
 
 // TagValueIterator represents an iterator over a slice of tag values.
 type TagValueIterator struct {
@@ -270,13 +273,13 @@ func (itr *TagValueIterator) Next() (e tsi1.TagValueElem) {
 
 // SeriesIDIterator represents an iterator over a slice of series id elems.
 type SeriesIDIterator struct {
-	Elems []tsi1.SeriesIDElem
+	Elems []tsdb.SeriesIDElem
 }
 
 // Next returns the next element in the iterator.
-func (itr *SeriesIDIterator) Next() (elem tsi1.SeriesIDElem) {
+func (itr *SeriesIDIterator) Next() (elem tsdb.SeriesIDElem) {
 	if len(itr.Elems) == 0 {
-		return tsi1.SeriesIDElem{}
+		return tsdb.SeriesIDElem{}
 	}
 	elem, itr.Elems = itr.Elems[0], itr.Elems[1:]
 	return elem

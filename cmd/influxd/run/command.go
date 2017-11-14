@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const logo = `
@@ -42,7 +42,7 @@ type Command struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	Server *Server
 
@@ -58,7 +58,7 @@ func NewCommand() *Command {
 		Stdin:   os.Stdin,
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
-		Logger:  zap.New(zap.NullEncoder()),
+		Logger:  zap.NewNop(),
 	}
 }
 

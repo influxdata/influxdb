@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/internal"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/toml"
-	"github.com/uber-go/zap"
 )
 
 func TestService_OpenDisabled(t *testing.T) {
@@ -60,7 +60,7 @@ func TestService_OpenClose(t *testing.T) {
 // This reproduces https://github.com/influxdata/influxdb/issues/8819
 func TestService_8819_repro(t *testing.T) {
 	for i := 0; i < 1000; i++ {
-		s, errC := testService_8819_repro(t)
+		s, errC, done := testService_8819_repro(t)
 
 		if err := s.Open(); err != nil {
 			t.Fatal(err)
@@ -70,6 +70,8 @@ func TestService_8819_repro(t *testing.T) {
 		if err := <-errC; err != nil {
 			t.Fatalf("%dth iteration: %v", i, err)
 		}
+		// Mark that we do not expect more errors in case it runs one more time.
+		close(done)
 
 		if err := s.Close(); err != nil {
 			t.Fatal(err)
@@ -77,11 +79,12 @@ func TestService_8819_repro(t *testing.T) {
 	}
 }
 
-func testService_8819_repro(t *testing.T) (*Service, chan error) {
+func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) {
 	c := retention.NewConfig()
 	c.CheckInterval = toml.Duration(time.Millisecond)
 	s := NewService(c)
 	errC := make(chan error, 1) // Buffer Important to prevent deadlock.
+	done := make(chan struct{})
 
 	// A database and a bunch of shards
 	var mu sync.Mutex
@@ -110,6 +113,13 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 		},
 	}
 
+	sendError := func(err error) {
+		select {
+		case errC <- err:
+		case <-done:
+		}
+	}
+
 	s.MetaClient.DatabasesFn = func() []meta.DatabaseInfo {
 		mu.Lock()
 		defer mu.Unlock()
@@ -118,13 +128,13 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 
 	s.MetaClient.DeleteShardGroupFn = func(database string, policy string, id uint64) error {
 		if database != "db0" {
-			errC <- fmt.Errorf("wrong db name: %s", database)
+			sendError(fmt.Errorf("wrong db name: %s", database))
 			return nil
 		} else if policy != "autogen" {
-			errC <- fmt.Errorf("wrong rp name: %s", policy)
+			sendError(fmt.Errorf("wrong rp name: %s", policy))
 			return nil
 		} else if id != 1 {
-			errC <- fmt.Errorf("wrong shard group id: %d", id)
+			sendError(fmt.Errorf("wrong shard group id: %d", id))
 			return nil
 		}
 
@@ -162,17 +172,17 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 			}
 
 			if !found {
-				errC <- fmt.Errorf("local shard %d present, yet it's missing from meta store. %v -- %v ", lid, shards, localShards)
+				sendError(fmt.Errorf("local shard %d present, yet it's missing from meta store. %v -- %v ", lid, shards, localShards))
 				return nil
 			}
 		}
 
 		// We should have removed shards 3 and 9
 		if !reflect.DeepEqual(localShards, []uint64{5, 8, 11}) {
-			errC <- fmt.Errorf("removed shards still present locally: %v", localShards)
+			sendError(fmt.Errorf("removed shards still present locally: %v", localShards))
 			return nil
 		}
-		errC <- nil
+		sendError(nil)
 		return nil
 	}
 
@@ -202,7 +212,7 @@ func testService_8819_repro(t *testing.T) (*Service, chan error) {
 		return nil
 	}
 
-	return s, errC
+	return s, errC, done
 }
 
 type Service struct {
@@ -220,12 +230,7 @@ func NewService(c retention.Config) *Service {
 		Service:    retention.NewService(c),
 	}
 
-	mls := zap.MultiWriteSyncer(zap.AddSync(&s.LogBuf))
-
-	l := zap.New(
-		zap.NewTextEncoder(),
-		zap.Output(mls),
-	)
+	l := logger.New(&s.LogBuf)
 	s.WithLogger(l)
 
 	s.Service.MetaClient = s.MetaClient

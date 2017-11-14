@@ -8,7 +8,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // TSDBStoreMock is a mockable implementation of tsdb.Store.
@@ -43,7 +43,7 @@ type TSDBStoreMock struct {
 	StatisticsFn              func(tags map[string]string) []models.Statistic
 	TagKeysFn                 func(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValuesFn               func(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
-	WithLoggerFn              func(log zap.Logger)
+	WithLoggerFn              func(log *zap.Logger)
 	WriteToShardFn            func(shardID uint64, points []models.Point) error
 }
 
@@ -135,7 +135,7 @@ func (s *TSDBStoreMock) TagKeys(auth query.Authorizer, shardIDs []uint64, cond i
 func (s *TSDBStoreMock) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	return s.TagValuesFn(auth, shardIDs, cond)
 }
-func (s *TSDBStoreMock) WithLogger(log zap.Logger) {
+func (s *TSDBStoreMock) WithLogger(log *zap.Logger) {
 	s.WithLoggerFn(log)
 }
 func (s *TSDBStoreMock) WriteToShard(shardID uint64, points []models.Point) error {

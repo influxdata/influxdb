@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/internal"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
-	"github.com/uber-go/zap"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
@@ -291,10 +291,7 @@ func NewTestService(c *Config) *TestService {
 	}
 
 	if testing.Verbose() {
-		service.Service.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		service.Service.WithLogger(logger.New(os.Stderr))
 	}
 
 	// Set the Meta Client and PointsWriter.

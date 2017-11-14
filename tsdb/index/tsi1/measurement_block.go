@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // MeasurementBlockVersion is the version of the measurement block.
@@ -142,7 +143,7 @@ func (blk *MeasurementBlock) Iterator() MeasurementIterator {
 }
 
 // SeriesIDIterator returns an iterator for all series ids in a measurement.
-func (blk *MeasurementBlock) SeriesIDIterator(name []byte) SeriesIDIterator {
+func (blk *MeasurementBlock) SeriesIDIterator(name []byte) tsdb.SeriesIDIterator {
 	// Find measurement element.
 	e, ok := blk.Elem(name)
 	if !ok {
@@ -181,9 +182,9 @@ type rawSeriesIDIterator struct {
 }
 
 // Next returns the next decoded series.
-func (itr *rawSeriesIDIterator) Next() SeriesIDElem {
+func (itr *rawSeriesIDIterator) Next() tsdb.SeriesIDElem {
 	if len(itr.data) == 0 {
-		return SeriesIDElem{}
+		return tsdb.SeriesIDElem{}
 	}
 
 	delta, n := binary.Uvarint(itr.data)
@@ -191,7 +192,7 @@ func (itr *rawSeriesIDIterator) Next() SeriesIDElem {
 
 	seriesID := itr.prev + uint64(delta)
 	itr.prev = seriesID
-	return SeriesIDElem{SeriesID: seriesID}
+	return tsdb.SeriesIDElem{SeriesID: seriesID}
 }
 
 // MeasurementBlockTrailer represents meta data at the end of a MeasurementBlock.
@@ -336,6 +337,8 @@ func (e *MeasurementBlockElem) SeriesN() uint64 { return e.series.n }
 func (e *MeasurementBlockElem) SeriesID(i int) uint64 {
 	return binary.BigEndian.Uint64(e.series.data[i*SeriesIDSize:])
 }
+
+func (e *MeasurementBlockElem) HasSeries() bool { return e.series.n > 0 }
 
 // SeriesIDs returns a list of decoded series ids.
 //

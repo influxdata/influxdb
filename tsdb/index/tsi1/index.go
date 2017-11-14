@@ -20,7 +20,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // IndexName is the name of the index.
@@ -91,9 +91,9 @@ type Index struct {
 	opened     bool
 
 	// The following can be set when initialising an Index.
-	path               string     // Root directory of the index partitions.
-	disableCompactions bool       // Initially disables compactions on the index.
-	logger             zap.Logger // Index's logger.
+	path               string      // Root directory of the index partitions.
+	disableCompactions bool        // Initially disables compactions on the index.
+	logger             *zap.Logger // Index's logger.
 
 	sfile *SeriesFile // series lookup file
 
@@ -110,7 +110,7 @@ type Index struct {
 // NewIndex returns a new instance of Index.
 func NewIndex(options ...IndexOption) *Index {
 	idx := &Index{
-		logger:     zap.New(zap.NullEncoder()),
+		logger:     zap.NewNop(),
 		version:    Version,
 		PartitionN: DefaultPartitionN,
 	}
@@ -126,7 +126,7 @@ func NewIndex(options ...IndexOption) *Index {
 //
 // It's not safe to call WithLogger after the index has been opened, or before
 // it has been closed.
-func (i *Index) WithLogger(l zap.Logger) {
+func (i *Index) WithLogger(l *zap.Logger) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -494,9 +494,14 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
 }
 
+// InitializeSeries is a no-op. This only applies to the in-memory index.
+func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
+	return nil
+}
+
 // DropSeries drops the provided series from the index.
-func (i *Index) DropSeries(key []byte) error {
-	return i.partition(key).DropSeries(key)
+func (i *Index) DropSeries(key []byte, ts int64) error {
+	return i.partition(key).DropSeries(key, ts)
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
@@ -512,9 +517,7 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 
 		if err := s.Merge(ps); err != nil {
 			return nil, nil, err
-		}
-
-		if err := ts.Merge(pts); err != nil {
+		} else if err := ts.Merge(pts); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -735,6 +738,20 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {
+	a := make([]tsdb.SeriesIDIterator, 0, i.PartitionN)
+	for _, p := range i.partitions {
+		itr, err := p.MeasurementSeriesKeysByExprIterator(name, condition)
+		if err != nil {
+			return nil, err
+		} else if itr == nil {
+			continue
+		}
+		a = append(a, itr)
+	}
+	return MergeSeriesIDIterators(a...), nil
+}
+
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
 func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
@@ -750,7 +767,7 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	}()
 
 	// Merge all iterators together.
-	a := make([]SeriesIDIterator, 0, i.PartitionN)
+	a := make([]tsdb.SeriesIDIterator, 0, i.PartitionN)
 	for j, fs := range fileSets {
 		mitr, err := fs.MeasurementSeriesByExprIterator(name, opt.Condition, i.partitions[j].FieldSet())
 		if err != nil {
@@ -768,11 +785,9 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	// they are part of the same composite series.
 	tagSets := make(map[string]*query.TagSet, 64)
 
-	println("dbg/ITRS")
 	if itr != nil {
 		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
 			_, tags := ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
-			println("dbg/ITR.TAGS", tags.String())
 			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
 				continue
 			}
@@ -849,10 +864,13 @@ func (i *Index) SnapshotTo(path string) error {
 	return nil
 }
 
-// UnassignShard simply calls into DropSeries.
-func (i *Index) UnassignShard(k string, shardID uint64) error {
+func (i *Index) SetFieldName(measurement []byte, name string) {}
+func (i *Index) RemoveShard(shardID uint64)                   {}
+func (i *Index) AssignShard(k string, shardID uint64)         {}
+
+func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k))
+	return i.DropSeries([]byte(k), ts)
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.
@@ -869,46 +887,83 @@ func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, 
 	return MergeSeriesPointIterators(itrs...), nil
 }
 
-// Compact requests a compaction of log files in the index.
-func (i *Index) Compact() {
-	// Compact using half the available threads.
-	// TODO(edd): this might need adjusting.
-	n := runtime.GOMAXPROCS(0) / 2
-
-	// Run fn on each partition using a fixed number of goroutines.
-	var wg sync.WaitGroup
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-				i.partitions[idx].Compact()
-			}
-		}()
-	}
-
-	// Wait for all partitions to complete compactions.
-	wg.Wait()
-}
-
-// NO-OPS
-
-// Rebuild is a no-op on tsi1.
 func (i *Index) Rebuild() {}
 
-// InitializeSeries is a no-op. This only applies to the in-memory index.
-func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error { return nil }
+// seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
+type seriesPointIterator struct {
+	once     sync.Once
+	fs       *FileSet
+	fieldset *tsdb.MeasurementFieldSet
+	mitr     MeasurementIterator
+	sitr     tsdb.SeriesIDIterator
+	opt      query.IteratorOptions
 
-// SetFieldName is a no-op on tsi1.
-func (i *Index) SetFieldName(measurement []byte, name string) {}
+	point query.FloatPoint // reusable point
+}
 
-// RemoveShard is a no-op on tsi1.
-func (i *Index) RemoveShard(shardID uint64) {}
+// newSeriesPointIterator returns a new instance of seriesPointIterator.
+func newSeriesPointIterator(fs *FileSet, fieldset *tsdb.MeasurementFieldSet, opt query.IteratorOptions) *seriesPointIterator {
+	return &seriesPointIterator{
+		fs:       fs,
+		fieldset: fieldset,
+		mitr:     fs.MeasurementIterator(),
+		point: query.FloatPoint{
+			Aux: make([]interface{}, len(opt.Aux)),
+		},
+		opt: opt,
+	}
+}
 
-// AssignShard is a no-op on tsi1.
-func (i *Index) AssignShard(k string, shardID uint64) {}
+// Stats returns stats about the points processed.
+func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
+
+// Close closes the iterator.
+func (itr *seriesPointIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return nil
+}
+
+// Next emits the next point in the iterator.
+func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
+	for {
+		// Create new series iterator, if necessary.
+		// Exit if there are no measurements remaining.
+		if itr.sitr == nil {
+			if itr.mitr == nil {
+				return nil, nil
+			}
+
+			m := itr.mitr.Next()
+			if m == nil {
+				return nil, nil
+			}
+
+			sitr, err := itr.fs.MeasurementSeriesByExprIterator(m.Name(), itr.opt.Condition, itr.fieldset)
+			if err != nil {
+				return nil, err
+			} else if sitr == nil {
+				continue
+			}
+			itr.sitr = sitr
+		}
+
+		// Read next series element.
+		e := itr.sitr.Next()
+		if e.SeriesID == 0 {
+			itr.sitr = nil
+			continue
+		}
+
+		// Convert to a key.
+		name, tags := ParseSeriesKey(itr.fs.sfile.SeriesKey(e.SeriesID))
+		key := string(models.MakeKey(name, tags))
+
+		// Write auxiliary fields.
+		for i, f := range itr.opt.Aux {
+			switch f.Val {
+			case "key":
+				itr.point.Aux[i] = key
+			}
+		}
+	}
+}

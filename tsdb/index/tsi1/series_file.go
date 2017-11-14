@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // ErrSeriesOverflow is returned when too many series are added to a series writer.
@@ -190,7 +191,6 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 		// Append series to the end of the file.
 		offset := uint64(f.size)
-		println("dbg/insert", string(names[i]), tagsSlice[i].String(), offset)
 		if _, err := f.w.Write(buf); err != nil {
 			return nil, err
 		}
@@ -318,7 +318,7 @@ func (f *SeriesFile) SeriesCount() uint64 {
 }
 
 // SeriesIterator returns an iterator over all the series.
-func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
+func (f *SeriesFile) SeriesIDIterator() tsdb.SeriesIDIterator {
 	return &seriesFileIterator{
 		offset: 1,
 		data:   f.data[1:f.size],
@@ -373,10 +373,10 @@ type seriesFileIterator struct {
 }
 
 // Next returns the next series element.
-func (itr *seriesFileIterator) Next() SeriesIDElem {
+func (itr *seriesFileIterator) Next() tsdb.SeriesIDElem {
 	for {
 		if len(itr.data) == 0 {
-			return SeriesIDElem{}
+			return tsdb.SeriesIDElem{}
 		}
 
 		// Read flag.
@@ -392,7 +392,7 @@ func (itr *seriesFileIterator) Next() SeriesIDElem {
 			var key []byte
 			key, itr.data = ReadSeriesKey(itr.data)
 
-			elem := SeriesIDElem{SeriesID: itr.offset}
+			elem := tsdb.SeriesIDElem{SeriesID: itr.offset}
 			itr.offset += uint64(len(key))
 			return elem
 		}

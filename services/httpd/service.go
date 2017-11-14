@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // statistics gathered by the httpd package.
@@ -60,7 +60,7 @@ type Service struct {
 
 	Handler *Handler
 
-	Logger zap.Logger
+	Logger *zap.Logger
 }
 
 // NewService returns a new instance of Service.
@@ -75,7 +75,7 @@ func NewService(c Config) *Service {
 		unixSocket: c.UnixSocketEnabled,
 		bindSocket: c.BindSocket,
 		Handler:    NewHandler(c),
-		Logger:     zap.New(zap.NullEncoder()),
+		Logger:     zap.NewNop(),
 	}
 	if s.key == "" {
 		s.key = s.cert
@@ -177,7 +177,7 @@ func (s *Service) Close() error {
 }
 
 // WithLogger sets the logger for the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "httpd"))
 	s.Handler.Logger = s.Logger
 }

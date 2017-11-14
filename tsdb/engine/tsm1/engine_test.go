@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/query"
@@ -128,7 +129,8 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	}
 
 	// Remove series.
-	if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+	if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 		t.Fatalf("failed to delete series: %s", err.Error())
 	}
 
@@ -378,8 +380,8 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
-		StartTime:  influxql.MinTime,
-		EndTime:    influxql.MaxTime,
+		StartTime:  1000000000,
+		EndTime:    3000000000,
 		Ascending:  true,
 	})
 	if err != nil {
@@ -607,7 +609,8 @@ func TestEngine_DeleteSeries(t *testing.T) {
 				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 			}
 
-			if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -667,7 +670,8 @@ func TestEngine_LastModified(t *testing.T) {
 				t.Fatalf("expected time change, got %v, exp %v", got, exp)
 			}
 
-			if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -711,6 +715,104 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	// even if snapshots are disabled.
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
+}
+
+// Ensure engine can create an ascending cursor for cache and tsm values.
+func TestEngine_CreateCursor_Ascending(t *testing.T) {
+	t.Parallel()
+
+	e := MustOpenDefaultEngine()
+	defer e.Close()
+
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+
+	if err := e.WritePointsString(
+		`cpu,host=A value=1.1 1`,
+		`cpu,host=A value=1.2 2`,
+		`cpu,host=A value=1.3 3`,
+	); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	e.MustWriteSnapshot()
+
+	if err := e.WritePointsString(
+		`cpu,host=A value=10.1 10`,
+		`cpu,host=A value=11.2 11`,
+		`cpu,host=A value=12.3 12`,
+	); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	cur, err := e.CreateCursor(context.Background(), &tsdb.CursorRequest{
+		Measurement: "cpu",
+		Series:      "cpu,host=A",
+		Field:       "value",
+		Ascending:   true,
+		StartTime:   2,
+		EndTime:     11,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fcur := cur.(tsdb.FloatBatchCursor)
+	ts, vs := fcur.Next()
+	if !cmp.Equal([]int64{2, 3, 10, 11}, ts) {
+		t.Fatal("unexpect timestamps")
+	}
+	if !cmp.Equal([]float64{1.2, 1.3, 10.1, 11.2}, vs) {
+		t.Fatal("unexpect timestamps")
+	}
+}
+
+// Ensure engine can create an ascending cursor for tsm values.
+func TestEngine_CreateCursor_Descending(t *testing.T) {
+	t.Parallel()
+
+	e := MustOpenDefaultEngine()
+	defer e.Close()
+
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+
+	if err := e.WritePointsString(
+		`cpu,host=A value=1.1 1`,
+		`cpu,host=A value=1.2 2`,
+		`cpu,host=A value=1.3 3`,
+	); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	e.MustWriteSnapshot()
+
+	if err := e.WritePointsString(
+		`cpu,host=A value=10.1 10`,
+		`cpu,host=A value=11.2 11`,
+		`cpu,host=A value=12.3 12`,
+	); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	cur, err := e.CreateCursor(context.Background(), &tsdb.CursorRequest{
+		Measurement: "cpu",
+		Series:      "cpu,host=A",
+		Field:       "value",
+		Ascending:   false,
+		StartTime:   2,
+		EndTime:     11,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fcur := cur.(tsdb.FloatBatchCursor)
+	ts, vs := fcur.Next()
+	if !cmp.Equal([]int64{11, 10, 3, 2}, ts) {
+		t.Fatal("unexpect timestamps")
+	}
+	if !cmp.Equal([]float64{11.2, 10.1, 1.3, 1.2}, vs) {
+		t.Fatal("unexpect timestamps")
 	}
 }
 
@@ -1080,4 +1182,29 @@ func ParseTags(s string) query.Tags {
 		m[a[0]] = a[1]
 	}
 	return query.NewTags(m)
+}
+
+type seriesIterator struct {
+	keys [][]byte
+}
+
+type series struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (s series) Name() []byte        { return s.name }
+func (s series) Tags() models.Tags   { return s.tags }
+func (s series) Deleted() bool       { return s.deleted }
+func (s series) Expr() influxql.Expr { return nil }
+
+func (itr *seriesIterator) Next() tsdb.SeriesElem {
+	if len(itr.keys) == 0 {
+		return nil
+	}
+	name, tags := models.ParseKeyBytes(itr.keys[0])
+	s := series{name: name, tags: tags}
+	itr.keys = itr.keys[1:]
+	return s
 }

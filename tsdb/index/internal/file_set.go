@@ -4,20 +4,19 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 // File is a mock implementation of a tsi1.File.
 type File struct {
-	Closef               func() error
-	Pathf                func() string
-	IDf                  func() int
-	Levelf               func() int
-	Measurementf         func(name []byte) tsi1.MeasurementElem
-	MeasurementIteratorf func() tsi1.MeasurementIterator
-	HasSeriesf           func(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
-	// Seriesf                      func(name []byte, tags models.Tags) tsi1.SeriesIDElem
-	// SeriesNf                     func() uint64
+	Closef                       func() error
+	Pathf                        func() string
+	IDf                          func() int
+	Levelf                       func() int
+	Measurementf                 func(name []byte) tsi1.MeasurementElem
+	MeasurementIteratorf         func() tsi1.MeasurementIterator
+	HasSeriesf                   func(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
 	TagKeyf                      func(name, key []byte) tsi1.TagKeyElem
 	TagKeyIteratorf              func(name []byte) tsi1.TagKeyIterator
 	TagValuef                    func(name, key, value []byte) tsi1.TagValueElem
@@ -44,6 +43,7 @@ func (f *File) HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tom
 }
 func (f *File) TagKey(name, key []byte) tsi1.TagKeyElem        { return f.TagKeyf(name, key) }
 func (f *File) TagKeyIterator(name []byte) tsi1.TagKeyIterator { return f.TagKeyIteratorf(name) }
+
 func (f *File) TagValue(name, key, value []byte) tsi1.TagValueElem {
 	return f.TagValuef(name, key, value)
 }

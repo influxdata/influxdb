@@ -20,7 +20,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Version is the current version of the TSI index.
@@ -76,7 +76,7 @@ type Partition struct {
 	compactionsDisabled       bool
 	compactionMonitorInterval time.Duration
 
-	logger zap.Logger
+	logger *zap.Logger
 
 	// Index's version.
 	version int
@@ -94,7 +94,7 @@ func NewPartition(sfile *SeriesFile, path string) *Partition {
 		MaxLogFileSize: DefaultMaxLogFileSize,
 		// compactionEnabled: true,
 
-		logger:  zap.New(zap.NullEncoder()),
+		logger:  zap.NewNop(),
 		version: Version,
 	}
 }
@@ -514,12 +514,9 @@ func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	return i.CheckLogFile()
 }
 
-// InitializeSeries is a no-op. This only applies to the in-memory index.
-func (i *Partition) InitializeSeries(key, name []byte, tags models.Tags) error {
-	return nil
-}
+func (i *Partition) DropSeries(key []byte, ts int64) error {
+	// TODO: Use ts.
 
-func (i *Partition) DropSeries(key []byte) error {
 	if err := func() error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
@@ -608,6 +605,19 @@ func (i *Partition) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
+func (i *Partition) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	itr, err := fs.MeasurementSeriesByExprIterator(name, condition, i.fieldset)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+	return itr, err
+}
+
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (i *Partition) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
@@ -656,9 +666,9 @@ func (i *Partition) SetFieldName(measurement []byte, name string) {}
 func (i *Partition) RemoveShard(shardID uint64)                   {}
 func (i *Partition) AssignShard(k string, shardID uint64)         {}
 
-func (i *Partition) UnassignShard(k string, shardID uint64) error {
+func (i *Partition) UnassignShard(k string, shardID uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k))
+	return i.DropSeries([]byte(k), ts)
 }
 
 // seriesPointIterator returns an influxql iterator over all series.
@@ -952,90 +962,6 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 	}
 
 	return
-}
-
-// seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
-type seriesPointIterator struct {
-	once     sync.Once
-	fs       *FileSet
-	fieldset *tsdb.MeasurementFieldSet
-	mitr     MeasurementIterator
-	sitr     SeriesIDIterator
-	opt      query.IteratorOptions
-
-	point query.FloatPoint // reusable point
-}
-
-// newSeriesPointIterator returns a new instance of seriesPointIterator.
-func newSeriesPointIterator(fs *FileSet, fieldset *tsdb.MeasurementFieldSet, opt query.IteratorOptions) *seriesPointIterator {
-	return &seriesPointIterator{
-		fs:       fs,
-		fieldset: fieldset,
-		mitr:     fs.MeasurementIterator(),
-		point: query.FloatPoint{
-			Aux: make([]interface{}, len(opt.Aux)),
-		},
-		opt: opt,
-	}
-}
-
-// Stats returns stats about the points processed.
-func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
-
-// Close closes the iterator.
-func (itr *seriesPointIterator) Close() error {
-	itr.once.Do(func() { itr.fs.Release() })
-	return nil
-}
-
-// Next emits the next point in the iterator.
-func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
-	for {
-		// Create new series iterator, if necessary.
-		// Exit if there are no measurements remaining.
-		if itr.sitr == nil {
-			if itr.mitr == nil {
-				return nil, nil
-			}
-
-			m := itr.mitr.Next()
-			if m == nil {
-				return nil, nil
-			}
-
-			sitr, err := itr.fs.MeasurementSeriesByExprIterator(m.Name(), itr.opt.Condition, itr.fieldset)
-			if err != nil {
-				return nil, err
-			} else if sitr == nil {
-				continue
-			}
-			itr.sitr = sitr
-		}
-
-		// Read next series element.
-		elem := itr.sitr.Next()
-		if elem.SeriesID == 0 {
-			itr.sitr = nil
-			continue
-		}
-
-		// Convert to a key.
-		seriesKey := itr.fs.sfile.SeriesKey(elem.SeriesID)
-		if seriesKey == nil {
-			continue
-		}
-
-		// Write auxiliary fields.
-		name, tags := ParseSeriesKey(seriesKey)
-		key := models.MakeKey(name, tags)
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = key
-			}
-		}
-		return &itr.point, nil
-	}
 }
 
 // unionStringSets returns the union of two sets

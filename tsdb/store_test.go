@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
 )
 
 // Ensure the store can delete a retention policy and all shards under
@@ -1210,10 +1210,7 @@ func NewStore() *Store {
 	s.EngineOptions.Config.TraceLoggingEnabled = true
 
 	if testing.Verbose() {
-		s.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stdout),
-		))
+		s.WithLogger(logger.New(os.Stdout))
 	}
 	return s
 }

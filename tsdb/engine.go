@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -35,7 +35,7 @@ type Engine interface {
 	SetEnabled(enabled bool)
 	SetCompactionsEnabled(enabled bool)
 
-	WithLogger(zap.Logger)
+	WithLogger(*zap.Logger)
 
 	LoadMetadataIndex(shardID uint64, index Index) error
 
@@ -51,7 +51,7 @@ type Engine interface {
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
-	DeleteSeriesRange(keys [][]byte, min, max int64) error
+	DeleteSeriesRange(itr SeriesIterator, min, max int64) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
@@ -71,6 +71,7 @@ type Engine interface {
 	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL iterators
+	MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIDIterator, error)
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 

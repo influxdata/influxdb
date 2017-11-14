@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
-
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Log errors.
@@ -247,7 +247,7 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 }
 
 // TagKeySeriesIDIterator returns a series iterator for a tag key.
-func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) SeriesIDIterator {
+func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -262,7 +262,7 @@ func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) SeriesIDIterator {
 	}
 
 	// Combine iterators across all tag keys.
-	itrs := make([]SeriesIDIterator, 0, len(tk.tagValues))
+	itrs := make([]tsdb.SeriesIDIterator, 0, len(tk.tagValues))
 	for _, tv := range tk.tagValues {
 		if len(tv.series) == 0 {
 			continue
@@ -362,7 +362,7 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a tag value.
-func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) SeriesIDIterator {
+func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -383,7 +383,6 @@ func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) SeriesIDIter
 		return nil
 	}
 
-	println("dbg/TVSERIES.ITR")
 	return newLogSeriesIDIterator(tv.series)
 }
 
@@ -519,32 +518,6 @@ func (f *LogFile) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]
 }
 */
 
-/*
-// Series returns a series by name/tags.
-func (f *LogFile) Series(name []byte, tags models.Tags) SeriesIDElem {
-	return f.SeriesWithBuffer(name, tags, nil)
-}
-
-// SeriesWithBuffer returns a series by name/tags.
-func (f *LogFile) SeriesWithBuffer(name []byte, tags models.Tags, buf []byte) SeriesIDElem {
-	key := AppendSeriesKey(buf[:0], name, tags)
-
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	mm, ok := f.mms[string(name)]
-	if !ok {
-		return SeriesIDElem{}
-	}
-
-	s := mm.series[string(key)]
-	if s == nil {
-		return SeriesIDElem{}
-	}
-	return s
-}
-*/
-
 // appendEntry adds a log entry to the end of the file.
 func (f *LogFile) appendEntry(e *LogEntry) error {
 	// Marshal entry to the local buffer.
@@ -654,29 +627,29 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 }
 
 // SeriesIDIterator returns an iterator over all series in the log file.
-func (f *LogFile) SeriesIDIterator() SeriesIDIterator {
+func (f *LogFile) SeriesIDIterator() tsdb.SeriesIDIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	// Determine total series count across all measurements.
 	var n int
 	mSeriesIdx := make([]int, len(f.mms))
-	mSeries := make([][]SeriesIDElem, 0, len(f.mms))
+	mSeries := make([][]tsdb.SeriesIDElem, 0, len(f.mms))
 	for _, mm := range f.mms {
 		n += len(mm.series)
-		a := make([]SeriesIDElem, 0, len(mm.series))
+		a := make([]tsdb.SeriesIDElem, 0, len(mm.series))
 		for seriesID := range mm.series {
-			a = append(a, SeriesIDElem{SeriesID: seriesID})
+			a = append(a, tsdb.SeriesIDElem{SeriesID: seriesID})
 		}
-		sort.Sort(SeriesIDElems(a))
+		sort.Sort(tsdb.SeriesIDElems(a))
 		mSeries = append(mSeries, a)
 	}
 
 	// Combine series across all measurements by merging the already sorted
 	// series lists.
-	sBuffer := make([]SeriesIDElem, len(f.mms))
-	series := make([]SeriesIDElem, 0, n)
-	var minElem SeriesIDElem
+	sBuffer := make([]tsdb.SeriesIDElem, len(f.mms))
+	series := make([]tsdb.SeriesIDElem, 0, n)
+	var minElem tsdb.SeriesIDElem
 	var minElemIdx int
 
 	for s := 0; s < cap(series); s++ {
@@ -731,7 +704,7 @@ func (f *LogFile) MeasurementIterator() MeasurementIterator {
 }
 
 // MeasurementSeriesIDIterator returns an iterator over all series for a measurement.
-func (f *LogFile) MeasurementSeriesIDIterator(name []byte) SeriesIDIterator {
+func (f *LogFile) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -739,7 +712,6 @@ func (f *LogFile) MeasurementSeriesIDIterator(name []byte) SeriesIDIterator {
 	if mm == nil || len(mm.series) == 0 {
 		return nil
 	}
-	println("dbg/MMSERIES.ITR")
 	return newLogSeriesIDIterator(mm.series)
 }
 
@@ -1086,6 +1058,20 @@ func (mm *logMeasurement) seriesIDs() []uint64 {
 func (m *logMeasurement) Name() []byte  { return m.name }
 func (m *logMeasurement) Deleted() bool { return m.deleted }
 
+/*
+func (m *logMeasurement) HasSeries() bool {
+	if m.deleted {
+		return false
+	}
+	for _, v := range m.series {
+		if !v.deleted {
+			return true
+		}
+	}
+	return false
+}
+*/
+
 func (m *logMeasurement) createTagSetIfNotExists(key []byte) logTagKey {
 	ts, ok := m.tagSet[string(key)]
 	if !ok {
@@ -1224,7 +1210,7 @@ func (itr *logTagValueIterator) Next() (e TagValueElem) {
 
 // logSeriesIDIterator represents an iterator over a slice of series.
 type logSeriesIDIterator struct {
-	series []SeriesIDElem
+	series []tsdb.SeriesIDElem
 }
 
 // newLogSeriesIDIterator returns a new instance of logSeriesIDIterator.
@@ -1234,24 +1220,22 @@ func newLogSeriesIDIterator(m map[uint64]struct{}) *logSeriesIDIterator {
 		return nil
 	}
 
-	itr := logSeriesIDIterator{series: make([]SeriesIDElem, 0, len(m))}
+	itr := logSeriesIDIterator{series: make([]tsdb.SeriesIDElem, 0, len(m))}
 	for seriesID := range m {
-		println("dbg/series", seriesID)
-		itr.series = append(itr.series, SeriesIDElem{SeriesID: seriesID})
+		itr.series = append(itr.series, tsdb.SeriesIDElem{SeriesID: seriesID})
 	}
-	sort.Sort(SeriesIDElems(itr.series))
+	sort.Sort(tsdb.SeriesIDElems(itr.series))
 
 	return &itr
 }
 
 // Next returns the next element in the iterator.
-func (itr *logSeriesIDIterator) Next() SeriesIDElem {
+func (itr *logSeriesIDIterator) Next() tsdb.SeriesIDElem {
 	if len(itr.series) == 0 {
-		return SeriesIDElem{}
+		return tsdb.SeriesIDElem{}
 	}
 	elem := itr.series[0]
 	itr.series = itr.series[1:]
-	println("dbg/LSITR", elem.SeriesID)
 	return elem
 }
 

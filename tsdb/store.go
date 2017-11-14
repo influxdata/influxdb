@@ -21,7 +21,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -53,8 +53,8 @@ type Store struct {
 
 	EngineOptions EngineOptions
 
-	baseLogger zap.Logger
-	Logger     zap.Logger
+	baseLogger *zap.Logger
+	Logger     *zap.Logger
 
 	closing chan struct{}
 	wg      sync.WaitGroup
@@ -64,7 +64,7 @@ type Store struct {
 // NewStore returns a new store with the given path and a default configuration.
 // The returned store must be initialized by calling Open before using it.
 func NewStore(path string) *Store {
-	logger := zap.New(zap.NullEncoder())
+	logger := zap.NewNop()
 	return &Store{
 		databases:     make(map[string]struct{}),
 		path:          path,
@@ -76,7 +76,7 @@ func NewStore(path string) *Store {
 }
 
 // WithLogger sets the logger for the store.
-func (s *Store) WithLogger(log zap.Logger) {
+func (s *Store) WithLogger(log *zap.Logger) {
 	s.baseLogger = log
 	s.Logger = log.With(zap.String("service", "store"))
 	for _, sh := range s.shards {
@@ -903,23 +903,21 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		defer limit.Release()
 
 		// Find matching series keys for each measurement.
-		var keys [][]byte
 		for _, name := range names {
-			a, err := sh.MeasurementSeriesKeysByExpr([]byte(name), condition)
+
+			itr, err := sh.MeasurementSeriesKeysByExprIterator([]byte(name), condition)
 			if err != nil {
 				return err
+			} else if itr == nil {
+				continue
 			}
-			keys = append(keys, a...)
+
+			if err := sh.DeleteSeriesRange(itr, min, max); err != nil {
+				return err
+			}
+
 		}
 
-		if !bytesutil.IsSorted(keys) {
-			bytesutil.Sort(keys)
-		}
-
-		// Delete all matching keys.
-		if err := sh.DeleteSeriesRange(keys, min, max); err != nil {
-			return err
-		}
 		return nil
 	})
 }

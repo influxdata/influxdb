@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -23,7 +22,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // monitorStatInterval is the interval at which the shard is inspected
@@ -130,8 +129,8 @@ type Shard struct {
 	stats       *ShardStatistics
 	defaultTags models.StatisticTags
 
-	baseLogger zap.Logger
-	logger     zap.Logger
+	baseLogger *zap.Logger
+	logger     *zap.Logger
 
 	EnableOnOpen bool
 }
@@ -139,7 +138,7 @@ type Shard struct {
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
 func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard {
 	db, rp := decodeStorePath(path)
-	logger := zap.New(zap.NullEncoder())
+	logger := zap.NewNop()
 
 	s := &Shard{
 		id:      id,
@@ -169,7 +168,7 @@ func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard 
 }
 
 // WithLogger sets the logger on the shard.
-func (s *Shard) WithLogger(log zap.Logger) {
+func (s *Shard) WithLogger(log *zap.Logger) {
 	s.baseLogger = log
 	engine, err := s.engine()
 	if err == nil {
@@ -686,18 +685,13 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 	return nil
 }
 
-// DeleteSeries deletes a list of series.
-func (s *Shard) DeleteSeries(seriesKeys [][]byte) error {
-	return s.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
-}
-
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
-func (s *Shard) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+func (s *Shard) DeleteSeriesRange(itr SeriesIterator, min, max int64) error {
 	engine, err := s.engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteSeriesRange(seriesKeys, min, max)
+	return engine.DeleteSeriesRange(itr, min, max)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
@@ -744,6 +738,14 @@ func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 		return nil, err
 	}
 	return engine.MeasurementNamesByRegex(re)
+}
+
+func (s *Shard) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIDIterator, error) {
+	engine, err := s.engine()
+	if err != nil {
+		return nil, err
+	}
+	return engine.MeasurementSeriesKeysByExprIterator(name, expr)
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys from the shard

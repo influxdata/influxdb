@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // IndexFileVersion is the current TSI1 index file version.
@@ -212,7 +213,7 @@ func (f *IndexFile) TagValueIterator(name, key []byte) TagValueIterator {
 
 // TagKeySeriesIDIterator returns a series iterator for a tag key and a flag
 // indicating if a tombstone exists on the measurement or key.
-func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) SeriesIDIterator {
+func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
 	tblk := f.tblks[string(name)]
 	if tblk == nil {
 		return nil
@@ -226,7 +227,7 @@ func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) SeriesIDIterator {
 
 	// Merge all value series iterators together.
 	vitr := ke.TagValueIterator()
-	var itrs []SeriesIDIterator
+	var itrs []tsdb.SeriesIDIterator
 	for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
 		sitr := &rawSeriesIDIterator{data: ve.(*TagBlockValueElem).series.data}
 		itrs = append(itrs, sitr)
@@ -237,7 +238,7 @@ func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) SeriesIDIterator {
 
 // TagValueSeriesIDIterator returns a series iterator for a tag value and a flag
 // indicating if a tombstone exists on the measurement, key, or value.
-func (f *IndexFile) TagValueSeriesIDIterator(name, key, value []byte) SeriesIDIterator {
+func (f *IndexFile) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
 	tblk := f.tblks[string(name)]
 	if tblk == nil {
 		return nil
@@ -279,14 +280,6 @@ func (f *IndexFile) HasSeries(name []byte, tags models.Tags, buf []byte) (exists
 	return f.sfile.HasSeries(name, tags, buf), false // TODO(benbjohnson): series tombstone
 }
 
-/*
-// Series returns the series and a flag indicating if the series has been
-// tombstoned by the measurement.
-func (f *IndexFile) Series(name []byte, tags models.Tags) SeriesIDElem {
-	panic("TODO")
-}
-*/
-
 // TagValueElem returns an element for a measurement/tag/value.
 func (f *IndexFile) TagValueElem(name, key, value []byte) TagValueElem {
 	tblk, ok := f.tblks[string(name)]
@@ -311,7 +304,7 @@ func (f *IndexFile) TagKeyIterator(name []byte) TagKeyIterator {
 }
 
 // MeasurementSeriesIDIterator returns an iterator over a measurement's series.
-func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) SeriesIDIterator {
+func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator {
 	return f.mblk.SeriesIDIterator(name)
 }
 

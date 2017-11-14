@@ -9,8 +9,9 @@ import (
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/store/help"
 	"github.com/influxdata/influxdb/cmd/store/query"
+	"github.com/influxdata/influxdb/logger"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -23,7 +24,7 @@ func main() {
 
 // Main represents the program execution.
 type Main struct {
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -33,10 +34,7 @@ type Main struct {
 // NewMain returns a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		Logger: zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		),
+		Logger: logger.New(os.Stderr),
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,

@@ -1341,6 +1341,15 @@ func TestParsePointQuotedTags(t *testing.T) {
 	)
 }
 
+func TestParsePoint_TrailingSlash(t *testing.T) {
+	_, err := models.ParsePointsString(`a v=1 0\`)
+	if err == nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	} else if !strings.Contains(err.Error(), "bad timestamp") {
+		t.Fatalf("ParsePoints unexpected error: %v", err)
+	}
+}
+
 func TestParsePointsUnbalancedQuotedTags(t *testing.T) {
 	pts, err := models.ParsePointsString("baz,mytag=\"a x=1 1441103862125\nbaz,mytag=a z=1 1441103862126")
 	if err != nil {

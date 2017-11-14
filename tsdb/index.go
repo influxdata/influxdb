@@ -10,13 +10,13 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type Index interface {
 	Open() error
 	Close() error
-	WithLogger(zap.Logger)
+	WithLogger(*zap.Logger)
 
 	MeasurementExists(name []byte) (bool, error)
 	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
@@ -27,7 +27,7 @@ type Index interface {
 	InitializeSeries(key, name []byte, tags models.Tags) error
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
-	DropSeries(key []byte) error
+	DropSeries(key []byte, ts int64) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
@@ -41,6 +41,7 @@ type Index interface {
 	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL system iterators
+	MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (SeriesIDIterator, error)
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 
@@ -53,12 +54,45 @@ type Index interface {
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
 	AssignShard(k string, shardID uint64)
-	UnassignShard(k string, shardID uint64) error
+	UnassignShard(k string, shardID uint64, ts int64) error
 	RemoveShard(shardID uint64)
 
 	Type() string
 
 	Rebuild()
+}
+
+// SeriesElem represents a generic series element.
+type SeriesElem interface {
+	Name() []byte
+	Tags() models.Tags
+	Deleted() bool
+
+	// InfluxQL expression associated with series during filtering.
+	Expr() influxql.Expr
+}
+
+// SeriesIterator represents a iterator over a list of series.
+type SeriesIterator interface {
+	Next() SeriesElem
+}
+
+// SeriesIDElem represents a single series and optional expression.
+type SeriesIDElem struct {
+	SeriesID uint64
+	Expr     influxql.Expr
+}
+
+// SeriesIDElems represents a list of series id elements.
+type SeriesIDElems []SeriesIDElem
+
+func (a SeriesIDElems) Len() int           { return len(a) }
+func (a SeriesIDElems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SeriesIDElems) Less(i, j int) bool { return a[i].SeriesID < a[j].SeriesID }
+
+// SeriesIDIterator represents a iterator over a list of series ids.
+type SeriesIDIterator interface {
+	Next() SeriesIDElem
 }
 
 // IndexFormat represents the format for an index.

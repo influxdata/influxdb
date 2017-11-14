@@ -1,4 +1,24 @@
-## v1.4.0 [unreleased]
+## v1.5.0 [unreleased]
+
+### Breaking changes
+
+* The default logging format has been changed. See [#9055](https://github.com/influxdata/influxdb/pull/9055) for details.
+
+### Features
+
+- [#9088](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+
+### Bugfixes
+
+- [#9065](https://github.com/influxdata/influxdb/pull/9065): Refuse extra arguments to influx CLI
+
+## v1.4.1 [2017-11-13]
+
+### Bugfixes
+
+- [#9105](https://github.com/influxdata/influxdb/pull/9105): Fix descending cursors and range queries via IFQL RPC API.
+
+## v1.4.0 [2017-11-13]
 
 ### Breaking changes
 
@@ -93,6 +113,7 @@
 - [#8989](https://github.com/influxdata/influxdb/issues/8989): Fix race inside Measurement index.
 - [#8819](https://github.com/influxdata/influxdb/issues/8819): Ensure retention service always removes local shards.
 - [#8965](https://github.com/influxdata/influxdb/issues/8965): Handle utf16 files when reading the configuration file.
+- [#8538](https://github.com/influxdata/influxdb/pull/8538): Fix panic: runtime error: slice bounds out of range
 
 ## v1.3.7 [2017-10-26]
 

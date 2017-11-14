@@ -10,20 +10,20 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Command represents the program execution for "influx_inspect inmem2tsi".
 type Command struct {
-	Stderr io.Writer
-	Stdout io.Writer
-
+	Stderr  io.Writer
+	Stdout  io.Writer
 	Verbose bool
-	Logger  zap.Logger
+	Logger  *zap.Logger
 }
 
 // NewCommand returns a new instance of Command.
@@ -31,7 +31,7 @@ func NewCommand() *Command {
 	return &Command{
 		Stderr: os.Stderr,
 		Stdout: os.Stdout,
-		Logger: zap.New(zap.NullEncoder()),
+		Logger: zap.NewNop(),
 	}
 }
 
@@ -47,11 +47,7 @@ func (cmd *Command) Run(args ...string) error {
 	} else if fs.NArg() > 0 || *dataDir == "" || *walDir == "" {
 		return flag.ErrHelp
 	}
-
-	cmd.Logger = zap.New(
-		zap.NewTextEncoder(),
-		zap.Output(os.Stderr),
-	)
+	cmd.Logger = logger.New(cmd.Stderr)
 
 	return cmd.run(*dataDir, *walDir)
 }
