@@ -98,8 +98,10 @@ const InfluxTable = ({
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">
             {isUsingAuth
-              ? `InfluxDB Sources from ${me.currentOrganization.name}`
-              : 'InfluxDB Sources'}
+              ? <span>
+                  InfluxDB Sources for <em>{me.currentOrganization.name}</em>
+                </span>
+              : <span>InfluxDB Sources</span>}
           </h2>
           <Authorized requiredRole={EDITOR_ROLE}>
             <Link
