@@ -5,7 +5,7 @@ import {withRouter} from 'react-router'
 
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
-import {MEMBER_ROLE} from 'src/auth/Authorized'
+import PurgatoryAuthItem from 'src/auth/PurgatoryAuthItem'
 
 const getRoleNameByOrgID = (id, roles) => {
   const role = roles.find(r => r.organization === id)
@@ -60,34 +60,12 @@ class Purgatory extends Component {
               </h6>
               {rolesAndOrgs.length
                 ? <div className="auth--list">
-                    {rolesAndOrgs.map(rag =>
-                      <div
-                        key={rag.organization.id}
-                        className={
-                          rag.currentOrganization
-                            ? 'auth--list-item current'
-                            : 'auth--list-item'
-                        }
-                      >
-                        <div className="auth--list-info">
-                          <div className="auth--list-org">
-                            {rag.organization.name}
-                          </div>
-                          <div className="auth--list-role">
-                            {rag.role}
-                          </div>
-                        </div>
-                        {rag.role === MEMBER_ROLE
-                          ? <span className="auth--list-blocked">
-                              Contact your Admin<br />for access
-                            </span>
-                          : <button
-                              className="btn btn-sm btn-primary"
-                              onClick={this.handleClickLogin(rag.organization)}
-                            >
-                              Login
-                            </button>}
-                      </div>
+                    {rolesAndOrgs.map((rag, i) =>
+                      <PurgatoryAuthItem
+                        key={i}
+                        roleAndOrg={rag}
+                        onClickLogin={this.handleClickLogin}
+                      />
                     )}
                   </div>
                 : <p>You are a Lost Soul</p>}
