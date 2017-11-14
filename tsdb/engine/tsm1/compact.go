@@ -77,6 +77,10 @@ type CompactionPlanner interface {
 	PlanOptimize() []CompactionGroup
 	Release(group []CompactionGroup)
 	FullyCompacted() bool
+
+	// ForceFull causes the planner to return a full compaction plan the next
+	// time Plan() is called if there are files that could be compacted.
+	ForceFull()
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -101,6 +105,11 @@ type DefaultPlanner struct {
 
 	// lastGenerations is the last set of generations found by findGenerations
 	lastGenerations tsmGenerations
+
+	// forceFull causes the next full plan requests to plan any files
+	// that may need to be compacted.  Normally, these files are skipped and scheduled
+	// infrequently as the plans are more expensive to run.
+	forceFull bool
 
 	// filesInUse is the set of files that have been returned as part of a plan and might
 	// be being compacted.  Two plans should not return the same file at any given time.
@@ -173,8 +182,26 @@ func (c *DefaultPlanner) FullyCompacted() bool {
 	return len(gens) <= 1 && !gens.hasTombstones()
 }
 
+// ForceFull causes the planner to return a full compaction plan the next time
+// a plan is requested.  When ForceFull is called, level and optimize plans will
+// not return plans until a full plan is requested and released.
+func (c *DefaultPlanner) ForceFull() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.forceFull = true
+}
+
 // PlanLevel returns a set of TSM files to rewrite for a specific level.
 func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
+	// If a full plan has been requested, don't plan any levels which will prevent
+	// the full plan from acquiring them.
+	c.mu.RLock()
+	if c.forceFull {
+		c.mu.RUnlock()
+		return nil
+	}
+	c.mu.RUnlock()
+
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
@@ -276,6 +303,15 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 // to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
 func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
+	// If a full plan has been requested, don't plan any levels which will prevent
+	// the full plan from acquiring them.
+	c.mu.RLock()
+	if c.forceFull {
+		c.mu.RUnlock()
+		return nil
+	}
+	c.mu.RUnlock()
+
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
@@ -355,8 +391,20 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations(true)
 
+	c.mu.RLock()
+	forceFull := c.forceFull
+	c.mu.RUnlock()
+
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
+	if forceFull || c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
+
+		// Reset the full schedule if we planned because of it.
+		if forceFull {
+			c.mu.Lock()
+			c.forceFull = false
+			c.mu.Unlock()
+		}
+
 		var tsmFiles []string
 		var genCount int
 		for i, group := range generations {

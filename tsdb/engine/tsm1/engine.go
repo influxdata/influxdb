@@ -339,6 +339,26 @@ func (e *Engine) disableSnapshotCompactions() {
 	}
 }
 
+// ScheduleFullCompaction will force the engine to fully compact all data stored.
+// This will cancel and running compactions and snapshot any data in the cache to
+// TSM files.  This is an expensive operation.
+func (e *Engine) ScheduleFullCompaction() error {
+	// Snapshot any data in the cache
+	if err := e.WriteSnapshot(); err != nil {
+		return err
+	}
+
+	// Cancel running compactions
+	e.SetCompactionsEnabled(false)
+
+	// Ensure compactions are restarted
+	defer e.SetCompactionsEnabled(true)
+
+	// Force the planner to only create a full plan.
+	e.CompactionPlan.ForceFull()
+	return nil
+}
+
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
