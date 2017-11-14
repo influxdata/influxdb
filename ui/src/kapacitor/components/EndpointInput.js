@@ -19,7 +19,7 @@ const EndpointInput = ({
         type="text"
         placeholder={placeholder}
         onChange={handleModifyEndpoint(selectedEndpoint, fieldName)}
-        value={selectedEndpoint.options[fieldName]}
+        value={selectedEndpoint[fieldName]}
         autoComplete="off"
         spellCheck="false"
       />

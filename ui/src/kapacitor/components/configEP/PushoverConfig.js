@@ -9,9 +9,16 @@ const PushoverConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
         <EndpointInput
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
+          fieldName="userKey"
+          fieldDisplay="User Key"
+          placeholder="Ex: the_key"
+        />
+        <EndpointInput
+          selectedEndpoint={selectedEndpoint}
+          handleModifyEndpoint={handleModifyEndpoint}
           fieldName="device"
           fieldDisplay="Device: (comma separated)"
-          placeholder="Ex: dv1,dv2"
+          placeholder="Ex: dv1, dv2"
         />
         <EndpointInput
           selectedEndpoint={selectedEndpoint}
@@ -25,14 +32,14 @@ const PushoverConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
         <EndpointInput
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
-          fieldName="URL"
+          fieldName="url"
           fieldDisplay="URL:"
           placeholder="Ex: https://influxdata.com"
         />
         <EndpointInput
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
-          fieldName="URLTitle"
+          fieldName="urlTitle"
           fieldDisplay="URL Title:"
           placeholder="Ex: InfluxData"
         />

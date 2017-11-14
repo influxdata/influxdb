@@ -11,7 +11,7 @@ const ExecConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           handleModifyEndpoint={handleModifyEndpoint}
           fieldName="command"
           fieldDisplay="Command (arguments separated by spaces):"
-          placeholder="Ex: woogie boogie"
+          placeholder="Ex: command argument"
         />
       </div>
     </div>

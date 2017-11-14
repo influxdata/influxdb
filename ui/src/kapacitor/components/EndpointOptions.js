@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import {
-  HttpConfig,
+  PostConfig,
   TcpConfig,
   ExecConfig,
   LogConfig,
@@ -25,9 +25,9 @@ class EndpointOptions extends Component {
   render() {
     const {selectedEndpoint, handleModifyEndpoint} = this.props
     switch (selectedEndpoint && selectedEndpoint.type) {
-      case 'http':
+      case 'post':
         return (
-          <HttpConfig
+          <PostConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
           />

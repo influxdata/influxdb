@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import EndpointInput from 'src/kapacitor/components/EndpointInput'
 
-const HttpConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
+const TelegramConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
   return (
     <div className="rule-section--row rule-section--border-bottom">
       <p>Alert Parameters:</p>
@@ -27,9 +27,9 @@ const HttpConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
 
 const {func, shape} = PropTypes
 
-HttpConfig.propTypes = {
+TelegramConfig.propTypes = {
   selectedEndpoint: shape({}).isRequired,
   handleModifyEndpoint: func.isRequired,
 }
 
-export default HttpConfig
+export default TelegramConfig

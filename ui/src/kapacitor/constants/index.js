@@ -87,13 +87,83 @@ export const RULE_MESSAGE_TEMPLATES = {
     text: 'The time of the point that triggered the event',
   },
 }
-
+// DEFAULT_ALERTS provides a template for alerts that don't exist in the kapacitor config
 export const DEFAULT_ALERTS = [
-  {type: 'http', options: {url: ''}},
-  {type: 'tcp', options: {address: ''}},
-  {type: 'exec', options: {command: ''}},
-  {type: 'log', options: {file: ''}},
+  {type: 'post', url: '', headers: '', captureResponse: '', timeout: ''}, // is actually called 'post'??
+  {type: 'tcp', address: ''},
+  {type: 'exec', command: ''},
+  {type: 'log', filePath: ''},
 ]
+
+// ALERT_FIELDS_FROM_CONFIG returns an array of fields to accept from the Kapacitor Config
+// I WILL NEED TO ADD MORE TO DISPLAY FIELDS WHICH COME FROM THE CONFIG WHICH WILL JUST BE DISPLAYED NOT EDITABLE>
+// I need to check what happens when one of these fields does not exist- the value in the input will fail at first. ?? add a default val?
+export const ALERT_FIELDS_FROM_CONFIG = {
+  alerta: [
+    'token',
+    'resource',
+    'event',
+    'environment',
+    'group',
+    'value',
+    'origin',
+    'service',
+    'timeout',
+  ],
+  hipchat: ['room', 'token'],
+  opsgenie: ['teams', 'recipients'],
+  pagerduty: ['serviceKey'],
+  pushover: ['userKey', 'device', 'title', 'url', 'urlTitle', 'sound'],
+  sensu: ['source', 'handlers'],
+  slack: ['channel', 'username', 'iconEmoji'],
+  smtp: ['to'],
+  snmpTrap: ['trapOid', 'data'], // [oid/type/value]
+  talk: [],
+  telegram: [
+    'chatId',
+    'parseMode',
+    'disableWebPagePreview',
+    'disableNotification',
+  ],
+  victorOps: ['routingKey'],
+  influxdb: [],
+}
+
+// ALERTS_TO_RULE returns array of fields that may be updated for each alert on rule.
+export const ALERT_FIELDS_TO_RULE = {
+  alerta: [
+    'token',
+    'resource',
+    'event',
+    'environment',
+    'group',
+    'value',
+    'origin',
+    'service',
+    'timeout',
+  ],
+  hipchat: ['room', 'token'],
+  opsgenie: ['teams', 'recipients'],
+  pagerduty: ['serviceKey'],
+  pushover: ['userKey', 'device', 'title', 'url', 'urlTitle', 'sound'],
+  sensu: ['source', 'handlers'],
+  slack: ['channel', 'username', 'iconEmoji'],
+  email: ['to'],
+  snmpTrap: ['trapOid', 'data'], // [oid/type/value]
+  talk: [],
+  telegram: [
+    'chatId',
+    'parseMode',
+    'disableWebPagePreview',
+    'disableNotification',
+  ],
+  victorOps: ['routingKey'],
+  influxdb: [], // ?????
+  post: ['url', 'headers', 'captureResponse', 'timeout'],
+  tcp: ['address'],
+  exec: ['command'],
+  log: ['filePath'],
+}
 
 export const RULE_ALERT_OPTIONS = {
   http: {

@@ -10,8 +10,8 @@ const PagerdutyConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
           fieldName="serviceKey"
-          fieldDisplay="Servive Key:"
-          placeholder="Ex: a_key"
+          fieldDisplay="Service Key:"
+          placeholder="Ex: service_key"
         />
       </div>
     </div>

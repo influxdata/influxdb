@@ -9,8 +9,8 @@ const LogConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
         <EndpointInput
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
-          fieldName="file"
-          fieldDisplay="Destination of Log File:"
+          fieldName="filePath"
+          fieldDisplay="Log File Path:"
           placeholder="Ex: /tmp/alerts.log"
         />
       </div>

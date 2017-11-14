@@ -9,7 +9,7 @@ const SmtpConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
         <EndpointInput
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
-          fieldName="email"
+          fieldName="to"
           fieldDisplay="E-mail Addresses: (separated by spaces)"
           placeholder="Ex: bob@domain.com susan@domain.com"
         />

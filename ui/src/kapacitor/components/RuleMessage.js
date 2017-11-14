@@ -16,9 +16,11 @@ const alertNodesToEndpoints = rule => {
     const count = _.get(endpointsOfKind, an.name, 0) + 1
     endpointsOfKind[an.name] = count
     const ep = {
+      ...an.properties,
+      ...an.args,
+      ...an,
       alias: an.name + count,
       type: an.name,
-      options: {...an.properties, args: an.args || {}},
     }
     endpointsOnThisAlert.push(ep)
   })
@@ -101,15 +103,15 @@ class RuleMessage extends Component {
   handleUpdateAllAlerts = () => {
     const {rule, actions} = this.props
     const {endpointsOnThisAlert} = this.state
+
     actions.updateAlertNodes(rule.id, endpointsOnThisAlert)
-    actions.updateAlerts(rule.id, endpointsOnThisAlert)
   }
 
   handleModifyEndpoint = (selectedEndpoint, fieldName) => e => {
     const {endpointsOnThisAlert} = this.state
     const modifiedEP = {
       ...selectedEndpoint,
-      options: {...selectedEndpoint.options, [fieldName]: e.target.value},
+      [fieldName]: e.target.value,
     }
     const remainingEndpoints = _.reject(endpointsOnThisAlert, [
       'alias',

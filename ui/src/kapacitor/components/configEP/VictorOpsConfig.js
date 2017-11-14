@@ -10,8 +10,8 @@ const VictoropsConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
           fieldName="routingKey"
-          fieldDisplay="Channel:"
-          placeholder="Ex: team_rocket"
+          fieldDisplay="Routing Key:"
+          placeholder="Ex: routing_key"
         />
       </div>
     </div>

@@ -1,4 +1,4 @@
-import HttpConfig from './HttpConfig'
+import PostConfig from './PostConfig'
 import TcpConfig from './TcpConfig'
 import ExecConfig from './ExecConfig'
 import LogConfig from './LogConfig'
@@ -15,7 +15,7 @@ import TelegramConfig from './TelegramConfig'
 import VictoropsConfig from './VictoropsConfig'
 
 export {
-  HttpConfig,
+  PostConfig,
   TcpConfig,
   ExecConfig,
   LogConfig,

@@ -1,6 +1,9 @@
-import {defaultRuleConfigs, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {
+  defaultRuleConfigs,
+  DEFAULT_RULE_ID,
+  ALERT_FIELDS_TO_RULE,
+} from 'src/kapacitor/constants'
 import _ from 'lodash'
-import {parseAlerta} from 'shared/parsing/parseAlerta'
 
 export default function rules(state = {}, action) {
   switch (action.type) {
@@ -86,46 +89,13 @@ export default function rules(state = {}, action) {
 
     case 'UPDATE_RULE_ALERT_NODES': {
       const {ruleID, alerts} = action.payload
-      const alertNodesByType = alerts.map(alert => {
-        const {type, alias} = alert
-        switch (type) {
-          case 'http':
-          case 'tcp':
-          case 'log':
-            return {
-              name: type,
-              args: [alias],
-              properties: [],
-            }
-          case 'exec':
-          case 'smtp':
-            return [
-              {
-                name: type,
-                args: alias.split(' '),
-                properties: [],
-              },
-            ]
-          case 'alerta':
-            return {
-              name: type,
-              args: [],
-              properties: parseAlerta(alias),
-            }
-          case 'hipchat':
-          case 'opsgenie':
-          case 'pagerduty':
-          case 'slack':
-          case 'telegram':
-          case 'victorops':
-          case 'pushover':
-          default:
-            return {
-              name: type,
-              args: [],
-              properties: [],
-            }
-        }
+      const alertNodesByType = {}
+      _.forEach(alerts, ep => {
+        const existing = _.get(alertNodesByType, ep.type, [])
+        alertNodesByType[ep.type] = [
+          ...existing,
+          _.pick(ep, ALERT_FIELDS_TO_RULE[ep.type]),
+        ]
       })
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {

@@ -7,18 +7,24 @@ import * as kapacitorQueryConfigActionCreators from 'src/kapacitor/actions/query
 
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
-import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {
+  DEFAULT_RULE_ID,
+  ALERT_FIELDS_FROM_CONFIG,
+} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
 const getEnabled = config => {
   const {data: {sections}} = config
   const allAlerts = _.map(sections, (v, k) => {
-    return {type: k, options: _.get(v, ['elements', '0', 'options'], {})}
+    const fromConfig = _.get(v, ['elements', '0', 'options'], {})
+    const pickedFromConfig = _.pick(fromConfig, [
+      ALERT_FIELDS_FROM_CONFIG[k],
+      'enabled',
+    ])
+    return {type: k, ...pickedFromConfig}
   })
-  let enabledAlerts = _.filter(allAlerts, v =>
-    _.get(v, ['options', 'enabled'], false)
-  )
-  enabledAlerts = _.reject(enabledAlerts, v => v.type === 'influxdb') // TODO: should I be whitelisting here??
+  let enabledAlerts = _.filter(allAlerts, v => _.get(v, ['enabled'], false))
+  enabledAlerts = _.reject(enabledAlerts, v => v.type === 'influxdb') // TODO: remove this.
   return enabledAlerts
 }
 

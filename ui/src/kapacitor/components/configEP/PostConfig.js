@@ -10,14 +10,7 @@ const HttpConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}
           fieldName="url"
-          fieldDisplay="URL"
-          placeholder="Ex: http://example.com/api/alert"
-        />
-        <EndpointInput
-          selectedEndpoint={selectedEndpoint}
-          handleModifyEndpoint={handleModifyEndpoint}
-          fieldName="url"
-          fieldDisplay="URL"
+          fieldDisplay="POST URL"
           placeholder="Ex: http://example.com/api/alert"
         />
       </div>
