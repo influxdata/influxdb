@@ -25,12 +25,11 @@ $logs-margin: 4px;
   background-color: $g4-onyx;
 }
 .logs-table--panel {
-  position: absolute;
+  position: absolute !important;
   top: $logs-table-header-height;
   left: 0;
   width: 100%;
-  height: calc(100% - #{$logs-table-header-height});
-  overflow: auto;
+  height: calc(100% - #{$logs-table-header-height}) !important;
 }
 
 .logs-table,

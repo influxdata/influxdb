@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 import LogItemSession from 'src/kapacitor/components/LogItemSession'
 import LogItemHTTP from 'src/kapacitor/components/LogItemHTTP'
 import LogItemHTTPError from 'src/kapacitor/components/LogItemHTTPError'
@@ -71,13 +72,16 @@ class LogsTable extends Component {
             />
           </div>
         </div>
-        <div className="logs-table--panel">
+        <FancyScrollbar
+          className="logs-table--panel fancy-scroll--kapacitor"
+          autoHide={false}
+        >
           <div className="logs-table">
             {logs.length
               ? logs.map((log, i) => this.renderTableRow(log, i))
               : <div className="page-spinner" />}
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   }
