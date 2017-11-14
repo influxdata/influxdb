@@ -422,4 +422,5 @@ export const DEFAULT_SOURCE = {
   telegraf: 'telegraf',
   insecureSkipVerify: false,
   metaUrl: '',
+  role: 'viewer',
 }

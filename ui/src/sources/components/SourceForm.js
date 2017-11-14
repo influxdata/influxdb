@@ -2,10 +2,14 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import {connect} from 'react-redux'
 
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
+
 import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
+import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 import _ from 'lodash'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+import {REQUIRED_ROLE_COPY} from 'src/sources/constants'
 
 const SourceForm = ({
   source,
@@ -30,7 +34,7 @@ const SourceForm = ({
               </h3>}
           <h6>Add a Source below:</h6>
         </div>
-      : <h4 className="text-center">Connection Details</h4>}
+      : null}
 
     <form onSubmit={onSubmit}>
       <div className="form-group col-xs-12 col-sm-6">
@@ -96,8 +100,8 @@ const SourceForm = ({
             />
           </div>
         : null}
-      <div className="form-group col-xs-12">
-        <label htmlFor="telegraf">Telegraf database</label>
+      <div className={`form-group col-xs-12 ${isUsingAuth ? 'col-sm-6' : ''}`}>
+        <label htmlFor="telegraf">Telegraf Database</label>
         <input
           type="text"
           name="telegraf"
@@ -107,6 +111,30 @@ const SourceForm = ({
           value={source.telegraf}
         />
       </div>
+      {isUsingAuth
+        ? <div className="form-group col-xs-12 col-sm-6">
+            <label htmlFor="sourceRole">
+              Required Role{' '}
+              <QuestionMarkTooltip
+                tipID="role"
+                tipContent={REQUIRED_ROLE_COPY}
+              />
+            </label>
+            <select
+              className="form-control"
+              id="sourceRole"
+              name="role"
+              onChange={onInputChange}
+              value={source.role}
+            >
+              {USER_ROLES.map(({name}) =>
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              )}
+            </select>
+          </div>
+        : null}
       <div className="form-group col-xs-12">
         <div className="form-control-static">
           <input
@@ -171,7 +199,7 @@ SourceForm.propTypes = {
   onSubmit: func.isRequired,
   onBlurSourceURL: func.isRequired,
   me: shape({
-    role: string.isRequired,
+    role: string,
     currentOrganization: shape({
       id: string.isRequired,
       name: string.isRequired,
