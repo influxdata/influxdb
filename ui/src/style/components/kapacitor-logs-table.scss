@@ -38,6 +38,9 @@ $logs-margin: 4px;
   align-items: stretch;
   flex-direction: column;
 }
+.logs-table {
+  flex-direction: column-reverse;
+}
 .logs-table--row {
   padding: 8px ($logs-table-padding - 16px) 8px ($logs-table-padding / 2);
   border-bottom: 2px solid $g3-castle;
@@ -46,7 +49,7 @@ $logs-margin: 4px;
   &:hover {
     background-color: $g4-onyx;
   }
-  &:last-child {
+  &:first-child {
     border-bottom: none;
   }
 }
