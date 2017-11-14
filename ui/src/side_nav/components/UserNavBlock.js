@@ -36,7 +36,7 @@ class UserNavBlock extends Component {
             : null}
         </div>
         <div className="sidebar-menu">
-          <div className="sidebar-menu--heading">
+          <div className="sidebar-menu--heading sidebar--no-hover">
             {me.name}
           </div>
           <div className="sidebar-menu--section">Account</div>

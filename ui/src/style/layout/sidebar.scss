@@ -151,6 +151,10 @@ $sidebar-menu--gutter: 18px;
     cursor: pointer;
   }
 }
+.sidebar-menu--heading.sidebar--no-hover,
+.sidebar-menu--heading.sidebar--no-hover:hover {
+  cursor: default;
+}
 .sidebar-menu--item,
 .sidebar-menu--item:link,
 .sidebar-menu--item:active,
