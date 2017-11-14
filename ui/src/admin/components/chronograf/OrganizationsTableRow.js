@@ -117,6 +117,7 @@ class OrganizationsTableRow extends Component {
               {workingName}
               <span className="icon pencil" />
             </div>}
+        <div className="orgs-table--public disabled">&mdash;</div>
         <div className={defaultRoleClassName}>
           <Dropdown
             items={dropdownRolesItems}

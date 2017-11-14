@@ -171,15 +171,19 @@ func TestOrganizationsStore_All(t *testing.T) {
 		addFirst bool
 	}{
 		{
-			name: "Get Organization",
+			name: "Get Organizations",
 			args: args{
 				ctx: context.Background(),
 				orgs: []chronograf.Organization{
 					{
-						Name: "EE - Evil Empire",
+						Name:        "EE - Evil Empire",
+						DefaultRole: roles.MemberRoleName,
+						Public:      true,
 					},
 					{
-						Name: "The Good Place",
+						Name:        "The Good Place",
+						DefaultRole: roles.EditorRoleName,
+						Public:      true,
 					},
 				},
 			},
@@ -187,12 +191,17 @@ func TestOrganizationsStore_All(t *testing.T) {
 				{
 					Name:        bolt.DefaultOrganizationName,
 					DefaultRole: bolt.DefaultOrganizationRole,
+					Public:      bolt.DefaultOrganizationPublic,
 				},
 				{
-					Name: "EE - Evil Empire",
+					Name:        "EE - Evil Empire",
+					DefaultRole: roles.MemberRoleName,
+					Public:      true,
 				},
 				{
-					Name: "The Good Place",
+					Name:        "The Good Place",
+					DefaultRole: roles.EditorRoleName,
+					Public:      true,
 				},
 			},
 			addFirst: true,
@@ -238,10 +247,9 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		orgs []chronograf.Organization
 	}
 	type args struct {
-		ctx         context.Context
-		org         *chronograf.Organization
-		name        string
-		defaultRole string
+		ctx     context.Context
+		initial *chronograf.Organization
+		updates *chronograf.Organization
 	}
 	tests := []struct {
 		name     string
@@ -256,10 +264,11 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
-				org: &chronograf.Organization{
+				initial: &chronograf.Organization{
 					ID:   1234,
 					Name: "The Okay Place",
 				},
+				updates: &chronograf.Organization{},
 			},
 			wantErr: true,
 		},
@@ -268,10 +277,12 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
-				org: &chronograf.Organization{
+				initial: &chronograf.Organization{
 					Name: "The Good Place",
 				},
-				name: "The Bad Place",
+				updates: &chronograf.Organization{
+					Name: "The Bad Place",
+				},
 			},
 			want: &chronograf.Organization{
 				Name: "The Bad Place",
@@ -283,10 +294,12 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
-				org: &chronograf.Organization{
+				initial: &chronograf.Organization{
 					Name: "The Good Place",
 				},
-				defaultRole: roles.ViewerRoleName,
+				updates: &chronograf.Organization{
+					DefaultRole: roles.ViewerRoleName,
+				},
 			},
 			want: &chronograf.Organization{
 				Name:        "The Good Place",
@@ -299,16 +312,63 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
-				org: &chronograf.Organization{
+				initial: &chronograf.Organization{
 					Name:        "The Good Place",
 					DefaultRole: roles.AdminRoleName,
 				},
-				name:        "The Bad Place",
-				defaultRole: roles.ViewerRoleName,
+				updates: &chronograf.Organization{
+					Name:        "The Bad Place",
+					DefaultRole: roles.ViewerRoleName,
+				},
 			},
 			want: &chronograf.Organization{
 				Name:        "The Bad Place",
 				DefaultRole: roles.ViewerRoleName,
+			},
+			addFirst: true,
+		},
+		{
+			name:   "Update organization name, role, public",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				initial: &chronograf.Organization{
+					Name:        "The Good Place",
+					DefaultRole: roles.ViewerRoleName,
+					Public:      false,
+				},
+				updates: &chronograf.Organization{
+					Name:        "The Bad Place",
+					Public:      true,
+					DefaultRole: roles.AdminRoleName,
+				},
+			},
+			want: &chronograf.Organization{
+				Name:        "The Bad Place",
+				Public:      true,
+				DefaultRole: roles.AdminRoleName,
+			},
+			addFirst: true,
+		},
+		{
+			name:   "Update organization name and public",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				initial: &chronograf.Organization{
+					Name:        "The Good Place",
+					DefaultRole: roles.EditorRoleName,
+					Public:      false,
+				},
+				updates: &chronograf.Organization{
+					Name:   "The Bad Place",
+					Public: true,
+				},
+			},
+			want: &chronograf.Organization{
+				Name:        "The Bad Place",
+				DefaultRole: roles.EditorRoleName,
+				Public:      true,
 			},
 			addFirst: true,
 		},
@@ -323,10 +383,12 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				org: &chronograf.Organization{
+				initial: &chronograf.Organization{
 					Name: "The Good Place",
 				},
-				name: "The Bad Place",
+				updates: &chronograf.Organization{
+					Name: "The Bad Place",
+				},
 			},
 			wantErr:  true,
 			addFirst: true,
@@ -351,17 +413,21 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		}
 
 		if tt.addFirst {
-			tt.args.org, err = s.Add(tt.args.ctx, tt.args.org)
+			tt.args.initial, err = s.Add(tt.args.ctx, tt.args.initial)
 		}
 
-		if tt.args.name != "" {
-			tt.args.org.Name = tt.args.name
+		if tt.args.updates.Name != "" {
+			tt.args.initial.Name = tt.args.updates.Name
 		}
-		if tt.args.defaultRole != "" {
-			tt.args.org.DefaultRole = tt.args.defaultRole
+		if tt.args.updates.DefaultRole != "" {
+			tt.args.initial.DefaultRole = tt.args.updates.DefaultRole
 		}
 
-		if err := s.Update(tt.args.ctx, tt.args.org); (err != nil) != tt.wantErr {
+		if tt.args.updates.Public != tt.args.initial.Public {
+			tt.args.initial.Public = tt.args.updates.Public
+		}
+
+		if err := s.Update(tt.args.ctx, tt.args.initial); (err != nil) != tt.wantErr {
 			t.Errorf("%q. OrganizationsStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
 
@@ -370,7 +436,7 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			continue
 		}
 
-		got, err := s.Get(tt.args.ctx, chronograf.OrganizationQuery{Name: &tt.args.org.Name})
+		got, err := s.Get(tt.args.ctx, chronograf.OrganizationQuery{Name: &tt.args.initial.Name})
 		if err != nil {
 			t.Fatalf("failed to get organization: %v", err)
 		}
@@ -572,6 +638,7 @@ func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
 				ID:          bolt.DefaultOrganizationID,
 				Name:        bolt.DefaultOrganizationName,
 				DefaultRole: bolt.DefaultOrganizationRole,
+				Public:      bolt.DefaultOrganizationPublic,
 			},
 			wantErr: false,
 		},

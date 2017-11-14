@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/organizations"
-	"github.com/influxdata/chronograf/roles"
 )
 
 type meLinks struct {
@@ -72,14 +71,14 @@ func getValidPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	return p, nil
 }
 
-type meOrganizationRequest struct {
+type meRequest struct {
 	// Organization is the OrganizationID
 	Organization string `json:"organization"`
 }
 
-// MeOrganization changes the user's current organization on the JWT and responds
+// UpdateMe changes the user's current organization on the JWT and responds
 // with the same semantics as Me
-func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWriter, *http.Request) {
+func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		serverCtx := serverContext(ctx)
@@ -89,7 +88,7 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			Error(w, http.StatusForbidden, "invalid principal", s.Logger)
 			return
 		}
-		var req meOrganizationRequest
+		var req meRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			invalidJSON(w, s.Logger)
 			return
@@ -134,7 +133,8 @@ func (s *Service) MeOrganization(auth oauth2.Authenticator) func(http.ResponseWr
 			Scheme:   &scheme,
 		})
 		if err == chronograf.ErrUserNotFound {
-			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+			// Since a user is not a part of this organization, we should tell them that they are Forbidden (403) from accessing this resource
+			Error(w, http.StatusForbidden, err.Error(), s.Logger)
 			return
 		}
 		if err != nil {
@@ -199,7 +199,18 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
 	if usr != nil {
+		// If the default org is private and the user has no roles, they should not have access
+		if !defaultOrg.Public && len(usr.Roles) == 0 {
+			Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
+			return
+		}
 		orgID, err := parseOrganizationID(p.Organization)
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
@@ -210,14 +221,13 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
+		defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
 		// If a user was added via the API, they might not yet be a member of the default organization
 		// Here we check to verify that they are a user in the default organization
-		// TODO(desa): when https://github.com/influxdata/chronograf/pull/2219 is merge, refactor this to use
-		// the default organization logic rather than hard coding valies here.
-		if !hasRoleInDefaultOrganization(usr) {
+		if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
 			usr.Roles = append(usr.Roles, chronograf.Role{
-				Organization: "0",
-				Name:         roles.MemberRoleName,
+				Organization: defaultOrgID,
+				Name:         defaultOrg.DefaultRole,
 			})
 			if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
 				unknownErrorWithMessage(w, err, s.Logger)
@@ -236,9 +246,10 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
-	if err != nil {
-		unknownErrorWithMessage(w, err, s.Logger)
+	// If users must be explicitly added to the default organization, respond with 403
+	// forbidden
+	if !defaultOrg.Public {
+		Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
 	}
 
@@ -252,7 +263,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		Scheme: scheme,
 		Roles: []chronograf.Role{
 			{
-				Name: roles.MemberRoleName,
+				Name: defaultOrg.DefaultRole,
 				// This is the ID of the default organization
 				Organization: fmt.Sprintf("%d", defaultOrg.ID),
 			},
@@ -327,11 +338,9 @@ func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([
 	return orgs, nil
 }
 
-// TODO(desa): when https://github.com/influxdata/chronograf/pull/2219 is merge, refactor this to use
-// the default organization logic rather than hard coding valies here.
-func hasRoleInDefaultOrganization(u *chronograf.User) bool {
+func hasRoleInDefaultOrganization(u *chronograf.User, orgID string) bool {
 	for _, role := range u.Roles {
-		if role.Organization == "0" {
+		if role.Organization == orgID {
 			return true
 		}
 	}

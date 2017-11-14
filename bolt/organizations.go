@@ -23,6 +23,8 @@ const (
 	DefaultOrganizationName string = "Default"
 	// DefaultOrganizationRole is the DefaultRole for the Default organization
 	DefaultOrganizationRole string = "member"
+	// DefaultOrganizationPublic is the Public setting for the Default organization.
+	DefaultOrganizationPublic bool = true
 )
 
 // OrganizationsStore uses bolt to store and retrieve Organizations
@@ -41,6 +43,7 @@ func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 		ID:          DefaultOrganizationID,
 		Name:        DefaultOrganizationName,
 		DefaultRole: DefaultOrganizationRole,
+		Public:      DefaultOrganizationPublic,
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)

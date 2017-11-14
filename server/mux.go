@@ -198,7 +198,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/me", service.Me)
 
 	// Set current chronograf organization the user is logged into
-	router.PUT("/chronograf/v1/me", service.MeOrganization(opts.Auth))
+	router.PUT("/chronograf/v1/me", service.UpdateMe(opts.Auth))
 
 	// TODO(desa): what to do about admin's being able to set superadmin
 	router.GET("/chronograf/v1/users", EnsureAdmin(service.Users))

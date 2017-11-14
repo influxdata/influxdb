@@ -52,8 +52,9 @@ func TestService_OrganizationID(t *testing.T) {
 						switch *q.ID {
 						case 1337:
 							return &chronograf.Organization{
-								ID:   1337,
-								Name: "The Good Place",
+								ID:     1337,
+								Name:   "The Good Place",
+								Public: false,
 							}, nil
 						default:
 							return nil, fmt.Errorf("Organization with ID %s not found", *q.ID)
@@ -64,7 +65,7 @@ func TestService_OrganizationID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","public":false}`,
 		},
 	}
 
@@ -138,12 +139,14 @@ func TestService_Organizations(t *testing.T) {
 					AllF: func(ctx context.Context) ([]chronograf.Organization, error) {
 						return []chronograf.Organization{
 							chronograf.Organization{
-								ID:   1337,
-								Name: "The Good Place",
+								ID:     1337,
+								Name:   "The Good Place",
+								Public: false,
 							},
 							chronograf.Organization{
-								ID:   100,
-								Name: "The Bad Place",
+								ID:     100,
+								Name:   "The Bad Place",
+								Public: false,
 							},
 						}, nil
 					},
@@ -151,7 +154,7 @@ func TestService_Organizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"organizations":[{"id":"1337","name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}},{"id":"100","name":"The Bad Place","links":{"self":"/chronograf/v1/organizations/100"}}],"links":{"self":"/chronograf/v1/organizations"}}`,
+			wantBody:        `{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","public":false},{"links":{"self":"/chronograf/v1/organizations/100"},"id":"100","name":"The Bad Place","public":false}]}`,
 		},
 	}
 
@@ -189,9 +192,11 @@ func TestService_UpdateOrganization(t *testing.T) {
 		Logger             chronograf.Logger
 	}
 	type args struct {
-		w   *httptest.ResponseRecorder
-		r   *http.Request
-		org *organizationRequest
+		w      *httptest.ResponseRecorder
+		r      *http.Request
+		org    *organizationRequest
+		public bool
+		setPtr bool
 	}
 	tests := []struct {
 		name            string
@@ -223,8 +228,10 @@ func TestService_UpdateOrganization(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   1337,
-							Name: "The Good Place",
+							ID:          1337,
+							Name:        "The Good Place",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      false,
 						}, nil
 					},
 				},
@@ -232,7 +239,73 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Bad Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"id":"1337","name":"The Bad Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"},"public":false}`,
+		},
+		{
+			name: "Update Organization public",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+				org:    &organizationRequest{},
+				public: false,
+				setPtr: true,
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          0,
+							Name:        "The Good Place",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
+						}, nil
+					},
+				},
+			},
+			id:              "0",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"0","name":"The Good Place","defaultRole":"viewer","public":false,"links":{"self":"/chronograf/v1/organizations/0"}}`,
+		},
+		{
+			name: "Update Organization - nothing to update",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+				org: &organizationRequest{},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          1337,
+							Name:        "The Good Place",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
+						}, nil
+					},
+				},
+			},
+			id:              "1337",
+			wantStatus:      http.StatusUnprocessableEntity,
+			wantContentType: "application/json",
+			wantBody:        `{"code":422,"message":"No fields to update"}`,
 		},
 		{
 			name: "Update Organization default role",
@@ -258,6 +331,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 							ID:          1337,
 							Name:        "The Good Place",
 							DefaultRole: roles.MemberRoleName,
+							Public:      false,
 						}, nil
 					},
 				},
@@ -265,7 +339,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Good Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","defaultRole":"viewer","public":false}`,
 		},
 		{
 			name: "Update Organization - invalid update",
@@ -341,6 +415,11 @@ func TestService_UpdateOrganization(t *testing.T) {
 						Value: tt.id,
 					},
 				}))
+
+			if tt.args.setPtr {
+				tt.args.org.Public = &tt.args.public
+			}
+
 			buf, _ := json.Marshal(tt.args.org)
 			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 			s.UpdateOrganization(tt.args.w, tt.args.r)
@@ -494,15 +573,16 @@ func TestService_NewOrganization(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					AddF: func(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   1337,
-							Name: "The Good Place",
+							ID:     1337,
+							Name:   "The Good Place",
+							Public: false,
 						}, nil
 					},
 				},
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"id":"1337","public":false,"name":"The Good Place","links":{"self":"/chronograf/v1/organizations/1337"}}`,
 		},
 		{
 			name: "Create Organization - no user on context",

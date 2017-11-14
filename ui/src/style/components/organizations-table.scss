@@ -47,9 +47,7 @@ input[type="text"].form-control.orgs-table--input {
   background-color: $g2-kevlar;
   color: $g13-mist;
   position: relative;
-  transition:
-    color 0.4s ease,
-    background-color 0.4s ease,
+  transition: color 0.4s ease, background-color 0.4s ease,
     border-color 0.4s ease;
 
   > span.icon {
@@ -68,7 +66,9 @@ input[type="text"].form-control.orgs-table--input {
     border-color: $g5-pepper;
     cursor: text;
 
-    > span.icon {opacity: 1;}
+    > span.icon {
+      opacity: 1;
+    }
   }
 }
 .orgs-table--name-disabled {
@@ -76,6 +76,29 @@ input[type="text"].form-control.orgs-table--input {
   background-color: $g4-onyx;
   font-style: italic;
   color: $g9-mountain;
+}
+
+.orgs-table--public {
+  height: 30px;
+  margin-right: 4px;
+  text-align: center;
+  width: 104px;
+  background-color: $g4-onyx;
+  border-radius: 4px;
+  line-height: 30px;
+  position: relative;
+
+  > .slide-toggle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  &.disabled {
+    color: $g9-mountain;
+    @include no-user-select();
+  }
 }
 
 .orgs-table--default-role,
@@ -102,7 +125,6 @@ input[type="text"].form-control.orgs-table--input {
   width: 30px;
 }
 
-
 /* Table Headers */
 .orgs-table--org-labels {
   display: flex;
@@ -113,7 +135,8 @@ input[type="text"].form-control.orgs-table--input {
   @include no-user-select();
 
   > .orgs-table--name,
-  > .orgs-table--name:hover {
+  > .orgs-table--name:hover,
+  > .orgs-table--public {
     transition: none;
     background-color: transparent;
     border-color: transparent;
@@ -122,11 +145,13 @@ input[type="text"].form-control.orgs-table--input {
   > .orgs-table--id,
   > .orgs-table--name,
   > .orgs-table--name:hover,
-  > .orgs-table--default-role {
+  > .orgs-table--default-role,
+  > .orgs-table--public {
     color: $g17-whisper;
     font-weight: 500;
   }
-  > .orgs-table--default-role {
+  > .orgs-table--default-role,
+  > .orgs-table--public {
     line-height: 30px;
     font-size: 13px;
     padding: 0 11px;
