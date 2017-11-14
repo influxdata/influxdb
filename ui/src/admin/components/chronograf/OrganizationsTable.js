@@ -67,15 +67,17 @@ class OrganizationsTable extends Component {
           </button>
         </div>
         <div className="panel-body">
-          <div className="orgs-table--org-labels">
-            <div className="orgs-table--active" />
-            <div className="orgs-table--name">Name</div>
-            <div className="orgs-table--public">
+          <div className="fancytable--labels">
+            <div className="fancytable--th orgs-table--active" />
+            <div className="fancytable--th orgs-table--name">Name</div>
+            <div className="fancytable--th orgs-table--public">
               Public{' '}
               <QuestionMarkTooltip tipID="public" tipContent={PUBLIC_TOOLTIP} />
             </div>
-            <div className="orgs-table--default-role">Default Role</div>
-            <div className="orgs-table--delete" />
+            <div className="fancytable--th orgs-table--default-role">
+              Default Role
+            </div>
+            <div className="fancytable--th orgs-table--delete" />
           </div>
           {isCreatingOrganization
             ? <OrganizationsTableRowNew

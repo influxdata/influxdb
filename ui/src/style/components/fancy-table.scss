@@ -17,30 +17,35 @@ $fancytable--table--margin: 4px;
   }
 }
 .fancytable--row {
-  margin-bottom: 8px;
+  margin-bottom: $fancytable--table--margin;
   position: relative;
 
   &:last-of-type {
     margin-bottom: 0;
   }
 }
-.fancytable--td {
-  height: 30px;
-}
 .fancytable--labels {
   border-bottom: 2px solid $g5-pepper;
   margin-bottom: 10px;
   @include no-user-select();
 }
-.fancytable--th {
-  color: $g17-whisper;
+.fancytable--th,
+.fancytable--td {
   font-weight: 500;
   height: 34px;
   line-height: 34px;
   font-size: 13px;
+}
+.fancytable--th {
+  color: $g17-whisper;
   padding: 0 11px;
 
   &:last-of-type {
     margin-right: 0;
   }
+}
+.fancytable--td {
+  display: flex;
+  align-items: center;
+  color: $g13-mist;
 }

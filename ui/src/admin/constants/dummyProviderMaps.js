@@ -1,4 +1,4 @@
-import {DEFAULT_ORG} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 
 export const DEFAULT_PROVIDER_MAP_ID = '0'
 export const PROVIDER_MAPS = [
@@ -7,7 +7,7 @@ export const PROVIDER_MAPS = [
     scheme: '*',
     provider: '*',
     providerOrganization: '*',
-    redirectOrg: {id: DEFAULT_ORG.id, name: DEFAULT_ORG.name},
+    redirectOrg: {id: DEFAULT_ORG_ID, name: 'Default'},
   },
   {
     id: '1',

@@ -4,25 +4,28 @@
 */
 
 $provider--id-width: 60px;
-$provider--scheme-width: 170px;
-$provider--provider-width: 170px;
-$provider--providerorg-width: 220px;
+$provider--scheme-width: 150px;
+$provider--provider-width: 150px;
+$provider--providerorg-width: 210px;
 $provider--redirect-width: 220px;
 $provider--delete-width: 30px;
 
-.fancytable--td.provider--id,
-.fancytable--th.provider--id {
-  padding: 0 8px;
-}
 
 .provider--id {width: $provider--id-width;}
 .provider--scheme {width: $provider--scheme-width;}
 .provider--provider {width: $provider--provider-width;}
 .provider--providerorg {width: $provider--providerorg-width;}
 .provider--redirect {width: $provider--redirect-width;}
-.provider--delete {width: $provider--delete-width;}
+.provider--delete {
+  width: $provider--delete-width;
+  min-width: $provider--delete-width;
+}
 .provider--arrow {flex: 1 0 0;}
 
+.fancytable--td.provider--id,
+.fancytable--th.provider--id {
+  padding: 0 8px;
+}
 .provider--redirect.deleting {
   width: ($provider--redirect-width - $fancytable--table--margin - $provider--delete-width);
 }
