@@ -243,7 +243,6 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
     padding: 4px 8px;
     align-items: center;
     border-radius: 3px;
-    // background-color: $c-ocean;
     @include gradient-h($c-pineapple,$c-tiger);
     color: $c-sapphire;
   }
@@ -256,4 +255,8 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
   &:hover {
     cursor: default;
   }
+}
+.fancy-scroll--container.sidebar-menu--scrollbar {
+  .fancy-scroll--thumb-h { @include gradient-h($g20-white,$c-neutrino); }
+  .fancy-scroll--thumb-v { @include gradient-v($g20-white,$c-neutrino); }
 }

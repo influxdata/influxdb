@@ -4,6 +4,8 @@ import {bindActionCreators} from 'redux'
 
 import classnames from 'classnames'
 
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
@@ -49,22 +51,29 @@ class UserNavBlock extends Component {
             Logout
           </a>
           <div className="sidebar-menu--section">Switch Organizations</div>
-          {roles.map((r, i) => {
-            const isLinkCurrentOrg = currentOrganization.id === r.organization
-            return (
-              <span
-                key={i}
-                className={classnames({
-                  'sidebar-menu--item': true,
-                  active: isLinkCurrentOrg,
-                })}
-                onClick={this.handleChangeCurrentOrganization(r.organization)}
-              >
-                {organizations.find(o => o.id === r.organization).name}{' '}
-                <strong>({r.name})</strong>
-              </span>
-            )
-          })}
+          <FancyScrollbar
+            className="sidebar-menu--scrollbar"
+            autoHeight={true}
+            maxHeight={300}
+            autoHide={false}
+          >
+            {roles.map((r, i) => {
+              const isLinkCurrentOrg = currentOrganization.id === r.organization
+              return (
+                <span
+                  key={i}
+                  className={classnames({
+                    'sidebar-menu--item': true,
+                    active: isLinkCurrentOrg,
+                  })}
+                  onClick={this.handleChangeCurrentOrganization(r.organization)}
+                >
+                  {organizations.find(o => o.id === r.organization).name}{' '}
+                  <strong>({r.name})</strong>
+                </span>
+              )
+            })}
+          </FancyScrollbar>
           {customLinks
             ? <div className="sidebar-menu--section">Custom Links</div>
             : null}
