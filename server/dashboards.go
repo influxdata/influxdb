@@ -34,10 +34,11 @@ func newDashboardResponse(d chronograf.Dashboard) *dashboardResponse {
 	templates := newTemplateResponses(dd.ID, dd.Templates)
 
 	return &dashboardResponse{
-		ID:        dd.ID,
-		Name:      dd.Name,
-		Cells:     cells,
-		Templates: templates,
+		ID:           dd.ID,
+		Name:         dd.Name,
+		Cells:        cells,
+		Templates:    templates,
+		Organization: d.Organization,
 		Links: dashboardLinks{
 			Self:      fmt.Sprintf("%s/%d", base, dd.ID),
 			Cells:     fmt.Sprintf("%s/%d/cells", base, dd.ID),

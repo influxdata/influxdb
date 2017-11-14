@@ -83,10 +83,19 @@ func (c *Client) Open(ctx context.Context) error {
 	}
 
 	// Runtime migrations
-	if err := c.DashboardsStore.Migrate(ctx); err != nil {
+	if err := c.OrganizationsStore.Migrate(ctx); err != nil {
 		return err
 	}
-	if err := c.OrganizationsStore.Migrate(ctx); err != nil {
+	if err := c.SourcesStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.ServersStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.LayoutsStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.DashboardsStore.Migrate(ctx); err != nil {
 		return err
 	}
 

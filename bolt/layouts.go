@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
@@ -18,6 +19,31 @@ var LayoutsBucket = []byte("Layout")
 type LayoutsStore struct {
 	client *Client
 	IDs    chronograf.ID
+}
+
+func (s *LayoutsStore) Migrate(ctx context.Context) error {
+	layouts, err := s.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	defaultOrg, err := s.client.OrganizationsStore.DefaultOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+
+	for _, layout := range layouts {
+		if layout.Organization == "" {
+			layout.Organization = defaultOrgID
+			if err := s.Update(ctx, layout); err != nil {
+				return nil
+			}
+		}
+	}
+
+	return nil
 }
 
 // All returns all known layouts

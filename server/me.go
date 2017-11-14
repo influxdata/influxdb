@@ -268,7 +268,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 				Organization: fmt.Sprintf("%d", defaultOrg.ID),
 			},
 		},
-		SuperAdmin: s.firstUser(),
+		// TODO(desa): this needs a better name
+		SuperAdmin: s.newUsersAreSuperAdmin(),
 	}
 
 	newUser, err := s.Store.Users(serverCtx).Add(serverCtx, user)
@@ -299,7 +300,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-// TODO(desa): very slow
 func (s *Service) firstUser() bool {
 	serverCtx := serverContext(context.Background())
 	users, err := s.Store.Users(serverCtx).All(serverCtx)
@@ -308,6 +308,9 @@ func (s *Service) firstUser() bool {
 	}
 
 	return len(users) == 0
+}
+func (s *Service) newUsersAreSuperAdmin() bool {
+	return !s.NewUsersNotSuperAdmin
 }
 
 func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {

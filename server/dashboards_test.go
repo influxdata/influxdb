@@ -213,6 +213,7 @@ func Test_newDashboardResponse(t *testing.T) {
 		{
 			name: "creates a dashboard response",
 			d: chronograf.Dashboard{
+				Organization: "0",
 				Cells: []chronograf.DashboardCell{
 					{
 						ID: "a",
@@ -248,7 +249,8 @@ func Test_newDashboardResponse(t *testing.T) {
 				},
 			},
 			want: &dashboardResponse{
-				Templates: []templateResponse{},
+				Organization: "0",
+				Templates:    []templateResponse{},
 				Cells: []dashboardCellResponse{
 					dashboardCellResponse{
 						Links: dashboardCellLinks{
