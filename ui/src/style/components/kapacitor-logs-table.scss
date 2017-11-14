@@ -38,12 +38,24 @@ $logs-margin: 4px;
   align-items: stretch;
   flex-direction: column;
 }
+@keyframes LogsFadeIn {
+  from {
+    background-color: $g6-smoke;
+  }
+  to {
+    background-color: transparent;
+  }
+}
 .logs-table {
   flex-direction: column-reverse;
 }
 .logs-table--row {
   padding: 8px ($logs-table-padding - 16px) 8px ($logs-table-padding / 2);
   border-bottom: 2px solid $g3-castle;
+  animation-name: LogsFadeIn;
+  animation-duration: 2.5s;
+  animation-iteration-count: 1;
+  animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
   transition: background-color 0.25s ease;
 
   &:hover {
