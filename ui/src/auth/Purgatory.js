@@ -5,6 +5,7 @@ import {withRouter} from 'react-router'
 
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
+import SplashPage from 'shared/components/SplashPage'
 import PurgatoryAuthItem from 'src/auth/PurgatoryAuthItem'
 
 const getRoleNameByOrgID = (id, roles) => {
@@ -44,42 +45,33 @@ class Purgatory extends Component {
         : `Authenticated in ${rolesAndOrgs.length} Organizations`
 
     return (
-      <div>
-        <div className="auth-page">
-          <div className="auth-box">
-            <div className="auth-logo" />
-            <div className="auth--purgatory">
-              <h3>
-                {name}
-              </h3>
-              <h6>
-                {subHeading}{' '}
-                <code>
-                  {scheme}/{provider}
-                </code>
-              </h6>
-              {rolesAndOrgs.length
-                ? <div className="auth--list">
-                    {rolesAndOrgs.map((rag, i) =>
-                      <PurgatoryAuthItem
-                        key={i}
-                        roleAndOrg={rag}
-                        onClickLogin={this.handleClickLogin}
-                      />
-                    )}
-                  </div>
-                : <p>You are a Lost Soul</p>}
-              <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
-                Logout
-              </a>
-            </div>
-          </div>
-          <p className="auth-credits">
-            Made by <span className="icon cubo-uniform" />InfluxData
-          </p>
-          <div className="auth-image" />
+      <SplashPage>
+        <div className="auth--purgatory">
+          <h3>
+            {name}
+          </h3>
+          <h6>
+            {subHeading}{' '}
+            <code>
+              {scheme}/{provider}
+            </code>
+          </h6>
+          {rolesAndOrgs.length
+            ? <div className="auth--list">
+                {rolesAndOrgs.map((rag, i) =>
+                  <PurgatoryAuthItem
+                    key={i}
+                    roleAndOrg={rag}
+                    onClickLogin={this.handleClickLogin}
+                  />
+                )}
+              </div>
+            : <p>You are a Lost Soul</p>}
+          <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
+            Logout
+          </a>
         </div>
-      </div>
+      </SplashPage>
     )
   }
 }
