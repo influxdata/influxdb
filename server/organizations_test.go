@@ -141,7 +141,7 @@ func TestService_Organizations(t *testing.T) {
 							chronograf.Organization{
 								ID:     1337,
 								Name:   "The Good Place",
-								Public: true,
+								Public: false,
 							},
 							chronograf.Organization{
 								ID:     100,
@@ -154,7 +154,7 @@ func TestService_Organizations(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","public":true},{"links":{"self":"/chronograf/v1/organizations/100"},"id":"100","name":"The Bad Place","public":false}]}`,
+			wantBody:        `{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The Good Place","public":false},{"links":{"self":"/chronograf/v1/organizations/100"},"id":"100","name":"The Bad Place","public":false}]}`,
 		},
 	}
 
@@ -231,7 +231,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 							ID:          1337,
 							Name:        "The Good Place",
 							DefaultRole: roles.ViewerRoleName,
-							Public:      true,
+							Public:      false,
 						}, nil
 					},
 				},
@@ -239,7 +239,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Bad Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"},"public":true}`,
+			wantBody:        `{"id":"1337","name":"The Bad Place","defaultRole":"viewer","links":{"self":"/chronograf/v1/organizations/1337"},"public":false}`,
 		},
 		{
 			name: "Update Organization public",
@@ -262,7 +262,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          1337,
+							ID:          0,
 							Name:        "The Good Place",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -270,10 +270,10 @@ func TestService_UpdateOrganization(t *testing.T) {
 					},
 				},
 			},
-			id:              "1337",
+			id:              "0",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"The Good Place","defaultRole":"viewer","public":false,"links":{"self":"/chronograf/v1/organizations/1337"}}`,
+			wantBody:        `{"id":"0","name":"The Good Place","defaultRole":"viewer","public":false,"links":{"self":"/chronograf/v1/organizations/0"}}`,
 		},
 		{
 			name: "Update Organization - nothing to update",

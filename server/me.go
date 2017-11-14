@@ -134,6 +134,7 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 			Scheme:   &scheme,
 		})
 		if err == chronograf.ErrUserNotFound {
+			// Since a user is not a part of this organization, we should tell them that they are Forbidden (403) from accessing this resource
 			Error(w, http.StatusForbidden, err.Error(), s.Logger)
 			return
 		}
@@ -245,7 +246,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	// If users must be explicitly added to the default organization, respond with 403
 	// forbidden
 	if !defaultOrg.Public {
-		Error(w, http.StatusForbidden, "users must be explicitly added", s.Logger)
+		Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
 	}
 

@@ -23,7 +23,7 @@ const (
 	DefaultOrganizationName string = "Default"
 	// DefaultOrganizationRole is the DefaultRole for the Default organization
 	DefaultOrganizationRole string = "member"
-	// DefaultOrganizationPublic bool is the Public setting for the Default organization.
+	// DefaultOrganizationPublic is the Public setting for the Default organization.
 	DefaultOrganizationPublic bool = true
 )
 

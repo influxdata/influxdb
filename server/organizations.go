@@ -62,6 +62,9 @@ type organizationResponse struct {
 }
 
 func newOrganizationResponse(o *chronograf.Organization) *organizationResponse {
+	if o == nil {
+		o = &chronograf.Organization{}
+	}
 	return &organizationResponse{
 		Organization: *o,
 		Links: selfLinks{

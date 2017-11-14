@@ -104,7 +104,7 @@ func TestService_Me(t *testing.T) {
 `,
 		},
 		{
-			name: "New user",
+			name: "new user - default org is public",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -116,15 +116,17 @@ func TestService_Me(t *testing.T) {
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
 							ID:          0,
-							DefaultRole: roles.MemberRoleName,
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:     0,
-							Name:   "The Bad Place",
-							Public: false,
+							ID:          0,
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
 						}, nil
 					},
 				},
@@ -153,7 +155,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Bad Place","public":false}],"currentOrganization":{"id":"0","name":"The Bad Place","public":false}}
+			wantBody: `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
 `,
 		},
 		{
@@ -236,7 +238,7 @@ func TestService_Me(t *testing.T) {
 			},
 		},
 		{
-			name: "New user - Public",
+			name: "new user - default org is private",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -248,15 +250,9 @@ func TestService_Me(t *testing.T) {
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
 							ID:          0,
+							Name:        "The Bad Place",
 							DefaultRole: roles.MemberRoleName,
 							Public:      false,
-						}, nil
-					},
-					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
-						return &chronograf.Organization{
-							ID:     0,
-							Name:   "The Bad Place",
-							Public: false,
 						}, nil
 					},
 				},
@@ -285,7 +281,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusForbidden,
 			wantContentType: "application/json",
-			wantBody:        `{"code":403,"message":"users must be explicitly added"}`,
+			wantBody:        `{"code":403,"message":"This organization is private. To gain access, you must be explicitly added by an administrator."}`,
 		},
 	}
 	for _, tt := range tests {
@@ -328,10 +324,10 @@ func TestService_UpdateMe(t *testing.T) {
 		UseAuth            bool
 	}
 	type args struct {
-		w          *httptest.ResponseRecorder
-		r          *http.Request
-		orgRequest *meRequest
-		auth       mocks.Authenticator
+		w         *httptest.ResponseRecorder
+		r         *http.Request
+		meRequest *meRequest
+		auth      mocks.Authenticator
 	}
 	tests := []struct {
 		name            string
@@ -347,7 +343,7 @@ func TestService_UpdateMe(t *testing.T) {
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meRequest{
+				meRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -419,7 +415,7 @@ func TestService_UpdateMe(t *testing.T) {
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meRequest{
+				meRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -492,7 +488,7 @@ func TestService_UpdateMe(t *testing.T) {
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meRequest{
+				meRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -553,7 +549,7 @@ func TestService_UpdateMe(t *testing.T) {
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
-				orgRequest: &meRequest{
+				meRequest: &meRequest{
 					Organization: "1337",
 				},
 				auth: mocks.Authenticator{},
@@ -614,7 +610,7 @@ func TestService_UpdateMe(t *testing.T) {
 			UseAuth: tt.fields.UseAuth,
 		}
 
-		buf, _ := json.Marshal(tt.args.orgRequest)
+		buf, _ := json.Marshal(tt.args.meRequest)
 		tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 		tt.args.auth.Principal = tt.principal
 
