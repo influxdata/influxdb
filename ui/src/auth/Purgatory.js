@@ -1,4 +1,4 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter} from 'react-router'
@@ -13,67 +13,70 @@ const getRoleNameByOrgID = (id, roles) => {
   return (role && role.name) || 'ghost'
 }
 
-class Purgatory extends Component {
-  handleClickLogin = organization => async e => {
-    e.preventDefault()
-    const {router, links, meChangeOrganization} = this.props
+const handleClickLogin = props => organization => async e => {
+  e.preventDefault()
+  const {router, links, meChangeOrganization} = props
 
-    await meChangeOrganization(links.me, {organization: organization.id})
-    router.push('')
-  }
+  await meChangeOrganization(links.me, {organization: organization.id})
+  router.push('')
+}
 
-  render() {
-    const {
-      name,
-      provider,
-      scheme,
-      currentOrganization,
-      roles,
-      organizations,
-      logoutLink,
-    } = this.props
+const Purgatory = ({
+  name,
+  provider,
+  scheme,
+  currentOrganization,
+  meChangeOrganization,
+  roles,
+  organizations,
+  logoutLink,
+  router,
+  links,
+}) => {
+  const rolesAndOrgs = organizations.map(organization => ({
+    organization,
+    role: getRoleNameByOrgID(organization.id, roles),
+    currentOrganization: organization.id === currentOrganization.id,
+  }))
 
-    const rolesAndOrgs = organizations.map(organization => ({
-      organization,
-      role: getRoleNameByOrgID(organization.id, roles),
-      currentOrganization: organization.id === currentOrganization.id,
-    }))
+  const subHeading =
+    rolesAndOrgs.length === 1
+      ? 'Authenticated in 1 Organization'
+      : `Authenticated in ${rolesAndOrgs.length} Organizations`
 
-    const subHeading =
-      rolesAndOrgs.length === 1
-        ? 'Authenticated in 1 Organization'
-        : `Authenticated in ${rolesAndOrgs.length} Organizations`
-
-    return (
-      <SplashPage>
-        <div className="auth--purgatory">
-          <h3>
-            {name}
-          </h3>
-          <h6>
-            {subHeading}{' '}
-            <code>
-              {scheme}/{provider}
-            </code>
-          </h6>
-          {rolesAndOrgs.length
-            ? <div className="auth--list">
-                {rolesAndOrgs.map((rag, i) =>
-                  <PurgatoryAuthItem
-                    key={i}
-                    roleAndOrg={rag}
-                    onClickLogin={this.handleClickLogin}
-                  />
-                )}
-              </div>
-            : <p>You are a Lost Soul</p>}
-          <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
-            Logout
-          </a>
-        </div>
-      </SplashPage>
-    )
-  }
+  return (
+    <SplashPage>
+      <div className="auth--purgatory">
+        <h3>
+          {name}
+        </h3>
+        <h6>
+          {subHeading}{' '}
+          <code>
+            {scheme}/{provider}
+          </code>
+        </h6>
+        {rolesAndOrgs.length
+          ? <div className="auth--list">
+              {rolesAndOrgs.map((rag, i) =>
+                <PurgatoryAuthItem
+                  key={i}
+                  roleAndOrg={rag}
+                  onClickLogin={handleClickLogin({
+                    router,
+                    links,
+                    meChangeOrganization,
+                  })}
+                />
+              )}
+            </div>
+          : <p>You are a Lost Soul</p>}
+        <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
+          Logout
+        </a>
+      </div>
+    </SplashPage>
+  )
 }
 
 const {arrayOf, func, shape, string} = PropTypes
