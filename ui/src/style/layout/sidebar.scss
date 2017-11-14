@@ -140,6 +140,11 @@ $sidebar-menu--gutter: 18px;
   transition: opacity 0.25s ease;
   display: none;
   flex-direction: column;
+
+  &.sidebar-menu--inverse {
+    top: initial;
+    bottom: 0;
+  }
 }
 .sidebar-menu--heading,
 .sidebar-menu--item {
@@ -150,6 +155,10 @@ $sidebar-menu--gutter: 18px;
   &:hover {
     cursor: pointer;
   }
+}
+.sidebar-menu--heading.sidebar--no-hover,
+.sidebar-menu--heading.sidebar--no-hover:hover {
+  cursor: default;
 }
 .sidebar-menu--item,
 .sidebar-menu--item:link,
@@ -225,4 +234,43 @@ $sidebar-menu--gutter: 18px;
     height: 2px;
     @include gradient-h($c-laser,$c-potassium);
   }
+
+  &:first-child:after {
+    display: none;
+    border-top-right-radius: $radius;
+  }
+}
+
+// SuperAdminIndicator
+span.icon.sidebar--icon.sidebar--icon__superadmin {
+  font-size: 10px;
+  top: 23%;
+}
+.sidebar-menu--superadmin {
+  padding: 4px $sidebar-menu--gutter;
+  font-size: 15px;
+  font-weight: 500;
+  @include no-user-select();
+
+  > div {
+    display: flex;
+    padding: 4px 8px;
+    align-items: center;
+    border-radius: 3px;
+    @include gradient-h($c-pineapple,$c-tiger);
+    color: $c-sapphire;
+  }
+  span.icon {
+    display: inline-block;
+    margin-right: 6px;
+    position: relative;
+    top: -2px;
+  }
+  &:hover {
+    cursor: default;
+  }
+}
+.fancy-scroll--container.sidebar-menu--scrollbar {
+  .fancy-scroll--thumb-h {display: none !important;}
+  .fancy-scroll--thumb-v { @include gradient-v($g20-white,$c-neutrino); }
 }
