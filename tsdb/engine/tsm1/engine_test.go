@@ -148,6 +148,165 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	}
 }
 
+// Ensure that the engine can write & read shard digest files.
+func TestEngine_Digest(t *testing.T) {
+	// Create a tmp directory for test files.
+	tmpDir, err := ioutil.TempDir("", "TestEngine_Digest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	walPath := filepath.Join(tmpDir, "wal")
+	os.MkdirAll(walPath, 0777)
+
+	idxPath := filepath.Join(tmpDir, "index")
+
+	// Create an engine to write a tsm file.
+	dbName := "db0"
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex(dbName)
+	idx := tsdb.MustOpenIndex(1, dbName, idxPath, opt)
+	defer idx.Close()
+
+	e := tsm1.NewEngine(1, idx, dbName, tmpDir, walPath, opt).(*tsm1.Engine)
+
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+
+	// Create a few points.
+	points := []models.Point{
+		MustParsePointString("cpu,host=A value=1.1 1000000000"),
+		MustParsePointString("cpu,host=B value=1.2 2000000000"),
+	}
+
+	if err := e.WritePoints(points); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// Force a compaction.
+	e.ScheduleFullCompaction()
+
+	digest := func() ([]span, error) {
+		// Get a reader for the shard's digest.
+		r, err := e.Digest()
+		if err != nil {
+			return nil, err
+		}
+
+		// Make sure the digest can be read.
+		dr, err := tsm1.NewDigestReader(r)
+		if err != nil {
+			return nil, err
+		}
+
+		got := []span{}
+
+		for {
+			k, s, err := dr.ReadTimeSpan()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+
+			got = append(got, span{
+				key:   k,
+				tspan: s,
+			})
+		}
+
+		if err := dr.Close(); err != nil {
+			return nil, err
+		}
+
+		return got, nil
+	}
+
+	exp := []span{
+		span{
+			key: "cpu,host=A#!~#value",
+			tspan: &tsm1.DigestTimeSpan{
+				Ranges: []tsm1.DigestTimeRange{
+					tsm1.DigestTimeRange{
+						Min: 1000000000,
+						Max: 1000000000,
+						N:   1,
+						CRC: 1048747083,
+					},
+				},
+			},
+		},
+		span{
+			key: "cpu,host=B#!~#value",
+			tspan: &tsm1.DigestTimeSpan{
+				Ranges: []tsm1.DigestTimeRange{
+					tsm1.DigestTimeRange{
+						Min: 2000000000,
+						Max: 2000000000,
+						N:   1,
+						CRC: 734984746,
+					},
+				},
+			},
+		},
+	}
+
+	for n := 0; n < 2; n++ {
+		got, err := digest()
+		if err != nil {
+			t.Fatalf("n = %d: %s", n, err)
+		}
+
+		// Make sure the data in the digest was valid.
+		if !reflect.DeepEqual(exp, got) {
+			t.Fatalf("n = %d\nexp = %v\ngot = %v\n", n, exp, got)
+		}
+	}
+
+	// Test that writing more points causes the digest to be updated.
+	points = []models.Point{
+		MustParsePointString("cpu,host=C value=1.1 3000000000"),
+	}
+
+	if err := e.WritePoints(points); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// Force a compaction.
+	e.ScheduleFullCompaction()
+
+	// Get new digest.
+	got, err := digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exp = append(exp, span{
+		key: "cpu,host=C#!~#value",
+		tspan: &tsm1.DigestTimeSpan{
+			Ranges: []tsm1.DigestTimeRange{
+				tsm1.DigestTimeRange{
+					Min: 3000000000,
+					Max: 3000000000,
+					N:   1,
+					CRC: 2553233514,
+				},
+			},
+		},
+	})
+
+	if !reflect.DeepEqual(exp, got) {
+		t.Fatalf("\nexp = %v\ngot = %v\n", exp, got)
+	}
+}
+
+type span struct {
+	key   string
+	tspan *tsm1.DigestTimeSpan
+}
+
 // Ensure that the engine will backup any TSM files created since the passed in time
 func TestEngine_Backup(t *testing.T) {
 	// Generate temporary file.

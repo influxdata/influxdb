@@ -71,6 +71,10 @@ var (
 	// the file's magic number.
 	ErrUnknownFieldsFormat = errors.New("unknown field index format")
 
+	// ErrShardNotIdle is returned when an operation requring the shard to be idle/cold is
+	// attempted on a hot shard.
+	ErrShardNotIdle = errors.New("shard not idle")
+
 	// fieldsIndexMagicNumber is the file magic number for the fields index file.
 	fieldsIndexMagicNumber = []byte{0, 6, 1, 3}
 )
@@ -1170,6 +1174,22 @@ func (s *Shard) TagKeyCardinality(name, key []byte) int {
 		return 0
 	}
 	return engine.TagKeyCardinality(name, key)
+}
+
+// Digest returns a digest of the shard.
+func (s *Shard) Digest() (io.ReadCloser, error) {
+	engine, err := s.engine()
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure the shard is idle/cold. (No use creating a digest of a
+	// hot shard that is rapidly changing.)
+	if !engine.IsIdle() {
+		return nil, ErrShardNotIdle
+	}
+
+	return engine.Digest()
 }
 
 // engine safely (under an RLock) returns a reference to the shard's Engine, or
