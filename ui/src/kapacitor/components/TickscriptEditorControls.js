@@ -18,7 +18,7 @@ const TickscriptEditorControls = ({
     {isNewTickscript
       ? <TickscriptID onChangeID={onChangeID} id={task.id} />
       : <TickscriptStaticID id={task.name} />}
-    <div>
+    <div className="tickscript-controls--right">
       <TickscriptType type={task.type} onChangeType={onChangeType} />
       <MultiSelectDBDropdown
         selectedItems={addName(task.dbrps)}
