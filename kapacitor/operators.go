@@ -1,6 +1,8 @@
 package kapacitor
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const (
 	greaterThan      = "greater than"

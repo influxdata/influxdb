@@ -3,13 +3,16 @@ import {
   formatDate,
   dashboardtoCSV,
 } from 'shared/parsing/resultsToCSV'
+import moment from 'moment'
 
 describe('formatDate', () => {
   it('converts timestamp to an excel compatible date string', () => {
     const timestamp = 1000000000000
     const result = formatDate(timestamp)
     expect(result).to.be.a('string')
-    expect(+new Date(result)).to.equal(timestamp)
+    expect(moment(result, 'M/D/YYYY h:mm:ss.SSSSSSSSS A').valueOf()).to.equal(
+      timestamp
+    )
   })
 })
 

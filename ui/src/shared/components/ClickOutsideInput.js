@@ -14,6 +14,7 @@ class ClickOutsideInput extends Component {
   render() {
     const {
       id,
+      min,
       type,
       onFocus,
       onChange,
@@ -27,6 +28,7 @@ class ClickOutsideInput extends Component {
       <input
         className="form-control input-sm"
         id={id}
+        min={min}
         type={type}
         name={customPlaceholder}
         ref={onGetRef}
@@ -43,6 +45,7 @@ class ClickOutsideInput extends Component {
 const {func, string} = PropTypes
 
 ClickOutsideInput.propTypes = {
+  min: string,
   id: string.isRequired,
   type: string.isRequired,
   customPlaceholder: string.isRequired,

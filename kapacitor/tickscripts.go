@@ -15,11 +15,11 @@ type Alert struct{}
 func (a *Alert) Generate(rule chronograf.AlertRule) (chronograf.TICKScript, error) {
 	vars, err := Vars(rule)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	data, err := Data(rule)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	trigger, err := Trigger(rule)
 	if err != nil {

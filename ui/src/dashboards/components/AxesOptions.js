@@ -6,6 +6,7 @@ import {Tabber, Tab} from 'src/dashboards/components/Tabber'
 import {DISPLAY_OPTIONS, TOOLTIP_CONTENT} from 'src/dashboards/constants'
 
 const {LINEAR, LOG, BASE_2, BASE_10} = DISPLAY_OPTIONS
+const getInputMin = scale => (scale === LOG ? '0' : null)
 
 const AxesOptions = ({
   axes: {y: {bounds, label, prefix, suffix, base, scale, defaultYLabel}},
@@ -38,6 +39,7 @@ const AxesOptions = ({
             customValue={min}
             onSetValue={onSetYAxisBoundMin}
             type="number"
+            min={getInputMin(scale)}
           />
         </div>
         <div className="form-group col-sm-6">
@@ -47,6 +49,7 @@ const AxesOptions = ({
             customValue={max}
             onSetValue={onSetYAxisBoundMax}
             type="number"
+            min={getInputMin(scale)}
           />
         </div>
         <Input

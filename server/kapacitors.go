@@ -12,12 +12,13 @@ import (
 )
 
 type postKapacitorRequest struct {
-	Name         *string `json:"name"`               // User facing name of kapacitor instance.; Required: true
-	URL          *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
-	Username     string  `json:"username,omitempty"` // Username for authentication to kapacitor
-	Password     string  `json:"password,omitempty"`
-	Active       bool    `json:"active"`
-	Organization string  `json:"organization"` // Organization is the organization ID that resource belongs to
+	Name               *string `json:"name"`               // User facing name of kapacitor instance.; Required: true
+	URL                *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
+	Username           string  `json:"username,omitempty"` // Username for authentication to kapacitor
+	Password           string  `json:"password,omitempty"`
+	InsecureSkipVerify bool    `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
+	Active             bool    `json:"active"`
+	Organization       string  `json:"organization"` // Organization is the organization ID that resource belongs to
 }
 
 func (p *postKapacitorRequest) Valid(defaultOrgID string) error {
@@ -49,13 +50,14 @@ type kapaLinks struct {
 }
 
 type kapacitor struct {
-	ID       int       `json:"id,string"`          // Unique identifier representing a kapacitor instance.
-	Name     string    `json:"name"`               // User facing name of kapacitor instance.
-	URL      string    `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092)
-	Username string    `json:"username,omitempty"` // Username for authentication to kapacitor
-	Password string    `json:"password,omitempty"`
-	Active   bool      `json:"active"`
-	Links    kapaLinks `json:"links"` // Links are URI locations related to kapacitor
+	ID                 int       `json:"id,string"`          // Unique identifier representing a kapacitor instance.
+	Name               string    `json:"name"`               // User facing name of kapacitor instance.
+	URL                string    `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092)
+	Username           string    `json:"username,omitempty"` // Username for authentication to kapacitor
+	Password           string    `json:"password,omitempty"`
+	InsecureSkipVerify bool      `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
+	Active             bool      `json:"active"`
+	Links              kapaLinks `json:"links"` // Links are URI locations related to kapacitor
 }
 
 // NewKapacitor adds valid kapacitor store store.
@@ -91,13 +93,14 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	srv := chronograf.Server{
-		SrcID:        srcID,
-		Name:         *req.Name,
-		Username:     req.Username,
-		Password:     req.Password,
-		URL:          *req.URL,
-		Active:       req.Active,
-		Organization: req.Organization,
+		SrcID:              srcID,
+		Name:               *req.Name,
+		Username:           req.Username,
+		Password:           req.Password,
+		InsecureSkipVerify: req.InsecureSkipVerify,
+		URL:                *req.URL,
+		Active:             req.Active,
+		Organization:       req.Organization,
 	}
 
 	if srv, err = s.Store.Servers(ctx).Add(ctx, srv); err != nil {
@@ -114,11 +117,12 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 func newKapacitor(srv chronograf.Server) kapacitor {
 	httpAPISrcs := "/chronograf/v1/sources"
 	return kapacitor{
-		ID:       srv.ID,
-		Name:     srv.Name,
-		Username: srv.Username,
-		URL:      srv.URL,
-		Active:   srv.Active,
+		ID:                 srv.ID,
+		Name:               srv.Name,
+		Username:           srv.Username,
+		URL:                srv.URL,
+		Active:             srv.Active,
+		InsecureSkipVerify: srv.InsecureSkipVerify,
 		Links: kapaLinks{
 			Self:  fmt.Sprintf("%s/%d/kapacitors/%d", httpAPISrcs, srv.SrcID, srv.ID),
 			Proxy: fmt.Sprintf("%s/%d/kapacitors/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
@@ -217,11 +221,12 @@ func (s *Service) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchKapacitorRequest struct {
-	Name     *string `json:"name,omitempty"`     // User facing name of kapacitor instance.
-	URL      *string `json:"url,omitempty"`      // URL for the kapacitor
-	Username *string `json:"username,omitempty"` // Username for kapacitor auth
-	Password *string `json:"password,omitempty"`
-	Active   *bool   `json:"active"`
+	Name               *string `json:"name,omitempty"`     // User facing name of kapacitor instance.
+	URL                *string `json:"url,omitempty"`      // URL for the kapacitor
+	Username           *string `json:"username,omitempty"` // Username for kapacitor auth
+	Password           *string `json:"password,omitempty"`
+	InsecureSkipVerify *bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
+	Active             *bool   `json:"active"`
 }
 
 func (p *patchKapacitorRequest) Valid() error {
@@ -281,6 +286,9 @@ func (s *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	if req.Username != nil {
 		srv.Username = *req.Username
 	}
+	if req.InsecureSkipVerify != nil {
+		srv.InsecureSkipVerify = *req.InsecureSkipVerify
+	}
 	if req.Active != nil {
 		srv.Active = *req.Active
 	}
@@ -316,7 +324,7 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -446,7 +454,7 @@ func (s *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
-	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		invalidJSON(w, s.Logger)
@@ -516,7 +524,7 @@ func (s *Service) KapacitorRulesStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
-	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 
 	var req KapacitorStatus
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -576,7 +584,7 @@ func (s *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 	tasks, err := c.All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
@@ -619,7 +627,7 @@ func (s *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	}
 	tid := httprouter.GetParamFromContext(ctx, "tid")
 
-	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 
 	// Check if the rule exists within scope
 	task, err := c.Get(ctx, tid)
@@ -657,7 +665,7 @@ func (s *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
 	// Check if the rule is linked to this server and kapacitor
