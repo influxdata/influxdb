@@ -67,9 +67,10 @@ func (fs *FileSet) Release() {
 // Filters do not need to be rebuilt because log files have no bloom filter.
 func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 	return &FileSet{
-		levels:  fs.levels,
-		files:   append([]File{f}, fs.files...),
-		filters: fs.filters,
+		database: fs.database,
+		levels:   fs.levels,
+		files:    append([]File{f}, fs.files...),
+		filters:  fs.filters,
 	}
 }
 
@@ -113,9 +114,10 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Build new fileset and rebuild changed filters.
 	newFS := &FileSet{
-		levels:  fs.levels,
-		files:   other,
-		filters: filters,
+		levels:   fs.levels,
+		files:    other,
+		filters:  filters,
+		database: fs.database,
 	}
 	if err := newFS.buildFilters(); err != nil {
 		panic("cannot build file set: " + err.Error())
