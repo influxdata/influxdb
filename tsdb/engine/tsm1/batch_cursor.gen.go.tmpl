@@ -99,11 +99,6 @@ func (c *{{.name}}AscendingBatchCursor) Next() ([]int64, []{{.Type}}) {
 		if c.cache.pos < len(c.cache.values) {
 			ckey, cvalue = c.peekCache()
 
-			// No more data in cache or in TSM files.
-			if ckey == tsdb.EOF && tkey == tsdb.EOF {
-				break
-			}
-
 			var cache, tsm bool
 
 			// Both cache and tsm files have the same key, cache takes precedence.
@@ -111,7 +106,7 @@ func (c *{{.name}}AscendingBatchCursor) Next() ([]int64, []{{.Type}}) {
 				cache, tsm = true, true
 				tkey = ckey
 				tvalue = cvalue
-			} else if ckey != tsdb.EOF && (ckey < tkey || tkey == tsdb.EOF) {
+			} else if ckey < tkey || tkey == tsdb.EOF {
 				// Buffered cache key precedes that in TSM file.
 				cache = true
 				tkey = ckey
@@ -196,11 +191,13 @@ func new{{.Name}}DescendingBatchCursor(key string, seek int64, cacheValues Value
 	c := &{{.name}}DescendingBatchCursor{key: key}
 
 	c.cache.values = cacheValues
-	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].UnixNano() >= seek
-	})
 	if len(c.cache.values) > 0 {
-		if t, _ := c.peekCache(); t != seek {
+		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+			return c.cache.values[i].UnixNano() >= seek
+		})
+		if c.cache.pos == len(c.cache.values) {
+			c.cache.pos--
+		} else if t, _ := c.peekCache(); t != seek {
 			c.cache.pos--
 		}
 	} else {
@@ -251,11 +248,6 @@ func (c *{{.name}}DescendingBatchCursor) Next() ([]int64, []{{.Type}}) {
 		if  c.cache.pos >= 0 {
 			ckey, cvalue = c.peekCache()
 
-			// No more data in cache or in TSM files.
-			if ckey == tsdb.EOF && tkey == tsdb.EOF {
-				break
-			}
-
 			var cache, tsm bool
 
 			// Both cache and tsm files have the same key, cache takes precedence.
@@ -263,7 +255,7 @@ func (c *{{.name}}DescendingBatchCursor) Next() ([]int64, []{{.Type}}) {
 				cache, tsm = true, true
 				tkey = ckey
 				tvalue = cvalue
-			} else if ckey != tsdb.EOF && (ckey > tkey || tkey == tsdb.EOF) {
+			} else if ckey > tkey || tkey == tsdb.EOF {
 				// Buffered cache key succeeds that in TSM file.
 				cache = true
 				tkey = ckey
@@ -302,7 +294,7 @@ func (c *{{.name}}DescendingBatchCursor) peekCache() (t int64, v {{.Type}}) {
 
 // nextCache returns the next value from the cache.
 func (c *{{.name}}DescendingBatchCursor) nextCache() {
-	if c.cache.pos > 0 {
+	if c.cache.pos >= 0 {
 		c.cache.pos--
 	}
 }
@@ -344,9 +336,9 @@ func (l *{{.name}}AscendingRangeBatchCursor) Next() ([]int64, []{{.Type}}) {
 	k, v := l.{{.Name}}BatchCursor.Next()
 
 	// strip out remaining time that is outside the range
-	if len(k) > 0 && k[len(k)-1] >= l.t {
+	if len(k) > 0 && k[len(k)-1] > l.t {
 		i := len(k)-2
-		for i >= 0 && k[i] >= l.t {
+		for i >= 0 && k[i] > l.t {
 			i--
 		}
 		k = k[:i+1]
@@ -365,13 +357,13 @@ func (l *{{.name}}DescendingRangeBatchCursor) Next() ([]int64, []{{.Type}}) {
 	k, v := l.{{.Name}}BatchCursor.Next()
 
 	// strip out remaining time that is outside the range
-	if len(k) > 0 && k[0] <= l.t {
-		i := 1
-		for i < len(k) && k[i] <= l.t {
-			i++
+	if len(k) > 0 && k[len(k)-1] < l.t {
+		i := len(k)-2
+		for i >= 0 && k[i] < l.t {
+			i--
 		}
-		k = k[i:]
-		v = v[i:]
+		k = k[:i+1]
+		v = v[:i+1]
 	}
 
 	return k, v
