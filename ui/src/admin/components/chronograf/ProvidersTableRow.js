@@ -6,7 +6,7 @@ import InputClickToEdit from 'shared/components/InputClickToEdit'
 
 import {DEFAULT_PROVIDER_MAP_ID} from 'src/admin/constants/dummyProviderMaps'
 
-class ProviderMap extends Component {
+class ProvidersTableRow extends Component {
   constructor(props) {
     super(props)
 
@@ -143,7 +143,7 @@ class ProviderMap extends Component {
 
 const {arrayOf, func, shape, string} = PropTypes
 
-ProviderMap.propTypes = {
+ProvidersTableRow.propTypes = {
   providerMap: shape({
     id: string,
     scheme: string,
@@ -164,4 +164,4 @@ ProviderMap.propTypes = {
   onUpdate: func.isRequired,
 }
 
-export default ProviderMap
+export default ProvidersTableRow

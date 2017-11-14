@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import ProviderMap from 'src/admin/components/chronograf/ProviderMap'
+import ProvidersTableRow from 'src/admin/components/chronograf/ProvidersTableRow'
 // import NewProviderMap from 'src/admin/components/chronograf/NewProviderMap'
 
 class ProvidersTable extends Component {
@@ -66,7 +66,7 @@ class ProvidersTable extends Component {
                     />
                   : null} */}
           {providerMaps.map(providerMap =>
-            <ProviderMap
+            <ProvidersTableRow
               key={providerMap.id}
               providerMap={providerMap}
               organizations={organizations}
