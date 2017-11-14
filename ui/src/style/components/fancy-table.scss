@@ -1,0 +1,46 @@
+/*
+  Styles for Fancy Tables
+  ------------------------------------------------------------------------------
+*/
+
+$fancytable--table--margin: 4px;
+
+.fancytable--row,
+.fancytable--labels {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+
+  > div:not(.confirm-buttons) {
+    margin-right: $fancytable--table--margin;
+  }
+}
+.fancytable--row {
+  margin-bottom: 8px;
+  position: relative;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+.fancytable--td {
+  height: 30px;
+}
+.fancytable--labels {
+  border-bottom: 2px solid $g5-pepper;
+  margin-bottom: 10px;
+  @include no-user-select();
+}
+.fancytable--th {
+  color: $g17-whisper;
+  font-weight: 500;
+  height: 34px;
+  line-height: 34px;
+  font-size: 13px;
+  padding: 0 11px;
+
+  &:last-of-type {
+    margin-right: 0;
+  }
+}
