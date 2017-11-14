@@ -32,52 +32,44 @@ class ProvidersTable extends Component {
       providerMaps.length === 1 ? '1 Map' : `${providerMaps.length} Maps`
 
     return (
-      <div className="container-fluid">
-        <div className="row">
-          <div className="col-xs-12">
-            <div className="panel panel-minimal">
-              <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                <h2 className="panel-title">
-                  {tableTitle}
-                </h2>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={this.handleClickCreateMap}
-                  disabled={isCreatingMap}
-                >
-                  <span className="icon plus" /> Create Map
-                </button>
-              </div>
-              <div className="panel-body">
-                <div className="providers-labels">
-                  <div className="providers-labels--id">ID</div>
-                  <div className="providers-labels--scheme">Scheme</div>
-                  <div className="providers-labels--provider">Provider</div>
-                  <div className="providers-labels--providerorg">
-                    Provider Org
-                  </div>
-                  <div className="providers-labels--arrow" />
-                  <div className="providers-labels--redirect">Organization</div>
-                  <div className="providers-labels--delete" />
-                </div>
-                {/* {isCreatingMap
+      <div className="panel panel-default">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h2 className="panel-title">
+            {tableTitle}
+          </h2>
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={this.handleClickCreateMap}
+            disabled={isCreatingMap}
+          >
+            <span className="icon plus" /> Create Map
+          </button>
+        </div>
+        <div className="panel-body">
+          <div className="providers-labels">
+            <div className="providers-labels--id">ID</div>
+            <div className="providers-labels--scheme">Scheme</div>
+            <div className="providers-labels--provider">Provider</div>
+            <div className="providers-labels--providerorg">Provider Org</div>
+            <div className="providers-labels--arrow" />
+            <div className="providers-labels--redirect">Organization</div>
+            <div className="providers-labels--delete" />
+          </div>
+          {/* {isCreatingMap
                   ? <NewProviderMap
                       onCreateMap={this.handleCreateMap}
                       onDismissCreateMap={this.handleDismissCreateMap}
                     />
                   : null} */}
-                {providerMaps.map(providerMap =>
-                  <ProviderMap
-                    key={providerMap.id}
-                    providerMap={providerMap}
-                    organizations={organizations}
-                    onDelete={onDeleteMap}
-                    onUpdate={onUpdateMap}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
+          {providerMaps.map(providerMap =>
+            <ProviderMap
+              key={providerMap.id}
+              providerMap={providerMap}
+              organizations={organizations}
+              onDelete={onDeleteMap}
+              onUpdate={onUpdateMap}
+            />
+          )}
         </div>
       </div>
     )

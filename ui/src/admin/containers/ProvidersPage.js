@@ -6,7 +6,6 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import ProvidersTable from 'src/admin/components/chronograf/ProvidersTable'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {PROVIDER_MAPS} from 'src/admin/constants/dummyProviderMaps'
 
@@ -23,8 +22,8 @@ class ProvidersPage extends Component {
 
   handleCreateMap = () => {}
 
-  handleUpdateMap = updatedMap => {
-    console.log(updatedMap)
+  handleUpdateMap = _updatedMap => {
+    // console.log(_updatedMap)
   }
 
   handleDeleteMap = () => {}
@@ -32,28 +31,15 @@ class ProvidersPage extends Component {
   render() {
     const {organizations, providerMaps} = this.props
 
-    return (
-      <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Manage Providers</h1>
-            </div>
-          </div>
-        </div>
-        <FancyScrollbar className="page-contents">
-          {organizations
-            ? <ProvidersTable
-                providerMaps={PROVIDER_MAPS} // TODO: replace with providerMaps prop
-                organizations={organizations}
-                onCreateMap={this.handleCreateMap}
-                onUpdateMap={this.handleUpdateMap}
-                onDeleteMap={this.handleDeleteMap}
-              />
-            : <div className="page-spinner" />}
-        </FancyScrollbar>
-      </div>
-    )
+    return organizations
+      ? <ProvidersTable
+          providerMaps={PROVIDER_MAPS} // TODO: replace with providerMaps prop
+          organizations={organizations}
+          onCreateMap={this.handleCreateMap}
+          onUpdateMap={this.handleUpdateMap}
+          onDeleteMap={this.handleDeleteMap}
+        />
+      : <div className="page-spinner" />
   }
 }
 
