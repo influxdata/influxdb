@@ -46,14 +46,18 @@ class ProvidersTable extends Component {
           </button>
         </div>
         <div className="panel-body">
-          <div className="providers-labels">
-            <div className="providers-labels--id">ID</div>
-            <div className="providers-labels--scheme">Scheme</div>
-            <div className="providers-labels--provider">Provider</div>
-            <div className="providers-labels--providerorg">Provider Org</div>
-            <div className="providers-labels--arrow" />
-            <div className="providers-labels--redirect">Organization</div>
-            <div className="providers-labels--delete" />
+          <div className="fancytable--labels">
+            <div className="fancytable--th provider--id">ID</div>
+            <div className="fancytable--th provider--scheme">Scheme</div>
+            <div className="fancytable--th provider--provider">Provider</div>
+            <div className="fancytable--th provider--providerorg">
+              Provider Org
+            </div>
+            <div className="fancytable--th provider--arrow" />
+            <div className="fancytable--th provider--redirect">
+              Organization
+            </div>
+            <div className="fancytable--th provider--delete" />
           </div>
           {/* {isCreatingMap
                   ? <NewProviderMap

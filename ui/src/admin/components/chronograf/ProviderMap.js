@@ -84,35 +84,35 @@ class ProviderMap extends Component {
     }))
 
     const redirectOrgClassName = isDeleting
-      ? 'provider--redirect deleting'
-      : 'provider--redirect'
+      ? 'fancytable--td provider--redirect deleting'
+      : 'fancytable--td provider--redirect'
 
     const isDefaultProviderMap = DEFAULT_PROVIDER_MAP_ID === providerMap.id
 
     return (
-      <div className="provider">
-        <div className="provider--id">
+      <div className="fancytable--row">
+        <div className="fancytable--td provider--id">
           {providerMap.id}
         </div>
         <InputClickToEdit
           value={scheme}
-          wrapperClass="provider--scheme"
+          wrapperClass="fancytable--td provider--scheme"
           onUpdate={this.handleChangeScheme}
           disabled={isDefaultProviderMap}
         />
         <InputClickToEdit
           value={provider}
-          wrapperClass="provider--provider"
+          wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
           disabled={isDefaultProviderMap}
         />
         <InputClickToEdit
           value={providerOrganization}
-          wrapperClass="provider--providerorg"
+          wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
           disabled={isDefaultProviderMap}
         />
-        <div className="provider--arrow">
+        <div className="fancytable--td provider--arrow">
           <span />
         </div>
         <div className={redirectOrgClassName}>
