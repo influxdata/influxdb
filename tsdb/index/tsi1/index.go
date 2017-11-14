@@ -1239,6 +1239,14 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 			continue
 		}
 
+		// TODO(edd): It seems to me like this authorisation check should be
+		// further down in the index. At this point we're going to be filtering
+		// series that have already been materialised in the LogFiles and
+		// IndexFiles.
+		if itr.opt.Authorizer != nil && !itr.opt.Authorizer.AuthorizeSeriesRead(itr.fs.database, e.Name(), e.Tags()) {
+			continue
+		}
+
 		// Convert to a key.
 		key := string(models.MakeKey(e.Name(), e.Tags()))
 
