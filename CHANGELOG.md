@@ -6,13 +6,15 @@
 
 ### Features
 
-- [#9088](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+- [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
 
 ### Bugfixes
 
 - [#9065](https://github.com/influxdata/influxdb/pull/9065): Refuse extra arguments to influx CLI
 
-## v1.4.2 [unreleased]
+## v1.4.2 [2017-11-15]
+
+Refer to the 1.4.0 breaking changes section if `influxd` fails to start with an `incompatible tsi1 index MANIFEST` error.
 
 ### Bugfixes
 
@@ -28,7 +30,29 @@
 
 ### Breaking changes
 
-* You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+
+As part of the ongoing development of the `tsi1` index, the implementation of a Bloom Filter, used
+to efficiently determine if series are not present in the index, was altered in [#8857](https://github.com/influxdata/influxdb/pull/8857).
+While this significantly increases the performance of the index and reduces its memory consumption,
+the existing `tsi1` indexes created while running previous versions of the database are not compatible with 1.4.0.
+
+Users with databases using the `tsi1` index must go through the following process to upgrade to 1.4.0:
+
+1. Stop `influxd`.
+2. Remove all `index` directories on databases using the `tsi1` index. With default configuration these can be found in
+   `/var/lib/influxdb/data/DB_NAME/RP_NAME/SHARD_ID/index` or `~/.influxdb/data/DB_NAME/RP_NAME/SHARD_ID/index`.
+   It's worth noting at this point how many different `shard_ids` you visit.
+3. Run the `influx_inspect inmem2tsi` tool using the shard's data and WAL directories for -datadir and -waldir, respectively.
+   Given the example in step (2) that would be
+   `influx_inspect inmem2tsi -datadir /var/lib/influxdb/data/DB_NAME/RP_NAME/SHARD_ID -waldir /path/to/influxdb/wal/DB_NAME/RP_NAME/SHARD_ID`.
+4. Repeat step (3) for each shard that needs to be converted.
+5. Start `influxd`.
+
+Users with existing `tsi1` shards, who attempt to start version 1.4.0 without following the above steps, will find the shards
+refuse to open, and will most likely see the following error message:
+
+`incompatible tsi1 index MANIFEST`
 
 ### Configuration Changes
 
