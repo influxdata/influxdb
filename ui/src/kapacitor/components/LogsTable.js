@@ -46,10 +46,12 @@ class LogsTable extends Component {
           </div>
         </div>
         <div className="logs-table--details">
-          <div className="logs-table--service debug">Thing</div>
+          <div className="logs-table--service">
+            {logItem.service || '--'}
+          </div>
           <div className="logs-table--blah">
             <div className="logs-table--key-values">
-              <p>Thang</p>
+              {logItem.msg || '--'}
             </div>
           </div>
         </div>
