@@ -2,11 +2,14 @@ package inmem_test
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 )
@@ -143,6 +146,76 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	if got, exp := len(m.SeriesIDs()), 1; got != exp {
 		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+func TestIndex_MeasurementNamesByExpr_Auth(t *testing.T) {
+	idx := NewIndex()
+	idx.AddSeries("cpu", map[string]string{"region": "east"})
+	idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"})
+	idx.AddSeries("disk", map[string]string{"secret": "foo"})
+	idx.AddSeries("mem", map[string]string{"region": "west"})
+	idx.AddSeries("gpu", nil)
+
+	authorizer := &internal.AuthorizerMock{
+		AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
+			if tags.GetString("secret") != "" {
+				t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
+				return false
+			}
+			return true
+		},
+	}
+
+	// When no condition is provided, all authorised measurements should be returned.
+	names, err := idx.MeasurementNamesByExpr(authorizer, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("gpu"), []byte("mem")}) {
+		t.Fatalf("unexpected names: %v", BytesToStrings(names))
+	}
+
+	// When using a tag filter, authorised measurements should be returned that
+	// match the tag filter.
+	names, err = idx.MeasurementNamesByExpr(authorizer, influxql.MustParseExpr(`region = 'west'`))
+	if err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(names, [][]byte{[]byte("mem")}) {
+		t.Fatalf("unexpected names: %v", BytesToStrings(names))
+	}
+
+	// When using a regex on a measurement name, all authorised measurements
+	// should be returned.
+	names, err = idx.MeasurementNamesByExpr(authorizer, influxql.MustParseExpr(`_name =~ /cpu|disk/`))
+	if err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu")}) {
+		t.Fatalf("unexpected names: %v", BytesToStrings(names))
+	}
+}
+
+func BytesToStrings(a [][]byte) []string {
+	s := make([]string, 0, len(a))
+	for _, v := range a {
+		s = append(s, string(v))
+	}
+	return s
+}
+
+type Index struct {
+	*inmem.ShardIndex
+}
+
+func NewIndex() *Index {
+	options := tsdb.NewEngineOptions()
+	options.InmemIndex = inmem.NewIndex("db0")
+	index := inmem.NewShardIndex(0, "db0", "", options).(*inmem.ShardIndex)
+	return &Index{ShardIndex: index}
+}
+
+func (idx *Index) AddSeries(name string, tags map[string]string) error {
+	t := models.NewTags(tags)
+	key := fmt.Sprintf("%s,%s", name, t.HashKey())
+	return idx.CreateSeriesIfNotExists([]byte(key), []byte(name), t)
 }
 
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
@@ -171,6 +172,61 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("disk")}) {
 				t.Fatalf("unexpected names: %v", names)
+			}
+		})
+	})
+}
+
+func TestIndex_MeasurementNamesByExpr_Auth(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	// Add series to index.
+	if err := idx.CreateSeriesSliceIfNotExists([]Series{
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west", "secret": "foo"})},
+		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"secret": "foo"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "west", "country": "us"})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	authorizer := &internal.AuthorizerMock{
+		AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
+			if tags.GetString("secret") != "" {
+				t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
+				return false
+			}
+			return true
+		},
+	}
+
+	// Retrieve measurements by expression
+	idx.Run(t, func(t *testing.T) {
+		t.Run("No Filter", func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(authorizer, nil)
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
+				t.Fatalf("unexpected names: %v", BytesToStrings(names))
+			}
+		})
+
+		t.Run("EQ", func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(authorizer, influxql.MustParseExpr(`region = 'west'`))
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, [][]byte{[]byte("mem")}) {
+				t.Fatalf("unexpected names: %v", BytesToStrings(names))
+			}
+		})
+
+		t.Run("EQREGEX", func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(authorizer, influxql.MustParseExpr(`_name =~ /cpu|disk/`))
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu")}) {
+				t.Fatalf("unexpected names: %v", BytesToStrings(names))
 			}
 		})
 	})
@@ -393,4 +449,12 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 		}
 	}
 	return nil
+}
+
+func BytesToStrings(a [][]byte) []string {
+	s := make([]string, 0, len(a))
+	for _, v := range a {
+		s = append(s, string(v))
+	}
+	return s
 }
