@@ -12,6 +12,12 @@
 
 - [#9065](https://github.com/influxdata/influxdb/pull/9065): Refuse extra arguments to influx CLI
 
+## v1.4.2 [unreleased]
+
+### Bugfixes
+
+- [#9117](https://github.com/influxdata/influxdb/pull/9117): Fix panic: runtime error: slice bounds out of range
+
 ## v1.4.1 [2017-11-13]
 
 ### Bugfixes
