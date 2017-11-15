@@ -653,12 +653,12 @@ func (itr *seriesIDDifferenceIterator) Next() tsdb.SeriesIDElem {
 
 // filterUndeletedSeriesIDIterator returns all series which are not deleted.
 type filterUndeletedSeriesIDIterator struct {
-	sfile *SeriesFile
+	sfile *tsdb.SeriesFile
 	itr   tsdb.SeriesIDIterator
 }
 
 // FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIDIterator(sfile *SeriesFile, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
+func FilterUndeletedSeriesIDIterator(sfile *tsdb.SeriesFile, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
 	if itr == nil {
 		return nil
 	}

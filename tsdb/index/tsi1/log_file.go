@@ -44,9 +44,9 @@ type LogFile struct {
 	w    *bufio.Writer  // buffered writer
 	buf  []byte         // marshaling buffer
 
-	sfile   *SeriesFile // series lookup
-	size    int64       // tracks current file size
-	modTime time.Time   // tracks last time write occurred
+	sfile   *tsdb.SeriesFile // series lookup
+	size    int64            // tracks current file size
+	modTime time.Time        // tracks last time write occurred
 
 	mSketch, mTSketch estimator.Sketch // Measurement sketches
 	sSketch, sTSketch estimator.Sketch // Series sketche
@@ -59,7 +59,7 @@ type LogFile struct {
 }
 
 // NewLogFile returns a new instance of LogFile.
-func NewLogFile(sfile *SeriesFile, path string) *LogFile {
+func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
 	return &LogFile{
 		sfile:    sfile,
 		path:     path,
@@ -597,20 +597,20 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	assert(seriesKey != nil, "series key not found")
 
 	// Read key size.
-	_, remainder := ReadSeriesKeyLen(seriesKey)
+	_, remainder := tsdb.ReadSeriesKeyLen(seriesKey)
 
 	// Read measurement name.
-	name, remainder := ReadSeriesKeyMeasurement(remainder)
+	name, remainder := tsdb.ReadSeriesKeyMeasurement(remainder)
 	mm := f.createMeasurementIfNotExists(name)
 	mm.series[e.SeriesID] = struct{}{}
 
 	// Read tag count.
-	tagN, remainder := ReadSeriesKeyTagN(remainder)
+	tagN, remainder := tsdb.ReadSeriesKeyTagN(remainder)
 
 	// Save tags.
 	var k, v []byte
 	for i := 0; i < tagN; i++ {
-		k, v, remainder = ReadSeriesKeyTag(remainder)
+		k, v, remainder = tsdb.ReadSeriesKeyTag(remainder)
 		ts := mm.createTagSetIfNotExists(k)
 		tv := ts.createTagValueIfNotExists(v)
 

@@ -130,6 +130,7 @@ type Engine struct {
 	id           uint64
 	database     string
 	path         string
+	sfile        *tsdb.SeriesFile
 	logger       *zap.Logger // Logger to be used for important messages
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
@@ -166,7 +167,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
 	w.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 
@@ -185,6 +186,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		database:     database,
 		path:         path,
 		index:        idx,
+		sfile:        sfile,
 		logger:       logger,
 		traceLogger:  logger,
 		traceLogging: opt.Config.TraceLoggingEnabled,
@@ -1215,7 +1217,7 @@ func (e *Engine) deleteMeasurement(name []byte) error {
 	if err != nil {
 		return err
 	} else if itr != nil {
-		return e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64)
+		return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
 	}
 	return nil
 }

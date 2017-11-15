@@ -45,10 +45,10 @@ type Partition struct {
 	mu     sync.RWMutex
 	opened bool
 
-	sfile         *SeriesFile // series lookup file
-	activeLogFile *LogFile    // current log file
-	fileSet       *FileSet    // current file set
-	seq           int         // file id sequence
+	sfile         *tsdb.SeriesFile // series lookup file
+	activeLogFile *LogFile         // current log file
+	fileSet       *FileSet         // current file set
+	seq           int              // file id sequence
 
 	// Compaction management
 	levels          []CompactionLevel // compaction levels
@@ -83,7 +83,7 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition.
-func NewPartition(sfile *SeriesFile, path string) *Partition {
+func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return &Partition{
 		closing: make(chan struct{}),
 
@@ -274,7 +274,7 @@ func (i *Partition) Close() error {
 func (i *Partition) Path() string { return i.path }
 
 // SeriesFile returns the attached series file.
-func (i *Partition) SeriesFile() *SeriesFile { return i.sfile }
+func (i *Partition) SeriesFile() *tsdb.SeriesFile { return i.sfile }
 
 // NextSequence returns the next file identifier.
 func (i *Partition) NextSequence() int {

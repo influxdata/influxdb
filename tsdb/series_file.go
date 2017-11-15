@@ -1,4 +1,4 @@
-package tsi1
+package tsdb
 
 import (
 	"bufio"
@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 // ErrSeriesOverflow is returned when too many series are added to a series writer.
@@ -30,7 +30,7 @@ const (
 const DefaultMaxSeriesFileSize = 32 * (1 << 30) // 32GB
 
 // MaxSeriesFileHashSize is the maximum number of series in a single hash.
-const MaxSeriesFileHashSize = (1048576 * LoadFactor) / 100
+const MaxSeriesFileHashSize = (1048576 * SeriesMapLoadFactor) / 100
 
 // SeriesMapThreshold is the number of series to hold in the in-memory series map
 // before compacting and rebuilding the on-disk map.
@@ -62,6 +62,11 @@ func NewSeriesFile(path string) *SeriesFile {
 
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
+	// Create the parent directories if they don't exist.
+	if err := os.MkdirAll(filepath.Join(filepath.Dir(f.path)), 0700); err != nil {
+		return err
+	}
+
 	// Open file handler for appending.
 	file, err := os.OpenFile(f.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
@@ -318,7 +323,7 @@ func (f *SeriesFile) SeriesCount() uint64 {
 }
 
 // SeriesIterator returns an iterator over all the series.
-func (f *SeriesFile) SeriesIDIterator() tsdb.SeriesIDIterator {
+func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	return &seriesFileIterator{
 		offset: 1,
 		data:   f.data[1:f.size],
@@ -373,10 +378,10 @@ type seriesFileIterator struct {
 }
 
 // Next returns the next series element.
-func (itr *seriesFileIterator) Next() tsdb.SeriesIDElem {
+func (itr *seriesFileIterator) Next() SeriesIDElem {
 	for {
 		if len(itr.data) == 0 {
-			return tsdb.SeriesIDElem{}
+			return SeriesIDElem{}
 		}
 
 		// Read flag.
@@ -392,7 +397,7 @@ func (itr *seriesFileIterator) Next() tsdb.SeriesIDElem {
 			var key []byte
 			key, itr.data = ReadSeriesKey(itr.data)
 
-			elem := tsdb.SeriesIDElem{SeriesID: itr.offset}
+			elem := SeriesIDElem{SeriesID: itr.offset}
 			itr.offset += uint64(len(key))
 			return elem
 		}

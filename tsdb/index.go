@@ -77,6 +77,48 @@ type SeriesIterator interface {
 	Next() SeriesElem
 }
 
+// NewSeriesIteratorAdapter returns an adapter for converting series ids to series.
+func NewSeriesIteratorAdapter(sfile *SeriesFile, itr SeriesIDIterator) SeriesIterator {
+	return &seriesIteratorAdapter{
+		sfile: sfile,
+		itr:   itr,
+	}
+}
+
+type seriesIteratorAdapter struct {
+	sfile *SeriesFile
+	itr   SeriesIDIterator
+}
+
+func (itr *seriesIteratorAdapter) Next() SeriesElem {
+	elem := itr.itr.Next()
+	if elem.SeriesID == 0 {
+		return nil
+	}
+
+	name, tags := ParseSeriesKey(itr.sfile.SeriesKey(elem.SeriesID))
+	deleted := itr.sfile.IsDeleted(elem.SeriesID)
+
+	return &seriesElemAdapter{
+		name:    name,
+		tags:    tags,
+		deleted: deleted,
+		expr:    elem.Expr,
+	}
+}
+
+type seriesElemAdapter struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+	expr    influxql.Expr
+}
+
+func (e *seriesElemAdapter) Name() []byte        { return e.name }
+func (e *seriesElemAdapter) Tags() models.Tags   { return e.tags }
+func (e *seriesElemAdapter) Deleted() bool       { return e.deleted }
+func (e *seriesElemAdapter) Expr() influxql.Expr { return e.expr }
+
 // SeriesIDElem represents a single series and optional expression.
 type SeriesIDElem struct {
 	SeriesID uint64
@@ -95,6 +137,26 @@ type SeriesIDIterator interface {
 	Next() SeriesIDElem
 }
 
+// NewSeriesIDSliceIterator returns a SeriesIDIterator that iterates over a slice.
+func NewSeriesIDSliceIterator(ids []uint64) *SeriesIDSliceIterator {
+	return &SeriesIDSliceIterator{ids: ids}
+}
+
+// SeriesIDSliceIterator iterates over a slice of series ids.
+type SeriesIDSliceIterator struct {
+	ids []uint64
+}
+
+// Next returns the next series id in the slice.
+func (itr *SeriesIDSliceIterator) Next() SeriesIDElem {
+	if len(itr.ids) == 0 {
+		return SeriesIDElem{}
+	}
+	id := itr.ids[0]
+	itr.ids = itr.ids[1:]
+	return SeriesIDElem{SeriesID: id}
+}
+
 // IndexFormat represents the format for an index.
 type IndexFormat int
 
@@ -107,7 +169,7 @@ const (
 )
 
 // NewIndexFunc creates a new index.
-type NewIndexFunc func(id uint64, database, path string, options EngineOptions) Index
+type NewIndexFunc func(id uint64, database, path string, sfile *SeriesFile, options EngineOptions) Index
 
 // newIndexFuncs is a lookup of index constructors by name.
 var newIndexFuncs = make(map[string]NewIndexFunc)
@@ -132,7 +194,7 @@ func RegisteredIndexes() []string {
 
 // NewIndex returns an instance of an index based on its format.
 // If the path does not exist then the DefaultFormat is used.
-func NewIndex(id uint64, database, path string, options EngineOptions) (Index, error) {
+func NewIndex(id uint64, database, path string, sfile *SeriesFile, options EngineOptions) (Index, error) {
 	format := options.IndexVersion
 
 	// Use default format unless existing directory exists.
@@ -150,11 +212,11 @@ func NewIndex(id uint64, database, path string, options EngineOptions) (Index, e
 	if fn == nil {
 		return nil, fmt.Errorf("invalid index format: %q", format)
 	}
-	return fn(id, database, path, options), nil
+	return fn(id, database, path, sfile, options), nil
 }
 
-func MustOpenIndex(id uint64, database, path string, options EngineOptions) Index {
-	idx, err := NewIndex(id, database, path, options)
+func MustOpenIndex(id uint64, database, path string, sfile *SeriesFile, options EngineOptions) Index {
+	idx, err := NewIndex(id, database, path, sfile, options)
 	if err != nil {
 		panic(err)
 	} else if err := idx.Open(); err != nil {

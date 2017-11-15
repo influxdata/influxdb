@@ -37,6 +37,8 @@ const (
 	// Measurement key block fields.
 	MeasurementNSize      = 8
 	MeasurementOffsetSize = 8
+
+	SeriesIDSize = 8
 )
 
 // Measurement errors.

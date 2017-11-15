@@ -26,9 +26,6 @@ import (
 // IndexName is the name of the index.
 const IndexName = "tsi1"
 
-// SeriesFileName is the name of the series file.
-const SeriesFileName = "series"
-
 func init() {
 	// FIXME(edd): Remove this.
 	if os.Getenv("TSI_PARTITIONS") != "" {
@@ -39,8 +36,8 @@ func init() {
 		DefaultPartitionN = uint64(i)
 	}
 
-	tsdb.RegisterIndex(IndexName, func(_ uint64, _, path string, _ tsdb.EngineOptions) tsdb.Index {
-		idx := NewIndex(WithPath(path))
+	tsdb.RegisterIndex(IndexName, func(_ uint64, _, path string, sfile *tsdb.SeriesFile, _ tsdb.EngineOptions) tsdb.Index {
+		idx := NewIndex(sfile, WithPath(path))
 		return idx
 	})
 }
@@ -95,7 +92,7 @@ type Index struct {
 	disableCompactions bool        // Initially disables compactions on the index.
 	logger             *zap.Logger // Index's logger.
 
-	sfile *SeriesFile // series lookup file
+	sfile *tsdb.SeriesFile // series lookup file
 
 	// Index's version.
 	version int
@@ -108,10 +105,11 @@ type Index struct {
 }
 
 // NewIndex returns a new instance of Index.
-func NewIndex(options ...IndexOption) *Index {
+func NewIndex(sfile *tsdb.SeriesFile, options ...IndexOption) *Index {
 	idx := &Index{
 		logger:     zap.NewNop(),
 		version:    Version,
+		sfile:      sfile,
 		PartitionN: DefaultPartitionN,
 	}
 
@@ -152,13 +150,6 @@ func (i *Index) Open() error {
 	if err := os.MkdirAll(i.path, 0777); err != nil {
 		return err
 	}
-
-	// Open series file.
-	sfile := NewSeriesFile(i.SeriesFilePath())
-	if err := sfile.Open(); err != nil {
-		return err
-	}
-	i.sfile = sfile
 
 	// Inititalise index partitions.
 	i.partitions = make([]*Partition, i.PartitionN)
@@ -229,11 +220,6 @@ func (i *Index) Close() error {
 
 // Path returns the path the index was opened with.
 func (i *Index) Path() string { return i.path }
-
-// SeriesFilePath returns the path to the index's series file.
-func (i *Index) SeriesFilePath() string {
-	return filepath.Join(i.path, SeriesFileName)
-}
 
 // PartitionAt returns the partition by index.
 func (i *Index) PartitionAt(index int) *Partition {
@@ -454,7 +440,7 @@ func (i *Index) CreateSeriesListIfNotExists(_ [][]byte, names [][]byte, tagsSlic
 	// determine appropriate where series shoud live using each series key.
 	buf := make([]byte, 2048)
 	for k, _ := range names {
-		buf = AppendSeriesKey(buf[:0], names[k], tagsSlice[k])
+		buf = tsdb.AppendSeriesKey(buf[:0], names[k], tagsSlice[k])
 
 		pidx := i.partitionIdx(buf)
 		pNames[pidx] = append(pNames[pidx], names[k])
@@ -659,7 +645,7 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 						for val := itr.Next(); val != nil; val = itr.Next() {
 							si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
 							for se := si.Next(); se.SeriesID != 0; se = si.Next() {
-								name, tags := ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
+								name, tags := tsdb.ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
 								if auth.AuthorizeSeriesRead(i.Database, name, tags) {
 									resultSet[ki][string(val.Value())] = struct{}{}
 									break
@@ -787,7 +773,7 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 
 	if itr != nil {
 		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
-			_, tags := ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
+			_, tags := tsdb.ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
 			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
 				continue
 			}
@@ -842,11 +828,6 @@ func (i *Index) SnapshotTo(path string) error {
 		return err
 	}
 
-	// Link series file.
-	if err := os.Link(i.SeriesFilePath(), filepath.Join(newRoot, filepath.Base(i.SeriesFilePath()))); err != nil {
-		return fmt.Errorf("error creating tsi series file hard link: %q", err)
-	}
-
 	// Store results.
 	errC := make(chan error, len(i.partitions))
 	for _, p := range i.partitions {
@@ -862,6 +843,20 @@ func (i *Index) SnapshotTo(path string) error {
 		}
 	}
 	return nil
+}
+
+// RetainFileSet returns the set of all files across all partitions.
+// This is only needed when all files need to be retained for an operation.
+func (i *Index) RetainFileSet() *FileSet {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	fs, _ := NewFileSet(i.Database, nil, i.sfile, nil)
+	for _, p := range i.partitions {
+		pfs := p.RetainFileSet()
+		fs.files = append(fs.files, pfs.files...)
+	}
+	return fs
 }
 
 func (i *Index) SetFieldName(measurement []byte, name string) {}
@@ -955,7 +950,7 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		// Convert to a key.
-		name, tags := ParseSeriesKey(itr.fs.sfile.SeriesKey(e.SeriesID))
+		name, tags := tsdb.ParseSeriesKey(itr.fs.sfile.SeriesKey(e.SeriesID))
 		key := string(models.MakeKey(name, tags))
 
 		// Write auxiliary fields.

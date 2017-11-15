@@ -37,6 +37,9 @@ const (
 	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
 )
 
+// SeriesFileName is the name of the series file.
+const SeriesFileName = "series"
+
 // Store manages shards and indexes for databases.
 type Store struct {
 	mu sync.RWMutex
@@ -44,6 +47,8 @@ type Store struct {
 	databases map[string]struct{}
 
 	path string
+
+	sfiles map[string]*SeriesFile
 
 	// shared per-database indexes, only if using "inmem".
 	indexes map[string]interface{}
@@ -68,6 +73,7 @@ func NewStore(path string) *Store {
 	return &Store{
 		databases:     make(map[string]struct{}),
 		path:          path,
+		sfiles:        make(map[string]*SeriesFile),
 		indexes:       make(map[string]interface{}),
 		EngineOptions: NewEngineOptions(),
 		Logger:        logger,
@@ -197,6 +203,12 @@ func (s *Store) loadShards() error {
 			continue
 		}
 
+		// Load series file.
+		sfile, err := s.openSeriesFile(db.Name())
+		if err != nil {
+			return err
+		}
+
 		// Retrieve database index.
 		idx, err := s.createIndexIfNotExists(db.Name())
 		if err != nil {
@@ -247,7 +259,7 @@ func (s *Store) loadShards() error {
 					}
 
 					// Open engine.
-					shard := NewShard(shardID, path, walPath, opt)
+					shard := NewShard(shardID, path, walPath, sfile, opt)
 
 					// Disable compactions, writes and queries until all shards are loaded
 					shard.EnableOnOpen = false
@@ -318,6 +330,20 @@ func (s *Store) Close() error {
 	return nil
 }
 
+func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
+	if sfile := s.sfiles[database]; sfile != nil {
+		return sfile, nil
+	}
+
+	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileName))
+	if err := sfile.Open(); err != nil {
+		return nil, err
+	}
+	s.sfiles[database] = sfile
+
+	return sfile, nil
+}
+
 // createIndexIfNotExists returns a shared index for a database, if the inmem
 // index is being used. If the TSI index is being used, then this method is
 // basically a no-op.
@@ -326,7 +352,12 @@ func (s *Store) createIndexIfNotExists(name string) (interface{}, error) {
 		return idx, nil
 	}
 
-	idx, err := NewInmemIndex(name)
+	sfile, err := s.openSeriesFile(name)
+	if err != nil {
+		return nil, err
+	}
+
+	idx, err := NewInmemIndex(name, sfile)
 	if err != nil {
 		return nil, err
 	}
@@ -400,6 +431,12 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 		return err
 	}
 
+	// Retrieve database series file.
+	sfile, err := s.openSeriesFile(database)
+	if err != nil {
+		return err
+	}
+
 	// Retrieve shared index, if needed.
 	idx, err := s.createIndexIfNotExists(database)
 	if err != nil {
@@ -411,7 +448,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	opt.InmemIndex = idx
 
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
-	shard := NewShard(shardID, path, walPath, opt)
+	shard := NewShard(shardID, path, walPath, sfile, opt)
 	shard.WithLogger(s.baseLogger)
 	shard.EnableOnOpen = enabled
 
@@ -881,6 +918,8 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	// of series keys can be very memory intensive if run concurrently.
 	limit := limiter.NewFixed(1)
 
+	sfile := s.sfiles[database]
+
 	return s.walkShards(shards, func(sh *Shard) error {
 		// Determine list of measurements from sources.
 		// Use all measurements if no FROM clause was provided.
@@ -912,7 +951,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				continue
 			}
 
-			if err := sh.DeleteSeriesRange(itr, min, max); err != nil {
+			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max); err != nil {
 				return err
 			}
 

@@ -116,6 +116,7 @@ type Shard struct {
 	database        string
 	retentionPolicy string
 
+	sfile   *SeriesFile
 	options EngineOptions
 
 	mu      sync.RWMutex
@@ -136,7 +137,7 @@ type Shard struct {
 }
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
-func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard {
+func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt EngineOptions) *Shard {
 	db, rp := decodeStorePath(path)
 	logger := zap.NewNop()
 
@@ -144,6 +145,7 @@ func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard 
 		id:      id,
 		path:    path,
 		walPath: walPath,
+		sfile:   sfile,
 		options: opt,
 		closing: make(chan struct{}),
 
@@ -271,7 +273,7 @@ func (s *Shard) Open() error {
 
 		// Initialize underlying index.
 		ipath := filepath.Join(s.path, "index")
-		idx, err := NewIndex(s.id, s.database, ipath, s.options)
+		idx, err := NewIndex(s.id, s.database, ipath, s.sfile, s.options)
 		if err != nil {
 			return err
 		}
@@ -284,7 +286,7 @@ func (s *Shard) Open() error {
 		idx.WithLogger(s.baseLogger)
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.id, idx, s.database, s.path, s.walPath, s.options)
+		e, err := NewEngine(s.id, idx, s.database, s.path, s.walPath, s.sfile, s.options)
 		if err != nil {
 			return err
 		}

@@ -207,7 +207,8 @@ mem,host=serverB value=50i,val3=t 10
 // filesystem paths.
 type TempShard struct {
 	*Shard
-	path string
+	path  string
+	sfile *SeriesFile
 }
 
 // NewTempShard returns a new instance of TempShard with temp paths.
@@ -218,27 +219,36 @@ func NewTempShard(index string) *TempShard {
 		panic(err)
 	}
 
+	// Create series file.
+	sfile := NewSeriesFile(filepath.Join(dir, "db0", SeriesFileName))
+	if err := sfile.Open(); err != nil {
+		panic(err)
+	}
+
 	// Build engine options.
 	opt := NewEngineOptions()
 	opt.IndexVersion = index
 	opt.Config.WALDir = filepath.Join(dir, "wal")
 	if index == "inmem" {
-		opt.InmemIndex, _ = NewInmemIndex(path.Base(dir))
+		opt.InmemIndex, _ = NewInmemIndex(path.Base(dir), sfile)
 	}
 
 	return &TempShard{
 		Shard: NewShard(0,
 			filepath.Join(dir, "data", "db0", "rp0", "1"),
 			filepath.Join(dir, "wal", "db0", "rp0", "1"),
+			sfile,
 			opt,
 		),
-		path: dir,
+		sfile: sfile,
+		path:  dir,
 	}
 }
 
 // Close closes the shard and removes all underlying data.
 func (sh *TempShard) Close() error {
 	defer os.RemoveAll(sh.path)
+	sh.sfile.Close()
 	return sh.Shard.Close()
 }
 

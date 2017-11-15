@@ -114,7 +114,7 @@ func (p IndexFiles) TagValueSeriesIDIterator(name, key, value []byte) tsdb.Serie
 }
 
 // CompactTo merges all index files and writes them to w.
-func (p IndexFiles) CompactTo(w io.Writer, sfile *SeriesFile, m, k uint64) (n int64, err error) {
+func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Wrap writer in buffered I/O.
@@ -289,7 +289,7 @@ type IndexFilesInfo struct {
 // indexCompactInfo is a context object used for tracking position information
 // during the compaction of index files.
 type indexCompactInfo struct {
-	sfile *SeriesFile
+	sfile *tsdb.SeriesFile
 
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos

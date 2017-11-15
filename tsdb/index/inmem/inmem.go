@@ -34,10 +34,10 @@ import (
 const IndexName = "inmem"
 
 func init() {
-	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(name), nil }
+	tsdb.NewInmemIndex = func(name string, sfile *tsdb.SeriesFile) (interface{}, error) { return NewIndex(name, sfile), nil }
 
-	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
-		return NewShardIndex(id, database, path, opt)
+	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
+		return NewShardIndex(id, database, path, sfile, opt)
 	})
 }
 
@@ -48,6 +48,7 @@ type Index struct {
 	mu sync.RWMutex
 
 	database string
+	sfile    *tsdb.SeriesFile
 
 	// In-memory metadata index, built on load and updated when new series come in
 	measurements map[string]*Measurement // measurement name to object and index
@@ -62,9 +63,10 @@ type Index struct {
 }
 
 // NewIndex returns a new initialized Index.
-func NewIndex(database string) *Index {
+func NewIndex(database string, sfile *tsdb.SeriesFile) *Index {
 	index := &Index{
 		database:     database,
+		sfile:        sfile,
 		measurements: make(map[string]*Measurement),
 		series:       make(map[string]*Series),
 	}
@@ -685,12 +687,37 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
-func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
-	keys, err := i.MeasurementSeriesKeysByExpr(name, condition)
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+
+	// Return all series if no condition specified.
+	if condition == nil {
+		return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDs())), nil
+	}
+
+	// Get series IDs that match the WHERE clause.
+	ids, filters, err := m.WalkWhereForSeriesIds(condition)
 	if err != nil {
 		return nil, err
 	}
-	return &seriesIterator{keys: keys}, err
+
+	// Delete boolean literal true filter expressions.
+	// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
+	filters.DeleteBoolLiteralTrues()
+
+	// Check for unsupported field filters.
+	// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
+	if filters.Len() > 0 {
+		return nil, errors.New("fields not supported in WHERE clause during deletion")
+	}
+
+	return tsdb.NewSeriesIDSliceIterator([]uint64(ids)), nil
 }
 
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {
@@ -938,7 +965,7 @@ func (i *ShardIndex) TagSets(name []byte, opt query.IteratorOptions) ([]*query.T
 }
 
 // NewShardIndex returns a new index for a shard.
-func NewShardIndex(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
+func NewShardIndex(id uint64, database, path string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
 	return &ShardIndex{
 		Index: opt.InmemIndex.(*Index),
 		id:    id,

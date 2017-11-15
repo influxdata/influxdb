@@ -19,13 +19,13 @@ import (
 // FileSet represents a collection of files.
 type FileSet struct {
 	levels   []CompactionLevel
-	sfile    *SeriesFile
+	sfile    *tsdb.SeriesFile
 	files    []File
 	database string
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(database string, levels []CompactionLevel, sfile *SeriesFile, files []File) (*FileSet, error) {
+func NewFileSet(database string, levels []CompactionLevel, sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
 	return &FileSet{
 		levels:   levels,
 		sfile:    sfile,
@@ -60,7 +60,7 @@ func (fs *FileSet) Release() {
 }
 
 // SeriesFile returns the attached series file.
-func (fs *FileSet) SeriesFile() *SeriesFile { return fs.sfile }
+func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
 
 // PrependLogFile returns a new file set with f added at the beginning.
 // Filters do not need to be rebuilt because log files have no bloom filter.
@@ -338,18 +338,18 @@ func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 		}
 
 		if auth != nil {
-			name, tags := ParseSeriesKey(buf)
+			name, tags := tsdb.ParseSeriesKey(buf)
 			if !auth.AuthorizeSeriesRead(fs.database, name, tags) {
 				continue
 			}
 		}
 
-		_, buf = ReadSeriesKeyLen(buf)
-		_, buf = ReadSeriesKeyMeasurement(buf)
-		tagN, buf := ReadSeriesKeyTagN(buf)
+		_, buf = tsdb.ReadSeriesKeyLen(buf)
+		_, buf = tsdb.ReadSeriesKeyMeasurement(buf)
+		tagN, buf := tsdb.ReadSeriesKeyTagN(buf)
 		for i := 0; i < tagN; i++ {
 			var key, value []byte
-			key, value, buf = ReadSeriesKeyTag(buf)
+			key, value, buf = tsdb.ReadSeriesKeyTag(buf)
 
 			if idx, ok := keyIdxs[string(key)]; ok {
 				resultSet[idx][string(value)] = struct{}{}
@@ -741,7 +741,7 @@ func (fs *FileSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr, 
 		seriesKey := fs.sfile.SeriesKey(e.SeriesID)
 		assert(seriesKey != nil, "series key not found")
 
-		name, tags := ParseSeriesKey(seriesKey)
+		name, tags := tsdb.ParseSeriesKey(seriesKey)
 		keys = append(keys, models.MakeKey(name, tags))
 	}
 

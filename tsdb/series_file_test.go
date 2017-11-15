@@ -1,4 +1,4 @@
-package tsi1_test
+package tsdb_test
 
 import (
 	"io/ioutil"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/index/tsi1"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Ensure series file contains the correct set of series.
@@ -50,20 +50,20 @@ type Series struct {
 	Deleted bool
 }
 
-// SeriesFile is a test wrapper for tsi1.SeriesFile.
+// SeriesFile is a test wrapper for tsdb.SeriesFile.
 type SeriesFile struct {
-	*tsi1.SeriesFile
+	*tsdb.SeriesFile
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
 func NewSeriesFile() *SeriesFile {
-	file, err := ioutil.TempFile("", "tsi1-series-file-")
+	file, err := ioutil.TempFile("", "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}
 	file.Close()
 
-	return &SeriesFile{SeriesFile: tsi1.NewSeriesFile(file.Name())}
+	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.

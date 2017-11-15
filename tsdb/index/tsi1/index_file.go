@@ -44,7 +44,7 @@ type IndexFile struct {
 	data []byte
 
 	// Components
-	sfile *SeriesFile
+	sfile *tsdb.SeriesFile
 	tblks map[string]*TagBlock // tag blocks by measurement name
 	mblk  MeasurementBlock
 
@@ -61,7 +61,7 @@ type IndexFile struct {
 }
 
 // NewIndexFile returns a new instance of IndexFile.
-func NewIndexFile(sfile *SeriesFile) *IndexFile {
+func NewIndexFile(sfile *tsdb.SeriesFile) *IndexFile {
 	return &IndexFile{sfile: sfile}
 }
 
