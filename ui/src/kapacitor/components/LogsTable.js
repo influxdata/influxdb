@@ -80,10 +80,9 @@ class LogsTable extends Component {
   }
 }
 
-const {arrayOf, bool, shape, string} = PropTypes
+const {arrayOf, shape, string} = PropTypes
 
 LogsTable.propTypes = {
-  isWidget: bool,
   logs: arrayOf(
     shape({
       key: string.isRequired,
