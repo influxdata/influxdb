@@ -514,7 +514,7 @@ func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 			`cpu value=3 20`,
 		)
 
-		meas, err := s.MeasurementNames("db0", nil)
+		meas, err := s.MeasurementNames(query.OpenAuthorizer, "db0", nil)
 		if err != nil {
 			t.Fatalf("unexpected error with MeasurementNames: %v", err)
 		}
@@ -555,7 +555,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	// Delete all the series for each measurement.
-	mnames, err := store.MeasurementNames("db", nil)
+	mnames, err := store.MeasurementNames(query.OpenAuthorizer, "db", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -960,6 +960,64 @@ func TestStore_TagValues(t *testing.T) {
 	}
 }
 
+func TestStore_Measurements_Auth(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) error {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		// Create shard #0 with data.
+		s.MustCreateShardWithData("db0", "rp0", 0,
+			`cpu,host=serverA value=1  0`,
+			`cpu,host=serverA value=2 10`,
+			`cpu,region=west value=3 20`,
+			`cpu,secret=foo value=5 30`, // cpu still readable because it has other series that can be read.
+			`mem,secret=foo value=1 30`,
+			`disk value=4 30`,
+		)
+
+		authorizer := &internal.AuthorizerMock{
+			AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
+				if database == "" || tags.GetString("secret") != "" {
+					t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
+					return false
+				}
+				return true
+			},
+		}
+
+		names, err := s.MeasurementNames(authorizer, "db0", nil)
+		if err != nil {
+			return err
+		}
+
+		// names should not contain any measurements where none of the associated
+		// series are authorised for reads.
+		expNames := 2
+		var gotNames int
+		for _, name := range names {
+			if string(name) == "mem" {
+				return fmt.Errorf("got measurment %q but it should be filtered.", name)
+			}
+			gotNames++
+		}
+
+		if gotNames != expNames {
+			return fmt.Errorf("got %d measurements, but expected %d", gotNames, expNames)
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestStore_TagKeys_Auth(t *testing.T) {
 	t.Parallel()
 
@@ -990,7 +1048,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 			return err
 		}
 
-		// values should not contain any tag values associated with a series containing
+		// keys should not contain any tag keys associated with a series containing
 		// a secret tag.
 		expKeys := 3
 		var gotKeys int

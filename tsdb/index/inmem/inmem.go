@@ -392,24 +392,26 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a
 // list of matching meaurement names.
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
 	// Return all measurement names if no expression is provided.
 	if expr == nil {
 		a := make([][]byte, 0, len(i.measurements))
-		for name := range i.measurements {
-			a = append(a, []byte(name))
+		for _, m := range i.measurements {
+			if m.Authorized(auth) {
+				a = append(a, m.name)
+			}
 		}
 		bytesutil.Sort(a)
 		return a, nil
 	}
 
-	return i.measurementNamesByExpr(expr)
+	return i.measurementNamesByExpr(auth, expr)
 }
 
-func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Index) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -444,19 +446,19 @@ func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 
 			// Match on name, if specified.
 			if tag.Val == "_name" {
-				return i.measurementNamesByNameFilter(tf.Op, tf.Value, tf.Regex), nil
+				return i.measurementNamesByNameFilter(auth, tf.Op, tf.Value, tf.Regex), nil
 			} else if influxql.IsSystemName(tag.Val) {
 				return nil, nil
 			}
 
-			return i.measurementNamesByTagFilters(tf), nil
+			return i.measurementNamesByTagFilters(auth, tf), nil
 		case influxql.OR, influxql.AND:
-			lhs, err := i.measurementNamesByExpr(e.LHS)
+			lhs, err := i.measurementNamesByExpr(auth, e.LHS)
 			if err != nil {
 				return nil, err
 			}
 
-			rhs, err := i.measurementNamesByExpr(e.RHS)
+			rhs, err := i.measurementNamesByExpr(auth, e.RHS)
 			if err != nil {
 				return nil, err
 			}
@@ -469,13 +471,13 @@ func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 			return nil, fmt.Errorf("invalid tag comparison operator")
 		}
 	case *influxql.ParenExpr:
-		return i.measurementNamesByExpr(e.Expr)
+		return i.measurementNamesByExpr(auth, e.Expr)
 	}
 	return nil, fmt.Errorf("%#v", expr)
 }
 
 // measurementNamesByNameFilter returns the sorted measurements matching a name.
-func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
+func (i *Index) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
 	var names [][]byte
 	for _, m := range i.measurements {
 		var matched bool
@@ -490,17 +492,16 @@ func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, rege
 			matched = !regex.MatchString(m.Name)
 		}
 
-		if !matched {
-			continue
+		if matched && m.Authorized(auth) {
+			names = append(names, m.name)
 		}
-		names = append(names, []byte(m.Name))
 	}
 	bytesutil.Sort(names)
 	return names
 }
 
 // measurementNamesByTagFilters returns the sorted measurements matching the filters on tag values.
-func (i *Index) measurementNamesByTagFilters(filter *TagFilter) [][]byte {
+func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagFilter) [][]byte {
 	// Build a list of measurements matching the filters.
 	var names [][]byte
 	var tagMatch bool
@@ -541,9 +542,8 @@ func (i *Index) measurementNamesByTagFilters(filter *TagFilter) [][]byte {
 		//     True   |       False     |      False
 		//     False  |       True      |      False
 		//     False  |       False     |      True
-		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) {
+		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) && m.Authorized(auth) {
 			names = append(names, []byte(m.Name))
-			continue
 		}
 	}
 
