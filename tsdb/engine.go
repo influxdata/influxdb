@@ -34,6 +34,7 @@ type Engine interface {
 	Close() error
 	SetEnabled(enabled bool)
 	SetCompactionsEnabled(enabled bool)
+	ScheduleFullCompaction() error
 
 	WithLogger(*zap.Logger)
 

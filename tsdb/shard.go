@@ -191,6 +191,15 @@ func (s *Shard) SetEnabled(enabled bool) {
 	s.mu.Unlock()
 }
 
+// ScheduleFullCompaction forces a full compaction to be schedule on the shard.
+func (s *Shard) ScheduleFullCompaction() error {
+	engine, err := s.engine()
+	if err != nil {
+		return err
+	}
+	return engine.ScheduleFullCompaction()
+}
+
 // ID returns the shards ID.
 func (s *Shard) ID() uint64 {
 	return s.id
