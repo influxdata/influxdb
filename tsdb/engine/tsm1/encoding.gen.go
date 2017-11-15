@@ -162,7 +162,7 @@ func (a Values) search(v int64) int {
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max].
 func (a Values) FindRange(min, max int64) (int, int) {
-	if len(a) == 0 {
+	if len(a) == 0 || min > max {
 		return -1, -1
 	}
 
@@ -374,7 +374,7 @@ func (a FloatValues) search(v int64) int {
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max].
 func (a FloatValues) FindRange(min, max int64) (int, int) {
-	if len(a) == 0 {
+	if len(a) == 0 || min > max {
 		return -1, -1
 	}
 
@@ -630,7 +630,7 @@ func (a IntegerValues) search(v int64) int {
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max].
 func (a IntegerValues) FindRange(min, max int64) (int, int) {
-	if len(a) == 0 {
+	if len(a) == 0 || min > max {
 		return -1, -1
 	}
 
@@ -886,7 +886,7 @@ func (a UnsignedValues) search(v int64) int {
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max].
 func (a UnsignedValues) FindRange(min, max int64) (int, int) {
-	if len(a) == 0 {
+	if len(a) == 0 || min > max {
 		return -1, -1
 	}
 
@@ -1142,7 +1142,7 @@ func (a StringValues) search(v int64) int {
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max].
 func (a StringValues) FindRange(min, max int64) (int, int) {
-	if len(a) == 0 {
+	if len(a) == 0 || min > max {
 		return -1, -1
 	}
 
@@ -1398,7 +1398,7 @@ func (a BooleanValues) search(v int64) int {
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max].
 func (a BooleanValues) FindRange(min, max int64) (int, int) {
-	if len(a) == 0 {
+	if len(a) == 0 || min > max {
 		return -1, -1
 	}
 
