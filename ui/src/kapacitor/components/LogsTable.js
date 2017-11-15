@@ -64,13 +64,6 @@ class LogsTable extends Component {
       <div className="logs-table--container">
         <div className="logs-table--header">
           <h2 className="panel-title">Logs</h2>
-          <div className="filterthing">
-            <input
-              type="text"
-              className="form-control input-sm"
-              placeholder="Search Logs..."
-            />
-          </div>
         </div>
         <FancyScrollbar
           className="logs-table--panel fancy-scroll--kapacitor"
