@@ -39,9 +39,9 @@ func NewFileSet(database string, levels []CompactionLevel, files []File) (*FileS
 }
 
 // Close closes all the files in the file set.
-func (p FileSet) Close() error {
+func (fs FileSet) Close() error {
 	var err error
-	for _, f := range p.files {
+	for _, f := range fs.files {
 		if e := f.Close(); e != nil && err == nil {
 			err = e
 		}
@@ -535,10 +535,10 @@ func (fs *FileSet) matchTagValueNotEqualNotEmptySeriesIterator(name, key []byte,
 	)
 }
 
-func (fs *FileSet) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (fs *FileSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	// Return filtered list if expression exists.
 	if expr != nil {
-		return fs.measurementNamesByExpr(expr)
+		return fs.measurementNamesByExpr(auth, expr)
 	}
 
 	itr := fs.MeasurementIterator()
@@ -549,12 +549,14 @@ func (fs *FileSet) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) 
 	// Iterate over all measurements if no condition exists.
 	var names [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		names = append(names, e.Name())
+		if fs.measurementAuthorized(auth, e.Name()) {
+			names = append(names, e.Name())
+		}
 	}
 	return names, nil
 }
 
-func (fs *FileSet) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (fs *FileSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -587,19 +589,19 @@ func (fs *FileSet) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) 
 
 			// Match on name, if specified.
 			if tag.Val == "_name" {
-				return fs.measurementNamesByNameFilter(e.Op, value, regex), nil
+				return fs.measurementNamesByNameFilter(auth, e.Op, value, regex), nil
 			} else if influxql.IsSystemName(tag.Val) {
 				return nil, nil
 			}
-			return fs.measurementNamesByTagFilter(e.Op, tag.Val, value, regex), nil
+			return fs.measurementNamesByTagFilter(auth, e.Op, tag.Val, value, regex), nil
 
 		case influxql.OR, influxql.AND:
-			lhs, err := fs.measurementNamesByExpr(e.LHS)
+			lhs, err := fs.measurementNamesByExpr(auth, e.LHS)
 			if err != nil {
 				return nil, err
 			}
 
-			rhs, err := fs.measurementNamesByExpr(e.RHS)
+			rhs, err := fs.measurementNamesByExpr(auth, e.RHS)
 			if err != nil {
 				return nil, err
 			}
@@ -614,14 +616,14 @@ func (fs *FileSet) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) 
 		}
 
 	case *influxql.ParenExpr:
-		return fs.measurementNamesByExpr(e.Expr)
+		return fs.measurementNamesByExpr(auth, e.Expr)
 	default:
 		return nil, fmt.Errorf("%#v", expr)
 	}
 }
 
 // measurementNamesByNameFilter returns matching measurement names in sorted order.
-func (fs *FileSet) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
+func (fs *FileSet) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
 	itr := fs.MeasurementIterator()
 	if itr == nil {
 		return nil
@@ -641,7 +643,7 @@ func (fs *FileSet) measurementNamesByNameFilter(op influxql.Token, val string, r
 			matched = !regex.Match(e.Name())
 		}
 
-		if matched {
+		if matched && fs.measurementAuthorized(auth, e.Name()) {
 			names = append(names, e.Name())
 		}
 	}
@@ -649,7 +651,7 @@ func (fs *FileSet) measurementNamesByNameFilter(op influxql.Token, val string, r
 	return names
 }
 
-func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val string, regex *regexp.Regexp) [][]byte {
+func (fs *FileSet) measurementNamesByTagFilter(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) [][]byte {
 	var names [][]byte
 
 	mitr := fs.MeasurementIterator()
@@ -687,7 +689,7 @@ func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val strin
 		//     True   |       False     |      False
 		//     False  |       True      |      False
 		//     False  |       False     |      True
-		if tagMatch == (op == influxql.EQ || op == influxql.EQREGEX) {
+		if tagMatch == (op == influxql.EQ || op == influxql.EQREGEX) && fs.measurementAuthorized(auth, me.Name()) {
 			names = append(names, me.Name())
 			continue
 		}
@@ -695,6 +697,23 @@ func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val strin
 
 	bytesutil.Sort(names)
 	return names
+}
+
+// measurementAuthorized determines if the measurement is authorized to be read.
+// A measurment is authorised to be read if at least one of the measurement's
+// series is authorised to be read.
+func (fs *FileSet) measurementAuthorized(auth query.Authorizer, name []byte) bool {
+	if auth == nil {
+		return true
+	}
+
+	sitr := fs.MeasurementSeriesIterator(name)
+	for series := sitr.Next(); series != nil; series = sitr.Next() {
+		if auth.AuthorizeSeriesRead(fs.database, name, series.Tags()) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasSeries returns true if the series exists and is not tombstoned.

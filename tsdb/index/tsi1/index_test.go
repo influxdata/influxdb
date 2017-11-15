@@ -139,7 +139,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 	// Retrieve measurements by expression
 	idx.Run(t, func(t *testing.T) {
 		t.Run("EQ", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region = 'west'`))
+			names, err := idx.MeasurementNamesByExpr(nil, influxql.MustParseExpr(`region = 'west'`))
 			if err != nil {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
@@ -148,7 +148,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 		})
 
 		t.Run("NEQ", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region != 'east'`))
+			names, err := idx.MeasurementNamesByExpr(nil, influxql.MustParseExpr(`region != 'east'`))
 			if err != nil {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("disk"), []byte("mem")}) {
@@ -157,7 +157,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 		})
 
 		t.Run("EQREGEX", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region =~ /east|west/`))
+			names, err := idx.MeasurementNamesByExpr(nil, influxql.MustParseExpr(`region =~ /east|west/`))
 			if err != nil {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
@@ -166,7 +166,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 		})
 
 		t.Run("NEQREGEX", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`country !~ /^u/`))
+			names, err := idx.MeasurementNamesByExpr(nil, influxql.MustParseExpr(`country !~ /^u/`))
 			if err != nil {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("disk")}) {
