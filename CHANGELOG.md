@@ -1,8 +1,14 @@
+## v1.4.2 [unreleased]
+
+### Bugfixes
+
+- [#9117](https://github.com/influxdata/influxdb/pull/9117): Fix panic: runtime error: slice bounds out of range
+
 ## v1.4.1 [2017-11-13]
 
 ### Bugfixes
 
-- [9105](https://github.com/influxdata/influxdb/pull/9105): Fix descending cursors and range queries via IFQL RPC API. 
+- [9105](https://github.com/influxdata/influxdb/pull/9105): Fix descending cursors and range queries via IFQL RPC API.
 
 ## v1.4.0 [2017-11-13]
 
