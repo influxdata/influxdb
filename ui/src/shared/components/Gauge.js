@@ -57,19 +57,50 @@ class Gauge extends Component {
 
     const gradientThickness = 20
 
-    this.drawMultiRadiantCircle(
-      ctx,
-      centerX,
-      centerY,
-      radius,
-      colors,
-      gradientThickness
-    )
     // The following functions must be called in the specified order
+    this.drawGauge(ctx, centerX, centerY, radius)
     this.drawGaugeLines(ctx, centerX, centerY, radius, gradientThickness)
     this.drawGaugeLabels(ctx, centerX, centerY, radius, gradientThickness)
     this.drawGaugeValue(ctx, radius)
     this.drawNeedle(ctx, radius)
+  }
+
+  drawGauge = (ctx, xc, yc, r) => {
+    const {lowerThreshold, upperThreshold, minValue, maxValue} = this.props
+
+    const trueValueRange = Math.abs(maxValue - minValue)
+    const totalArcLength = Math.PI * 1.5
+    const arcOffset = Math.PI * 0.75
+
+    // Draw lower section
+    const lowerArcStart = Math.PI * 0.75
+    const lowerArcEnd =
+      (lowerThreshold - minValue) / trueValueRange * totalArcLength + arcOffset
+
+    ctx.beginPath()
+    ctx.lineWidth = 20
+    ctx.strokeStyle = 'green'
+    ctx.arc(xc, yc, r, lowerArcStart, lowerArcEnd)
+    ctx.stroke()
+
+    // Draw upper section
+    const upperArcStart =
+      (upperThreshold - minValue) / trueValueRange * totalArcLength + arcOffset
+    const upperArcEnd = Math.PI * 0.25
+
+    ctx.beginPath()
+    ctx.lineWidth = 20
+    ctx.strokeStyle = 'red'
+    ctx.arc(xc, yc, r, upperArcStart, upperArcEnd)
+    ctx.stroke()
+
+    // Draw middle section
+    ctx.beginPath()
+    ctx.lineWidth = 20
+    ctx.lineCap = 'butt'
+    ctx.strokeStyle = 'yellow'
+    ctx.arc(xc, yc, r, lowerArcEnd, upperArcStart)
+    ctx.stroke()
   }
 
   drawMultiRadiantCircle = (
@@ -244,11 +275,12 @@ class Gauge extends Component {
   }
 
   drawNeedle = (ctx, radius) => {
-    const {maxValue, gaugePosition} = this.props
+    const {minValue, maxValue, gaugePosition} = this.props
     const {degree} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
-    const needleRotation = gaugePosition / maxValue
+    const needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+
     const needleGradient = ctx.createLinearGradient(0, -10, 0, radius)
     needleGradient.addColorStop(0, '#434453')
     needleGradient.addColorStop(1, 'white')
