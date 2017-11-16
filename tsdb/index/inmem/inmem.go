@@ -12,6 +12,7 @@ shared index format to the new per-shard format.
 package inmem
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -507,6 +508,15 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 	var tagMatch bool
 	var authorized bool
 
+	// valEqual determins if the provided []byte is equal to the tag value
+	// to be filtered on.
+	valEqual := func(b []byte) bool {
+		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
+			return bytes.Equal([]byte(filter.Value), b)
+		}
+		return filter.Regex.Match(b)
+	}
+
 	// Iterate through all measurements in the database.
 	for _, m := range i.measurements {
 		tagVals := m.SeriesByTagKeyValue(filter.Key)
@@ -520,68 +530,40 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 			authorized = false // Authorization must be explicitly granted.
 		}
 
-		// If the operator is non-regex, only check the specified value.
-		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
-			if tagVals.Contains(filter.Value) {
+		// Check the tag values belonging to the tag key for equivalence to the
+		// tag value being filtered on.
+		tagVals.Range(func(tv string, seriesIDs SeriesIDs) bool {
+			if valEqual([]byte(tv)) {
 				tagMatch = true
-			}
+				if auth == nil {
+					return false // No need to continue checking series.
+				}
 
-			// If a match was found for the EQ operator then the measurement
-			// should be returned. However, this is only allowed if one of the
-			// matching series with the tag value is itself authorized.
-			if auth != nil && tagMatch && filter.Op == influxql.EQ {
-				// The matching tag value might belong to many series. At least
-				// one of these series must be authorized.
-				seriesIDs := tagVals.Load(filter.Value)
+				// Is there a series with this matching tag value that is
+				// authorized to be read?
 				for _, sid := range seriesIDs {
 					if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+						// The Range call can return early as a matching
+						// tag value with an authorized series has been found.
 						authorized = true
-						break
+						return false
 					}
 				}
-			} else if auth != nil && !tagMatch && filter.Op == influxql.NEQ {
-				// In this case the measurement does not have any series with
-				// a matching tag value. The measurment should be authorised
-				// if any of its series are authorised.
-				authorized = m.Authorized(auth)
 			}
-		} else {
-			// Else, the operator is a regex and we have to check all tag
-			// values against the regular expression.
-			tagVals.Range(func(k string, seriesIDs SeriesIDs) bool {
-				if filter.Regex.MatchString(k) {
-					tagMatch = true
-				}
 
-				// When matching against a regex the matching tag value must
-				// also have a series that is authorized.
-				if auth != nil && tagMatch && filter.Op == influxql.EQREGEX {
-					for _, sid := range seriesIDs {
-						if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
-							// The Range call can return early as a matching
-							// tag value with an authorized series has been found.
-							authorized = true
-							return false
-						}
-					}
-				}
+			// Either this tag value doesn't match the required filter, or the
+			// tag value does match but doesn't have any authorized series.
+			// Keep checking tag values.
+			return true
+		})
 
-				// If a tag matches then the Range over remaining tags can be
-				// ceased.
-				return !tagMatch
-			})
-
-			// If the operator was a NEQREGEX and there isn't a matching tag
-			// value then the measurement is authorised if it contains a single
-			// series that's also authorised.
-			if auth != nil && !tagMatch && filter.Op == influxql.NEQREGEX {
-				authorized = m.Authorized(auth)
-			}
+		// For negation operators, to determine if the measurement is authorized,
+		// an authorized series belonging to the measurement must be located.
+		// Then, the measurement can be added iff !tagMatch && authorized.
+		if auth != nil && !tagMatch && (filter.Op == influxql.NEQREGEX || filter.Op == influxql.NEQ) {
+			authorized = m.Authorized(auth)
 		}
 
-		//
-		// XNOR gate
-		//
 		// tags match | operation is EQ | measurement matches
 		// --------------------------------------------------
 		//     True   |       True      |      True

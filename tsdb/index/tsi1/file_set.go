@@ -715,7 +715,7 @@ func (fs *FileSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 		}
 
 		// For negation operators, to determine if the measurement is authorized,
-		// an authorized series belonging to the measurement must located.
+		// an authorized series belonging to the measurement must be located.
 		// Then, the measurement can be added iff !tagMatch && authorized.
 		if op == influxql.NEQ || op == influxql.NEQREGEX && !tagMatch {
 			authorized = fs.measurementAuthorizedSeries(auth, me.Name())
@@ -729,7 +729,6 @@ func (fs *FileSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 		//     False  |       False     |      True
 		if tagMatch == (op == influxql.EQ || op == influxql.EQREGEX) && authorized {
 			names = append(names, me.Name())
-			continue
 		}
 	}
 
