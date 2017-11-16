@@ -41,6 +41,7 @@ class Gauge extends Component {
     // The following functions must be called in the specified order
     this.drawGaugeLines(ctx, centerX, centerY, radius, gradientThickness)
     this.drawGaugeLabels(ctx, centerX, centerY, radius, gradientThickness)
+    this.drawGaugeValue(ctx, radius)
     this.drawNeedle(ctx, radius)
   }
 
@@ -201,6 +202,18 @@ class Gauge extends Component {
       ctx.rotate(i * -arcIncrement)
       ctx.rotate(-startDegree)
     }
+  }
+
+  drawGaugeValue = (ctx, radius) => {
+    const {gaugePosition} = this.props
+
+    ctx.font = '40px Roboto'
+    ctx.fillStyle = '#ffffff'
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'
+
+    const textY = radius * 0.75
+    ctx.fillText(gaugePosition.toString(), 0, textY)
   }
 
   drawNeedle = (ctx, radius) => {
