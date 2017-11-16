@@ -17,12 +17,18 @@ class Gauge extends Component {
     this.updateCanvas()
   }
   componentDidUpdate() {
-    console.log('didupdate')
+    this.updateCanvas()
+  }
+  resetCanvas = (canvas, context) => {
+    context.setTransform(1, 0, 0, 1, 0, 0)
+    context.clearRect(0, 0, canvas.width, canvas.height)
   }
 
   updateCanvas = () => {
     const canvas = this.canvasRef
     const ctx = canvas.getContext('2d')
+
+    this.resetCanvas(canvas, ctx)
 
     const centerX = canvas.width / 2
     const centerY = canvas.height / 2 * 1.13
