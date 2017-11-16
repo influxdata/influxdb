@@ -16,13 +16,16 @@ class Gauge extends Component {
   componentDidMount() {
     this.updateCanvas()
   }
+  componentDidUpdate() {
+    console.log('didupdate')
+  }
 
   updateCanvas = () => {
     const canvas = this.canvasRef
     const ctx = canvas.getContext('2d')
 
     const centerX = canvas.width / 2
-    const centerY = canvas.height / 2 * 1.11
+    const centerY = canvas.height / 2 * 1.13
     const radius = canvas.width / 2 * 0.5
 
     const gradientThickness = 20
@@ -38,6 +41,7 @@ class Gauge extends Component {
     // The following functions must be called in the specified order
     this.drawGaugeLines(ctx, centerX, centerY, radius, gradientThickness)
     this.drawGaugeLabels(ctx, centerX, centerY, radius, gradientThickness)
+    this.drawNeedle(ctx, radius)
   }
 
   drawMultiRadiantCircle = (
@@ -197,6 +201,27 @@ class Gauge extends Component {
       ctx.rotate(i * -arcIncrement)
       ctx.rotate(-startDegree)
     }
+  }
+
+  drawNeedle = (ctx, radius) => {
+    const {maxValue, gaugePosition} = this.props
+    const {degree} = GAUGE_SPECS
+    const arcDistance = Math.PI * 1.5
+
+    const needleRotation = gaugePosition / maxValue
+    const needleGradient = ctx.createLinearGradient(0, -10, 0, radius)
+    needleGradient.addColorStop(0, '#434453')
+    needleGradient.addColorStop(1, 'white')
+
+    // Starting position of needle is at minimum
+    ctx.rotate(degree * 45)
+    ctx.rotate(arcDistance * needleRotation)
+    ctx.beginPath()
+    ctx.fillStyle = needleGradient
+    ctx.arc(0, 0, 10, 0, Math.PI, true)
+    ctx.lineTo(0, radius)
+    ctx.lineTo(10, 0)
+    ctx.fill()
   }
 
   render() {
