@@ -4737,7 +4737,7 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 			}
 
 			for k, typ := range f {
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
+				if fields[k].LessThan(typ) {
 					fields[k] = typ
 				}
 			}
@@ -4749,7 +4749,7 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 				k := f.Name()
 				typ := EvalType(f.Expr, src.Statement.Sources, m)
 
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
+				if fields[k].LessThan(typ) {
 					fields[k] = typ
 				}
 			}
