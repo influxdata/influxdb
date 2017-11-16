@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
+import {GAUGE_SPECS} from 'shared/constants/gaugeSpecs'
+
 const colors = ['#BF3D5E', '#F95F53', '#FFD255', '#7CE490']
 
 class Gauge extends Component {
@@ -20,7 +22,7 @@ class Gauge extends Component {
     const ctx = canvas.getContext('2d')
 
     const centerX = canvas.width / 2
-    const centerY = canvas.height / 2 * 1.06
+    const centerY = canvas.height / 2 * 1.11
     const radius = canvas.width / 2 * 0.5
 
     const gradientThickness = 20
@@ -34,7 +36,7 @@ class Gauge extends Component {
       gradientThickness
     )
     this.drawGaugeLines(ctx, centerX, centerY, radius, gradientThickness)
-    // this.drawGaugeLabels(ctx, centerX, centerY, radius, gradientThickness)
+    this.drawGaugeLabels(ctx, centerX, centerY, radius, gradientThickness)
   }
 
   drawMultiRadiantCircle = (
@@ -79,16 +81,23 @@ class Gauge extends Component {
   }
 
   drawGaugeLines = (ctx, xc, yc, radius, gradientThickness) => {
-    const gaugeLineColor = '#545667'
+    const {
+      degree,
+      lineCount,
+      lineColor,
+      lineStrokeSmall,
+      lineStrokeLarge,
+      tickSizeSmall,
+      tickSizeLarge,
+    } = GAUGE_SPECS
+
     const arcStart = Math.PI * 0.75
     const arcLength = Math.PI * 1.5
     const arcStop = arcStart + arcLength
-    const numSteps = 6
-    const numSmallSteps = 30
-    const degree = Math.PI / 180
+    const lineSmallCount = lineCount * 5
     const startDegree = degree * 135
-    const arcLargeIncrement = arcLength / numSteps
-    const arcSmallIncrement = arcLength / numSmallSteps
+    const arcLargeIncrement = arcLength / lineCount
+    const arcSmallIncrement = arcLength / lineSmallCount
 
     // Semi-circle
     const arcRadius = radius + gradientThickness * 0.8
@@ -96,29 +105,25 @@ class Gauge extends Component {
     ctx.arc(xc, yc, arcRadius, arcStart, arcStop)
     ctx.lineWidth = 3
     ctx.lineCap = 'round'
-    ctx.strokeStyle = gaugeLineColor
+    ctx.strokeStyle = lineColor
     ctx.stroke()
     ctx.closePath()
 
     // Match center of canvas to center of gauge
     ctx.translate(xc, yc)
 
-    // Tick lines
-    const largeTickSize = 18
-    const smallTickSize = 9
-
     // Draw Large ticks
-    for (let lt = 0; lt <= numSteps; lt++) {
+    for (let lt = 0; lt <= lineCount; lt++) {
       // Rototion before drawing line
       ctx.rotate(startDegree)
       ctx.rotate(lt * arcLargeIncrement)
       // Draw line
       ctx.beginPath()
-      ctx.lineWidth = 3
+      ctx.lineWidth = lineStrokeLarge
       ctx.lineCap = 'round'
-      ctx.strokeStyle = gaugeLineColor
+      ctx.strokeStyle = lineColor
       ctx.moveTo(arcRadius, 0)
-      ctx.lineTo(arcRadius + largeTickSize, 0)
+      ctx.lineTo(arcRadius + tickSizeLarge, 0)
       ctx.stroke()
       ctx.closePath()
       // Return to starting rotation
@@ -127,17 +132,17 @@ class Gauge extends Component {
     }
 
     // Draw Small ticks
-    for (let lt = 0; lt <= numSmallSteps; lt++) {
+    for (let lt = 0; lt <= lineSmallCount; lt++) {
       // Rototion before drawing line
       ctx.rotate(startDegree)
       ctx.rotate(lt * arcSmallIncrement)
       // Draw line
       ctx.beginPath()
-      ctx.lineWidth = 1
+      ctx.lineWidth = lineStrokeSmall
       ctx.lineCap = 'round'
-      ctx.strokeStyle = gaugeLineColor
+      ctx.strokeStyle = lineColor
       ctx.moveTo(arcRadius, 0)
-      ctx.lineTo(arcRadius + smallTickSize, 0)
+      ctx.lineTo(arcRadius + tickSizeSmall, 0)
       ctx.stroke()
       ctx.closePath()
       // Return to starting rotation
@@ -147,44 +152,61 @@ class Gauge extends Component {
   }
 
   drawGaugeLabels = (ctx, xc, yc, radius, gradientThickness) => {
+    const {degree, lineCount} = GAUGE_SPECS
+
+    // Build array of label strings
     const {minValue, maxValue} = this.props
-    const rad = radius + gradientThickness
-    const numSteps = 6
-    const rangeStep = (maxValue - minValue) / numSteps
+    const incrementValue = (maxValue - minValue) / lineCount
 
     const gaugeValues = []
-    for (let g = minValue; g <= maxValue; g += rangeStep) {
+    for (let g = minValue; g <= maxValue; g += incrementValue) {
       gaugeValues.push(g.toString())
     }
 
-    const degree = Math.PI / 180
-
-    const startDegree = degree * (135 + 180)
+    const startDegree = degree * 135
     const arcLength = Math.PI * 1.5
-    const arcIncrement = arcLength / numSteps
+    const arcIncrement = arcLength / lineCount
 
-    ctx.font = '20px Roboto'
-    ctx.fillStyle = 'white'
+    // Format labels text
+    ctx.font = 'bold 13px Helvetica'
+    ctx.fillStyle = '#8E91A1'
+    ctx.textBaseline = 'middle'
     ctx.textAlign = 'right'
-    ctx.translate(xc, yc)
-    ctx.rotate(startDegree)
-    // ctx.fillText(gaugeValues[0], -rad, 0)
-    // ctx.fillRect(0, 0, -rad, 2)
+    let labelRadius
 
-    for (let i = 0; i <= numSteps; i++) {
-      ctx.fillText(gaugeValues[i], -rad, 7)
-      // ctx.fillRect(0, -1, -rad, 2)
-      ctx.rotate(arcIncrement)
+    for (let i = 0; i <= lineCount; i++) {
+      if (i === 3) {
+        ctx.textAlign = 'center'
+        labelRadius = radius + gradientThickness + 30
+      } else {
+        labelRadius = radius + gradientThickness + 23
+      }
+      if (i > 3) {
+        ctx.textAlign = 'left'
+      }
+      // initial rotate
+      ctx.rotate(startDegree)
+      // rotate canvas by increment
+      ctx.rotate(i * arcIncrement)
+      // translate out
+      ctx.translate(labelRadius, 0)
+      // rotate back
+      ctx.rotate(i * -arcIncrement)
+      // Level text
+      ctx.rotate(-startDegree)
+      // text
+      ctx.fillText(gaugeValues[i], 0, 0)
+      // Unlevel text
+      ctx.rotate(startDegree)
+      // rotate canvas
+      ctx.rotate(i * arcIncrement)
+      // translate in
+      ctx.translate(-labelRadius, 0)
+      // rotate back
+      ctx.rotate(i * -arcIncrement)
+      // reverse initial rotate
+      ctx.rotate(-startDegree)
     }
-    //   ctx.font = '20px Roboto'
-    //   ctx.fillStyle = 'white'
-    //   ctx.textAlign = 'right'
-    //   ctx.translate(xc, yc)
-    //   ctx.rotate(startDegree + i * arcIncrement)
-    //   ctx.fillText(gaugeValues[1], -rad, 0)
-    //   ctx.fillRect(0, 0, -rad, 2)
-    //   ctx.translate(xc, yc)
-    // }
   }
 
   render() {
