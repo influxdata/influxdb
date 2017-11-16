@@ -505,6 +505,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 	// Build a list of measurements matching the filters.
 	var names [][]byte
 	var tagMatch bool
+	var authorized bool
 
 	// Iterate through all measurements in the database.
 	for _, m := range i.measurements {
@@ -514,23 +515,68 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 		}
 
 		tagMatch = false
+		authorized = true
+		if auth != nil {
+			authorized = false // Authorization must be explicitly granted.
+		}
 
 		// If the operator is non-regex, only check the specified value.
 		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
 			if tagVals.Contains(filter.Value) {
 				tagMatch = true
 			}
+
+			// If a match was found for the EQ operator then the measurement
+			// should be returned. However, this is only allowed if one of the
+			// matching series with the tag value is itself authorized.
+			if auth != nil && tagMatch && filter.Op == influxql.EQ {
+				// The matching tag value might belong to many series. At least
+				// one of these series must be authorized.
+				seriesIDs := tagVals.Load(filter.Value)
+				for _, sid := range seriesIDs {
+					if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+						authorized = true
+						break
+					}
+				}
+			} else if auth != nil && !tagMatch && filter.Op == influxql.NEQ {
+				// In this case the measurement does not have any series with
+				// a matching tag value. The measurment should be authorised
+				// if any of its series are authorised.
+				authorized = m.Authorized(auth)
+			}
 		} else {
 			// Else, the operator is a regex and we have to check all tag
 			// values against the regular expression.
-			tagVals.Range(func(k string, _ SeriesIDs) bool {
+			tagVals.Range(func(k string, seriesIDs SeriesIDs) bool {
 				if filter.Regex.MatchString(k) {
 					tagMatch = true
 				}
+
+				// When matching against a regex the matching tag value must
+				// also have a series that is authorized.
+				if auth != nil && tagMatch && filter.Op == influxql.EQREGEX {
+					for _, sid := range seriesIDs {
+						if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+							// The Range call can return early as a matching
+							// tag value with an authorized series has been found.
+							authorized = true
+							return false
+						}
+					}
+				}
+
 				// If a tag matches then the Range over remaining tags can be
 				// ceased.
 				return !tagMatch
 			})
+
+			// If the operator was a NEQREGEX and there isn't a matching tag
+			// value then the measurement is authorised if it contains a single
+			// series that's also authorised.
+			if auth != nil && !tagMatch && filter.Op == influxql.NEQREGEX {
+				authorized = m.Authorized(auth)
+			}
 		}
 
 		//
@@ -542,7 +588,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 		//     True   |       False     |      False
 		//     False  |       True      |      False
 		//     False  |       False     |      True
-		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) && m.Authorized(auth) {
+		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) && authorized {
 			names = append(names, []byte(m.Name))
 		}
 	}
