@@ -35,6 +35,7 @@ class Gauge extends Component {
       colors,
       gradientThickness
     )
+    // The following functions must be called in the specified order
     this.drawGaugeLines(ctx, centerX, centerY, radius, gradientThickness)
     this.drawGaugeLabels(ctx, centerX, centerY, radius, gradientThickness)
   }
@@ -184,27 +185,16 @@ class Gauge extends Component {
       if (i > 3) {
         ctx.textAlign = 'left'
       }
-      // initial rotate
       ctx.rotate(startDegree)
-      // rotate canvas by increment
       ctx.rotate(i * arcIncrement)
-      // translate out
       ctx.translate(labelRadius, 0)
-      // rotate back
       ctx.rotate(i * -arcIncrement)
-      // Level text
       ctx.rotate(-startDegree)
-      // text
       ctx.fillText(gaugeValues[i], 0, 0)
-      // Unlevel text
       ctx.rotate(startDegree)
-      // rotate canvas
       ctx.rotate(i * arcIncrement)
-      // translate in
       ctx.translate(-labelRadius, 0)
-      // rotate back
       ctx.rotate(i * -arcIncrement)
-      // reverse initial rotate
       ctx.rotate(-startDegree)
     }
   }
