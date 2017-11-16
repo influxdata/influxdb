@@ -1,9 +1,22 @@
 import React, {PropTypes, Component} from 'react'
 
 import DashboardsTable from 'src/dashboards/components/DashboardsTable'
+import SearchBar from 'src/hosts/components/SearchBar'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class DashboardsPageContents extends Component {
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      searchTerm: '',
+    }
+  }
+
+  filterDashboards = searchTerm => {
+    this.setState({searchTerm})
+  }
+
   render() {
     const {
       dashboards,
@@ -21,6 +34,10 @@ class DashboardsPageContents extends Component {
       tableHeader = `${dashboards.length} Dashboards`
     }
 
+    const filteredDashboards = dashboards.filter(d =>
+      d.name.includes(this.state.searchTerm)
+    )
+
     return (
       <FancyScrollbar className="page-contents">
         <div className="container-fluid">
@@ -31,6 +48,7 @@ class DashboardsPageContents extends Component {
                   <h2 className="panel-title">
                     {tableHeader}
                   </h2>
+                  <SearchBar onSearch={this.filterDashboards} />
                   <button
                     className="btn btn-sm btn-primary"
                     onClick={onCreateDashboard}
@@ -40,7 +58,7 @@ class DashboardsPageContents extends Component {
                 </div>
                 <div className="panel-body">
                   <DashboardsTable
-                    dashboards={dashboards}
+                    dashboards={filteredDashboards}
                     onDeleteDashboard={onDeleteDashboard}
                     onCreateDashboard={onCreateDashboard}
                     dashboardLink={dashboardLink}

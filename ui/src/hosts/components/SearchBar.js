@@ -10,8 +10,7 @@ class SearchBar extends Component {
   }
 
   componentWillMount() {
-    const waitPeriod = 300
-    this.handleSearch = _.debounce(this.handleSearch, waitPeriod)
+    this.handleSearch = _.debounce(this.handleSearch, 50)
   }
 
   handleSearch = () => {
