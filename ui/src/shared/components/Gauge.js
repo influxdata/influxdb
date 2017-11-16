@@ -14,10 +14,31 @@ class Gauge extends Component {
   }
 
   componentDidMount() {
+    this.validateValues()
     this.updateCanvas()
   }
+
   componentDidUpdate() {
+    this.validateValues()
     this.updateCanvas()
+  }
+
+  validateValues = () => {
+    const {
+      minValue,
+      maxValue,
+      lowerThreshold,
+      upperThreshold,
+      gaugePosition,
+    } = this.props
+
+    if (
+      !(minValue < lowerThreshold < upperThreshold < maxValue) ||
+      gaugePosition < minValue ||
+      gaugePosition > maxValue
+    ) {
+      console.error('Gauge component has received bad values')
+    }
   }
   resetCanvas = (canvas, context) => {
     context.setTransform(1, 0, 0, 1, 0, 0)
@@ -261,6 +282,8 @@ const {number} = PropTypes
 Gauge.propTypes = {
   minValue: number.isRequired,
   maxValue: number.isRequired,
+  lowerThreshold: number.isRequired,
+  upperThreshold: number.isRequired,
   gaugePosition: number.isRequired,
 }
 
