@@ -2,14 +2,11 @@ package inmem_test
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 )
@@ -146,105 +143,6 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	if got, exp := len(m.SeriesIDs()), 1; got != exp {
 		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
 	}
-}
-
-func TestIndex_MeasurementNamesByExpr(t *testing.T) {
-	idx := NewIndex()
-	idx.AddSeries("cpu", map[string]string{"region": "east"})
-	idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"})
-	idx.AddSeries("disk", map[string]string{"secret": "foo"})
-	idx.AddSeries("mem", map[string]string{"region": "west"})
-	idx.AddSeries("gpu", map[string]string{"region": "east"})
-	idx.AddSeries("pci", map[string]string{"region": "east", "secret": "foo"})
-
-	authorizer := &internal.AuthorizerMock{
-		AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
-			if tags.GetString("secret") != "" {
-				t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
-				return false
-			}
-			return true
-		},
-	}
-
-	type example struct {
-		name     string
-		expr     influxql.Expr
-		expected [][]byte
-	}
-
-	// These examples should be run without any auth.
-	examples := []example{
-		{name: "all", expected: StringsToBytes("cpu", "disk", "gpu", "mem", "pci")},
-		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: StringsToBytes("cpu", "mem")},
-		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: StringsToBytes("gpu", "pci")},
-		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: StringsToBytes("cpu", "gpu", "mem", "pci")},
-		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: StringsToBytes("gpu", "pci")},
-	}
-
-	for _, example := range examples {
-		t.Run(example.name, func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(nil, example.expr)
-			if err != nil {
-				t.Fatal(err)
-			} else if !reflect.DeepEqual(names, example.expected) {
-				t.Fatalf("got names: %v, expected %v", BytesToStrings(names), BytesToStrings(example.expected))
-			}
-		})
-	}
-
-	// These examples should be run with the authorizer.
-	authExamples := []example{
-		{name: "all", expected: StringsToBytes("cpu", "gpu", "mem")},
-		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: StringsToBytes("mem")},
-		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: StringsToBytes("gpu")},
-		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: StringsToBytes("cpu", "gpu", "mem")},
-		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: StringsToBytes("gpu")},
-	}
-
-	for _, example := range authExamples {
-		t.Run("with_auth_"+example.name, func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(authorizer, example.expr)
-			if err != nil {
-				t.Fatal(err)
-			} else if !reflect.DeepEqual(names, example.expected) {
-				t.Fatalf("got names: %v, expected %v", BytesToStrings(names), BytesToStrings(example.expected))
-			}
-		})
-	}
-}
-
-func StringsToBytes(s ...string) [][]byte {
-	a := make([][]byte, 0, len(s))
-	for _, v := range s {
-		a = append(a, []byte(v))
-	}
-	return a
-}
-
-func BytesToStrings(a [][]byte) []string {
-	s := make([]string, 0, len(a))
-	for _, v := range a {
-		s = append(s, string(v))
-	}
-	return s
-}
-
-type Index struct {
-	*inmem.ShardIndex
-}
-
-func NewIndex() *Index {
-	options := tsdb.NewEngineOptions()
-	options.InmemIndex = inmem.NewIndex("db0")
-	index := inmem.NewShardIndex(0, "db0", "", options).(*inmem.ShardIndex)
-	return &Index{ShardIndex: index}
-}
-
-func (idx *Index) AddSeries(name string, tags map[string]string) error {
-	t := models.NewTags(tags)
-	key := fmt.Sprintf("%s,%s", name, t.HashKey())
-	return idx.CreateSeriesIfNotExists([]byte(key), []byte(name), t)
 }
 
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
