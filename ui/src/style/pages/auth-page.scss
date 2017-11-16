@@ -1,6 +1,6 @@
 /*
     Styles for Authorization Page
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .auth-page {
   position: absolute;
@@ -48,7 +48,7 @@
     @include no-user-select();
   }
 
-  .btn {
+  > .btn {
     margin-top: ($sidebar--width / 2);
     margin-bottom: $sidebar--width;
 
@@ -86,7 +86,10 @@
   }
 }
 
-/* Purgatory */
+/*
+    Styles for Purgatory Page
+    ----------------------------------------------------------------------------
+*/
 .auth--purgatory {
   margin-top: 30px;
   min-width: 400px;
@@ -109,4 +112,56 @@
   hr {
     width: 100%;
   }
+}
+
+.auth--list {
+  margin-top: 30px;
+  width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.auth--list-item {
+  height: 70px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: $g4-onyx;
+  border-radius: 4px;
+  margin: 2px 0;
+}
+.auth--list-info {
+  @include no-user-select();
+}
+.auth--list-org {
+  font-size: 17px;
+  font-weight: 400;
+  color: $g11-sidewalk;
+}
+.auth--list-role {
+  font-weight: 700;
+  color: $g13-mist;
+}
+
+.auth--list-item.current {
+  background-color: $g5-pepper;
+  width: calc(100% + 20px);
+  margin: 2px -10px;
+  padding: 0 30px;
+
+  > .auth--list-info > .auth--list-org,
+  > .auth--list-info > .auth--list-role {
+    color: $g20-white;
+  }
+}
+.auth--list-blocked {
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+  color: $g9-mountain;
+  @include no-user-select();
+}
+.btn.auth--logout {
+  margin-top: 30px;
 }

@@ -1,52 +1,93 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+import {withRouter} from 'react-router'
 
-import {MEMBER_ROLE} from 'src/auth/Authorized'
+import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
-const memberCopy = (
-  <p>This role does not grant you sufficient permissions to view Chronograf.</p>
-)
-const viewerCopy = (
-  <p>
-    This organization does not have any configured sources<br />and your role
-    does not have permission to configure a source.
-  </p>
-)
+import SplashPage from 'shared/components/SplashPage'
+import PurgatoryAuthItem from 'src/auth/PurgatoryAuthItem'
 
-const Purgatory = ({name, provider, scheme, currentOrganization, role}) =>
-  <div>
-    <div className="auth-page">
-      <div className="auth-box">
-        <div className="auth-logo" />
-        <div className="auth--purgatory">
-          <h3>
-            Logged in to <strong>{currentOrganization.name}</strong> as a{' '}
-            <em>{role}</em>.
-          </h3>
-          {role === MEMBER_ROLE ? memberCopy : viewerCopy}
-          <p>Contact your Administrator for assistance.</p>
-          <hr />
-          <pre>
-            <code>
-              username: {name}
-              <br />
-              provider: {provider}
-              <br />
-              scheme: {scheme}
-            </code>
-          </pre>
-        </div>
+const getRoleNameByOrgID = (id, roles) => {
+  const role = roles.find(r => r.organization === id)
+  return (role && role.name) || 'ghost'
+}
+
+const handleClickLogin = props => organization => async e => {
+  e.preventDefault()
+  const {router, links, meChangeOrganization} = props
+
+  await meChangeOrganization(links.me, {organization: organization.id})
+  router.push('')
+}
+
+const Purgatory = ({
+  name,
+  provider,
+  scheme,
+  currentOrganization,
+  meChangeOrganization,
+  roles,
+  organizations,
+  logoutLink,
+  router,
+  links,
+}) => {
+  const rolesAndOrgs = organizations.map(organization => ({
+    organization,
+    role: getRoleNameByOrgID(organization.id, roles),
+    currentOrganization: organization.id === currentOrganization.id,
+  }))
+
+  const subHeading =
+    rolesAndOrgs.length === 1
+      ? 'Authenticated in 1 Organization'
+      : `Authenticated in ${rolesAndOrgs.length} Organizations`
+
+  return (
+    <SplashPage>
+      <div className="auth--purgatory">
+        <h3>
+          {name}
+        </h3>
+        <h6>
+          {subHeading}{' '}
+          <code>
+            {scheme}/{provider}
+          </code>
+        </h6>
+        {rolesAndOrgs.length
+          ? <div className="auth--list">
+              {rolesAndOrgs.map((rag, i) =>
+                <PurgatoryAuthItem
+                  key={i}
+                  roleAndOrg={rag}
+                  onClickLogin={handleClickLogin({
+                    router,
+                    links,
+                    meChangeOrganization,
+                  })}
+                />
+              )}
+            </div>
+          : <p>You are a Lost Soul</p>}
+        <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
+          Logout
+        </a>
       </div>
-      <p className="auth-credits">
-        Made by <span className="icon cubo-uniform" />InfluxData
-      </p>
-      <div className="auth-image" />
-    </div>
-  </div>
+    </SplashPage>
+  )
+}
 
-const {shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 Purgatory.propTypes = {
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
+  links: shape({
+    me: string.isRequired,
+  }),
   name: string.isRequired,
   provider: string.isRequired,
   scheme: string.isRequired,
@@ -54,17 +95,43 @@ Purgatory.propTypes = {
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
-  role: string.isRequired,
+  roles: arrayOf(
+    shape({
+      name: string,
+      organization: string,
+    })
+  ).isRequired,
+  organizations: arrayOf(
+    shape({
+      id: string,
+      name: string,
+    })
+  ).isRequired,
+  logoutLink: string.isRequired,
+  meChangeOrganization: func.isRequired,
 }
 
 const mapStateToProps = ({
-  auth: {me: {name, provider, scheme, currentOrganization, role}},
+  links,
+  auth: {
+    me: {name, provider, scheme, currentOrganization, roles, organizations},
+    logoutLink,
+  },
 }) => ({
+  links,
   name,
   provider,
   scheme,
   currentOrganization,
-  role,
+  roles,
+  organizations,
+  logoutLink,
 })
 
-export default connect(mapStateToProps)(Purgatory)
+const mapDispatchToProps = dispatch => ({
+  meChangeOrganization: bindActionCreators(meChangeOrganizationAsync, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(
+  withRouter(Purgatory)
+)

@@ -1,6 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import {withRouter} from 'react-router'
 
 import classnames from 'classnames'
 
@@ -11,9 +12,11 @@ import {meChangeOrganizationAsync} from 'shared/actions/auth'
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 class UserNavBlock extends Component {
-  handleChangeCurrentOrganization = organizationID => () => {
-    const {links, meChangeOrganization} = this.props
-    meChangeOrganization(links.me, {organization: organizationID})
+  handleChangeCurrentOrganization = organizationID => async () => {
+    const {router, links, meChangeOrganization} = this.props
+
+    await meChangeOrganization(links.me, {organization: organizationID})
+    router.push('')
   }
 
   render() {
@@ -168,6 +171,9 @@ class UserNavBlock extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 UserNavBlock.propTypes = {
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
   links: shape({
     me: string,
     external: shape({
@@ -207,4 +213,4 @@ const mapDispatchToProps = dispatch => ({
   meChangeOrganization: bindActionCreators(meChangeOrganizationAsync, dispatch),
 })
 
-export default connect(null, mapDispatchToProps)(UserNavBlock)
+export default connect(null, mapDispatchToProps)(withRouter(UserNavBlock))
