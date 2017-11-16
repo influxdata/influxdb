@@ -265,21 +265,23 @@ class Gauge extends Component {
   }
 
   render() {
+    const {width, height} = this.props
     return (
       <canvas
         className="gauge"
-        style={{border: '1px solid #f00'}}
-        width={400}
-        height={300}
+        width={width}
+        height={height}
         ref={r => (this.canvasRef = r)}
       />
     )
   }
 }
 
-const {number} = PropTypes
+const {number, string} = PropTypes
 
 Gauge.propTypes = {
+  width: string.isRequired,
+  height: string.isRequired,
   minValue: number.isRequired,
   maxValue: number.isRequired,
   lowerThreshold: number.isRequired,
