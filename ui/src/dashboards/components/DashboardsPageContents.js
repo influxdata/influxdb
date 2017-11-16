@@ -48,13 +48,15 @@ class DashboardsPageContents extends Component {
                   <h2 className="panel-title">
                     {tableHeader}
                   </h2>
-                  <SearchBar onSearch={this.filterDashboards} />
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={onCreateDashboard}
-                  >
-                    <span className="icon plus" /> Create Dashboard
-                  </button>
+                  <div>
+                    <SearchBar onSearch={this.filterDashboards} />
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={onCreateDashboard}
+                    >
+                      <span className="icon plus" /> Create Dashboard
+                    </button>
+                  </div>
                 </div>
                 <div className="panel-body">
                   <DashboardsTable
