@@ -148,13 +148,14 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	}
 }
 
-func TestIndex_MeasurementNamesByExpr_Auth(t *testing.T) {
+func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 	idx := NewIndex()
 	idx.AddSeries("cpu", map[string]string{"region": "east"})
 	idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"})
 	idx.AddSeries("disk", map[string]string{"secret": "foo"})
 	idx.AddSeries("mem", map[string]string{"region": "west"})
-	idx.AddSeries("gpu", nil)
+	idx.AddSeries("gpu", map[string]string{"region": "east"})
+	idx.AddSeries("pci", map[string]string{"region": "east", "secret": "foo"})
 
 	authorizer := &internal.AuthorizerMock{
 		AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
@@ -166,31 +167,59 @@ func TestIndex_MeasurementNamesByExpr_Auth(t *testing.T) {
 		},
 	}
 
-	// When no condition is provided, all authorised measurements should be returned.
-	names, err := idx.MeasurementNamesByExpr(authorizer, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("gpu"), []byte("mem")}) {
-		t.Fatalf("unexpected names: %v", BytesToStrings(names))
+	type example struct {
+		name     string
+		expr     influxql.Expr
+		expected [][]byte
 	}
 
-	// When using a tag filter, authorised measurements should be returned that
-	// match the tag filter.
-	names, err = idx.MeasurementNamesByExpr(authorizer, influxql.MustParseExpr(`region = 'west'`))
-	if err != nil {
-		t.Fatal(err)
-	} else if !reflect.DeepEqual(names, [][]byte{[]byte("mem")}) {
-		t.Fatalf("unexpected names: %v", BytesToStrings(names))
+	// These examples should be run without any auth.
+	examples := []example{
+		{name: "all", expected: StringsToBytes("cpu", "disk", "gpu", "mem", "pci")},
+		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: StringsToBytes("cpu", "mem")},
+		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: StringsToBytes("gpu", "pci")},
+		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: StringsToBytes("cpu", "gpu", "mem", "pci")},
+		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: StringsToBytes("gpu", "pci")},
 	}
 
-	// When using a regex on a measurement name, all authorised measurements
-	// should be returned.
-	names, err = idx.MeasurementNamesByExpr(authorizer, influxql.MustParseExpr(`_name =~ /cpu|disk/`))
-	if err != nil {
-		t.Fatal(err)
-	} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu")}) {
-		t.Fatalf("unexpected names: %v", BytesToStrings(names))
+	for _, example := range examples {
+		t.Run(example.name, func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(nil, example.expr)
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, example.expected) {
+				t.Fatalf("got names: %v, expected %v", BytesToStrings(names), BytesToStrings(example.expected))
+			}
+		})
 	}
+
+	// These examples should be run with the authorizer.
+	authExamples := []example{
+		{name: "all", expected: StringsToBytes("cpu", "gpu", "mem")},
+		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: StringsToBytes("mem")},
+		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: StringsToBytes("gpu")},
+		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: StringsToBytes("cpu", "gpu", "mem")},
+		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: StringsToBytes("gpu")},
+	}
+
+	for _, example := range authExamples {
+		t.Run("with_auth_"+example.name, func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(authorizer, example.expr)
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, example.expected) {
+				t.Fatalf("got names: %v, expected %v", BytesToStrings(names), BytesToStrings(example.expected))
+			}
+		})
+	}
+}
+
+func StringsToBytes(s ...string) [][]byte {
+	a := make([][]byte, 0, len(s))
+	for _, v := range s {
+		a = append(a, []byte(v))
+	}
+	return a
 }
 
 func BytesToStrings(a [][]byte) []string {
