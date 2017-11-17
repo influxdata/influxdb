@@ -1168,8 +1168,8 @@ func NewSeries(key []byte, tags models.Tags) *Series {
 	}
 }
 
-func (s *Series) AssignShard(shardID uint64) {
-	atomic.StoreInt64(&s.lastModified, time.Now().UTC().UnixNano())
+func (s *Series) AssignShard(shardID uint64, ts int64) {
+	atomic.StoreInt64(&s.lastModified, ts)
 	if s.Assigned(shardID) {
 		return
 	}
