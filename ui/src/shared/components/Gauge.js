@@ -85,9 +85,6 @@ class Gauge extends Component {
     } else if (theme === GAUGE_THEME_SUMMER) {
       gaugeColors = GAUGE_SPECS.theme.summer
     }
-    if (inverse) {
-      gaugeColors.reverse()
-    }
 
     const trueValueRange = Math.abs(maxValue - minValue)
     const totalArcLength = Math.PI * 1.5
@@ -111,8 +108,8 @@ class Gauge extends Component {
       xLowerEnd,
       yLowerEnd
     )
-    lowerGradient.addColorStop(0, gaugeColors[0])
-    lowerGradient.addColorStop(1.0, gaugeColors[1])
+    lowerGradient.addColorStop(0, gaugeColors[inverse ? 5 : 0])
+    lowerGradient.addColorStop(1.0, gaugeColors[inverse ? 4 : 1])
 
     ctx.beginPath()
     ctx.lineWidth = 20
@@ -138,8 +135,8 @@ class Gauge extends Component {
       xUpperEnd,
       yUpperEnd
     )
-    upperGradient.addColorStop(0, gaugeColors[4])
-    upperGradient.addColorStop(1.0, gaugeColors[5])
+    upperGradient.addColorStop(0, gaugeColors[inverse ? 1 : 4])
+    upperGradient.addColorStop(1.0, gaugeColors[inverse ? 0 : 5])
 
     ctx.beginPath()
     ctx.lineWidth = 20
@@ -160,8 +157,8 @@ class Gauge extends Component {
       xMiddleEnd,
       yMiddleEnd
     )
-    middleGradient.addColorStop(0, gaugeColors[2])
-    middleGradient.addColorStop(1.0, gaugeColors[3])
+    middleGradient.addColorStop(0, gaugeColors[inverse ? 3 : 2])
+    middleGradient.addColorStop(1.0, gaugeColors[inverse ? 2 : 3])
 
     ctx.beginPath()
     ctx.lineWidth = 20
