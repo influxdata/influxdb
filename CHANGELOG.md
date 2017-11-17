@@ -11,6 +11,7 @@
 ### Bugfixes
 
 - [#9065](https://github.com/influxdata/influxdb/pull/9065): Refuse extra arguments to influx CLI
+- [#9058](https://github.com/influxdata/influxdb/issues/9058): Fix space required after regex operator. Thanks @stop-start!
 
 ## v1.4.2 [2017-11-15]
 
