@@ -7,11 +7,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb/index/inmem"
-
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 )
 
@@ -47,20 +47,20 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 
 	// These examples should be run without any auth.
 	examples := []example{
-		{name: "all", expected: StringsToBytes("cpu", "disk", "gpu", "mem", "pci")},
-		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: StringsToBytes("cpu", "mem")},
-		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: StringsToBytes("gpu", "pci")},
-		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: StringsToBytes("cpu", "gpu", "mem", "pci")},
-		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: StringsToBytes("gpu", "pci")},
+		{name: "all", expected: slices.StringsToBytes("cpu", "disk", "gpu", "mem", "pci")},
+		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: slices.StringsToBytes("cpu", "mem")},
+		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: slices.StringsToBytes("gpu", "pci")},
+		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: slices.StringsToBytes("cpu", "gpu", "mem", "pci")},
+		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: slices.StringsToBytes("gpu", "pci")},
 	}
 
 	// These examples should be run with the authorizer.
 	authExamples := []example{
-		{name: "all", expected: StringsToBytes("cpu", "gpu", "mem")},
-		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: StringsToBytes("mem")},
-		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: StringsToBytes("gpu")},
-		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: StringsToBytes("cpu", "gpu", "mem")},
-		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: StringsToBytes("gpu")},
+		{name: "all", expected: slices.StringsToBytes("cpu", "gpu", "mem")},
+		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: slices.StringsToBytes("mem")},
+		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: slices.StringsToBytes("gpu")},
+		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: slices.StringsToBytes("cpu", "gpu", "mem")},
+		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: slices.StringsToBytes("gpu")},
 	}
 
 	for _, idx := range tsdb.RegisteredIndexes() {
@@ -72,7 +72,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						} else if !reflect.DeepEqual(names, example.expected) {
-							t.Fatalf("got names: %v, expected %v", BytesToStrings(names), BytesToStrings(example.expected))
+							t.Fatalf("got names: %v, expected %v", slices.BytesToStrings(names), slices.BytesToStrings(example.expected))
 						}
 					})
 				}
@@ -85,29 +85,13 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						} else if !reflect.DeepEqual(names, example.expected) {
-							t.Fatalf("got names: %v, expected %v", BytesToStrings(names), BytesToStrings(example.expected))
+							t.Fatalf("got names: %v, expected %v", slices.BytesToStrings(names), slices.BytesToStrings(example.expected))
 						}
 					})
 				}
 			})
 		})
 	}
-}
-
-func StringsToBytes(s ...string) [][]byte {
-	a := make([][]byte, 0, len(s))
-	for _, v := range s {
-		a = append(a, []byte(v))
-	}
-	return a
-}
-
-func BytesToStrings(a [][]byte) []string {
-	s := make([]string, 0, len(a))
-	for _, v := range a {
-		s = append(s, string(v))
-	}
-	return s
 }
 
 type Index struct {

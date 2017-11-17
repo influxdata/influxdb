@@ -998,7 +998,7 @@ func TestStore_Measurements_Auth(t *testing.T) {
 		var gotNames int
 		for _, name := range names {
 			if string(name) == "mem" {
-				return fmt.Errorf("got measurment %q but it should be filtered.", name)
+				return fmt.Errorf("got measurement %q but it should be filtered.", name)
 			}
 			gotNames++
 		}
@@ -1054,7 +1054,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 		var gotKeys int
 		for _, tk := range keys {
 			if got, exp := tk.Measurement, "cpu"; got != exp {
-				return fmt.Errorf("got measurment %q, expected %q", got, exp)
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
 			}
 
 			for _, key := range tk.Keys {
@@ -1121,7 +1121,7 @@ func TestStore_TagValues_Auth(t *testing.T) {
 		var gotValues int
 		for _, tv := range values {
 			if got, exp := tv.Measurement, "cpu"; got != exp {
-				return fmt.Errorf("got measurment %q, expected %q", got, exp)
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
 			}
 
 			for _, v := range tv.Values {
