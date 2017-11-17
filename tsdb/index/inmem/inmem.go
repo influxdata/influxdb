@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"time"
 	// "sync/atomic"
 
 	"github.com/influxdata/influxdb/models"
@@ -152,7 +153,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	i.mu.RUnlock()
 
 	if ss != nil {
-		ss.AssignShard(shardID)
+		ss.AssignShard(shardID, time.Now().UnixNano())
 		return nil
 	}
 
@@ -165,7 +166,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
-		ss.AssignShard(shardID)
+		ss.AssignShard(shardID, time.Now().UnixNano())
 		return nil
 	}
 
@@ -186,7 +187,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	i.series[string(key)] = series
 
 	m.AddSeries(series)
-	series.AssignShard(shardID)
+	series.AssignShard(shardID, time.Now().UnixNano())
 
 	// Add the series to the series sketch.
 	i.seriesSketch.Add(key)
@@ -755,7 +756,7 @@ func (i *Index) SnapshotTo(path string) error { return nil }
 func (i *Index) AssignShard(k string, shardID uint64) {
 	ss, _ := i.Series([]byte(k))
 	if ss != nil {
-		ss.AssignShard(shardID)
+		ss.AssignShard(shardID, time.Now().UnixNano())
 	}
 }
 
@@ -818,6 +819,7 @@ func (i *Index) RemoveShard(shardID uint64) {
 func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
 	i.mu.RLock()
 	var n int
+	now := time.Now().UnixNano()
 	for j, key := range keys {
 		if ss := i.series[string(key)]; ss == nil {
 			keys[n] = keys[j]
@@ -825,7 +827,7 @@ func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsS
 			tagsSlice[n] = tagsSlice[j]
 			n++
 		} else {
-			ss.AssignShard(shardID)
+			ss.AssignShard(shardID, now)
 		}
 	}
 	i.mu.RUnlock()
