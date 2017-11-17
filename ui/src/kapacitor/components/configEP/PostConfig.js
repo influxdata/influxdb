@@ -4,9 +4,9 @@ import EndpointCheckbox from 'src/kapacitor/components/EndpointCheckbox'
 
 const HttpConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
   return (
-    <div className="rule-section--row rule-section--border-bottom">
-      <p>Alert Parameters:</p>
-      <div className="optional-alert-parameters">
+    <div className="endpoint-tab-contents">
+      <div className="endpoint-tab--parameters">
+        <h4>Optional Parameters</h4>
         <EndpointInput
           selectedEndpoint={selectedEndpoint}
           handleModifyEndpoint={handleModifyEndpoint}

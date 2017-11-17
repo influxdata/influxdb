@@ -9,18 +9,18 @@ const EndpointTabs = ({
   handleRemoveEndpoint,
 }) => {
   return endpointsOnThisAlert.length
-    ? <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
+    ? <ul className="endpoint-tabs">
         {endpointsOnThisAlert.map(ep =>
           <li
             key={uuid.v4()}
-            className={classnames({
+            className={classnames('endpoint-tab', {
               active: ep.alias === (selectedEndpoint && selectedEndpoint.alias),
             })}
             onClick={handleChooseAlert(ep)}
           >
             {ep.alias}
-            <div
-              className="nav-tab--delete"
+            <button
+              className="endpoint-tab--delete"
               onClick={handleRemoveEndpoint(ep)}
             />
           </li>

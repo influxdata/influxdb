@@ -137,28 +137,37 @@ class RuleEndpoints extends Component {
     const alerts = _.map([...DEFAULT_ALERTS, ...enabledAlerts], a => {
       return {...a, text: a.type}
     })
+
+    const dropdownLabel = endpointsOnThisAlert.length
+      ? 'Add another Endpoint'
+      : 'Add an Endpoint'
+
+    const ruleSectionClassName = endpointsOnThisAlert.length
+      ? 'rule-section--row rule-section--row-first rule-section--border-bottom'
+      : 'rule-section--row rule-section--row-first rule-section--row-last'
+
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">Endpoints</h3>
         <div className="rule-section--body">
-          <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
+          <div className={ruleSectionClassName}>
             <p>Send this Alert to:</p>
-            <EndpointTabs
-              endpointsOnThisAlert={endpointsOnThisAlert}
-              selectedEndpoint={selectedEndpoint}
-              handleChooseAlert={this.handleChooseAlert}
-              handleRemoveEndpoint={this.handleRemoveEndpoint}
-            />
             <Dropdown
               items={alerts}
               menuClass="dropdown-malachite"
-              selected="Add an Endpoint"
+              selected={dropdownLabel}
               onChoose={this.handleAddEndpoint}
-              className="dropdown-140 rule-message--add-endpoint"
+              className="dropdown-200 rule-message--add-endpoint"
             />
           </div>
           {endpointsOnThisAlert.length
-            ? <div>
+            ? <div className="rule-message--endpoints">
+                <EndpointTabs
+                  endpointsOnThisAlert={endpointsOnThisAlert}
+                  selectedEndpoint={selectedEndpoint}
+                  handleChooseAlert={this.handleChooseAlert}
+                  handleRemoveEndpoint={this.handleRemoveEndpoint}
+                />
                 <EndpointOptions
                   selectedEndpoint={selectedEndpoint}
                   handleModifyEndpoint={this.handleModifyEndpoint}

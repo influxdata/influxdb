@@ -408,56 +408,128 @@ $rule-builder--radius-lg: 5px;
 }
 
 /*
-  Styles for Rule Message dropdown
+  Styles for Endpoints section
   -----------------------------------------------------------------------------
 */
+.rule-message--endpoints {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
 .rule-message--add-endpoint {
   margin-left: 4px;
 }
 
-/*
-  Deletable tabs in .nav-tablist
-  -----------------------------------------------------------------------------
-  TODO: Add this into the theme styles
-*/
-.nav-tab--delete {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  margin-right: -6px;
-  margin-left: 6px;
-  border-radius: 3px;
-  position: relative;
-  transition: background-color 0.25s ease;
+.endpoint-tabs {
+  width: 260px;
+  background-color: $rule-builder--section-border;
+  border-bottom-left-radius: $rule-builder--radius-lg;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
 
-  // Psuedo elements used to form the X
+.endpoint-tab {
+  display: block;
+  list-style: none;
+  @include no-user-select();
+  position: relative;
+  height: 40px;
+  line-height: 40px;
+  padding: 0 $rule-builder--padding-lg;
+  margin: 0 0 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: $g9-mountain;
+  font-size: 14.5px;
+  font-weight: 600;
+  border-right: 2px solid $rule-builder--section-border;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  &:last-child {
+    margin-bottom: 0px;
+  }
+
+  &:hover {
+    cursor: pointer;
+    background-color: $rule-builder--section-bg;
+    color: $g15-platinum;
+  }
+
+  &.active {
+    color: $c-rainforest;
+    background-color: $rule-builder--section-bg;
+    border-color: $rule-builder--section-bg;
+  }
+}
+.endpoint-tab--delete {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  transition: background-color 0.25s ease;
+  outline: none;
+  background-color: transparent;
+  border: none;
+
   &:before,
   &:after {
     content: '';
     position: absolute;
     top: 50%;
     left: 50%;
-    background-color: $g7-graphite;
-    width: 10px;
-    height: 2px;
+    background-color: $g8-storm;
     border-radius: 1px;
+    transform: translate(-50%,-50%) rotate(45deg);
     transition: background-color 0.25s ease;
   }
-  &:before {transform: translate(-50%,-50%) rotate(45deg);}
-  &:after {transform: translate(-50%,-50%) rotate(-45deg);}
-}
-.nav-tablist li:hover .nav-tab--delete,
-.nav-tablist li.active .nav-tab--delete {
-  &:before, &:after {
-    background-color: $g11-sidewalk;
+  &:before {
+    width: 12px;
+    height: 2px;
+  }
+  &:after {
+    width: 2px;
+    height: 12px;
   }
 
   &:hover {
+    background-color: $g5-pepper;
     cursor: pointer;
-    background-color: $c-curacao;
-
-    &:before, &:after {
-      background-color: $g20-white;
-    }
+    &:before,
+    &:after {background-color: $g20-white;}
   }
+  &:hover:active {
+    background-color: $c-curacao;
+  }
+}
+.endpoint-tab-contents {
+  flex: 1 0 0;
+  background-color: $rule-builder--section-bg;
+  border-bottom-right-radius: $rule-builder--radius-lg;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  h4 {
+    width: 100%;
+    margin: 0;
+    margin-bottom: 8px;
+    @include no-user-select();
+    font-size: 14.5px;
+    font-weight: 600;
+    color: $g15-platinum;
+  }
+}
+.endpoint-tab--parameters {
+  padding: $rule-builder--padding-lg;
 }
