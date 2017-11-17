@@ -2,8 +2,6 @@ import React, {Component, PropTypes} from 'react'
 
 import {GAUGE_SPECS} from 'shared/constants/gaugeSpecs'
 
-const colors = ['#BF3D5E', '#F95F53', '#FFD255', '#7CE490']
-
 class Gauge extends Component {
   constructor(props) {
     super(props)
@@ -77,9 +75,25 @@ class Gauge extends Component {
     const lowerArcEnd =
       (lowerThreshold - minValue) / trueValueRange * totalArcLength + arcOffset
 
+    // Determine coordinates for gradient
+    const xLowerStart = xc + Math.cos(lowerArcStart) * r
+    const yLowerStart = yc + Math.sin(lowerArcStart) * r
+    const xLowerEnd = xc + Math.cos(lowerArcEnd) * r
+    const yLowerEnd = yc + Math.sin(lowerArcEnd) * r
+
+    // Define lower section gradient
+    const lowerGradient = ctx.createLinearGradient(
+      xLowerStart,
+      yLowerStart,
+      xLowerEnd,
+      yLowerEnd
+    )
+    lowerGradient.addColorStop(0, 'green')
+    lowerGradient.addColorStop(1.0, 'yellow')
+
     ctx.beginPath()
     ctx.lineWidth = 20
-    ctx.strokeStyle = 'green'
+    ctx.strokeStyle = lowerGradient
     ctx.arc(xc, yc, r, lowerArcStart, lowerArcEnd)
     ctx.stroke()
 
@@ -88,17 +102,48 @@ class Gauge extends Component {
       (upperThreshold - minValue) / trueValueRange * totalArcLength + arcOffset
     const upperArcEnd = Math.PI * 0.25
 
+    // Determine coordinates for gradient
+    const xUpperStart = xc + Math.cos(upperArcStart) * r
+    const yUpperStart = yc + Math.sin(upperArcStart) * r
+    const xUpperEnd = xc + Math.cos(upperArcEnd) * r
+    const yUpperEnd = yc + Math.sin(upperArcEnd) * r
+
+    // Define lower section gradient
+    const upperGradient = ctx.createLinearGradient(
+      xUpperStart,
+      yUpperStart,
+      xUpperEnd,
+      yUpperEnd
+    )
+    upperGradient.addColorStop(0, 'orange')
+    upperGradient.addColorStop(1.0, 'red')
+
     ctx.beginPath()
     ctx.lineWidth = 20
-    ctx.strokeStyle = 'red'
+    ctx.strokeStyle = upperGradient
     ctx.arc(xc, yc, r, upperArcStart, upperArcEnd)
     ctx.stroke()
 
     // Draw middle section
+    // Determine coordinates for gradient
+    const xMiddleStart = xc + Math.cos(lowerArcEnd) * r
+    const yMiddleStart = yc + Math.sin(lowerArcEnd) * r
+    const xMiddleEnd = xc + Math.cos(upperArcStart) * r
+    const yMiddleEnd = yc + Math.sin(upperArcStart) * r
+    // Define lower section gradient
+    const middleGradient = ctx.createLinearGradient(
+      xMiddleStart,
+      yMiddleStart,
+      xMiddleEnd,
+      yMiddleEnd
+    )
+    middleGradient.addColorStop(0, 'yellow')
+    middleGradient.addColorStop(1.0, 'orange')
+
     ctx.beginPath()
     ctx.lineWidth = 20
     ctx.lineCap = 'butt'
-    ctx.strokeStyle = 'yellow'
+    ctx.strokeStyle = middleGradient
     ctx.arc(xc, yc, r, lowerArcEnd, upperArcStart)
     ctx.stroke()
   }
