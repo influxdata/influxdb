@@ -1,3 +1,9 @@
+## v1.4.3 [unreleased]
+
+### Bugfixes
+
+- [#9129](https://github.com/influxdata/influxdb/pull/9129): Fix delete causing too much data to disappear
+
 ## v1.4.2 [2017-11-15]
 
 Refer to the 1.4.0 breaking changes section if `influxd` fails to start with an `incompatible tsi1 index MANIFEST` error.
