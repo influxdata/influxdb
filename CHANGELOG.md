@@ -10,6 +10,8 @@
 1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
 
 ### Features
+1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+
 ### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]
