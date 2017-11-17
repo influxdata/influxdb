@@ -163,13 +163,7 @@ func Test_MarshalDashboard(t *testing.T) {
 							Upper: int64(100),
 						},
 						Source: "/chronograf/v1/sources/1",
-						Shifts: []chronograf.TimeShift{
-							{
-								Label:    "Best Week Ever",
-								Unit:     "d",
-								Quantity: "7",
-							},
-						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
