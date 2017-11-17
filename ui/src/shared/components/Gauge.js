@@ -245,7 +245,8 @@ class Gauge extends Component {
 
     const gaugeValues = []
     for (let g = minValue; g <= maxValue; g += incrementValue) {
-      gaugeValues.push(g.toString())
+      const roundedValue = Math.round(g * 100) / 100
+      gaugeValues.push(roundedValue.toString())
     }
 
     const startDegree = degree * 135
