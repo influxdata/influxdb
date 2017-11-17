@@ -9,6 +9,7 @@
 1. [#2303](https://github.com/influxdata/chronograf/pull/2303): Add shadow-utils to RPM release packages
 1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
 1. [#2329](https://github.com/influxdata/chronograf/pull/2329): Include tag values alongside measurement name in Data Explorer result tabs
+1. [#2386](https://github.com/influxdata/chronograf/pull/2386): Fix queries that include regex, numbers and wildcard
 
 ### Features
 ### UI Improvements
