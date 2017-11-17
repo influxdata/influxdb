@@ -1,6 +1,10 @@
 import React, {Component, PropTypes} from 'react'
 
-import {GAUGE_SPECS} from 'shared/constants/gaugeSpecs'
+import {
+  GAUGE_SPECS,
+  GAUGE_THEME_WINTER,
+  GAUGE_THEME_SUMMER,
+} from 'shared/constants/gaugeSpecs'
 
 class Gauge extends Component {
   constructor(props) {
@@ -64,7 +68,26 @@ class Gauge extends Component {
   }
 
   drawGauge = (ctx, xc, yc, r) => {
-    const {lowerThreshold, upperThreshold, minValue, maxValue} = this.props
+    const {
+      lowerThreshold,
+      upperThreshold,
+      minValue,
+      maxValue,
+      inverse,
+      theme,
+    } = this.props
+
+    // Assign gauge colors based on props
+    let gaugeColors
+
+    if (theme === GAUGE_THEME_WINTER) {
+      gaugeColors = GAUGE_SPECS.theme.winter
+    } else if (theme === GAUGE_THEME_SUMMER) {
+      gaugeColors = GAUGE_SPECS.theme.summer
+    }
+    if (inverse) {
+      gaugeColors.reverse()
+    }
 
     const trueValueRange = Math.abs(maxValue - minValue)
     const totalArcLength = Math.PI * 1.5
@@ -88,8 +111,8 @@ class Gauge extends Component {
       xLowerEnd,
       yLowerEnd
     )
-    lowerGradient.addColorStop(0, 'green')
-    lowerGradient.addColorStop(1.0, 'yellow')
+    lowerGradient.addColorStop(0, gaugeColors[0])
+    lowerGradient.addColorStop(1.0, gaugeColors[1])
 
     ctx.beginPath()
     ctx.lineWidth = 20
@@ -115,8 +138,8 @@ class Gauge extends Component {
       xUpperEnd,
       yUpperEnd
     )
-    upperGradient.addColorStop(0, 'orange')
-    upperGradient.addColorStop(1.0, 'red')
+    upperGradient.addColorStop(0, gaugeColors[4])
+    upperGradient.addColorStop(1.0, gaugeColors[5])
 
     ctx.beginPath()
     ctx.lineWidth = 20
@@ -137,8 +160,8 @@ class Gauge extends Component {
       xMiddleEnd,
       yMiddleEnd
     )
-    middleGradient.addColorStop(0, 'yellow')
-    middleGradient.addColorStop(1.0, 'orange')
+    middleGradient.addColorStop(0, gaugeColors[2])
+    middleGradient.addColorStop(1.0, gaugeColors[3])
 
     ctx.beginPath()
     ctx.lineWidth = 20
@@ -146,47 +169,6 @@ class Gauge extends Component {
     ctx.strokeStyle = middleGradient
     ctx.arc(xc, yc, r, lowerArcEnd, upperArcStart)
     ctx.stroke()
-  }
-
-  drawMultiRadiantCircle = (
-    ctx,
-    xc,
-    yc,
-    r,
-    radientColors,
-    gradientThickness
-  ) => {
-    const partLength = Math.PI / (radientColors.length - 2)
-    let start = Math.PI * 0.75
-    let gradient = null
-    let startColor = null
-    let endColor = null
-
-    for (let i = 0; i < radientColors.length - 1; i++) {
-      startColor = radientColors[i]
-      endColor = radientColors[(i + 1) % radientColors.length]
-
-      // x start / end of the next arc to draw
-      const xStart = xc + Math.cos(start) * r
-      const xEnd = xc + Math.cos(start + partLength) * r
-      // y start / end of the next arc to draw
-      const yStart = yc + Math.sin(start) * r
-      const yEnd = yc + Math.sin(start + partLength) * r
-
-      ctx.beginPath()
-
-      gradient = ctx.createLinearGradient(xStart, yStart, xEnd, yEnd)
-      gradient.addColorStop(0, startColor)
-      gradient.addColorStop(1.0, endColor)
-
-      ctx.strokeStyle = gradient
-      ctx.arc(xc, yc, r, start, start + partLength)
-      ctx.lineWidth = gradientThickness
-      ctx.stroke()
-      ctx.closePath()
-
-      start += partLength
-    }
   }
 
   drawGaugeLines = (ctx, xc, yc, radius, gradientThickness) => {
@@ -320,7 +302,8 @@ class Gauge extends Component {
   }
 
   drawNeedle = (ctx, radius) => {
-    const {minValue, maxValue, gaugePosition} = this.props
+    const {minValue, maxValue} = this.props
+    const {gaugePosition} = this.state
     const {degree} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
@@ -354,7 +337,12 @@ class Gauge extends Component {
   }
 }
 
-const {number, string} = PropTypes
+const {bool, number, string} = PropTypes
+
+Gauge.defaultProps = {
+  inverse: false,
+  theme: GAUGE_THEME_WINTER,
+}
 
 Gauge.propTypes = {
   width: string.isRequired,
@@ -364,6 +352,8 @@ Gauge.propTypes = {
   lowerThreshold: number.isRequired,
   upperThreshold: number.isRequired,
   gaugePosition: number.isRequired,
+  inverse: bool,
+  theme: string,
 }
 
 export default Gauge
