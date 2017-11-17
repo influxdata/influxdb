@@ -9,10 +9,6 @@ import {
 class Gauge extends Component {
   constructor(props) {
     super(props)
-
-    this.state = {
-      gaugePosition: this.props.gaugePosition,
-    }
   }
 
   componentDidMount() {
@@ -299,8 +295,7 @@ class Gauge extends Component {
   }
 
   drawNeedle = (ctx, radius) => {
-    const {minValue, maxValue} = this.props
-    const {gaugePosition} = this.state
+    const {minValue, maxValue, gaugePosition} = this.props
     const {degree} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
