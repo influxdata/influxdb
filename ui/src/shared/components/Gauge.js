@@ -45,6 +45,7 @@ class Gauge extends Component {
 
   updateCanvas = () => {
     const canvas = this.canvasRef
+    canvas.width = canvas.height * (canvas.clientWidth / canvas.clientHeight)
     const ctx = canvas.getContext('2d')
 
     this.resetCanvas(canvas, ctx)
