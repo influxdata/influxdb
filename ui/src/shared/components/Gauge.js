@@ -52,7 +52,7 @@ class Gauge extends Component {
 
     const centerX = canvas.width / 2
     const centerY = canvas.height / 2 * 1.13
-    const radius = canvas.width / 2 * 0.5
+    const radius = Math.min(canvas.width, canvas.height) / 2 * 0.5
 
     const gradientThickness = 20
 
