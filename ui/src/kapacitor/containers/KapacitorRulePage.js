@@ -23,8 +23,8 @@ const getEnabled = config => {
     ])
     return {type: k, ...pickedFromConfig}
   })
-  let enabledAlerts = _.filter(allAlerts, v => _.get(v, ['enabled'], false))
-  enabledAlerts = _.reject(enabledAlerts, v => v.type === 'influxdb') // TODO: remove this.
+  // let enabledAlerts = _.filter(allAlerts, v => _.get(v, ['enabled'], false))
+  const enabledAlerts = _.reject(allAlerts, v => v.type === 'influxdb' or v.type === 'snmptrap') // TODO: remove this.
   return enabledAlerts
 }
 

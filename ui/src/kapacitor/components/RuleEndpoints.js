@@ -117,7 +117,6 @@ class RuleEndpoints extends Component {
             ...selectedEndpoint,
             [fieldName]: e.target.value,
           }
-    console.log(modifiedEP)
     const remainingEndpoints = _.reject(endpointsOnThisAlert, [
       'alias',
       modifiedEP.alias,

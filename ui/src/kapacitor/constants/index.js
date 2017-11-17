@@ -89,10 +89,17 @@ export const RULE_MESSAGE_TEMPLATES = {
 }
 // DEFAULT_ALERTS provides a template for alerts that don't exist in the kapacitor config
 export const DEFAULT_ALERTS = [
-  {type: 'post', url: '', headers: '', captureResponse: '', timeout: ''}, // is actually called 'post'??
-  {type: 'tcp', address: ''},
-  {type: 'exec', command: ''},
-  {type: 'log', filePath: ''},
+  {
+    type: 'post',
+    enabled: true,
+    url: '',
+    headers: '',
+    captureResponse: '',
+    timeout: '',
+  }, // is actually called 'post'??
+  {type: 'tcp', enabled: true, address: ''},
+  {type: 'exec', enabled: true, command: ''},
+  {type: 'log', enabled: true, filePath: ''},
 ]
 
 // ALERT_FIELDS_FROM_CONFIG returns an array of fields to accept from the Kapacitor Config
