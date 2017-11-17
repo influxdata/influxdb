@@ -309,7 +309,9 @@ $rule-builder--radius-lg: 5px;
 */
 .rule-builder--message {
   background-color: $rule-builder--section-bg;
-  padding: $rule-builder--padding-sm ($rule-builder--padding-lg - 2px);
+  padding: $rule-builder--padding-lg - 2px;
+  padding-bottom: 0;
+  border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
 }
 .rule-builder--message textarea {
   height: 100px;
