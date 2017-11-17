@@ -301,7 +301,7 @@ func (m *Measurement) Rebuild() *Measurement {
 	m.mu.RUnlock()
 
 	// Re-add each series to allow the measurement indexes to get re-created.  If there were
-	// deletes, the existing measurment may have references to deleted series that need to be
+	// deletes, the existing measurement may have references to deleted series that need to be
 	// expunged.  Note: we're using SeriesIDs which returns the series in sorted order so that
 	// re-adding does not incur a sort for each series added.
 	for _, id := range m.SeriesIDs() {

@@ -75,7 +75,7 @@ func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 }
 
 // MustReplace swaps a list of files for a single file and returns a new file set.
-// The caller should always guarentee that the files exist and are contiguous.
+// The caller should always guarantee that the files exist and are contiguous.
 func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 	assert(len(oldFiles) > 0, "cannot replace empty files")
 
@@ -659,13 +659,12 @@ func (fs *FileSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 		return nil
 	}
 
-	// valEqual determins if the provided []byte is equal to the tag value
+	// valEqual determines if the provided []byte] is equal to the tag value
 	// to be filtered on.
-	valEqual := func(b []byte) bool {
-		if op == influxql.EQ || op == influxql.NEQ {
-			return bytes.Equal([]byte(val), b)
-		}
-		return regex.Match(b)
+	valEqual := regex.Match
+	if op == influxql.EQ || op == influxql.NEQ {
+		vb := []byte(val)
+		valEqual = func(b []byte) bool { return bytes.Equal(vb, b) }
 	}
 
 	var tagMatch bool
@@ -677,39 +676,38 @@ func (fs *FileSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 		}
 
 		tagMatch = false
-		authorized = true
-		if auth != nil {
-			authorized = false // Authorization must be explicitly granted.
-		}
+		// Authorization must be explicitly granted when an authorizer is present.
+		authorized = auth == nil
 
 		vitr := fs.TagValueIterator(me.Name(), []byte(key))
 		if vitr != nil {
 			for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
-				// If a match was found for the EQ or EQREGEX operator then
-				// the measurement should be included (if it's authorized).
-				if valEqual(ve.Value()) {
-					tagMatch = true
-					if auth == nil {
+				if !valEqual(ve.Value()) {
+					continue
+				}
+
+				tagMatch = true
+				if auth == nil {
+					break
+				}
+
+				// When an authorizer is present, the measurement should be
+				// included only if one of it's series is authorized.
+				sitr := fs.TagValueSeriesIterator(me.Name(), []byte(key), ve.Value())
+				if sitr == nil {
+					continue
+				}
+				// Locate a series with this matching tag value that's authorized.
+				for se := sitr.Next(); se != nil; se = sitr.Next() {
+					if auth.AuthorizeSeriesRead(fs.database, me.Name(), se.Tags()) {
+						authorized = true
 						break
 					}
+				}
 
-					// Is there a series with this matching tag value that is
-					// authorized to be read?
-					sitr := fs.TagValueSeriesIterator(me.Name(), []byte(key), ve.Value())
-					if sitr == nil {
-						continue
-					}
-					for se := sitr.Next(); se != nil; se = sitr.Next() {
-						if auth.AuthorizeSeriesRead(fs.database, me.Name(), se.Tags()) {
-							authorized = true
-							break
-						}
-					}
-
-					if tagMatch && authorized {
-						// The measurement can definitely be included or rejected.
-						break
-					}
+				if tagMatch && authorized {
+					// The measurement can definitely be included or rejected.
+					break
 				}
 			}
 		}

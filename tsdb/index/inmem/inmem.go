@@ -12,7 +12,6 @@ shared index format to the new per-shard format.
 package inmem
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -392,7 +391,7 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 }
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a
-// list of matching meaurement names.
+// list of matching measurement names.
 func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -508,13 +507,9 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 	var tagMatch bool
 	var authorized bool
 
-	// valEqual determins if the provided []byte is equal to the tag value
-	// to be filtered on.
-	valEqual := func(b []byte) bool {
-		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
-			return bytes.Equal([]byte(filter.Value), b)
-		}
-		return filter.Regex.Match(b)
+	valEqual := filter.Regex.MatchString
+	if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
+		valEqual = func(s string) bool { return filter.Value == s }
 	}
 
 	// Iterate through all measurements in the database.
@@ -525,36 +520,35 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 		}
 
 		tagMatch = false
-		authorized = true
-		if auth != nil {
-			authorized = false // Authorization must be explicitly granted.
-		}
+		// Authorization must be explicitly granted when an authorizer is present.
+		authorized = auth == nil
 
 		// Check the tag values belonging to the tag key for equivalence to the
 		// tag value being filtered on.
 		tagVals.Range(func(tv string, seriesIDs SeriesIDs) bool {
-			if valEqual([]byte(tv)) {
-				tagMatch = true
-				if auth == nil {
-					return false // No need to continue checking series.
-				}
+			if !valEqual(tv) {
+				return true // No match. Keep checking.
+			}
 
-				// Is there a series with this matching tag value that is
-				// authorized to be read?
-				for _, sid := range seriesIDs {
-					if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
-						// The Range call can return early as a matching
-						// tag value with an authorized series has been found.
-						authorized = true
-						return false
-					}
+			tagMatch = true
+			if auth == nil {
+				return false // No need to continue checking series, there is a match.
+			}
+
+			// Is there a series with this matching tag value that is
+			// authorized to be read?
+			for _, sid := range seriesIDs {
+				if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+					// The Range call can return early as a matching
+					// tag value with an authorized series has been found.
+					authorized = true
+					return false
 				}
 			}
 
-			// Either this tag value doesn't match the required filter, or the
-			// tag value does match but doesn't have any authorized series.
-			// Keep checking tag values.
-			return true
+			// The matching tag value doesn't have any authorized series.
+			// Check for other matching tag values if this is a regex check.
+			return filter.Op == influxql.EQREGEX
 		})
 
 		// For negation operators, to determine if the measurement is authorized,
@@ -826,7 +820,7 @@ func (i *Index) RemoveShard(shardID uint64) {
 	}
 }
 
-// assignExistingSeries assigns the existings series to shardID and returns the series, names and tags that
+// assignExistingSeries assigns the existing series to shardID and returns the series, names and tags that
 // do not exists yet.
 func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
 	i.mu.RLock()
@@ -935,7 +929,7 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 	return nil
 }
 
-// InitializeSeries is called during startup.
+// InitializeSeries is called during start-up.
 // This works the same as CreateSeriesIfNotExists except it ignore limit errors.
 func (i *ShardIndex) InitializeSeries(key, name []byte, tags models.Tags) error {
 	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt, true)
