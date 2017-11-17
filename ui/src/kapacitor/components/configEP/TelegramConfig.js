@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import EndpointInput from 'src/kapacitor/components/EndpointInput'
+import EndpointCheckbox from 'src/kapacitor/components/EndpointCheckbox'
 
 const TelegramConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
   return (
@@ -19,6 +20,18 @@ const TelegramConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           fieldName="parseMode"
           fieldDisplay="Parse Mode:"
           placeholder="Ex: Markdown"
+        />
+        <EndpointCheckbox
+          selectedEndpoint={selectedEndpoint}
+          handleModifyEndpoint={handleModifyEndpoint}
+          fieldName="disableWebPagePreview"
+          fieldDisplay="Disable web page preview"
+        />
+        <EndpointCheckbox
+          selectedEndpoint={selectedEndpoint}
+          handleModifyEndpoint={handleModifyEndpoint}
+          fieldName="disableNotification"
+          fieldDisplay="Disable notification"
         />
       </div>
     </div>

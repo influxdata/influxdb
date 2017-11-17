@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import EndpointInput from 'src/kapacitor/components/EndpointInput'
+import EndpointCheckbox from 'src/kapacitor/components/EndpointCheckbox'
 
 const HttpConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
   return (
@@ -12,6 +13,12 @@ const HttpConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           fieldName="url"
           fieldDisplay="POST URL"
           placeholder="Ex: http://example.com/api/alert"
+        />
+        <EndpointCheckbox
+          selectedEndpoint={selectedEndpoint}
+          handleModifyEndpoint={handleModifyEndpoint}
+          fieldName="captureResponse"
+          fieldDisplay="Capture response"
         />
       </div>
     </div>

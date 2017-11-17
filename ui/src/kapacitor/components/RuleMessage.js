@@ -109,10 +109,17 @@ class RuleMessage extends Component {
 
   handleModifyEndpoint = (selectedEndpoint, fieldName) => e => {
     const {endpointsOnThisAlert} = this.state
-    const modifiedEP = {
-      ...selectedEndpoint,
-      [fieldName]: e.target.value,
-    }
+    const modifiedEP =
+      e.target.type === 'checkbox'
+        ? {
+            ...selectedEndpoint,
+            [fieldName]: !selectedEndpoint[fieldName],
+          }
+        : {
+            ...selectedEndpoint,
+            [fieldName]: e.target.value,
+          }
+    console.log(modifiedEP)
     const remainingEndpoints = _.reject(endpointsOnThisAlert, [
       'alias',
       modifiedEP.alias,
