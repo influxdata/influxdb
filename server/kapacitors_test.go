@@ -187,6 +187,14 @@ func Test_KapacitorRulesGet(t *testing.T) {
 			testLogger := mocks.TestLogger{}
 			svc := &server.Service{
 				Store: &mocks.Store{
+					SourcesStore: &mocks.SourcesStore{
+						GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
+							return chronograf.Source{
+								ID:                 ID,
+								InsecureSkipVerify: true,
+							}, nil
+						},
+					},
 					ServersStore: &mocks.ServersStore{
 						GetF: func(ctx context.Context, ID int) (chronograf.Server, error) {
 							return chronograf.Server{

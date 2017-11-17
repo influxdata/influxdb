@@ -19,12 +19,13 @@ const (
 
 // Client communicates to kapacitor
 type Client struct {
-	URL        string
-	Username   string
-	Password   string
-	ID         chronograf.ID
-	Ticker     chronograf.Ticker
-	kapaClient func(url, username, password string) (KapaClient, error)
+	URL                string
+	Username           string
+	Password           string
+	InsecureSkipVerify bool
+	ID                 chronograf.ID
+	Ticker             chronograf.Ticker
+	kapaClient         func(url, username, password string, insecureSkipVerify bool) (KapaClient, error)
 }
 
 // KapaClient represents a connection to a kapacitor instance
@@ -37,14 +38,15 @@ type KapaClient interface {
 }
 
 // NewClient creates a client that interfaces with Kapacitor tasks
-func NewClient(url, username, password string) *Client {
+func NewClient(url, username, password string, insecureSkipVerify bool) *Client {
 	return &Client{
-		URL:        url,
-		Username:   username,
-		Password:   password,
-		ID:         &uuid.V4{},
-		Ticker:     &Alert{},
-		kapaClient: NewKapaClient,
+		URL:                url,
+		Username:           username,
+		Password:           password,
+		InsecureSkipVerify: insecureSkipVerify,
+		ID:                 &uuid.V4{},
+		Ticker:             &Alert{},
+		kapaClient:         NewKapaClient,
 	}
 }
 
@@ -121,7 +123,7 @@ func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, 
 		return nil, err
 	}
 
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +191,7 @@ func (c *Client) createFromQueryConfig(rule chronograf.AlertRule) (*client.Creat
 
 // Delete removes tickscript task from kapacitor
 func (c *Client) Delete(ctx context.Context, href string) error {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password, c.InsecureSkipVerify)
 	if err != nil {
 		return err
 	}
@@ -197,7 +199,7 @@ func (c *Client) Delete(ctx context.Context, href string) error {
 }
 
 func (c *Client) updateStatus(ctx context.Context, href string, status client.TaskStatus) (*Task, error) {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +237,7 @@ func (c *Client) Status(ctx context.Context, href string) (string, error) {
 }
 
 func (c *Client) status(ctx context.Context, href string) (client.TaskStatus, error) {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password, c.InsecureSkipVerify)
 	if err != nil {
 		return 0, err
 	}
@@ -249,7 +251,7 @@ func (c *Client) status(ctx context.Context, href string) (client.TaskStatus, er
 
 // All returns all tasks in kapacitor
 func (c *Client) All(ctx context.Context) (map[string]*Task, error) {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +288,7 @@ func (c *Client) Reverse(id string, script chronograf.TICKScript) chronograf.Ale
 
 // Get returns a single alert in kapacitor
 func (c *Client) Get(ctx context.Context, id string) (*Task, error) {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +303,7 @@ func (c *Client) Get(ctx context.Context, id string) (*Task, error) {
 
 // Update changes the tickscript of a given id.
 func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertRule) (*Task, error) {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password, c.InsecureSkipVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -316,6 +318,9 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		opt, err = c.updateFromQueryConfig(rule)
 	} else {
 		opt, err = c.updateFromTick(rule)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	task, err := kapa.UpdateTask(client.Link{Href: href}, *opt)
@@ -386,7 +391,7 @@ func toTask(q *chronograf.QueryConfig) client.TaskType {
 }
 
 // NewKapaClient creates a Kapacitor client connection
-func NewKapaClient(url, username, password string) (KapaClient, error) {
+func NewKapaClient(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 	var creds *client.Credentials
 	if username != "" {
 		creds = &client.Credentials{
@@ -397,8 +402,9 @@ func NewKapaClient(url, username, password string) (KapaClient, error) {
 	}
 
 	clnt, err := client.New(client.Config{
-		URL:         url,
-		Credentials: creds,
+		URL:                url,
+		Credentials:        creds,
+		InsecureSkipVerify: insecureSkipVerify,
 	})
 
 	if err != nil {

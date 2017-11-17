@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import databases from 'shared/parsing/showDatabases'
 import measurements from 'shared/parsing/showMeasurements'
 import fieldKeys from 'shared/parsing/showFieldKeys'
@@ -8,16 +9,19 @@ const parsers = {
   databases,
   measurements: data => {
     const {errors, measurementSets} = measurements(data)
-    return {errors, measurements: measurementSets[0].measurements}
+    return {
+      errors,
+      measurements: _.get(measurementSets, ['0', 'measurements'], []),
+    }
   },
   fieldKeys: (data, key) => {
     const {errors, fieldSets} = fieldKeys(data)
-    return {errors, fieldKeys: fieldSets[key]}
+    return {errors, fieldKeys: _.get(fieldSets, key, [])}
   },
   tagKeys,
   tagValues: (data, key) => {
     const {errors, tags} = tagValues(data)
-    return {errors, tagValues: tags[key]}
+    return {errors, tagValues: _.get(tags, key, [])}
   },
 }
 

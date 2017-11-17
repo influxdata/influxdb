@@ -97,7 +97,7 @@ const DatabaseList = React.createClass({
 
     return (
       <div className="query-builder--column query-builder--column-db">
-        <div className="query-builder--heading">Databases</div>
+        <div className="query-builder--heading">DB.RetentionPolicy</div>
         <div className="query-builder--list">
           <FancyScrollbar>
             {sortedNamespaces.map(namespace => {

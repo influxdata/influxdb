@@ -136,13 +136,6 @@ const AutoRefresh = ComposedComponent => {
         return this.renderFetching(timeSeries)
       }
 
-      if (
-        !this._resultsForQuery(timeSeries) ||
-        !this.state.lastQuerySuccessful
-      ) {
-        return this.renderNoResults()
-      }
-
       return (
         <ComposedComponent
           {...this.props}
@@ -166,14 +159,6 @@ const AutoRefresh = ComposedComponent => {
           isFetchingInitially={isFirstFetch}
           isRefreshing={!isFirstFetch}
         />
-      )
-    }
-
-    renderNoResults = () => {
-      return (
-        <div className="graph-empty">
-          <p data-test="data-explorer-no-results">No Results</p>
-        </div>
       )
     }
 
