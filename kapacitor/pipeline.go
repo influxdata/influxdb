@@ -3,29 +3,22 @@ package kapacitor
 import (
 	"bytes"
 	"encoding/json"
-	"strings"
 
+	"github.com/influxdata/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
 	totick "github.com/influxdata/kapacitor/pipeline/tick"
-	"github.com/influxdata/kapacitor/tick"
-	"github.com/influxdata/kapacitor/tick/stateful"
 )
 
+// MarshalTICK converts tickscript to JSON representation
 func MarshalTICK(script string) ([]byte, error) {
-	edge := pipeline.StreamEdge
-	if strings.Contains(script, "batch") {
-		edge = pipeline.BatchEdge
-	}
-
-	scope := stateful.NewScope()
-	predefinedVars := map[string]tick.Var{}
-	pipeline, err := pipeline.CreatePipeline(script, edge, scope, &deadman{}, predefinedVars)
+	pipeline, err := newPipeline(chronograf.TICKScript(script))
 	if err != nil {
 		return nil, err
 	}
 	return json.MarshalIndent(pipeline, "", "    ")
 }
 
+// UnmarshalTICK converts JSON to tickscript
 func UnmarshalTICK(octets []byte) (string, error) {
 	pipe := &pipeline.Pipeline{}
 	if err := pipe.Unmarshal(octets); err != nil {
