@@ -7,8 +7,8 @@ export const GAUGE_SPECS = {
   tickSizeSmall: 9,
   tickSizeLarge: 18,
   theme: {
-    winter: ['#00C9FF', '#4591ED', '#4591ED', '#9394FF', '#9394FF', '#FF8564'],
-    summer: ['#4ED8A0', '#7CE490', '#FFD255', '#FFB94A', '#F95F53', '#DC4E58'],
+    winter: ['#6BDFFF', '#4591ED', '#4591ED', '#9394FF', '#9394FF', '#FF8564'],
+    summer: ['#4ED8A0', '#7CE490', '#FFD255', '#F48D38', '#F95F53', '#DC4E58'],
   },
 }
 
