@@ -221,7 +221,7 @@ FieldList.propTypes = {
       })
     ),
   }).isRequired,
-  onTimeShift: func.isRequired,
+  onTimeShift: func,
   onToggleField: func.isRequired,
   onGroupByTime: func.isRequired,
   onFill: func,

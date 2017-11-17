@@ -17,10 +17,12 @@ const QueryOptions = ({
       selected={groupBy.time}
       onChooseGroupByTime={onGroupByTime}
     />
-    <TimeShiftDropdown
-      selected={shift && shift.label}
-      onChooseTimeShift={onTimeShift}
-    />
+    {isKapacitorRule
+      ? null
+      : <TimeShiftDropdown
+          selected={shift && shift.label}
+          onChooseTimeShift={onTimeShift}
+        />}
     {isKapacitorRule ? null : <FillQuery value={fill} onChooseFill={onFill} />}
   </div>
 
