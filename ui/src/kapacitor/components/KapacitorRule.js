@@ -3,6 +3,7 @@ import React, {PropTypes, Component} from 'react'
 import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
+import RuleEndpoints from 'src/kapacitor/components/RuleEndpoints'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -177,6 +178,11 @@ class KapacitorRule extends Component {
                     onRuleTypeInputChange={this.handleRuleTypeInputChange}
                     onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
                     onChooseTimeRange={this.handleChooseTimeRange}
+                  />
+                  <RuleEndpoints
+                    rule={rule}
+                    actions={ruleActions}
+                    enabledAlerts={enabledAlerts}
                   />
                   <RuleMessage
                     rule={rule}
