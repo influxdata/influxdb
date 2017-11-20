@@ -5,9 +5,11 @@ import {emptyGraphCopy} from 'src/shared/copy/cell'
 import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
+import GaugeChart from 'shared/components/GaugeChart'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
+const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 
 const RefreshingGraph = ({
   axes,
@@ -37,6 +39,18 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        key={manualRefresh}
+        queries={[queries[0]]}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        cellHeight={cellHeight}
+      />
+    )
+  }
+
+  if (type === 'gauge') {
+    return (
+      <RefreshingGaugeChart
         key={manualRefresh}
         queries={[queries[0]]}
         templates={templates}
