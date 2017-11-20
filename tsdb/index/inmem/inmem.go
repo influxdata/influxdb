@@ -392,25 +392,27 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 }
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a
-// list of matching meaurement names.
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+// list of matching measurement names.
+func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
 	// Return all measurement names if no expression is provided.
 	if expr == nil {
 		a := make([][]byte, 0, len(i.measurements))
-		for name := range i.measurements {
-			a = append(a, []byte(name))
+		for _, m := range i.measurements {
+			if m.Authorized(auth) {
+				a = append(a, m.name)
+			}
 		}
 		bytesutil.Sort(a)
 		return a, nil
 	}
 
-	return i.measurementNamesByExpr(expr)
+	return i.measurementNamesByExpr(auth, expr)
 }
 
-func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Index) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -445,19 +447,19 @@ func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 
 			// Match on name, if specified.
 			if tag.Val == "_name" {
-				return i.measurementNamesByNameFilter(tf.Op, tf.Value, tf.Regex), nil
+				return i.measurementNamesByNameFilter(auth, tf.Op, tf.Value, tf.Regex), nil
 			} else if influxql.IsSystemName(tag.Val) {
 				return nil, nil
 			}
 
-			return i.measurementNamesByTagFilters(tf), nil
+			return i.measurementNamesByTagFilters(auth, tf), nil
 		case influxql.OR, influxql.AND:
-			lhs, err := i.measurementNamesByExpr(e.LHS)
+			lhs, err := i.measurementNamesByExpr(auth, e.LHS)
 			if err != nil {
 				return nil, err
 			}
 
-			rhs, err := i.measurementNamesByExpr(e.RHS)
+			rhs, err := i.measurementNamesByExpr(auth, e.RHS)
 			if err != nil {
 				return nil, err
 			}
@@ -470,13 +472,13 @@ func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 			return nil, fmt.Errorf("invalid tag comparison operator")
 		}
 	case *influxql.ParenExpr:
-		return i.measurementNamesByExpr(e.Expr)
+		return i.measurementNamesByExpr(auth, e.Expr)
 	}
 	return nil, fmt.Errorf("%#v", expr)
 }
 
 // measurementNamesByNameFilter returns the sorted measurements matching a name.
-func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
+func (i *Index) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
 	var names [][]byte
 	for _, m := range i.measurements {
 		var matched bool
@@ -491,20 +493,25 @@ func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, rege
 			matched = !regex.MatchString(m.Name)
 		}
 
-		if !matched {
-			continue
+		if matched && m.Authorized(auth) {
+			names = append(names, m.name)
 		}
-		names = append(names, []byte(m.Name))
 	}
 	bytesutil.Sort(names)
 	return names
 }
 
 // measurementNamesByTagFilters returns the sorted measurements matching the filters on tag values.
-func (i *Index) measurementNamesByTagFilters(filter *TagFilter) [][]byte {
+func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagFilter) [][]byte {
 	// Build a list of measurements matching the filters.
 	var names [][]byte
 	var tagMatch bool
+	var authorized bool
+
+	valEqual := filter.Regex.MatchString
+	if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
+		valEqual = func(s string) bool { return filter.Value == s }
+	}
 
 	// Iterate through all measurements in the database.
 	for _, m := range i.measurements {
@@ -514,37 +521,52 @@ func (i *Index) measurementNamesByTagFilters(filter *TagFilter) [][]byte {
 		}
 
 		tagMatch = false
+		// Authorization must be explicitly granted when an authorizer is present.
+		authorized = auth == nil
 
-		// If the operator is non-regex, only check the specified value.
-		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
-			if tagVals.Contains(filter.Value) {
-				tagMatch = true
+		// Check the tag values belonging to the tag key for equivalence to the
+		// tag value being filtered on.
+		tagVals.Range(func(tv string, seriesIDs SeriesIDs) bool {
+			if !valEqual(tv) {
+				return true // No match. Keep checking.
 			}
-		} else {
-			// Else, the operator is a regex and we have to check all tag
-			// values against the regular expression.
-			tagVals.Range(func(k string, _ SeriesIDs) bool {
-				if filter.Regex.MatchString(k) {
-					tagMatch = true
+
+			tagMatch = true
+			if auth == nil {
+				return false // No need to continue checking series, there is a match.
+			}
+
+			// Is there a series with this matching tag value that is
+			// authorized to be read?
+			for _, sid := range seriesIDs {
+				if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+					// The Range call can return early as a matching
+					// tag value with an authorized series has been found.
+					authorized = true
+					return false
 				}
-				// If a tag matches then the Range over remaining tags can be
-				// ceased.
-				return !tagMatch
-			})
+			}
+
+			// The matching tag value doesn't have any authorized series.
+			// Check for other matching tag values if this is a regex check.
+			return filter.Op == influxql.EQREGEX
+		})
+
+		// For negation operators, to determine if the measurement is authorized,
+		// an authorized series belonging to the measurement must be located.
+		// Then, the measurement can be added iff !tagMatch && authorized.
+		if auth != nil && !tagMatch && (filter.Op == influxql.NEQREGEX || filter.Op == influxql.NEQ) {
+			authorized = m.Authorized(auth)
 		}
 
-		//
-		// XNOR gate
-		//
 		// tags match | operation is EQ | measurement matches
 		// --------------------------------------------------
 		//     True   |       True      |      True
 		//     True   |       False     |      False
 		//     False  |       True      |      False
 		//     False  |       False     |      True
-		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) {
+		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) && authorized {
 			names = append(names, []byte(m.Name))
-			continue
 		}
 	}
 
@@ -814,7 +836,7 @@ func (i *Index) RemoveShard(shardID uint64) {
 	}
 }
 
-// assignExistingSeries assigns the existings series to shardID and returns the series, names and tags that
+// assignExistingSeries assigns the existing series to shardID and returns the series, names and tags that
 // do not exists yet.
 func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
 	i.mu.RLock()
@@ -924,7 +946,7 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 	return nil
 }
 
-// InitializeSeries is called during startup.
+// InitializeSeries is called during start-up.
 // This works the same as CreateSeriesIfNotExists except it ignore limit errors.
 func (i *ShardIndex) InitializeSeries(key, name []byte, tags models.Tags) error {
 	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt, true)
