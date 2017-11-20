@@ -30,7 +30,7 @@ const AxesOptions = ({
   return (
     <FancyScrollbar
       className="display-options--cell y-axis-controls"
-      autoHide="false"
+      autoHide={false}
     >
       <div className="display-options--cell-wrapper">
         <h5 className="display-options--header">

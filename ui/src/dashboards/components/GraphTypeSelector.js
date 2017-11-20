@@ -7,7 +7,7 @@ import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
   <FancyScrollbar
     className="display-options--cell display-options--cellx2"
-    autoHide="false"
+    autoHide={false}
   >
     <div className="display-options--cell-wrapper">
       <h5 className="display-options--header">Visualization Type</h5>
