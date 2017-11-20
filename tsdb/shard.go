@@ -776,6 +776,16 @@ func (s *Shard) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([]
 	return engine.MeasurementSeriesKeysByExpr(name, expr)
 }
 
+// TagKeyHasAuthorizedSeries determines if there exists an authorised series on
+// the provided measurement with the provided tag key.
+func (s *Shard) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+	engine, err := s.engine()
+	if err != nil {
+		return false
+	}
+	return engine.TagKeyHasAuthorizedSeries(auth, name, key)
+}
+
 // MeasurementTagKeysByExpr returns all the tag keys for the provided expression.
 func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	engine, err := s.engine()
