@@ -7,6 +7,7 @@ const DisplayOptionsInput = ({
   onChange,
   labelText,
   colWidth,
+  placeholder,
 }) =>
   <div className={`form-group ${colWidth}`}>
     <label htmlFor={name}>
@@ -19,6 +20,7 @@ const DisplayOptionsInput = ({
       id={id}
       value={value}
       onChange={onChange}
+      placeholder={placeholder}
     />
   </div>
 
@@ -27,6 +29,7 @@ const {func, string} = PropTypes
 DisplayOptionsInput.defaultProps = {
   value: '',
   colWidth: 'col-sm-6',
+  placeholder: '',
 }
 
 DisplayOptionsInput.propTypes = {
@@ -36,6 +39,7 @@ DisplayOptionsInput.propTypes = {
   onChange: func.isRequired,
   labelText: string,
   colWidth: string,
+  placeholder: string,
 }
 
 export default DisplayOptionsInput
