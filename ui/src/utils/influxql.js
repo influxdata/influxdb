@@ -77,6 +77,18 @@ function _buildFields(fieldFuncs) {
         case 'field': {
           return f.value === '*' ? '*' : `"${f.value}"`
         }
+        case 'wildcard': {
+          return '*'
+        }
+        case 'regex': {
+          return `/${f.value}/`
+        }
+        case 'number': {
+          return `${f.value}`
+        }
+        case 'integer': {
+          return `${f.value}`
+        }
         case 'func': {
           const args = _buildFields(f.args)
           const alias = f.alias ? ` AS "${f.alias}"` : ''
