@@ -95,7 +95,8 @@ func AuthorizedUser(
 		if p.Organization == "" {
 			defaultOrg, err := store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 			if err != nil {
-				unknownErrorWithMessage(w, err, logger)
+				log.Error(fmt.Sprintf("Failed to retrieve the default organization: %v", err))
+				Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 				return
 			}
 			p.Organization = fmt.Sprintf("%d", defaultOrg.ID)

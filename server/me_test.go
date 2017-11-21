@@ -169,6 +169,62 @@ func TestService_Me(t *testing.T) {
 `,
 		},
 		{
+			name: "Existing user - organization doesn't exist",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+			},
+			fields: fields{
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          0,
+							Name:        "Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
+						}, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case 0:
+							return &chronograf.Organization{
+								ID:          0,
+								Name:        "Default",
+								DefaultRole: roles.ViewerRoleName,
+								Public:      true,
+							}, nil
+						}
+						return nil, chronograf.ErrOrganizationNotFound
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							Name:     "me",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject:      "me",
+				Issuer:       "github",
+				Organization: "1",
+			},
+			wantStatus:      http.StatusForbidden,
+			wantContentType: "application/json",
+			wantBody:        `{"code":403,"message":"user's current organization was not found"}`,
+		},
+		{
 			name: "new user - default org is public",
 			args: args{
 				w: httptest.NewRecorder(),
