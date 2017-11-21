@@ -71,7 +71,6 @@ class CellEditorOverlay extends Component {
   }
 
   handleAddThreshold = () => {
-    console.log('add threshold')
     const {colors} = this.state
 
     if (colors.length < MAX_THRESHOLDS) {
