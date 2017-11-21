@@ -287,9 +287,9 @@ type DurationRange struct {
 
 // TimeShift represents a shift to apply to an influxql query's time range
 type TimeShift struct {
-	Label    string `json:"label"`    // user facing description
-	Unit     string `json:"unit"`     // influxql time unit representation i.e. ms, s, m, h, d
-	Quantity string `json:"quantity"` // number of units
+	Label    string `json:"label"`    // Label user facing description
+	Unit     string `json:"unit"`     // Unit influxql time unit representation i.e. ms, s, m, h, d
+	Quantity string `json:"quantity"` // Quantity number of units
 }
 
 // QueryConfig represents UI query from the data explorer
