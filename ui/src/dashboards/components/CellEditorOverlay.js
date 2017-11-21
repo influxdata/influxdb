@@ -88,6 +88,19 @@ class CellEditorOverlay extends Component {
     }
   }
 
+  handleChooseColor = threshold => chosenColor => {
+    const {colors} = this.state
+
+    const newColors = colors.map(
+      color =>
+        color.id === threshold.id
+          ? {...color, hex: chosenColor.hex, name: chosenColor.name}
+          : color
+    )
+
+    this.setState({colors: newColors})
+  }
+
   queryStateReducer = queryModifier => (queryID, ...payload) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
