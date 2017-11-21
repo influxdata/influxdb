@@ -73,6 +73,9 @@ export const meChangeOrganizationAsync = (
     )
     dispatch(meChangeOrganizationCompleted())
     dispatch(meReceivedUsingAuth(data))
+    // TODO: reload sources upon me change org if non-refresh behavior preferred
+    // instead of current behavior on both invocations of meChangeOrganization,
+    // which is to refresh index via router.push('')
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(meChangeOrganizationFailed())

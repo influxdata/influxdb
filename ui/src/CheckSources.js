@@ -83,6 +83,20 @@ const CheckSources = React.createClass({
     this.setState({isFetching: false})
   },
 
+  shouldComponentUpdate(nextProps) {
+    const {auth: {isUsingAuth, me}} = nextProps
+    // don't update this component if currentOrganization is what has changed,
+    // or else the app will try to call showDatabases in componentWillUpdate,
+    // which will fail unless sources have been refreshed
+    if (
+      isUsingAuth &&
+      me.currentOrganization.id !== this.props.auth.me.currentOrganization.id
+    ) {
+      return false
+    }
+    return true
+  },
+
   async componentWillUpdate(nextProps, nextState) {
     const {
       router,
@@ -129,6 +143,8 @@ const CheckSources = React.createClass({
     if (!isFetching && !location.pathname.includes('/manage-sources')) {
       // Do simple query to proxy to see if the source is up.
       try {
+        // the guard around currentOrganization prevents this showDatabases
+        // invocation since sources haven't been refreshed yet
         await showDatabases(source.links.proxy)
       } catch (error) {
         errorThrown(error, 'Unable to connect to source')
