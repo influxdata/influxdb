@@ -5,10 +5,9 @@ import {bindActionCreators} from 'redux'
 
 import {MEMBER_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
 
-import {getSources} from 'shared/apis'
 import {showDatabases} from 'shared/apis/metaQuery'
 
-import {loadSources as loadSourcesAction} from 'shared/actions/sources'
+import {getSourcesAsync} from 'shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
@@ -19,6 +18,7 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 const {arrayOf, bool, func, node, shape, string} = PropTypes
 const CheckSources = React.createClass({
   propTypes: {
+    getSources: func.isRequired,
     sources: arrayOf(
       shape({
         links: shape({
@@ -42,8 +42,6 @@ const CheckSources = React.createClass({
     location: shape({
       pathname: string.isRequired,
     }).isRequired,
-    loadSources: func.isRequired,
-    errorThrown: func.isRequired,
     auth: shape({
       isUsingAuth: bool,
       me: shape({
@@ -81,16 +79,8 @@ const CheckSources = React.createClass({
   },
 
   async componentWillMount() {
-    const {loadSources, errorThrown} = this.props
-
-    try {
-      const {data: {sources}} = await getSources()
-      loadSources(sources)
-      this.setState({isFetching: false})
-    } catch (error) {
-      errorThrown(error, 'Unable to connect to Chronograf server')
-      this.setState({isFetching: false})
-    }
+    await this.props.getSources()
+    this.setState({isFetching: false})
   },
 
   async componentWillUpdate(nextProps, nextState) {
@@ -178,7 +168,7 @@ const mapStateToProps = ({sources, auth, me}) => ({
 })
 
 const mapDispatchToProps = dispatch => ({
-  loadSources: bindActionCreators(loadSourcesAction, dispatch),
+  getSources: bindActionCreators(getSourcesAsync, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
