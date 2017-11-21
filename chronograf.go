@@ -217,6 +217,7 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
+// DBRP is a database and retention policy for a kapacitor task
 type DBRP struct {
 	DB string `json:"db"`
 	RP string `json:"rp"`
@@ -230,6 +231,7 @@ type AlertRule struct {
 	Every         string          `json:"every"`                  // Every how often to check for the alerting criteria
 	Alerts        []string        `json:"alerts"`                 // Alerts name all the services to notify (e.g. pagerduty)
 	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"`   // AlertNodes define additional arguments to alerts
+	AlertHandlers AlertHandlers   `json:"alertHandlers"`          // AlertHandlers defines the destinations for the alert
 	Message       string          `json:"message"`                // Message included with alert
 	Details       string          `json:"details"`                // Details is generally used for the Email alert.  If empty will not be added.
 	Trigger       string          `json:"trigger"`                // Trigger is a type that defines when to trigger the alert
