@@ -83,6 +83,7 @@ $color-dropdown--circle: 14px;
   white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
+  text-transform: capitalize;
 }
 .color-dropdown .color-dropdown--menu .fancy-scroll--container .fancy-scroll--track-v .fancy-scroll--thumb-v {
   @include gradient-v($g9-mountain,$g7-graphite);

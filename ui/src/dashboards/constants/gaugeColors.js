@@ -2,62 +2,62 @@ export const MAX_THRESHOLDS = 3
 export const GAUGE_COLORS = [
   {
     hex: '#BF3D5E',
-    text: 'Ruby',
+    name: 'ruby',
   },
   {
     hex: '#DC4E58',
-    text: 'Fire',
+    name: 'fire',
   },
   {
     hex: '#F95F53',
-    text: 'Curacao',
+    name: 'curacao',
   },
   {
     hex: '#F48D38',
-    text: 'Tiger',
+    name: 'tiger',
   },
   {
     hex: '#FFB94A',
-    text: 'Pineapple',
+    name: 'pineapple',
   },
   {
     hex: '#FFD255',
-    text: 'Thunder',
+    name: 'thunder',
   },
   {
     hex: '#7CE490',
-    text: 'Honeydew',
+    name: 'honeydew',
   },
   {
     hex: '#4ED8A0',
-    text: 'Rainforest',
+    name: 'rainforest',
   },
   {
     hex: '#32B08C',
-    text: 'Viridian',
+    name: 'viridian',
   },
   {
     hex: '#4591ED',
-    text: 'Ocean',
+    name: 'ocean',
   },
   {
     hex: '#22ADF6',
-    text: 'Pool',
+    name: 'pool',
   },
   {
     hex: '#00C9FF',
-    text: 'Laser',
+    name: 'laser',
   },
   {
     hex: '#513CC6',
-    text: 'Planet',
+    name: 'planet',
   },
   {
     hex: '#7A65F2',
-    text: 'Star',
+    name: 'star',
   },
   {
     hex: '#9394FF',
-    text: 'Comet',
+    name: 'comet',
   },
 ]

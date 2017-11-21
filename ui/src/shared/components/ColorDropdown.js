@@ -55,7 +55,7 @@ class ColorDropdown extends Component {
             style={{backgroundColor: selected.hex}}
           />
           <div className="color-dropdown--name">
-            {selected.text}
+            {selected.name}
           </div>
           <span className="caret" />
         </div>
@@ -65,7 +65,7 @@ class ColorDropdown extends Component {
                 {colors.map((color, i) =>
                   <div
                     className={
-                      color.text === selected.text
+                      color.name === selected.name
                         ? 'color-dropdown--item active'
                         : 'color-dropdown--item'
                     }
@@ -77,7 +77,7 @@ class ColorDropdown extends Component {
                       style={{backgroundColor: color.hex}}
                     />
                     <span className="color-dropdown--name">
-                      {color.text}
+                      {color.name}
                     </span>
                   </div>
                 )}
@@ -94,13 +94,13 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 ColorDropdown.propTypes = {
   selected: shape({
     hex: string.isRequired,
-    text: string.isRequired,
+    name: string.isRequired,
   }).isRequired,
   onChoose: func.isRequired,
   colors: arrayOf(
     shape({
       hex: string.isRequired,
-      text: string.isRequired,
+      name: string.isRequired,
     })
   ).isRequired,
   disabled: bool,
