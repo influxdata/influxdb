@@ -27,6 +27,8 @@ import {
   MAX_THRESHOLDS,
   DEFAULT_COLORS,
   GAUGE_COLORS,
+  COLOR_TYPE_MIN,
+  COLOR_TYPE_MAX,
 } from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
@@ -73,13 +75,20 @@ class CellEditorOverlay extends Component {
   handleAddThreshold = () => {
     const {colors} = this.state
 
-    if (colors.length < MAX_THRESHOLDS) {
+    if (colors.length <= MAX_THRESHOLDS) {
       const randomColor = Math.floor(Math.random() * GAUGE_COLORS.length)
+
+      const maxValue = Number(
+        colors.find(color => color.type === COLOR_TYPE_MAX).value
+      )
+      const minValue = Number(
+        colors.find(color => color.type === COLOR_TYPE_MIN).value
+      )
 
       const newThreshold = {
         type: COLOR_TYPE_THRESHOLD,
         id: uuid.v4(),
-        value: '50',
+        value: String((maxValue + minValue) / 2),
         hex: GAUGE_COLORS[randomColor].hex,
         name: GAUGE_COLORS[randomColor].name,
       }
