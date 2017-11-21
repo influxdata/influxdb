@@ -7,7 +7,7 @@ import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
-import {getLogStreamByRuleID} from 'src/kapacitor/apis'
+import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
 import {publishNotification} from 'shared/actions/notifications'
 
 class TickscriptPage extends Component {
@@ -27,6 +27,7 @@ class TickscriptPage extends Component {
       validation: '',
       isEditingID: true,
       logs: [],
+      areLogsEnabled: false,
     }
   }
 
@@ -92,9 +93,25 @@ class TickscriptPage extends Component {
       this.setState({task: {tickscript, dbrps, type, status, name, id}})
     }
 
-    this.shouldFetch = true
+    try {
+      const version = await pingKapacitorVersion(kapacitor)
 
-    this.fetchChunkedLogs(kapacitor, ruleID)
+      // Check minor version number for Kapacitor 1.4
+      if (version && version.split('.')[1] === '4') {
+        this.shouldFetch = true
+        this.fetchChunkedLogs(kapacitor, ruleID)
+        this.setState({
+          areLogsEnabled: true,
+        })
+      } else {
+        this.setState({
+          areLogsEnabled: false,
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      this.props.notify('error', err)
+    }
 
     this.setState({kapacitor})
   }
@@ -152,7 +169,7 @@ class TickscriptPage extends Component {
 
   render() {
     const {source} = this.props
-    const {task, validation, logs, areLogsVisible} = this.state
+    const {task, validation, logs, areLogsVisible, areLogsEnabled} = this.state
 
     return (
       <Tickscript
@@ -167,6 +184,7 @@ class TickscriptPage extends Component {
         onChangeType={this.handleChangeType}
         onChangeID={this.handleChangeID}
         areLogsVisible={areLogsVisible}
+        areLogsEnabled={areLogsEnabled}
         onToggleLogsVisbility={this.HandleToggleLogsVisbility}
       />
     )

@@ -112,3 +112,17 @@ export const getLogStreamByRuleID = (kapacitor, ruleID) =>
     method: 'GET',
     headers: {'Content-Type': 'application/json'},
   })
+
+export const pingKapacitorVersion = async kapacitor => {
+  try {
+    const result = await AJAX({
+      method: 'GET',
+      url: `${kapacitor.links.proxy}?path=/kapacitor/v1/ping`,
+    })
+    const kapVersion = result.headers['x-kapacitor-version']
+    return kapVersion === '' ? null : kapVersion
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

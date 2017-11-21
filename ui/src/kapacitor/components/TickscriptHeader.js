@@ -7,6 +7,7 @@ const TickscriptHeader = ({
   task: {id},
   onSave,
   areLogsVisible,
+  areLogsEnabled,
   isNewTickscript,
   onToggleLogsVisbility,
 }) =>
@@ -17,6 +18,7 @@ const TickscriptHeader = ({
       </div>
       <LogsToggle
         areLogsVisible={areLogsVisible}
+        areLogsEnabled={areLogsEnabled}
         onToggleLogsVisbility={onToggleLogsVisbility}
       />
       <div className="page-header__right">
@@ -39,6 +41,7 @@ TickscriptHeader.propTypes = {
   isNewTickscript: bool,
   onSave: func,
   areLogsVisible: bool,
+  areLogsEnabled: bool,
   onToggleLogsVisbility: func.isRequired,
   task: shape({
     dbrps: arrayOf(

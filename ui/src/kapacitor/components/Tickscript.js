@@ -17,6 +17,7 @@ const Tickscript = ({
   onChangeID,
   isNewTickscript,
   areLogsVisible,
+  areLogsEnabled,
   onToggleLogsVisbility,
 }) =>
   <div className="page">
@@ -24,6 +25,7 @@ const Tickscript = ({
       task={task}
       onSave={onSave}
       areLogsVisible={areLogsVisible}
+      areLogsEnabled={areLogsEnabled}
       onToggleLogsVisbility={onToggleLogsVisbility}
       isNewTickscript={isNewTickscript}
     />
@@ -55,6 +57,7 @@ Tickscript.propTypes = {
     id: string,
   }),
   areLogsVisible: bool,
+  areLogsEnabled: bool,
   onToggleLogsVisbility: func.isRequired,
   task: shape({
     id: string,
