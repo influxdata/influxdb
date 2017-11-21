@@ -196,17 +196,21 @@ function parseSeries(series) {
   function parseTag(s, obj) {
     const match = tag.exec(s)
 
-    const kv = match[0]
-    const key = match[1]
-    const value = match[2]
+    if (match) {
+      const kv = match[0]
+      const key = match[1]
+      const value = match[2]
 
-    if (key) {
-      if (!obj.tags) {
-        obj.tags = {}
+      if (key) {
+        if (!obj.tags) {
+          obj.tags = {}
+        }
+        obj.tags[key] = value
       }
-      obj.tags[key] = value
+      return s.slice(match.index + kv.length)
     }
-    return s.slice(match.index + kv.length)
+
+    return ''
   }
 
   let workStr = series.slice()
