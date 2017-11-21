@@ -143,6 +143,7 @@ class KapacitorRule extends Component {
       queryConfigs,
       enabledAlerts,
       queryConfigActions,
+      configLink,
     } = this.props
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
@@ -180,6 +181,7 @@ class KapacitorRule extends Component {
                     onChooseTimeRange={this.handleChooseTimeRange}
                   />
                   <RuleEndpoints
+                    configLink={configLink}
                     rule={rule}
                     actions={ruleActions}
                     enabledAlerts={enabledAlerts}

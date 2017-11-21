@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import EndpointInput from 'src/kapacitor/components/EndpointInput'
 import EmptyEndpoint from 'src/kapacitor/components/EmptyEndpoint'
 
-const SensuConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
+const SensuConfig = ({selectedEndpoint, handleModifyEndpoint, configLink}) => {
   return selectedEndpoint.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
@@ -23,14 +23,15 @@ const SensuConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           />
         </div>
       </div>
-    : <EmptyEndpoint />
+    : <EmptyEndpoint configLink={configLink} />
 }
 
-const {func, shape} = PropTypes
+const {func, shape, string} = PropTypes
 
 SensuConfig.propTypes = {
   selectedEndpoint: shape({}).isRequired,
   handleModifyEndpoint: func.isRequired,
+  configLink: string,
 }
 
 export default SensuConfig

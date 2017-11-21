@@ -23,13 +23,14 @@ class EndpointOptions extends Component {
   }
 
   render() {
-    const {selectedEndpoint, handleModifyEndpoint} = this.props
+    const {selectedEndpoint, handleModifyEndpoint, configLink} = this.props
     switch (selectedEndpoint && selectedEndpoint.type) {
       case 'post':
         return (
           <PostConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'tcp':
@@ -37,6 +38,7 @@ class EndpointOptions extends Component {
           <TcpConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'exec':
@@ -44,6 +46,7 @@ class EndpointOptions extends Component {
           <ExecConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'log':
@@ -51,6 +54,7 @@ class EndpointOptions extends Component {
           <LogConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'smtp':
@@ -58,6 +62,7 @@ class EndpointOptions extends Component {
           <SmtpConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'alerta':
@@ -65,6 +70,7 @@ class EndpointOptions extends Component {
           <AlertaConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'hipchat':
@@ -72,6 +78,7 @@ class EndpointOptions extends Component {
           <HipchatConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'opsgenie':
@@ -79,6 +86,7 @@ class EndpointOptions extends Component {
           <OpsgenieConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'pagerduty':
@@ -86,6 +94,7 @@ class EndpointOptions extends Component {
           <PagerdutyConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'pushover':
@@ -93,6 +102,7 @@ class EndpointOptions extends Component {
           <PushoverConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'sensu':
@@ -100,6 +110,7 @@ class EndpointOptions extends Component {
           <SensuConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'slack':
@@ -107,6 +118,7 @@ class EndpointOptions extends Component {
           <SlackConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'talk':
@@ -114,6 +126,7 @@ class EndpointOptions extends Component {
           <TalkConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'telegram':
@@ -121,6 +134,7 @@ class EndpointOptions extends Component {
           <TelegramConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       case 'victorops':
@@ -128,6 +142,7 @@ class EndpointOptions extends Component {
           <VictoropsConfig
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
+            configLink={configLink}
           />
         )
       default:

@@ -9,26 +9,31 @@ import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {
   DEFAULT_RULE_ID,
-  ALERT_FIELDS_FROM_CONFIG,
+  ALERTS_FROM_CONFIG,
+  CONFIG_TO_RULE,
 } from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
 const getEnabled = config => {
   const {data: {sections}} = config
+
   const allAlerts = _.map(sections, (v, k) => {
     const fromConfig = _.get(v, ['elements', '0', 'options'], {})
-    const pickedFromConfig = _.pick(fromConfig, [
-      ALERT_FIELDS_FROM_CONFIG[k],
-      'enabled',
-    ])
-    return {type: k, ...pickedFromConfig}
+    return {type: k, ...fromConfig}
   })
-  // let enabledAlerts = _.filter(allAlerts, v => _.get(v, ['enabled'], false))
-  const enabledAlerts = _.reject(
-    allAlerts,
-    v => v.type === 'influxdb' || v.type === 'snmptrap'
-  )
-  return enabledAlerts
+
+  const allowedAlerts = _.filter(allAlerts, a => a.type in ALERTS_FROM_CONFIG)
+
+  const pickedAlerts = _.map(allowedAlerts, a => {
+    return _.pick(a, ['type', 'enabled', ...ALERTS_FROM_CONFIG[a.type]])
+  })
+
+  const mappedAlerts = _.map(pickedAlerts, p => {
+    return _.mapKeys(p, (v, k) => {
+      return _.get(CONFIG_TO_RULE[p.type], k, k)
+    })
+  })
+  return mappedAlerts
 }
 
 class KapacitorRulePage extends Component {
@@ -101,6 +106,7 @@ class KapacitorRulePage extends Component {
         ruleID={params.ruleID}
         router={router}
         kapacitor={kapacitor}
+        configLink={`/sources/${source.id}/kapacitors/${kapacitor.id}/edit`}
       />
     )
   }

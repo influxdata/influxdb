@@ -1,7 +1,7 @@
 import {
   defaultRuleConfigs,
   DEFAULT_RULE_ID,
-  ALERT_FIELDS_TO_RULE,
+  ALERTS_TO_RULE,
 } from 'src/kapacitor/constants'
 import _ from 'lodash'
 
@@ -94,7 +94,7 @@ export default function rules(state = {}, action) {
         const existing = _.get(alertNodesByType, ep.type, [])
         alertNodesByType[ep.type] = [
           ...existing,
-          _.pick(ep, ALERT_FIELDS_TO_RULE[ep.type]),
+          _.pick(ep, ALERTS_TO_RULE[ep.type]),
         ]
       })
       return Object.assign({}, state, {

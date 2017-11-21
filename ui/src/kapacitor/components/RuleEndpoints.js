@@ -131,12 +131,11 @@ class RuleEndpoints extends Component {
   }
 
   render() {
-    const {enabledAlerts} = this.props
+    const {enabledAlerts, configLink} = this.props
     const {endpointsOnThisAlert, selectedEndpoint} = this.state
     const alerts = _.map([...DEFAULT_ALERTS, ...enabledAlerts], a => {
       return {...a, text: a.type}
     })
-
     const dropdownLabel = endpointsOnThisAlert.length
       ? 'Add another Endpoint'
       : 'Add an Endpoint'
@@ -168,6 +167,7 @@ class RuleEndpoints extends Component {
                   handleRemoveEndpoint={this.handleRemoveEndpoint}
                 />
                 <EndpointOptions
+                  configLink={configLink}
                   selectedEndpoint={selectedEndpoint}
                   handleModifyEndpoint={this.handleModifyEndpoint}
                 />

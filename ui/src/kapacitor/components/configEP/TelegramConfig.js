@@ -3,7 +3,11 @@ import EndpointInput from 'src/kapacitor/components/EndpointInput'
 import EndpointCheckbox from 'src/kapacitor/components/EndpointCheckbox'
 import EmptyEndpoint from 'src/kapacitor/components/EmptyEndpoint'
 
-const TelegramConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
+const TelegramConfig = ({
+  selectedEndpoint,
+  handleModifyEndpoint,
+  configLink,
+}) => {
   return selectedEndpoint.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
@@ -36,14 +40,15 @@ const TelegramConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           />
         </div>
       </div>
-    : <EmptyEndpoint />
+    : <EmptyEndpoint configLink={configLink} />
 }
 
-const {func, shape} = PropTypes
+const {func, shape, string} = PropTypes
 
 TelegramConfig.propTypes = {
   selectedEndpoint: shape({}).isRequired,
   handleModifyEndpoint: func.isRequired,
+  configLink: string,
 }
 
 export default TelegramConfig

@@ -6,6 +6,8 @@ const EndpointInput = ({
   placeholder,
   selectedEndpoint,
   handleModifyEndpoint,
+  redacted = false,
+  editable = true,
 }) => {
   return (
     <div className="form-group">
@@ -27,12 +29,14 @@ const EndpointInput = ({
   )
 }
 
-const {func, shape, string} = PropTypes
+const {func, shape, string, bool} = PropTypes
 
 EndpointInput.propTypes = {
-  fieldName: string,
+  fieldName: string.isRequired,
   fieldDisplay: string,
   placeholder: string,
+  redacted: bool,
+  editable: bool,
   selectedEndpoint: shape({}).isRequired,
   handleModifyEndpoint: func.isRequired,
 }

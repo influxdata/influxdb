@@ -1,12 +1,15 @@
 import React from 'react'
+import {Link} from 'react-router'
 
-const EmptyEndpoint = () => {
+const EmptyEndpoint = ({configLink}) => {
   return (
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
         <div className="form-group">
-          This endpoint has not been configured, visit your kapacitor
-          configuration page to set it up!
+          This endpoint does not seem to be configured.
+          <Link to={configLink} title="Configuration Page">
+            Configure it here.
+          </Link>
         </div>
       </div>
     </div>

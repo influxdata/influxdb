@@ -2,21 +2,36 @@ import React, {PropTypes} from 'react'
 import EndpointInput from 'src/kapacitor/components/EndpointInput'
 import EmptyEndpoint from 'src/kapacitor/components/EmptyEndpoint'
 
-const AlertaConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
+const AlertaConfig = ({selectedEndpoint, handleModifyEndpoint, configLink}) => {
   return selectedEndpoint.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
-          <h4>Configured Parameters</h4>
-        </div>
-        <div className="endpoint-tab--parameters">
-          <h4>Optional Parameters</h4>
+          <h4>Parameters from Kapacitor Configuration</h4>
+          <EndpointInput
+            selectedEndpoint={selectedEndpoint}
+            handleModifyEndpoint={handleModifyEndpoint}
+            fieldName="environment"
+            fieldDisplay="Environment"
+            placeholder="Ex: environment"
+          />
+          <EndpointInput
+            selectedEndpoint={selectedEndpoint}
+            handleModifyEndpoint={handleModifyEndpoint}
+            fieldName="origin"
+            fieldDisplay="Origin"
+            placeholder="Ex: origin"
+          />
           <EndpointInput
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
             fieldName="token"
             fieldDisplay="Token"
             placeholder="Ex: my_token"
+            redacted={true}
           />
+        </div>
+        <div className="endpoint-tab--parameters">
+          <h4>Optional Parameters</h4>
           <EndpointInput
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
@@ -30,13 +45,6 @@ const AlertaConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
             fieldName="event"
             fieldDisplay="Event"
             placeholder="Ex: event"
-          />
-          <EndpointInput
-            selectedEndpoint={selectedEndpoint}
-            handleModifyEndpoint={handleModifyEndpoint}
-            fieldName="environment"
-            fieldDisplay="Environment"
-            placeholder="Ex: environment"
           />
           <EndpointInput
             selectedEndpoint={selectedEndpoint}
@@ -55,34 +63,21 @@ const AlertaConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           <EndpointInput
             selectedEndpoint={selectedEndpoint}
             handleModifyEndpoint={handleModifyEndpoint}
-            fieldName="origin"
-            fieldDisplay="Origin"
-            placeholder="Ex: origin"
-          />
-          <EndpointInput
-            selectedEndpoint={selectedEndpoint}
-            handleModifyEndpoint={handleModifyEndpoint}
             fieldName="service"
             fieldDisplay="Service"
-            placeholder="Ex: my_token"
-          />
-          <EndpointInput
-            selectedEndpoint={selectedEndpoint}
-            handleModifyEndpoint={handleModifyEndpoint}
-            fieldName="timeout"
-            fieldDisplay="Timeout"
-            placeholder="Ex: timeout_duration"
+            placeholder="Ex: service_name"
           />
         </div>
       </div>
-    : <EmptyEndpoint />
+    : <EmptyEndpoint configLink={configLink} />
 }
 
-const {func, shape} = PropTypes
+const {func, shape, string} = PropTypes
 
 AlertaConfig.propTypes = {
   selectedEndpoint: shape({}).isRequired,
   handleModifyEndpoint: func.isRequired,
+  configLink: string,
 }
 
 export default AlertaConfig

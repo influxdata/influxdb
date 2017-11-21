@@ -2,7 +2,11 @@ import React, {PropTypes} from 'react'
 import EndpointInput from 'src/kapacitor/components/EndpointInput'
 import EmptyEndpoint from 'src/kapacitor/components/EmptyEndpoint'
 
-const PagerdutyConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
+const PagerdutyConfig = ({
+  selectedEndpoint,
+  handleModifyEndpoint,
+  configLink,
+}) => {
   return selectedEndpoint.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
@@ -16,14 +20,15 @@ const PagerdutyConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
           />
         </div>
       </div>
-    : <EmptyEndpoint />
+    : <EmptyEndpoint configLink={configLink} />
 }
 
-const {func, shape} = PropTypes
+const {func, shape, string} = PropTypes
 
 PagerdutyConfig.propTypes = {
   selectedEndpoint: shape({}).isRequired,
   handleModifyEndpoint: func.isRequired,
+  configLink: string,
 }
 
 export default PagerdutyConfig
