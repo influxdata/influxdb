@@ -1,7 +1,7 @@
-import React from 'react'
+import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
-const EmptyEndpoint = ({configLink}) => {
+const HandlerEmpty = ({configLink}) => {
   return (
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
@@ -16,4 +16,10 @@ const EmptyEndpoint = ({configLink}) => {
   )
 }
 
-export default EmptyEndpoint
+const {string} = PropTypes
+
+HandlerEmpty.propTypes = {
+  configLink: string,
+}
+
+export default HandlerEmpty

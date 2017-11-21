@@ -3,7 +3,7 @@ import React, {PropTypes, Component} from 'react'
 import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
-import RuleEndpoints from 'src/kapacitor/components/RuleEndpoints'
+import RuleHandlers from 'src/kapacitor/components/RuleHandlers'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -141,7 +141,7 @@ class KapacitorRule extends Component {
       ruleID,
       ruleActions,
       queryConfigs,
-      enabledAlerts,
+      handlersFromConfig,
       queryConfigActions,
       configLink,
     } = this.props
@@ -180,17 +180,13 @@ class KapacitorRule extends Component {
                     onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
                     onChooseTimeRange={this.handleChooseTimeRange}
                   />
-                  <RuleEndpoints
+                  <RuleHandlers
                     configLink={configLink}
                     rule={rule}
                     actions={ruleActions}
-                    enabledAlerts={enabledAlerts}
+                    handlersFromConfig={handlersFromConfig}
                   />
-                  <RuleMessage
-                    rule={rule}
-                    actions={ruleActions}
-                    enabledAlerts={enabledAlerts}
-                  />
+                  <RuleMessage rule={rule} actions={ruleActions} />
                 </div>
               </div>
             </div>
@@ -214,11 +210,12 @@ KapacitorRule.propTypes = {
   ruleActions: shape({}).isRequired,
   addFlashMessage: func.isRequired,
   ruleID: string.isRequired,
-  enabledAlerts: arrayOf(shape({})).isRequired,
+  handlersFromConfig: arrayOf(shape({})).isRequired,
   router: shape({
     push: func.isRequired,
   }).isRequired,
   kapacitor: shape({}).isRequired,
+  configLink: string,
 }
 
 export default KapacitorRule

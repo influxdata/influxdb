@@ -1,11 +1,11 @@
 import React, {PropTypes} from 'react'
 
-const EndpointInput = ({
+const HandlerInput = ({
   fieldName,
   fieldDisplay,
   placeholder,
-  selectedEndpoint,
-  handleModifyEndpoint,
+  selectedHandler,
+  handleModifyHandler,
   redacted = false,
   editable = true,
 }) => {
@@ -20,8 +20,8 @@ const EndpointInput = ({
         className="form-control input-sm form-malachite"
         type="text"
         placeholder={placeholder}
-        onChange={handleModifyEndpoint(selectedEndpoint, fieldName)}
-        value={selectedEndpoint[fieldName]}
+        onChange={handleModifyHandler(selectedHandler, fieldName)}
+        value={selectedHandler[fieldName]}
         autoComplete="off"
         spellCheck="false"
       />
@@ -31,14 +31,14 @@ const EndpointInput = ({
 
 const {func, shape, string, bool} = PropTypes
 
-EndpointInput.propTypes = {
+HandlerInput.propTypes = {
   fieldName: string.isRequired,
   fieldDisplay: string,
   placeholder: string,
   redacted: bool,
   editable: bool,
-  selectedEndpoint: shape({}).isRequired,
-  handleModifyEndpoint: func.isRequired,
+  selectedHandler: shape({}).isRequired,
+  handleModifyHandler: func.isRequired,
 }
 
-export default EndpointInput
+export default HandlerInput

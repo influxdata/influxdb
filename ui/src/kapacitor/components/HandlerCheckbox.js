@@ -1,10 +1,10 @@
 import React, {PropTypes} from 'react'
 
-const EndpointCheckbox = ({
+const HandlerCheckbox = ({
   fieldName,
   fieldDisplay,
-  selectedEndpoint,
-  handleModifyEndpoint,
+  selectedHandler,
+  handleModifyHandler,
 }) => {
   return (
     <div className="form-group">
@@ -13,8 +13,8 @@ const EndpointCheckbox = ({
           name={fieldName}
           id={fieldName}
           type="checkbox"
-          defaultChecked={selectedEndpoint[fieldName]}
-          onClick={handleModifyEndpoint(selectedEndpoint, fieldName)}
+          defaultChecked={selectedHandler[fieldName]}
+          onClick={handleModifyHandler(selectedHandler, fieldName)}
         />
         <label htmlFor={fieldName}>
           {fieldDisplay}
@@ -26,12 +26,12 @@ const EndpointCheckbox = ({
 
 const {func, shape, string, bool} = PropTypes
 
-EndpointCheckbox.propTypes = {
+HandlerCheckbox.propTypes = {
   fieldName: string,
   fieldDisplay: string,
   defaultChecked: bool,
-  selectedEndpoint: shape({}).isRequired,
-  handleModifyEndpoint: func.isRequired,
+  selectedHandler: shape({}).isRequired,
+  handleModifyHandler: func.isRequired,
 }
 
-export default EndpointCheckbox
+export default HandlerCheckbox

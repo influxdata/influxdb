@@ -23,7 +23,7 @@ class AlertTabs extends Component {
     super(props)
 
     this.state = {
-      selectedEndpoint: 'smtp',
+      selectedHandler: 'smtp',
       configSections: null,
     }
   }

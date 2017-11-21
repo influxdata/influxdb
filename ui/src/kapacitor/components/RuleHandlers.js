@@ -1,18 +1,18 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
-import EndpointOptions from 'src/kapacitor/components/EndpointOptions'
-import EndpointTabs from 'src/kapacitor/components/EndpointTabs'
+import HandlerOptions from 'src/kapacitor/components/HandlerOptions'
+import HandlerTabs from 'src/kapacitor/components/HandlerTabs'
 import Dropdown from 'shared/components/Dropdown'
 
 import {DEFAULT_ALERTS} from 'src/kapacitor/constants'
 
 const alertNodesToEndpoints = rule => {
-  const endpointsOfKind = {} // TODO why are these consts?
-  const endpointsOnThisAlert = []
+  const handlersOfKind = {}
+  const handlersOnThisAlert = []
   rule.alertNodes.forEach(an => {
-    const count = _.get(endpointsOfKind, an.name, 0) + 1
-    endpointsOfKind[an.name] = count
+    const count = _.get(handlersOfKind, an.name, 0) + 1
+    handlersOfKind[an.name] = count
     const ep = {
       ...an.properties,
       ...an.args,
@@ -20,27 +20,27 @@ const alertNodesToEndpoints = rule => {
       alias: an.name + count,
       type: an.name,
     }
-    endpointsOnThisAlert.push(ep)
+    handlersOnThisAlert.push(ep)
   })
-  const selectedEndpoint = endpointsOnThisAlert.length
-    ? endpointsOnThisAlert[0]
+  const selectedHandler = handlersOnThisAlert.length
+    ? handlersOnThisAlert[0]
     : null
-  return {endpointsOnThisAlert, selectedEndpoint, endpointsOfKind}
+  return {handlersOnThisAlert, selectedHandler, handlersOfKind}
 }
 
-class RuleEndpoints extends Component {
+class RuleHandlers extends Component {
   constructor(props) {
     super(props)
     const {
-      endpointsOnThisAlert,
-      selectedEndpoint,
-      endpointsOfKind,
+      handlersOnThisAlert,
+      selectedHandler,
+      handlersOfKind,
     } = alertNodesToEndpoints(this.props.rule)
 
     this.state = {
-      selectedEndpoint,
-      endpointsOnThisAlert,
-      endpointsOfKind,
+      selectedHandler,
+      handlersOnThisAlert,
+      handlersOfKind,
     }
   }
 
@@ -49,13 +49,13 @@ class RuleEndpoints extends Component {
     actions.updateMessage(rule.id, e.target.value)
   }
 
-  handleChooseAlert = ep => () => {
-    this.setState({selectedEndpoint: ep})
+  handleChooseHandler = ep => () => {
+    this.setState({selectedHandler: ep})
   }
 
   handleAddEndpoint = selectedItem => {
-    const {endpointsOnThisAlert, endpointsOfKind} = this.state
-    const newItemNumbering = _.get(endpointsOfKind, selectedItem.type, 0) + 1
+    const {handlersOnThisAlert, handlersOfKind} = this.state
+    const newItemNumbering = _.get(handlersOfKind, selectedItem.type, 0) + 1
     const newItemName = selectedItem.type + newItemNumbering
     const newEndpoint = {
       ...selectedItem,
@@ -63,84 +63,84 @@ class RuleEndpoints extends Component {
     }
     this.setState(
       {
-        endpointsOnThisAlert: [...endpointsOnThisAlert, newEndpoint],
-        endpointsOfKind: {
-          ...endpointsOfKind,
+        handlersOnThisAlert: [...handlersOnThisAlert, newEndpoint],
+        handlersOfKind: {
+          ...handlersOfKind,
           [selectedItem.type]: newItemNumbering,
         },
-        selectedEndpoint: newEndpoint,
+        selectedHandler: newEndpoint,
       },
       this.handleUpdateAllAlerts
     )
   }
 
-  handleRemoveEndpoint = removedEP => e => {
+  handleRemoveHandler = removedEP => e => {
     e.stopPropagation()
-    const {endpointsOnThisAlert, selectedEndpoint} = this.state
-    const removedIndex = _.findIndex(endpointsOnThisAlert, [
+    const {handlersOnThisAlert, selectedHandler} = this.state
+    const removedIndex = _.findIndex(handlersOnThisAlert, [
       'alias',
       removedEP.alias,
     ])
-    const remainingEndpoints = _.reject(endpointsOnThisAlert, [
+    const remainingEndpoints = _.reject(handlersOnThisAlert, [
       'alias',
       removedEP.alias,
     ])
-    if (selectedEndpoint.alias === removedEP.alias) {
+    if (selectedHandler.alias === removedEP.alias) {
       const selectedIndex = removedIndex > 0 ? removedIndex - 1 : 0
       const newSelected = remainingEndpoints.length
         ? remainingEndpoints[selectedIndex]
         : null
-      this.setState({selectedEndpoint: newSelected})
+      this.setState({selectedHandler: newSelected})
     }
     this.setState(
-      {endpointsOnThisAlert: remainingEndpoints},
+      {handlersOnThisAlert: remainingEndpoints},
       this.handleUpdateAllAlerts
     )
   }
 
   handleUpdateAllAlerts = () => {
     const {rule, actions} = this.props
-    const {endpointsOnThisAlert} = this.state
+    const {handlersOnThisAlert} = this.state
 
-    actions.updateAlertNodes(rule.id, endpointsOnThisAlert)
+    actions.updateAlertNodes(rule.id, handlersOnThisAlert)
   }
 
-  handleModifyEndpoint = (selectedEndpoint, fieldName) => e => {
-    const {endpointsOnThisAlert} = this.state
+  handleModifyHandler = (selectedHandler, fieldName) => e => {
+    const {handlersOnThisAlert} = this.state
     const modifiedEP =
       e.target.type === 'checkbox'
         ? {
-            ...selectedEndpoint,
-            [fieldName]: !selectedEndpoint[fieldName],
+            ...selectedHandler,
+            [fieldName]: !selectedHandler[fieldName],
           }
         : {
-            ...selectedEndpoint,
+            ...selectedHandler,
             [fieldName]: e.target.value,
           }
-    const remainingEndpoints = _.reject(endpointsOnThisAlert, [
+    const remainingEndpoints = _.reject(handlersOnThisAlert, [
       'alias',
       modifiedEP.alias,
     ])
     this.setState(
       {
-        selectedEndpoint: modifiedEP,
-        endpointsOnThisAlert: [...remainingEndpoints, modifiedEP],
+        selectedHandler: modifiedEP,
+        handlersOnThisAlert: [...remainingEndpoints, modifiedEP],
       },
       this.handleUpdateAllAlerts
     )
   }
 
   render() {
-    const {enabledAlerts, configLink} = this.props
-    const {endpointsOnThisAlert, selectedEndpoint} = this.state
-    const alerts = _.map([...DEFAULT_ALERTS, ...enabledAlerts], a => {
+    const {handlersFromConfig, configLink} = this.props
+    const {handlersOnThisAlert, selectedHandler} = this.state
+    const alerts = _.map([...DEFAULT_ALERTS, ...handlersFromConfig], a => {
       return {...a, text: a.type}
     })
-    const dropdownLabel = endpointsOnThisAlert.length
+    const dropdownLabel = handlersOnThisAlert.length
       ? 'Add another Endpoint'
       : 'Add an Endpoint'
 
-    const ruleSectionClassName = endpointsOnThisAlert.length
+    const ruleSectionClassName = handlersOnThisAlert.length
       ? 'rule-section--row rule-section--row-first rule-section--border-bottom'
       : 'rule-section--row rule-section--row-first rule-section--row-last'
 
@@ -158,18 +158,18 @@ class RuleEndpoints extends Component {
               className="dropdown-200 rule-message--add-endpoint"
             />
           </div>
-          {endpointsOnThisAlert.length
+          {handlersOnThisAlert.length
             ? <div className="rule-message--endpoints">
-                <EndpointTabs
-                  endpointsOnThisAlert={endpointsOnThisAlert}
-                  selectedEndpoint={selectedEndpoint}
-                  handleChooseAlert={this.handleChooseAlert}
-                  handleRemoveEndpoint={this.handleRemoveEndpoint}
+                <HandlerTabs
+                  handlersOnThisAlert={handlersOnThisAlert}
+                  selectedHandler={selectedHandler}
+                  handleChooseHandler={this.handleChooseHandler}
+                  handleRemoveHandler={this.handleRemoveHandler}
                 />
-                <EndpointOptions
+                <HandlerOptions
                   configLink={configLink}
-                  selectedEndpoint={selectedEndpoint}
-                  handleModifyEndpoint={this.handleModifyEndpoint}
+                  selectedHandler={selectedHandler}
+                  handleModifyHandler={this.handleModifyHandler}
                 />
               </div>
             : null}
@@ -179,9 +179,9 @@ class RuleEndpoints extends Component {
   }
 }
 
-const {arrayOf, func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
-RuleEndpoints.propTypes = {
+RuleHandlers.propTypes = {
   rule: shape({}).isRequired,
   actions: shape({
     updateAlertNodes: func.isRequired,
@@ -189,7 +189,8 @@ RuleEndpoints.propTypes = {
     updateDetails: func.isRequired,
     updateAlertProperty: func.isRequired,
   }).isRequired,
-  enabledAlerts: arrayOf(shape({})),
+  handlersFromConfig: arrayOf(shape({})),
+  configLink: string,
 }
 
-export default RuleEndpoints
+export default RuleHandlers

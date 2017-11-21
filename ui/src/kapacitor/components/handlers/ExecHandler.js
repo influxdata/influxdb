@@ -1,14 +1,14 @@
 import React, {PropTypes} from 'react'
-import EndpointInput from 'src/kapacitor/components/EndpointInput'
+import HandlerInput from 'src/kapacitor/components/HandlerInput'
 
-const ExecConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
+const ExecHandler = ({selectedHandler, handleModifyHandler}) => {
   return (
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
         <h4>Optional Parameters</h4>
-        <EndpointInput
-          selectedEndpoint={selectedEndpoint}
-          handleModifyEndpoint={handleModifyEndpoint}
+        <HandlerInput
+          selectedHandler={selectedHandler}
+          handleModifyHandler={handleModifyHandler}
           fieldName="command"
           fieldDisplay="Command (arguments separated by spaces):"
           placeholder="Ex: command argument"
@@ -20,9 +20,9 @@ const ExecConfig = ({selectedEndpoint, handleModifyEndpoint}) => {
 
 const {func, shape} = PropTypes
 
-ExecConfig.propTypes = {
-  selectedEndpoint: shape({}).isRequired,
-  handleModifyEndpoint: func.isRequired,
+ExecHandler.propTypes = {
+  selectedHandler: shape({}).isRequired,
+  handleModifyHandler: func.isRequired,
 }
 
-export default ExecConfig
+export default ExecHandler
