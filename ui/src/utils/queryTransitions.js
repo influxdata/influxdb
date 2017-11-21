@@ -108,7 +108,7 @@ export const toggleField = (query, {value}) => {
   }
 }
 
-export function groupByTime(query, time) {
+export const groupByTime = (query, time) => {
   return Object.assign({}, query, {
     groupBy: Object.assign({}, query.groupBy, {
       time,
@@ -118,7 +118,7 @@ export function groupByTime(query, time) {
 
 export const fill = (query, value) => ({...query, fill: value})
 
-export function toggleTagAcceptance(query) {
+export const toggleTagAcceptance = query => {
   return Object.assign({}, query, {
     areTagsAccepted: !query.areTagsAccepted,
   })
@@ -185,13 +185,13 @@ export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
   }
 }
 
-export function updateRawQuery(query, rawText) {
+export const updateRawQuery = (query, rawText) => {
   return Object.assign({}, query, {
     rawText,
   })
 }
 
-export function groupByTag(query, tagKey) {
+export const groupByTag = (query, tagKey) => {
   const oldTags = query.groupBy.tags
   let newTags
 
@@ -209,7 +209,7 @@ export function groupByTag(query, tagKey) {
   })
 }
 
-export function chooseTag(query, tag) {
+export const chooseTag = (query, tag) => {
   const tagValues = query.tags[tag.key]
   const shouldRemoveTag =
     tagValues && tagValues.length === 1 && tagValues[0] === tag.value
@@ -217,6 +217,14 @@ export function chooseTag(query, tag) {
     const newTags = Object.assign({}, query.tags)
     delete newTags[tag.key]
     return Object.assign({}, query, {tags: newTags})
+  }
+
+  const updateTagValues = newTagValues => {
+    return Object.assign({}, query, {
+      tags: Object.assign({}, query.tags, {
+        [tag.key]: newTagValues,
+      }),
+    })
   }
 
   const oldTagValues = query.tags[tag.key]
@@ -233,12 +241,6 @@ export function chooseTag(query, tag) {
   }
 
   return updateTagValues(query.tags[tag.key].concat(tag.value))
-
-  function updateTagValues(newTagValues) {
-    return Object.assign({}, query, {
-      tags: Object.assign({}, query.tags, {
-        [tag.key]: newTagValues,
-      }),
-    })
-  }
 }
+
+export const timeShift = (query, shift) => ({...query, shifts: [shift]})

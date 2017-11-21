@@ -162,14 +162,14 @@ func Test_Service_DashboardCells(t *testing.T) {
 			http.StatusOK,
 		},
 		{
-			"cell axes should always be \"x\", \"y\", and \"y2\"",
-			&url.URL{
+			name: "cell axes should always be \"x\", \"y\", and \"y2\"",
+			reqURL: &url.URL{
 				Path: "/chronograf/v1/dashboards/1/cells",
 			},
-			map[string]string{
+			ctxParams: map[string]string{
 				"id": "1",
 			},
-			[]chronograf.DashboardCell{
+			mockResponse: []chronograf.DashboardCell{
 				{
 					ID:      "3899be5a-f6eb-4347-b949-de2f4fbea859",
 					X:       0,
@@ -182,7 +182,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 					Axes:    map[string]chronograf.Axis{},
 				},
 			},
-			[]chronograf.DashboardCell{
+			expected: []chronograf.DashboardCell{
 				{
 					ID:      "3899be5a-f6eb-4347-b949-de2f4fbea859",
 					X:       0,
@@ -205,7 +205,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 					},
 				},
 			},
-			http.StatusOK,
+			expectedCode: http.StatusOK,
 		},
 	}
 

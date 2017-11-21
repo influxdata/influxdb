@@ -191,12 +191,26 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			if q.Range != nil {
 				r.Upper, r.Lower = q.Range.Upper, q.Range.Lower
 			}
+			q.Shifts = q.QueryConfig.Shifts
 			queries[j] = &Query{
 				Command: q.Command,
 				Label:   q.Label,
 				Range:   r,
 				Source:  q.Source,
 			}
+
+			shifts := make([]*TimeShift, len(q.Shifts))
+			for k := range q.Shifts {
+				shift := &TimeShift{
+					Label:    q.Shifts[k].Label,
+					Unit:     q.Shifts[k].Unit,
+					Quantity: q.Shifts[k].Quantity,
+				}
+
+				shifts[k] = shift
+			}
+
+			queries[j].Shifts = shifts
 		}
 
 		axes := make(map[string]*Axis, len(c.Axes))
@@ -277,12 +291,26 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				Label:   q.Label,
 				Source:  q.Source,
 			}
+
 			if q.Range.Upper != q.Range.Lower {
 				queries[j].Range = &chronograf.Range{
 					Upper: q.Range.Upper,
 					Lower: q.Range.Lower,
 				}
 			}
+
+			shifts := make([]chronograf.TimeShift, len(q.Shifts))
+			for k := range q.Shifts {
+				shift := chronograf.TimeShift{
+					Label:    q.Shifts[k].Label,
+					Unit:     q.Shifts[k].Unit,
+					Quantity: q.Shifts[k].Quantity,
+				}
+
+				shifts[k] = shift
+			}
+
+			queries[j].Shifts = shifts
 		}
 
 		axes := make(map[string]chronograf.Axis, len(c.Axes))

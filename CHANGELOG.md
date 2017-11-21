@@ -12,6 +12,8 @@
 1. [#2386](https://github.com/influxdata/chronograf/pull/2386): Fix queries that include regex, numbers and wildcard
 
 ### Features
+1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+
 ### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]
