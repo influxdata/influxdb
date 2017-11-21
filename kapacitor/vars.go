@@ -76,10 +76,12 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 	}
 }
 
+// NotEmpty is an error collector testing strings for existence.
 type NotEmpty struct {
 	Err error
 }
 
+// Valid checks if string is not empty
 func (n *NotEmpty) Valid(name, s string) error {
 	if n.Err != nil {
 		return n.Err
@@ -91,6 +93,7 @@ func (n *NotEmpty) Valid(name, s string) error {
 	return n.Err
 }
 
+// Escape escapes all single quoted strings
 func Escape(str string) string {
 	return strings.Replace(str, "'", `\'`, -1)
 }
