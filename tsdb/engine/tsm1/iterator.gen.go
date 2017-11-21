@@ -129,9 +129,10 @@ func newFloatFinalizerIterator(inner influxql.FloatIterator, logger zap.Logger) 
 }
 
 func (itr *floatFinalizerIterator) closeGC() {
-	runtime.SetFinalizer(itr, nil)
-	itr.logger.Error("FloatIterator finalized by GC")
-	itr.Close()
+	go func() {
+		itr.logger.Error("FloatIterator finalized by GC")
+		itr.Close()
+	}()
 }
 
 func (itr *floatFinalizerIterator) Close() error {
@@ -588,9 +589,10 @@ func newIntegerFinalizerIterator(inner influxql.IntegerIterator, logger zap.Logg
 }
 
 func (itr *integerFinalizerIterator) closeGC() {
-	runtime.SetFinalizer(itr, nil)
-	itr.logger.Error("IntegerIterator finalized by GC")
-	itr.Close()
+	go func() {
+		itr.logger.Error("IntegerIterator finalized by GC")
+		itr.Close()
+	}()
 }
 
 func (itr *integerFinalizerIterator) Close() error {
@@ -1047,9 +1049,10 @@ func newStringFinalizerIterator(inner influxql.StringIterator, logger zap.Logger
 }
 
 func (itr *stringFinalizerIterator) closeGC() {
-	runtime.SetFinalizer(itr, nil)
-	itr.logger.Error("StringIterator finalized by GC")
-	itr.Close()
+	go func() {
+		itr.logger.Error("StringIterator finalized by GC")
+		itr.Close()
+	}()
 }
 
 func (itr *stringFinalizerIterator) Close() error {
@@ -1506,9 +1509,10 @@ func newBooleanFinalizerIterator(inner influxql.BooleanIterator, logger zap.Logg
 }
 
 func (itr *booleanFinalizerIterator) closeGC() {
-	runtime.SetFinalizer(itr, nil)
-	itr.logger.Error("BooleanIterator finalized by GC")
-	itr.Close()
+	go func() {
+		itr.logger.Error("BooleanIterator finalized by GC")
+		itr.Close()
+	}()
 }
 
 func (itr *booleanFinalizerIterator) Close() error {
