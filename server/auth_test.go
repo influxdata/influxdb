@@ -1583,6 +1583,10 @@ func TestAuthorizedUser(t *testing.T) {
 				t.Errorf("%q. AuthorizedUser() = %v, expected %v", tt.name, authorized, tt.authorized)
 			}
 
+			if !authorized && w.Code != http.StatusForbidden {
+				t.Errorf("%q. AuthorizedUser() Status Code = %v, expected %v", tt.name, w.Code, http.StatusForbidden)
+			}
+
 			if hasServerCtx != tt.hasServerContext {
 				t.Errorf("%q. AuthorizedUser().Context().Server = %v, expected %v", tt.name, hasServerCtx, tt.hasServerContext)
 			}
