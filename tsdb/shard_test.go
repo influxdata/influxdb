@@ -1402,6 +1402,86 @@ _reserved,region=uswest value="foo" 0
 	}
 }
 
+func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
+	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float, true); err != nil {
+		t.Fatalf("create field error: %v", err)
+	}
+
+	if err := mf.Save(); err != nil {
+		t.Fatalf("save error: %v", err)
+	}
+
+	mf, err = tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields = mf.Fields("cpu")
+	field := fields.Field("value")
+	if field == nil {
+		t.Fatalf("field is null")
+	}
+
+	if got, exp := field.Type, influxql.Float; got != exp {
+		t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
+	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float, true); err != nil {
+		t.Fatalf("create field error: %v", err)
+	}
+
+	if err := mf.Save(); err != nil {
+		t.Fatalf("save error: %v", err)
+	}
+
+	mf, err = tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields = mf.Fields("cpu")
+	field := fields.Field("value")
+	if field == nil {
+		t.Fatalf("field is null")
+	}
+
+	if got, exp := field.Type, influxql.Float; got != exp {
+		t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
+	}
+
+	mf.Delete("cpu")
+
+	if err := mf.Save(); err != nil {
+		t.Fatalf("save after delete error: %v", err)
+	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("got %v, not exist err", err)
+	}
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }
@@ -1692,4 +1772,12 @@ func (sh *Shard) MustWritePointsString(s string) {
 	if err := sh.WritePoints(a); err != nil {
 		panic(err)
 	}
+}
+
+func MustTempDir() (string, func()) {
+	dir, err := ioutil.TempDir("", "shard-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir, func() { os.RemoveAll(dir) }
 }
