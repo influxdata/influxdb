@@ -3955,6 +3955,14 @@
                 ],
                 "default": "line"
               },
+              "colors": {
+                "description":
+                  "Colors define encoding data into a visualization",
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/DashboardColor"
+                }
+              },
               "links": {
                 "type": "object",
                 "properties": {
@@ -4022,6 +4030,36 @@
         "name": "lalalalala",
         "links": {
           "self": "/chronograf/v1/dashboards/4"
+        }
+      }
+    },
+    "DashboardColor": {
+      "type": "object",
+      "description":
+        "Color defines an encoding of a data value into color space",
+      "properties": {
+        "id": {
+          "description": "ID is the unique id of the cell color",
+          "type": "string"
+        },
+        "type": {
+          "description": "Type is how the color is used.",
+          "type": "string",
+          "enum": ["min", "max", "threshold"]
+        },
+        "hex": {
+          "description": "Hex is the hex number of the color",
+          "type": "string",
+          "maxLength": 9,
+          "minLength": 7
+        },
+        "name": {
+          "description": "Name is the user-facing name of the hex color",
+          "type": "string"
+        },
+        "value": {
+          "description": "Value is the data value mapped to this color",
+          "type": "string"
         }
       }
     },
