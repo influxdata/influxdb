@@ -69,6 +69,10 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 // ValidDashboardCellRequest verifies that the dashboard cells have a query and
 // have the correct axes specified
 func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
+	if c == nil {
+		return fmt.Errorf("Chronograf dashboard cell was nil")
+	}
+
 	CorrectWidthHeight(c)
 	for _, q := range c.Queries {
 		if err := ValidateQueryConfig(&q.QueryConfig); err != nil {
