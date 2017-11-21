@@ -113,9 +113,9 @@ message Query {
 }
 
 message TimeShift {
-	string Label              = 1; // user facing description
-	string Unit               = 2; // influxql time unit representation i.e. ms, s, m, h, d
-	string Quantity           = 3; // number of units
+	string Label              = 1; // Label user facing description
+	string Unit               = 2; // Unit influxql time unit representation i.e. ms, s, m, h, d
+	string Quantity           = 3; // Quantity number of units
 }
 
 message Range {
