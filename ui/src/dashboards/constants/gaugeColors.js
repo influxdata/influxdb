@@ -8,10 +8,6 @@ export const GAUGE_COLORS = [
     text: 'Fire',
   },
   {
-    hex: '#DC4E58',
-    text: 'Fire',
-  },
-  {
     hex: '#F95F53',
     text: 'Curacao',
   },
