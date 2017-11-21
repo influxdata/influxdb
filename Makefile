@@ -23,42 +23,23 @@ ${BINARY}: $(SOURCES) .bindata .jsdep .godep
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
 
 define CHRONOGIRAFFE
-             tLf          iCf.
-            .CCC.         tCC:
-             CGG;         CGG:
-tG0Gt:       GGGGGGGGGGGGGGGG1        .,:,
-LG1,,:1CC: .GGL;iLC1iii1LCi;GG1  .1GCL1iGG1
- LG1:::;i1CGGt;;;;;;L0t;;;;;;GGGC1;;::,iGC
-   ,ii:. 1GG1iiii;;tfiC;;;;;;;GGCfCGCGGC,
-        fGCiiiiGi1Lt;;iCLL,i;;;CGt
-       fGG11iiii1C1iiiiiGt1;;;;;CGf
-       .GGLLL1i1CitfiiL1iCi;;iLCGGt
-        .CGL11LGCCCCCCCLLCGG1;1GG;
-          CGL1tf1111iiiiiiL1ifGG,
-           LGCff1fCt1tCfiiCiCGC
-            LGGf111111111iCGGt
-             fGGGGGGGGGGGGGGi
-              ifii111111itL
-              ;f1i11111iitf
-              ;f1iiiiiii1tf
-              :fi111iii11tf
-              :fi111ii1i1tf
-              :f111111ii1tt
-              ,L111111ii1tt
-              .Li1111i1111CCCCCCCCCCCCCCLt;
-               L111ii11111ittttt1tttttittti1fC;
-               f1111ii111i1ttttt1;iii1ittt1ttttCt.
-               tt11ii111tti1ttt1tt1;11;;;;iitttifCCCL,
-               11i1i11ttttti;1t1;;;ttt1;;ii;itti;L,;CCL
-               ;f;;;;1tttti;;ttti;;;;;;;;;;;1tt1ifi .CCi
-               ,L;itti;;;it;;;;;tt1;;;t1;;;;;;ii;t; :CC,
-                L;;;;iti;;;;;;;;;;;;;;;;;;;;;;;i;L, ;CC.
-                ti;;;iLLfffi;;;;;ittt11i;;;;;;;;;L   tCCfff;
-                it;;;;;;L,ti;;;;;1Ltttft1t;;;;;;1t    ;CCCL;
-                :f;;;;;;L.ti;;;;;tftttf1,f;;;;;;f:    ;CC1:
-                .L;;;;;;L.t1;;;;;tt111fi,f;;;;;;L.
-                 1Li;;iL1 :Ci;;;tL1i1fC, Lt;;;;Li
-                  .;tt;     ifLt:;fLf;    ;LCCt,
+             .-.  .-.
+             |  \/  |
+            /,   ,_  `'-.
+          .-|\   /`\     '.
+        .'  0/   | 0\  \_  `".
+     .-'  _,/    '--'.'|#''---'
+      `--'  |       /   \#
+            |      /     \#
+            \     ;|\    .\#
+            |' ' //  \   ::\#
+            \   /`    \   ':\#
+             `"`       \..   \#
+                        \::.  \#
+                         \::   \#
+                          \'  .:\#
+                           \  :::\#
+                            \  '::\#
 endef
 export CHRONOGIRAFFE
 chronogiraffe: ${BINARY}

@@ -98,7 +98,7 @@ func TestService_Queries(t *testing.T) {
 			r: httptest.NewRequest("POST", "/queries", bytes.NewReader([]byte(`{
 					"queries": [
 					  {
-						"query": "SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time > now() - 1m",
+						"query": "SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time > :dashboardTime: AND time < :upperDashboardTime: GROUP BY :interval:",
 						"id": "82b60d37-251e-4afe-ac93-ca20a3642b11"
 					  }
 					],
@@ -153,13 +153,20 @@ func TestService_Queries(t *testing.T) {
 						"id": "interval",
 						"type": "constant",
 						"tempVar": ":interval:",
-						"resolution": 1000,
-						"reportingInterval": 10000000000,
-						"values": []
+						"values": [
+							{
+									"value": "1000",
+									"type":  "resolution"
+							},
+							{
+									"value": "3",
+									"type":  "pointsPerPixel"
+							}
+					]
 					  }
 					]
 				  }`))),
-			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e now() - 1m","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"_internal","measurement":"httpd","retentionPolicy":"monitor","fields":[{"value":"pingReq","type":"field","alias":""}],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e now() - 1m","range":{"upper":"","lower":"now() - 1m"}},"queryAST":{"condition":{"expr":"binary","op":"\u003e","lhs":{"expr":"reference","val":"time"},"rhs":{"expr":"binary","op":"-","lhs":{"expr":"call","name":"now"},"rhs":{"expr":"literal","val":"1m","type":"duration"}}},"fields":[{"column":{"expr":"reference","val":"pingReq"}}],"sources":[{"database":"_internal","retentionPolicy":"monitor","name":"httpd","type":"measurement"}]},"queryTemplated":"SELECT \"pingReq\" FROM \"_internal\".\"monitor\".\"httpd\" WHERE time \u003e now() - 1m","tempVars":[{"tempVar":":dbs:","values":[{"value":"_internal","type":"database","selected":true}]},{"tempVar":":dashboardTime:","values":[{"value":"now() - 15m","type":"constant","selected":true}]},{"tempVar":":upperDashboardTime:","values":[{"value":"now()","type":"constant","selected":true}]},{"tempVar":":interval:","duration":60000000000,"resolution":1000,"reportingInterval":10000000000}]}]}
+			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"","measurement":"","retentionPolicy":"","fields":[],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","range":null},"queryTemplated":"SELECT \"pingReq\" FROM \"_internal\".\"monitor\".\"httpd\" WHERE time \u003e now() - 15m AND time \u003c now() GROUP BY time(2s)","tempVars":[{"tempVar":":upperDashboardTime:","values":[{"value":"now()","type":"constant","selected":true}]},{"tempVar":":dashboardTime:","values":[{"value":"now() - 15m","type":"constant","selected":true}]},{"tempVar":":dbs:","values":[{"value":"_internal","type":"database","selected":true}]},{"tempVar":":interval:","values":[{"value":"1000","type":"resolution","selected":false},{"value":"3","type":"pointsPerPixel","selected":false}]}]}]}
 `,
 		},
 	}

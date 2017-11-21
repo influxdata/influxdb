@@ -10,6 +10,52 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
+func TimeRangeAsEpochNano(expr influxql.Expr, now time.Time) (min, max int64, err error) {
+	tmin, tmax, err := influxql.TimeRange(expr)
+	if err != nil {
+		return 0, 0, err
+	}
+	if tmin.IsZero() {
+		min = time.Unix(0, influxql.MinTime).UnixNano()
+	} else {
+		min = tmin.UnixNano()
+	}
+	if tmax.IsZero() {
+		max = now.UnixNano()
+	} else {
+		max = tmax.UnixNano()
+	}
+	return
+}
+
+const WhereToken = "WHERE"
+
+func ParseTime(influxQL string, now time.Time) (time.Duration, error) {
+	start := strings.Index(strings.ToUpper(influxQL), WhereToken)
+	if start == -1 {
+		return 0, fmt.Errorf("not a relative duration")
+	}
+	start += len(WhereToken)
+	where := influxQL[start:]
+	cond, err := influxql.ParseExpr(where)
+	if err != nil {
+		return 0, err
+	}
+	nowVal := &influxql.NowValuer{
+		Now: now,
+	}
+	cond = influxql.Reduce(cond, nowVal)
+	min, max, err := TimeRangeAsEpochNano(cond, now)
+	if err != nil {
+		return 0, err
+	}
+	dur := time.Duration(max - min)
+	if dur < 0 {
+		dur = 0
+	}
+	return dur, nil
+}
+
 // Convert changes an InfluxQL query to a QueryConfig
 func Convert(influxQL string) (chronograf.QueryConfig, error) {
 	itsDashboardTime := false
