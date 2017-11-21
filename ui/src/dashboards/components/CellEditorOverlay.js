@@ -88,6 +88,14 @@ class CellEditorOverlay extends Component {
     }
   }
 
+  handleDeleteThreshold = threshold => () => {
+    const {colors} = this.state
+
+    const newColors = colors.filter(color => color.id !== threshold.id)
+
+    this.setState({colors: newColors})
+  }
+
   handleChooseColor = threshold => chosenColor => {
     const {colors} = this.state
 
