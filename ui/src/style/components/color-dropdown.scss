@@ -16,6 +16,7 @@ $color-dropdown--circle: 14px;
   position: relative;
 }
 .color-dropdown--toggle span.caret {
+  font-style: normal !important;
   position: absolute;
   top: 50%;
   right: 11px;
@@ -85,4 +86,12 @@ $color-dropdown--circle: 14px;
 }
 .color-dropdown .color-dropdown--menu .fancy-scroll--container .fancy-scroll--track-v .fancy-scroll--thumb-v {
   @include gradient-v($g9-mountain,$g7-graphite);
+}
+.color-dropdown--toggle.color-dropdown__disabled {
+  color: $g7-graphite;
+  font-style: italic;
+  cursor: not-allowed;
+}
+.color-dropdown--toggle.color-dropdown__disabled > .color-dropdown--swatch {
+  background-color: $g7-graphite !important;
 }

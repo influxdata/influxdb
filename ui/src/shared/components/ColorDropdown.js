@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
+import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -13,6 +14,11 @@ class ColorDropdown extends Component {
   }
 
   handleToggleMenu = () => {
+    const {disabled} = this.props
+
+    if (disabled) {
+      return
+    }
     this.setState({visible: !this.state.visible})
   }
 
@@ -27,18 +33,23 @@ class ColorDropdown extends Component {
 
   render() {
     const {visible} = this.state
-    const {colors, selected} = this.props
+    const {colors, selected, disabled} = this.props
 
     const dropdownClassNames = visible
       ? 'color-dropdown open'
       : 'color-dropdown'
-    const toggleClassNames = visible
-      ? 'btn btn-sm btn-default color-dropdown--toggle active'
-      : 'btn btn-sm btn-default color-dropdown--toggle'
+    const toggleClassNames = classnames(
+      'btn btn-sm btn-default color-dropdown--toggle',
+      {active: visible, 'color-dropdown__disabled': disabled}
+    )
 
     return (
       <div className={dropdownClassNames}>
-        <div className={toggleClassNames} onClick={this.handleToggleMenu}>
+        <div
+          className={toggleClassNames}
+          onClick={this.handleToggleMenu}
+          disabled={disabled}
+        >
           <div
             className="color-dropdown--swatch"
             style={{backgroundColor: selected.hex}}
@@ -78,7 +89,7 @@ class ColorDropdown extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 ColorDropdown.propTypes = {
   selected: shape({
@@ -92,6 +103,7 @@ ColorDropdown.propTypes = {
       text: string.isRequired,
     })
   ).isRequired,
+  disabled: bool,
 }
 
 export default OnClickOutside(ColorDropdown)
