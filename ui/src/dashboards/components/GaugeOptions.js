@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import GaugeThreshold from 'src/dashboards/components/GaugeThreshold'
@@ -20,6 +21,8 @@ const GaugeOptions = ({
 
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
 
+  const sortedColors = _.sortBy(colors, color => Number(color.value))
+
   return (
     <FancyScrollbar
       className="display-options--cell y-axis-controls"
@@ -28,7 +31,7 @@ const GaugeOptions = ({
       <div className="display-options--cell-wrapper">
         <h5 className="display-options--header">Gauge Controls</h5>
         <div className="gauge-controls">
-          {colors.map(color =>
+          {sortedColors.map(color =>
             <GaugeThreshold
               threshold={color}
               key={color.id}
