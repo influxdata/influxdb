@@ -4050,7 +4050,7 @@
         "hex": {
           "description": "Hex is the hex number of the color",
           "type": "string",
-          "maxLength": 9,
+          "maxLength": 7,
           "minLength": 7
         },
         "name": {
