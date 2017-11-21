@@ -4,13 +4,9 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import GaugeThreshold from 'src/dashboards/components/GaugeThreshold'
 
 import {
-  COLOR_TYPE_MIN,
-  DEFAULT_VALUE_MIN,
-  COLOR_TYPE_MAX,
-  DEFAULT_VALUE_MAX,
   MAX_THRESHOLDS,
   MIN_THRESHOLDS,
-  GAUGE_COLORS,
+  DEFAULT_COLORS,
 } from 'src/dashboards/constants/gaugeColors'
 
 const GaugeOptions = ({
@@ -58,22 +54,7 @@ const GaugeOptions = ({
 const {arrayOf, func, shape, string} = PropTypes
 
 GaugeOptions.defaultProps = {
-  colors: [
-    {
-      type: COLOR_TYPE_MIN,
-      hex: GAUGE_COLORS[11].hex,
-      id: '0',
-      name: GAUGE_COLORS[11].name,
-      value: DEFAULT_VALUE_MIN,
-    },
-    {
-      type: COLOR_TYPE_MAX,
-      hex: GAUGE_COLORS[14].hex,
-      id: '1',
-      name: GAUGE_COLORS[14].name,
-      value: DEFAULT_VALUE_MAX,
-    },
-  ],
+  colors: DEFAULT_COLORS,
 }
 
 GaugeOptions.propTypes = {
@@ -86,10 +67,10 @@ GaugeOptions.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
-  onAddThreshold: func,
-  onDeleteThreshold: func,
-  onChooseColor: func,
-  onChangeValue: func,
+  onAddThreshold: func.isRequired,
+  onDeleteThreshold: func.isRequired,
+  onChooseColor: func.isRequired,
+  onChangeValue: func.isRequired,
 }
 
 export default GaugeOptions

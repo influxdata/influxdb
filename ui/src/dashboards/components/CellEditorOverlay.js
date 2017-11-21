@@ -22,6 +22,12 @@ import {
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {AUTO_GROUP_BY} from 'shared/constants'
+import {
+  COLOR_TYPE_THRESHOLD,
+  MAX_THRESHOLDS,
+  DEFAULT_COLORS,
+  GAUGE_COLORS,
+} from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -47,6 +53,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
+      colors: DEFAULT_COLORS,
     }
   }
 
@@ -60,6 +67,25 @@ class CellEditorOverlay extends Component {
         )
         this.setState({queriesWorkingDraft: nextQueries})
       }
+    }
+  }
+
+  handleAddThreshold = () => {
+    console.log('add threshold')
+    const {colors} = this.state
+
+    if (colors.length < MAX_THRESHOLDS) {
+      const randomColor = Math.floor(Math.random() * GAUGE_COLORS.length)
+
+      const newThreshold = {
+        type: COLOR_TYPE_THRESHOLD,
+        id: uuid.v4(),
+        value: '50',
+        hex: GAUGE_COLORS[randomColor].hex,
+        name: GAUGE_COLORS[randomColor].name,
+      }
+
+      this.setState({colors: [...colors, newThreshold]})
     }
   }
 
@@ -296,6 +322,7 @@ class CellEditorOverlay extends Component {
 
     const {
       axes,
+      colors,
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
@@ -323,6 +350,7 @@ class CellEditorOverlay extends Component {
         >
           <Visualization
             axes={axes}
+            colors={colors}
             type={cellWorkingType}
             name={cellWorkingName}
             timeRange={timeRange}
@@ -347,6 +375,11 @@ class CellEditorOverlay extends Component {
             {isDisplayOptionsTabActive
               ? <DisplayOptions
                   axes={axes}
+                  colors={colors}
+                  onChooseColor={this.handleChooseColor}
+                  onChangeColorValue={this.handleChangeColorValue}
+                  onAddThreshold={this.handleAddThreshold}
+                  onDeleteThreshold={this.handleDeleteThreshold}
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}

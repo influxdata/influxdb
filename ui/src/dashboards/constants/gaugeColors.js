@@ -5,6 +5,7 @@ export const COLOR_TYPE_MIN = 'min'
 export const DEFAULT_VALUE_MIN = '0'
 export const COLOR_TYPE_MAX = 'max'
 export const DEFAULT_VALUE_MAX = '100'
+export const COLOR_TYPE_THRESHOLD = 'threshold'
 
 export const GAUGE_COLORS = [
   {
@@ -66,5 +67,22 @@ export const GAUGE_COLORS = [
   {
     hex: '#9394FF',
     name: 'comet',
+  },
+]
+
+export const DEFAULT_COLORS = [
+  {
+    type: COLOR_TYPE_MIN,
+    hex: GAUGE_COLORS[11].hex,
+    id: '0',
+    name: GAUGE_COLORS[11].name,
+    value: DEFAULT_VALUE_MIN,
+  },
+  {
+    type: COLOR_TYPE_MAX,
+    hex: GAUGE_COLORS[14].hex,
+    id: '1',
+    name: GAUGE_COLORS[14].name,
+    value: DEFAULT_VALUE_MAX,
   },
 ]

@@ -34,6 +34,7 @@ class DisplayOptions extends Component {
 
   render() {
     const {
+      colors,
       onSetBase,
       onSetScale,
       onSetLabel,
@@ -42,6 +43,10 @@ class DisplayOptions extends Component {
       onSetPrefixSuffix,
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
+      onAddThreshold,
+      onDeleteThreshold,
+      onChooseColor,
+      onChangeColorValue,
     } = this.props
     const {axes} = this.state
 
@@ -54,7 +59,13 @@ class DisplayOptions extends Component {
           onSelectGraphType={onSelectGraphType}
         />
         {isGauge
-          ? <GaugeOptions />
+          ? <GaugeOptions
+              colors={colors}
+              onChooseColor={onChooseColor}
+              onChangeValue={onChangeColorValue}
+              onAddThreshold={onAddThreshold}
+              onDeleteThreshold={onDeleteThreshold}
+            />
           : <AxesOptions
               selectedGraphType={selectedGraphType}
               axes={axes}
@@ -72,6 +83,10 @@ class DisplayOptions extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
+  onAddThreshold: func.isRequired,
+  onDeleteThreshold: func.isRequired,
+  onChooseColor: func.isRequired,
+  onChangeColorValue: func.isRequired,
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetPrefixSuffix: func.isRequired,
@@ -81,6 +96,15 @@ DisplayOptions.propTypes = {
   onSetLabel: func.isRequired,
   onSetBase: func.isRequired,
   axes: shape({}).isRequired,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
   queryConfigs: arrayOf(shape()).isRequired,
 }
 
