@@ -204,14 +204,24 @@ $sidebar-menu--gutter: 18px;
   opacity: 0.6;
 }
 // Invisible triangle for easier mouse movement when navigating to sub items
-.sidebar-menu--item + .sidebar-menu--triangle {
+.sidebar-menu--item + .sidebar-menu--triangle,
+.sidebar-menu--inverse .sidebar-menu--triangle {
   position: absolute;
+  z-index: -1;
+}
+.sidebar-menu--item + .sidebar-menu--triangle {
   width: 40px;
   height: 40px;
-  z-index: -1;
   top: $sidebar--width;
   left: 0px;
   transform: translate(-50%,-50%) rotate(45deg);
+}
+.sidebar-menu--inverse .sidebar-menu--triangle {
+  width: 50px;
+  height: 60px;
+  bottom: 12px;
+  left: 6px;
+  transform: translate(-50%,-50%) rotate(30deg);
 }
 
 .sidebar-menu--section {
