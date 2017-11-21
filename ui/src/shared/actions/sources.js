@@ -1,11 +1,12 @@
 import {
   deleteSource,
-  getSources,
+  getSources as getSourcesAJAX,
   getKapacitors as getKapacitorsAJAX,
   updateKapacitor as updateKapacitorAJAX,
   deleteKapacitor as deleteKapacitorAJAX,
 } from 'shared/apis'
 import {publishNotification} from './notifications'
+import {errorThrown} from 'shared/actions/errors'
 
 import {HTTP_NOT_FOUND} from 'shared/constants'
 
@@ -67,7 +68,7 @@ export const removeAndLoadSources = source => async dispatch => {
       }
     }
 
-    const {data: {sources: newSources}} = await getSources()
+    const {data: {sources: newSources}} = await getSourcesAJAX()
     dispatch(loadSources(newSources))
   } catch (err) {
     dispatch(
@@ -108,5 +109,14 @@ export const deleteKapacitorAsync = kapacitor => async dispatch => {
         'Internal Server Error. Could not delete Kapacitor config.'
       )
     )
+  }
+}
+
+export const getSourcesAsync = () => async dispatch => {
+  try {
+    const {data: {sources}} = await getSourcesAJAX()
+    dispatch(loadSources(sources))
+  } catch (error) {
+    dispatch(errorThrown(error))
   }
 }
