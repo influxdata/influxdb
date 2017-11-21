@@ -330,9 +330,9 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 	templates := make([]chronograf.Template, len(pb.Templates))
 	for i, t := range pb.Templates {
-		vals := make([]chronograf.BasicTemplateValue, len(t.Values))
+		vals := make([]chronograf.TemplateValue, len(t.Values))
 		for j, v := range t.Values {
-			vals[j] = chronograf.BasicTemplateValue{
+			vals[j] = chronograf.TemplateValue{
 				Selected: v.Selected,
 				Type:     v.Type,
 				Value:    v.Value,
@@ -341,7 +341,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 		template := chronograf.Template{
 			ID: chronograf.TemplateID(t.ID),
-			BasicTemplateVar: chronograf.BasicTemplateVar{
+			TemplateVar: chronograf.TemplateVar{
 				Var:    t.TempVar,
 				Values: vals,
 			},
@@ -434,8 +434,5 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 // UnmarshalUserPB decodes a user from binary protobuf data.
 // We are ignoring the password for now.
 func UnmarshalUserPB(data []byte, u *User) error {
-	if err := proto.Unmarshal(data, u); err != nil {
-		return err
-	}
-	return nil
+	return proto.Unmarshal(data, u)
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -21,8 +22,8 @@ type QueryRequest struct {
 // QueriesRequest converts all queries to queryConfigs with the help
 // of the template variables
 type QueriesRequest struct {
-	Queries      []QueryRequest          `json:"queries"`
-	TemplateVars chronograf.TemplateVars `json:"tempVars,omitempty"`
+	Queries      []QueryRequest           `json:"queries"`
+	TemplateVars []chronograf.TemplateVar `json:"tempVars,omitempty"`
 }
 
 // QueryResponse is the return result of a QueryRequest including
@@ -33,7 +34,7 @@ type QueryResponse struct {
 	QueryConfig    chronograf.QueryConfig   `json:"queryConfig"`
 	QueryAST       *queries.SelectStatement `json:"queryAST,omitempty"`
 	QueryTemplated *string                  `json:"queryTemplated,omitempty"`
-	TemplateVars   chronograf.TemplateVars  `json:"tempVars,omitempty"`
+	TemplateVars   []chronograf.TemplateVar `json:"tempVars,omitempty"`
 }
 
 // QueriesResponse is the response for a QueriesRequest
@@ -72,7 +73,12 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			Query: q.Query,
 		}
 
-		query := influx.TemplateReplace(q.Query, req.TemplateVars)
+		query, err := influx.TemplateReplace(q.Query, req.TemplateVars, time.Now())
+		if err != nil {
+			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+			return
+		}
+
 		qc := ToQueryConfig(query)
 		if err := s.DefaultRP(ctx, &qc, &src); err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
