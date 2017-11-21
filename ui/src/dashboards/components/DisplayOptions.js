@@ -1,6 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
+import GaugeOptions from 'src/dashboards/components/GaugeOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
@@ -44,22 +45,26 @@ class DisplayOptions extends Component {
     } = this.props
     const {axes} = this.state
 
+    const isGauge = selectedGraphType === 'gauge'
+
     return (
       <div className="display-options">
         <GraphTypeSelector
           selectedGraphType={selectedGraphType}
           onSelectGraphType={onSelectGraphType}
         />
-        <AxesOptions
-          selectedGraphType={selectedGraphType}
-          axes={axes}
-          onSetBase={onSetBase}
-          onSetLabel={onSetLabel}
-          onSetScale={onSetScale}
-          onSetPrefixSuffix={onSetPrefixSuffix}
-          onSetYAxisBoundMin={onSetYAxisBoundMin}
-          onSetYAxisBoundMax={onSetYAxisBoundMax}
-        />
+        {isGauge
+          ? <GaugeOptions />
+          : <AxesOptions
+              selectedGraphType={selectedGraphType}
+              axes={axes}
+              onSetBase={onSetBase}
+              onSetLabel={onSetLabel}
+              onSetScale={onSetScale}
+              onSetPrefixSuffix={onSetPrefixSuffix}
+              onSetYAxisBoundMin={onSetYAxisBoundMin}
+              onSetYAxisBoundMax={onSetYAxisBoundMax}
+            />}
       </div>
     )
   }

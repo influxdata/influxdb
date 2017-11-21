@@ -1,3 +1,4 @@
+export const MAX_THRESHOLDS = 3
 export const GAUGE_COLORS = [
   {
     hex: '#BF3D5E',

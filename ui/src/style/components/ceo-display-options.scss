@@ -195,3 +195,52 @@ $graph-type--gutter: 4px;
   padding-left: 6px;
   @include no-user-select();
 }
+
+
+
+/*
+  Cell Editor Overlay - Gauge Controls
+  ------------------------------------------------------
+*/
+.gauge-controls {
+  width: 100%;
+}
+
+.gauge-controls--section {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  height: 30px;
+  margin-bottom: 8px;
+}
+button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
+  width: 100%;
+}
+
+.gauge-controls--label {
+  height: 30px;
+  background-color: $g4-onyx;
+  font-weight: 600;
+  color: $g11-sidewalk;
+  padding: 0 11px;
+  border-radius: 4px;
+  line-height: 30px;
+  @include no-user-select();
+  width: 120px;
+}
+.gauge-controls--label-editable {
+  height: 30px;
+  font-weight: 600;
+  color: $g16-pearl;
+  padding: 0 11px;
+  border-radius: 4px;
+  line-height: 30px;
+  @include no-user-select();
+  width: 90px;
+}
+
+.gauge-controls--input {
+  flex: 1 0 0;
+  margin: 0 4px;
+}
