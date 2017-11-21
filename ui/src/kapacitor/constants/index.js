@@ -219,3 +219,5 @@ export const ALERT_NODES_ACCESSORS = {
       )
       .join('.'),
 }
+
+export const KAPACITOR_LOGS_NOT_FOUND = 404

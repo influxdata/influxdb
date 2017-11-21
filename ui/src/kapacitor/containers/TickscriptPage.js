@@ -7,7 +7,8 @@ import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
-import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
+import {getLogStreamByRuleID} from 'src/kapacitor/apis'
+import {KAPACITOR_LOGS_NOT_FOUND} from 'src/kapacitor/constants'
 import {publishNotification} from 'shared/actions/notifications'
 
 class TickscriptPage extends Component {
@@ -38,6 +39,21 @@ class TickscriptPage extends Component {
 
     try {
       const response = await getLogStreamByRuleID(kapacitor, ruleID)
+
+      if (response.status === KAPACITOR_LOGS_NOT_FOUND) {
+        this.setState({
+          areLogsEnabled: false,
+        })
+        this.shouldFetch = false
+        notify('warning', 'Could not use logging, requires Kapacitor version 1.4')
+        return
+      }
+      else {
+        this.setState({
+          areLogsEnabled: true,
+        })
+        this.shouldFetch = true
+      }
 
       const reader = await response.body.getReader()
       const decoder = new TextDecoder()
@@ -93,25 +109,7 @@ class TickscriptPage extends Component {
       this.setState({task: {tickscript, dbrps, type, status, name, id}})
     }
 
-    try {
-      const version = await pingKapacitorVersion(kapacitor)
-
-      // Check minor version number for Kapacitor 1.4
-      if (version && version.split('.')[1] === '4') {
-        this.shouldFetch = true
-        this.fetchChunkedLogs(kapacitor, ruleID)
-        this.setState({
-          areLogsEnabled: true,
-        })
-      } else {
-        this.setState({
-          areLogsEnabled: false,
-        })
-      }
-    } catch (err) {
-      console.error(err)
-      this.props.notify('error', err)
-    }
+    this.fetchChunkedLogs(kapacitor, ruleID)
 
     this.setState({kapacitor})
   }
