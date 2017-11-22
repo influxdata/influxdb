@@ -939,7 +939,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType) erro
 	name := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	mf := e.fieldset.CreateFieldsIfNotExists(name)
-	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
+	if err := mf.CreateFieldIfNotExists(field, fieldType); err != nil {
 		return err
 	}
 

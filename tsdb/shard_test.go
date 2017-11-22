@@ -1413,7 +1413,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	}
 
 	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
-	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float, true); err != nil {
+	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float); err != nil {
 		t.Fatalf("create field error: %v", err)
 	}
 
@@ -1448,7 +1448,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	}
 
 	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
-	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float, true); err != nil {
+	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float); err != nil {
 		t.Fatalf("create field error: %v", err)
 	}
 
