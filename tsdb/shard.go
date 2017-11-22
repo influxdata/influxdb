@@ -1406,34 +1406,6 @@ func (m *MeasurementFields) FieldKeys() []string {
 	return a
 }
 
-// MarshalBinary encodes the object to a binary format.
-func (m *MeasurementFields) MarshalBinary() ([]byte, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var pb internal.MeasurementFields
-	for _, f := range m.fields {
-		pb.Fields = append(pb.Fields, &internal.Field{Name: f.Name, Type: int32(f.Type)})
-	}
-	return proto.Marshal(&pb)
-}
-
-// UnmarshalBinary decodes the object from a binary format.
-func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	var pb internal.MeasurementFields
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	m.fields = make(map[string]*Field, len(pb.Fields))
-	for _, f := range pb.Fields {
-		m.fields[f.GetName()] = &Field{Name: f.GetName(), Type: influxql.DataType(f.GetType())}
-	}
-	return nil
-}
-
 // CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
