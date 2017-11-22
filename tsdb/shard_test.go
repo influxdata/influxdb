@@ -1482,6 +1482,22 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	}
 }
 
+func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+
+	if err := ioutil.WriteFile(path, []byte{0, 0}, 0666); err != nil {
+		t.Fatalf("error writing fields.index: %v", err)
+	}
+
+	_, err := tsdb.NewMeasurementFieldSet(path)
+	if err != tsdb.ErrUnknownFieldsFormat {
+		t.Fatalf("unexpected error: got %v, exp %v", err, tsdb.ErrUnknownFieldsFormat)
+	}
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }

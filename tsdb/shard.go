@@ -66,6 +66,13 @@ var (
 	// ErrShardDisabled is returned when a the shard is not available for
 	// queries or writes.
 	ErrShardDisabled = errors.New("shard is disabled")
+
+	// ErrUnknownFieldsFormat is returned when the fields index file is not identifiable by
+	// the files magic number.
+	ErrUnknownFieldsFormat = errors.New("unknown field index format")
+
+	// fieldsIndexMagicNumber is the file magic number for the fields index file.
+	fieldsIndexMagicNumber = []byte{0, 6, 1, 3}
 )
 
 var (
@@ -1631,6 +1638,10 @@ func (fs *MeasurementFieldSet) saveNoLock() error {
 	}
 	defer os.RemoveAll(path)
 
+	if _, err := fd.Write(fieldsIndexMagicNumber); err != nil {
+		return err
+	}
+
 	pb := internal.MeasurementFieldSet{
 		Measurements: make([]*internal.MeasurementFields, 0, len(fs.fields)),
 	}
@@ -1680,6 +1691,15 @@ func (fs *MeasurementFieldSet) load() error {
 		return err
 	}
 	defer fd.Close()
+
+	var magic [4]byte
+	if _, err := fd.Read(magic[:]); err != nil {
+		return err
+	}
+
+	if !bytes.Equal(magic[:], fieldsIndexMagicNumber) {
+		return ErrUnknownFieldsFormat
+	}
 
 	var pb internal.MeasurementFieldSet
 	b, err := ioutil.ReadAll(fd)
