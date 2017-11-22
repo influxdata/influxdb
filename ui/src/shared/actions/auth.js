@@ -68,7 +68,7 @@ export const logoutLinkReceived = logoutLink => ({
 // which currently causes the app to show a loading spinner until me is
 // re-hydrated. if `getMeAsync` is only being used to refresh me after creating
 // an organization, this is undesirable behavior
-export const getMeAsync = ({shouldResetMe}) => async dispatch => {
+export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
   if (shouldResetMe) {
     dispatch(authRequested())
     dispatch(meGetRequested())

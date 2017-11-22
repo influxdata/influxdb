@@ -80,7 +80,7 @@ const Root = React.createClass({
 
   async checkAuth() {
     try {
-      await this.startHeartbeat({shouldResetMe: true})
+      await this.performHeartbeat({shouldResetMe: true})
     } catch (error) {
       dispatch(errorThrown(error))
     }
@@ -88,13 +88,12 @@ const Root = React.createClass({
 
   getMe: bindActionCreators(getMeAsync, dispatch),
 
-  async startHeartbeat(config) {
-    // TODO: use destructure syntax with default {} value -- couldn't figure it out
-    await this.getMe({shouldResetMe: config && config.shouldResetMe})
+  async performHeartbeat({shouldResetMe = false} = {}) {
+    await this.getMe({shouldResetMe})
 
     setTimeout(() => {
       if (store.getState().auth.me !== null) {
-        this.startHeartbeat()
+        this.performHeartbeat()
       }
     }, HEARTBEAT_INTERVAL)
   },
