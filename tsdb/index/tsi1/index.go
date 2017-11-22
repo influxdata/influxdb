@@ -137,6 +137,9 @@ func (i *Index) WithLogger(l *zap.Logger) {
 // Type returns the type of Index this is.
 func (i *Index) Type() string { return IndexName }
 
+// SeriesFile returns the series file attached to the index.
+func (i *Index) SeriesFile() *tsdb.SeriesFile { return i.sfile }
+
 // Open opens the index.
 func (i *Index) Open() error {
 	i.mu.Lock()
@@ -689,28 +692,8 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement and applies
 // the provided function.
 func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
-	n := i.availableThreads()
-
-	// Store results.
-	errC := make(chan error, i.PartitionN)
-
-	// Run fn on each partition using a fixed number of goroutines.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-				errC <- i.partitions[idx].ForEachMeasurementTagKey(name, fn)
-			}
-		}()
-	}
-
-	// Check for error
-	for i := 0; i < cap(errC); i++ {
-		if err := <-errC; err != nil {
+	for j := 0; j < len(i.partitions); j++ {
+		if err := i.partitions[j].ForEachMeasurementTagKey(name, fn); err != nil {
 			return err
 		}
 	}
@@ -870,7 +853,6 @@ func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 
 // SeriesPointIterator returns an influxql iterator over all series.
 func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
-	// FIXME(edd): This needs implementing.
 	itrs := make([]*seriesPointIterator, len(i.partitions))
 	var err error
 	for k, p := range i.partitions {
@@ -878,7 +860,6 @@ func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, 
 			return nil, err
 		}
 	}
-
 	return MergeSeriesPointIterators(itrs...), nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 )
@@ -17,7 +18,10 @@ const M, K = 4096, 6
 
 // Ensure index can iterate over all measurement names.
 func TestIndex_ForEachMeasurementName(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -70,7 +74,10 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 
 // Ensure index can return whether a measurement exists.
 func TestIndex_MeasurementExists(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -121,7 +128,10 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByExpr(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -176,7 +186,10 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByRegex(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -201,7 +214,10 @@ func TestIndex_MeasurementNamesByRegex(t *testing.T) {
 
 // Ensure index can delete a measurement and all related keys, values, & series.
 func TestIndex_DropMeasurement(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -249,13 +265,13 @@ type Index struct {
 }
 
 // NewIndex returns a new instance of Index at a temporary path.
-func NewIndex() *Index {
-	return &Index{Index: tsi1.NewIndex(tsi1.WithPath(MustTempDir()))}
+func NewIndex(sfile *tsdb.SeriesFile) *Index {
+	return &Index{Index: tsi1.NewIndex(sfile, tsi1.WithPath(MustTempDir()))}
 }
 
 // MustOpenIndex returns a new, open index. Panic on error.
-func MustOpenIndex(partitionN uint64) *Index {
-	idx := NewIndex()
+func MustOpenIndex(sfile *tsdb.SeriesFile, partitionN uint64) *Index {
+	idx := NewIndex(sfile)
 	idx.PartitionN = partitionN
 	if err := idx.Open(); err != nil {
 		panic(err)
@@ -275,9 +291,10 @@ func (idx *Index) Reopen() error {
 		return err
 	}
 
+	sfile := idx.SeriesFile()
 	path, partitionN := idx.Path(), idx.PartitionN
 
-	idx.Index = tsi1.NewIndex(tsi1.WithPath(path))
+	idx.Index = tsi1.NewIndex(sfile, tsi1.WithPath(path))
 	idx.PartitionN = partitionN
 	if err := idx.Open(); err != nil {
 		return err

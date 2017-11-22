@@ -6,10 +6,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
@@ -162,7 +165,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 	// Return immediately if no series need to be created.
 	if !createRequired {
-		return nil, nil
+		return offsets, nil
 	}
 
 	// Obtain write lock to create new series.
@@ -328,6 +331,78 @@ func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 		offset: 1,
 		data:   f.data[1:f.size],
 	}
+}
+
+// Backup writes the series file to w.
+func (f *SeriesFile) Backup(w io.Writer) error {
+	dir, err := ioutil.TempDir("", "influxd-series-file")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	// Create a hard link to the current series file.
+	tmpFilename := filepath.Join(dir, SeriesFileName)
+	if err := func() error {
+		f.mu.RLock()
+		defer f.mu.RUnlock()
+
+		if err := os.Link(f.path, tmpFilename); err != nil {
+			return fmt.Errorf("error creating series file hard link: %q", err)
+		}
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	// Read hard linked file.
+	file, err := os.Open(tmpFilename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Copy to outgoing writer.
+	if _, err := io.Copy(w, file); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Restore appends new data from w to the end of the series file.
+func (f *SeriesFile) Restore(r io.Reader) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Ensure the beginning of the file matches the restore.
+	if h0, err := hashReader(bytes.NewReader(f.data[:f.size])); err != nil {
+		return err
+	} else if h1, err := hashReader(io.LimitReader(r, f.size)); err != nil {
+		return err
+	} else if !bytes.Equal(h0, h1) {
+		return fmt.Errorf("restoring series file doesn't match first %d bytes", f.size)
+	}
+
+	// Copy the rest of the reader to the end of the series file.
+	// We need to keep the mmapped so we're not able copy elsewhere and swap.
+	// If an error occurs then we'll attempt to truncate to the original size.
+	size := f.size
+	if _, err := io.Copy(f.file, r); err != nil {
+		f.file.Truncate(size)
+		return err
+	}
+
+	// Reopen series map.
+	if err := f.seriesMap.close(); err != nil {
+		return err
+	}
+	f.seriesMap = newSeriesMap(f.path+SeriesMapFileSuffix, f)
+	if err := f.seriesMap.open(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (f *SeriesFile) compactSeriesMap() error {
@@ -755,4 +830,13 @@ func pow2(v int64) int64 {
 		}
 	}
 	panic("unreachable")
+}
+
+// hashReader generates an xxhash from the contents of r.
+func hashReader(r io.Reader) ([]byte, error) {
+	h := xxhash.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
 }

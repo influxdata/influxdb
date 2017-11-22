@@ -8,7 +8,10 @@ import (
 
 // Ensure fileset can return an iterator over all series in the index.
 func TestFileSet_SeriesIDIterator(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -87,7 +90,10 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 
 // Ensure fileset can return an iterator over all series for one measurement.
 func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -155,7 +161,10 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 
 // Ensure fileset can return an iterator over all measurements for the index.
 func TestFileSet_MeasurementIterator(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -217,7 +226,10 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 // Ensure fileset can return an iterator over all keys for one measurement.
 func TestFileSet_TagKeyIterator(t *testing.T) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -285,7 +297,10 @@ var (
 )
 
 func BenchmarkFileset_FilterNamesTags(b *testing.B) {
-	idx := MustOpenIndex(1)
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	allNames := make([][]byte, 0, 2000*1000)

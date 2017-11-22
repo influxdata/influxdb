@@ -53,7 +53,6 @@ type Index struct {
 	// In-memory metadata index, built on load and updated when new series come in
 	measurements map[string]*Measurement // measurement name to object and index
 	series       map[string]*Series      // map series key to the Series object
-	lastID       uint64                  // last used series ID. They're in memory only for this shard
 
 	seriesSketch, seriesTSSketch             *hll.Plus
 	measurementsSketch, measurementsTSSketch *hll.Plus
@@ -148,6 +147,12 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*Measurement, error) {
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
 func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
+	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}, nil)
+	if err != nil {
+		return err
+	}
+	seriesID := seriesIDs[0]
+
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
@@ -181,8 +186,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	// set the in memory ID for query processing on this shard
 	// The series key and tags are clone to prevent a memory leak
 	series := NewSeries([]byte(string(key)), tags.Clone())
-	series.ID = i.lastID + 1
-	i.lastID++
+	series.ID = seriesID
 
 	series.SetMeasurement(m)
 	i.series[string(key)] = series

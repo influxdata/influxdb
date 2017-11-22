@@ -18,6 +18,7 @@ import (
 
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/tcp"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (
@@ -158,6 +159,21 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 	return cmd.downloadAndVerify(req, shardArchivePath, nil)
 }
 
+// backupSeriesFile will write a tar archive of the series file for the database.
+func (cmd *Command) backupSeriesFile() error {
+	seriesFileArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, tsdb.SeriesFileName))
+	if err != nil {
+		return err
+	}
+
+	cmd.StdoutLogger.Printf("backing up series file to %s", seriesFileArchivePath)
+	req := &snapshotter.Request{
+		Type:     snapshotter.RequestSeriesFileBackup,
+		Database: cmd.database,
+	}
+	return cmd.downloadAndVerify(req, seriesFileArchivePath, nil)
+}
+
 // backupDatabase will request the database information from the server and then backup the metastore and
 // every shard in every retention policy in the database. Each shard will be written to a separate tar.
 func (cmd *Command) backupDatabase(since time.Time) error {
@@ -213,6 +229,10 @@ func (cmd *Command) backupResponsePaths(response *snapshotter.Response, since ti
 		}
 	}
 
+	if err := cmd.backupSeriesFile(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -262,6 +282,7 @@ func (cmd *Command) nextPath(path string) (string, error) {
 // downloadAndVerify will download either the metastore or shard to a temp file and then
 // rename it to a good backup file name after complete
 func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, validator func(string) error) error {
+
 	tmppath := path + Suffix
 	if err := cmd.download(req, tmppath); err != nil {
 		return err

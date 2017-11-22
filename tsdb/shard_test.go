@@ -901,10 +901,10 @@ func TestShard_Closed_Functions(t *testing.T) {
 func TestShard_FieldDimensions(t *testing.T) {
 	var sh *Shard
 
-	setup := func(index string) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
 
+	setup := func(index string) {
 		sh = NewShard(index, sfile.SeriesFile)
 
 		if err := sh.Open(); err != nil {
@@ -1020,10 +1020,10 @@ _reserved,region=uswest value="foo" 0
 func TestShards_FieldDimensions(t *testing.T) {
 	var shard1, shard2 *Shard
 
-	setup := func(index string) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
 
+	setup := func(index string) {
 		shard1 = NewShard(index, sfile.SeriesFile)
 		if err := shard1.Open(); err != nil {
 			t.Fatal(err)
@@ -1290,10 +1290,10 @@ _reserved,region=uswest value="foo" 0
 func TestShards_MeasurementsByRegex(t *testing.T) {
 	var shard1, shard2 *Shard
 
-	setup := func(index string) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
 
+	setup := func(index string) {
 		shard1 = NewShard(index, sfile.SeriesFile)
 		if err := shard1.Open(); err != nil {
 			t.Fatal(err)

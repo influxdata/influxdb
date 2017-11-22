@@ -122,6 +122,10 @@ func (s *Service) handleConn(conn net.Conn) error {
 		if err := s.writeMetaStore(conn); err != nil {
 			return err
 		}
+	case RequestSeriesFileBackup:
+		if err := s.TSDBStore.BackupSeriesFile(r.Database, conn); err != nil {
+			return err
+		}
 	case RequestDatabaseInfo:
 		return s.writeDatabaseInfo(conn, r.Database)
 	case RequestRetentionPolicyInfo:
@@ -267,6 +271,9 @@ const (
 
 	// RequestMetastoreBackup represents a request to back up the metastore.
 	RequestMetastoreBackup
+
+	// RequestSeriesFileBackup represents a request to back up the database series file.
+	RequestSeriesFileBackup
 
 	// RequestDatabaseInfo represents a request for database info.
 	RequestDatabaseInfo

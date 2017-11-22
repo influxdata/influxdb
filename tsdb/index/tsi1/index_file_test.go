@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -80,7 +81,7 @@ func benchmarkIndexFile_TagValueSeries(b *testing.B, idx *tsi1.IndexFile) {
 }
 
 // CreateIndexFile creates an index file with a given set of series.
-func CreateIndexFile(sfile *tsi1.SeriesFile, series []Series) (*tsi1.IndexFile, error) {
+func CreateIndexFile(sfile *tsdb.SeriesFile, series []Series) (*tsi1.IndexFile, error) {
 	lf, err := CreateLogFile(sfile, series)
 	if err != nil {
 		return nil, err
@@ -102,7 +103,7 @@ func CreateIndexFile(sfile *tsi1.SeriesFile, series []Series) (*tsi1.IndexFile, 
 
 // GenerateIndexFile generates an index file from a set of series based on the count arguments.
 // Total series returned will equal measurementN * tagN * valueN.
-func GenerateIndexFile(sfile *tsi1.SeriesFile, measurementN, tagN, valueN int) (*tsi1.IndexFile, error) {
+func GenerateIndexFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*tsi1.IndexFile, error) {
 	// Generate a new log file first.
 	lf, err := GenerateLogFile(sfile, measurementN, tagN, valueN)
 	if err != nil {
@@ -123,7 +124,7 @@ func GenerateIndexFile(sfile *tsi1.SeriesFile, measurementN, tagN, valueN int) (
 	return &f, nil
 }
 
-func MustGenerateIndexFile(sfile *tsi1.SeriesFile, measurementN, tagN, valueN int) *tsi1.IndexFile {
+func MustGenerateIndexFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) *tsi1.IndexFile {
 	f, err := GenerateIndexFile(sfile, measurementN, tagN, valueN)
 	if err != nil {
 		panic(err)
@@ -140,7 +141,7 @@ var indexFileCache struct {
 }
 
 // MustFindOrGenerateIndexFile returns a cached index file or generates one if it doesn't exist.
-func MustFindOrGenerateIndexFile(sfile *tsi1.SeriesFile, measurementN, tagN, valueN int) *tsi1.IndexFile {
+func MustFindOrGenerateIndexFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) *tsi1.IndexFile {
 	// Use cache if fields match and the index file has been generated.
 	if indexFileCache.MeasurementN == measurementN &&
 		indexFileCache.TagN == tagN &&

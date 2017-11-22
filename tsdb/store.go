@@ -817,6 +817,24 @@ func (s *Store) MeasurementsCardinality(database string) (int64, error) {
 	})
 }
 
+// BackupSeriesFile writes the current series file to w.
+func (s *Store) BackupSeriesFile(database string, w io.Writer) error {
+	sfile := s.sfiles[database]
+	if sfile == nil {
+		return fmt.Errorf("database %s doesn't exist on this server", database)
+	}
+	return sfile.Backup(w)
+}
+
+// RestoreSeriesFile restores a series file read from r.
+func (s *Store) RestoreSeriesFile(database string, r io.Reader) error {
+	sfile, err := s.openSeriesFile(database)
+	if err != nil {
+		return err
+	}
+	return sfile.Restore(r)
+}
+
 // BackupShard will get the shard and have the engine backup since the passed in
 // time to the writer.
 func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {

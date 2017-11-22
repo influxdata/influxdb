@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
@@ -302,4 +303,42 @@ func MustTempPartitionDir() string {
 		panic(err)
 	}
 	return path
+}
+
+// Series represents name/tagset pairs that are used in testing.
+type Series struct {
+	Name    []byte
+	Tags    models.Tags
+	Deleted bool
+}
+
+// SeriesFile is a test wrapper for tsdb.SeriesFile.
+type SeriesFile struct {
+	*tsdb.SeriesFile
+}
+
+// NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
+func NewSeriesFile() *SeriesFile {
+	file, err := ioutil.TempFile("", "tsdb-series-file-")
+	if err != nil {
+		panic(err)
+	}
+	file.Close()
+
+	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+}
+
+// MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
+func MustOpenSeriesFile() *SeriesFile {
+	f := NewSeriesFile()
+	if err := f.Open(); err != nil {
+		panic(err)
+	}
+	return f
+}
+
+// Close closes the log file and removes it from disk.
+func (f *SeriesFile) Close() error {
+	defer os.Remove(f.Path())
+	return f.SeriesFile.Close()
 }
