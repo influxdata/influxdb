@@ -639,7 +639,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 
-	// If we have the cached fields index on disk and and we're using TSI, we
+	// If we have the cached fields index on disk and we're using TSI, we
 	// can skip scanning all the TSM files.
 	if e.index.Type() != inmem.IndexName && !e.fieldset.IsEmpty() {
 		return nil

@@ -68,7 +68,7 @@ var (
 	ErrShardDisabled = errors.New("shard is disabled")
 
 	// ErrUnknownFieldsFormat is returned when the fields index file is not identifiable by
-	// the files magic number.
+	// the file's magic number.
 	ErrUnknownFieldsFormat = errors.New("unknown field index format")
 
 	// fieldsIndexMagicNumber is the file magic number for the fields index file.
