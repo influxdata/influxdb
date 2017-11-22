@@ -8,13 +8,6 @@ export function fetchLayouts() {
   })
 }
 
-export function getMe() {
-  return AJAX({
-    resource: 'me',
-    method: 'GET',
-  })
-}
-
 export function getSources() {
   return AJAX({
     resource: 'sources',
