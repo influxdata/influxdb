@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -18,6 +20,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
@@ -63,6 +66,13 @@ var (
 	// ErrShardDisabled is returned when a the shard is not available for
 	// queries or writes.
 	ErrShardDisabled = errors.New("shard is disabled")
+
+	// ErrUnknownFieldsFormat is returned when the fields index file is not identifiable by
+	// the file's magic number.
+	ErrUnknownFieldsFormat = errors.New("unknown field index format")
+
+	// fieldsIndexMagicNumber is the file magic number for the fields index file.
+	fieldsIndexMagicNumber = []byte{0, 6, 1, 3}
 )
 
 var (
@@ -684,11 +694,15 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 	// add fields
 	for _, f := range fieldsToCreate {
 		mf := engine.MeasurementFields(f.Measurement)
-		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type, false); err != nil {
+		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type); err != nil {
 			return err
 		}
 
 		s.index.SetFieldName(f.Measurement, f.Field.Name)
+	}
+
+	if len(fieldsToCreate) > 0 {
+		return engine.MeasurementFieldSet().Save()
 	}
 
 	return nil
@@ -1392,41 +1406,10 @@ func (m *MeasurementFields) FieldKeys() []string {
 	return a
 }
 
-// MarshalBinary encodes the object to a binary format.
-func (m *MeasurementFields) MarshalBinary() ([]byte, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var pb internal.MeasurementFields
-	for _, f := range m.fields {
-		id := int32(f.ID)
-		name := f.Name
-		t := int32(f.Type)
-		pb.Fields = append(pb.Fields, &internal.Field{ID: &id, Name: &name, Type: &t})
-	}
-	return proto.Marshal(&pb)
-}
-
-// UnmarshalBinary decodes the object from a binary format.
-func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	var pb internal.MeasurementFields
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	m.fields = make(map[string]*Field, len(pb.Fields))
-	for _, f := range pb.Fields {
-		m.fields[f.GetName()] = &Field{ID: uint8(f.GetID()), Name: f.GetName(), Type: influxql.DataType(f.GetType())}
-	}
-	return nil
-}
-
 // CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
-func (m *MeasurementFields) CreateFieldIfNotExists(name []byte, typ influxql.DataType, limitCount bool) error {
+func (m *MeasurementFields) CreateFieldIfNotExists(name []byte, typ influxql.DataType) error {
 	m.mu.RLock()
 
 	// Ignore if the field already exists.
@@ -1507,6 +1490,16 @@ func (m *MeasurementFields) FieldSet() map[string]influxql.DataType {
 	return fields
 }
 
+func (m *MeasurementFields) ForEachField(fn func(name string, typ influxql.DataType) bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for name, f := range m.fields {
+		if !fn(name, f.Type) {
+			return
+		}
+	}
+}
+
 // Clone returns copy of the MeasurementFields
 func (m *MeasurementFields) Clone() *MeasurementFields {
 	m.mu.RLock()
@@ -1525,13 +1518,21 @@ func (m *MeasurementFields) Clone() *MeasurementFields {
 type MeasurementFieldSet struct {
 	mu     sync.RWMutex
 	fields map[string]*MeasurementFields
+
+	// path is the location to persist field sets
+	path string
 }
 
 // NewMeasurementFieldSet returns a new instance of MeasurementFieldSet.
-func NewMeasurementFieldSet() *MeasurementFieldSet {
-	return &MeasurementFieldSet{
+func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
+	fs := &MeasurementFieldSet{
 		fields: make(map[string]*MeasurementFields),
+		path:   path,
 	}
+	if err := fs.load(); err != nil {
+		return nil, err
+	}
+	return fs, nil
 }
 
 // Fields returns fields for a measurement by name.
@@ -1579,6 +1580,119 @@ func (fs *MeasurementFieldSet) DeleteWithLock(name string, fn func() error) erro
 	}
 
 	delete(fs.fields, name)
+	return nil
+}
+
+func (fs *MeasurementFieldSet) IsEmpty() bool {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	return len(fs.fields) == 0
+}
+
+func (fs *MeasurementFieldSet) Save() error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	return fs.saveNoLock()
+}
+
+func (fs *MeasurementFieldSet) saveNoLock() error {
+	// No fields left, remove the fields index file
+	if len(fs.fields) == 0 {
+		return os.RemoveAll(fs.path)
+	}
+
+	// Write the new index to a temp file and rename when it's sync'd
+	path := fs.path + ".tmp"
+	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(path)
+
+	if _, err := fd.Write(fieldsIndexMagicNumber); err != nil {
+		return err
+	}
+
+	pb := internal.MeasurementFieldSet{
+		Measurements: make([]*internal.MeasurementFields, 0, len(fs.fields)),
+	}
+	for name, mf := range fs.fields {
+		fs := &internal.MeasurementFields{
+			Name:   name,
+			Fields: make([]*internal.Field, 0, mf.FieldN()),
+		}
+
+		mf.ForEachField(func(field string, typ influxql.DataType) bool {
+			fs.Fields = append(fs.Fields, &internal.Field{Name: field, Type: int32(typ)})
+			return true
+		})
+
+		pb.Measurements = append(pb.Measurements, fs)
+	}
+
+	b, err := proto.Marshal(&pb)
+	if err != nil {
+		return err
+	}
+
+	if _, err := fd.Write(b); err != nil {
+		return err
+	}
+
+	if err = fd.Sync(); err != nil {
+		return err
+	}
+
+	//close file handle before renaming to support Windows
+	if err = fd.Close(); err != nil {
+		return err
+	}
+
+	return file.RenameFile(path, fs.path)
+}
+
+func (fs *MeasurementFieldSet) load() error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	fd, err := os.Open(fs.path)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	var magic [4]byte
+	if _, err := fd.Read(magic[:]); err != nil {
+		return err
+	}
+
+	if !bytes.Equal(magic[:], fieldsIndexMagicNumber) {
+		return ErrUnknownFieldsFormat
+	}
+
+	var pb internal.MeasurementFieldSet
+	b, err := ioutil.ReadAll(fd)
+	if err != nil {
+		return err
+	}
+
+	if err := proto.Unmarshal(b, &pb); err != nil {
+		return err
+	}
+
+	fs.fields = make(map[string]*MeasurementFields, len(pb.GetMeasurements()))
+	for _, measurement := range pb.GetMeasurements() {
+		set := &MeasurementFields{
+			fields: make(map[string]*Field, len(measurement.GetFields())),
+		}
+		for _, field := range measurement.GetFields() {
+			set.fields[field.GetName()] = &Field{Name: field.GetName(), Type: influxql.DataType(field.GetType())}
+		}
+		fs.fields[measurement.GetName()] = set
+	}
 	return nil
 }
 

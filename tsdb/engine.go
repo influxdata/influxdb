@@ -64,6 +64,7 @@ type Engine interface {
 	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error
 	DeleteMeasurement(name []byte) error
+	MeasurementFieldSet() *MeasurementFieldSet
 
 	// TagKeys(name []byte) ([][]byte, error)
 	HasTagKey(name, key []byte) (bool, error)

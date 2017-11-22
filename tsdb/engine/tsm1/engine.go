@@ -189,8 +189,6 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		traceLogger:  logger,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
-		fieldset: tsdb.NewMeasurementFieldSet(),
-
 		WAL:   w,
 		Cache: cache,
 
@@ -205,9 +203,6 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		compactionLimiter: opt.CompactionLimiter,
 		scheduler:         newScheduler(stats, opt.CompactionLimiter.Capacity()),
 	}
-
-	// Attach fieldset to index.
-	e.index.SetFieldSet(e.fieldset)
 
 	if e.traceLogging {
 		fs.enableTraceLogging(true)
@@ -429,6 +424,10 @@ func (e *Engine) MeasurementFields(measurement []byte) *tsdb.MeasurementFields {
 	return e.fieldset.CreateFieldsIfNotExists(measurement)
 }
 
+func (e *Engine) MeasurementFieldSet() *tsdb.MeasurementFieldSet {
+	return e.fieldset
+}
+
 func (e *Engine) HasTagKey(name, key []byte) (bool, error) {
 	return e.index.HasTagKey(name, key)
 }
@@ -574,6 +573,17 @@ func (e *Engine) Open() error {
 		return err
 	}
 
+	fields, err := tsdb.NewMeasurementFieldSet(filepath.Join(e.path, "fields.idx"))
+	if err != nil {
+		return err
+	}
+
+	e.mu.Lock()
+	e.fieldset = fields
+	e.mu.Unlock()
+
+	e.index.SetFieldSet(fields)
+
 	if err := e.WAL.Open(); err != nil {
 		return err
 	}
@@ -629,6 +639,12 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 
+	// If we have the cached fields index on disk and we're using TSI, we
+	// can skip scanning all the TSM files.
+	if e.index.Type() != inmem.IndexName && !e.fieldset.IsEmpty() {
+		return nil
+	}
+
 	if err := e.FileStore.WalkKeys(nil, func(key []byte, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
 		if err != nil {
@@ -655,6 +671,11 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 		}
 		return nil
 	}); err != nil {
+		return err
+	}
+
+	// Save the field set index so we don't have to rebuild it next time
+	if err := e.fieldset.Save(); err != nil {
 		return err
 	}
 
@@ -918,7 +939,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType) erro
 	name := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	mf := e.fieldset.CreateFieldsIfNotExists(name)
-	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
+	if err := mf.CreateFieldIfNotExists(field, fieldType); err != nil {
 		return err
 	}
 
@@ -1275,7 +1296,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 
-	return nil
+	return e.fieldset.Save()
 }
 
 // DeleteMeasurement deletes a measurement and all related series.

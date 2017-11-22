@@ -1,4 +1,6 @@
-package meta;
+syntax = "proto3";
+
+package tsdb;
 
 //========================================================================
 //
@@ -7,21 +9,25 @@ package meta;
 //========================================================================
 
 message Series {
-  required string Key = 1;
+  string Key = 1;
   repeated Tag Tags = 2;
 }
 
 message Tag {
-  required string Key = 1;
-  required string Value = 2;
+  string Key = 1;
+  string Value = 2;
 }
 
 message MeasurementFields {
-  repeated Field Fields = 1;
+  string Name = 1;
+  repeated Field Fields = 2;
 }
 
 message Field {
-  required int32 ID = 1;
-  required string Name = 2;
-  required int32 Type = 3;
+  string Name = 1;
+  int32 Type = 2;
+}
+
+message MeasurementFieldSet {
+	repeated MeasurementFields Measurements = 1;
 }
