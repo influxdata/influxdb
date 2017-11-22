@@ -199,6 +199,17 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			}
 		}
 
+		colors := make([]*Color, len(c.CellColors))
+		for j, color := range c.CellColors {
+			colors[j] = &Color{
+				ID:    color.ID,
+				Type:  color.Type,
+				Hex:   color.Hex,
+				Name:  color.Name,
+				Value: color.Value,
+			}
+		}
+
 		axes := make(map[string]*Axis, len(c.Axes))
 		for a, r := range c.Axes {
 			axes[a] = &Axis{
@@ -221,6 +232,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			Queries: queries,
 			Type:    c.Type,
 			Axes:    axes,
+			Colors:  colors,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -285,6 +297,17 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			}
 		}
 
+		colors := make([]chronograf.CellColor, len(c.Colors))
+		for j, color := range c.Colors {
+			colors[j] = chronograf.CellColor{
+				ID:    color.ID,
+				Type:  color.Type,
+				Hex:   color.Hex,
+				Name:  color.Name,
+				Value: color.Value,
+			}
+		}
+
 		axes := make(map[string]chronograf.Axis, len(c.Axes))
 		for a, r := range c.Axes {
 			// axis base defaults to 10
@@ -316,15 +339,16 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		}
 
 		cells[i] = chronograf.DashboardCell{
-			ID:      c.ID,
-			X:       c.X,
-			Y:       c.Y,
-			W:       c.W,
-			H:       c.H,
-			Name:    c.Name,
-			Queries: queries,
-			Type:    c.Type,
-			Axes:    axes,
+			ID:         c.ID,
+			X:          c.X,
+			Y:          c.Y,
+			W:          c.W,
+			H:          c.H,
+			Name:       c.Name,
+			Queries:    queries,
+			Type:       c.Type,
+			Axes:       axes,
+			CellColors: colors,
 		}
 	}
 
@@ -434,8 +458,5 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 // UnmarshalUserPB decodes a user from binary protobuf data.
 // We are ignoring the password for now.
 func UnmarshalUserPB(data []byte, u *User) error {
-	if err := proto.Unmarshal(data, u); err != nil {
-		return err
-	}
-	return nil
+	return proto.Unmarshal(data, u)
 }
