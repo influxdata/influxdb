@@ -178,11 +178,11 @@ func TestService_NewUser(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.AdminRoleName,
-							Organization: "bobbetta org",
+							Organization: "1",
 						},
 						{
 							Name:         roles.ViewerRoleName,
-							Organization: "billieta org",
+							Organization: "2",
 						},
 					},
 				},
@@ -199,11 +199,11 @@ func TestService_NewUser(t *testing.T) {
 							Roles: []chronograf.Role{
 								{
 									Name:         roles.AdminRoleName,
-									Organization: "bobbetta org",
+									Organization: "1",
 								},
 								{
 									Name:         roles.ViewerRoleName,
-									Organization: "billieta org",
+									Organization: "2",
 								},
 							},
 						}, nil
@@ -212,7 +212,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[{"name":"admin","organization":"bobbetta org"},{"name":"viewer","organization":"billieta org"}],"links":{"self":"/chronograf/v1/users/1338"}}`,
+			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[{"name":"admin","organization":"1"},{"name":"viewer","organization":"2"}],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 		{
 			name: "Create a new Chronograf User with multiple roles same org",
@@ -230,11 +230,11 @@ func TestService_NewUser(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.AdminRoleName,
-							Organization: "bobbetta org",
+							Organization: "1",
 						},
 						{
 							Name:         roles.ViewerRoleName,
-							Organization: "bobbetta org",
+							Organization: "1",
 						},
 					},
 				},
@@ -251,11 +251,11 @@ func TestService_NewUser(t *testing.T) {
 							Roles: []chronograf.Role{
 								{
 									Name:         roles.AdminRoleName,
-									Organization: "bobbetta org",
+									Organization: "1",
 								},
 								{
 									Name:         roles.ViewerRoleName,
-									Organization: "bobbetta org",
+									Organization: "1",
 								},
 							},
 						}, nil
@@ -264,7 +264,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"duplicate organization \"bobbetta org\" in roles"}`,
+			wantBody:        `{"code":422,"message":"duplicate organization \"1\" in roles"}`,
 		},
 		{
 			name: "Create a new SuperAdmin User - Not as superadmin",
@@ -1016,6 +1016,25 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 			},
 			wantErr: false,
 			err:     nil,
+		},
+		{
+			name: "Invalid - bad organization",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "l", // this is the character L not integer One
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
 		},
 		{
 			name: "Invalid – Name missing",
