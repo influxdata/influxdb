@@ -34,6 +34,7 @@ class ResizeContainer extends Component {
   componentDidMount() {
     this.setState({
       bottomHeightPixels: this.bottom.getBoundingClientRect().height,
+      topHeightPixels: this.top.getBoundingClientRect().height,
     })
   }
 
@@ -92,11 +93,18 @@ class ResizeContainer extends Component {
       topHeight: `${newTopPanelPercent}%`,
       bottomHeight: `${newBottomPanelPercent}%`,
       bottomHeightPixels,
+      topHeightPixels,
     })
   }
 
   render() {
-    const {bottomHeightPixels, topHeight, bottomHeight, isDragging} = this.state
+    const {
+      topHeightPixels,
+      bottomHeightPixels,
+      topHeight,
+      bottomHeight,
+      isDragging,
+    } = this.state
     const {containerClass, children} = this.props
 
     if (React.Children.count(children) > maximumNumChildren) {
@@ -116,9 +124,14 @@ class ResizeContainer extends Component {
         onMouseMove={this.handleDrag}
         ref={r => (this.resizeContainer = r)}
       >
-        <div className="resize--top" style={{height: topHeight}}>
+        <div
+          className="resize--top"
+          style={{height: topHeight}}
+          ref={r => (this.top = r)}
+        >
           {React.cloneElement(children[0], {
             resizerBottomHeight: bottomHeightPixels,
+            resizeTopHeight: topHeightPixels,
           })}
         </div>
         <ResizeHandle
@@ -133,6 +146,7 @@ class ResizeContainer extends Component {
         >
           {React.cloneElement(children[1], {
             resizerBottomHeight: bottomHeightPixels,
+            resizerTopHeight: topHeightPixels,
           })}
         </div>
       </div>
