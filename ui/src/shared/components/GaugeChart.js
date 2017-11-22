@@ -49,11 +49,6 @@ class GaugeChart extends Component {
       300)
       .toString()
 
-    // console.log('resizeCoordsHeight', resizeCoordsHeight)
-    // console.log('initialCellHeight', initialCellHeight)
-    // console.log('resizerTopHeight', resizerTopHeight)
-    // console.log('height', height)
-
     return (
       <div className="single-stat" ref={r => (this.gaugeContainer = r)}>
         <Gauge
