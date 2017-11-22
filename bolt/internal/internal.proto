@@ -36,11 +36,11 @@ message DashboardCell {
 }
 
 message Color {
-	string ID               = 1; // ID is the unique id of the cell color
-	string Type             = 2; // Type is how the color is used. Accepted (min,max,threshold)
-	string Hex              = 3; // Hex is the hex number of the color
-	string Name             = 4; // Name is the user-facing name of the hex color
-	string Value            = 5; // Value is the data value mapped to this color
+	string ID                   = 1; // ID is the unique id of the cell color
+	string Type                 = 2; // Type is how the color is used. Accepted (min,max,threshold)
+	string Hex                  = 3; // Hex is the hex number of the color
+	string Name                 = 4; // Name is the user-facing name of the hex color
+	string Value                = 5; // Value is the data value mapped to this color
 }
 
 message Axis {
