@@ -1,8 +1,14 @@
 import React, {PropTypes, Component} from 'react'
 import shallowCompare from 'react-addons-shallow-compare'
 import lastValues from 'shared/parsing/lastValues'
-
+import {get} from 'lodash'
 import Gauge from 'shared/components/Gauge'
+
+import {
+  DEFAULT_COLORS,
+  COLOR_TYPE_MIN,
+  COLOR_TYPE_MAX,
+} from 'src/dashboards/constants/gaugeColors'
 
 class GaugeChart extends Component {
   shouldComponentUpdate(nextProps, nextState) {
@@ -10,7 +16,7 @@ class GaugeChart extends Component {
   }
 
   render() {
-    const {data, cellHeight, isFetchingInitially} = this.props
+    const {data, cellHeight, isFetchingInitially, colors} = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -27,17 +33,20 @@ class GaugeChart extends Component {
     const roundedValue = Math.round(+lastValue * precision) / precision
 
     const trueHeight = (cellHeight * 83).toString()
+
+    const min = colors.find(color => color.type === COLOR_TYPE_MIN)
+    const max = colors.find(color => color.type === COLOR_TYPE_MAX)
+
     return (
       <div className="single-stat">
         <Gauge
           width="400"
           height={trueHeight || 200}
-          minValue={0}
-          maxValue={900}
-          lowerThreshold={600}
-          upperThreshold={800}
+          minValue={+get(min, 'value', '0')}
+          maxValue={+get(max, 'value', '100')}
+          lowerThreshold={33}
+          upperThreshold={66}
           gaugePosition={roundedValue}
-          theme="summer"
           inverse={true}
         />
       </div>
@@ -46,6 +55,10 @@ class GaugeChart extends Component {
 }
 
 const {arrayOf, bool, number, shape, string} = PropTypes
+
+GaugeChart.defaultProps = {
+  colors: DEFAULT_COLORS,
+}
 
 GaugeChart.propTypes = {
   data: arrayOf(shape()).isRequired,
