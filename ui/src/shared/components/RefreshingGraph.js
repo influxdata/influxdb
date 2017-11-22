@@ -14,6 +14,7 @@ const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 const RefreshingGraph = ({
   axes,
   type,
+  colors,
   onZoom,
   queries,
   templates,
@@ -51,6 +52,7 @@ const RefreshingGraph = ({
   if (type === 'gauge') {
     return (
       <RefreshingGaugeChart
+        colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
         templates={templates}
@@ -103,6 +105,15 @@ RefreshingGraph.propTypes = {
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
 }
 
 RefreshingGraph.defaultProps = {

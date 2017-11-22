@@ -86,3 +86,10 @@ export const DEFAULT_COLORS = [
     value: DEFAULT_VALUE_MAX,
   },
 ]
+
+export const validateColors = colors => {
+  const hasMin = colors.some(color => color.type === COLOR_TYPE_MIN)
+  const hasMax = colors.some(color => color.type === COLOR_TYPE_MAX)
+
+  return hasMin && hasMax
+}

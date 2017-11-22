@@ -29,13 +29,14 @@ import {
   GAUGE_COLORS,
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
+  validateColors,
 } from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {name, type, queries, axes}, sources} = props
+    const {cell: {name, type, queries, axes, colors}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -55,7 +56,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
-      colors: DEFAULT_COLORS,
+      colors: validateColors(colors) ? colors : DEFAULT_COLORS,
     }
   }
 
@@ -211,6 +212,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       cellWorkingName: name,
       axes,
+      colors,
     } = this.state
 
     const {cell} = this.props
@@ -232,6 +234,7 @@ class CellEditorOverlay extends Component {
       type,
       queries,
       axes,
+      colors,
     })
   }
 
