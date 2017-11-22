@@ -816,6 +816,35 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 	}
 }
 
+// This test ensures that "sync: WaitGroup is reused before previous Wait has returned" is
+// is not raised.
+func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	e := MustOpenDefaultEngine()
+	defer e.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(true)
+			e.SetCompactionsEnabled(false)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(false)
+			e.SetCompactionsEnabled(true)
+		}
+	}()
+	wg.Wait()
+}
+
 func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
 	benchmarkEngineCreateIteratorCount(b, 1000)
 }
