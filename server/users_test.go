@@ -1181,42 +1181,65 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			err:     fmt.Errorf("No Roles to update"),
 		},
 		{
-			name: "Invalid: field missing",
-			args: args{
-				u: &userRequest{},
-			},
-			wantErr: true,
-			err:     fmt.Errorf("No Roles to update"),
-		},
-		{
-			name: "Invalid: Name attempted",
+			name: "Invalid - bad organization",
 			args: args{
 				u: &userRequest{
-					Name: "bob",
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "l", // this is the character L not integer One
+						},
+					},
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Cannot update Name"),
+			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
 		},
 		{
-			name: "Invalid: Provider attempted",
+			name: "Invalid - bad role name",
 			args: args{
 				u: &userRequest{
-					Provider: "Goggles",
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         "BillietaSpecialOrg",
+							Organization: "0",
+						},
+					},
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Cannot update Provider"),
+			err:     fmt.Errorf("Unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', and 'admin'"),
 		},
 		{
-			name: "Invalid: Scheme attempted",
+			name: "Invalid - duplicate organization",
 			args: args{
 				u: &userRequest{
-					Scheme: "leDAP",
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "0",
+						},
+						{
+							Name:         roles.ViewerRoleName,
+							Organization: "0",
+						},
+					},
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Cannot update Scheme"),
+			err:     fmt.Errorf("duplicate organization \"0\" in roles"),
 		},
 	}
 

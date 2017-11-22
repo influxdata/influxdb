@@ -41,15 +41,6 @@ func (r *userRequest) ValidCreate() error {
 }
 
 func (r *userRequest) ValidUpdate() error {
-	if r.Name != "" {
-		return fmt.Errorf("Cannot update Name")
-	}
-	if r.Provider != "" {
-		return fmt.Errorf("Cannot update Provider")
-	}
-	if r.Scheme != "" {
-		return fmt.Errorf("Cannot update Scheme")
-	}
 	if len(r.Roles) == 0 {
 		return fmt.Errorf("No Roles to update")
 	}
@@ -229,16 +220,16 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := req.ValidUpdate(); err != nil {
-		invalidData(w, err, s.Logger)
-		return
-	}
-
 	ctx := r.Context()
 	idStr := httprouter.GetParamFromContext(ctx, "id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
 		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
+		return
+	}
+
+	if err := req.ValidUpdate(); err != nil {
+		invalidData(w, err, s.Logger)
 		return
 	}
 
@@ -250,6 +241,28 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	// ValidUpdate should ensure that req.Roles is not nil
 	u.Roles = req.Roles
+
+	// If the request contains a name, it must be the same as the
+	// one on the user. This is particularly useful to the front-end
+	// because they would like to provide the whole user object,
+	// including the name, provider, and scheme in update requests.
+	// But currently, it is not possible to change name, provider, or
+	// scheme via the API.
+	if req.Name != "" && req.Name != u.Name {
+		err := fmt.Errorf("Cannot update Name")
+		invalidData(w, err, s.Logger)
+		return
+	}
+	if req.Provider != "" && req.Provider != u.Provider {
+		err := fmt.Errorf("Cannot update Provider")
+		invalidData(w, err, s.Logger)
+		return
+	}
+	if req.Scheme != "" && req.Scheme != u.Scheme {
+		err := fmt.Errorf("Cannot update Scheme")
+		invalidData(w, err, s.Logger)
+		return
+	}
 
 	if err := setSuperAdmin(ctx, req, u); err != nil {
 		Error(w, http.StatusUnauthorized, err.Error(), s.Logger)
