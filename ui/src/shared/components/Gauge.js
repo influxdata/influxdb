@@ -1,10 +1,13 @@
 import React, {Component, PropTypes} from 'react'
+import _ from 'lodash'
+
+import {GAUGE_SPECS} from 'shared/constants/gaugeSpecs'
 
 import {
-  GAUGE_SPECS,
-  GAUGE_THEME_WINTER,
-  GAUGE_THEME_SUMMER,
-} from 'shared/constants/gaugeSpecs'
+  COLOR_TYPE_MIN,
+  COLOR_TYPE_MAX,
+  MIN_THRESHOLDS,
+} from 'src/dashboards/constants/gaugeColors'
 
 class Gauge extends Component {
   constructor(props) {
@@ -12,32 +15,13 @@ class Gauge extends Component {
   }
 
   componentDidMount() {
-    this.validateValues()
     this.updateCanvas()
   }
 
   componentDidUpdate() {
-    this.validateValues()
     this.updateCanvas()
   }
 
-  validateValues = () => {
-    const {
-      minValue,
-      maxValue,
-      lowerThreshold,
-      upperThreshold,
-      gaugePosition,
-    } = this.props
-
-    if (
-      !(minValue < lowerThreshold < upperThreshold < maxValue) ||
-      gaugePosition < minValue ||
-      gaugePosition > maxValue
-    ) {
-      console.error('Gauge component has received bad values')
-    }
-  }
   resetCanvas = (canvas, context) => {
     context.setTransform(1, 0, 0, 1, 0, 0)
     context.clearRect(0, 0, canvas.width, canvas.height)
@@ -54,115 +38,109 @@ class Gauge extends Component {
     const centerY = canvas.height / 2 * 1.13
     const radius = Math.min(canvas.width, canvas.height) / 2 * 0.5
 
-    const gradientThickness = 20
+    const {minLineWidth, minFontSize} = GAUGE_SPECS
+    const gradientThickness = Math.max(minLineWidth, radius / 4)
+    const labelValueFontSize = Math.max(minFontSize, radius / 4)
+
+    // Distill out max and min values
+    const {colors} = this.props
+    const minValue = Number(
+      colors.find(color => color.type === COLOR_TYPE_MIN).value
+    )
+    const maxValue = Number(
+      colors.find(color => color.type === COLOR_TYPE_MAX).value
+    )
 
     // The following functions must be called in the specified order
-    this.drawGauge(ctx, centerX, centerY, radius)
+    if (colors.length === MIN_THRESHOLDS) {
+      this.drawGradientGauge(ctx, centerX, centerY, radius, gradientThickness)
+    } else {
+      this.drawSegmentedGauge(
+        ctx,
+        centerX,
+        centerY,
+        radius,
+        minValue,
+        maxValue,
+        gradientThickness
+      )
+    }
     this.drawGaugeLines(ctx, centerX, centerY, radius, gradientThickness)
-    this.drawGaugeLabels(ctx, centerX, centerY, radius, gradientThickness)
-    this.drawGaugeValue(ctx, radius)
-    this.drawNeedle(ctx, radius)
+    this.drawGaugeLabels(
+      ctx,
+      centerX,
+      centerY,
+      radius,
+      gradientThickness,
+      minValue,
+      maxValue
+    )
+    this.drawGaugeValue(ctx, radius, labelValueFontSize)
+    this.drawNeedle(ctx, radius, minValue, maxValue)
   }
 
-  drawGauge = (ctx, xc, yc, r) => {
-    const {
-      lowerThreshold,
-      upperThreshold,
-      minValue,
-      maxValue,
-      inverse,
-      theme,
-    } = this.props
+  drawGradientGauge = (ctx, xc, yc, r, gradientThickness) => {
+    const {colors} = this.props
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
 
-    // Assign gauge colors based on props
-    let gaugeColors
+    const arcStart = Math.PI * 0.75
+    const arcEnd = arcStart + Math.PI * 1.5
 
-    if (theme === GAUGE_THEME_WINTER) {
-      gaugeColors = GAUGE_SPECS.theme.winter
-    } else if (theme === GAUGE_THEME_SUMMER) {
-      gaugeColors = GAUGE_SPECS.theme.summer
-    }
+    // Determine coordinates for gradient
+    const xStart = xc + Math.cos(arcStart) * r
+    const yStart = yc + Math.sin(arcStart) * r
+    const xEnd = xc + Math.cos(arcEnd) * r
+    const yEnd = yc + Math.sin(arcEnd) * r
+
+    const gradient = ctx.createLinearGradient(xStart, yStart, xEnd, yEnd)
+    gradient.addColorStop(0, sortedColors[0].hex)
+    gradient.addColorStop(1.0, sortedColors[1].hex)
+
+    ctx.beginPath()
+    ctx.lineWidth = gradientThickness
+    ctx.strokeStyle = gradient
+    ctx.arc(xc, yc, r, arcStart, arcEnd)
+    ctx.stroke()
+  }
+
+  drawSegmentedGauge = (
+    ctx,
+    xc,
+    yc,
+    r,
+    minValue,
+    maxValue,
+    gradientThickness
+  ) => {
+    const {colors} = this.props
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
 
     const trueValueRange = Math.abs(maxValue - minValue)
     const totalArcLength = Math.PI * 1.5
-    const arcOffset = Math.PI * 0.75
+    let startingPoint = Math.PI * 0.75
 
-    // Draw lower section
-    const lowerArcStart = Math.PI * 0.75
-    const lowerArcEnd =
-      (lowerThreshold - minValue) / trueValueRange * totalArcLength + arcOffset
+    // Iterate through colors, draw arc for each
+    for (let c = 0; c < sortedColors.length - 1; c++) {
+      // Use this color and the next to determine arc length
+      const color = sortedColors[c]
+      const nextColor = sortedColors[c + 1]
 
-    // Determine coordinates for gradient
-    const xLowerStart = xc + Math.cos(lowerArcStart) * r
-    const yLowerStart = yc + Math.sin(lowerArcStart) * r
-    const xLowerEnd = xc + Math.cos(lowerArcEnd) * r
-    const yLowerEnd = yc + Math.sin(lowerArcEnd) * r
+      // adjust values by subtracting minValue from them
+      const adjustedValue = Number(color.value) - minValue
+      const adjustedNextValue = Number(nextColor.value) - minValue
 
-    // Define lower section gradient
-    const lowerGradient = ctx.createLinearGradient(
-      xLowerStart,
-      yLowerStart,
-      xLowerEnd,
-      yLowerEnd
-    )
-    lowerGradient.addColorStop(0, gaugeColors[inverse ? 5 : 0])
-    lowerGradient.addColorStop(1.0, gaugeColors[inverse ? 4 : 1])
-
-    ctx.beginPath()
-    ctx.lineWidth = 20
-    ctx.strokeStyle = lowerGradient
-    ctx.arc(xc, yc, r, lowerArcStart, lowerArcEnd)
-    ctx.stroke()
-
-    // Draw upper section
-    const upperArcStart =
-      (upperThreshold - minValue) / trueValueRange * totalArcLength + arcOffset
-    const upperArcEnd = Math.PI * 0.25
-
-    // Determine coordinates for gradient
-    const xUpperStart = xc + Math.cos(upperArcStart) * r
-    const yUpperStart = yc + Math.sin(upperArcStart) * r
-    const xUpperEnd = xc + Math.cos(upperArcEnd) * r
-    const yUpperEnd = yc + Math.sin(upperArcEnd) * r
-
-    // Define lower section gradient
-    const upperGradient = ctx.createLinearGradient(
-      xUpperStart,
-      yUpperStart,
-      xUpperEnd,
-      yUpperEnd
-    )
-    upperGradient.addColorStop(0, gaugeColors[inverse ? 1 : 4])
-    upperGradient.addColorStop(1.0, gaugeColors[inverse ? 0 : 5])
-
-    ctx.beginPath()
-    ctx.lineWidth = 20
-    ctx.strokeStyle = upperGradient
-    ctx.arc(xc, yc, r, upperArcStart, upperArcEnd)
-    ctx.stroke()
-
-    // Draw middle section
-    // Determine coordinates for gradient
-    const xMiddleStart = xc + Math.cos(lowerArcEnd) * r
-    const yMiddleStart = yc + Math.sin(lowerArcEnd) * r
-    const xMiddleEnd = xc + Math.cos(upperArcStart) * r
-    const yMiddleEnd = yc + Math.sin(upperArcStart) * r
-    // Define lower section gradient
-    const middleGradient = ctx.createLinearGradient(
-      xMiddleStart,
-      yMiddleStart,
-      xMiddleEnd,
-      yMiddleEnd
-    )
-    middleGradient.addColorStop(0, gaugeColors[inverse ? 3 : 2])
-    middleGradient.addColorStop(1.0, gaugeColors[inverse ? 2 : 3])
-
-    ctx.beginPath()
-    ctx.lineWidth = 20
-    ctx.lineCap = 'butt'
-    ctx.strokeStyle = middleGradient
-    ctx.arc(xc, yc, r, lowerArcEnd, upperArcStart)
-    ctx.stroke()
+      const thisArc = Math.abs(adjustedValue - adjustedNextValue)
+      // Multiply by arcLength to determine this arc's length
+      const arcLength = totalArcLength * (thisArc / trueValueRange)
+      // Draw arc
+      ctx.beginPath()
+      ctx.lineWidth = gradientThickness
+      ctx.strokeStyle = color.hex
+      ctx.arc(xc, yc, r, startingPoint, startingPoint + arcLength)
+      ctx.stroke()
+      // Add this arc's length to starting point
+      startingPoint += arcLength
+    }
   }
 
   drawGaugeLines = (ctx, xc, yc, radius, gradientThickness) => {
@@ -236,26 +214,33 @@ class Gauge extends Component {
     }
   }
 
-  drawGaugeLabels = (ctx, xc, yc, radius, gradientThickness) => {
-    const {degree, lineCount} = GAUGE_SPECS
+  drawGaugeLabels = (
+    ctx,
+    xc,
+    yc,
+    radius,
+    gradientThickness,
+    minValue,
+    maxValue
+  ) => {
+    const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
-    // Build array of label strings
-    const {minValue, maxValue} = this.props
     const incrementValue = (maxValue - minValue) / lineCount
 
     const gaugeValues = []
-    for (let g = minValue; g <= maxValue; g += incrementValue) {
+    for (let g = minValue; g < maxValue; g += incrementValue) {
       const roundedValue = Math.round(g * 100) / 100
       gaugeValues.push(roundedValue.toString())
     }
+    gaugeValues.push((Math.round(maxValue * 100) / 100).toString())
 
     const startDegree = degree * 135
     const arcLength = Math.PI * 1.5
     const arcIncrement = arcLength / lineCount
 
     // Format labels text
-    ctx.font = 'bold 13px Helvetica'
-    ctx.fillStyle = '#8E91A1'
+    ctx.font = `bold ${labelFontSize}px Helvetica`
+    ctx.fillStyle = labelColor
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'right'
     let labelRadius
@@ -284,28 +269,29 @@ class Gauge extends Component {
     }
   }
 
-  drawGaugeValue = (ctx, radius) => {
+  drawGaugeValue = (ctx, radius, labelValueFontSize) => {
     const {gaugePosition} = this.props
+    const {valueColor} = GAUGE_SPECS
 
-    ctx.font = '40px Roboto'
-    ctx.fillStyle = '#ffffff'
+    ctx.font = `${labelValueFontSize}px Roboto`
+    ctx.fillStyle = valueColor
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
 
-    const textY = radius * 0.75
+    const textY = radius
     ctx.fillText(gaugePosition.toString(), 0, textY)
   }
 
-  drawNeedle = (ctx, radius) => {
-    const {minValue, maxValue, gaugePosition} = this.props
-    const {degree} = GAUGE_SPECS
+  drawNeedle = (ctx, radius, minValue, maxValue) => {
+    const {gaugePosition} = this.props
+    const {degree, needleColor0, needleColor1} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
     const needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
 
     const needleGradient = ctx.createLinearGradient(0, -10, 0, radius)
-    needleGradient.addColorStop(0, '#434453')
-    needleGradient.addColorStop(1, 'white')
+    needleGradient.addColorStop(0, needleColor0)
+    needleGradient.addColorStop(1, needleColor1)
 
     // Starting position of needle is at minimum
     ctx.rotate(degree * 45)
@@ -331,23 +317,21 @@ class Gauge extends Component {
   }
 }
 
-const {bool, number, string} = PropTypes
-
-Gauge.defaultProps = {
-  inverse: false,
-  theme: GAUGE_THEME_WINTER,
-}
+const {arrayOf, number, shape, string} = PropTypes
 
 Gauge.propTypes = {
   width: string.isRequired,
   height: string.isRequired,
-  minValue: number.isRequired,
-  maxValue: number.isRequired,
-  lowerThreshold: number.isRequired,
-  upperThreshold: number.isRequired,
   gaugePosition: number.isRequired,
-  inverse: bool,
-  theme: string,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ).isRequired,
 }
 
 export default Gauge

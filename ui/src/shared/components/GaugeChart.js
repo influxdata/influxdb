@@ -1,14 +1,9 @@
 import React, {PropTypes, Component} from 'react'
 import shallowCompare from 'react-addons-shallow-compare'
 import lastValues from 'shared/parsing/lastValues'
-import {get} from 'lodash'
 import Gauge from 'shared/components/Gauge'
 
-import {
-  DEFAULT_COLORS,
-  COLOR_TYPE_MIN,
-  COLOR_TYPE_MAX,
-} from 'src/dashboards/constants/gaugeColors'
+import {DEFAULT_COLORS} from 'src/dashboards/constants/gaugeColors'
 
 class GaugeChart extends Component {
   shouldComponentUpdate(nextProps, nextState) {
@@ -34,20 +29,13 @@ class GaugeChart extends Component {
 
     const trueHeight = (cellHeight * 83).toString()
 
-    const min = colors.find(color => color.type === COLOR_TYPE_MIN)
-    const max = colors.find(color => color.type === COLOR_TYPE_MAX)
-
     return (
       <div className="single-stat">
         <Gauge
           width="400"
           height={trueHeight || 200}
-          minValue={+get(min, 'value', '0')}
-          maxValue={+get(max, 'value', '100')}
-          lowerThreshold={33}
-          upperThreshold={66}
+          colors={colors}
           gaugePosition={roundedValue}
-          inverse={true}
         />
       </div>
     )
