@@ -569,7 +569,10 @@ func TestService_UpdateUser(t *testing.T) {
 								Provider: "github",
 								Scheme:   "oauth2",
 								Roles: []chronograf.Role{
-									roles.EditorRole,
+									{
+										Name:         roles.EditorRoleName,
+										Organization: "1",
+									},
 								},
 							}, nil
 						default:
@@ -588,14 +591,17 @@ func TestService_UpdateUser(t *testing.T) {
 				user: &userRequest{
 					ID: 1336,
 					Roles: []chronograf.Role{
-						roles.AdminRole,
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
 					},
 				},
 			},
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
+			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"1"}]}`,
 		},
 		{
 			name: "Update a Chronograf user roles different orgs",
@@ -635,11 +641,11 @@ func TestService_UpdateUser(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.AdminRoleName,
-							Organization: "bobbetta org",
+							Organization: "1",
 						},
 						{
 							Name:         roles.ViewerRoleName,
-							Organization: "billieta org",
+							Organization: "2",
 						},
 					},
 				},
@@ -647,7 +653,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"bobbetta org"},{"name":"viewer","organization":"billieta org"}]}`,
+			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"1"},{"name":"viewer","organization":"2"}]}`,
 		},
 		{
 			name: "Update a Chronograf user roles same org",
@@ -687,11 +693,11 @@ func TestService_UpdateUser(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.AdminRoleName,
-							Organization: "bobbetta org",
+							Organization: "1",
 						},
 						{
 							Name:         roles.ViewerRoleName,
-							Organization: "bobbetta org",
+							Organization: "1",
 						},
 					},
 				},
@@ -699,7 +705,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"duplicate organization \"bobbetta org\" in roles"}`,
+			wantBody:        `{"code":422,"message":"duplicate organization \"1\" in roles"}`,
 		},
 		{
 			name: "Update a Chronograf user to super admin - without super admin context",
@@ -738,7 +744,10 @@ func TestService_UpdateUser(t *testing.T) {
 					ID:         1336,
 					SuperAdmin: true,
 					Roles: []chronograf.Role{
-						roles.AdminRole,
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
 					},
 				},
 				userKeyUser: &chronograf.User{
@@ -791,7 +800,10 @@ func TestService_UpdateUser(t *testing.T) {
 					ID:         1336,
 					SuperAdmin: true,
 					Roles: []chronograf.Role{
-						roles.AdminRole,
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
 					},
 				},
 				userKeyUser: &chronograf.User{
@@ -805,7 +817,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","superAdmin":true,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
+			wantBody:        `{"id":"1336","superAdmin":true,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"1"}]}`,
 		},
 	}
 	for _, tt := range tests {
@@ -995,7 +1007,10 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Provider: "auth0",
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
-						roles.EditorRole,
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
 					},
 				},
 			},
@@ -1010,7 +1025,10 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Provider: "auth0",
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
-						roles.EditorRole,
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
 					},
 				},
 			},
@@ -1025,7 +1043,10 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Name:   "billietta",
 					Scheme: "oauth2",
 					Roles: []chronograf.Role{
-						roles.EditorRole,
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
 					},
 				},
 			},
@@ -1040,7 +1061,10 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Name:     "billietta",
 					Provider: "auth0",
 					Roles: []chronograf.Role{
-						roles.EditorRole,
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
 					},
 				},
 			},
@@ -1048,7 +1072,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 			err:     fmt.Errorf("Scheme required on Chronograf User request body"),
 		},
 		{
-			name: "Invalid roles",
+			name: "Invalid roles - bad role name",
 			args: args{
 				u: &userRequest{
 					ID:       1337,
@@ -1057,13 +1081,32 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Scheme:   "oauth2",
 					Roles: []chronograf.Role{
 						{
-							Name: "BilliettaSpecialRole",
+							Name:         "BilliettaSpecialRole",
+							Organization: "1",
 						},
 					},
 				},
 			},
 			wantErr: true,
 			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', and 'admin'"),
+		},
+		{
+			name: "Invalid roles - missing organization",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name: roles.EditorRoleName,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("no organization was provided"),
 		},
 	}
 
@@ -1100,7 +1143,10 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 				u: &userRequest{
 					ID: 1337,
 					Roles: []chronograf.Role{
-						roles.EditorRole,
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
 					},
 				},
 			},

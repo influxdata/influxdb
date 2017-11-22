@@ -60,6 +60,9 @@ func (r *userRequest) ValidRoles() error {
 	orgs := map[string]bool{}
 	if len(r.Roles) > 0 {
 		for _, r := range r.Roles {
+			if r.Organization == "" {
+				return fmt.Errorf("no organization was provided")
+			}
 			if _, ok := orgs[r.Organization]; ok {
 				return fmt.Errorf("duplicate organization %q in roles", r.Organization)
 			}
