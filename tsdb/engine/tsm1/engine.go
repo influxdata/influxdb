@@ -61,6 +61,19 @@ var (
 	planningTimer              = metrics.MustRegisterTimer("planning_time", metrics.WithGroup(tsmGroup))
 )
 
+// NewContextWithMetricsGroup creates a new context with a tsm1 metrics.Group for tracking
+// various metrics when accessing TSM data.
+func NewContextWithMetricsGroup(ctx context.Context) context.Context {
+	group := metrics.NewGroup(tsmGroup)
+	return metrics.NewContextWithGroup(ctx, group)
+}
+
+// MetricsGroupFromContext returns the tsm1 metrics.Group associated with the context
+// or nil if no group has been assigned.
+func MetricsGroupFromContext(ctx context.Context) *metrics.Group {
+	return metrics.GroupFromContext(ctx)
+}
+
 const (
 	// keyFieldSeparator separates the series key from the field name in the composite key
 	// that identifies a specific field in series

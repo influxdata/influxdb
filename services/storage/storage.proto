@@ -61,6 +61,9 @@ message ReadRequest {
   // PointsLimit determines the maximum number of values per series to be returned for the request.
   // Specify 0 for no limit.
   uint64 points_limit = 8 [(gogoproto.customname) = "PointsLimit"];
+
+  // Trace contains opaque data if a trace is active.
+  map<string, string> trace = 10 [(gogoproto.customname) = "Trace"];
 }
 
 message Aggregate {

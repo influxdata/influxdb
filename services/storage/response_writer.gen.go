@@ -50,13 +50,13 @@ func (w *responseWriter) streamFloatPoints(cur tsdb.FloatBatchCursor) {
 	cur.Close()
 
 	seriesValueCount += b
+	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
 		// no points collected, strip series frame
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
 		w.flushFrames()
-		w.vc += seriesValueCount
 	}
 }
 
@@ -100,13 +100,13 @@ func (w *responseWriter) streamIntegerPoints(cur tsdb.IntegerBatchCursor) {
 	cur.Close()
 
 	seriesValueCount += b
+	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
 		// no points collected, strip series frame
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
 		w.flushFrames()
-		w.vc += seriesValueCount
 	}
 }
 
@@ -150,13 +150,13 @@ func (w *responseWriter) streamUnsignedPoints(cur tsdb.UnsignedBatchCursor) {
 	cur.Close()
 
 	seriesValueCount += b
+	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
 		// no points collected, strip series frame
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
 		w.flushFrames()
-		w.vc += seriesValueCount
 	}
 }
 
@@ -200,13 +200,13 @@ func (w *responseWriter) streamStringPoints(cur tsdb.StringBatchCursor) {
 	cur.Close()
 
 	seriesValueCount += b
+	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
 		// no points collected, strip series frame
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
 		w.flushFrames()
-		w.vc += seriesValueCount
 	}
 }
 
@@ -250,12 +250,12 @@ func (w *responseWriter) streamBooleanPoints(cur tsdb.BooleanBatchCursor) {
 	cur.Close()
 
 	seriesValueCount += b
+	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
 		// no points collected, strip series frame
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
 		w.flushFrames()
-		w.vc += seriesValueCount
 	}
 }
