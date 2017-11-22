@@ -14,6 +14,7 @@ const DashVisualization = (
     onCellRename,
     queryConfigs,
     editQueryStatus,
+    resizerTopHeight,
   },
   {source: {links: {proxy}}}
 ) =>
@@ -27,6 +28,7 @@ const DashVisualization = (
         templates={templates}
         autoRefresh={autoRefresh}
         editQueryStatus={editQueryStatus}
+        resizerTopHeight={resizerTopHeight}
       />
     </div>
   </div>
@@ -55,6 +57,7 @@ DashVisualization.propTypes = {
     }),
   }),
   onCellRename: func,
+  resizerTopHeight: number,
 }
 
 DashVisualization.contextTypes = {

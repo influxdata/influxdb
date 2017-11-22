@@ -131,7 +131,7 @@ class ResizeContainer extends Component {
         >
           {React.cloneElement(children[0], {
             resizerBottomHeight: bottomHeightPixels,
-            resizeTopHeight: topHeightPixels,
+            resizerTopHeight: topHeightPixels,
           })}
         </div>
         <ResizeHandle

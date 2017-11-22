@@ -21,6 +21,7 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
+  resizerTopHeight,
   manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
@@ -58,6 +59,8 @@ const RefreshingGraph = ({
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+        resizerTopHeight={resizerTopHeight}
+        resizeCoords={resizeCoords}
       />
     )
   }
@@ -99,6 +102,7 @@ RefreshingGraph.propTypes = {
   synchronizer: func,
   type: string.isRequired,
   cellHeight: number,
+  resizerTopHeight: number,
   axes: shape(),
   queries: arrayOf(shape()).isRequired,
   editQueryStatus: func,
