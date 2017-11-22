@@ -121,13 +121,53 @@ class CellEditorOverlay extends Component {
 
   handleChangeColorValue = threshold => e => {
     const {colors} = this.state
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
+    const targetValueNumber = Number(e.target.value)
 
-    const newColors = colors.map(
-      color =>
-        color.id === threshold.id ? {...color, value: e.target.value} : color
+    const maxValue = Number(
+      colors.find(color => color.type === COLOR_TYPE_MAX).value
+    )
+    const minValue = Number(
+      colors.find(color => color.type === COLOR_TYPE_MIN).value
     )
 
-    this.setState({colors: newColors})
+    let allowedToUpdate = false
+
+    // If type === min, make sure it is less than the next threshold
+    if (threshold.type === COLOR_TYPE_MIN) {
+      const nextValue = Number(sortedColors[1].value)
+      allowedToUpdate = targetValueNumber < nextValue
+    }
+    // If type === max, make sure it is greater than the previous threshold
+    if (threshold.type === COLOR_TYPE_MAX) {
+      const previousValue = Number(sortedColors[sortedColors.length - 2].value)
+      allowedToUpdate = previousValue < targetValueNumber
+    }
+    // If type === threshold, make sure new value is greater than min, less than max, and unique
+    if (threshold.type === COLOR_TYPE_THRESHOLD) {
+      const greaterThanMin = targetValueNumber > minValue
+      const lessThanMax = targetValueNumber < maxValue
+
+      const colorsWithoutMinOrMax = sortedColors.slice(
+        1,
+        sortedColors.length - 1
+      )
+
+      const isUnique = !colorsWithoutMinOrMax.some(
+        color => color.value === e.target.value
+      )
+
+      allowedToUpdate = greaterThanMin && lessThanMax && isUnique
+    }
+
+    // Only set new state if all checks pass
+    if (allowedToUpdate) {
+      const newColors = colors.map(
+        color =>
+          color.id === threshold.id ? {...color, value: e.target.value} : color
+      )
+      this.setState({colors: newColors})
+    }
   }
 
   queryStateReducer = queryModifier => (queryID, ...payload) => {
