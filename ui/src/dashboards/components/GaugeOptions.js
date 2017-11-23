@@ -15,7 +15,8 @@ const GaugeOptions = ({
   onAddThreshold,
   onDeleteThreshold,
   onChooseColor,
-  onChangeValue,
+  onValidateColorValue,
+  onUpdateColorValue,
 }) => {
   const disableMaxColor = colors.length > MIN_THRESHOLDS
 
@@ -37,7 +38,8 @@ const GaugeOptions = ({
               key={color.id}
               disableMaxColor={disableMaxColor}
               onChooseColor={onChooseColor}
-              onChangeValue={onChangeValue}
+              onValidateColorValue={onValidateColorValue}
+              onUpdateColorValue={onUpdateColorValue}
               onDeleteThreshold={onDeleteThreshold}
             />
           )}
@@ -73,7 +75,8 @@ GaugeOptions.propTypes = {
   onAddThreshold: func.isRequired,
   onDeleteThreshold: func.isRequired,
   onChooseColor: func.isRequired,
-  onChangeValue: func.isRequired,
+  onValidateColorValue: func.isRequired,
+  onUpdateColorValue: func.isRequired,
 }
 
 export default GaugeOptions

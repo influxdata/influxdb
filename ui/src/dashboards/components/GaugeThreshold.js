@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 
 import ColorDropdown from 'shared/components/ColorDropdown'
 
@@ -8,59 +8,91 @@ import {
   GAUGE_COLORS,
 } from 'src/dashboards/constants/gaugeColors'
 
-const GaugeThreshold = ({
-  threshold,
-  threshold: {type, hex, name, value},
-  disableMaxColor,
-  onChooseColor,
-  onChangeValue,
-  onDeleteThreshold,
-}) => {
-  const selectedColor = {hex, name}
+class GaugeThreshold extends Component {
+  constructor(props) {
+    super(props)
 
-  const labelClass =
-    type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX
-      ? 'gauge-controls--label'
-      : 'gauge-controls--label-editable'
-
-  const canBeDeleted = !(type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX)
-
-  let label = 'Threshold'
-  if (type === COLOR_TYPE_MIN) {
-    label = 'Minimum'
-  }
-  if (type === COLOR_TYPE_MAX) {
-    label = 'Maximum'
+    this.state = {
+      workingValue: this.props.threshold.value,
+      valid: true,
+    }
   }
 
-  return (
-    <div className="gauge-controls--section">
-      <div className={labelClass}>
-        {label}
+  handleChangeWorkingValue = e => {
+    const {threshold, onValidateColorValue, onUpdateColorValue} = this.props
+
+    const valid = onValidateColorValue(threshold, e)
+
+    if (valid) {
+      onUpdateColorValue(threshold, e.target.value)
+    }
+
+    this.setState({valid, workingValue: e.target.value})
+  }
+
+  handleBlur = () => {
+    this.setState({workingValue: this.props.threshold.value, valid: true})
+  }
+
+  render() {
+    const {
+      threshold,
+      threshold: {type, hex, name},
+      disableMaxColor,
+      onChooseColor,
+      onDeleteThreshold,
+    } = this.props
+    const {workingValue, valid} = this.state
+    const selectedColor = {hex, name}
+
+    const labelClass =
+      type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX
+        ? 'gauge-controls--label'
+        : 'gauge-controls--label-editable'
+
+    const canBeDeleted = !(type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX)
+
+    let label = 'Threshold'
+    if (type === COLOR_TYPE_MIN) {
+      label = 'Minimum'
+    }
+    if (type === COLOR_TYPE_MAX) {
+      label = 'Maximum'
+    }
+
+    const blargh = valid ? null : {color: '#ff0000'}
+
+    return (
+      <div className="gauge-controls--section">
+        <div className={labelClass}>
+          {label}
+        </div>
+        {canBeDeleted
+          ? <button
+              className="btn btn-default btn-sm btn-square gauge-controls--delete"
+              onClick={onDeleteThreshold(threshold)}
+            >
+              <span className="icon remove" />
+            </button>
+          : null}
+        <input
+          value={workingValue}
+          className="form-control input-sm gauge-controls--input"
+          type="number"
+          onChange={this.handleChangeWorkingValue}
+          onBlur={this.handleBlur}
+          min={0}
+          style={blargh}
+        />
+        <ColorDropdown
+          colors={GAUGE_COLORS}
+          selected={selectedColor}
+          onChoose={onChooseColor(threshold)}
+          disabled={type === COLOR_TYPE_MAX && disableMaxColor}
+        />
       </div>
-      {canBeDeleted
-        ? <button
-            className="btn btn-default btn-sm btn-square gauge-controls--delete"
-            onClick={onDeleteThreshold(threshold)}
-          >
-            <span className="icon remove" />
-          </button>
-        : null}
-      <input
-        value={value}
-        className="form-control input-sm gauge-controls--input"
-        type="number"
-        onChange={onChangeValue(threshold)}
-        min={0}
-      />
-      <ColorDropdown
-        colors={GAUGE_COLORS}
-        selected={selectedColor}
-        onChoose={onChooseColor(threshold)}
-        disabled={type === COLOR_TYPE_MAX && disableMaxColor}
-      />
-    </div>
-  )
+    )
+  }
 }
 
 const {bool, func, shape, string} = PropTypes
@@ -75,7 +107,8 @@ GaugeThreshold.propTypes = {
   }).isRequired,
   disableMaxColor: bool,
   onChooseColor: func.isRequired,
-  onChangeValue: func.isRequired,
+  onValidateColorValue: func.isRequired,
+  onUpdateColorValue: func.isRequired,
   onDeleteThreshold: func.isRequired,
 }
 

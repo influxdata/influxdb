@@ -46,7 +46,8 @@ class DisplayOptions extends Component {
       onAddThreshold,
       onDeleteThreshold,
       onChooseColor,
-      onChangeColorValue,
+      onValidateColorValue,
+      onUpdateColorValue,
     } = this.props
     const {axes} = this.state
 
@@ -62,7 +63,8 @@ class DisplayOptions extends Component {
           ? <GaugeOptions
               colors={colors}
               onChooseColor={onChooseColor}
-              onChangeValue={onChangeColorValue}
+              onValidateColorValue={onValidateColorValue}
+              onUpdateColorValue={onUpdateColorValue}
               onAddThreshold={onAddThreshold}
               onDeleteThreshold={onDeleteThreshold}
             />
@@ -86,7 +88,8 @@ DisplayOptions.propTypes = {
   onAddThreshold: func.isRequired,
   onDeleteThreshold: func.isRequired,
   onChooseColor: func.isRequired,
-  onChangeColorValue: func.isRequired,
+  onValidateColorValue: func.isRequired,
+  onUpdateColorValue: func.isRequired,
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetPrefixSuffix: func.isRequired,

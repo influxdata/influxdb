@@ -126,7 +126,15 @@ class CellEditorOverlay extends Component {
     this.setState({colors: newColors})
   }
 
-  handleChangeColorValue = threshold => e => {
+  handleUpdateColorValue = (threshold, newValue) => {
+    const {colors} = this.state
+    const newColors = colors.map(
+      color => (color.id === threshold.id ? {...color, value: newValue} : color)
+    )
+    this.setState({colors: newColors})
+  }
+
+  handleValidateColorValue = (threshold, e) => {
     const {colors} = this.state
     const sortedColors = _.sortBy(colors, color => Number(color.value))
     const targetValueNumber = Number(e.target.value)
@@ -143,7 +151,7 @@ class CellEditorOverlay extends Component {
     // If type === min, make sure it is less than the next threshold
     if (threshold.type === COLOR_TYPE_MIN) {
       const nextValue = Number(sortedColors[1].value)
-      allowedToUpdate = targetValueNumber < nextValue
+      allowedToUpdate = targetValueNumber < nextValue && targetValueNumber >= 0
     }
     // If type === max, make sure it is greater than the previous threshold
     if (threshold.type === COLOR_TYPE_MAX) {
@@ -167,14 +175,7 @@ class CellEditorOverlay extends Component {
       allowedToUpdate = greaterThanMin && lessThanMax && isUnique
     }
 
-    // Only set new state if all checks pass
-    if (allowedToUpdate) {
-      const newColors = colors.map(
-        color =>
-          color.id === threshold.id ? {...color, value: e.target.value} : color
-      )
-      this.setState({colors: newColors})
-    }
+    return allowedToUpdate
   }
 
   queryStateReducer = queryModifier => (queryID, ...payload) => {
@@ -467,7 +468,8 @@ class CellEditorOverlay extends Component {
                   axes={axes}
                   colors={colors}
                   onChooseColor={this.handleChooseColor}
-                  onChangeColorValue={this.handleChangeColorValue}
+                  onValidateColorValue={this.handleValidateColorValue}
+                  onUpdateColorValue={this.handleUpdateColorValue}
                   onAddThreshold={this.handleAddThreshold}
                   onDeleteThreshold={this.handleDeleteThreshold}
                   onSetBase={this.handleSetBase}
