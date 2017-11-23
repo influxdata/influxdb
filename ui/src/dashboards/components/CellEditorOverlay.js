@@ -77,7 +77,7 @@ class CellEditorOverlay extends Component {
     const {colors} = this.state
 
     if (colors.length <= MAX_THRESHOLDS) {
-      const randomColor = Math.floor(Math.random() * GAUGE_COLORS.length)
+      const randomColor = _.random(0, GAUGE_COLORS.length)
 
       const maxValue = Number(
         colors.find(color => color.type === COLOR_TYPE_MAX).value
@@ -86,10 +86,17 @@ class CellEditorOverlay extends Component {
         colors.find(color => color.type === COLOR_TYPE_MIN).value
       )
 
+      const colorsValues = _.mapValues(colors, 'value')
+      let randomValue
+
+      do {
+        randomValue = String(_.round(_.random(minValue, maxValue, true), 2))
+      } while (_.includes(colorsValues, randomValue))
+
       const newThreshold = {
         type: COLOR_TYPE_THRESHOLD,
         id: uuid.v4(),
-        value: String((maxValue + minValue) / 2),
+        value: randomValue,
         hex: GAUGE_COLORS[randomColor].hex,
         name: GAUGE_COLORS[randomColor].name,
       }
