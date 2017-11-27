@@ -638,7 +638,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 		//     False  |       True      |      False
 		//     False  |       False     |      True
 		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) && authorized {
-			names = append(names, []byte(m.Name))
+			names = append(names, m.NameBytes)
 		}
 	}
 
@@ -654,7 +654,7 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	var matches [][]byte
 	for _, m := range i.measurements {
 		if re.MatchString(m.Name) {
-			matches = append(matches, []byte(m.Name))
+			matches = append(matches, m.NameBytes)
 		}
 	}
 	return matches, nil
@@ -784,7 +784,7 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	i.mu.RUnlock()
 
 	for _, m := range mms {
-		if err := fn([]byte(m.Name)); err != nil {
+		if err := fn(m.NameBytes); err != nil {
 			return err
 		}
 	}
