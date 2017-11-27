@@ -9,6 +9,8 @@
 1. [#2303](https://github.com/influxdata/chronograf/pull/2303): Add shadow-utils to RPM release packages
 1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
 1. [#2329](https://github.com/influxdata/chronograf/pull/2329): Include tag values alongside measurement name in Data Explorer result tabs
+1. [#2410](https://github.com/influxdata/chronograf/pull/2410): Redesign cell display options panel
+1. [#2410](https://github.com/influxdata/chronograf/pull/2410): Introduce customizable Gauge visualization type for dashboard cells
 
 ### Features
 ### UI Improvements
