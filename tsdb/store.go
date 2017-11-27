@@ -1096,7 +1096,7 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 	var results []TagKeys
 	for _, name := range names {
 		// Build keyset over all shards for measurement.
-		keySet := make(map[string]struct{})
+		keySet := map[string]struct{}{}
 		for _, sh := range shards {
 			shardKeySet, err := sh.MeasurementTagKeysByExpr([]byte(name), nil)
 			if err != nil {
@@ -1105,6 +1105,21 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 				continue
 			}
 
+			// If no tag value filter is present then all the tag keys can be returned
+			// If they have authorized series associated with them.
+			if filterExpr == nil {
+				for tagKey := range shardKeySet {
+					if sh.TagKeyHasAuthorizedSeries(auth, []byte(name), tagKey) {
+						keySet[tagKey] = struct{}{}
+					}
+				}
+				continue
+			}
+
+			// A tag value condition has been supplied. For each tag key filter
+			// the set of tag values by the condition. Only tag keys with remaining
+			// tag values will be included in the result set.
+
 			// Sort the tag keys.
 			shardKeys := make([]string, 0, len(shardKeySet))
 			for k := range shardKeySet {
@@ -1112,7 +1127,10 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 			}
 			sort.Strings(shardKeys)
 
-			// Filter against tag values, skip if no values exist.
+			// TODO(edd): This is very expensive. We're materialising all unfiltered
+			// tag values for all required tag keys, only to see if we have any.
+			// Then we're throwing them all away as we only care about the tag
+			// keys in the result set.
 			shardValues, err := sh.MeasurementTagKeyValuesByExpr(auth, []byte(name), shardKeys, filterExpr, true)
 			if err != nil {
 				return nil, err
