@@ -23,7 +23,9 @@ To extract tags from metrics, one or more templates must be configured to parse 
 
 Templates allow matching parts of a metric name to be used as tag keys in the stored metric.  They have a similar format to Graphite metric names.  The values in between the separators are used as the tag keys.  The location of the tag key that matches the same position as the Graphite metric section is used as the value.  If there is no value, the Graphite portion is skipped.
 
-The special value _measurement_ is used to define the measurement name.  It can have a trailing `*` to indicate that the remainder of the metric should be used.  If a _measurement_ is not specified, the full metric name is used.
+The special value _measurement_ is used to define the measurement name.  If a _measurement_ is not specified, the full metric name is used.
+
+Any metric value can have a trailing ```*``` to indicate that it should use the rest of the metric name. You probably don't want to use this for anything but 'measurement' or 'field'. Only one metric value may have a trailing ```*``` in any given template.
 
 ### Basic Matching
 
@@ -33,8 +35,7 @@ The special value _measurement_ is used to define the measurement name.  It can 
 
 ### Multiple Measurement & Tags Matching
 
-The _measurement_ can be specified multiple times in a template to provide more control over the measurement name. Tags can also be
-matched multiple times. Multiple values will be joined together using the _Separator_ config variable.  By default, this value is `.`.
+A component can be specified multiple times in a template to provide more control over its contents. Multiple values will be joined together using the _Separator_ config variable.  By default, this value is `.`.
 
 `servers.localhost.localdomain.cpu.cpu0.user`
 * Template: `.host.host.measurement.cpu.measurement`
@@ -57,9 +58,7 @@ Additional tags can be added to a metric if they don't exist on the received met
 
 ### Fields
 
-A field key can be specified by using the keyword _field_. By default if no _field_ keyword is specified then the metric will be written to a field named _value_.
-
-The field key can also be derived from the second "half" of the input metric-name by specifying ```field*``` (eg ```measurement.measurement.field*```). This cannot be used in conjunction with "measurement*"!
+A field key can be specified by using the keyword _field_. By default if no _field_ keyword is specified then the metric will be written to a field named _value_. As with other keys, you can specify ```field*``` to mark the remainder of the input metric name as the field.
 
 It's possible to amend measurement metrics with additional fields, e.g:
 
@@ -87,6 +86,47 @@ name: net
 time      host  interface rx_bytes    rx_dropped  rx_errors rx_packets    tx_bytes    tx_dropped  tx_errors
 1444234982000000000 server0  eth0    1.015633926034834e+15 0   0   4.61295119435e+11 1.09308649338848e+15  0 0
 ```
+
+### Splitting within a component
+
+In some cases, a system may produce names which have something that
+should be a tag, but which isn't exposed as a dot-separated field. And that
+could happen in something which is otherwise using dots. So, instead of
+specifying a component template name, you can specify a subset to be
+parsed out differently. As an illustration, input:
+
+```
+h1.Interface_xe0.in 250 1512345678
+h2.Interface_bge0.in 500 1512345678
+```
+
+With template:
+
+```
+host.(_,measurement_interface*).field
+```
+
+Becomes database entry:
+```
+> select * from Interface
+name: Interface
+---------------
+time          in    host   interface
+1512345678    250   h1     xe0
+1512345678    250   h2     bge0
+```
+
+To specify a split, wrap the entire component name in parentheses. You
+must provide a delimiter, followed by a comma. If you want to distinguish
+between delimiter (used to split) and separator (used when rejoining multiple
+values), you can specify both:
+
+```
+(delimeter,separator,fieldnames)
+```
+
+Note that field names are separated by the delimiter character, not necessarily
+by periods.
 
 ## Multiple Templates
 

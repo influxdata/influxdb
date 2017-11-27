@@ -73,6 +73,12 @@ func TestTemplateApply(t *testing.T) {
 			err:  `no measurement specified for template. ""`,
 		},
 		{
+			test:     "measurement* and field* (invalid)",
+			input:    `prod.us-west.server01.cpu.util.idle.percent 99.99 1419972457825`,
+			template: "env.zone.host.measurement*.field*",
+			err:      `can only specify one greedy tag: "env.zone.host.measurement*.field*"`,
+		},
+		{
 			test:        "ignore unnamed",
 			input:       "foo.cpu",
 			template:    "measurement",
@@ -107,6 +113,13 @@ func TestTemplateApply(t *testing.T) {
 			measurement: "cpu.util",
 			tags:        map[string]string{"env": "prod", "zone": "us-west", "host": "server01"},
 		},
+		{
+			test:        "subfields",
+			input:       "somemachine.Interface_xe0_1_0.in",
+			template:    "host.(_,measurement_interface*).field",
+			measurement: "Interface",
+			tags:        map[string]string{"host": "somemachine", "interface": "xe0_1_0"},
+		},
 	}
 
 	for _, test := range tests {
@@ -121,10 +134,10 @@ func TestTemplateApply(t *testing.T) {
 
 		measurement, tags, _, _ := tmpl.Apply(test.input)
 		if measurement != test.measurement {
-			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, measurement)
+			t.Fatalf("name parse failure [%s].  expected %v, got %v [tags %v]", test.test, test.measurement, measurement, tags)
 		}
 		if len(tags) != len(test.tags) {
-			t.Fatalf("unexpected number of tags.  expected %v, got %v", test.tags, tags)
+			t.Fatalf("unexpected number of tags [%s].  expected %v, got %v", test.test, test.tags, tags)
 		}
 		for k, v := range test.tags {
 			if tags[k] != v {
@@ -200,12 +213,6 @@ func TestParse(t *testing.T) {
 			template: "measurement",
 			err:      `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
-		{
-			test:     "measurement* and field* (invalid)",
-			input:    `prod.us-west.server01.cpu.util.idle.percent 99.99 1419972457825`,
-			template: "env.zone.host.measurement*.field*",
-			err:      `either 'field*' or 'measurement*' can be used in each template (but not both together): "env.zone.host.measurement*.field*"`,
-		},
 	}
 
 	for _, test := range tests {
@@ -275,7 +282,7 @@ func TestFilterMatchDefault(t *testing.T) {
 	}
 
 	if exp.String() != pt.String() {
-		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+		t.Errorf("parse mismatch [TestFilterMatchDefault]: got %v, exp %v", pt.String(), exp.String())
 	}
 }
 
@@ -695,23 +702,6 @@ func TestApplyTemplateField(t *testing.T) {
 	if field != "logged_in" {
 		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
 			field, "logged_in")
-	}
-}
-
-func TestApplyTemplateFieldError(t *testing.T) {
-	o := graphite.Options{
-		Separator: "_",
-		Templates: []string{"current.* measurement.field.field"},
-	}
-	p, err := graphite.NewParserWithOptions(o)
-	if err != nil {
-		t.Fatalf("unexpected error creating parser, got %v", err)
-	}
-
-	_, _, _, err = p.ApplyTemplate("current.users.logged_in")
-	if err == nil {
-		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s", err,
-			"'field' can only be used once in each template: current.users.logged_in")
 	}
 }
 

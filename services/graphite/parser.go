@@ -182,96 +182,178 @@ func (p *Parser) ApplyTemplate(line string) (string, map[string]string, string, 
 	return name, tags, field, err
 }
 
+// a tag represents either a single tag, or a collection of tags
+// which are split out and possibly rejoined. splitting uses
+// delimiter, rejoining uses separator. (This is so the test case
+// which parses "cpu.cpu_load.10" with separator="_" can produce
+// the expected "cpu_cpu_load_10".)
+type tagset struct {
+	name      string
+	greedy    bool
+	separator string
+	delimiter string
+	tags      []tagset
+}
+
+func (t *tagset) append(newtag tagset) {
+	t.tags = append(t.tags, newtag)
+}
+
+func (t tagset) find(name string) bool {
+	if t.name == name {
+		return true
+	}
+	for _, tag := range t.tags {
+		if tag.find(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func (t tagset) greedyCount() int {
+	var count int
+	if t.greedy {
+		count++
+	}
+	for _, tag := range t.tags {
+		count += tag.greedyCount()
+	}
+	return count
+}
+
+// find a tag, or possibly a tagset which is
+// specified as (del,words) or (del,sep,words)
+func FindTags(pattern string, delimiter string, separator string) (tagset, error) {
+	set := tagset{separator: separator, delimiter: delimiter}
+	words := strings.Split(pattern, delimiter)
+	for _, word := range words {
+		if word == "" {
+			set.append(tagset{name: "", greedy: false})
+			continue
+		}
+		lastchar := word[len(word)-1]
+		if word[0] == '(' && lastchar == ')' {
+			comma := strings.Index(word, ",")
+			if comma == -1 {
+				return set, fmt.Errorf("subpattern has no distinct delimiter")
+
+			}
+			subdel := word[1:comma]
+			subwords := word[comma+1 : len(word)-1]
+			subsep := subdel
+			comma = strings.Index(subwords, ",")
+			if comma != -1 {
+				subsep = subwords[0:comma]
+				subwords = subwords[comma+1 : len(subwords)-1]
+			}
+			subtags, err := FindTags(subwords, subdel, subsep)
+			if err != nil {
+				// Bail out
+				return set, err
+			}
+			set.append(subtags)
+		} else {
+			if lastchar == '*' {
+				set.append(tagset{name: word[:len(word)-1], greedy: true})
+			} else {
+				set.append(tagset{name: word, greedy: false})
+			}
+		}
+	}
+	return set, nil
+}
+
 // template represents a pattern and tags to map a graphite metric string to a influxdb Point.
 type template struct {
-	tags              []string
-	defaultTags       models.Tags
-	greedyMeasurement bool
-	separator         string
+	tags        tagset
+	defaultTags models.Tags
+	separator   string
 }
 
 // NewTemplate returns a new template ensuring it has a measurement
 // specified.
 func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*template, error) {
-	tags := strings.Split(pattern, ".")
+	// at top level, delimiter is always "." even if you specify a different
+	// separator
+	tags, err := FindTags(pattern, ".", separator)
+	if err != nil {
+		return nil, err
+	}
 	hasMeasurement := false
 	template := &template{tags: tags, defaultTags: defaultTags, separator: separator}
 
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, "measurement") {
-			hasMeasurement = true
-		}
-		if tag == "measurement*" {
-			template.greedyMeasurement = true
-		}
-	}
-
+	hasMeasurement = tags.find("measurement")
 	if !hasMeasurement {
 		return nil, fmt.Errorf("no measurement specified for template. %q", pattern)
 	}
 
+	if tags.greedyCount() > 1 {
+		return nil, fmt.Errorf("can only specify one greedy tag: %q", pattern)
+	}
 	return template, nil
 }
 
 // Apply extracts the template fields from the given line and returns the measurement
 // name and tags.
-func (t *template) Apply(line string) (string, map[string]string, string, error) {
-	fields := strings.Split(line, ".")
-	var (
-		measurement            []string
-		tags                   = make(map[string][]string)
-		field                  string
-		hasFieldWildcard       = false
-		hasMeasurementWildcard = false
-	)
-
-	// Set any default tags
-	for _, t := range t.defaultTags {
-		tags[string(t.Key)] = append(tags[string(t.Key)], string(t.Value))
-	}
-
-	// See if an invalid combination has been specified in the template:
-	for _, tag := range t.tags {
-		if tag == "measurement*" {
-			hasMeasurementWildcard = true
-		} else if tag == "field*" {
-			hasFieldWildcard = true
-		}
-	}
-	if hasFieldWildcard && hasMeasurementWildcard {
-		return "", nil, "", fmt.Errorf("either 'field*' or 'measurement*' can be used in each template (but not both together): %q", strings.Join(t.tags, t.separator))
-	}
-
-	for i, tag := range t.tags {
+func (ts *tagset) Apply(line string, tags map[string][]string) {
+	mytags := make(map[string][]string)
+	fields := strings.Split(line, ts.delimiter)
+	for i, t := range ts.tags {
+		// ignore tags we have no fields for
 		if i >= len(fields) {
 			continue
 		}
-
-		if tag == "measurement" {
-			measurement = append(measurement, fields[i])
-		} else if tag == "field" {
-			if len(field) != 0 {
-				return "", nil, "", fmt.Errorf("'field' can only be used once in each template: %q", line)
-			}
-			field = fields[i]
-		} else if tag == "field*" {
-			field = strings.Join(fields[i:], t.separator)
+		// if this tag has its own delimiter, split the
+		// things under it
+		if t.delimiter != "" {
+			t.Apply(fields[i], mytags)
+			continue
+		}
+		// an empty field means skip this part of metric name
+		if t.name == "" {
+			continue
+		}
+		if t.greedy {
+			mytags[t.name] = append(mytags[t.name], fields[i:]...)
 			break
-		} else if tag == "measurement*" {
-			measurement = append(measurement, fields[i:]...)
-			break
-		} else if tag != "" {
-			tags[tag] = append(tags[tag], fields[i])
+		}
+		mytags[t.name] = append(mytags[t.name], fields[i])
+	}
+	for name, words := range mytags {
+		if len(words) > 1 {
+			// join things back up with our separator
+			tags[name] = append(tags[name], strings.Join(words, ts.separator))
+		} else {
+			tags[name] = append(tags[name], words[0])
 		}
 	}
+}
 
-	// Convert to map of strings.
-	out_tags := make(map[string]string)
-	for k, values := range tags {
-		out_tags[k] = strings.Join(values, t.separator)
+func (t *template) Apply(line string) (string, map[string]string, string, error) {
+	var (
+		taglists = make(map[string][]string)
+		tags     = make(map[string]string)
+		field    string
+	)
+	// Set any default tags
+	for _, t := range t.defaultTags {
+		taglists[string(t.Key)] = append(taglists[string(t.Key)], string(t.Value))
 	}
 
-	return strings.Join(measurement, t.separator), out_tags, field, nil
+	t.tags.Apply(line, taglists)
+	for name, list := range taglists {
+		tags[name] = strings.Join(list, t.separator)
+	}
+	field = tags["field"]
+	delete(tags, "field")
+	if tags["measurement"] == "" {
+		return "", tags, field, fmt.Errorf("No measurement name found.")
+	}
+	measurement := tags["measurement"]
+	delete(tags, "measurement")
+
+	return measurement, tags, field, nil
 }
 
 // matcher determines which template should be applied to a given metric
