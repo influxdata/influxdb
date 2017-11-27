@@ -11,6 +11,7 @@
 1. [#2329](https://github.com/influxdata/chronograf/pull/2329): Include tag values alongside measurement name in Data Explorer result tabs
 
 ### Features
+1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
 ### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]
