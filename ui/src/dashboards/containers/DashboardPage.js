@@ -39,13 +39,12 @@ class DashboardPage extends Component {
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
-      names: [],
     }
   }
 
   async componentDidMount() {
     const {
-      params: {dashboardID, sourceID},
+      params: {dashboardID},
       dashboardActions: {
         getDashboardsAsync,
         updateTempVarValues,
@@ -62,13 +61,6 @@ class DashboardPage extends Component {
     // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
     await putDashboardByID(dashboardID)
-
-    const names = dashboards.map(d => ({
-      name: d.name,
-      link: `/sources/${sourceID}/dashboards/${d.id}`,
-    }))
-
-    this.setState({names})
   }
 
   handleOpenTemplateManager = () => {
@@ -294,7 +286,11 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating, names} = this.state
+    const {selectedCell, isEditMode, isTemplating} = this.state
+    const names = dashboards.map(d => ({
+      name: d.name,
+      link: `/sources/${sourceID}/dashboards/${d.id}`,
+    }))
 
     return (
       <div className="page">
