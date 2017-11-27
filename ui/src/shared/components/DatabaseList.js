@@ -51,7 +51,6 @@ const DatabaseList = React.createClass({
 
     const newMetaQuery =
       prevQuery.rawText !== nextQuery.rawText &&
-      nextQuery.rawText &&
       nextQuery.rawText.match(/^(create|drop)/i)
 
     if (differentSource || newMetaQuery) {
