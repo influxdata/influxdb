@@ -5721,6 +5721,25 @@ input.form-control.form-astronaut::-moz-selection,
 textarea.form-control.form-astronaut::-moz-selection {
   background-color: #9394ff;
 }
+input.form-control.form-volcano,
+textarea.form-control.form-volcano {
+  color: #ff8564;
+}
+input.form-control.form-volcano:focus,
+textarea.form-control.form-volcano:focus {
+  color: #fff7f4;
+  background-color: #2f1f29;
+  border-color: #ff8564;
+  box-shadow: 0 0 8px #f95f53;
+}
+input.form-control.form-volcano::selection,
+textarea.form-control.form-volcano::selection {
+  background-color: #f95f53;
+}
+input.form-control.form-volcano::-moz-selection,
+textarea.form-control.form-volcano::-moz-selection {
+  background-color: #f95f53;
+}
 .form-control.monotype {
   font-family: "Roboto Mono", monospace;
 }
