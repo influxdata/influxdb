@@ -44,16 +44,9 @@ func init() {
 
 // DefaultPartitionN determines how many shards the index will be partitioned into.
 //
-// NOTE: Currently, this *must* not be variable. If this package is recompiled
-// with a different DefaultPartitionN value, and ran against an existing TSI index
-// the database will be unable to locate existing series properly.
+// NOTE: Currently, this must not be change once a database is created. Further,
+// it must also be a power of 2.
 //
-// TODO(edd): If this sharding spike is successful then implement a consistent
-// hashring so that we can fiddle with this.
-//
-// NOTE(edd): Currently this must be a power of 2.
-//
-// FIXME(edd): This is variable for testing purposes during development.
 var DefaultPartitionN uint64 = 16
 
 // An IndexOption is a functional option for changing the configuration of
@@ -211,7 +204,6 @@ func (i *Index) Close() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	// TODO(edd): Close Partitions.
 	for _, p := range i.partitions {
 		if err := p.Close(); err != nil {
 			return err
@@ -440,7 +432,7 @@ func (i *Index) CreateSeriesListIfNotExists(_ [][]byte, names [][]byte, tagsSlic
 	pNames := make([][][]byte, i.PartitionN)
 	pTags := make([][]models.Tags, i.PartitionN)
 
-	// determine appropriate where series shoud live using each series key.
+	// Determine partition for series using each series key.
 	buf := make([]byte, 2048)
 	for k, _ := range names {
 		buf = tsdb.AppendSeriesKey(buf[:0], names[k], tagsSlice[k])
