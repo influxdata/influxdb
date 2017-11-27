@@ -3,6 +3,7 @@ import _ from 'lodash'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
   fill,
+  timeShift,
   chooseTag,
   groupByTag,
   removeFuncs,
@@ -20,24 +21,24 @@ import {
 const queryConfigs = (state = {}, action) => {
   switch (action.type) {
     case 'DE_CHOOSE_NAMESPACE': {
-      const {queryId, database, retentionPolicy} = action.payload
-      const nextQueryConfig = chooseNamespace(state[queryId], {
+      const {queryID, database, retentionPolicy} = action.payload
+      const nextQueryConfig = chooseNamespace(state[queryID], {
         database,
         retentionPolicy,
       })
 
       return Object.assign({}, state, {
-        [queryId]: Object.assign(nextQueryConfig, {rawText: null}),
+        [queryID]: Object.assign(nextQueryConfig, {rawText: null}),
       })
     }
 
     case 'DE_CHOOSE_MEASUREMENT': {
-      const {queryId, measurement} = action.payload
-      const nextQueryConfig = chooseMeasurement(state[queryId], measurement)
+      const {queryID, measurement} = action.payload
+      const nextQueryConfig = chooseMeasurement(state[queryID], measurement)
 
       return Object.assign({}, state, {
-        [queryId]: Object.assign(nextQueryConfig, {
-          rawText: state[queryId].rawText,
+        [queryID]: Object.assign(nextQueryConfig, {
+          rawText: state[queryID].rawText,
         }),
       })
     }
@@ -64,78 +65,78 @@ const queryConfigs = (state = {}, action) => {
     }
 
     case 'DE_EDIT_RAW_TEXT': {
-      const {queryId, rawText} = action.payload
-      const nextQueryConfig = editRawText(state[queryId], rawText)
+      const {queryID, rawText} = action.payload
+      const nextQueryConfig = editRawText(state[queryID], rawText)
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'DE_GROUP_BY_TIME': {
-      const {queryId, time} = action.payload
-      const nextQueryConfig = groupByTime(state[queryId], time)
+      const {queryID, time} = action.payload
+      const nextQueryConfig = groupByTime(state[queryID], time)
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'DE_TOGGLE_TAG_ACCEPTANCE': {
-      const {queryId} = action.payload
-      const nextQueryConfig = toggleTagAcceptance(state[queryId])
+      const {queryID} = action.payload
+      const nextQueryConfig = toggleTagAcceptance(state[queryID])
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'DE_TOGGLE_FIELD': {
-      const {queryId, fieldFunc} = action.payload
-      const nextQueryConfig = toggleField(state[queryId], fieldFunc)
+      const {queryID, fieldFunc} = action.payload
+      const nextQueryConfig = toggleField(state[queryID], fieldFunc)
 
       return Object.assign({}, state, {
-        [queryId]: {...nextQueryConfig, rawText: null},
+        [queryID]: {...nextQueryConfig, rawText: null},
       })
     }
 
     case 'DE_APPLY_FUNCS_TO_FIELD': {
-      const {queryId, fieldFunc, groupBy} = action.payload
+      const {queryID, fieldFunc, groupBy} = action.payload
       const nextQueryConfig = applyFuncsToField(
-        state[queryId],
+        state[queryID],
         fieldFunc,
         groupBy
       )
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'DE_CHOOSE_TAG': {
-      const {queryId, tag} = action.payload
-      const nextQueryConfig = chooseTag(state[queryId], tag)
+      const {queryID, tag} = action.payload
+      const nextQueryConfig = chooseTag(state[queryID], tag)
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'DE_GROUP_BY_TAG': {
-      const {queryId, tagKey} = action.payload
-      const nextQueryConfig = groupByTag(state[queryId], tagKey)
+      const {queryID, tagKey} = action.payload
+      const nextQueryConfig = groupByTag(state[queryID], tagKey)
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'DE_FILL': {
-      const {queryId, value} = action.payload
-      const nextQueryConfig = fill(state[queryId], value)
+      const {queryID, value} = action.payload
+      const nextQueryConfig = fill(state[queryID], value)
 
       return {
         ...state,
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       }
     }
 
@@ -168,6 +169,13 @@ const queryConfigs = (state = {}, action) => {
     case 'DE_ADD_INITIAL_FIELD': {
       const {queryID, field, groupBy} = action.payload
       const nextQuery = addInitialField(state[queryID], field, groupBy)
+
+      return {...state, [queryID]: nextQuery}
+    }
+
+    case 'DE_TIME_SHIFT': {
+      const {queryID, shift} = action.payload
+      const nextQuery = timeShift(state[queryID], shift)
 
       return {...state, [queryID]: nextQuery}
     }

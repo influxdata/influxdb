@@ -86,6 +86,7 @@ func (d *DashboardsStore) Add(ctx context.Context, src chronograf.Dashboard) (ch
 		id, _ := b.NextSequence()
 
 		src.ID = chronograf.DashboardID(id)
+		// TODO: use FormatInt
 		strID := strconv.Itoa(int(id))
 		for i, cell := range src.Cells {
 			cid, err := d.IDs.Generate()
@@ -95,12 +96,11 @@ func (d *DashboardsStore) Add(ctx context.Context, src chronograf.Dashboard) (ch
 			cell.ID = cid
 			src.Cells[i] = cell
 		}
-		if v, err := internal.MarshalDashboard(src); err != nil {
-			return err
-		} else if err := b.Put([]byte(strID), v); err != nil {
+		v, err := internal.MarshalDashboard(src)
+		if err != nil {
 			return err
 		}
-		return nil
+		return b.Put([]byte(strID), v)
 	}); err != nil {
 		return chronograf.Dashboard{}, err
 	}

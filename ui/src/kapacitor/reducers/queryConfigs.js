@@ -1,13 +1,14 @@
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
-  applyFuncsToField,
-  chooseMeasurement,
-  chooseNamespace,
+  timeShift,
   chooseTag,
   groupByTag,
   groupByTime,
   removeFuncs,
+  chooseNamespace,
   toggleKapaField,
+  applyFuncsToField,
+  chooseMeasurement,
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
 
@@ -34,9 +35,9 @@ const queryConfigs = (state = {}, action) => {
     }
 
     case 'KAPA_CHOOSE_NAMESPACE': {
-      const {queryId, database, retentionPolicy} = action.payload
+      const {queryID, database, retentionPolicy} = action.payload
       const nextQueryConfig = chooseNamespace(
-        state[queryId],
+        state[queryID],
         {
           database,
           retentionPolicy,
@@ -45,75 +46,75 @@ const queryConfigs = (state = {}, action) => {
       )
 
       return Object.assign({}, state, {
-        [queryId]: Object.assign(nextQueryConfig, {rawText: null}),
+        [queryID]: Object.assign(nextQueryConfig, {rawText: null}),
       })
     }
 
     case 'KAPA_CHOOSE_MEASUREMENT': {
-      const {queryId, measurement} = action.payload
+      const {queryID, measurement} = action.payload
       const nextQueryConfig = chooseMeasurement(
-        state[queryId],
+        state[queryID],
         measurement,
         IS_KAPACITOR_RULE
       )
 
       return Object.assign({}, state, {
-        [queryId]: Object.assign(nextQueryConfig, {
-          rawText: state[queryId].rawText,
+        [queryID]: Object.assign(nextQueryConfig, {
+          rawText: state[queryID].rawText,
         }),
       })
     }
 
     case 'KAPA_CHOOSE_TAG': {
-      const {queryId, tag} = action.payload
-      const nextQueryConfig = chooseTag(state[queryId], tag)
+      const {queryID, tag} = action.payload
+      const nextQueryConfig = chooseTag(state[queryID], tag)
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'KAPA_GROUP_BY_TAG': {
-      const {queryId, tagKey} = action.payload
-      const nextQueryConfig = groupByTag(state[queryId], tagKey)
+      const {queryID, tagKey} = action.payload
+      const nextQueryConfig = groupByTag(state[queryID], tagKey)
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'KAPA_TOGGLE_TAG_ACCEPTANCE': {
-      const {queryId} = action.payload
-      const nextQueryConfig = toggleTagAcceptance(state[queryId])
+      const {queryID} = action.payload
+      const nextQueryConfig = toggleTagAcceptance(state[queryID])
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
     case 'KAPA_TOGGLE_FIELD': {
-      const {queryId, fieldFunc} = action.payload
-      const nextQueryConfig = toggleKapaField(state[queryId], fieldFunc)
+      const {queryID, fieldFunc} = action.payload
+      const nextQueryConfig = toggleKapaField(state[queryID], fieldFunc)
 
-      return {...state, [queryId]: {...nextQueryConfig, rawText: null}}
+      return {...state, [queryID]: {...nextQueryConfig, rawText: null}}
     }
 
     case 'KAPA_APPLY_FUNCS_TO_FIELD': {
-      const {queryId, fieldFunc} = action.payload
-      const {groupBy} = state[queryId]
-      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, {
+      const {queryID, fieldFunc} = action.payload
+      const {groupBy} = state[queryID]
+      const nextQueryConfig = applyFuncsToField(state[queryID], fieldFunc, {
         ...groupBy,
         time: groupBy.time ? groupBy.time : '10s',
       })
 
-      return {...state, [queryId]: nextQueryConfig}
+      return {...state, [queryID]: nextQueryConfig}
     }
 
     case 'KAPA_GROUP_BY_TIME': {
-      const {queryId, time} = action.payload
-      const nextQueryConfig = groupByTime(state[queryId], time)
+      const {queryID, time} = action.payload
+      const nextQueryConfig = groupByTime(state[queryID], time)
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryID]: nextQueryConfig,
       })
     }
 
@@ -122,6 +123,13 @@ const queryConfigs = (state = {}, action) => {
       const nextQuery = removeFuncs(state[queryID], fields)
 
       // fields with no functions cannot have a group by time
+      return {...state, [queryID]: nextQuery}
+    }
+
+    case 'KAPA_TIME_SHIFT': {
+      const {queryID, shift} = action.payload
+      const nextQuery = timeShift(state[queryID], shift)
+
       return {...state, [queryID]: nextQuery}
     }
   }
