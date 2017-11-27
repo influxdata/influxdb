@@ -2,8 +2,12 @@ import _ from 'lodash'
 
 import {TEMP_VAR_INTERVAL, AUTO_GROUP_BY} from 'shared/constants'
 import {NULL_STRING} from 'shared/constants/queryFillOptions'
-import {TYPE_QUERY_CONFIG, TYPE_IFQL} from 'src/dashboards/constants'
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {
+  TYPE_QUERY_CONFIG,
+  TYPE_SHIFTED,
+  TYPE_IFQL,
+} from 'src/dashboards/constants'
+import {shiftTimeRange} from 'shared/query/helpers'
 
 /* eslint-disable quotes */
 export const quoteIfTimestamp = ({lower, upper}) => {
@@ -19,11 +23,11 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 }
 /* eslint-enable quotes */
 
-export default function buildInfluxQLQuery(timeRange, config) {
+export default function buildInfluxQLQuery(timeRange, config, shift) {
   const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
   const {upper, lower} = quoteIfTimestamp(timeRange)
 
-  const select = _buildSelect(config)
+  const select = _buildSelect(config, shift)
   if (select === null) {
     return null
   }
@@ -35,26 +39,35 @@ export default function buildInfluxQLQuery(timeRange, config) {
   return `${select}${condition}${dimensions}${fillClause}`
 }
 
-function _buildSelect({fields, database, retentionPolicy, measurement}) {
+function _buildSelect({fields, database, retentionPolicy, measurement}, shift) {
   if (!database || !measurement || !fields || !fields.length) {
     return null
   }
 
   const rpSegment = retentionPolicy ? `"${retentionPolicy}"` : ''
-  const fieldsClause = _buildFields(fields)
+  const fieldsClause = _buildFields(fields, shift)
   const fullyQualifiedMeasurement = `"${database}".${rpSegment}."${measurement}"`
   const statement = `SELECT ${fieldsClause} FROM ${fullyQualifiedMeasurement}`
   return statement
 }
 
 // type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
-export const buildQuery = (type, timeRange, config) => {
+export const buildQuery = (type, timeRange, config, shift) => {
   switch (type) {
-    case `${TYPE_QUERY_CONFIG}`: {
+    case TYPE_QUERY_CONFIG: {
       return buildInfluxQLQuery(timeRange, config)
     }
 
-    case `${TYPE_IFQL}`: {
+    case TYPE_SHIFTED: {
+      const {quantity, unit} = shift
+      return buildInfluxQLQuery(
+        shiftTimeRange(timeRange, shift),
+        config,
+        `_shifted__${quantity}__${unit}`
+      )
+    }
+
+    case TYPE_IFQL: {
       // build query usining IFQL here
     }
   }
@@ -66,7 +79,7 @@ export function buildSelectStatement(config) {
   return _buildSelect(config)
 }
 
-function _buildFields(fieldFuncs) {
+function _buildFields(fieldFuncs, shift = '') {
   if (!fieldFuncs) {
     return ''
   }
@@ -77,9 +90,21 @@ function _buildFields(fieldFuncs) {
         case 'field': {
           return f.value === '*' ? '*' : `"${f.value}"`
         }
+        case 'wildcard': {
+          return '*'
+        }
+        case 'regex': {
+          return `/${f.value}/`
+        }
+        case 'number': {
+          return `${f.value}`
+        }
+        case 'integer': {
+          return `${f.value}`
+        }
         case 'func': {
           const args = _buildFields(f.args)
-          const alias = f.alias ? ` AS "${f.alias}"` : ''
+          const alias = f.alias ? ` AS "${f.alias}${shift}"` : ''
           return `${f.value}(${args})${alias}`
         }
       }
@@ -153,62 +178,6 @@ function _buildGroupByTags(groupBy) {
 
 function _buildFill(fill) {
   return ` FILL(${fill})`
-}
-
-const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
-  const {defaultGroupBy} = timeRanges.find(range => range.lower === lower) || {
-    defaultGroupBy: '5m',
-  }
-  const {wheres, groupbys} = query
-
-  let text = query.text
-
-  if (upper) {
-    text += ` where time > '${lower}' AND time < '${upper}'`
-  } else {
-    text += ` where time > ${lower}`
-  }
-
-  if (host) {
-    text += ` and \"host\" = '${host}'`
-  }
-
-  if (wheres && wheres.length > 0) {
-    text += ` and ${wheres.join(' and ')}`
-  }
-
-  if (groupbys) {
-    if (groupbys.find(g => g.includes('time'))) {
-      text += ` group by ${groupbys.join(',')}`
-    } else if (groupbys.length > 0) {
-      text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
-    } else {
-      text += ` group by time(${defaultGroupBy})`
-    }
-  } else {
-    text += ` group by time(${defaultGroupBy})`
-  }
-
-  return text
-}
-
-export const buildQueriesForLayouts = (cell, source, timeRange, host) => {
-  return cell.queries.map(query => {
-    let queryText
-    // Canned dashboards use an different a schema different from queryConfig.
-    if (query.queryConfig) {
-      const {queryConfig: {rawText, range}} = query
-      const tR = range || {
-        upper: ':upperDashboardTime:',
-        lower: ':dashboardTime:',
-      }
-      queryText = rawText || buildInfluxQLQuery(tR, query.queryConfig)
-    } else {
-      queryText = buildCannedDashboardQuery(query, timeRange, host)
-    }
-
-    return {...query, host: source.links.proxy, text: queryText}
-  })
 }
 
 export const buildRawText = (q, timeRange) =>
