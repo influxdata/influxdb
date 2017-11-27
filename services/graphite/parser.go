@@ -266,12 +266,12 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 	}
 
 	// Convert to map of strings.
-	out_tags := make(map[string]string)
+	outTags := make(map[string]string)
 	for k, values := range tags {
-		out_tags[k] = strings.Join(values, t.separator)
+		outTags[k] = strings.Join(values, t.separator)
 	}
 
-	return strings.Join(measurement, t.separator), out_tags, field, nil
+	return strings.Join(measurement, t.separator), outTags, field, nil
 }
 
 // matcher determines which template should be applied to a given metric

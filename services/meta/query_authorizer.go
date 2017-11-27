@@ -51,6 +51,10 @@ func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database
 	return u.AuthorizeQuery(database, query)
 }
 
+// AuthorizeQuery authorizes u to execute q on database.
+// Database can be "" for queries that do not require a database.
+// If no user is provided it will return an error unless the query's first statement is to create
+// a root user.
 func (u *UserInfo) AuthorizeQuery(database string, query *influxql.Query) error {
 
 	// Admin privilege allows the user to execute all statements.
