@@ -138,7 +138,7 @@ class AlertTabs extends Component {
       },
       pagerduty: {
         type: 'PagerDuty',
-        enabled: this.getEnabled(configSections, 'opsgenie'),
+        enabled: this.getEnabled(configSections, 'pagerduty'),
         renderComponent: () =>
           <PagerDutyConfig
             onSave={this.handleSaveConfig('pagerduty')}
@@ -147,7 +147,7 @@ class AlertTabs extends Component {
       },
       pushover: {
         type: 'Pushover',
-        enabled: this.getEnabled(configSections, 'alerta'),
+        enabled: this.getEnabled(configSections, 'pushover'),
         renderComponent: () =>
           <PushoverConfig
             onSave={this.handleSaveConfig('pushover')}
