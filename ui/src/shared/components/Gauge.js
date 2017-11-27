@@ -7,7 +7,6 @@ import {
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
   MIN_THRESHOLDS,
-  DEFAULT_COLORS,
 } from 'src/dashboards/constants/gaugeColors'
 
 class Gauge extends Component {
@@ -44,30 +43,19 @@ class Gauge extends Component {
     const labelValueFontSize = Math.max(minFontSize, radius / 4)
 
     // Distill out max and min values
-    let gaugeColors = this.props.colors
-    if (gaugeColors.length === 0) {
-      gaugeColors = DEFAULT_COLORS
-    }
+    const {colors} = this.props
     const minValue = Number(
-      gaugeColors.find(color => color.type === COLOR_TYPE_MIN).value
+      colors.find(color => color.type === COLOR_TYPE_MIN).value
     )
     const maxValue = Number(
-      gaugeColors.find(color => color.type === COLOR_TYPE_MAX).value
+      colors.find(color => color.type === COLOR_TYPE_MAX).value
     )
 
     // The following functions must be called in the specified order
-    if (gaugeColors.length === MIN_THRESHOLDS) {
-      this.drawGradientGauge(
-        gaugeColors,
-        ctx,
-        centerX,
-        centerY,
-        radius,
-        gradientThickness
-      )
+    if (colors.length === MIN_THRESHOLDS) {
+      this.drawGradientGauge(ctx, centerX, centerY, radius, gradientThickness)
     } else {
       this.drawSegmentedGauge(
-        gaugeColors,
         ctx,
         centerX,
         centerY,
@@ -91,7 +79,8 @@ class Gauge extends Component {
     this.drawNeedle(ctx, radius, minValue, maxValue)
   }
 
-  drawGradientGauge = (colors, ctx, xc, yc, r, gradientThickness) => {
+  drawGradientGauge = (ctx, xc, yc, r, gradientThickness) => {
+    const {colors} = this.props
     const sortedColors = _.sortBy(colors, color => Number(color.value))
 
     const arcStart = Math.PI * 0.75
