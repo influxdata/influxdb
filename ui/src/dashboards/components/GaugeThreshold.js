@@ -60,7 +60,9 @@ class GaugeThreshold extends Component {
       label = 'Maximum'
     }
 
-    const blargh = valid ? null : {color: '#ff0000'}
+    const inputClass = valid
+      ? 'form-control input-sm gauge-controls--input'
+      : 'form-control input-sm gauge-controls--input form-volcano'
 
     return (
       <div className="gauge-controls--section">
@@ -77,12 +79,11 @@ class GaugeThreshold extends Component {
           : null}
         <input
           value={workingValue}
-          className="form-control input-sm gauge-controls--input"
+          className={inputClass}
           type="number"
           onChange={this.handleChangeWorkingValue}
           onBlur={this.handleBlur}
           min={0}
-          style={blargh}
         />
         <ColorDropdown
           colors={GAUGE_COLORS}
