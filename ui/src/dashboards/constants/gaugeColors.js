@@ -68,6 +68,14 @@ export const GAUGE_COLORS = [
     hex: '#9394FF',
     name: 'comet',
   },
+  {
+    hex: '#383846',
+    name: 'pepper',
+  },
+  {
+    hex: '#545667',
+    name: 'graphite',
+  },
 ]
 
 export const DEFAULT_COLORS = [
