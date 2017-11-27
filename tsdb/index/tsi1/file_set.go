@@ -931,7 +931,6 @@ type File interface {
 	TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator
 
 	// Sketches for cardinality estimation
-	// MergeSeriesSketches(s, t estimator.Sketch) error
 	MergeMeasurementsSketches(s, t estimator.Sketch) error
 
 	// Reference counting.
