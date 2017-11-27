@@ -61,6 +61,19 @@ var (
 	planningTimer              = metrics.MustRegisterTimer("planning_time", metrics.WithGroup(tsmGroup))
 )
 
+// NewContextWithMetricsGroup creates a new context with a tsm1 metrics.Group for tracking
+// various metrics when accessing TSM data.
+func NewContextWithMetricsGroup(ctx context.Context) context.Context {
+	group := metrics.NewGroup(tsmGroup)
+	return metrics.NewContextWithGroup(ctx, group)
+}
+
+// MetricsGroupFromContext returns the tsm1 metrics.Group associated with the context
+// or nil if no group has been assigned.
+func MetricsGroupFromContext(ctx context.Context) *metrics.Group {
+	return metrics.GroupFromContext(ctx)
+}
+
 const (
 	// keyFieldSeparator separates the series key from the field name in the composite key
 	// that identifies a specific field in series
@@ -189,8 +202,6 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		traceLogger:  logger,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
-		fieldset: tsdb.NewMeasurementFieldSet(),
-
 		WAL:   w,
 		Cache: cache,
 
@@ -205,9 +216,6 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		compactionLimiter: opt.CompactionLimiter,
 		scheduler:         newScheduler(stats, opt.CompactionLimiter.Capacity()),
 	}
-
-	// Attach fieldset to index.
-	e.index.SetFieldSet(e.fieldset)
 
 	if e.traceLogging {
 		fs.enableTraceLogging(true)
@@ -282,17 +290,44 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 		e.levelWorkers += 1
 	}
 
+	// Hold onto the current done channel so we can wait on it if necessary
+	waitCh := e.done
+
 	if old == 0 && e.done != nil {
+		// It's possible we have closed the done channel and released the lock and another
+		// goroutine has attempted to disable compactions.  We're current in the process of
+		// disabling them so check for this and wait until the original completes.
+		select {
+		case <-e.done:
+			e.mu.Unlock()
+			return
+		default:
+		}
+
 		// Prevent new compactions from starting
 		e.Compactor.DisableCompactions()
 
 		// Stop all background compaction goroutines
 		close(e.done)
-		e.done = nil
+		e.mu.Unlock()
+		e.wg.Wait()
 
+		// Signal that all goroutines have exited.
+		e.mu.Lock()
+		e.done = nil
+		e.mu.Unlock()
+		return
+	}
+	e.mu.Unlock()
+
+	// Compaction were already disabled.
+	if waitCh == nil {
+		return
 	}
 
-	e.mu.Unlock()
+	// We were not the first caller to disable compactions and they were in the process
+	// of being disabled.  Wait for them to complete before returning.
+	<-waitCh
 	e.wg.Wait()
 }
 
@@ -323,15 +358,34 @@ func (e *Engine) enableSnapshotCompactions() {
 
 func (e *Engine) disableSnapshotCompactions() {
 	e.mu.Lock()
-
+	var wait bool
 	if e.snapDone != nil {
+		// We may be in the process of stopping snapshots.  See if the channel
+		// was closed.
+		select {
+		case <-e.snapDone:
+			e.mu.Unlock()
+			return
+		default:
+		}
+
 		close(e.snapDone)
-		e.snapDone = nil
 		e.Compactor.DisableSnapshots()
+		wait = true
+
+	}
+	e.mu.Unlock()
+
+	// Wait for the snapshot goroutine to exit.
+	if wait {
+		e.snapWG.Wait()
 	}
 
+	// Signal that the goroutines are exit and everything is stopped by setting
+	// snapDone to nil.
+	e.mu.Lock()
+	e.snapDone = nil
 	e.mu.Unlock()
-	e.snapWG.Wait()
 
 	// If the cache is empty, free up its resources as well.
 	if e.Cache.Size() == 0 {
@@ -370,8 +424,8 @@ func (e *Engine) MeasurementExists(name []byte) (bool, error) {
 	return e.index.MeasurementExists(name)
 }
 
-func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	return e.index.MeasurementNamesByExpr(expr)
+func (e *Engine) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+	return e.index.MeasurementNamesByExpr(auth, expr)
 }
 
 func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
@@ -383,12 +437,22 @@ func (e *Engine) MeasurementFields(measurement []byte) *tsdb.MeasurementFields {
 	return e.fieldset.CreateFieldsIfNotExists(measurement)
 }
 
+func (e *Engine) MeasurementFieldSet() *tsdb.MeasurementFieldSet {
+	return e.fieldset
+}
+
 func (e *Engine) HasTagKey(name, key []byte) (bool, error) {
 	return e.index.HasTagKey(name, key)
 }
 
 func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	return e.index.MeasurementTagKeysByExpr(name, expr)
+}
+
+// TagKeyHasAuthorizedSeries determines if there exist authorized series for the
+// provided measurement name and tag key.
+func (e *Engine) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+	return e.index.TagKeyHasAuthorizedSeries(auth, name, key)
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
@@ -528,6 +592,17 @@ func (e *Engine) Open() error {
 		return err
 	}
 
+	fields, err := tsdb.NewMeasurementFieldSet(filepath.Join(e.path, "fields.idx"))
+	if err != nil {
+		return err
+	}
+
+	e.mu.Lock()
+	e.fieldset = fields
+	e.mu.Unlock()
+
+	e.index.SetFieldSet(fields)
+
 	if err := e.WAL.Open(); err != nil {
 		return err
 	}
@@ -583,6 +658,12 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 
+	// If we have the cached fields index on disk and we're using TSI, we
+	// can skip scanning all the TSM files.
+	if e.index.Type() != inmem.IndexName && !e.fieldset.IsEmpty() {
+		return nil
+	}
+
 	if err := e.FileStore.WalkKeys(nil, func(key []byte, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
 		if err != nil {
@@ -609,6 +690,11 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 		}
 		return nil
 	}); err != nil {
+		return err
+	}
+
+	// Save the field set index so we don't have to rebuild it next time
+	if err := e.fieldset.Save(); err != nil {
 		return err
 	}
 
@@ -872,7 +958,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType) erro
 	name := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	mf := e.fieldset.CreateFieldsIfNotExists(name)
-	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
+	if err := mf.CreateFieldIfNotExists(field, fieldType); err != nil {
 		return err
 	}
 
@@ -1229,7 +1315,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 
-	return nil
+	return e.fieldset.Save()
 }
 
 // DeleteMeasurement deletes a measurement and all related series.

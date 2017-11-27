@@ -956,7 +956,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 // MeasurementNames returns a slice of all measurements. Measurements accepts an
 // optional condition expression. If cond is nil, then all measurements for the
 // database will be returned.
-func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
+func (s *Store) MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
@@ -974,7 +974,7 @@ func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte,
 	set := make(map[string]struct{})
 	var names [][]byte
 	for _, sh := range shards {
-		a, err := sh.MeasurementNamesByExpr(cond)
+		a, err := sh.MeasurementNamesByExpr(auth, cond)
 		if err != nil {
 			return nil, err
 		}
@@ -1074,7 +1074,9 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 	// Determine list of measurements.
 	nameSet := make(map[string]struct{})
 	for _, sh := range shards {
-		names, err := sh.MeasurementNamesByExpr(measurementExpr)
+		// Checking for authorisation can be done later on, when non-matching
+		// series might have been filtered out based on other conditions.
+		names, err := sh.MeasurementNamesByExpr(nil, measurementExpr)
 		if err != nil {
 			return nil, err
 		}
@@ -1094,7 +1096,7 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 	var results []TagKeys
 	for _, name := range names {
 		// Build keyset over all shards for measurement.
-		keySet := make(map[string]struct{})
+		keySet := map[string]struct{}{}
 		for _, sh := range shards {
 			shardKeySet, err := sh.MeasurementTagKeysByExpr([]byte(name), nil)
 			if err != nil {
@@ -1103,6 +1105,21 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 				continue
 			}
 
+			// If no tag value filter is present then all the tag keys can be returned
+			// If they have authorized series associated with them.
+			if filterExpr == nil {
+				for tagKey := range shardKeySet {
+					if sh.TagKeyHasAuthorizedSeries(auth, []byte(name), tagKey) {
+						keySet[tagKey] = struct{}{}
+					}
+				}
+				continue
+			}
+
+			// A tag value condition has been supplied. For each tag key filter
+			// the set of tag values by the condition. Only tag keys with remaining
+			// tag values will be included in the result set.
+
 			// Sort the tag keys.
 			shardKeys := make([]string, 0, len(shardKeySet))
 			for k := range shardKeySet {
@@ -1110,7 +1127,10 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 			}
 			sort.Strings(shardKeys)
 
-			// Filter against tag values, skip if no values exist.
+			// TODO(edd): This is very expensive. We're materialising all unfiltered
+			// tag values for all required tag keys, only to see if we have any.
+			// Then we're throwing them all away as we only care about the tag
+			// keys in the result set.
 			shardValues, err := sh.MeasurementTagKeyValuesByExpr(auth, []byte(name), shardKeys, filterExpr, true)
 			if err != nil {
 				return nil, err
@@ -1228,7 +1248,9 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 	var maxMeasurements int // Hint as to lower bound on number of measurements.
 	for _, sh := range shards {
 		// names will be sorted by MeasurementNamesByExpr.
-		names, err := sh.MeasurementNamesByExpr(measurementExpr)
+		// Authorisation can be done later one, when series may have been filtered
+		// out by other conditions.
+		names, err := sh.MeasurementNamesByExpr(nil, measurementExpr)
 		if err != nil {
 			return nil, err
 		}
@@ -1495,7 +1517,7 @@ func (s *Store) monitorShards() {
 				// inmem shards share the same index instance so just use the first one to avoid
 				// allocating the same measurements repeatedly
 				first := shards[0]
-				names, err := first.MeasurementNamesByExpr(nil)
+				names, err := first.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
 					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
 					return nil

@@ -1,6 +1,7 @@
 package tsdb_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/internal"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
@@ -774,6 +777,105 @@ cpu,host=serverB,region=uswest value=25  0
 	}
 }
 
+func TestShard_CreateIterator_Series_Auth(t *testing.T) {
+	var sh *Shard
+	var itr query.Iterator
+
+	type variant struct {
+		name string
+		m    *influxql.Measurement
+		aux  []influxql.VarRef
+	}
+
+	examples := []variant{
+		{
+			name: "use_index",
+			m:    &influxql.Measurement{Name: "cpu"},
+			aux:  []influxql.VarRef{{Val: "_seriesKey", Type: influxql.String}},
+		},
+		{
+			name: "use_cursors",
+			m:    &influxql.Measurement{Name: "cpu", SystemIterator: "_series"},
+			aux:  []influxql.VarRef{{Val: "key", Type: influxql.String}},
+		},
+	}
+
+	test := func(index string, v variant) error {
+		sh = MustNewOpenShard(index)
+		sh.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+cpu,secret=foo value=100 0
+`)
+
+		seriesAuthorizer := &internal.AuthorizerMock{
+			AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
+				if database == "" || !bytes.Equal(measurement, []byte("cpu")) || tags.GetString("secret") != "" {
+					t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
+					return false
+				}
+				return true
+			},
+		}
+
+		// Create iterator for case where we use cursors (e.g., where time
+		// included in a SHOW SERIES query).
+		var err error
+		itr, err = sh.CreateIterator(context.Background(), v.m, query.IteratorOptions{
+			Aux:        v.aux,
+			Ascending:  true,
+			StartTime:  influxql.MinTime,
+			EndTime:    influxql.MaxTime,
+			Authorizer: seriesAuthorizer,
+		})
+		if err != nil {
+			return err
+		}
+
+		if itr == nil {
+			return fmt.Errorf("iterator is nil")
+		}
+
+		fitr := itr.(query.FloatIterator)
+		defer fitr.Close()
+		var expCount = 2
+		var gotCount int
+		for {
+			f, err := fitr.Next()
+			if err != nil {
+				return err
+			}
+
+			if f == nil {
+				break
+			}
+
+			if got := f.Aux[0].(string); strings.Contains(got, "secret") {
+				return fmt.Errorf("got a series %q that should be filtered", got)
+			}
+			gotCount++
+		}
+
+		if gotCount != expCount {
+			return fmt.Errorf("got %d series, expected %d", gotCount, expCount)
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		for _, example := range examples {
+			t.Run(index+"_"+example.name, func(t *testing.T) {
+				if err := test(index, example); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+		sh.Close()
+		itr.Close()
+	}
+}
+
 func TestShard_Disabled_WriteQuery(t *testing.T) {
 	var sh *Shard
 
@@ -1300,6 +1402,102 @@ _reserved,region=uswest value="foo" 0
 	}
 }
 
+func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
+	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float); err != nil {
+		t.Fatalf("create field error: %v", err)
+	}
+
+	if err := mf.Save(); err != nil {
+		t.Fatalf("save error: %v", err)
+	}
+
+	mf, err = tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields = mf.Fields("cpu")
+	field := fields.Field("value")
+	if field == nil {
+		t.Fatalf("field is null")
+	}
+
+	if got, exp := field.Type, influxql.Float; got != exp {
+		t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
+	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float); err != nil {
+		t.Fatalf("create field error: %v", err)
+	}
+
+	if err := mf.Save(); err != nil {
+		t.Fatalf("save error: %v", err)
+	}
+
+	mf, err = tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+
+	fields = mf.Fields("cpu")
+	field := fields.Field("value")
+	if field == nil {
+		t.Fatalf("field is null")
+	}
+
+	if got, exp := field.Type, influxql.Float; got != exp {
+		t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
+	}
+
+	mf.Delete("cpu")
+
+	if err := mf.Save(); err != nil {
+		t.Fatalf("save after delete error: %v", err)
+	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("got %v, not exist err", err)
+	}
+}
+
+func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	path := filepath.Join(dir, "fields.idx")
+
+	if err := ioutil.WriteFile(path, []byte{0, 0}, 0666); err != nil {
+		t.Fatalf("error writing fields.index: %v", err)
+	}
+
+	_, err := tsdb.NewMeasurementFieldSet(path)
+	if err != tsdb.ErrUnknownFieldsFormat {
+		t.Fatalf("unexpected error: got %v, exp %v", err, tsdb.ErrUnknownFieldsFormat)
+	}
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }
@@ -1564,6 +1762,15 @@ func NewShard(index string) *Shard {
 	}
 }
 
+// MustNewOpenShard creates and opens a shard with the provided index.
+func MustNewOpenShard(index string) *Shard {
+	sh := NewShard(index)
+	if err := sh.Open(); err != nil {
+		panic(err)
+	}
+	return sh
+}
+
 // Close closes the shard and removes all underlying data.
 func (sh *Shard) Close() error {
 	defer os.RemoveAll(sh.path)
@@ -1581,4 +1788,12 @@ func (sh *Shard) MustWritePointsString(s string) {
 	if err := sh.WritePoints(a); err != nil {
 		panic(err)
 	}
+}
+
+func MustTempDir() (string, func()) {
+	dir, err := ioutil.TempDir("", "shard-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir, func() { os.RemoveAll(dir) }
 }

@@ -133,7 +133,7 @@ func TestConcurrentServer_ShowMeasurements(t *testing.T) {
 		if !ok {
 			t.Fatal("Not a local server")
 		}
-		srv.TSDBStore.MeasurementNames("db0", nil)
+		srv.TSDBStore.MeasurementNames(query.OpenAuthorizer, "db0", nil)
 	}
 
 	runTest(10*time.Second, f1, f2)

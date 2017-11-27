@@ -400,11 +400,11 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	return m != nil && !m.Deleted(), nil
 }
 
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
-	names, err := fs.MeasurementNamesByExpr(expr)
+	names, err := fs.MeasurementNamesByExpr(auth, expr)
 
 	// Clone byte slices since they will be used after the fileset is released.
 	return bytesutil.CloneSlice(names), err
@@ -640,6 +640,29 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.MeasurementTagKeysByExpr(name, expr)
+}
+
+// TagKeyHasAuthorizedSeries determines if there exist authorized series for the
+// provided measurement name and tag key.
+func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	itr := fs.TagValueIterator(name, []byte(key))
+	for val := itr.Next(); val != nil; val = itr.Next() {
+		if auth == nil || auth == query.OpenAuthorizer {
+			return true
+		}
+
+		// Identify an authorized series.
+		si := fs.TagValueSeriesIterator(name, []byte(key), val.Value())
+		for se := si.Next(); se != nil; se = si.Next() {
+			if auth.AuthorizeSeriesRead(i.Database, se.Name(), se.Tags()) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
@@ -1236,6 +1259,14 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		e := itr.sitr.Next()
 		if e == nil {
 			itr.sitr = nil
+			continue
+		}
+
+		// TODO(edd): It seems to me like this authorisation check should be
+		// further down in the index. At this point we're going to be filtering
+		// series that have already been materialised in the LogFiles and
+		// IndexFiles.
+		if itr.opt.Authorizer != nil && !itr.opt.Authorizer.AuthorizeSeriesRead(itr.fs.database, e.Name(), e.Tags()) {
 			continue
 		}
 

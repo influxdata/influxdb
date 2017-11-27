@@ -1062,12 +1062,6 @@ type KeyCursor struct {
 	// decrement through the size of seeks slice.
 	pos       int
 	ascending bool
-
-	// duplicates is a hint that there are overlapping blocks for this key in
-	// multiple files (e.g. points have been overwritten but not fully compacted)
-	// If this is true, we need to scan the duplicate blocks and dedup the points
-	// as query time until they are compacted.
-	duplicates bool
 }
 
 type location struct {
@@ -1125,8 +1119,6 @@ func newKeyCursor(ctx context.Context, fs *FileStore, key []byte, t int64, ascen
 		col:       metrics.GroupFromContext(ctx),
 		ascending: ascending,
 	}
-
-	c.duplicates = c.hasOverlappingBlocks()
 
 	if ascending {
 		sort.Sort(ascLocations(c.seeks))
@@ -1195,12 +1187,6 @@ func (c *KeyCursor) seekAscending(t int64) {
 			}
 
 			c.current = append(c.current, e)
-
-			// Exit if we don't have duplicates.
-			// Otherwise, keep looking for additional blocks containing this point.
-			if !c.duplicates {
-				return
-			}
 		}
 	}
 }
@@ -1214,12 +1200,6 @@ func (c *KeyCursor) seekDescending(t int64) {
 				c.pos = i
 			}
 			c.current = append(c.current, e)
-
-			// Exit if we don't have duplicates.
-			// Otherwise, keep looking for additional blocks containing this point.
-			if !c.duplicates {
-				return
-			}
 		}
 	}
 }
@@ -1260,11 +1240,6 @@ func (c *KeyCursor) nextAscending() {
 	}
 	c.current[0] = c.seeks[c.pos]
 
-	// We're done if there are no overlapping blocks.
-	if !c.duplicates {
-		return
-	}
-
 	// If we have ovelapping blocks, append all their values so we can dedup
 	for i := c.pos + 1; i < len(c.seeks); i++ {
 		if c.seeks[i].read() {
@@ -1292,11 +1267,6 @@ func (c *KeyCursor) nextDescending() {
 		c.current = c.current[:1]
 	}
 	c.current[0] = c.seeks[c.pos]
-
-	// We're done if there are no overlapping blocks.
-	if !c.duplicates {
-		return
-	}
 
 	// If we have ovelapping blocks, append all their values so we can dedup
 	for i := c.pos; i >= 0; i-- {
