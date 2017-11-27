@@ -303,49 +303,16 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 		return nil
 	}
 
-	readers := make([]chan seriesKey, 0, len(f.files))
-	done := make(chan struct{})
-	for _, f := range f.files {
-		ch := make(chan seriesKey, 1)
-		readers = append(readers, ch)
-
-		go func(c chan seriesKey, r TSMFile) {
-
-			start := 0
-			if len(seek) > 0 {
-				start = r.Seek(seek)
-			}
-			n := r.KeyCount()
-			for i := start; i < n; i++ {
-
-				key, typ := r.KeyAt(i)
-				select {
-				case <-done:
-					// Abort iteration
-					break
-				case c <- seriesKey{key, typ}:
-				}
-
-			}
-			close(ch)
-		}(ch, f)
-	}
+	ki := newMergeKeyIterator(f.files, seek)
 	f.mu.RUnlock()
-
-	merged := merge(readers...)
-	var err error
-	for v := range merged {
-		// Drain the remaing values so goroutines can exit
-		if err != nil {
-			continue
-		}
-		if err = fn(v.key, v.typ); err != nil {
-			// Signal that we should stop iterating
-			close(done)
+	for ki.Next() {
+		key, typ := ki.Read()
+		if err := fn(key, typ); err != nil {
+			return err
 		}
 	}
 
-	return err
+	return nil
 }
 
 // Keys returns all keys and types for all files in the file store.
