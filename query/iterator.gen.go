@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxql"
 )
@@ -959,6 +960,8 @@ func (itr *floatAuxIterator) stream() {
 		}
 	}
 
+	spew.Dump(itr.input)
+	itr.Close()
 	close(itr.output)
 	itr.fields.close()
 }

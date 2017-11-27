@@ -331,7 +331,14 @@ func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 	}
 
 	// Iterate all series to collect tag values.
-	for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return err
+		} else if e.SeriesID == 0 {
+			break
+		}
+
 		buf := fs.sfile.SeriesKey(e.SeriesID)
 		if buf == nil {
 			continue
@@ -729,7 +736,14 @@ func (fs *FileSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr, 
 
 	// Iterate over all series and generate keys.
 	var keys [][]byte
-	for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return nil, err
+		} else if e.SeriesID == 0 {
+			break
+		}
+
 		// Check for unsupported field filters.
 		// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
 		if e.Expr != nil {

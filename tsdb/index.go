@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"sync"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -43,7 +44,7 @@ type Index interface {
 	// InfluxQL system iterators
 	MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (SeriesIDIterator, error)
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
-	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
+	SeriesIDIterator(opt query.IteratorOptions) (SeriesIDIterator, error)
 
 	// Sets a shared fieldset from the engine.
 	SetFieldSet(fs *MeasurementFieldSet)
@@ -74,7 +75,7 @@ type SeriesElem interface {
 
 // SeriesIterator represents a iterator over a list of series.
 type SeriesIterator interface {
-	Next() SeriesElem
+	Next() (SeriesElem, error)
 }
 
 // NewSeriesIteratorAdapter returns an adapter for converting series ids to series.
@@ -90,10 +91,12 @@ type seriesIteratorAdapter struct {
 	itr   SeriesIDIterator
 }
 
-func (itr *seriesIteratorAdapter) Next() SeriesElem {
-	elem := itr.itr.Next()
-	if elem.SeriesID == 0 {
-		return nil
+func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
+	elem, err := itr.itr.Next()
+	if err != nil {
+		return nil, err
+	} else if elem.SeriesID == 0 {
+		return nil, nil
 	}
 
 	name, tags := ParseSeriesKey(itr.sfile.SeriesKey(elem.SeriesID))
@@ -104,7 +107,7 @@ func (itr *seriesIteratorAdapter) Next() SeriesElem {
 		tags:    tags,
 		deleted: deleted,
 		expr:    elem.Expr,
-	}
+	}, nil
 }
 
 type seriesElemAdapter struct {
@@ -134,7 +137,8 @@ func (a SeriesIDElems) Less(i, j int) bool { return a[i].SeriesID < a[j].SeriesI
 
 // SeriesIDIterator represents a iterator over a list of series ids.
 type SeriesIDIterator interface {
-	Next() SeriesIDElem
+	Next() (SeriesIDElem, error)
+	Close() error
 }
 
 // NewSeriesIDSliceIterator returns a SeriesIDIterator that iterates over a slice.
@@ -148,13 +152,76 @@ type SeriesIDSliceIterator struct {
 }
 
 // Next returns the next series id in the slice.
-func (itr *SeriesIDSliceIterator) Next() SeriesIDElem {
+func (itr *SeriesIDSliceIterator) Next() (SeriesIDElem, error) {
 	if len(itr.ids) == 0 {
-		return SeriesIDElem{}
+		return SeriesIDElem{}, nil
 	}
 	id := itr.ids[0]
 	itr.ids = itr.ids[1:]
-	return SeriesIDElem{SeriesID: id}
+	return SeriesIDElem{SeriesID: id}, nil
+}
+
+func (itr *SeriesIDSliceIterator) Close() error { return nil }
+
+// seriesQueryAdapterIterator adapts SeriesIDIterator to an influxql.Iterator.
+type seriesQueryAdapterIterator struct {
+	once     sync.Once
+	sfile    *SeriesFile
+	itr      SeriesIDIterator
+	fieldset *MeasurementFieldSet
+	opt      query.IteratorOptions
+
+	point query.FloatPoint // reusable point
+}
+
+// NewSeriesQueryAdapterIterator returns a new instance of SeriesQueryAdapterIterator.
+func NewSeriesQueryAdapterIterator(sfile *SeriesFile, itr SeriesIDIterator, fieldset *MeasurementFieldSet, opt query.IteratorOptions) query.Iterator {
+	return &seriesQueryAdapterIterator{
+		sfile:    sfile,
+		itr:      itr,
+		fieldset: fieldset,
+		point: query.FloatPoint{
+			Aux: make([]interface{}, len(opt.Aux)),
+		},
+		opt: opt,
+	}
+}
+
+// Stats returns stats about the points processed.
+func (itr *seriesQueryAdapterIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
+
+// Close closes the iterator.
+func (itr *seriesQueryAdapterIterator) Close() error {
+	itr.once.Do(func() {
+		itr.itr.Close()
+	})
+	return nil
+}
+
+// Next emits the next point in the iterator.
+func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
+	for {
+		// Read next series element.
+		e, err := itr.itr.Next()
+		if err != nil {
+			return nil, err
+		} else if e.SeriesID == 0 {
+			return nil, nil
+		}
+
+		// Convert to a key.
+		name, tags := ParseSeriesKey(itr.sfile.SeriesKey(e.SeriesID))
+		key := string(models.MakeKey(name, tags))
+
+		// Write auxiliary fields.
+		for i, f := range itr.opt.Aux {
+			switch f.Val {
+			case "key":
+				itr.point.Aux[i] = key
+			}
+		}
+		return &itr.point, nil
+	}
 }
 
 // IndexFormat represents the format for an index.

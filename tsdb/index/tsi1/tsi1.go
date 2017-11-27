@@ -399,14 +399,13 @@ func (itr *seriesIDMergeIterator) Next() tsdb.SeriesIDElem {
 	return elem
 }
 
-// TODO(edd)
+/*
 type SeriesPointMergeIterator interface {
 	Next() (*query.FloatPoint, error)
 	Close() error
 	Stats() query.IteratorStats
 }
 
-// TODO(edd)
 func MergeSeriesPointIterators(itrs ...*seriesPointIterator) SeriesPointMergeIterator {
 	if n := len(itrs); n == 0 {
 		return nil
@@ -425,51 +424,55 @@ type seriesPointMergeIterator struct {
 	itrs []*seriesPointIterator
 }
 
-// TODO(edd):
-func (itr *seriesPointMergeIterator) Close() error { return nil }
+func (itr *seriesPointMergeIterator) Close() error {
+	for i := range itr.itrs {
+		itr.itrs[i].Close()
+	}
+	return nil
+}
 func (itr *seriesPointMergeIterator) Stats() query.IteratorStats {
 	return query.IteratorStats{}
 }
 
-// TODO(edd)....
-func (itr *seriesPointMergeIterator) Next() (*query.FloatPoint, error) {
-	// TODO(edd)...
+func (itr *seriesPointMergeIterator) Next() (_ *query.FloatPoint, err error) {
 	// Find next lowest point amongst the buffers.
-	// var key []byte
-	// for i, buf := range itr.buf {
-	// 	// Fill buffer.
-	// 	if buf == nil {
-	// 		if buf = itr.itrs[i].Next(); buf != nil {
-	// 			itr.buf[i] = buf
-	// 		} else {
-	// 			continue
-	// 		}
-	// 	}
+	var key []byte
+	for i, buf := range itr.buf {
+		// Fill buffer.
+		if buf == nil {
+			if buf, err = itr.itrs[i].Next(); err != nil {
+				return nil, err
+			} else if buf != nil {
+				itr.buf[i] = buf
+			} else {
+				continue
+			}
+		}
 
-	// 	// Find next lowest key.
-	// 	if key == nil || bytes.Compare(buf.Key(), key) == -1 {
-	// 		key = buf.Key()
-	// 	}
-	// }
+		// Find next lowest key.
+		if key == nil || bytes.Compare(buf.Key(), key) == -1 {
+			key = buf.Key()
+		}
+	}
 
-	// // Return nil if no elements remaining.
-	// if key == nil {
-	// 	return nil
-	// }
+	// Return nil if no elements remaining.
+	if key == nil {
+		return nil, nil
+	}
 
-	// // Merge elements together & clear buffer.
-	// itr.e = itr.e[:0]
-	// for i, buf := range itr.buf {
-	// 	if buf == nil || !bytes.Equal(buf.Key(), key) {
-	// 		continue
-	// 	}
-	// 	itr.e = append(itr.e, buf)
-	// 	itr.buf[i] = nil
-	// }
+	// Merge elements together & clear buffer.
+	itr.e = itr.e[:0]
+	for i, buf := range itr.buf {
+		if buf == nil || !bytes.Equal(buf.Key(), key) {
+			continue
+		}
+		itr.e = append(itr.e, buf)
+		itr.buf[i] = nil
+	}
 
-	// return itr.e
-	return nil, nil
+	return itr.e, nil
 }
+*/
 
 // IntersectSeriesIDIterators returns an iterator that only returns series which
 // occur in both iterators. If both series have associated expressions then

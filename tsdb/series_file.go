@@ -453,10 +453,10 @@ type seriesFileIterator struct {
 }
 
 // Next returns the next series element.
-func (itr *seriesFileIterator) Next() SeriesIDElem {
+func (itr *seriesFileIterator) Next() (SeriesIDElem, error) {
 	for {
 		if len(itr.data) == 0 {
-			return SeriesIDElem{}
+			return SeriesIDElem{}, nil
 		}
 
 		// Read flag.
@@ -474,10 +474,12 @@ func (itr *seriesFileIterator) Next() SeriesIDElem {
 
 			elem := SeriesIDElem{SeriesID: itr.offset}
 			itr.offset += uint64(len(key))
-			return elem
+			return elem, nil
 		}
 	}
 }
+
+func (itr *seriesFileIterator) Close() error { return nil }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
 // The total length is prepended as a uvarint.

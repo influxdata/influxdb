@@ -757,8 +757,8 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr
 	return m.SeriesKeysByID(ids), nil
 }
 
-// SeriesPointIterator returns an influxql iterator over all series.
-func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
+// SeriesIDIterator returns an influxql iterator over matching series ids.
+func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterator, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -769,13 +769,10 @@ func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, 
 	}
 	sort.Sort(mms)
 
-	return &seriesPointIterator{
+	return &seriesIDIterator{
 		database: i.database,
 		mms:      mms,
-		point: query.FloatPoint{
-			Aux: make([]interface{}, len(opt.Aux)),
-		},
-		opt: opt,
+		opt:      opt,
 	}, nil
 }
 
@@ -977,35 +974,33 @@ func NewShardIndex(id uint64, database, path string, sfile *tsdb.SeriesFile, opt
 	}
 }
 
-// seriesPointIterator emits series as influxql points.
-type seriesPointIterator struct {
+// seriesIDIterator emits series ids.
+type seriesIDIterator struct {
 	database string
 	mms      Measurements
 	keys     struct {
 		buf []*Series
 		i   int
 	}
-
-	point query.FloatPoint // reusable point
-	opt   query.IteratorOptions
+	opt query.IteratorOptions
 }
 
 // Stats returns stats about the points processed.
-func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
+func (itr *seriesIDIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
 
 // Close closes the iterator.
-func (itr *seriesPointIterator) Close() error { return nil }
+func (itr *seriesIDIterator) Close() error { return nil }
 
 // Next emits the next point in the iterator.
-func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
+func (itr *seriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 	for {
 		// Load next measurement's keys if there are no more remaining.
 		if itr.keys.i >= len(itr.keys.buf) {
 			if err := itr.nextKeys(); err != nil {
-				return nil, err
+				return tsdb.SeriesIDElem{}, err
 			}
 			if len(itr.keys.buf) == 0 {
-				return nil, nil
+				return tsdb.SeriesIDElem{}, nil
 			}
 		}
 
@@ -1017,19 +1012,12 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 			continue
 		}
 
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = series.Key
-			}
-		}
-		return &itr.point, nil
+		return tsdb.SeriesIDElem{SeriesID: series.ID}, nil
 	}
 }
 
 // nextKeys reads all keys for the next measurement.
-func (itr *seriesPointIterator) nextKeys() error {
+func (itr *seriesIDIterator) nextKeys() error {
 	for {
 		// Ensure previous keys are cleared out.
 		itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]

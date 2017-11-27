@@ -27,6 +27,11 @@ func TestMain(m *testing.M) {
 	verboseServerLogs = *vv
 	var r int
 	for _, indexType = range tsdb.RegisteredIndexes() {
+		if indexType != "tsi1" {
+			println("dbg/skipping", indexType)
+			continue
+		}
+
 		// Setup benchmark server
 		c := NewConfig()
 		c.Retention.Enabled = false

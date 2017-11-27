@@ -647,7 +647,14 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 					if auth != nil {
 						for val := itr.Next(); val != nil; val = itr.Next() {
 							si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
-							for se := si.Next(); se.SeriesID != 0; se = si.Next() {
+							for {
+								se, err := si.Next()
+								if err != nil {
+									return err
+								} else if se.SeriesID == 0 {
+									break
+								}
+
 								name, tags := tsdb.ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
 								if auth.AuthorizeSeriesRead(i.Database, name, tags) {
 									resultSet[ki][string(val.Value())] = struct{}{}
@@ -755,7 +762,14 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	tagSets := make(map[string]*query.TagSet, 64)
 
 	if itr != nil {
-		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+		for {
+			e, err := itr.Next()
+			if err != nil {
+				return nil, err
+			} else if e.SeriesID == 0 {
+				break
+			}
+
 			_, tags := tsdb.ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
 			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
 				continue
@@ -851,16 +865,13 @@ func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	return i.DropSeries([]byte(k), ts)
 }
 
-// SeriesPointIterator returns an influxql iterator over all series.
-func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
-	itrs := make([]*seriesPointIterator, len(i.partitions))
-	var err error
+// SeriesIDIterator returns a series iterator over all matching series.
+func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterator, error) {
+	itrs := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for k, p := range i.partitions {
-		if itrs[k], err = p.seriesPointIterator(opt); err != nil {
-			return nil, err
-		}
+		itrs = append(itrs, p.seriesIDIterator(opt))
 	}
-	return MergeSeriesPointIterators(itrs...), nil
+	return MergeSeriesIDIterators(itrs...), nil
 }
 
 func (i *Index) Rebuild() {}
@@ -878,7 +889,7 @@ type seriesPointIterator struct {
 }
 
 // newSeriesPointIterator returns a new instance of seriesPointIterator.
-func newSeriesPointIterator(fs *FileSet, fieldset *tsdb.MeasurementFieldSet, opt query.IteratorOptions) *seriesPointIterator {
+func newSeriesPointIterator(itr, fieldset *tsdb.MeasurementFieldSet, opt query.IteratorOptions) *seriesPointIterator {
 	return &seriesPointIterator{
 		fs:       fs,
 		fieldset: fieldset,
