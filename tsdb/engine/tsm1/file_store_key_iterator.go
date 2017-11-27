@@ -6,32 +6,33 @@ import (
 )
 
 type keyIterator struct {
-	f    TSMFile
-	p, n int
-	key  []byte
-	typ  byte
+	f   TSMFile
+	c   int // current key index
+	n   int // key count
+	key []byte
+	typ byte
 }
 
 func newKeyIterator(f TSMFile, seek []byte) *keyIterator {
-	p, n := 0, f.KeyCount()
+	c, n := 0, f.KeyCount()
 	if len(seek) > 0 {
-		p = f.Seek(seek)
+		c = f.Seek(seek)
 	}
 
-	if p >= n {
+	if c >= n {
 		return nil
 	}
 
-	k := &keyIterator{f: f, p: p, n: n}
+	k := &keyIterator{f: f, c: c, n: n}
 	k.next()
 
 	return k
 }
 
 func (k *keyIterator) next() bool {
-	if k.p < k.n {
-		k.key, k.typ = k.f.KeyAt(k.p)
-		k.p++
+	if k.c < k.n {
+		k.key, k.typ = k.f.KeyAt(k.c)
+		k.c++
 		return true
 	}
 	return false
