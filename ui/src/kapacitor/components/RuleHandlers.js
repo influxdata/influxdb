@@ -137,8 +137,8 @@ class RuleHandlers extends Component {
       return {...a, text: a.type}
     })
     const dropdownLabel = handlersOnThisAlert.length
-      ? 'Add another Endpoint'
-      : 'Add an Endpoint'
+      ? 'Add another Handler'
+      : 'Add a Handler'
 
     const ruleSectionClassName = handlersOnThisAlert.length
       ? 'rule-section--row rule-section--row-first rule-section--border-bottom'
@@ -146,7 +146,7 @@ class RuleHandlers extends Component {
 
     return (
       <div className="rule-section">
-        <h3 className="rule-section--heading">Endpoints</h3>
+        <h3 className="rule-section--heading">Alert Handlers</h3>
         <div className="rule-section--body">
           <div className={ruleSectionClassName}>
             <p>Send this Alert to:</p>
