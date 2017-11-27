@@ -58,7 +58,7 @@ type Engine interface {
 	SeriesN() int64
 
 	MeasurementExists(name []byte) (bool, error)
-	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
+	MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/query"
@@ -513,7 +514,7 @@ func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 			`cpu value=3 20`,
 		)
 
-		meas, err := s.MeasurementNames("db0", nil)
+		meas, err := s.MeasurementNames(query.OpenAuthorizer, "db0", nil)
 		if err != nil {
 			t.Fatalf("unexpected error with MeasurementNames: %v", err)
 		}
@@ -554,7 +555,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	// Delete all the series for each measurement.
-	mnames, err := store.MeasurementNames("db", nil)
+	mnames, err := store.MeasurementNames(query.OpenAuthorizer, "db", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -956,6 +957,193 @@ func TestStore_TagValues(t *testing.T) {
 			})
 			s.Close()
 		}
+	}
+}
+
+func TestStore_Measurements_Auth(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) error {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		// Create shard #0 with data.
+		s.MustCreateShardWithData("db0", "rp0", 0,
+			`cpu,host=serverA value=1  0`,
+			`cpu,host=serverA value=2 10`,
+			`cpu,region=west value=3 20`,
+			`cpu,secret=foo value=5 30`, // cpu still readable because it has other series that can be read.
+			`mem,secret=foo value=1 30`,
+			`disk value=4 30`,
+		)
+
+		authorizer := &internal.AuthorizerMock{
+			AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
+				if database == "" || tags.GetString("secret") != "" {
+					t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
+					return false
+				}
+				return true
+			},
+		}
+
+		names, err := s.MeasurementNames(authorizer, "db0", nil)
+		if err != nil {
+			return err
+		}
+
+		// names should not contain any measurements where none of the associated
+		// series are authorised for reads.
+		expNames := 2
+		var gotNames int
+		for _, name := range names {
+			if string(name) == "mem" {
+				return fmt.Errorf("got measurement %q but it should be filtered.", name)
+			}
+			gotNames++
+		}
+
+		if gotNames != expNames {
+			return fmt.Errorf("got %d measurements, but expected %d", gotNames, expNames)
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestStore_TagKeys_Auth(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) error {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		// Create shard #0 with data.
+		s.MustCreateShardWithData("db0", "rp0", 0,
+			`cpu,host=serverA value=1  0`,
+			`cpu,host=serverA,debug=true value=2 10`,
+			`cpu,region=west value=3 20`,
+			`cpu,secret=foo,machine=a value=1 20`,
+		)
+
+		authorizer := &internal.AuthorizerMock{
+			AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
+				if database == "" || !bytes.Equal(measurement, []byte("cpu")) || tags.GetString("secret") != "" {
+					t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
+					return false
+				}
+				return true
+			},
+		}
+
+		keys, err := s.TagKeys(authorizer, []uint64{0}, nil)
+		if err != nil {
+			return err
+		}
+
+		// keys should not contain any tag keys associated with a series containing
+		// a secret tag.
+		expKeys := 3
+		var gotKeys int
+		for _, tk := range keys {
+			if got, exp := tk.Measurement, "cpu"; got != exp {
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
+			}
+
+			for _, key := range tk.Keys {
+				if key == "secret" || key == "machine" {
+					return fmt.Errorf("got tag key %q but it should be filtered.", key)
+				}
+				gotKeys++
+			}
+		}
+
+		if gotKeys != expKeys {
+			return fmt.Errorf("got %d keys, but expected %d", gotKeys, expKeys)
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestStore_TagValues_Auth(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) error {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		// Create shard #0 with data.
+		s.MustCreateShardWithData("db0", "rp0", 0,
+			`cpu,host=serverA value=1  0`,
+			`cpu,host=serverA value=2 10`,
+			`cpu,host=serverB value=3 20`,
+			`cpu,secret=foo,host=serverD value=1 20`,
+		)
+
+		authorizer := &internal.AuthorizerMock{
+			AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
+				if database == "" || !bytes.Equal(measurement, []byte("cpu")) || tags.GetString("secret") != "" {
+					t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
+					return false
+				}
+				return true
+			},
+		}
+
+		values, err := s.TagValues(authorizer, []uint64{0}, &influxql.BinaryExpr{
+			Op:  influxql.EQ,
+			LHS: &influxql.VarRef{Val: "_tagKey"},
+			RHS: &influxql.StringLiteral{Val: "host"},
+		})
+
+		if err != nil {
+			return err
+		}
+
+		// values should not contain any tag values associated with a series containing
+		// a secret tag.
+		expValues := 2
+		var gotValues int
+		for _, tv := range values {
+			if got, exp := tv.Measurement, "cpu"; got != exp {
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
+			}
+
+			for _, v := range tv.Values {
+				if got, exp := v.Value, "serverD"; got == exp {
+					return fmt.Errorf("got tag value %q but it should be filtered.", got)
+				}
+				gotValues++
+			}
+		}
+
+		if gotValues != expValues {
+			return fmt.Errorf("got %d tags, but expected %d", gotValues, expValues)
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 

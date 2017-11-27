@@ -68,7 +68,7 @@ func ErrMaxConcurrentQueriesLimitExceeded(n, limit int) error {
 	return fmt.Errorf("max-concurrent-queries limit exceeded(%d, %d)", n, limit)
 }
 
-// Authorizer reports whether certain operations are authorized.
+// Authorizer determines if certain operations are authorized.
 type Authorizer interface {
 	// AuthorizeDatabase indicates whether the given Privilege is authorized on the database with the given name.
 	AuthorizeDatabase(p influxql.Privilege, name string) bool
@@ -85,22 +85,26 @@ type Authorizer interface {
 
 // OpenAuthorizer is the Authorizer used when authorization is disabled.
 // It allows all operations.
-type OpenAuthorizer struct{}
+type openAuthorizer struct{}
 
-var _ Authorizer = OpenAuthorizer{}
+// OpenAuthorizer can be shared by all goroutines.
+var OpenAuthorizer = openAuthorizer{}
 
 // AuthorizeDatabase returns true to allow any operation on a database.
-func (_ OpenAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
+func (a openAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
 
-func (_ OpenAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
+// AuthorizeSeriesRead allows accesss to any series.
+func (a openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
-func (_ OpenAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
+// AuthorizeSeriesWrite allows accesss to any series.
+func (a openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
-func (_ OpenAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { return nil }
+// AuthorizeSeriesRead allows any query to execute.
+func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { return nil }
 
 // ExecutionOptions contains the options for executing a query.
 type ExecutionOptions struct {
