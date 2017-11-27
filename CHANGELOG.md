@@ -13,6 +13,7 @@
 1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
 
 ### Features
+1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
 1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
 
 ### UI Improvements
