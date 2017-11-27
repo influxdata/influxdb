@@ -2381,6 +2381,13 @@ func BenchmarkEscapeString_QuotesAndBackslashes(b *testing.B) {
 	}
 }
 
+func BenchmarkParseTags(b *testing.B) {
+	tags := []byte("cpu,tag0=value0,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5")
+	for i := 0; i < b.N; i++ {
+		models.ParseTags(tags)
+	}
+}
+
 func init() {
 	// Force uint support to be enabled for testing.
 	models.EnableUintSupport()

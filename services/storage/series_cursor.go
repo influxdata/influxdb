@@ -157,7 +157,7 @@ RETRY:
 		keyb := []byte(key)
 		mm, _ := models.ParseName(keyb)
 		c.row.measurement = string(mm)
-		c.tags, _ = models.ParseTags(keyb)
+		c.tags = models.ParseTags(keyb)
 
 		c.filterset = mapValuer{"_name": c.row.measurement}
 		for _, tag := range c.tags {

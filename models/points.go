@@ -281,8 +281,8 @@ func ParseKeyBytes(buf []byte) ([]byte, Tags) {
 	return buf[:i], tags
 }
 
-func ParseTags(buf []byte) (Tags, error) {
-	return parseTags(buf), nil
+func ParseTags(buf []byte) Tags {
+	return parseTags(buf)
 }
 
 func ParseName(buf []byte) ([]byte, error) {
@@ -1528,9 +1528,12 @@ func parseTags(buf []byte) Tags {
 		return nil
 	}
 
-	tags := make(Tags, 0, bytes.Count(buf, []byte(",")))
+	tags := make(Tags, bytes.Count(buf, []byte(",")))
+	p := 0
 	walkTags(buf, func(key, value []byte) bool {
-		tags = append(tags, NewTag(key, value))
+		tags[p].Key = key
+		tags[p].Value = value
+		p++
 		return true
 	})
 	return tags

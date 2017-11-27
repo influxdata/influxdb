@@ -1,4 +1,4 @@
-package inmem_test
+package inmem
 
 import (
 	"fmt"
@@ -8,15 +8,14 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 )
 
 // Test comparing SeriesIDs for equality.
 func TestSeriesIDs_Equals(t *testing.T) {
-	ids1 := inmem.SeriesIDs([]uint64{1, 2, 3})
-	ids2 := inmem.SeriesIDs([]uint64{1, 2, 3})
-	ids3 := inmem.SeriesIDs([]uint64{4, 5, 6})
+	ids1 := seriesIDs([]uint64{1, 2, 3})
+	ids2 := seriesIDs([]uint64{1, 2, 3})
+	ids3 := seriesIDs([]uint64{4, 5, 6})
 
 	if !ids1.Equals(ids2) {
 		t.Fatal("expected ids1 == ids2")
@@ -27,10 +26,10 @@ func TestSeriesIDs_Equals(t *testing.T) {
 
 // Test intersecting sets of SeriesIDs.
 func TestSeriesIDs_Intersect(t *testing.T) {
-	// Test swaping l & r, all branches of if-else, and exit loop when 'j < len(r)'
-	ids1 := inmem.SeriesIDs([]uint64{1, 3, 4, 5, 6})
-	ids2 := inmem.SeriesIDs([]uint64{1, 2, 3, 7})
-	exp := inmem.SeriesIDs([]uint64{1, 3})
+	// Test swapping l & r, all branches of if-else, and exit loop when 'j < len(r)'
+	ids1 := seriesIDs([]uint64{1, 3, 4, 5, 6})
+	ids2 := seriesIDs([]uint64{1, 2, 3, 7})
+	exp := seriesIDs([]uint64{1, 3})
 	got := ids1.Intersect(ids2)
 
 	if !exp.Equals(got) {
@@ -38,9 +37,9 @@ func TestSeriesIDs_Intersect(t *testing.T) {
 	}
 
 	// Test exit for loop when 'i < len(l)'
-	ids1 = inmem.SeriesIDs([]uint64{1})
-	ids2 = inmem.SeriesIDs([]uint64{1, 2})
-	exp = inmem.SeriesIDs([]uint64{1})
+	ids1 = seriesIDs([]uint64{1})
+	ids2 = seriesIDs([]uint64{1, 2})
+	exp = seriesIDs([]uint64{1})
 	got = ids1.Intersect(ids2)
 
 	if !exp.Equals(got) {
@@ -51,9 +50,9 @@ func TestSeriesIDs_Intersect(t *testing.T) {
 // Test union sets of SeriesIDs.
 func TestSeriesIDs_Union(t *testing.T) {
 	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
-	ids1 := inmem.SeriesIDs([]uint64{1, 2, 3, 7})
-	ids2 := inmem.SeriesIDs([]uint64{1, 3, 4, 5, 6})
-	exp := inmem.SeriesIDs([]uint64{1, 2, 3, 4, 5, 6, 7})
+	ids1 := seriesIDs([]uint64{1, 2, 3, 7})
+	ids2 := seriesIDs([]uint64{1, 3, 4, 5, 6})
+	exp := seriesIDs([]uint64{1, 2, 3, 4, 5, 6, 7})
 	got := ids1.Union(ids2)
 
 	if !exp.Equals(got) {
@@ -61,9 +60,9 @@ func TestSeriesIDs_Union(t *testing.T) {
 	}
 
 	// Test exit because of 'i < len(l)' and append remainder from right.
-	ids1 = inmem.SeriesIDs([]uint64{1})
-	ids2 = inmem.SeriesIDs([]uint64{1, 2})
-	exp = inmem.SeriesIDs([]uint64{1, 2})
+	ids1 = seriesIDs([]uint64{1})
+	ids2 = seriesIDs([]uint64{1, 2})
+	exp = seriesIDs([]uint64{1, 2})
 	got = ids1.Union(ids2)
 
 	if !exp.Equals(got) {
@@ -74,9 +73,9 @@ func TestSeriesIDs_Union(t *testing.T) {
 // Test removing one set of SeriesIDs from another.
 func TestSeriesIDs_Reject(t *testing.T) {
 	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
-	ids1 := inmem.SeriesIDs([]uint64{1, 2, 3, 7})
-	ids2 := inmem.SeriesIDs([]uint64{1, 3, 4, 5, 6})
-	exp := inmem.SeriesIDs([]uint64{2, 7})
+	ids1 := seriesIDs([]uint64{1, 2, 3, 7})
+	ids2 := seriesIDs([]uint64{1, 3, 4, 5, 6})
+	exp := seriesIDs([]uint64{2, 7})
 	got := ids1.Reject(ids2)
 
 	if !exp.Equals(got) {
@@ -84,9 +83,9 @@ func TestSeriesIDs_Reject(t *testing.T) {
 	}
 
 	// Test exit because of 'i < len(l)'.
-	ids1 = inmem.SeriesIDs([]uint64{1})
-	ids2 = inmem.SeriesIDs([]uint64{1, 2})
-	exp = inmem.SeriesIDs{}
+	ids1 = seriesIDs([]uint64{1})
+	ids2 = seriesIDs([]uint64{1, 2})
+	exp = seriesIDs{}
 	got = ids1.Reject(ids2)
 
 	if !exp.Equals(got) {
@@ -95,14 +94,14 @@ func TestSeriesIDs_Reject(t *testing.T) {
 }
 
 func TestMeasurement_AddSeries_Nil(t *testing.T) {
-	m := inmem.NewMeasurement("foo", "cpu")
+	m := newMeasurement("foo", "cpu")
 	if m.AddSeries(nil) {
 		t.Fatalf("AddSeries mismatch: exp false, got true")
 	}
 }
 
 func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
-	m := inmem.NewMeasurement("foo", "cpu")
+	m := newMeasurement("foo", "cpu")
 	var dst []string
 	dst = m.AppendSeriesKeysByID(dst, []uint64{1})
 	if exp, got := 0, len(dst); exp != got {
@@ -111,9 +110,8 @@ func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
 }
 
 func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
-	m := inmem.NewMeasurement("foo", "cpu")
-	s := inmem.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
-	s.ID = 1
+	m := newMeasurement("foo", "cpu")
+	s := newSeries(1, m, "cpu,host=foo", models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
 	m.AddSeries(s)
 
 	var dst []string
@@ -128,13 +126,11 @@ func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 }
 
 func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
-	m := inmem.NewMeasurement("foo", "cpu")
-	s1 := inmem.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
-	s1.ID = 1
+	m := newMeasurement("foo", "cpu")
+	s1 := newSeries(1, m, "cpu,host=foo", models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
 	m.AddSeries(s1)
 
-	s2 := inmem.NewSeries([]byte("cpu,host=bar"), models.Tags{models.NewTag([]byte("host"), []byte("bar"))})
-	s2.ID = 2
+	s2 := newSeries(2, m, "cpu,host=bar", models.Tags{models.NewTag([]byte("host"), []byte("bar"))})
 	m.AddSeries(s2)
 
 	m.DropSeries(s1)
@@ -147,12 +143,11 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 }
 
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
-	m := inmem.NewMeasurement("foo", "cpu")
+	m := newMeasurement("foo", "cpu")
 	for i := 0; i < 100000; i++ {
-		s := inmem.NewSeries([]byte("cpu"), models.Tags{models.NewTag(
+		s := newSeries(uint64(i), m, "cpu", models.Tags{models.NewTag(
 			[]byte("host"),
 			[]byte(fmt.Sprintf("host%d", i)))})
-		s.ID = uint64(i)
 		m.AddSeries(s)
 	}
 
@@ -178,12 +173,11 @@ func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 }
 
 func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
-	m := inmem.NewMeasurement("foo", "cpu")
+	m := newMeasurement("foo", "cpu")
 	for i := 0; i < 100000; i++ {
-		s := inmem.NewSeries([]byte("cpu"), models.Tags{models.Tag{
+		s := newSeries(uint64(i), m, "cpu", models.Tags{models.Tag{
 			Key:   []byte("host"),
 			Value: []byte(fmt.Sprintf("host%d", i))}})
-		s.ID = uint64(i)
 		m.AddSeries(s)
 	}
 
@@ -210,11 +204,10 @@ func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 }
 
 func benchmarkTagSets(b *testing.B, n int, opt query.IteratorOptions) {
-	m := inmem.NewMeasurement("foo", "m")
+	m := newMeasurement("foo", "m")
 	for i := 0; i < n; i++ {
 		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
-		s := inmem.NewSeries([]byte(fmt.Sprintf("m,tag1=value1,tag2=value2")), models.NewTags(tags))
-		s.ID = uint64(i)
+		s := newSeries(uint64(i), m, fmt.Sprintf("m,tag1=value1,tag2=value2"), models.NewTags(tags))
 		s.AssignShard(0, time.Now().UnixNano())
 		m.AddSeries(s)
 	}
