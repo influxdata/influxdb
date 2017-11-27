@@ -8,6 +8,7 @@
 
 - [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
 - [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+- [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
 
 ### Bugfixes
 
