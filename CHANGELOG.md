@@ -10,6 +10,7 @@
 1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
 1. [#2329](https://github.com/influxdata/chronograf/pull/2329): Include tag values alongside measurement name in Data Explorer result tabs
 1. [#2386](https://github.com/influxdata/chronograf/pull/2386): Fix queries that include regex, numbers and wildcard
+1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
 
 ### Features
 1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
