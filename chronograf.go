@@ -1,21 +1,10 @@
 package chronograf
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
-
-	"github.com/influxdata/influxdb/influxql"
 )
 
 // General errors.
@@ -138,196 +127,17 @@ type Range struct {
 	Lower int64 `json:"lower"` // Lower is the lower bound
 }
 
-type TemplateVariable interface {
-	fmt.Stringer
-	Name() string     // returns the variable name
-	Precedence() uint // ordinal indicating precedence level for replacement
-}
-
-type ExecutableVar interface {
-	Exec(string)
-}
-
 // TemplateValue is a value use to replace a template in an InfluxQL query
-type BasicTemplateValue struct {
+type TemplateValue struct {
 	Value    string `json:"value"`    // Value is the specific value used to replace a template in an InfluxQL query
 	Type     string `json:"type"`     // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
 	Selected bool   `json:"selected"` // Selected states that this variable has been picked to use for replacement
 }
 
 // TemplateVar is a named variable within an InfluxQL query to be replaced with Values
-type BasicTemplateVar struct {
-	Var    string               `json:"tempVar"` // Var is the string to replace within InfluxQL
-	Values []BasicTemplateValue `json:"values"`  // Values are the replacement values within InfluxQL
-}
-
-func (t BasicTemplateVar) Name() string {
-	return t.Var
-}
-
-// String converts the template variable into a correct InfluxQL string based
-// on its type
-func (t BasicTemplateVar) String() string {
-	if len(t.Values) == 0 {
-		return ""
-	}
-	switch t.Values[0].Type {
-	case "tagKey", "fieldKey", "measurement", "database":
-		return `"` + t.Values[0].Value + `"`
-	case "tagValue", "timeStamp":
-		return `'` + t.Values[0].Value + `'`
-	case "csv", "constant":
-		return t.Values[0].Value
-	default:
-		return ""
-	}
-}
-
-func (t BasicTemplateVar) Precedence() uint {
-	return 0
-}
-
-type GroupByVar struct {
-	Var               string        `json:"tempVar"`                     // the name of the variable as present in the query
-	Duration          time.Duration `json:"duration,omitempty"`          // the Duration supplied by the query
-	Resolution        uint          `json:"resolution"`                  // the available screen resolution to render the results of this query
-	ReportingInterval time.Duration `json:"reportingInterval,omitempty"` // the interval at which data is reported to this series
-}
-
-// Exec is responsible for extracting the Duration from the query
-func (g *GroupByVar) Exec(query string) {
-	whereClause := "WHERE"
-	start := strings.Index(query, whereClause)
-	if start == -1 {
-		// no where clause
-		return
-	}
-
-	// reposition start to after the 'where' keyword
-	durStr := query[start+len(whereClause):]
-
-	// attempt to parse out a relative time range
-	// locate duration literal start
-	prefix := "time > now() - "
-	lowerDuration, err := g.parseRelative(durStr, prefix)
-	if err == nil {
-		prefix := "time < now() - "
-		upperDuration, err := g.parseRelative(durStr, prefix)
-		if err != nil {
-			g.Duration = lowerDuration
-			return
-		}
-		g.Duration = lowerDuration - upperDuration
-		if g.Duration < 0 {
-			g.Duration = -g.Duration
-		}
-	}
-
-	dur, err := g.parseAbsolute(durStr)
-	if err == nil {
-		// we found an absolute time range
-		g.Duration = dur
-	}
-}
-
-// parseRelative locates and extracts a duration value from a fragment of an
-// InfluxQL query following the "where" keyword. For example, in the fragment
-// "time > now() - 180d GROUP BY :interval:", parseRelative would return a
-// duration equal to 180d
-func (g *GroupByVar) parseRelative(fragment string, prefix string) (time.Duration, error) {
-	start := strings.Index(fragment, prefix)
-	if start == -1 {
-		return time.Duration(0), errors.New("not a relative duration")
-	}
-
-	// reposition to duration literal
-	durFragment := fragment[start+len(prefix):]
-
-	// init counters
-	pos := 0
-
-	// locate end of duration literal
-	for pos < len(durFragment) {
-		rn, _ := utf8.DecodeRuneInString(durFragment[pos:])
-		if unicode.IsSpace(rn) {
-			break
-		}
-		pos++
-	}
-
-	// attempt to parse what we suspect is a duration literal
-	dur, err := influxql.ParseDuration(durFragment[:pos])
-	if err != nil {
-		return dur, err
-	}
-
-	return dur, nil
-}
-
-// parseAbsolute will determine the duration between two absolute timestamps
-// found within an InfluxQL fragment following the "where" keyword. For
-// example, the fragement "time > '1985-10-25T00:01:21-0800 and time <
-// '1985-10-25T00:01:22-0800'" would yield a duration of 1m'
-func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
-	timePtn := `time\s[>|<]\s'([0-9\-T\:\.Z]+)'` // Playground: http://gobular.com/x/208f66bd-1889-4269-ab47-1efdfeeb63f0
-	re, err := regexp.Compile(timePtn)
-	if err != nil {
-		// this is a developer error and should complain loudly
-		panic("Bad Regex: err:" + err.Error())
-	}
-
-	if !re.Match([]byte(fragment)) {
-		return time.Duration(0), errors.New("absolute duration not found")
-	}
-
-	// extract at most two times
-	matches := re.FindAll([]byte(fragment), 2)
-
-	// parse out absolute times
-	durs := make([]time.Time, 0, 2)
-	for _, match := range matches {
-		durStr := re.FindSubmatch(match)
-		if tm, err := time.Parse(time.RFC3339Nano, string(durStr[1])); err == nil {
-			durs = append(durs, tm)
-		}
-	}
-
-	if len(durs) == 1 {
-		durs = append(durs, time.Now())
-	}
-
-	// reject more than 2 times found
-	if len(durs) != 2 {
-		return time.Duration(0), errors.New("must provide exactly two absolute times")
-	}
-
-	dur := durs[1].Sub(durs[0])
-
-	return dur, nil
-}
-
-func (g *GroupByVar) String() string {
-	// The function is: ((total_seconds * millisecond_converstion) / group_by) = pixels / 3
-	// Number of points given the pixels
-	pixels := float64(g.Resolution) / 3.0
-	msPerPixel := float64(g.Duration/time.Millisecond) / pixels
-	secPerPixel := float64(g.Duration/time.Second) / pixels
-	if secPerPixel < 1.0 {
-		if msPerPixel < 1.0 {
-			msPerPixel = 1.0
-		}
-		return "time(" + strconv.FormatInt(int64(msPerPixel), 10) + "ms)"
-	}
-	// If groupby is more than 1 second round to the second
-	return "time(" + strconv.FormatInt(int64(secPerPixel), 10) + "s)"
-}
-
-func (g *GroupByVar) Name() string {
-	return g.Var
-}
-
-func (g *GroupByVar) Precedence() uint {
-	return 1
+type TemplateVar struct {
+	Var    string          `json:"tempVar"` // Var is the string to replace within InfluxQL
+	Values []TemplateValue `json:"values"`  // Values are the replacement values within InfluxQL
 }
 
 // TemplateID is the unique ID used to identify a template
@@ -335,7 +145,7 @@ type TemplateID string
 
 // Template represents a series of choices to replace TemplateVars within InfluxQL
 type Template struct {
-	BasicTemplateVar
+	TemplateVar
 	ID    TemplateID     `json:"id"`              // ID is the unique ID associated with this template
 	Type  string         `json:"type"`            // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, query, measurements, databases
 	Label string         `json:"label"`           // Label is a user-facing description of the Template
@@ -344,69 +154,15 @@ type Template struct {
 
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command      string       `json:"query"`                // Command is the query itself
-	DB           string       `json:"db,omitempty"`         // DB is optional and if empty will not be used.
-	RP           string       `json:"rp,omitempty"`         // RP is a retention policy and optional; if empty will not be used.
-	TemplateVars TemplateVars `json:"tempVars,omitempty"`   // TemplateVars are template variables to replace within an InfluxQL query
-	Wheres       []string     `json:"wheres,omitempty"`     // Wheres restricts the query to certain attributes
-	GroupBys     []string     `json:"groupbys,omitempty"`   // GroupBys collate the query by these tags
-	Resolution   uint         `json:"resolution,omitempty"` // Resolution is the available screen resolution to render query results
-	Label        string       `json:"label,omitempty"`      // Label is the Y-Axis label for the data
-	Range        *Range       `json:"range,omitempty"`      // Range is the default Y-Axis range for the data
-}
-
-// TemplateVars are a heterogeneous collection of different TemplateVariables
-// with the capability to decode arbitrary JSON into the appropriate template
-// variable type
-type TemplateVars []TemplateVariable
-
-func (t *TemplateVars) UnmarshalJSON(text []byte) error {
-	// TODO: Need to test that server throws an error when :interval:'s Resolution or ReportingInterval or zero-value
-	rawVars := bytes.NewReader(text)
-	dec := json.NewDecoder(rawVars)
-
-	// read open bracket
-	rawTok, err := dec.Token()
-	if err != nil {
-		return err
-	}
-
-	tok, isDelim := rawTok.(json.Delim)
-	if !isDelim || tok != '[' {
-		return errors.New("Expected JSON array, but found " + tok.String())
-	}
-
-	for dec.More() {
-		var halfBakedVar json.RawMessage
-		err := dec.Decode(&halfBakedVar)
-		if err != nil {
-			return err
-		}
-
-		var agb GroupByVar
-		err = json.Unmarshal(halfBakedVar, &agb)
-		if err != nil {
-			return err
-		}
-
-		// ensure that we really have a GroupByVar
-		if agb.Resolution != 0 {
-			(*t) = append(*t, &agb)
-			continue
-		}
-
-		var tvar BasicTemplateVar
-		err = json.Unmarshal(halfBakedVar, &tvar)
-		if err != nil {
-			return err
-		}
-
-		// ensure that we really have a BasicTemplateVar
-		if len(tvar.Values) != 0 {
-			(*t) = append(*t, tvar)
-		}
-	}
-	return nil
+	Command      string        `json:"query"`                // Command is the query itself
+	DB           string        `json:"db,omitempty"`         // DB is optional and if empty will not be used.
+	RP           string        `json:"rp,omitempty"`         // RP is a retention policy and optional; if empty will not be used.
+	TemplateVars []TemplateVar `json:"tempVars,omitempty"`   // TemplateVars are template variables to replace within an InfluxQL query
+	Wheres       []string      `json:"wheres,omitempty"`     // Wheres restricts the query to certain attributes
+	GroupBys     []string      `json:"groupbys,omitempty"`   // GroupBys collate the query by these tags
+	Resolution   uint          `json:"resolution,omitempty"` // Resolution is the available screen resolution to render query results
+	Label        string        `json:"label,omitempty"`      // Label is the Y-Axis label for the data
+	Range        *Range        `json:"range,omitempty"`      // Range is the default Y-Axis range for the data
 }
 
 // DashboardQuery includes state for the query builder.  This is a transition
@@ -417,6 +173,7 @@ type DashboardQuery struct {
 	Range       *Range      `json:"range,omitempty"`       // Range is the default Y-Axis range for the data
 	QueryConfig QueryConfig `json:"queryConfig,omitempty"` // QueryConfig represents the query state that is understood by the data explorer
 	Source      string      `json:"source"`                // Source is the optional URI to the data source for this queryConfig
+	Shifts      []TimeShift `json:"-"`                     // Shifts represents shifts to apply to an influxql query's time range.  Clients expect the shift to be in the generated QueryConfig
 }
 
 // TemplateQuery is used to retrieve choices for template replacement
@@ -530,6 +287,13 @@ type DurationRange struct {
 	Lower string `json:"lower"`
 }
 
+// TimeShift represents a shift to apply to an influxql query's time range
+type TimeShift struct {
+	Label    string `json:"label"`    // Label user facing description
+	Unit     string `json:"unit"`     // Unit influxql time unit representation i.e. ms, s, m, h, d
+	Quantity string `json:"quantity"` // Quantity number of units
+}
+
 // QueryConfig represents UI query from the data explorer
 type QueryConfig struct {
 	ID              string              `json:"id,omitempty"`
@@ -543,6 +307,7 @@ type QueryConfig struct {
 	Fill            string              `json:"fill,omitempty"`
 	RawText         *string             `json:"rawText"`
 	Range           *DurationRange      `json:"range"`
+	Shifts          []TimeShift         `json:"shifts"`
 }
 
 // KapacitorNode adds arguments and properties to an alert

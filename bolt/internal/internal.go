@@ -191,12 +191,26 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			if q.Range != nil {
 				r.Upper, r.Lower = q.Range.Upper, q.Range.Lower
 			}
+			q.Shifts = q.QueryConfig.Shifts
 			queries[j] = &Query{
 				Command: q.Command,
 				Label:   q.Label,
 				Range:   r,
 				Source:  q.Source,
 			}
+
+			shifts := make([]*TimeShift, len(q.Shifts))
+			for k := range q.Shifts {
+				shift := &TimeShift{
+					Label:    q.Shifts[k].Label,
+					Unit:     q.Shifts[k].Unit,
+					Quantity: q.Shifts[k].Quantity,
+				}
+
+				shifts[k] = shift
+			}
+
+			queries[j].Shifts = shifts
 		}
 
 		colors := make([]*Color, len(c.CellColors))
@@ -289,12 +303,26 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				Label:   q.Label,
 				Source:  q.Source,
 			}
+
 			if q.Range.Upper != q.Range.Lower {
 				queries[j].Range = &chronograf.Range{
 					Upper: q.Range.Upper,
 					Lower: q.Range.Lower,
 				}
 			}
+
+			shifts := make([]chronograf.TimeShift, len(q.Shifts))
+			for k := range q.Shifts {
+				shift := chronograf.TimeShift{
+					Label:    q.Shifts[k].Label,
+					Unit:     q.Shifts[k].Unit,
+					Quantity: q.Shifts[k].Quantity,
+				}
+
+				shifts[k] = shift
+			}
+
+			queries[j].Shifts = shifts
 		}
 
 		colors := make([]chronograf.CellColor, len(c.Colors))
@@ -354,9 +382,9 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 	templates := make([]chronograf.Template, len(pb.Templates))
 	for i, t := range pb.Templates {
-		vals := make([]chronograf.BasicTemplateValue, len(t.Values))
+		vals := make([]chronograf.TemplateValue, len(t.Values))
 		for j, v := range t.Values {
-			vals[j] = chronograf.BasicTemplateValue{
+			vals[j] = chronograf.TemplateValue{
 				Selected: v.Selected,
 				Type:     v.Type,
 				Value:    v.Value,
@@ -365,7 +393,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 		template := chronograf.Template{
 			ID: chronograf.TemplateID(t.ID),
-			BasicTemplateVar: chronograf.BasicTemplateVar{
+			TemplateVar: chronograf.TemplateVar{
 				Var:    t.TempVar,
 				Values: vals,
 			},

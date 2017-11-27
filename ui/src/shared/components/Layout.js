@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
-import {buildQueriesForLayouts} from 'utils/influxql'
+import {buildQueriesForLayouts} from 'utils/buildQueriesForLayouts'
 
 import _ from 'lodash'
 

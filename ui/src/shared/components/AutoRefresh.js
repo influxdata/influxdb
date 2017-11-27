@@ -81,12 +81,27 @@ const AutoRefresh = ComposedComponent => {
         const templatesWithResolution = templates.map(temp => {
           if (temp.tempVar === ':interval:') {
             if (resolution) {
-              return {...temp, resolution}
+              return {
+                ...temp,
+                values: temp.values.map(
+                  v => (temp.type === 'resolution' ? {...v, resolution} : v)
+                ),
+              }
             }
-            return {...temp, resolution: 1000}
+
+            return {
+              ...temp,
+              values: [
+                ...temp.values,
+                {value: '1000', type: 'resolution', selected: true},
+              ],
+            }
           }
-          return {...temp}
+
+          return temp
         })
+
+        const tempVars = removeUnselectedTemplateValues(templatesWithResolution)
 
         return fetchTimeSeriesAsync(
           {
@@ -94,7 +109,7 @@ const AutoRefresh = ComposedComponent => {
             db: database,
             rp,
             query,
-            tempVars: removeUnselectedTemplateValues(templatesWithResolution),
+            tempVars,
             resolution,
           },
           editQueryStatus

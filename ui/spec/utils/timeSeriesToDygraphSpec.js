@@ -228,11 +228,7 @@ describe('timeSeriesToDygraph', () => {
     ]
 
     const isInDataExplorer = true
-    const actual = timeSeriesToDygraph(
-      influxResponse,
-      undefined,
-      isInDataExplorer
-    )
+    const actual = timeSeriesToDygraph(influxResponse, isInDataExplorer)
 
     const expected = {}
 
