@@ -45,15 +45,17 @@ class TickscriptPage extends Component {
           areLogsEnabled: false,
         })
         this.shouldFetch = false
-        notify('warning', 'Could not use logging, requires Kapacitor version 1.4')
+        notify(
+          'warning',
+          'Could not use logging, requires Kapacitor version 1.4'
+        )
         return
       }
-      else {
-        this.setState({
-          areLogsEnabled: true,
-        })
-        this.shouldFetch = true
-      }
+
+      this.setState({
+        areLogsEnabled: true,
+      })
+      this.shouldFetch = true
 
       const reader = await response.body.getReader()
       const decoder = new TextDecoder()
