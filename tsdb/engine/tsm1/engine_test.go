@@ -1401,11 +1401,13 @@ func makeBlockTypeSlice(n int) []byte {
 	return r
 }
 
+var blockType = influxql.Unknown
+
 func BenchmarkBlockTypeToInfluxQLDataType(b *testing.B) {
 	t := makeBlockTypeSlice(100)
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < len(t); j++ {
-			tsm1.BlockTypeToInfluxQLDataType(t[j])
+			blockType = tsm1.BlockTypeToInfluxQLDataType(t[j])
 		}
 	}
 }

@@ -1209,12 +1209,13 @@ type series struct {
 
 	mu       sync.RWMutex
 	shardIDs map[uint64]struct{} // shards that have this series defined
-	deleted  bool
 
 	// lastModified tracks the last time the series was created.  If the series
 	// already exists and a request to create is received (a no-op), lastModified
 	// is increased to track that it is still in use.
 	lastModified int64
+
+	deleted  bool
 }
 
 // newSeries returns an initialized series struct
