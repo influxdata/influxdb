@@ -110,11 +110,9 @@ function getRolesForUser(roles, user) {
 }
 
 export const buildDefaultYLabel = queryConfig => {
-  return queryConfig.rawText
-    ? ''
-    : `${queryConfig.measurement}.${_.get(
-        queryConfig,
-        ['fields', '0', 'field'],
-        ''
-      )}`
+  const {measurement, fields} = queryConfig
+  const fieldAlias = `${_.get(fields, ['0', 'alias'], '')}`
+  const field = `${_.get(fields, ['0', 'value'], '')}`
+
+  return `${measurement}.${fieldAlias || field}`
 }
