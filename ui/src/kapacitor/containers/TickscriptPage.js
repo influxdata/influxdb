@@ -28,6 +28,7 @@ class TickscriptPage extends Component {
       isEditingID: true,
       logs: [],
       areLogsEnabled: false,
+      failStr: '',
     }
   }
 
@@ -48,20 +49,22 @@ class TickscriptPage extends Component {
         return
       }
 
-      this.setState({
-        areLogsEnabled: true,
-        logs: [
-          {
-            id: uuid.v4(),
-            key: uuid.v4(),
-            lvl: 'info',
-            msg: 'created log session',
-            service: 'sessions',
-            tags: 'nil',
-            ts: new Date().toISOString(),
-          },
-        ],
-      })
+      if (this.state.logs.length === 0) {
+        this.setState({
+          areLogsEnabled: true,
+          logs: [
+            {
+              id: uuid.v4(),
+              key: uuid.v4(),
+              lvl: 'info',
+              msg: 'created log session',
+              service: 'sessions',
+              tags: 'nil',
+              ts: new Date().toISOString(),
+            },
+          ],
+        })
+      }
 
       const response = await getLogStreamByRuleID(kapacitor, ruleID)
 
@@ -77,16 +80,37 @@ class TickscriptPage extends Component {
           stream: !result.done,
         })
 
-        const json = `[${chunk.split('}\n{').join('},{')}]`
+        const json = chunk.split('\n')
 
-        const logs = JSON.parse(json).map(log => ({
-          ...log,
-          key: uuid.v4(),
-        }))
+        let logs = []
+        let failStr = this.state.failStr
 
-        this.setState({
-          logs: [...logs, ...this.state.logs],
-        })
+        try {
+          for (let objStr of json) {
+            objStr = failStr + objStr
+            failStr = objStr
+            const jsonStr = `[${objStr.split('}{').join('},{')}]`
+            logs = [
+              ...logs,
+              ...JSON.parse(jsonStr).map(log => ({
+                ...log,
+                key: uuid.v4(),
+              })),
+            ]
+            failStr = ''
+          }
+
+          this.setState({
+            logs: [...this.state.logs, ...logs],
+            failStr,
+          })
+        } catch (err) {
+          console.warn(err, failStr)
+          this.setState({
+            logs: [...this.state.logs, ...logs],
+            failStr,
+          })
+        }
       }
     } catch (error) {
       console.error(error)
