@@ -5,6 +5,7 @@
 - [#9129](https://github.com/influxdata/influxdb/pull/9129): Fix delete causing too much data to disappear
 - [#9137](https://github.com/influxdata/influxdb/pull/9137): Implement FGA features on remaining meta commands.
 - [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
+- [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
 
 ## v1.4.2 [2017-11-15]
 
