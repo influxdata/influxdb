@@ -6,20 +6,32 @@ const SensuHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
-          <h4>Optional Parameters</h4>
+          <h4>Parameters from Kapacitor Configuration</h4>
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="addr"
+            fieldDisplay="Address"
+            placeholder=""
+            disabled={true}
+          />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="source"
             fieldDisplay="Source"
-            placeholder="Ex: my_source"
+            placeholder="ex: my_source"
           />
+        </div>
+        <div className="endpoint-tab--parameters">
+          <h4>Parameters for this Alert Handler</h4>
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="handlers"
             fieldDisplay="Handlers"
-            placeholder="Ex: my_handlers"
+            placeholder="ex: my_handlers"
+            fieldColumns="col-md-12"
           />
         </div>
       </div>

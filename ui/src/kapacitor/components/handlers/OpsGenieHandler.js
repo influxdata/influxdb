@@ -10,20 +10,32 @@ const OpsgenieHandler = ({
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
-          <h4>Optional Parameters</h4>
+          <h4>Parameters from Kapacitor Configuration</h4>
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="api-key"
+            fieldDisplay="API-key"
+            placeholder=""
+            redacted={true}
+            disabled={true}
+          />
+        </div>
+        <div className="endpoint-tab--parameters">
+          <h4>Parameters for this Alert Handler:</h4>
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="teams"
             fieldDisplay="Teams"
-            placeholder="Ex: teams_name"
+            placeholder="ex: teams_name"
           />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="recipients"
             fieldDisplay="Recipients"
-            placeholder="Ex: recipients_name"
+            placeholder="ex: recipients_name"
           />
         </div>
       </div>

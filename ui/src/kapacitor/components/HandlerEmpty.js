@@ -5,10 +5,14 @@ const HandlerEmpty = ({configLink}) => {
   return (
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
-        <div className="form-group">
-          This handler does not seem to be configured.
+        <div className="endpoint-tab--parameters--empty">
+          <p>This handler does not seem to be configured.</p>
           <Link to={configLink} title="Configuration Page">
-            Configure it here.
+            <div className="form-group-submit col-xs-12 text-center">
+              <button className="btn btn-primary" type="submit">
+                Configure Alert Handlers
+              </button>
+            </div>
           </Link>
         </div>
       </div>

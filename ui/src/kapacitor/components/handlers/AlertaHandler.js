@@ -10,63 +10,66 @@ const AlertaHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
+            fieldName="token"
+            fieldDisplay="Token"
+            placeholder="ex: my_token"
+            redacted={true}
+            fieldColumns="col-md-12"
+          />
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
             fieldName="environment"
             fieldDisplay="Environment"
-            placeholder="Ex: environment"
+            placeholder="ex: environment"
           />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="origin"
             fieldDisplay="Origin"
-            placeholder="Ex: origin"
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="token"
-            fieldDisplay="Token"
-            placeholder="Ex: my_token"
-            redacted={true}
+            placeholder="ex: origin"
           />
         </div>
         <div className="endpoint-tab--parameters">
-          <h4>Optional Parameters</h4>
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="resource"
-            fieldDisplay="Resource"
-            placeholder="Ex: my_resource"
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="event"
-            fieldDisplay="Event"
-            placeholder="Ex: event"
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="group"
-            fieldDisplay="Group"
-            placeholder="Ex: group_name"
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="value"
-            fieldDisplay="Value"
-            placeholder="Ex: value"
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="service"
-            fieldDisplay="Service"
-            placeholder="Ex: service_name"
-          />
+          <h4>Parameters for this Alert Handler</h4>
+          <form>
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="resource"
+              fieldDisplay="Resource"
+              placeholder=""
+            />
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="event"
+              fieldDisplay="Event"
+              placeholder=""
+            />
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="group"
+              fieldDisplay="Group"
+              placeholder=""
+            />
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="value"
+              fieldDisplay="Value"
+              placeholder=""
+            />
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="service"
+              fieldDisplay="Service"
+              placeholder=""
+            />
+          </form>
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />

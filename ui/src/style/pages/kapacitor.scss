@@ -260,7 +260,7 @@ $rule-builder--radius-lg: 5px;
     top: ($rule-builder--padding-lg * 2);
     left: $rule-builder--padding-sm;
     width: calc(100% - #{$rule-builder--padding-sm * 2});
-    height: calc(100% - #{$rule-builder--padding-lg * 2}) !important;;
+    height: calc(100% - #{$rule-builder--padding-lg * 2}) !important;
   }
   > .dygraph > .dygraph-child {
     position: absolute;
@@ -290,7 +290,10 @@ $rule-builder--radius-lg: 5px;
 }
 .rule-builder--graph-options {
   width: 100%;
-  padding: $rule-builder--padding-sm ($rule-builder--padding-lg - $rule-builder--padding-sm);
+  padding: $rule-builder--padding-sm
+    (
+      $rule-builder--padding-lg - $rule-builder--padding-sm
+    );
   display: flex;
   align-items: center;
   height: ($rule-builder--padding-lg * 2);
@@ -422,7 +425,7 @@ $rule-builder--radius-lg: 5px;
 }
 
 .endpoint-tabs {
-  width: 260px;
+  width: 150px;
   background-color: $rule-builder--section-border;
   border-bottom-left-radius: $rule-builder--radius-lg;
   display: flex;
@@ -448,9 +451,7 @@ $rule-builder--radius-lg: 5px;
   font-size: 14.5px;
   font-weight: 600;
   border-right: 2px solid $rule-builder--section-border;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease,
+  transition: color 0.25s ease, background-color 0.25s ease,
     border-color 0.25s ease;
 
   &:last-child {
@@ -490,7 +491,7 @@ $rule-builder--radius-lg: 5px;
     left: 50%;
     background-color: $g8-storm;
     border-radius: 1px;
-    transform: translate(-50%,-50%) rotate(45deg);
+    transform: translate(-50%, -50%) rotate(45deg);
     transition: background-color 0.25s ease;
   }
   &:before {
@@ -506,7 +507,9 @@ $rule-builder--radius-lg: 5px;
     background-color: $g5-pepper;
     cursor: pointer;
     &:before,
-    &:after {background-color: $g20-white;}
+    &:after {
+      background-color: $g20-white;
+    }
   }
   &:hover:active {
     background-color: $c-curacao;
@@ -519,6 +522,7 @@ $rule-builder--radius-lg: 5px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  min-height: 350px;
 
   h4 {
     width: 100%;
@@ -532,4 +536,31 @@ $rule-builder--radius-lg: 5px;
 }
 .endpoint-tab--parameters {
   padding: $rule-builder--padding-lg;
+  padding-bottom: 0;
+
+  &:last-child {
+    padding-bottom: $rule-builder--padding-lg;
+  }
+}
+.endpoint-tab--parameters form {
+  margin-left: -7px;
+  margin-right: -7px;
+}
+.endpoint-tab--parameters--empty {
+  align-items: center;
+  justify-content: center;
+  @include no-user-select();
+
+  p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 23px;
+    text-align: center;
+    color: $g12-forge;
+
+    strong {
+      color: $g18-cloud;
+      font-weight: 900;
+    }
+  }
 }

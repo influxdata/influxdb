@@ -1,24 +1,18 @@
 import React, {PropTypes} from 'react'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
-import HandlerCheckbox from 'src/kapacitor/components/HandlerCheckbox'
 
 const HttpHandler = ({selectedHandler, handleModifyHandler}) => {
   return (
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
-        <h4>Optional Parameters</h4>
+        <h4>Parameters for this Alert Handler</h4>
         <HandlerInput
           selectedHandler={selectedHandler}
           handleModifyHandler={handleModifyHandler}
           fieldName="url"
-          fieldDisplay="POST URL"
-          placeholder="Ex: http://example.com/api/alert"
-        />
-        <HandlerCheckbox
-          selectedHandler={selectedHandler}
-          handleModifyHandler={handleModifyHandler}
-          fieldName="captureResponse"
-          fieldDisplay="Capture response"
+          fieldDisplay="HTTP endpoint for POST request"
+          placeholder="ex: http://example.com/api/alert"
+          fieldColumns="col-md-12"
         />
       </div>
     </div>

@@ -5,13 +5,13 @@ const TcpHandler = ({selectedHandler, handleModifyHandler}) => {
   return (
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
-        <h4>Optional Parameters</h4>
+        <h4>Parameters for this Alert Handler</h4>
         <HandlerInput
           selectedHandler={selectedHandler}
           handleModifyHandler={handleModifyHandler}
           fieldName="address"
-          fieldDisplay="address"
-          placeholder="Ex: exampleendpoint.com:5678"
+          fieldDisplay="Address"
+          placeholder="ex: exampleendpoint.com:5678"
         />
       </div>
     </div>

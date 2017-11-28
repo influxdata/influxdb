@@ -1,13 +1,7 @@
 import React, {PropTypes} from 'react'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
-// import RedactedInput from './RedactedInput'
 
-// <RedactedInput
-//   defaultValue={token}
-//   id="token"
-//   refFunc={this.handleTokenRef}
-// />
 const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
@@ -18,22 +12,23 @@ const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             handleModifyHandler={handleModifyHandler}
             fieldName="url"
             fieldDisplay="Subdomain Url"
-            placeholder="Ex: hipchat_subdomain"
+            placeholder="ex: hipchat_subdomain"
             editable={false}
+            fieldColumns="col-md-12"
           />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="room"
             fieldDisplay="Room:"
-            placeholder="Ex: room_name"
+            placeholder="ex: room_name"
           />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="token"
             fieldDisplay="Token:"
-            placeholder="Ex: the_token"
+            placeholder="ex: the_token"
             redacted={true}
           />
         </div>

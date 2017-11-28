@@ -56,7 +56,7 @@ class RuleHandlers extends Component {
   handleAddEndpoint = selectedItem => {
     const {handlersOnThisAlert, handlersOfKind} = this.state
     const newItemNumbering = _.get(handlersOfKind, selectedItem.type, 0) + 1
-    const newItemName = selectedItem.type + newItemNumbering
+    const newItemName = `${selectedItem.type}-${newItemNumbering}`
     const newEndpoint = {
       ...selectedItem,
       alias: newItemName,

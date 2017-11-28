@@ -5,13 +5,14 @@ const LogHandler = ({selectedHandler, handleModifyHandler}) => {
   return (
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
-        <h4>Optional Parameters</h4>
+        <h4>Parameters for this Alert Handler</h4>
         <HandlerInput
           selectedHandler={selectedHandler}
           handleModifyHandler={handleModifyHandler}
           fieldName="filePath"
-          fieldDisplay="Log File Path:"
-          placeholder="Ex: /tmp/alerts.log"
+          fieldDisplay="File Path for Log File:"
+          placeholder="ex: /tmp/alerts.log"
+          fieldColumns="col-md-12"
         />
       </div>
     </div>

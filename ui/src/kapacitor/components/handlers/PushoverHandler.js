@@ -10,50 +10,62 @@ const PushoverHandler = ({
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
-          <h4>Optional Parameters</h4>
+          <h4>Parameters from Kapacitor Configuration</h4>
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="token"
+            fieldDisplay="Token"
+            placeholder=""
+            disabled={true}
+            redacted={true}
+          />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="userKey"
             fieldDisplay="User Key"
-            placeholder="Ex: the_key"
+            placeholder=""
+            redacted={true}
           />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="device"
-            fieldDisplay="Device: (comma separated)"
-            placeholder="Ex: dv1, dv2"
-          />
+        </div>
+        <div className="endpoint-tab--parameters">
+          <h4>Parameters for this Alert Handler</h4>
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="title"
-            fieldDisplay="Title:"
-            placeholder="Ex: Important Alert"
+            fieldDisplay="Alert Title:"
+            placeholder="ex: Important Alert"
+            fieldColumns="col-md-12"
           />
-        </div>
-        <div className="optional-alert-parameters">
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="url"
             fieldDisplay="URL:"
-            placeholder="Ex: https://influxdata.com"
+            placeholder="ex: https://influxdata.com"
           />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="urlTitle"
             fieldDisplay="URL Title:"
-            placeholder="Ex: InfluxData"
+            placeholder="ex: InfluxData"
+          />
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="device"
+            fieldDisplay="Devices: (comma separated)"
+            placeholder="ex: dv1, dv2"
           />
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="sound"
-            fieldDisplay="Sound:"
-            placeholder="Ex: alien"
+            fieldDisplay="Alert Sound:"
+            placeholder="ex: alien"
           />
         </div>
       </div>
