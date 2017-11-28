@@ -42,19 +42,20 @@ $tvmp-table-gutter: 8px;
 /* Column Widths */
 .tvm--col-1 {flex: 0 0 140px;}
 .tvm--col-2 {flex: 0 0 140px;}
-.tvm--col-3 {flex: 1 0 500px;}
-.tvm--col-4 {flex: 0 0 160px;}
+.tvm--col-3 {flex: 1 0 0;}
+.tvm--col-4 {flex: 0 0 68px;}
 
 /* Table Column Labels */
 .template-variable-manager--table-heading {
   padding: 0 $tvmp-table-gutter;
   height: 18px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   flex-wrap: nowrap;
   font-weight: 600;
   font-size: 12px;
   color: $g11-sidewalk;
+  white-space: nowrap;
 
   > * {
     @include no-user-select();
@@ -132,7 +133,6 @@ $tvmp-table-gutter: 8px;
   line-height: 30px;
   border-radius: $radius;
   background-color: $g5-pepper;
-  margin-top: 2px;
   @include custom-scrollbar-round($g5-pepper, $g7-graphite);
 }
 .tvm-values-empty {
@@ -160,9 +160,13 @@ $tvmp-table-gutter: 8px;
 .tvm-query-builder {
   display: flex;
   align-items: center;
-  height: 30px;
+  min-height: 30px;
+  flex-wrap: wrap;
 
-  > * {margin-right: 2px;}
+  > * {
+    margin-bottom: 2px;
+    margin-right: 2px;
+  }
   > *:last-child {margin-right: 0;}
 
   .dropdown {
@@ -193,7 +197,9 @@ $tvmp-table-gutter: 8px;
     order: 1;
   }
 
-  > .btn {margin-left: $tvmp-table-gutter;}
+  > .btn:first-child {
+    margin-left: $tvmp-table-gutter;
+  }
 
   /* Override confirm buttons styles */
   /* Janky, but doing this quick & dirty for now  */
