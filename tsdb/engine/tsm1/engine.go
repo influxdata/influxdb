@@ -1184,6 +1184,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return nil
 	})
 
+	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
+	bytesutil.Sort(deleteKeys)
+
 	e.Cache.DeleteRange(deleteKeys, min, max)
 
 	// delete from the WAL
