@@ -452,7 +452,7 @@ func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[
 // TagKeyHasAuthorizedSeries determines if there exist authorized series for the
 // provided measurement name and tag key.
 func (e *Engine) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
-	return e.index.TagKeyHasAuthorizedSeries(auth, name, key)
+	return e.index().TagKeyHasAuthorizedSeries(auth, name, key)
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
