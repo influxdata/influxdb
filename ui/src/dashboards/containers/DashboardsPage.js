@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
@@ -11,40 +11,20 @@ import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
 
-const {arrayOf, func, string, shape} = PropTypes
-
-const DashboardsPage = React.createClass({
-  propTypes: {
-    source: shape({
-      id: string.isRequired,
-      name: string.isRequired,
-      type: string,
-      links: shape({
-        proxy: string.isRequired,
-      }).isRequired,
-      telegraf: string.isRequired,
-    }),
-    router: shape({
-      push: func.isRequired,
-    }).isRequired,
-    handleGetDashboards: func.isRequired,
-    handleDeleteDashboard: func.isRequired,
-    dashboards: arrayOf(shape()),
-  },
-
+class DashboardsPage extends Component {
   componentDidMount() {
     this.props.handleGetDashboards()
-  },
+  }
 
   async handleCreateDashbord() {
     const {source: {id}, router: {push}} = this.props
     const {data} = await createDashboard(NEW_DASHBOARD)
     push(`/sources/${id}/dashboards/${data.id}`)
-  },
+  }
 
   handleDeleteDashboard(dashboard) {
     this.props.handleDeleteDashboard(dashboard)
-  },
+  }
 
   render() {
     const {dashboards} = this.props
@@ -61,8 +41,28 @@ const DashboardsPage = React.createClass({
         />
       </div>
     )
-  },
-})
+  }
+}
+
+const {arrayOf, func, string, shape} = PropTypes
+
+DashboardsPage.propTypes = {
+  source: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+    type: string,
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+    telegraf: string.isRequired,
+  }),
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
+  handleGetDashboards: func.isRequired,
+  handleDeleteDashboard: func.isRequired,
+  dashboards: arrayOf(shape()),
+}
 
 const mapStateToProps = ({dashboardUI: {dashboards, dashboard}}) => ({
   dashboards,

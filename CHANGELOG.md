@@ -8,11 +8,17 @@
 1. [#2291](https://github.com/influxdata/chronograf/pull/2291): Fix several kapacitor alert creation panics.
 1. [#2303](https://github.com/influxdata/chronograf/pull/2303): Add shadow-utils to RPM release packages
 1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
+1. [#2327](https://github.com/influxdata/chronograf/pull/2327): After CREATE/DELETE queries, refresh list of databases in Data Explorer
+1. [#2327](https://github.com/influxdata/chronograf/pull/2327): Visualize CREATE/DELETE queries with Table view in Data Explorer
 1. [#2329](https://github.com/influxdata/chronograf/pull/2329): Include tag values alongside measurement name in Data Explorer result tabs
 1. [#2386](https://github.com/influxdata/chronograf/pull/2386): Fix queries that include regex, numbers and wildcard
 1. [#2398](https://github.com/influxdata/chronograf/pull/2398): Fix apps on hosts page from parsing tags with null values
+1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
 
 ### Features
+1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
+1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+
 ### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]

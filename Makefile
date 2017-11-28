@@ -23,23 +23,14 @@ ${BINARY}: $(SOURCES) .bindata .jsdep .godep
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
 
 define CHRONOGIRAFFE
-             .-.  .-.
-             |  \/  |
-            /,   ,_  `'-.
-          .-|\   /`\     '.
-        .'  0/   | 0\  \_  `".
-     .-'  _,/    '--'.'|#''---'
-      `--'  |       /   \#
-            |      /     \#
-            \     ;|\    .\#
-            |' ' //  \   ::\#
-            \   /`    \   ':\#
-             `"`       \..   \#
-                        \::.  \#
-                         \::   \#
-                          \'  .:\#
-                           \  :::\#
-                            \  '::\#
+             ._ o o
+             \_`-)|_
+          ,""      _\_
+        ,"  ## |   0 0.
+      ," ##   ,-\__    `.
+    ,"       /     `--._;) - "HAI, I'm Chronogiraffe. Let's be friends!"
+  ,"     ## /
+,"   ##    /
 endef
 export CHRONOGIRAFFE
 chronogiraffe: ${BINARY}
