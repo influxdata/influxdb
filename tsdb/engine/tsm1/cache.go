@@ -136,6 +136,9 @@ func (e *entry) count() int {
 // filter removes all values with timestamps between min and max inclusive.
 func (e *entry) filter(min, max int64) {
 	e.mu.Lock()
+	if len(e.values) > 1 {
+		e.values = e.values.Deduplicate()
+	}
 	e.values = e.values.Exclude(min, max)
 	e.mu.Unlock()
 }
