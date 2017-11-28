@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -253,64 +252,6 @@ func TestIndex_Manifest(t *testing.T) {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 		}
 	})
-}
-
-func TestIndex_ReplaceIndex(t *testing.T) {
-	idx := MustOpenIndex()
-	defer idx.Close()
-
-	tmpBase := os.TempDir()
-	if err := os.MkdirAll(filepath.Join(tmpBase, "index"), 0777); err != nil {
-		t.Fatal(err)
-	}
-
-	names := []string{"a.tsi.tmp", "b.tsl.tmp", "c.tsi.tmp", "not_a_tsi_file.tsm.tmp"}
-	newFiles := make([]string, 0, len(names))
-	for i, name := range names {
-		var inIndex string
-		if i < len(names)-1 {
-			// First three files are in the index directory.
-			inIndex = "index"
-		}
-
-		fullPath := filepath.Join(tmpBase, inIndex, name)
-		fd, err := os.Create(fullPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fd.Close()
-		newFiles = append(newFiles, fullPath)
-	}
-
-	idx2, err := idx.ReplaceIndex(newFiles)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { os.RemoveAll(idx2.Path); idx2.Close() }()
-
-	if got, exp := idx2.Path, filepath.Join(tmpBase, "index"); got != exp {
-		t.Fatalf("got index path of %s, expected %s", got, exp)
-	}
-
-	for _, nf := range newFiles {
-		// Remove tmp extension as would be done when creating the index.
-		nf = strings.TrimSuffix(nf, ".tmp")
-
-		// Determine existence.
-		_, err := os.Stat(nf)
-		if strings.Contains(nf, "not_a_tsi_file.tsm") {
-			// This file should not exist in the index.
-			if !os.IsNotExist(err) {
-				t.Fatalf("got %v, expected %v", err, os.ErrNotExist)
-			}
-		} else {
-			// This file should exist in the index
-			if err != nil {
-				t.Fatalf("got %v, expected <nil> for file %s", err, nf)
-			}
-		}
-
-	}
 }
 
 func TestIndex_DiskSizeBytes(t *testing.T) {

@@ -216,43 +216,6 @@ func (i *Index) Open() error {
 	return nil
 }
 
-// ReplaceIndex returns a new index built using the provided file paths.
-func (i *Index) ReplaceIndex(newFiles []string) (*Index, error) {
-	var (
-		base       string
-		indexMatch = fmt.Sprintf("%[1]s%s%[1]s", string(os.PathSeparator), "index")
-	)
-
-	for _, pth := range newFiles {
-		if !strings.Contains(pth, indexMatch) ||
-			(!strings.Contains(pth, LogFileExt) && !strings.Contains(pth, IndexFileExt)) {
-			continue // Not a tsi1 file path.
-		}
-
-		if base == "" {
-			base = filepath.Dir(pth)
-		}
-		if err := os.Rename(pth, strings.TrimSuffix(pth, ".tmp")); err != nil {
-			return nil, err
-		}
-	}
-
-	// Create, open and return the new index.
-	idx := NewIndex()
-
-	// Set fields on the new Index.
-	i.mu.RLock()
-	idx.logger = i.logger
-	idx.ShardID = i.ShardID
-	idx.Database = i.Database
-	idx.Path = base
-	idx.version = i.version
-	idx.options = i.options
-	i.mu.RUnlock()
-
-	return idx, idx.Open()
-}
-
 // openLogFile opens a log file and appends it to the index.
 func (i *Index) openLogFile(path string) (*LogFile, error) {
 	f := NewLogFile(path)
@@ -355,21 +318,6 @@ func (i *Index) Manifest() *Manifest {
 	}
 
 	return m
-}
-
-// writeManifestFile writes the manifest to the appropriate file path.
-func (i *Index) writeManifestFile(m *Manifest) error {
-	buf, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
-	}
-	buf = append(buf, '\n')
-
-	if err := ioutil.WriteFile(i.ManifestPath(), buf, 0666); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // WithLogger sets the logger for the index.
@@ -1444,7 +1392,6 @@ func (m *Manifest) Write() error {
 	}
 	buf = append(buf, '\n')
 	m.size = int64(len(buf))
-	fmt.Println("size manifest is ", m.size)
 	return ioutil.WriteFile(m.path, buf, 0666)
 }
 
