@@ -1,10 +1,10 @@
 import React, {PropTypes} from 'react'
-import {OPERATORS} from 'src/kapacitor/constants'
+import {THRESHOLD_OPERATORS} from 'src/kapacitor/constants'
 import Dropdown from 'shared/components/Dropdown'
 import _ from 'lodash'
 
 const mapToItems = (arr, type) => arr.map(text => ({text, type}))
-const operators = mapToItems(OPERATORS, 'operator')
+const operators = mapToItems(THRESHOLD_OPERATORS, 'operator')
 const noopSubmit = e => e.preventDefault()
 const getField = ({fields}) => {
   const alias = _.get(fields, ['0', 'alias'], false)

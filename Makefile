@@ -1,4 +1,4 @@
-.PHONY: assets dep clean test gotest gotestrace jstest run run-dev ctags continuous
+.PHONY: assets dep clean test gotest gotestrace jstest run run-dev run-hmr ctags
 
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
@@ -105,6 +105,9 @@ run: ${BINARY}
 
 run-dev: chronogiraffe
 	./chronograf -d --log-level=debug
+
+run-hmr:
+	cd ui && npm run start:hmr
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi

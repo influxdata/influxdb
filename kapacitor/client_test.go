@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
 	client "github.com/influxdata/kapacitor/client/v1"
 )
@@ -945,10 +946,22 @@ func TestClient_Update(t *testing.T) {
 				ctx:  context.Background(),
 				href: "/kapacitor/v1/tasks/howdy",
 				rule: chronograf.AlertRule{
-					ID: "howdy",
+					ID:   "howdy",
+					Name: "myname",
 					Query: &chronograf.QueryConfig{
 						Database:        "db",
 						RetentionPolicy: "rp",
+						Measurement:     "meas",
+						Fields: []chronograf.Field{
+							{
+								Type:  "field",
+								Value: "usage_user",
+							},
+						},
+					},
+					Trigger: "threshold",
+					TriggerValues: chronograf.TriggerValues{
+						Operator: greaterThan,
 					},
 				},
 			},
@@ -1009,10 +1022,22 @@ func TestClient_Update(t *testing.T) {
 				ctx:  context.Background(),
 				href: "/kapacitor/v1/tasks/howdy",
 				rule: chronograf.AlertRule{
-					ID: "howdy",
+					ID:   "howdy",
+					Name: "myname",
 					Query: &chronograf.QueryConfig{
 						Database:        "db",
 						RetentionPolicy: "rp",
+						Measurement:     "meas",
+						Fields: []chronograf.Field{
+							{
+								Type:  "field",
+								Value: "usage_user",
+							},
+						},
+					},
+					Trigger: "threshold",
+					TriggerValues: chronograf.TriggerValues{
+						Operator: greaterThan,
 					},
 				},
 			},
@@ -1061,6 +1086,135 @@ func TestClient_Update(t *testing.T) {
 			},
 			wantStatus: client.Disabled,
 		},
+		{
+			name:    "error because relative cannot have inside range",
+			wantErr: true,
+			fields: fields{
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/error",
+				rule: chronograf.AlertRule{
+					ID: "error",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+						Fields: []chronograf.Field{
+							{
+								Value: "usage_user",
+								Type:  "field",
+							},
+						},
+					},
+					Trigger: Relative,
+					TriggerValues: chronograf.TriggerValues{
+						Operator: InsideRange,
+					},
+				},
+			},
+		},
+		{
+			name:    "error because rule has an unknown trigger mechanism",
+			wantErr: true,
+			fields: fields{
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/error",
+				rule: chronograf.AlertRule{
+					ID: "error",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+		},
+		{
+			name:    "error because query has no fields",
+			wantErr: true,
+			fields: fields{
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/error",
+				rule: chronograf.AlertRule{
+					ID:      "error",
+					Trigger: Threshold,
+					TriggerValues: chronograf.TriggerValues{
+						Period: "1d",
+					},
+					Name: "myname",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+						Measurement:     "meas",
+					},
+				},
+			},
+		},
+		{
+			name:    "error because alert has no name",
+			wantErr: true,
+			fields: fields{
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/error",
+				rule: chronograf.AlertRule{
+					ID:      "error",
+					Trigger: Deadman,
+					TriggerValues: chronograf.TriggerValues{
+						Period: "1d",
+					},
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+						Measurement:     "meas",
+					},
+				},
+			},
+		},
+		{
+			name:    "error because alert period cannot be an empty string in deadman alert",
+			wantErr: true,
+			fields: fields{
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/error",
+				rule: chronograf.AlertRule{
+					ID:      "error",
+					Name:    "myname",
+					Trigger: Deadman,
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+						Measurement:     "meas",
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		kapa.ResTask = tt.resTask
@@ -1079,11 +1233,17 @@ func TestClient_Update(t *testing.T) {
 				t.Errorf("Client.Update() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			if tt.wantErr {
+				return
+			}
 			if !cmp.Equal(got, tt.want) {
 				t.Errorf("%q. Client.Update() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
 			}
-			if !reflect.DeepEqual(kapa.UpdateTaskOptions, tt.updateTaskOptions) {
-				t.Errorf("Client.Update() = %v, want %v", kapa.UpdateTaskOptions, tt.updateTaskOptions)
+			var cmpOptions = cmp.Options{
+				cmpopts.IgnoreFields(client.UpdateTaskOptions{}, "TICKscript"),
+			}
+			if !cmp.Equal(kapa.UpdateTaskOptions, tt.updateTaskOptions, cmpOptions...) {
+				t.Errorf("Client.Update() = %s", cmp.Diff(got, tt.updateTaskOptions, cmpOptions...))
 			}
 			if tt.wantStatus != kapa.LastStatus {
 				t.Errorf("Client.Update() = %v, want %v", kapa.LastStatus, tt.wantStatus)
@@ -1130,10 +1290,16 @@ func TestClient_Create(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				rule: chronograf.AlertRule{
-					ID: "howdy",
+					ID:   "howdy",
+					Name: "myname's",
 					Query: &chronograf.QueryConfig{
 						Database:        "db",
 						RetentionPolicy: "rp",
+						Measurement:     "meas",
+					},
+					Trigger: Deadman,
+					TriggerValues: chronograf.TriggerValues{
+						Period: "1d",
 					},
 				},
 			},
@@ -1152,10 +1318,79 @@ func TestClient_Create(t *testing.T) {
 				},
 			},
 			createTaskOptions: &client.CreateTaskOptions{
-				TICKscript: "",
-				ID:         "chronograf-v1-howdy",
-				Type:       client.StreamTask,
-				Status:     client.Enabled,
+				TICKscript: `var db = 'db'
+
+var rp = 'rp'
+
+var measurement = 'meas'
+
+var groupBy = []
+
+var whereFilter = lambda: TRUE
+
+var period = 1d
+
+var name = 'myname\'s'
+
+var idVar = name + ':{{.Group}}'
+
+var message = ''
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'deadman'
+
+var threshold = 0.0
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+
+var trigger = data
+    |deadman(threshold, period)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+
+trigger
+    |eval(lambda: "emitted")
+        .as('value')
+        .keep('value', messageField, durationField)
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+
+				ID:     "chronograf-v1-howdy",
+				Type:   client.StreamTask,
+				Status: client.Enabled,
 				DBRPs: []client.DBRP{
 					{
 						Database:        "db",
@@ -1205,10 +1440,9 @@ func TestClient_Create(t *testing.T) {
 			},
 			resError: fmt.Errorf("error"),
 			createTaskOptions: &client.CreateTaskOptions{
-				TICKscript: "",
-				ID:         "chronograf-v1-howdy",
-				Type:       client.StreamTask,
-				Status:     client.Enabled,
+				ID:     "chronograf-v1-howdy",
+				Type:   client.StreamTask,
+				Status: client.Enabled,
 				DBRPs: []client.DBRP{
 					{
 						Database:        "db",
@@ -1234,6 +1468,9 @@ func TestClient_Create(t *testing.T) {
 			got, err := c.Create(tt.args.ctx, tt.args.rule)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Client.Create() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr {
 				return
 			}
 			if !cmp.Equal(got, tt.want) {

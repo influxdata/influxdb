@@ -24,8 +24,8 @@ export function showQueries(source, db) {
   return proxy({source, query, db})
 }
 
-export function killQuery(source, queryId) {
-  const query = `KILL QUERY ${queryId}`
+export function killQuery(source, queryID) {
+  const query = `KILL QUERY ${queryID}`
 
   return proxy({source, query})
 }

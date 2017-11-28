@@ -1,11 +1,11 @@
 import React, {PropTypes} from 'react'
-import {CHANGES, OPERATORS, SHIFTS} from 'src/kapacitor/constants'
+import {CHANGES, RELATIVE_OPERATORS, SHIFTS} from 'src/kapacitor/constants'
 import Dropdown from 'shared/components/Dropdown'
 
 const mapToItems = (arr, type) => arr.map(text => ({text, type}))
 const changes = mapToItems(CHANGES, 'change')
 const shifts = mapToItems(SHIFTS, 'shift')
-const operators = mapToItems(OPERATORS, 'operator')
+const operators = mapToItems(RELATIVE_OPERATORS, 'operator')
 
 const Relative = ({
   onRuleTypeInputChange,

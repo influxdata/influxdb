@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
+import uuid from 'node-uuid'
 
 import {makeLegendStyles} from 'shared/graphs/helpers'
 
@@ -68,7 +69,6 @@ const DygraphLegend = ({
       <div className="sort-btn--bottom">9</div>
     </button>
   )
-
   return (
     <div
       className={`dygraph-legend ${hidden}`}
@@ -118,7 +118,7 @@ const DygraphLegend = ({
             ? 'dygraph-legend--row highlight'
             : 'dygraph-legend--row'
           return (
-            <div key={label + color} className={seriesClass}>
+            <div key={uuid.v4()} className={seriesClass}>
               <span style={{color}}>
                 {isSnipped ? removeMeasurement(label) : label}
               </span>

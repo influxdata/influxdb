@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -12,30 +13,36 @@ import (
 	"github.com/influxdata/chronograf/influx/queries"
 )
 
+// QueryRequest is query that will be converted to a queryConfig
 type QueryRequest struct {
-	ID           string                  `json:"id"`
-	Query        string                  `json:"query"`
-	TemplateVars chronograf.TemplateVars `json:"tempVars,omitempty"`
+	ID    string `json:"id"`
+	Query string `json:"query"`
 }
 
+// QueriesRequest converts all queries to queryConfigs with the help
+// of the template variables
 type QueriesRequest struct {
-	Queries []QueryRequest `json:"queries"`
+	Queries      []QueryRequest           `json:"queries"`
+	TemplateVars []chronograf.TemplateVar `json:"tempVars,omitempty"`
 }
 
+// QueryResponse is the return result of a QueryRequest including
+// the raw query, the templated query, the queryConfig and the queryAST
 type QueryResponse struct {
 	ID             string                   `json:"id"`
 	Query          string                   `json:"query"`
 	QueryConfig    chronograf.QueryConfig   `json:"queryConfig"`
 	QueryAST       *queries.SelectStatement `json:"queryAST,omitempty"`
 	QueryTemplated *string                  `json:"queryTemplated,omitempty"`
-	TemplateVars   chronograf.TemplateVars  `json:"tempVars,omitempty"`
+	TemplateVars   []chronograf.TemplateVar `json:"tempVars,omitempty"`
 }
 
+// QueriesResponse is the response for a QueriesRequest
 type QueriesResponse struct {
 	Queries []QueryResponse `json:"queries"`
 }
 
-// Queries parses InfluxQL and returns the JSON
+// Queries analyzes InfluxQL to produce front-end friendly QueryConfig
 func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
@@ -66,10 +73,10 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			Query: q.Query,
 		}
 
-		query := q.Query
-		if len(q.TemplateVars) > 0 {
-			query = influx.TemplateReplace(query, q.TemplateVars)
-			qr.QueryTemplated = &query
+		query, err := influx.TemplateReplace(q.Query, req.TemplateVars, time.Now())
+		if err != nil {
+			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+			return
 		}
 
 		qc := ToQueryConfig(query)
@@ -77,15 +84,17 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
 		}
+		qc.Shifts = []chronograf.TimeShift{}
 		qr.QueryConfig = qc
 
 		if stmt, err := queries.ParseSelect(query); err == nil {
 			qr.QueryAST = stmt
 		}
 
-		if len(q.TemplateVars) > 0 {
-			qr.TemplateVars = q.TemplateVars
+		if len(req.TemplateVars) > 0 {
+			qr.TemplateVars = req.TemplateVars
 			qr.QueryConfig.RawText = &qr.Query
+			qr.QueryTemplated = &query
 		}
 
 		qr.QueryConfig.ID = q.ID

@@ -37,7 +37,8 @@ const errorsMiddleware = store => next => action => {
     } else if (altText) {
       store.dispatch(notify(alertType, altText))
     } else {
-      store.dispatch(notify(alertType, 'Cannot communicate with server.'))
+      // TODO: actually do proper error handling
+      // store.dispatch(notify(alertType, 'Cannot communicate with server.'))
     }
   }
 
