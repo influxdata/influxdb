@@ -244,9 +244,6 @@ func (s *Service) writeMetaStore(conn net.Conn, dbName string) error {
 			return fmt.Errorf("database %s not found", dbName)
 		}
 		data.Databases = []meta.DatabaseInfo{*keepDB}
-		// drop all users, since we only want the DB
-		data.Users = []meta.UserInfo{}
-
 	}
 	metaBlob, err := data.MarshalBinary()
 
