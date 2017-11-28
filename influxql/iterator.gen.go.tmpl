@@ -114,6 +114,9 @@ type {{$k.name}}MergeIterator struct {
 	heap   *{{$k.name}}MergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *{{$k.name}}MergeHeapItem
 	window struct {
@@ -157,17 +160,27 @@ func (itr *{{$k.name}}MergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *{{$k.name}}MergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *{{$k.name}}MergeIterator) Next() (*{{$k.Name}}Point, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
