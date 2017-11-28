@@ -827,13 +827,18 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 			min <= stun && max >= eun { // TSM file has a range LARGER than the boundary
 			err := e.filterFileToBackup(r, file, basePath, filepath.Join(path, file), start.UnixNano(), end.UnixNano(), tw)
 			if err != nil {
+				if err := r.Close(); err != nil {
+					return err
+				}
 				return err
 			}
 
 		}
 
 		// above is the only case where we need to keep the reader open.
-		r.Close()
+		if err := r.Close(); err != nil {
+			return err
+		}
 
 		// the TSM file is 100% inside the range, so we can just write it without scanning each block
 		if min >= start.UnixNano() && max <= end.UnixNano() {
@@ -888,13 +893,19 @@ func (e *Engine) filterFileToBackup(r *TSMReader, name, shardRelativePath, fullP
 		}
 	}
 
+	if err := bi.Err(); err != nil {
+		return err
+	}
+
 	err = w.WriteIndex()
 	if err != nil {
 		return err
 	}
 
 	// make sure the whole file is out to disk
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
 
 	return e.writeFileToBackup(name, shardRelativePath, path, tw)
 }

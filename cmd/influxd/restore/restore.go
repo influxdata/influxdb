@@ -96,7 +96,7 @@ func (cmd *Command) Run(args ...string) error {
 		if err != nil {
 			cmd.StderrLogger.Printf("error updating meta: %v", err)
 		}
-		cmd.uploadShardsLive()
+		err = cmd.uploadShardsLive()
 		if err != nil {
 			cmd.StderrLogger.Printf("error updating shards: %v", err)
 		}
@@ -253,7 +253,7 @@ func (cmd *Command) unpackMeta() error {
 	c.Dir = cmd.metadir
 
 	// Create the meta dir
-	if os.MkdirAll(c.Dir, 0700); err != nil {
+	if err := os.MkdirAll(c.Dir, 0700); err != nil {
 		return err
 	}
 
@@ -363,7 +363,7 @@ func (cmd *Command) updateMetaLive() error {
 		return fmt.Errorf("Response did not contain the proper header tag.")
 	}
 
-	if len(pairs)%16 != 0 || (len(pairs)/8)%2 != 0 {
+	if (len(pairs)/8)%2 != 0 {
 		return fmt.Errorf("expected an even number of integer pairs in update meta repsonse")
 	}
 
@@ -378,7 +378,7 @@ func (cmd *Command) updateMetaLive() error {
 	return err
 }
 
-// upload takes a request object, attaches a Base64 encoding to the request, and sends it to the snapshotter service.
+// takes a request object, writes a Base64 encoding to the tcp connection, and then sends the request to the snapshotter service.
 func (cmd *Command) updateMetaRemote(req *snapshotter.Request, upStream io.Reader, nbytes int64) ([]byte, error) {
 
 	req.UploadSize = nbytes
@@ -393,7 +393,9 @@ func (cmd *Command) updateMetaRemote(req *snapshotter.Request, upStream io.Reade
 	}
 	defer conn.Close()
 
-	conn.Write([]byte{byte(req.Type)})
+	if _, err := conn.Write([]byte{byte(req.Type)}); err != nil {
+		return b.Bytes(), err
+	}
 
 	if req.Type != snapshotter.RequestShardUpdate { // Write the request
 		if err := json.NewEncoder(conn).Encode(req); err != nil {
@@ -405,13 +407,11 @@ func (cmd *Command) updateMetaRemote(req *snapshotter.Request, upStream io.Reade
 		return b.Bytes(), fmt.Errorf("error uploading file: err=%v, n=%d, uploadSize: %d", err, n, req.UploadSize)
 	}
 
-	//var response bytes.Buffer
-	//// Read snapshot from the connection
 	cmd.StdoutLogger.Printf("wrote %d bytes", req.UploadSize)
 
 	b.Reset()
 	if n, err := b.ReadFrom(conn); err != nil || n == 0 {
-		return b.Bytes(), fmt.Errorf("copy backup to file: err=%v, n=%d", err, n)
+		return b.Bytes(), fmt.Errorf("updating metadata on influxd service failed: err=%v, n=%d", err, n)
 	}
 
 	return b.Bytes(), nil
@@ -454,7 +454,9 @@ func (cmd *Command) uploadShardsLive() error {
 							return err
 						}
 						tr := tar.NewReader(gr)
-						cmd.uploadShardLive(file.ShardID, tr)
+						if err := cmd.uploadShardLive(file.ShardID, tr); err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -485,7 +487,9 @@ func (cmd *Command) uploadShardsLive() error {
 				return err
 			}
 			tr := tar.NewReader(f)
-			cmd.uploadShardLive(shardID, tr)
+			if err := cmd.uploadShardLive(shardID, tr); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -501,12 +505,16 @@ func (cmd *Command) uploadShardLive(shardID uint64, tr *tar.Reader) error {
 		return err
 	}
 
-	conn.Write([]byte{byte(snapshotter.RequestShardUpdate)})
+	if _, err := conn.Write([]byte{byte(snapshotter.RequestShardUpdate)}); err != nil {
+		return err
+	}
 
 	// 0.  write the shard ID to pw
-	shardBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(shardBytes, newShardID)
-	conn.Write(shardBytes)
+	var shardBytes [8]byte
+	binary.BigEndian.PutUint64(shardBytes[:], newShardID)
+	if _, err := conn.Write(shardBytes[:]); err != nil {
+		return err
+	}
 
 	tw := tar.NewWriter(conn)
 	defer tw.Close()
@@ -526,7 +534,10 @@ func (cmd *Command) uploadShardLive(shardID uint64, tr *tar.Reader) error {
 		}
 		hdr.Name = filepath.ToSlash(filepath.Join(cmd.destinationDatabase, rp, strconv.FormatUint(newShardID, 10), names[3]))
 
-		tw.WriteHeader(hdr)
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+
 		if _, err := io.Copy(tw, tr); err != nil {
 			return err
 		}
@@ -623,12 +634,17 @@ func (cmd *Command) unpackFile(tr *tar.Reader, fileName string) error {
 	if err != nil {
 		return err
 	}
-	defer ff.Close()
 
 	if _, err := io.Copy(ff, tr); err != nil {
+		if err := ff.Close(); err != nil {
+			return err
+		}
 		return err
 	}
 
+	if err := ff.Close(); err != nil {
+		return err
+	}
 	return nil
 }
 

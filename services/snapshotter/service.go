@@ -69,7 +69,9 @@ func (s *Service) Open() error {
 // Close implements the Service interface.
 func (s *Service) Close() error {
 	if s.Listener != nil {
-		s.Listener.Close()
+		if err := s.Listener.Close(); err != nil {
+			return err
+		}
 	}
 	s.wg.Wait()
 	return nil
@@ -110,16 +112,14 @@ func (s *Service) serve() {
 
 // handleConn processes conn. This is run in a separate goroutine.
 func (s *Service) handleConn(conn net.Conn) error {
-	var Type [1]byte
+	var typ [1]byte
 
-	_, err := conn.Read(Type[:])
-
+	_, err := conn.Read(typ[:])
 	if err != nil {
 		return err
 	}
 
-	switch RequestType(Type[0]) {
-	case RequestShardUpdate:
+	if RequestType(typ[0]) == RequestShardUpdate {
 		return s.updateShardsLive(conn)
 	}
 
@@ -128,7 +128,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 		return fmt.Errorf("read request: %s", err)
 	}
 
-	switch RequestType(Type[0]) {
+	switch RequestType(typ[0]) {
 	case RequestShardBackup:
 		if err := s.TSDBStore.BackupShard(r.ShardID, r.Since, conn); err != nil {
 			return err
@@ -161,6 +161,9 @@ func (s *Service) updateShardsLive(conn net.Conn) error {
 		return err
 	}
 	sid := binary.BigEndian.Uint64(sidBytes[:])
+	if err := s.TSDBStore.SetShardEnabled(sid, false); err != nil {
+		return err
+	}
 	if err := s.TSDBStore.RestoreShard(sid, conn); err != nil {
 		return err
 	}
@@ -174,7 +177,9 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 	md := meta.Data{}
 	err := md.UnmarshalBinary(bits)
 	if err != nil {
-		s.respondIDMap(conn, map[uint64]uint64{})
+		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
+			return err
+		}
 		return fmt.Errorf("failed to decode meta: %s", err)
 	}
 
@@ -182,7 +187,9 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 
 	IDMap, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
 	if err != nil {
-		s.respondIDMap(conn, map[uint64]uint64{})
+		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
+			return err
+		}
 		return err
 	}
 
@@ -190,7 +197,10 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 	err = s.MetaClient.(*meta.Client).SetData(&data)
 
 	for _, v := range IDMap {
-		s.TSDBStore.CreateShard(restoreDBName, rpName, v, true)
+		err := s.TSDBStore.CreateShard(restoreDBName, rpName, v, true)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = s.respondIDMap(conn, IDMap)

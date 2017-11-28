@@ -95,7 +95,11 @@ func (cmd *Command) Run(args ...string) error {
 		cmd.StdoutLogger.Println("No database, retention policy or shard ID given. Full meta store backed up.")
 		if !cmd.legacy {
 			cmd.StdoutLogger.Println("Backing up all databases in enterprise format")
-			cmd.backupDatabase()
+			if err := cmd.backupDatabase(); err != nil {
+				cmd.StderrLogger.Printf("backup failed: %v", err)
+				return err
+			}
+
 		}
 
 	}
@@ -103,7 +107,10 @@ func (cmd *Command) Run(args ...string) error {
 	if !cmd.legacy {
 		cmd.manifest.Platform = "OSS"
 		filename := cmd.enterpriseFileBase + ".manifest"
-		cmd.manifest.Save(filepath.Join(cmd.path, filename))
+		if err := cmd.manifest.Save(filepath.Join(cmd.path, filename)); err != nil {
+			cmd.StderrLogger.Printf("manifest save failed: %v", err)
+			return err
+		}
 	}
 
 	if err != nil {
@@ -231,16 +238,33 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 		filePrefix := cmd.enterpriseFileBase + ".s" + sid
 		filename := filePrefix + ".tar.gz"
 		out, err := os.OpenFile(filepath.Join(cmd.path, filename), os.O_CREATE|os.O_RDWR, 0600)
-		defer out.Close()
+
 		zw := gzip.NewWriter(out)
 		zw.Name = filePrefix + ".tar"
-		defer zw.Close()
+
 		cw := backup_util.CountingWriter{Writer: zw}
 
-		io.Copy(&cw, f)
+		_, err = io.Copy(&cw, f)
+		if err != nil {
+			if err := zw.Close(); err != nil {
+				return err
+			}
+
+			if err := out.Close(); err != nil {
+				return err
+			}
+			return err
+		}
 
 		shardid, err := strconv.ParseUint(sid, 10, 64)
 		if err != nil {
+			if err := zw.Close(); err != nil {
+				return err
+			}
+
+			if err := out.Close(); err != nil {
+				return err
+			}
 			return err
 		}
 		cmd.manifest.Files = append(cmd.manifest.Files, backup_util.Entry{
@@ -252,6 +276,13 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 			LastModified: 0,
 		})
 
+		if err := zw.Close(); err != nil {
+			return err
+		}
+
+		if err := out.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 
@@ -444,7 +475,10 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 			}
 			defer conn.Close()
 
-			conn.Write([]byte{byte(req.Type)})
+			_, err = conn.Write([]byte{byte(req.Type)})
+			if err != nil {
+				return err
+			}
 
 			// Write the request
 			if err := json.NewEncoder(conn).Encode(req); err != nil {
@@ -470,12 +504,16 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 // requestInfo will request the database or retention policy information from the host
 func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Response, error) {
 	// Connect to snapshotter service.
+	var r snapshotter.Response
 	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-	conn.Write([]byte{byte(request.Type)})
+	_, err = conn.Write([]byte{byte(request.Type)})
+	if err != nil {
+		return &r, err
+	}
 
 	// Write the request
 	if err := json.NewEncoder(conn).Encode(request); err != nil {
@@ -483,7 +521,7 @@ func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Resp
 	}
 
 	// Read the response
-	var r snapshotter.Response
+
 	if err := json.NewDecoder(conn).Decode(&r); err != nil {
 		return nil, err
 	}
