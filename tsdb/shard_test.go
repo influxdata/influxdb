@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -332,8 +333,8 @@ func TestShardWriteAddNewField(t *testing.T) {
 // Tests concurrently writing to the same shard with different field types which
 // can trigger a panic when the shard is snapshotted to TSM files.
 func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
+	if testing.Short() || runtime.GOOS == "windows" {
+		t.Skip("Skipping on short and windows")
 	}
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
