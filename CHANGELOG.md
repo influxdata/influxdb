@@ -4,6 +4,7 @@
 
 - [#9129](https://github.com/influxdata/influxdb/pull/9129): Fix delete causing too much data to disappear
 - [#9137](https://github.com/influxdata/influxdb/pull/9137): Implement FGA features on remaining meta commands.
+- [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
 
 ## v1.4.2 [2017-11-15]
 
