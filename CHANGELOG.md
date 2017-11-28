@@ -18,6 +18,7 @@
 ### Features
 1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
 1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
 
 ### UI Improvements
 
