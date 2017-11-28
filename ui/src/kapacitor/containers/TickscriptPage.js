@@ -7,8 +7,7 @@ import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
-import {getLogStreamByRuleID} from 'src/kapacitor/apis'
-import {KAPACITOR_LOGS_NOT_FOUND} from 'src/kapacitor/constants'
+import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
 import {publishNotification} from 'shared/actions/notifications'
 
 class TickscriptPage extends Component {
@@ -32,19 +31,16 @@ class TickscriptPage extends Component {
     }
   }
 
-  shouldFetch = null
-
   fetchChunkedLogs = async (kapacitor, ruleID) => {
     const {notify} = this.props
 
     try {
-      const response = await getLogStreamByRuleID(kapacitor, ruleID)
+      const version = await pingKapacitorVersion(kapacitor)
 
-      if (response.status === KAPACITOR_LOGS_NOT_FOUND) {
+      if (version && parseInt(version.split('.')[1], 10) < 4) {
         this.setState({
           areLogsEnabled: false,
         })
-        this.shouldFetch = false
         notify(
           'warning',
           'Could not use logging, requires Kapacitor version 1.4'
@@ -54,15 +50,27 @@ class TickscriptPage extends Component {
 
       this.setState({
         areLogsEnabled: true,
+        logs: [
+          {
+            id: uuid.v4(),
+            key: uuid.v4(),
+            lvl: 'info',
+            msg: 'created log session',
+            service: 'sessions',
+            tags: 'nil',
+            ts: new Date().toISOString(),
+          },
+        ],
       })
-      this.shouldFetch = true
+
+      const response = await getLogStreamByRuleID(kapacitor, ruleID)
 
       const reader = await response.body.getReader()
       const decoder = new TextDecoder()
 
       let result
 
-      while (this.shouldFetch === true && !(result && result.done)) {
+      while (this.state.areLogsEnabled === true && !(result && result.done)) {
         result = await reader.read()
 
         const chunk = decoder.decode(result.value || new Uint8Array(), {
@@ -117,7 +125,9 @@ class TickscriptPage extends Component {
   }
 
   componentWillUnmount() {
-    this.shouldFetch = false
+    this.setState({
+      areLogsEnabled: false,
+    })
   }
 
   handleSave = async () => {
@@ -163,7 +173,7 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, id: e.target.value}})
   }
 
-  HandleToggleLogsVisbility = () => {
+  handleToggleLogsVisbility = () => {
     this.setState({areLogsVisible: !this.state.areLogsVisible})
   }
 
@@ -185,7 +195,7 @@ class TickscriptPage extends Component {
         onChangeID={this.handleChangeID}
         areLogsVisible={areLogsVisible}
         areLogsEnabled={areLogsEnabled}
-        onToggleLogsVisbility={this.HandleToggleLogsVisbility}
+        onToggleLogsVisbility={this.handleToggleLogsVisbility}
       />
     )
   }

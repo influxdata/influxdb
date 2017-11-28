@@ -16,11 +16,12 @@ const TickscriptHeader = ({
       <div className="page-header__left">
         <h1 className="page-header__title">TICKscript Editor</h1>
       </div>
-      <LogsToggle
-        areLogsVisible={areLogsVisible}
-        areLogsEnabled={areLogsEnabled}
-        onToggleLogsVisbility={onToggleLogsVisbility}
-      />
+      {areLogsEnabled &&
+        <LogsToggle
+          areLogsVisible={areLogsVisible}
+          areLogsEnabled={areLogsEnabled}
+          onToggleLogsVisbility={onToggleLogsVisbility}
+        />}
       <div className="page-header__right">
         <SourceIndicator />
         <button
