@@ -1201,6 +1201,11 @@ func (a measurements) Union(other measurements) measurements {
 
 // series belong to a Measurement and represent unique time series in a database.
 type series struct {
+	// lastModified tracks the last time the series was created.  If the series
+	// already exists and a request to create is received (a no-op), lastModified
+	// is increased to track that it is still in use.
+	lastModified int64
+
 	// immutable
 	ID          uint64
 	Measurement *measurement
@@ -1210,12 +1215,7 @@ type series struct {
 	mu       sync.RWMutex
 	shardIDs map[uint64]struct{} // shards that have this series defined
 
-	// lastModified tracks the last time the series was created.  If the series
-	// already exists and a request to create is received (a no-op), lastModified
-	// is increased to track that it is still in use.
-	lastModified int64
-
-	deleted  bool
+	deleted bool
 }
 
 // newSeries returns an initialized series struct
