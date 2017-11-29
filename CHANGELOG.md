@@ -25,6 +25,7 @@
 1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
 
 ### UI Improvements
+1. [#2427](https://github.com/influxdata/chronograf/pull/2427): Improve performance of Hosts, Alert History, and TICKscript logging pages when there are many items to display
 
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes
