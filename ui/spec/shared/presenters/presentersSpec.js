@@ -222,4 +222,41 @@ describe('Presenters', () => {
       })
     })
   })
+
+  describe('buildDefaultYLabel', () => {
+    it('can return the correct string for field', () => {
+      const query = defaultQueryConfig({id: 1})
+      const fields = [{value: 'usage_system', type: 'field'}]
+      const measurement = 'm1'
+      const queryConfig = {...query, measurement, fields}
+      const actual = buildDefaultYLabel(queryConfig)
+
+      expect(actual).to.equal('m1.usage_system')
+    })
+
+    it('can return the correct string for funcs with args', () => {
+      const query = defaultQueryConfig({id: 1})
+      const field = {value: 'usage_system', type: 'field'}
+      const args = {
+        value: 'mean',
+        type: 'func',
+        args: [field],
+        alias: '',
+      }
+
+      const f1 = {
+        value: 'derivative',
+        type: 'func',
+        args: [args],
+        alias: '',
+      }
+
+      const fields = [f1]
+      const measurement = 'm1'
+      const queryConfig = {...query, measurement, fields}
+      const actual = buildDefaultYLabel(queryConfig)
+
+      expect(actual).to.equal('m1.derivative_mean_usage_system')
+    })
+  })
 })
