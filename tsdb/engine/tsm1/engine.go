@@ -799,7 +799,9 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 
 	for _, file := range files {
 		if !strings.HasSuffix(file, ".tsm") {
-			continue
+			if err := e.writeFileToBackup(file, basePath, filepath.Join(path, file), tw); err != nil {
+				return err
+			}
 		}
 
 		var tombstonePath string
