@@ -6,23 +6,7 @@ const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
-          <h4>Parameters:</h4>
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="url"
-            fieldDisplay="Subdomain Url"
-            placeholder="ex: hipchat_subdomain"
-            editable={false}
-            fieldColumns="col-md-12"
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="room"
-            fieldDisplay="Room:"
-            placeholder="ex: room_name"
-          />
+          <h4>Parameters for this Alert Handler</h4>
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
@@ -30,6 +14,22 @@ const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             fieldDisplay="Token:"
             placeholder="ex: the_token"
             redacted={true}
+            fieldColumns="col-md-12"
+          />
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="url"
+            fieldDisplay="Subdomain Url"
+            placeholder="ex: hipchat_subdomain"
+            disabled={true}
+          />
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="room"
+            fieldDisplay="Room:"
+            placeholder="ex: room_name"
           />
         </div>
       </div>

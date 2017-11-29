@@ -87,8 +87,8 @@ export const RULE_MESSAGE_TEMPLATES = {
     text: 'The time of the point that triggered the event',
   },
 }
-// DEFAULT_ALERTS are empty alert templates for handlers that don't exist in the kapacitor config
-export const DEFAULT_ALERTS = [
+// DEFAULT_HANDLERS are empty alert templates for handlers that don't exist in the kapacitor config
+export const DEFAULT_HANDLERS = [
   {
     type: 'post',
     enabled: true,
@@ -100,16 +100,24 @@ export const DEFAULT_ALERTS = [
   {type: 'log', enabled: true, filePath: ''},
 ]
 
+export const MAP_KEYS_FROM_CONFIG = {
+  hipchat: 'hipChat',
+  opsgenie: 'opsGenie',
+  pagerduty: 'pagerDuty',
+  smtp: 'email',
+  victorops: 'victorOps',
+}
+
 // ALERTS_FROM_CONFIG the array of fields to accept from Kapacitor Config
 export const ALERTS_FROM_CONFIG = {
   alerta: ['environment', 'origin', 'token'], // token = bool
-  hipchat: ['url', 'room', 'token'], // token = bool
-  opsgenie: ['api-key', 'teams', 'recipients'], // api-key = bool
-  pagerduty: ['service-key'], // service-key = bool
+  hipChat: ['url', 'room', 'token'], // token = bool
+  opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
+  pagerDuty: ['service-key'], // service-key = bool
   pushover: ['token', 'user-key'], // token = bool, user-key = bool
   sensu: ['addr', 'source'],
   slack: ['url', 'channel'], // url = bool
-  smtp: ['from', 'host', 'password', 'port', 'username'], // password = bool
+  email: ['from', 'host', 'password', 'port', 'username'], // password = bool
   talk: ['url', 'author_name'], // url = bool
   telegram: [
     'token',
@@ -118,22 +126,21 @@ export const ALERTS_FROM_CONFIG = {
     'disable-web-page-preview',
     'disable-notification',
   ], // token = bool
-  victorops: ['api-key', 'routing-key'], // api-key = bool
+  victorOps: ['api-key', 'routing-key'], // api-key = bool
   // snmpTrap: ['trapOid', 'data'], // [oid/type/value]
   // influxdb:[],
   // mqtt:[]
 }
 
-export const CONFIG_TO_RULE = {
+export const MAP_FIELD_KEYS_FROM_CONFIG = {
   alerta: {},
-  hipchat: {},
-  opsgenie: {},
-  pagerduty: {'service-key': 'serviceKey'},
+  hipChat: {},
+  opsGenie: {},
+  pagerDuty: {'service-key': 'serviceKey'},
   pushover: {'user-key': 'userKey'},
   sensu: {},
   slack: {},
-  // smtp: 'email', // this won't work.
-  smtp: {},
+  email: {},
   talk: {},
   telegram: {
     'chat-id': 'chatId',
@@ -141,7 +148,7 @@ export const CONFIG_TO_RULE = {
     'disable-web-page-preview': 'disableWebPagePreview',
     'disable-notification': 'disableNotification',
   },
-  victorops: {'routing-key': 'routingKey'},
+  victorOps: {'routing-key': 'routingKey'},
   // snmpTrap: {},
   // influxd: {},
   // mqtt: {}
@@ -159,9 +166,9 @@ export const ALERTS_TO_RULE = {
     'origin',
     'service',
   ],
-  hipchat: ['room', 'token'],
-  opsgenie: ['teams', 'recipients'],
-  pagerduty: ['serviceKey'],
+  hipChat: ['room', 'token'],
+  opsGenie: ['teams', 'recipients'],
+  pagerDuty: ['serviceKey'],
   pushover: ['userKey', 'device', 'title', 'url', 'urlTitle', 'sound'],
   sensu: ['source', 'handlers'],
   slack: ['channel', 'username', 'iconEmoji'],
@@ -174,7 +181,7 @@ export const ALERTS_TO_RULE = {
     'disableWebPagePreview',
     'disableNotification',
   ],
-  victorops: ['routingKey'],
+  victorOps: ['routingKey'],
   post: ['url', 'headers', 'captureResponse'],
   tcp: ['address'],
   exec: ['command'],

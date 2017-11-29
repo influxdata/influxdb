@@ -10,18 +10,16 @@ const PagerdutyHandler = ({
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
-          <h4>Parameters</h4>
-          <form>
-            <HandlerInput
-              selectedHandler={selectedHandler}
-              handleModifyHandler={handleModifyHandler}
-              fieldName="serviceKey"
-              fieldDisplay="Service Key:"
-              placeholder="ex: service_key"
-              redacted={true}
-              fieldColumns="col-md-12"
-            />
-          </form>
+          <h4>Parameters for this Alert Handler</h4>
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="serviceKey"
+            fieldDisplay="Service Key:"
+            placeholder="ex: service_key"
+            redacted={true}
+            fieldColumns="col-md-12"
+          />
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />

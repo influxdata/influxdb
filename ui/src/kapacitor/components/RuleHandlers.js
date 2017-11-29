@@ -4,10 +4,11 @@ import _ from 'lodash'
 import HandlerOptions from 'src/kapacitor/components/HandlerOptions'
 import HandlerTabs from 'src/kapacitor/components/HandlerTabs'
 import Dropdown from 'shared/components/Dropdown'
+// import getHandlersFromRule from 'src/shared/parsing/getHandlersFromRule'
 
-import {DEFAULT_ALERTS} from 'src/kapacitor/constants'
+import {DEFAULT_HANDLERS} from 'src/kapacitor/constants'
 
-const alertNodesToEndpoints = rule => {
+const getHandlersFromRule = rule => {
   const handlersOfKind = {}
   const handlersOnThisAlert = []
   rule.alertNodes.forEach(an => {
@@ -35,7 +36,7 @@ class RuleHandlers extends Component {
       handlersOnThisAlert,
       selectedHandler,
       handlersOfKind,
-    } = alertNodesToEndpoints(this.props.rule)
+    } = getHandlersFromRule(this.props.rule)
 
     this.state = {
       selectedHandler,
@@ -133,7 +134,7 @@ class RuleHandlers extends Component {
   render() {
     const {handlersFromConfig, configLink} = this.props
     const {handlersOnThisAlert, selectedHandler} = this.state
-    const alerts = _.map([...DEFAULT_ALERTS, ...handlersFromConfig], a => {
+    const alerts = _.map([...DEFAULT_HANDLERS, ...handlersFromConfig], a => {
       return {...a, text: a.type}
     })
     const dropdownLabel = handlersOnThisAlert.length

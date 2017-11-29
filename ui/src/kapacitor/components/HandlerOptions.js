@@ -57,7 +57,7 @@ class HandlerOptions extends Component {
             configLink={configLink}
           />
         )
-      case 'smtp':
+      case 'email':
         return (
           <SmtpHandler
             selectedHandler={selectedHandler}
@@ -73,7 +73,7 @@ class HandlerOptions extends Component {
             configLink={configLink}
           />
         )
-      case 'hipchat':
+      case 'hipChat':
         return (
           <HipchatHandler
             selectedHandler={selectedHandler}
@@ -81,7 +81,7 @@ class HandlerOptions extends Component {
             configLink={configLink}
           />
         )
-      case 'opsgenie':
+      case 'opsGenie':
         return (
           <OpsgenieHandler
             selectedHandler={selectedHandler}
@@ -89,7 +89,7 @@ class HandlerOptions extends Component {
             configLink={configLink}
           />
         )
-      case 'pagerduty':
+      case 'pagerDuty':
         return (
           <PagerdutyHandler
             selectedHandler={selectedHandler}
@@ -137,7 +137,7 @@ class HandlerOptions extends Component {
             configLink={configLink}
           />
         )
-      case 'victorops':
+      case 'victorOps':
         return (
           <VictoropsHandler
             selectedHandler={selectedHandler}
