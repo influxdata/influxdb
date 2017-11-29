@@ -10,6 +10,7 @@
 - [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
 - [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
 - [#8491](https://github.com/influxdata/influxdb/pull/8491): Add further tsi support for streaming/copying shards.
+- [#9181](https://github.com/influxdata/influxdb/pull/9181): Schedule a full compaction after a successful import
 
 ### Bugfixes
 
