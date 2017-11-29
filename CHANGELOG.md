@@ -105,6 +105,7 @@ refuse to open, and will most likely see the following error message:
 - [#9021](https://github.com/influxdata/influxdb/pull/9021): Update to go 1.9.2
 - [#8891](https://github.com/influxdata/influxdb/pull/8891): Allow human-readable byte sizes in config
 - [#9073](https://github.com/influxdata/influxdb/pull/9073): Improve SHOW TAG KEYS performance.
+- [#7355](https://github.com/influxdata/influxdb/issues/7355): Create a command to truncate shard groups
 
 ### Bugfixes
 
