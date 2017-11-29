@@ -326,6 +326,50 @@ func TestUsersStore_Add(t *testing.T) {
 			},
 		},
 		{
+			name: "Add user that already exists",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1234,
+							Name:     "docbrown",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Organization: "1337",
+									Name:         "editor",
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					ID:       1234,
+					Name:     "docbrown",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Organization: "1337",
+							Name:         "admin",
+						},
+					},
+				},
+				orgID: "1337",
+			},
+			wantErr: true,
+		},
+		{
 			name: "Has invalid Role: missing Organization",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{

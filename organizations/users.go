@@ -128,6 +128,16 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 		}
 	}
 
+	// If the user already has a role in the organization then the user
+	// cannot be "created".
+	// This can be thought of as:
+	// (total # of roles a user has) - (# of roles not in the organization) = (# of roles in organization)
+	// if this value is greater than 1 the user cannot be "added".
+	numRolesInOrganization := len(usr.Roles) - len(roles)
+	if numRolesInOrganization > 0 {
+		return nil, chronograf.ErrUserAlreadyExists
+	}
+
 	// Set the users roles to be the union of the roles set on the provided user
 	// and the user that was found in the underlying store
 	usr.Roles = append(roles, u.Roles...)
