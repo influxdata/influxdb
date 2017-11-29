@@ -18,10 +18,11 @@ import (
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	levels   []CompactionLevel
-	files    []File
-	filters  []*bloom.Filter // per-level filters
-	database string
+	levels       []CompactionLevel
+	files        []File
+	filters      []*bloom.Filter // per-level filters
+	database     string
+	manifestSize int64 // Size of the manifest file in bytes.
 }
 
 // NewFileSet returns a new instance of FileSet.
@@ -72,6 +73,15 @@ func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 		files:    append([]File{f}, fs.files...),
 		filters:  fs.filters,
 	}
+}
+
+// Size returns the on-disk size of the FileSet.
+func (fs *FileSet) Size() int64 {
+	var total int64
+	for _, f := range fs.files {
+		total += f.Size()
+	}
+	return total + int64(fs.manifestSize)
 }
 
 // MustReplace swaps a list of files for a single file and returns a new file set.
@@ -1098,6 +1108,9 @@ type File interface {
 	// Reference counting.
 	Retain()
 	Release()
+
+	// Size of file on disk
+	Size() int64
 }
 
 type Files []File

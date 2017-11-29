@@ -125,6 +125,8 @@ const (
 type Engine struct {
 	mu sync.RWMutex
 
+	index tsdb.Index
+
 	// The following group of fields is used to track the state of level compactions within the
 	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
 	// used to signal those goroutines to shutdown. Every request to disable level compactions will
@@ -147,7 +149,6 @@ type Engine struct {
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
-	index    tsdb.Index
 	fieldset *tsdb.MeasurementFieldSet
 
 	WAL            *WAL
@@ -579,7 +580,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 
 // DiskSize returns the total size in bytes of all TSM and WAL segments on disk.
 func (e *Engine) DiskSize() int64 {
-	return e.FileStore.DiskSizeBytes() + e.WAL.DiskSizeBytes()
+	return e.FileStore.DiskSizeBytes() + e.WAL.DiskSizeBytes() + e.index.DiskSizeBytes()
 }
 
 // Open opens and initializes the engine.
@@ -652,6 +653,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
+//
+// Note, it not safe to call LoadMetadataIndex concurrently. LoadMetadataIndex
+// should only be called when initialising a new Engine.
 func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	now := time.Now()
 
@@ -733,10 +737,6 @@ func (e *Engine) Free() error {
 func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	path, err := e.CreateSnapshot()
 	if err != nil {
-		return err
-	}
-
-	if err := e.index.SnapshotTo(path); err != nil {
 		return err
 	}
 
@@ -845,6 +845,7 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			return nil, err
 		}
 
+		// The filestore will only handle tsm files. Other file types will be ignored.
 		if err := e.FileStore.Replace(nil, newFiles); err != nil {
 			return nil, err
 		}
@@ -857,13 +858,14 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 
 	// Load any new series keys to the index
 	readers := make([]chan seriesKey, 0, len(newFiles))
+	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
 	for _, f := range newFiles {
 		ch := make(chan seriesKey, 1)
 		readers = append(readers, ch)
 
 		// If asNew is true, the files created from readFileFromBackup will be new ones
 		// having a temp extension.
-		f = strings.TrimSuffix(f, ".tmp")
+		f = strings.TrimSuffix(f, ext)
 
 		fd, err := os.Open(f)
 		if err != nil {
@@ -928,9 +930,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 		filename = fmt.Sprintf("%09d-%09d.%s", e.FileStore.NextGeneration(), 1, TSMFileExtension)
 	}
 
-	destPath := filepath.Join(e.path, filename)
-	tmp := destPath + ".tmp"
-
+	tmp := fmt.Sprintf("%s.%s", filepath.Join(e.path, filename), TmpTSMFileExtension)
 	// Create new file on disk.
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
@@ -1424,8 +1424,13 @@ func (e *Engine) CreateSnapshot() (string, error) {
 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+	path, err := e.FileStore.CreateSnapshot()
+	if err != nil {
+		return "", err
+	}
 
-	return e.FileStore.CreateSnapshot()
+	// Generate a snapshot of the index.
+	return path, e.index.SnapshotTo(path)
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.
@@ -1843,9 +1848,10 @@ func (e *Engine) cleanup() error {
 		return err
 	}
 
+	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
 	for _, f := range allfiles {
 		// Check to see if there are any `.tmp` directories that were left over from failed shard snapshots
-		if f.IsDir() && strings.HasSuffix(f.Name(), ".tmp") {
+		if f.IsDir() && strings.HasSuffix(f.Name(), ext) {
 			if err := os.RemoveAll(filepath.Join(e.path, f.Name())); err != nil {
 				return fmt.Errorf("error removing tmp snapshot directory %q: %s", f.Name(), err)
 			}

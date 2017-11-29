@@ -2434,7 +2434,7 @@ func TestFileStore_Replace(t *testing.T) {
 	}
 
 	// Replace requires assumes new files have a .tmp extension
-	replacement := files[2] + ".tmp"
+	replacement := fmt.Sprintf("%s.%s", files[2], tsm1.TmpTSMFileExtension)
 	os.Rename(files[2], replacement)
 
 	fs := tsm1.NewFileStore(dir)
@@ -2663,9 +2663,9 @@ func TestFileStore_Stats(t *testing.T) {
 		"mem": []tsm1.Value{tsm1.NewValue(0, 1.0)},
 	})
 
-	replacement := files[2] + "-foo" + ".tmp" // Assumes new files have a .tmp extension
+	replacement := fmt.Sprintf("%s.%s.%s", files[2], tsm1.TmpTSMFileExtension, tsm1.TSMFileExtension) // Assumes new files have a .tmp extension
 	if err := os.Rename(newFile, replacement); err != nil {
-
+		t.Fatalf("rename: %v", err)
 	}
 	// Replace 3 w/ 1
 	if err := fs.Replace(files, []string{replacement}); err != nil {
@@ -2675,7 +2675,7 @@ func TestFileStore_Stats(t *testing.T) {
 	var found bool
 	stats = fs.Stats()
 	for _, stat := range stats {
-		if strings.HasSuffix(stat.Path, "-foo") {
+		if strings.HasSuffix(stat.Path, fmt.Sprintf("%s.%s.%s", tsm1.TSMFileExtension, tsm1.TmpTSMFileExtension, tsm1.TSMFileExtension)) {
 			found = true
 		}
 	}
