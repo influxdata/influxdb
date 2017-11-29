@@ -3,8 +3,8 @@ package coordinator
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 )
 
 // MetaClient is an interface for accessing meta data.

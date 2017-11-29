@@ -1,11 +1,14 @@
 package tsm1
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/pkg/metrics"
+	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 func newLimitIterator(input query.Iterator, opt query.IteratorOptions) query.Iterator {
@@ -153,20 +156,20 @@ func (c cursorsAt) close() {
 // newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
 // the resulting Iterator will be wrapped in a finalizer iterator.
 // If Merge returns an error, the inputs will be closed.
-func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions, log zap.Logger) (query.Iterator, error) {
+func newMergeFinalizerIterator(ctx context.Context, inputs []query.Iterator, opt query.IteratorOptions, log *zap.Logger) (query.Iterator, error) {
 	itr, err := query.Iterators(inputs).Merge(opt)
 	if err != nil {
 		query.Iterators(inputs).Close()
 		return nil, err
 	}
-	return newFinalizerIterator(itr, log), nil
+	return newInstrumentedIterator(ctx, newFinalizerIterator(itr, log)), nil
 }
 
 // newFinalizerIterator creates a new iterator that installs a runtime finalizer
 // to ensure close is eventually called if the iterator is garbage collected.
 // This additional guard attempts to protect against clients of CreateIterator not
 // correctly closing them and leaking cursors.
-func newFinalizerIterator(itr query.Iterator, log zap.Logger) query.Iterator {
+func newFinalizerIterator(itr query.Iterator, log *zap.Logger) query.Iterator {
 	if itr == nil {
 		return nil
 	}
@@ -184,5 +187,32 @@ func newFinalizerIterator(itr query.Iterator, log zap.Logger) query.Iterator {
 		return newBooleanFinalizerIterator(inner, log)
 	default:
 		panic(fmt.Sprintf("unsupported finalizer iterator type: %T", itr))
+	}
+}
+
+func newInstrumentedIterator(ctx context.Context, itr query.Iterator) query.Iterator {
+	if itr == nil {
+		return nil
+	}
+
+	span := tracing.SpanFromContext(ctx)
+	grp := metrics.GroupFromContext(ctx)
+	if span == nil || grp == nil {
+		return itr
+	}
+
+	switch inner := itr.(type) {
+	case query.FloatIterator:
+		return newFloatInstrumentedIterator(inner, span, grp)
+	case query.IntegerIterator:
+		return newIntegerInstrumentedIterator(inner, span, grp)
+	case query.UnsignedIterator:
+		return newUnsignedInstrumentedIterator(inner, span, grp)
+	case query.StringIterator:
+		return newStringInstrumentedIterator(inner, span, grp)
+	case query.BooleanIterator:
+		return newBooleanInstrumentedIterator(inner, span, grp)
+	default:
+		panic(fmt.Sprintf("unsupported instrumented iterator type: %T", itr))
 	}
 }

@@ -16,6 +16,7 @@ message Point {
     optional uint64 UnsignedValue = 12;
 
     optional IteratorStats Stats = 11;
+    optional bytes Trace = 13;
 }
 
 message Aux {
@@ -62,6 +63,7 @@ message Measurement {
     optional string Name            = 3;
     optional string Regex           = 4;
     optional bool   IsTarget        = 5;
+    optional string SystemIterator  = 6;
 }
 
 message Interval {

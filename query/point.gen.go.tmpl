@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"encoding/binary"
 	"io"
 
@@ -188,11 +189,12 @@ func (enc *{{.Name}}PointEncoder) Encode{{.Name}}Point(p *{{.Name}}Point) error 
 type {{.Name}}PointDecoder struct {
 	r     io.Reader
 	stats IteratorStats
+	ctx   context.Context
 }
 
 // New{{.Name}}PointDecoder returns a new instance of {{.Name}}PointDecoder that reads from r.
-func New{{.Name}}PointDecoder(r io.Reader) *{{.Name}}PointDecoder {
-	return &{{.Name}}PointDecoder{r: r}
+func New{{.Name}}PointDecoder(ctx context.Context, r io.Reader) *{{.Name}}PointDecoder {
+	return &{{.Name}}PointDecoder{r: r, ctx: ctx}
 }
 
 // Stats returns iterator stats embedded within the stream.
@@ -222,6 +224,15 @@ func (dec *{{.Name}}PointDecoder) Decode{{.Name}}Point(p *{{.Name}}Point) error 
 		// If the point contains stats then read stats and retry.
 		if pb.Stats != nil {
 			dec.stats = decodeIteratorStats(pb.Stats)
+			continue
+		}
+
+		if len(pb.Trace) > 0 {
+			var err error
+			err = decodeIteratorTrace(dec.ctx, pb.Trace)
+			if err != nil {
+				return err
+			}
 			continue
 		}
 

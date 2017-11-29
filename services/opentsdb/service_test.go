@@ -14,9 +14,9 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/internal"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
@@ -279,10 +279,7 @@ func NewTestService(database string, bind string) *TestService {
 	}
 
 	if testing.Verbose() {
-		service.Service.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		service.Service.WithLogger(logger.New(os.Stderr))
 	}
 
 	service.Service.MetaClient = service.MetaClient

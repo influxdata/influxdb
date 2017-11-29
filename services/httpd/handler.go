@@ -24,7 +24,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -34,7 +33,8 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 const (
@@ -107,7 +107,7 @@ type Handler struct {
 	}
 
 	Config    *Config
-	Logger    zap.Logger
+	Logger    *zap.Logger
 	CLFLogger *log.Logger
 	stats     *Statistics
 
@@ -119,7 +119,7 @@ func NewHandler(c Config) *Handler {
 	h := &Handler{
 		mux:            pat.New(),
 		Config:         &c,
-		Logger:         zap.New(zap.NullEncoder()),
+		Logger:         zap.NewNop(),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
@@ -418,7 +418,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
-		opts.Authorizer = query.OpenAuthorizer{}
+		opts.Authorizer = query.OpenAuthorizer
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
@@ -960,7 +960,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
-		opts.Authorizer = query.OpenAuthorizer{}
+		opts.Authorizer = query.OpenAuthorizer
 	}
 
 	// Make sure if the client disconnects we signal the query to abort

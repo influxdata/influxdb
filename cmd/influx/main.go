@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/cmd/influx/cli"
@@ -107,6 +108,13 @@ Examples:
 `)
 	}
 	fs.Parse(os.Args[1:])
+
+	argsNotParsed := fs.Args()
+	if len(argsNotParsed) > 0 {
+		fmt.Fprintf(os.Stderr, "unknown arguments: %s\n", strings.Join(argsNotParsed, " "))
+		fs.Usage()
+		os.Exit(1)
+	}
 
 	if c.ShowVersion {
 		c.Version()

@@ -1,4 +1,4 @@
-FROM ubuntu:trusty
+FROM ubuntu:xenial
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python-software-properties \
@@ -9,6 +9,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     make \
     ruby \
     ruby-dev \
+    build-essential \
     rpm \
     zip \
     python \
@@ -21,10 +22,10 @@ RUN gem install fpm
 
 # Install go
 ENV GOPATH /root/go
-ENV GO_VERSION 1.9.1
+ENV GO_VERSION 1.9.2
 ENV GO_ARCH amd64
-RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz; \
-   tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz ; \
+RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
+   tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
    rm /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz
 ENV PATH /usr/local/go/bin:$PATH
 

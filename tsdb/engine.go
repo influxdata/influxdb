@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,12 +10,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 var (
@@ -33,8 +34,9 @@ type Engine interface {
 	Close() error
 	SetEnabled(enabled bool)
 	SetCompactionsEnabled(enabled bool)
+	ScheduleFullCompaction() error
 
-	WithLogger(zap.Logger)
+	WithLogger(*zap.Logger)
 
 	LoadMetadataIndex(shardID uint64, index Index) error
 
@@ -43,33 +45,36 @@ type Engine interface {
 	Restore(r io.Reader, basePath string) error
 	Import(r io.Reader, basePath string) error
 
-	CreateIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error)
+	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
+	CreateCursor(ctx context.Context, r *CursorRequest) (Cursor, error)
 	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
 	WritePoints(points []models.Point) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
-	DeleteSeriesRange(keys [][]byte, min, max int64) error
+	DeleteSeriesRange(itr SeriesIterator, min, max int64) error
 
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
 
 	MeasurementExists(name []byte) (bool, error)
-	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
+	MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error
 	DeleteMeasurement(name []byte) error
+	MeasurementFieldSet() *MeasurementFieldSet
 
-	// TagKeys(name []byte) ([][]byte, error)
 	HasTagKey(name, key []byte) (bool, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
+	TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL iterators
+	MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIterator, error)
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 

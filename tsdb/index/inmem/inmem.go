@@ -17,9 +17,9 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"time"
 	// "sync/atomic"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/escape"
@@ -27,7 +27,8 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 // IndexName is the name of this index.
@@ -81,7 +82,7 @@ func (i *Index) Type() string      { return IndexName }
 func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
 
-func (i *Index) WithLogger(zap.Logger) {}
+func (i *Index) WithLogger(*zap.Logger) {}
 
 // Series returns a series by key.
 func (i *Index) Series(key []byte) (*Series, error) {
@@ -152,7 +153,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	i.mu.RUnlock()
 
 	if ss != nil {
-		ss.AssignShard(shardID)
+		ss.AssignShard(shardID, time.Now().UnixNano())
 		return nil
 	}
 
@@ -165,7 +166,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
-		ss.AssignShard(shardID)
+		ss.AssignShard(shardID, time.Now().UnixNano())
 		return nil
 	}
 
@@ -186,7 +187,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	i.series[string(key)] = series
 
 	m.AddSeries(series)
-	series.AssignShard(shardID)
+	series.AssignShard(shardID, time.Now().UnixNano())
 
 	// Add the series to the series sketch.
 	i.seriesSketch.Add(key)
@@ -271,6 +272,48 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 		return nil, nil
 	}
 	return mm.TagKeysByExpr(expr)
+}
+
+// TagKeyHasAuthorizedSeries determines if there exists an authorized series for
+// the provided measurement name and tag key.
+func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+	i.mu.RLock()
+	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
+	if mm == nil {
+		return false
+	}
+
+	// TODO(edd): This looks like it's inefficient. Since a series can have multiple
+	// tag key/value pairs on it, it's possible that the same unauthorised series
+	// will be checked multiple times. It would be more efficient if it were
+	// possible to get the set of unique series IDs for a given measurement name
+	// and tag key.
+	var authorized bool
+	mm.SeriesByTagKeyValue(key).Range(func(_ string, seriesIDs SeriesIDs) bool {
+		if auth == nil || auth == query.OpenAuthorizer {
+			authorized = true
+			return false
+		}
+
+		for _, id := range seriesIDs {
+			s := mm.SeriesByID(id)
+			if s == nil {
+				continue
+			}
+
+			if auth.AuthorizeSeriesRead(i.database, mm.name, s.Tags()) {
+				authorized = true
+				return false
+			}
+		}
+
+		// This tag key/value combination doesn't have any authorised series, so
+		// keep checking other tag values.
+		return true
+	})
+	return authorized
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
@@ -391,25 +434,27 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 }
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a
-// list of matching meaurement names.
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+// list of matching measurement names.
+func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
 	// Return all measurement names if no expression is provided.
 	if expr == nil {
 		a := make([][]byte, 0, len(i.measurements))
-		for name := range i.measurements {
-			a = append(a, []byte(name))
+		for _, m := range i.measurements {
+			if m.Authorized(auth) {
+				a = append(a, m.name)
+			}
 		}
 		bytesutil.Sort(a)
 		return a, nil
 	}
 
-	return i.measurementNamesByExpr(expr)
+	return i.measurementNamesByExpr(auth, expr)
 }
 
-func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Index) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -444,19 +489,19 @@ func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 
 			// Match on name, if specified.
 			if tag.Val == "_name" {
-				return i.measurementNamesByNameFilter(tf.Op, tf.Value, tf.Regex), nil
+				return i.measurementNamesByNameFilter(auth, tf.Op, tf.Value, tf.Regex), nil
 			} else if influxql.IsSystemName(tag.Val) {
 				return nil, nil
 			}
 
-			return i.measurementNamesByTagFilters(tf), nil
+			return i.measurementNamesByTagFilters(auth, tf), nil
 		case influxql.OR, influxql.AND:
-			lhs, err := i.measurementNamesByExpr(e.LHS)
+			lhs, err := i.measurementNamesByExpr(auth, e.LHS)
 			if err != nil {
 				return nil, err
 			}
 
-			rhs, err := i.measurementNamesByExpr(e.RHS)
+			rhs, err := i.measurementNamesByExpr(auth, e.RHS)
 			if err != nil {
 				return nil, err
 			}
@@ -469,13 +514,13 @@ func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 			return nil, fmt.Errorf("invalid tag comparison operator")
 		}
 	case *influxql.ParenExpr:
-		return i.measurementNamesByExpr(e.Expr)
+		return i.measurementNamesByExpr(auth, e.Expr)
 	}
 	return nil, fmt.Errorf("%#v", expr)
 }
 
 // measurementNamesByNameFilter returns the sorted measurements matching a name.
-func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
+func (i *Index) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
 	var names [][]byte
 	for _, m := range i.measurements {
 		var matched bool
@@ -490,20 +535,25 @@ func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, rege
 			matched = !regex.MatchString(m.Name)
 		}
 
-		if !matched {
-			continue
+		if matched && m.Authorized(auth) {
+			names = append(names, m.name)
 		}
-		names = append(names, []byte(m.Name))
 	}
 	bytesutil.Sort(names)
 	return names
 }
 
 // measurementNamesByTagFilters returns the sorted measurements matching the filters on tag values.
-func (i *Index) measurementNamesByTagFilters(filter *TagFilter) [][]byte {
+func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagFilter) [][]byte {
 	// Build a list of measurements matching the filters.
 	var names [][]byte
 	var tagMatch bool
+	var authorized bool
+
+	valEqual := filter.Regex.MatchString
+	if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
+		valEqual = func(s string) bool { return filter.Value == s }
+	}
 
 	// Iterate through all measurements in the database.
 	for _, m := range i.measurements {
@@ -513,35 +563,52 @@ func (i *Index) measurementNamesByTagFilters(filter *TagFilter) [][]byte {
 		}
 
 		tagMatch = false
+		// Authorization must be explicitly granted when an authorizer is present.
+		authorized = auth == nil
 
-		// If the operator is non-regex, only check the specified value.
-		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
-			if _, ok := tagVals[filter.Value]; ok {
-				tagMatch = true
+		// Check the tag values belonging to the tag key for equivalence to the
+		// tag value being filtered on.
+		tagVals.Range(func(tv string, seriesIDs SeriesIDs) bool {
+			if !valEqual(tv) {
+				return true // No match. Keep checking.
 			}
-		} else {
-			// Else, the operator is a regex and we have to check all tag
-			// values against the regular expression.
-			for tagVal := range tagVals {
-				if filter.Regex.MatchString(tagVal) {
-					tagMatch = true
-					continue
+
+			tagMatch = true
+			if auth == nil {
+				return false // No need to continue checking series, there is a match.
+			}
+
+			// Is there a series with this matching tag value that is
+			// authorized to be read?
+			for _, sid := range seriesIDs {
+				if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+					// The Range call can return early as a matching
+					// tag value with an authorized series has been found.
+					authorized = true
+					return false
 				}
 			}
+
+			// The matching tag value doesn't have any authorized series.
+			// Check for other matching tag values if this is a regex check.
+			return filter.Op == influxql.EQREGEX
+		})
+
+		// For negation operators, to determine if the measurement is authorized,
+		// an authorized series belonging to the measurement must be located.
+		// Then, the measurement can be added iff !tagMatch && authorized.
+		if auth != nil && !tagMatch && (filter.Op == influxql.NEQREGEX || filter.Op == influxql.NEQ) {
+			authorized = m.Authorized(auth)
 		}
 
-		//
-		// XNOR gate
-		//
 		// tags match | operation is EQ | measurement matches
 		// --------------------------------------------------
 		//     True   |       True      |      True
 		//     True   |       False     |      False
 		//     False  |       True      |      False
 		//     False  |       False     |      True
-		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) {
+		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) && authorized {
 			names = append(names, []byte(m.Name))
-			continue
 		}
 	}
 
@@ -589,7 +656,7 @@ func (i *Index) dropMeasurement(name string) error {
 }
 
 // DropSeries removes the series key and its tags from the index.
-func (i *Index) DropSeries(key []byte) error {
+func (i *Index) DropSeries(key []byte, ts int64) error {
 	if key == nil {
 		return nil
 	}
@@ -603,6 +670,11 @@ func (i *Index) DropSeries(key []byte) error {
 		return nil
 	}
 
+	// Series was recently created, we can't drop it.
+	if series.LastModified() >= ts {
+		return nil
+	}
+
 	// Update the tombstone sketch.
 	i.seriesTSSketch.Add([]byte(k))
 
@@ -613,7 +685,7 @@ func (i *Index) DropSeries(key []byte) error {
 	series.Measurement().DropSeries(series)
 
 	// Mark the series as deleted.
-	series.Delete()
+	series.Delete(ts)
 
 	// If the measurement no longer has any series, remove it as well.
 	if !series.Measurement().HasSeries() {
@@ -678,6 +750,14 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
+	keys, err := i.MeasurementSeriesKeysByExpr(name, condition)
+	if err != nil {
+		return nil, err
+	}
+	return &seriesIterator{keys: keys}, err
+}
+
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -713,6 +793,9 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr
 
 // SeriesPointIterator returns an influxql iterator over all series.
 func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
 	// Read and sort all measurements.
 	mms := make(Measurements, 0, len(i.measurements))
 	for _, mm := range i.measurements {
@@ -737,23 +820,24 @@ func (i *Index) SnapshotTo(path string) error { return nil }
 func (i *Index) AssignShard(k string, shardID uint64) {
 	ss, _ := i.Series([]byte(k))
 	if ss != nil {
-		ss.AssignShard(shardID)
+		ss.AssignShard(shardID, time.Now().UnixNano())
 	}
 }
 
 // UnassignShard updates the index to indicate that series k does not exist in
-// the given shardID.
-func (i *Index) UnassignShard(k string, shardID uint64) error {
+// the given shardID.  The series will be unassigned if ts is greater than the
+// last time the series was modified.
+func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	ss, _ := i.Series([]byte(k))
 	if ss != nil {
 		if ss.Assigned(shardID) {
 			// Remove the shard from any series
-			ss.UnassignShard(shardID)
+			ss.UnassignShard(shardID, ts)
 
 			// If this series no longer has shards assigned, remove the series
 			if ss.ShardN() == 0 {
 				// Remove the series key from the index.
-				return i.DropSeries([]byte(k))
+				return i.DropSeries([]byte(k), ts)
 			}
 		}
 	}
@@ -776,8 +860,9 @@ func (i *Index) Rebuild() {
 			return nil
 		}
 
-		nm := m.Rebuild()
 		i.mu.Lock()
+		nm := m.Rebuild()
+
 		i.measurements[string(name)] = nm
 		i.mu.Unlock()
 		return nil
@@ -789,15 +874,16 @@ func (i *Index) Rebuild() {
 // is removed from the index.
 func (i *Index) RemoveShard(shardID uint64) {
 	for _, k := range i.SeriesKeys() {
-		i.UnassignShard(k, shardID)
+		i.UnassignShard(k, shardID, 0)
 	}
 }
 
-// assignExistingSeries assigns the existings series to shardID and returns the series, names and tags that
+// assignExistingSeries assigns the existing series to shardID and returns the series, names and tags that
 // do not exists yet.
 func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
 	i.mu.RLock()
 	var n int
+	now := time.Now().UnixNano()
 	for j, key := range keys {
 		if ss := i.series[string(key)]; ss == nil {
 			keys[n] = keys[j]
@@ -805,7 +891,7 @@ func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsS
 			tagsSlice[n] = tagsSlice[j]
 			n++
 		} else {
-			ss.AssignShard(shardID)
+			ss.AssignShard(shardID, now)
 		}
 	}
 	i.mu.RUnlock()
@@ -902,7 +988,7 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 	return nil
 }
 
-// InitializeSeries is called during startup.
+// InitializeSeries is called during start-up.
 // This works the same as CreateSeriesIfNotExists except it ignore limit errors.
 func (i *ShardIndex) InitializeSeries(key, name []byte, tags models.Tags) error {
 	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt, true)
@@ -1011,3 +1097,32 @@ func (itr *seriesPointIterator) nextKeys() error {
 // errMaxSeriesPerDatabaseExceeded is a marker error returned during series creation
 // to indicate that a new series would exceed the limits of the database.
 var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceeded")
+
+type seriesIterator struct {
+	keys [][]byte
+	elem series
+}
+
+type series struct {
+	tsdb.SeriesElem
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (s series) Name() []byte        { return s.name }
+func (s series) Tags() models.Tags   { return s.tags }
+func (s series) Deleted() bool       { return s.deleted }
+func (s series) Expr() influxql.Expr { return nil }
+
+func (itr *seriesIterator) Next() tsdb.SeriesElem {
+	if len(itr.keys) == 0 {
+		return nil
+	}
+
+	name, tags := models.ParseKeyBytes(itr.keys[0])
+	itr.elem.name = name
+	itr.elem.tags = tags
+	itr.keys = itr.keys[1:]
+	return &itr.elem
+}

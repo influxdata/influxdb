@@ -1,8 +1,65 @@
-## v1.4.0 [unreleased]
+## v1.5.0 [unreleased]
 
 ### Breaking changes
 
-* You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+* The default logging format has been changed. See [#9055](https://github.com/influxdata/influxdb/pull/9055) for details.
+
+### Features
+
+- [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
+- [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+- [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
+
+### Bugfixes
+
+- [#9065](https://github.com/influxdata/influxdb/pull/9065): Refuse extra arguments to influx CLI
+- [#9058](https://github.com/influxdata/influxdb/issues/9058): Fix space required after regex operator. Thanks @stop-start!
+- [#9109](https://github.com/influxdata/influxdb/issues/9109): Fix: panic: sync: WaitGroup is reused before previous Wait has returned
+- [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
+- [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
+- [#8789](https://github.com/influxdata/influxdb/issues/8789): Fix CLI to allow quoted database names in use statement
+
+## v1.4.2 [2017-11-15]
+
+Refer to the 1.4.0 breaking changes section if `influxd` fails to start with an `incompatible tsi1 index MANIFEST` error.
+
+### Bugfixes
+
+- [#9117](https://github.com/influxdata/influxdb/pull/9117): Fix panic: runtime error: slice bounds out of range
+
+## v1.4.1 [2017-11-13]
+
+### Bugfixes
+
+- [#9105](https://github.com/influxdata/influxdb/pull/9105): Fix descending cursors and range queries via IFQL RPC API.
+
+## v1.4.0 [2017-11-13]
+
+### Breaking changes
+
+You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+
+As part of the ongoing development of the `tsi1` index, the implementation of a Bloom Filter, used
+to efficiently determine if series are not present in the index, was altered in [#8857](https://github.com/influxdata/influxdb/pull/8857).
+While this significantly increases the performance of the index and reduces its memory consumption,
+the existing `tsi1` indexes created while running previous versions of the database are not compatible with 1.4.0.
+
+Users with databases using the `tsi1` index must go through the following process to upgrade to 1.4.0:
+
+1. Stop `influxd`.
+2. Remove all `index` directories on databases using the `tsi1` index. With default configuration these can be found in
+   `/var/lib/influxdb/data/DB_NAME/RP_NAME/SHARD_ID/index` or `~/.influxdb/data/DB_NAME/RP_NAME/SHARD_ID/index`.
+   It's worth noting at this point how many different `shard_ids` you visit.
+3. Run the `influx_inspect inmem2tsi` tool using the shard's data and WAL directories for -datadir and -waldir, respectively.
+   Given the example in step (2) that would be
+   `influx_inspect inmem2tsi -datadir /var/lib/influxdb/data/DB_NAME/RP_NAME/SHARD_ID -waldir /path/to/influxdb/wal/DB_NAME/RP_NAME/SHARD_ID`.
+4. Repeat step (3) for each shard that needs to be converted.
+5. Start `influxd`.
+
+Users with existing `tsi1` shards, who attempt to start version 1.4.0 without following the above steps, will find the shards
+refuse to open, and will most likely see the following error message:
+
+`incompatible tsi1 index MANIFEST`
 
 ### Configuration Changes
 
@@ -38,7 +95,17 @@
 - [#8897](https://github.com/influxdata/influxdb/pull/8897): Add message pack format for query responses.
 - [#8886](https://github.com/influxdata/influxdb/pull/8886): Improved compaction scheduling
 - [#8690](https://github.com/influxdata/influxdb/issues/8690): Implicitly decide on a lower limit for fill queries when none is present.
-- [#7355](https://github.com/influxdata/influxdb/issues/7355): Create a command to truncate shard groups 
+- [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.
+- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
+- [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion. 
+- [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs. Thanks @darkliquid!
+- [#8984](https://github.com/influxdata/influxdb/pull/8984): EXACT and estimated CARDINALITY queries.
+- [#8893](https://github.com/influxdata/influxdb/pull/8893): Handle nil MeasurementIterator.
+- [#8986](https://github.com/influxdata/influxdb/issues/8986): Add long-line support to client importer. Thanks @lets00!
+- [#9021](https://github.com/influxdata/influxdb/pull/9021): Update to go 1.9.2
+- [#8891](https://github.com/influxdata/influxdb/pull/8891): Allow human-readable byte sizes in config
+- [#9073](https://github.com/influxdata/influxdb/pull/9073): Improve SHOW TAG KEYS performance.
+- [#7355](https://github.com/influxdata/influxdb/issues/7355): Create a command to truncate shard groups
 
 ### Bugfixes
 
@@ -75,14 +142,65 @@
 - [#8908](https://github.com/influxdata/influxdb/issues/8908): Fix missing man pages in new packaging output
 - [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
 - [#8952](https://github.com/influxdata/influxdb/issues/8952): Fix WAL panic: runtime error: makeslice: cap out of range
+- [#8975](https://github.com/influxdata/influxdb/pull/8975): Copy returned bytes from TSI meta functions.
+- [#7797](https://github.com/influxdata/influxdb/issues/7706): Fix data deleted outside of time range
+- [#8822](https://github.com/influxdata/influxdb/issues/8822): Fix data dropped incorrectly during compaction
+- [#8780](https://github.com/influxdata/influxdb/issues/8780): Prevent deadlock during collectd, graphite, opentsdb, and udp shutdown.
+- [#8983](https://github.com/influxdata/influxdb/issues/8983): Remove the pidfile after the server has exited.
+- [#9005](https://github.com/influxdata/influxdb/pull/9005): Return `query.ErrQueryInterrupted` for successful read on `InterruptCh`.
+- [#8989](https://github.com/influxdata/influxdb/issues/8989): Fix race inside Measurement index.
+- [#8819](https://github.com/influxdata/influxdb/issues/8819): Ensure retention service always removes local shards.
+- [#8965](https://github.com/influxdata/influxdb/issues/8965): Handle utf16 files when reading the configuration file.
+- [#8538](https://github.com/influxdata/influxdb/pull/8538): Fix panic: runtime error: slice bounds out of range
 
-## v1.3.4 [unreleased]
+## v1.3.7 [2017-10-26]
 
 ### Bugfixes
 
+- [#8900](https://github.com/influxdata/influxdb/issues/8900): Don't assume `which` is present in package post-install script.
+- [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
+- [#8908](https://github.com/influxdata/influxdb/issues/8908): Fix missing man pages in new packaging output
+- [#8951](https://github.com/influxdata/influxdb/issues/8951): Add RPM dependency on shadow-utils for `useradd`.
+- [#7797](https://github.com/influxdata/influxdb/issues/7706): Fix data deleted outside of time range
+- [#8822](https://github.com/influxdata/influxdb/issues/8822): Fix data dropped incorrectly during compaction
+- [#9006](https://github.com/influxdata/influxdb/pull/9006): Return `query.ErrQueryInterrupted` for a successful read on `InterruptCh`.
+- [#8978](https://github.com/influxdata/influxdb/pull/8978): Copy returned bytes from TSI meta functions.
+
+## v1.3.6 [2017-09-29]
+
+### Bugfixes
+
+- [#8770](https://github.com/influxdata/influxdb/pull/8770): Reduce how long it takes to walk the varrefs in an expression.
+- [#8787](https://github.com/influxdata/influxdb/issues/8787): panic: runtime error: invalid memory address or nil pointer dereference.
+- [#8741](https://github.com/influxdata/influxdb/issues/8741): Fix increased memory usage in cache and wal readers
+- [#8848](https://github.com/influxdata/influxdb/issues/8848): Prevent deadlock when doing math on the result of a subquery.
+- [#8842](https://github.com/influxdata/influxdb/issues/8842): Fix several races in the shard and engine.
+- [#8887](https://github.com/influxdata/influxdb/pull/8887): Fix race on cache entry.
+
+## v1.3.5 [2017-08-29]
+
+### Bugfixes
+
+- [#8755](https://github.com/influxdata/influxdb/pull/8755): Fix race condition accessing `seriesByID` map.
+- [#8766](https://github.com/influxdata/influxdb/pull/8766): Fix deadlock when calling `SeriesIDsAllOrByExpr`
+
+## v1.3.4 [2017-08-23]
+
+### Bugfixes
+
+- [#8601](https://github.com/influxdata/influxdb/pull/8601): Fixed time boundaries for continuous queries with time zones.
+- [#8607](https://github.com/influxdata/influxdb/issues/8607): Fix time zone shifts when the shift happens on a time zone boundary.
+- [#8639](https://github.com/influxdata/influxdb/issues/8639): Parse time literals using the time zone in the select statement.
 - [#8701](https://github.com/influxdata/influxdb/pull/8701): Fix drop measurement not dropping all data
+- [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
+- [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
 - [#8713](https://github.com/influxdata/influxdb/issues/8713): Deadlock when dropping measurement and writing
+- [#8716](https://github.com/influxdata/influxdb/pull/8716): Ensure inputs are closed on error. Add runtime GC finalizer as additional guard to close iterators
 - [#8726](https://github.com/influxdata/influxdb/pull/8726): Fix leaking tmp file when large compaction aborted
+
+### Features
+
+- [#8711](https://github.com/influxdata/influxdb/pull/8711): Batch up writes for monitor service
 
 ## v1.3.3 [2017-08-10]
 
@@ -144,7 +262,7 @@ The following new configuration options are available.
 * `max-body-size` was added with a default of 25,000,000, but can be disabled by setting it to 0.
   Specifies the maximum size (in bytes) of a client request body. When a client sends data that exceeds
   the configured maximum size, a `413 Request Entity Too Large` HTTP response is returned.
-  
+
 #### `[continuous_queries]` Section
 
 * `query-stats-enabled` was added with a default of `false`. When set to `true`, continuous query execution statistics are written to the default monitor store.

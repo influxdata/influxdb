@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/influxql"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -47,7 +47,7 @@ var (
 // Client is used to execute commands on and read data from
 // a meta service cluster.
 type Client struct {
-	logger zap.Logger
+	logger *zap.Logger
 
 	mu        sync.RWMutex
 	closing   chan struct{}
@@ -77,7 +77,7 @@ func NewClient(config *Config) *Client {
 		},
 		closing:             make(chan struct{}),
 		changed:             make(chan struct{}),
-		logger:              zap.New(zap.NullEncoder()),
+		logger:              zap.NewNop(),
 		authCache:           make(map[string]authUser, 0),
 		path:                config.Dir,
 		retentionAutoCreate: config.RetentionAutoCreate,
@@ -989,7 +989,7 @@ func (c *Client) MarshalBinary() ([]byte, error) {
 }
 
 // WithLogger sets the logger for the client.
-func (c *Client) WithLogger(log zap.Logger) {
+func (c *Client) WithLogger(log *zap.Logger) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.logger = log.With(zap.String("service", "metaclient"))

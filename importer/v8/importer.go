@@ -109,10 +109,12 @@ func (i *Importer) Import() error {
 	}
 
 	// Get our reader
-	scanner := bufio.NewScanner(r)
+	scanner := bufio.NewReader(r)
 
 	// Process the DDL
-	i.processDDL(scanner)
+	if err := i.processDDL(scanner); err != nil {
+		return fmt.Errorf("reading standard input: %s", err)
+	}
 
 	// Set up our throttle channel.  Since there is effectively no other activity at this point
 	// the smaller resolution gets us much closer to the requested PPS
@@ -123,10 +125,7 @@ func (i *Importer) Import() error {
 	i.lastWrite = time.Now()
 
 	// Process the DML
-	i.processDML(scanner)
-
-	// Check if we had any errors scanning the file
-	if err := scanner.Err(); err != nil {
+	if err := i.processDML(scanner); err != nil {
 		return fmt.Errorf("reading standard input: %s", err)
 	}
 
@@ -144,12 +143,17 @@ func (i *Importer) Import() error {
 	return nil
 }
 
-func (i *Importer) processDDL(scanner *bufio.Scanner) {
-	for scanner.Scan() {
-		line := scanner.Text()
+func (i *Importer) processDDL(scanner *bufio.Reader) error {
+	for {
+		line, err := scanner.ReadString(byte('\n'))
+		if err != nil && err != io.EOF {
+			return err
+		} else if err == io.EOF {
+			return nil
+		}
 		// If we find the DML token, we are done with DDL
 		if strings.HasPrefix(line, "# DML") {
-			return
+			return nil
 		}
 		if strings.HasPrefix(line, "#") {
 			continue
@@ -162,10 +166,17 @@ func (i *Importer) processDDL(scanner *bufio.Scanner) {
 	}
 }
 
-func (i *Importer) processDML(scanner *bufio.Scanner) {
+func (i *Importer) processDML(scanner *bufio.Reader) error {
 	start := time.Now()
-	for scanner.Scan() {
-		line := scanner.Text()
+	for {
+		line, err := scanner.ReadString(byte('\n'))
+		if err != nil && err != io.EOF {
+			return err
+		} else if err == io.EOF {
+			// Call batchWrite one last time to flush anything out in the batch
+			i.batchWrite()
+			return nil
+		}
 		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
 			i.database = strings.TrimSpace(strings.Split(line, ":")[1])
 		}
@@ -181,8 +192,6 @@ func (i *Importer) processDML(scanner *bufio.Scanner) {
 		}
 		i.batchAccumulator(line, start)
 	}
-	// Call batchWrite one last time to flush anything out in the batch
-	i.batchWrite()
 }
 
 func (i *Importer) execute(command string) {

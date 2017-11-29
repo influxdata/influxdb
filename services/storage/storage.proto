@@ -1,0 +1,171 @@
+syntax = "proto3";
+package storage;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
+import "github.com/influxdata/yarpc/yarpcproto/yarpc.proto";
+import "predicate.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+service Storage {
+  option (yarpcproto.yarpc_service_index) = 0x00;
+
+  // Read performs a read operation using the given ReadRequest
+  rpc Read (ReadRequest) returns (stream ReadResponse) {
+    option (yarpcproto.yarpc_method_index) = 0x00;
+  }
+
+  // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
+  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse) {
+    option (yarpcproto.yarpc_method_index) = 0x01;
+  }
+
+  rpc Hints (google.protobuf.Empty) returns (HintsResponse) {
+    option (yarpcproto.yarpc_method_index) = 0x02;
+  }
+
+  // Explain describes the costs associated with executing a given Read request
+  // rpc Explain(google.protobuf.Empty) returns (ExplainResponse){}
+}
+
+// Request message for Storage.Read.
+message ReadRequest {
+
+  // Database specifies the name of the database to issue the read request.
+  string database = 1;
+
+  TimestampRange timestamp_range = 2 [(gogoproto.customname) = "TimestampRange", (gogoproto.nullable) = false];
+
+  // Descending indicates whether points should be returned in descending order.
+  bool descending = 3;
+
+  // Grouping specifies a list of tags used to order the data
+  repeated string grouping = 4;
+
+  // Aggregate specifies an optional aggregate to apply to the data.
+  // TODO(sgc): switch to slice for multiple aggregates in a single request
+  Aggregate aggregate = 9;
+
+  Predicate predicate = 5;
+
+  // SeriesLimit determines the maximum number of series to be returned for the request. Specify 0 for no limit.
+  uint64 series_limit = 6 [(gogoproto.customname) = "SeriesLimit"];
+
+  // SeriesOffset determines how many series to skip before processing the request.
+  uint64 series_offset = 7 [(gogoproto.customname) = "SeriesOffset"];
+
+  // PointsLimit determines the maximum number of values per series to be returned for the request.
+  // Specify 0 for no limit.
+  uint64 points_limit = 8 [(gogoproto.customname) = "PointsLimit"];
+
+  // Trace contains opaque data if a trace is active.
+  map<string, string> trace = 10 [(gogoproto.customname) = "Trace"];
+}
+
+message Aggregate {
+  enum AggregateType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    NONE = 0 [(gogoproto.enumvalue_customname) = "AggregateTypeNone"];
+    SUM = 1 [(gogoproto.enumvalue_customname) = "AggregateTypeSum"];
+    COUNT = 2 [(gogoproto.enumvalue_customname) = "AggregateTypeCount"];
+  }
+
+  AggregateType type = 1;
+
+  // additional arguments?
+}
+
+message Tag {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// Response message for Storage.Read.
+message ReadResponse {
+  enum FrameType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    SERIES = 0 [(gogoproto.enumvalue_customname) = "FrameTypeSeries"];
+    POINTS = 1 [(gogoproto.enumvalue_customname) = "FrameTypePoints"];
+  }
+
+  enum DataType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    FLOAT = 0 [(gogoproto.enumvalue_customname) = "DataTypeFloat"];
+    INTEGER = 1 [(gogoproto.enumvalue_customname) = "DataTypeInteger"];
+    UNSIGNED = 2 [(gogoproto.enumvalue_customname) = "DataTypeUnsigned"];
+    BOOLEAN = 3 [(gogoproto.enumvalue_customname) = "DataTypeBoolean"];
+    STRING = 4 [(gogoproto.enumvalue_customname) = "DataTypeString"];
+  }
+
+  message Frame {
+    oneof data {
+      SeriesFrame series = 1;
+      FloatPointsFrame float_points = 2 [(gogoproto.customname) = "FloatPoints"];
+      IntegerPointsFrame integer_points = 3 [(gogoproto.customname) = "IntegerPoints"];
+      UnsignedPointsFrame unsigned_points = 4 [(gogoproto.customname) = "UnsignedPoints"];
+      BooleanPointsFrame boolean_points = 5 [(gogoproto.customname) = "BooleanPoints"];
+      StringPointsFrame string_points = 6 [(gogoproto.customname) = "StringPoints"];
+    }
+  }
+
+  message SeriesFrame {
+    repeated Tag tags = 1 [(gogoproto.nullable) = false];
+    DataType data_type = 2;
+  }
+
+  message FloatPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated double values = 2;
+  }
+
+  message IntegerPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated int64 values = 2;
+  }
+
+  message UnsignedPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated uint64 values = 2;
+  }
+
+  message BooleanPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated bool values = 2;
+  }
+
+  message StringPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated string values = 2;
+  }
+
+  repeated Frame frames = 1 [(gogoproto.nullable) = false];
+}
+
+message CapabilitiesResponse {
+  map<string, string> caps = 1;
+}
+
+message HintsResponse {
+}
+
+// Specifies a continuous range of nanosecond timestamps.
+message TimestampRange {
+  // Start defines the inclusive lower bound.
+  int64 start = 1;
+
+  // End defines the inclusive upper bound.
+  int64 end = 2;
+}
+
+//message ExplainRequest {
+//  ReadRequest read_request = 1 [(gogoproto.customname) = "ReadRequest"];
+//}
+//
+//message ExplainResponse {}

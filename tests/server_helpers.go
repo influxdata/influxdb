@@ -338,6 +338,11 @@ func (s *LocalServer) Reset() error {
 func (s *LocalServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	if s.PointsWriter == nil {
+		return fmt.Errorf("server closed")
+	}
+
 	return s.PointsWriter.WritePoints(database, retentionPolicy, consistencyLevel, user, points)
 }
 
@@ -492,6 +497,8 @@ func NewConfig() *run.Config {
 	c.HTTPD.LogEnabled = verboseServerLogs
 
 	c.Monitor.StoreEnabled = false
+
+	c.Storage.Enabled = false
 
 	return c
 }

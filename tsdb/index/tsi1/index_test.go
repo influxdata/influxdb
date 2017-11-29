@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
@@ -93,7 +92,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	})
 
 	// Delete one series.
-	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "east"}))); err != nil {
+	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "east"})), 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,7 +106,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	})
 
 	// Delete second series.
-	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "west"}))); err != nil {
+	if err := idx.DropSeries(models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "west"})), 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,61 +117,6 @@ func TestIndex_MeasurementExists(t *testing.T) {
 		} else if v {
 			t.Fatal("expected measurement to be deleted")
 		}
-	})
-}
-
-// Ensure index can return a list of matching measurements.
-func TestIndex_MeasurementNamesByExpr(t *testing.T) {
-	idx := MustOpenIndex()
-	defer idx.Close()
-
-	// Add series to index.
-	if err := idx.CreateSeriesSliceIfNotExists([]Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "north"})},
-		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "west", "country": "us"})},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	// Retrieve measurements by expression
-	idx.Run(t, func(t *testing.T) {
-		t.Run("EQ", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region = 'west'`))
-			if err != nil {
-				t.Fatal(err)
-			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
-				t.Fatalf("unexpected names: %v", names)
-			}
-		})
-
-		t.Run("NEQ", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region != 'east'`))
-			if err != nil {
-				t.Fatal(err)
-			} else if !reflect.DeepEqual(names, [][]byte{[]byte("disk"), []byte("mem")}) {
-				t.Fatalf("unexpected names: %v", names)
-			}
-		})
-
-		t.Run("EQREGEX", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region =~ /east|west/`))
-			if err != nil {
-				t.Fatal(err)
-			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
-				t.Fatalf("unexpected names: %v", names)
-			}
-		})
-
-		t.Run("NEQREGEX", func(t *testing.T) {
-			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`country !~ /^u/`))
-			if err != nil {
-				t.Fatal(err)
-			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("disk")}) {
-				t.Fatalf("unexpected names: %v", names)
-			}
-		})
 	})
 }
 
@@ -393,4 +337,12 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 		}
 	}
 	return nil
+}
+
+func BytesToStrings(a [][]byte) []string {
+	s := make([]string, 0, len(a))
+	for _, v := range a {
+		s = append(s, string(v))
+	}
+	return s
 }

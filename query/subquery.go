@@ -1,6 +1,10 @@
 package query
 
-import "github.com/influxdata/influxdb/influxql"
+import (
+	"context"
+
+	"github.com/influxdata/influxql"
+)
 
 type subqueryBuilder struct {
 	ic   IteratorCreator
@@ -8,7 +12,7 @@ type subqueryBuilder struct {
 }
 
 // buildAuxIterator constructs an auxiliary Iterator from a subquery.
-func (b *subqueryBuilder) buildAuxIterator(opt IteratorOptions) (Iterator, error) {
+func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOptions) (Iterator, error) {
 	// Retrieve a list of fields needed for conditions.
 	auxFields := opt.Aux
 	conds := influxql.ExprNames(opt.Condition)
@@ -26,7 +30,7 @@ func (b *subqueryBuilder) buildAuxIterator(opt IteratorOptions) (Iterator, error
 	}
 	subOpt.Aux = auxFields
 
-	itrs, err := buildIterators(b.stmt, b.ic, subOpt)
+	itrs, err := buildIterators(ctx, b.stmt, b.ic, subOpt)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +89,7 @@ func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef) IteratorMap {
 	return nil
 }
 
-func (b *subqueryBuilder) buildVarRefIterator(expr *influxql.VarRef, opt IteratorOptions) (Iterator, error) {
+func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxql.VarRef, opt IteratorOptions) (Iterator, error) {
 	// Look for the field or tag that is driving this query.
 	driver := b.mapAuxField(expr)
 	if driver == nil {
@@ -116,7 +120,7 @@ func (b *subqueryBuilder) buildVarRefIterator(expr *influxql.VarRef, opt Iterato
 	}
 	subOpt.Aux = auxFields
 
-	itrs, err := buildIterators(b.stmt, b.ic, subOpt)
+	itrs, err := buildIterators(ctx, b.stmt, b.ic, subOpt)
 	if err != nil {
 		return nil, err
 	}

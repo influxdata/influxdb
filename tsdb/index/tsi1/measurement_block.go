@@ -244,11 +244,11 @@ func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
 	t.HashIndex.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.HashIndex.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Read measurment sketch info.
+	// Read measurement sketch info.
 	t.Sketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.Sketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Read tombstone measurment sketch info.
+	// Read tombstone measurement sketch info.
 	t.TSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.TSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
@@ -336,6 +336,8 @@ func (e *MeasurementBlockElem) SeriesN() uint32 { return e.series.n }
 func (e *MeasurementBlockElem) SeriesID(i int) uint32 {
 	return binary.BigEndian.Uint32(e.series.data[i*SeriesIDSize:])
 }
+
+func (e *MeasurementBlockElem) HasSeries() bool { return e.series.n > 0 }
 
 // SeriesIDs returns a list of decoded series ids.
 //

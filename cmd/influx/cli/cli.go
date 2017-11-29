@@ -25,8 +25,8 @@ import (
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/importer/v8"
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxql"
 	"github.com/peterh/liner"
 )
 
@@ -187,7 +187,12 @@ func (c *CommandLine) Run() error {
 
 	c.Line.SetMultiLineMode(true)
 
-	fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
+	if len(c.ServerVersion) == 0 {
+		fmt.Printf("WARN: Connected to %s, but found no server version.\n", c.Client.Addr())
+		fmt.Printf("Are you sure an InfluxDB server is listening at the given address?\n")
+	} else {
+		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
+	}
 
 	c.Version()
 
@@ -399,7 +404,7 @@ func (c *CommandLine) clear(cmd string) {
 }
 
 func (c *CommandLine) use(cmd string) {
-	args := strings.Split(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), " ")
+	args := strings.SplitAfterN(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), " ", 2)
 	if len(args) != 2 {
 		fmt.Printf("Could not parse database name from %q.\n", cmd)
 		return
@@ -413,6 +418,7 @@ func (c *CommandLine) use(cmd string) {
 	}
 
 	if !c.databaseExists(db) {
+		fmt.Println("DB does not exist!")
 		return
 	}
 

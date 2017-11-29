@@ -88,6 +88,66 @@ func Intersect(a, b [][]byte) [][]byte {
 	return other
 }
 
+// Clone returns a copy of b.
+func Clone(b []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	buf := make([]byte, len(b))
+	copy(buf, b)
+	return buf
+}
+
+// CloneSlice returns a copy of a slice of byte slices.
+func CloneSlice(a [][]byte) [][]byte {
+	other := make([][]byte, len(a))
+	for i := range a {
+		other[i] = Clone(a[i])
+	}
+	return other
+}
+
+// Pack converts a sparse array to a dense one.  It removes sections of a containing
+// runs of val of length width.  The returned value is a subslice of a.
+func Pack(a []byte, width int, val byte) []byte {
+	var i, j, iStart, jStart, end int
+
+	fill := make([]byte, width)
+	for i := 0; i < len(fill); i++ {
+		fill[i] = val
+	}
+
+	// Skip the first run that won't move
+	for ; i < len(a) && a[i] != val; i += width {
+	}
+	end = i
+
+	for i < len(a) {
+		// Find the next gap to remove
+		iStart = i
+		for i < len(a) && a[i] == val {
+			i += width
+		}
+
+		// Find the next non-gap to keep
+		jStart = i
+		for j = i; j < len(a) && a[j] != val; j += width {
+		}
+
+		if jStart == len(a) {
+			break
+		}
+
+		// Move the non-gap over the section to remove.
+		copy(a[end:], a[jStart:j])
+		i = iStart + len(a[jStart:j])
+		end += j - jStart
+		i = j
+	}
+
+	return a[:end]
+}
+
 type byteSlices [][]byte
 
 func (a byteSlices) Len() int           { return len(a) }

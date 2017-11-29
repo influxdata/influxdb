@@ -39,3 +39,12 @@ func ExistsIgnoreCase(set []string, find string) bool {
 	}
 	return false
 }
+
+// StringsToBytes converts a variable number of strings into a slice of []byte.
+func StringsToBytes(s ...string) [][]byte {
+	a := make([][]byte, 0, len(s))
+	for _, v := range s {
+		a = append(a, []byte(v))
+	}
+	return a
+}

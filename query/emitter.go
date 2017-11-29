@@ -117,7 +117,6 @@ func (e *Emitter) loadBuf() (t int64, name string, tags Tags, err error) {
 			continue
 		}
 		itrTime, itrName, itrTags := p.time(), p.name(), p.tags()
-
 		// Initialize range values if not set.
 		if t == ZeroTime {
 			t, name, tags = itrTime, itrName, itrTags

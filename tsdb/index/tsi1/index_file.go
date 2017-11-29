@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // IndexFileVersion is the current TSI1 index file version.
@@ -233,7 +234,7 @@ func (f *IndexFile) TagValueIterator(name, key []byte) TagValueIterator {
 
 // TagKeySeriesIterator returns a series iterator for a tag key and a flag
 // indicating if a tombstone exists on the measurement or key.
-func (f *IndexFile) TagKeySeriesIterator(name, key []byte) SeriesIterator {
+func (f *IndexFile) TagKeySeriesIterator(name, key []byte) tsdb.SeriesIterator {
 	tblk := f.tblks[string(name)]
 	if tblk == nil {
 		return nil
@@ -247,7 +248,7 @@ func (f *IndexFile) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 
 	// Merge all value series iterators together.
 	vitr := ke.TagValueIterator()
-	var itrs []SeriesIterator
+	var itrs []tsdb.SeriesIterator
 	for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
 		sitr := &rawSeriesIDIterator{data: ve.(*TagBlockValueElem).series.data}
 		itrs = append(itrs, newSeriesDecodeIterator(&f.sblk, sitr))
@@ -258,7 +259,7 @@ func (f *IndexFile) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 
 // TagValueSeriesIterator returns a series iterator for a tag value and a flag
 // indicating if a tombstone exists on the measurement, key, or value.
-func (f *IndexFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
+func (f *IndexFile) TagValueSeriesIterator(name, key, value []byte) tsdb.SeriesIterator {
 	tblk := f.tblks[string(name)]
 	if tblk == nil {
 		return nil
@@ -305,7 +306,7 @@ func (f *IndexFile) HasSeries(name []byte, tags models.Tags, buf []byte) (exists
 
 // Series returns the series and a flag indicating if the series has been
 // tombstoned by the measurement.
-func (f *IndexFile) Series(name []byte, tags models.Tags) SeriesElem {
+func (f *IndexFile) Series(name []byte, tags models.Tags) tsdb.SeriesElem {
 	return f.sblk.Series(name, tags)
 }
 
@@ -333,7 +334,7 @@ func (f *IndexFile) TagKeyIterator(name []byte) TagKeyIterator {
 }
 
 // MeasurementSeriesIterator returns an iterator over a measurement's series.
-func (f *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
+func (f *IndexFile) MeasurementSeriesIterator(name []byte) tsdb.SeriesIterator {
 	return &seriesDecodeIterator{
 		itr:  f.mblk.seriesIDIterator(name),
 		sblk: &f.sblk,
@@ -355,7 +356,7 @@ func (f *IndexFile) SeriesN() uint64 {
 }
 
 // SeriesIterator returns an iterator over all series.
-func (f *IndexFile) SeriesIterator() SeriesIterator {
+func (f *IndexFile) SeriesIterator() tsdb.SeriesIterator {
 	return f.sblk.SeriesIterator()
 }
 

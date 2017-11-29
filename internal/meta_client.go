@@ -3,8 +3,8 @@ package internal
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 )
 
 // MetaClientMock is a mockable implementation of meta.MetaClient.
@@ -31,6 +31,8 @@ type MetaClientMock struct {
 	DropUserFn            func(name string) error
 
 	OpenFn func() error
+
+	PruneShardGroupsFn func() error
 
 	RetentionPolicyFn func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 
@@ -169,3 +171,5 @@ func (c *MetaClientMock) Users() []meta.UserInfo                  { return c.Use
 func (c *MetaClientMock) Open() error                { return c.OpenFn() }
 func (c *MetaClientMock) Data() meta.Data            { return c.DataFn() }
 func (c *MetaClientMock) SetData(d *meta.Data) error { return c.SetDataFn(d) }
+
+func (c *MetaClientMock) PruneShardGroups() error { return c.PruneShardGroupsFn() }

@@ -71,8 +71,8 @@ type Config struct {
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
 	// Compaction options for tsm1 (descriptions above with defaults)
-	CacheMaxMemorySize             uint64        `toml:"cache-max-memory-size"`
-	CacheSnapshotMemorySize        uint64        `toml:"cache-snapshot-memory-size"`
+	CacheMaxMemorySize             toml.Size     `toml:"cache-max-memory-size"`
+	CacheSnapshotMemorySize        toml.Size     `toml:"cache-snapshot-memory-size"`
 	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 
@@ -105,8 +105,8 @@ func NewConfig() Config {
 
 		QueryLogEnabled: true,
 
-		CacheMaxMemorySize:             DefaultCacheMaxMemorySize,
-		CacheSnapshotMemorySize:        DefaultCacheSnapshotMemorySize,
+		CacheMaxMemorySize:             toml.Size(DefaultCacheMaxMemorySize),
+		CacheSnapshotMemorySize:        toml.Size(DefaultCacheSnapshotMemorySize),
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 

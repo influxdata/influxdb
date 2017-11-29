@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxql"
 )
 
 func TestConcurrentServer_WriteValues(t *testing.T) {
@@ -71,7 +72,7 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rewrite, err := influxql.RewriteStatement(stmt)
+	rewrite, err := query.RewriteStatement(stmt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,19 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 		if !ok {
 			t.Fatal("Not a local server")
 		}
-		srv.TSDBStore.TagValues(nil, "db0", cond)
+
+		sgis, err := s.(*LocalServer).MetaClient.ShardGroupsByTimeRange("db0", "rp0", time.Time{}, time.Time{})
+		if err != nil {
+			return
+		}
+
+		var ids []uint64
+		for _, sgi := range sgis {
+			for _, si := range sgi.Shards {
+				ids = append(ids, si.ID)
+			}
+		}
+		srv.TSDBStore.TagValues(nil, ids, cond)
 	}
 
 	var f3 = func() { s.DropDatabase("db0") }
@@ -120,7 +133,7 @@ func TestConcurrentServer_ShowMeasurements(t *testing.T) {
 		if !ok {
 			t.Fatal("Not a local server")
 		}
-		srv.TSDBStore.MeasurementNames("db0", nil)
+		srv.TSDBStore.MeasurementNames(query.OpenAuthorizer, "db0", nil)
 	}
 
 	runTest(10*time.Second, f1, f2)

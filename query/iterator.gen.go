@@ -8,16 +8,14 @@ package query
 
 import (
 	"container/heap"
-	"encoding/binary"
-	"fmt"
+	"context"
 	"io"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/influxql"
-	internal "github.com/influxdata/influxdb/query/internal"
+	"github.com/influxdata/influxql"
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
@@ -114,6 +112,9 @@ type floatMergeIterator struct {
 	heap   *floatMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *floatMergeHeapItem
 	window struct {
@@ -157,17 +158,27 @@ func (itr *floatMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *floatMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *floatMergeIterator) Next() (*FloatPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -909,6 +920,7 @@ type floatAuxIterator struct {
 	output     chan auxFloatPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newFloatAuxIterator(input FloatIterator, opt IteratorOptions) *floatAuxIterator {
@@ -927,7 +939,13 @@ func (itr *floatAuxIterator) Background() {
 
 func (itr *floatAuxIterator) Start()               { go itr.stream() }
 func (itr *floatAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *floatAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *floatAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *floatAuxIterator) Next() (*FloatPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -3384,8 +3402,8 @@ type floatReaderIterator struct {
 }
 
 // newFloatReaderIterator returns a new instance of floatReaderIterator.
-func newFloatReaderIterator(r io.Reader, stats IteratorStats) *floatReaderIterator {
-	dec := NewFloatPointDecoder(r)
+func newFloatReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *floatReaderIterator {
+	dec := NewFloatPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &floatReaderIterator{
@@ -3510,6 +3528,9 @@ type integerMergeIterator struct {
 	heap   *integerMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *integerMergeHeapItem
 	window struct {
@@ -3553,17 +3574,27 @@ func (itr *integerMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *integerMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *integerMergeIterator) Next() (*IntegerPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -4305,6 +4336,7 @@ type integerAuxIterator struct {
 	output     chan auxIntegerPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newIntegerAuxIterator(input IntegerIterator, opt IteratorOptions) *integerAuxIterator {
@@ -4323,7 +4355,13 @@ func (itr *integerAuxIterator) Background() {
 
 func (itr *integerAuxIterator) Start()               { go itr.stream() }
 func (itr *integerAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *integerAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *integerAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *integerAuxIterator) Next() (*IntegerPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -6777,8 +6815,8 @@ type integerReaderIterator struct {
 }
 
 // newIntegerReaderIterator returns a new instance of integerReaderIterator.
-func newIntegerReaderIterator(r io.Reader, stats IteratorStats) *integerReaderIterator {
-	dec := NewIntegerPointDecoder(r)
+func newIntegerReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *integerReaderIterator {
+	dec := NewIntegerPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &integerReaderIterator{
@@ -6903,6 +6941,9 @@ type unsignedMergeIterator struct {
 	heap   *unsignedMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *unsignedMergeHeapItem
 	window struct {
@@ -6946,17 +6987,27 @@ func (itr *unsignedMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *unsignedMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *unsignedMergeIterator) Next() (*UnsignedPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -7698,6 +7749,7 @@ type unsignedAuxIterator struct {
 	output     chan auxUnsignedPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newUnsignedAuxIterator(input UnsignedIterator, opt IteratorOptions) *unsignedAuxIterator {
@@ -7716,7 +7768,13 @@ func (itr *unsignedAuxIterator) Background() {
 
 func (itr *unsignedAuxIterator) Start()               { go itr.stream() }
 func (itr *unsignedAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *unsignedAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *unsignedAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *unsignedAuxIterator) Next() (*UnsignedPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -10170,8 +10228,8 @@ type unsignedReaderIterator struct {
 }
 
 // newUnsignedReaderIterator returns a new instance of unsignedReaderIterator.
-func newUnsignedReaderIterator(r io.Reader, stats IteratorStats) *unsignedReaderIterator {
-	dec := NewUnsignedPointDecoder(r)
+func newUnsignedReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *unsignedReaderIterator {
+	dec := NewUnsignedPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &unsignedReaderIterator{
@@ -10296,6 +10354,9 @@ type stringMergeIterator struct {
 	heap   *stringMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *stringMergeHeapItem
 	window struct {
@@ -10339,17 +10400,27 @@ func (itr *stringMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *stringMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *stringMergeIterator) Next() (*StringPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -11077,6 +11148,7 @@ type stringAuxIterator struct {
 	output     chan auxStringPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newStringAuxIterator(input StringIterator, opt IteratorOptions) *stringAuxIterator {
@@ -11095,7 +11167,13 @@ func (itr *stringAuxIterator) Background() {
 
 func (itr *stringAuxIterator) Start()               { go itr.stream() }
 func (itr *stringAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *stringAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *stringAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *stringAuxIterator) Next() (*StringPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -13549,8 +13627,8 @@ type stringReaderIterator struct {
 }
 
 // newStringReaderIterator returns a new instance of stringReaderIterator.
-func newStringReaderIterator(r io.Reader, stats IteratorStats) *stringReaderIterator {
-	dec := NewStringPointDecoder(r)
+func newStringReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *stringReaderIterator {
+	dec := NewStringPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &stringReaderIterator{
@@ -13675,6 +13753,9 @@ type booleanMergeIterator struct {
 	heap   *booleanMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *booleanMergeHeapItem
 	window struct {
@@ -13718,17 +13799,27 @@ func (itr *booleanMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *booleanMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *booleanMergeIterator) Next() (*BooleanPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -14456,6 +14547,7 @@ type booleanAuxIterator struct {
 	output     chan auxBooleanPoint
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func newBooleanAuxIterator(input BooleanIterator, opt IteratorOptions) *booleanAuxIterator {
@@ -14474,7 +14566,13 @@ func (itr *booleanAuxIterator) Background() {
 
 func (itr *booleanAuxIterator) Start()               { go itr.stream() }
 func (itr *booleanAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-func (itr *booleanAuxIterator) Close() error         { return itr.input.Close() }
+
+func (itr *booleanAuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *booleanAuxIterator) Next() (*BooleanPoint, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -16928,8 +17026,8 @@ type booleanReaderIterator struct {
 }
 
 // newBooleanReaderIterator returns a new instance of booleanReaderIterator.
-func newBooleanReaderIterator(r io.Reader, stats IteratorStats) *booleanReaderIterator {
-	dec := NewBooleanPointDecoder(r)
+func newBooleanReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *booleanReaderIterator {
+	dec := NewBooleanPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &booleanReaderIterator{
@@ -16961,39 +17059,6 @@ func (itr *booleanReaderIterator) Next() (*BooleanPoint, error) {
 		return nil, err
 	}
 	return p, nil
-}
-
-// IteratorEncoder is an encoder for encoding an iterator's points to w.
-type IteratorEncoder struct {
-	w io.Writer
-
-	// Frequency with which stats are emitted.
-	StatsInterval time.Duration
-}
-
-// NewIteratorEncoder encodes an iterator's points to w.
-func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
-	return &IteratorEncoder{
-		w: w,
-
-		StatsInterval: DefaultStatsInterval,
-	}
-}
-
-// EncodeIterator encodes and writes all of itr's points to the underlying writer.
-func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
-	switch itr := itr.(type) {
-	case FloatIterator:
-		return enc.encodeFloatIterator(itr)
-	case IntegerIterator:
-		return enc.encodeIntegerIterator(itr)
-	case StringIterator:
-		return enc.encodeStringIterator(itr)
-	case BooleanIterator:
-		return enc.encodeBooleanIterator(itr)
-	default:
-		panic(fmt.Sprintf("unsupported iterator for encoder: %T", itr))
-	}
 }
 
 // encodeFloatIterator encodes all points from itr to the underlying writer.
@@ -17206,29 +17271,6 @@ func (enc *IteratorEncoder) encodeBooleanIterator(itr BooleanIterator) error {
 
 	// Emit final stats.
 	if err := enc.encodeStats(itr.Stats()); err != nil {
-		return err
-	}
-	return nil
-}
-
-// encode a stats object in the point stream.
-func (enc *IteratorEncoder) encodeStats(stats IteratorStats) error {
-	buf, err := proto.Marshal(&internal.Point{
-		Name: proto.String(""),
-		Tags: proto.String(""),
-		Time: proto.Int64(0),
-		Nil:  proto.Bool(false),
-
-		Stats: encodeIteratorStats(&stats),
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
-		return err
-	}
-	if _, err := enc.w.Write(buf); err != nil {
 		return err
 	}
 	return nil

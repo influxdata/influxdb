@@ -1,17 +1,16 @@
 package query
 
 import (
+	"context"
 	"container/heap"
-	"encoding/binary"
-	"fmt"
 	"io"
 	"sort"
 	"sync"
 	"time"
+	"sync"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/influxql"
-	internal "github.com/influxdata/influxdb/query/internal"
+	"github.com/influxdata/influxql"
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
@@ -111,6 +110,9 @@ type {{$k.name}}MergeIterator struct {
 	heap   *{{$k.name}}MergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *{{$k.name}}MergeHeapItem
 	window struct {
@@ -154,17 +156,27 @@ func (itr *{{$k.name}}MergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *{{$k.name}}MergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *{{$k.name}}MergeIterator) Next() (*{{$k.Name}}Point, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -910,6 +922,7 @@ type {{$k.name}}AuxIterator struct {
 	output     chan aux{{$k.Name}}Point
 	fields     *auxIteratorFields
 	background bool
+	closer     sync.Once
 }
 
 func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, opt IteratorOptions) *{{$k.name}}AuxIterator {
@@ -928,7 +941,13 @@ func (itr *{{$k.name}}AuxIterator) Background() {
 
 func (itr *{{$k.name}}AuxIterator) Start()                           { go itr.stream() }
 func (itr *{{$k.name}}AuxIterator) Stats() IteratorStats             { return itr.input.Stats() }
-func (itr *{{$k.name}}AuxIterator) Close() error                     { return itr.input.Close() }
+
+func (itr *{{$k.name}}AuxIterator) Close() error {
+	var err error
+	itr.closer.Do(func() { err = itr.input.Close() })
+	return err
+}
+
 func (itr *{{$k.name}}AuxIterator) Next() (*{{$k.Name}}Point, error) {
 	p := <-itr.output
 	return p.point, p.err
@@ -1723,13 +1742,13 @@ type {{$k.name}}ReaderIterator struct {
 }
 
 // new{{$k.Name}}ReaderIterator returns a new instance of {{$k.name}}ReaderIterator.
-func new{{$k.Name}}ReaderIterator(r io.Reader, stats IteratorStats) *{{$k.name}}ReaderIterator {
-	dec := New{{$k.Name}}PointDecoder(r)
+func new{{$k.Name}}ReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *{{$k.name}}ReaderIterator {
+	dec := New{{$k.Name}}PointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &{{$k.name}}ReaderIterator{
 		r:     r,
-    dec:   dec,
+		dec:   dec,
 	}
 }
 
@@ -1758,40 +1777,6 @@ func (itr *{{$k.name}}ReaderIterator) Next() (*{{$k.Name}}Point, error) {
 	return p, nil
 }
 {{end}}
-
-
-// IteratorEncoder is an encoder for encoding an iterator's points to w.
-type IteratorEncoder struct {
-	w io.Writer
-
-	// Frequency with which stats are emitted.
-	StatsInterval time.Duration
-}
-
-// NewIteratorEncoder encodes an iterator's points to w.
-func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
-	return &IteratorEncoder{
-		w: w,
-
-		StatsInterval: DefaultStatsInterval,
-	}
-}
-
-// EncodeIterator encodes and writes all of itr's points to the underlying writer.
-func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
-	switch itr := itr.(type) {
-	case FloatIterator:
-		return enc.encodeFloatIterator(itr)
-	case IntegerIterator:
-		return enc.encodeIntegerIterator(itr)
-	case StringIterator:
-		return enc.encodeStringIterator(itr)
-	case BooleanIterator:
-		return enc.encodeBooleanIterator(itr)
-	default:
-		panic(fmt.Sprintf("unsupported iterator for encoder: %T", itr))
-	}
-}
 
 {{range .}}
 // encode{{.Name}}Iterator encodes all points from itr to the underlying writer.
@@ -1838,28 +1823,5 @@ func (enc *IteratorEncoder) encode{{.Name}}Iterator(itr {{.Name}}Iterator) error
 }
 
 {{end}}
-
-// encode a stats object in the point stream.
-func (enc *IteratorEncoder) encodeStats(stats IteratorStats) error {
-	buf, err := proto.Marshal(&internal.Point{
-		Name: proto.String(""),
-		Tags: proto.String(""),
-		Time: proto.Int64(0),
-		Nil:  proto.Bool(false),
-
-		Stats: encodeIteratorStats(&stats),
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
-		return err
-	}
-	if _, err := enc.w.Write(buf); err != nil {
-		return err
-	}
-	return nil
-}
 
 {{end}}

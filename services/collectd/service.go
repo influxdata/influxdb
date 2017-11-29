@@ -18,7 +18,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // statistics gathered by the collectd service.
@@ -59,7 +59,7 @@ type Service struct {
 	Config       *Config
 	MetaClient   metaClient
 	PointsWriter pointsWriter
-	Logger       zap.Logger
+	Logger       *zap.Logger
 
 	wg      sync.WaitGroup
 	conn    *net.UDPConn
@@ -82,7 +82,7 @@ func NewService(c Config) *Service {
 		// Use defaults where necessary.
 		Config: c.WithDefaults(),
 
-		Logger:      zap.New(zap.NullEncoder()),
+		Logger:      zap.NewNop(),
 		stats:       &Statistics{},
 		defaultTags: models.StatisticTags{"bind": c.BindAddress},
 	}
@@ -95,7 +95,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.closed() {
+	if s.done != nil {
 		return nil // Already open.
 	}
 	s.done = make(chan struct{})
@@ -211,24 +211,34 @@ func (s *Service) Open() error {
 
 // Close stops the service.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if wait := func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.closed() {
+		if s.closed() {
+			return false
+		}
+		close(s.done)
+
+		// Close the connection, and wait for the goroutine to exit.
+		if s.conn != nil {
+			s.conn.Close()
+		}
+		if s.batcher != nil {
+			s.batcher.Stop()
+		}
+		return true
+	}(); !wait {
 		return nil // Already closed.
 	}
-	close(s.done)
 
-	// Close the connection, and wait for the goroutine to exit.
-	if s.conn != nil {
-		s.conn.Close()
-	}
-	if s.batcher != nil {
-		s.batcher.Stop()
-	}
+	// Wait with the lock unlocked.
 	s.wg.Wait()
 
 	// Release all remaining resources.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.conn = nil
 	s.batcher = nil
 	s.Logger.Info("collectd UDP closed")
@@ -267,7 +277,7 @@ func (s *Service) createInternalStorage() error {
 }
 
 // WithLogger sets the service's logger.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "collectd"))
 }
 

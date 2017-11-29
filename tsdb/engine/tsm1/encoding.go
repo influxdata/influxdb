@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
 )
 
 const (
@@ -421,7 +421,7 @@ func DecodeFloatBlock(block []byte, a *[]FloatValue) ([]FloatValue, error) {
 	vdec := floatDecoderPool.Get(0).(*FloatDecoder)
 
 	var i int
-	err = func() error {
+	err = func(a []FloatValue) error {
 		// Setup our timestamp and value decoders
 		tdec.Init(tb)
 		err = vdec.SetBytes(vb)
@@ -430,18 +430,12 @@ func DecodeFloatBlock(block []byte, a *[]FloatValue) ([]FloatValue, error) {
 		}
 
 		// Decode both a timestamp and value
-		for tdec.Next() && vdec.Next() {
-			ts := tdec.Read()
-			v := vdec.Values()
-			if i < len(*a) {
-				elem := &(*a)[i]
-				elem.unixnano = ts
-				elem.value = v
-			} else {
-				*a = append(*a, FloatValue{ts, v})
-			}
-			i++
+		j := 0
+		for j < len(a) && tdec.Next() && vdec.Next() {
+			a[j] = FloatValue{unixnano: tdec.Read(), value: vdec.Values()}
+			j++
 		}
+		i = j
 
 		// Did timestamp decoding have an error?
 		err = tdec.Error()
@@ -455,7 +449,7 @@ func DecodeFloatBlock(block []byte, a *[]FloatValue) ([]FloatValue, error) {
 			return err
 		}
 		return nil
-	}()
+	}(*a)
 
 	timeDecoderPool.Put(tdec)
 	floatDecoderPool.Put(vdec)
@@ -562,24 +556,18 @@ func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error)
 	vdec := booleanDecoderPool.Get(0).(*BooleanDecoder)
 
 	var i int
-	err = func() error {
+	err = func(a []BooleanValue) error {
 		// Setup our timestamp and value decoders
 		tdec.Init(tb)
 		vdec.SetBytes(vb)
 
 		// Decode both a timestamp and value
-		for tdec.Next() && vdec.Next() {
-			ts := tdec.Read()
-			v := vdec.Read()
-			if i < len(*a) {
-				elem := &(*a)[i]
-				elem.unixnano = ts
-				elem.value = v
-			} else {
-				*a = append(*a, BooleanValue{ts, v})
-			}
-			i++
+		j := 0
+		for j < len(a) && tdec.Next() && vdec.Next() {
+			a[j] = BooleanValue{unixnano: tdec.Read(), value: vdec.Read()}
+			j++
 		}
+		i = j
 
 		// Did timestamp decoding have an error?
 		err = tdec.Error()
@@ -592,7 +580,7 @@ func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error)
 			return err
 		}
 		return nil
-	}()
+	}(*a)
 
 	timeDecoderPool.Put(tdec)
 	booleanDecoderPool.Put(vdec)
@@ -691,24 +679,18 @@ func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error)
 	vdec := integerDecoderPool.Get(0).(*IntegerDecoder)
 
 	var i int
-	err = func() error {
+	err = func(a []IntegerValue) error {
 		// Setup our timestamp and value decoders
 		tdec.Init(tb)
 		vdec.SetBytes(vb)
 
 		// Decode both a timestamp and value
-		for tdec.Next() && vdec.Next() {
-			ts := tdec.Read()
-			v := vdec.Read()
-			if i < len(*a) {
-				elem := &(*a)[i]
-				elem.unixnano = ts
-				elem.value = v
-			} else {
-				*a = append(*a, IntegerValue{ts, v})
-			}
-			i++
+		j := 0
+		for j < len(a) && tdec.Next() && vdec.Next() {
+			a[j] = IntegerValue{unixnano: tdec.Read(), value: vdec.Read()}
+			j++
 		}
+		i = j
 
 		// Did timestamp decoding have an error?
 		err = tdec.Error()
@@ -721,7 +703,7 @@ func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error)
 			return err
 		}
 		return nil
-	}()
+	}(*a)
 
 	timeDecoderPool.Put(tdec)
 	integerDecoderPool.Put(vdec)
@@ -820,24 +802,18 @@ func DecodeUnsignedBlock(block []byte, a *[]UnsignedValue) ([]UnsignedValue, err
 	vdec := integerDecoderPool.Get(0).(*IntegerDecoder)
 
 	var i int
-	err = func() error {
+	err = func(a []UnsignedValue) error {
 		// Setup our timestamp and value decoders
 		tdec.Init(tb)
 		vdec.SetBytes(vb)
 
 		// Decode both a timestamp and value
-		for tdec.Next() && vdec.Next() {
-			ts := tdec.Read()
-			v := uint64(vdec.Read())
-			if i < len(*a) {
-				elem := &(*a)[i]
-				elem.unixnano = ts
-				elem.value = v
-			} else {
-				*a = append(*a, UnsignedValue{ts, v})
-			}
-			i++
+		j := 0
+		for j < len(a) && tdec.Next() && vdec.Next() {
+			a[j] = UnsignedValue{unixnano: tdec.Read(), value: uint64(vdec.Read())}
+			j++
 		}
+		i = j
 
 		// Did timestamp decoding have an error?
 		err = tdec.Error()
@@ -850,7 +826,7 @@ func DecodeUnsignedBlock(block []byte, a *[]UnsignedValue) ([]UnsignedValue, err
 			return err
 		}
 		return nil
-	}()
+	}(*a)
 
 	timeDecoderPool.Put(tdec)
 	integerDecoderPool.Put(vdec)
@@ -949,7 +925,7 @@ func DecodeStringBlock(block []byte, a *[]StringValue) ([]StringValue, error) {
 	vdec := stringDecoderPool.Get(0).(*StringDecoder)
 
 	var i int
-	err = func() error {
+	err = func(a []StringValue) error {
 		// Setup our timestamp and value decoders
 		tdec.Init(tb)
 		err = vdec.SetBytes(vb)
@@ -958,18 +934,12 @@ func DecodeStringBlock(block []byte, a *[]StringValue) ([]StringValue, error) {
 		}
 
 		// Decode both a timestamp and value
-		for tdec.Next() && vdec.Next() {
-			ts := tdec.Read()
-			v := vdec.Read()
-			if i < len(*a) {
-				elem := &(*a)[i]
-				elem.unixnano = ts
-				elem.value = v
-			} else {
-				*a = append(*a, StringValue{ts, v})
-			}
-			i++
+		j := 0
+		for j < len(a) && tdec.Next() && vdec.Next() {
+			a[j] = StringValue{unixnano: tdec.Read(), value: vdec.Read()}
+			j++
 		}
+		i = j
 
 		// Did timestamp decoding have an error?
 		err = tdec.Error()
@@ -982,7 +952,7 @@ func DecodeStringBlock(block []byte, a *[]StringValue) ([]StringValue, error) {
 			return err
 		}
 		return nil
-	}()
+	}(*a)
 
 	timeDecoderPool.Put(tdec)
 	stringDecoderPool.Put(vdec)

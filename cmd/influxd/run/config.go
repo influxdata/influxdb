@@ -1,7 +1,6 @@
 package run
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -26,9 +25,12 @@ import (
 	"github.com/influxdata/influxdb/services/opentsdb"
 	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/services/retention"
+	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tsdb"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 const (
@@ -47,6 +49,7 @@ type Config struct {
 	Monitor        monitor.Config    `toml:"monitor"`
 	Subscriber     subscriber.Config `toml:"subscriber"`
 	HTTPD          httpd.Config      `toml:"http"`
+	Storage        storage.Config    `toml:"ifql"`
 	GraphiteInputs []graphite.Config `toml:"graphite"`
 	CollectdInputs []collectd.Config `toml:"collectd"`
 	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`
@@ -72,6 +75,7 @@ func NewConfig() *Config {
 	c.Monitor = monitor.NewConfig()
 	c.Subscriber = subscriber.NewConfig()
 	c.HTTPD = httpd.NewConfig()
+	c.Storage = storage.NewConfig()
 
 	c.GraphiteInputs = []graphite.Config{graphite.NewConfig()}
 	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}
@@ -107,20 +111,22 @@ func NewDemoConfig() (*Config, error) {
 	return c, nil
 }
 
-// trimBOM trims the Byte-Order-Marks from the beginning of the file.
-// This is for Windows compatability only.
-// See https://github.com/influxdata/telegraf/issues/1378.
-func trimBOM(f []byte) []byte {
-	return bytes.TrimPrefix(f, []byte("\xef\xbb\xbf"))
-}
-
 // FromTomlFile loads the config from a TOML file.
 func (c *Config) FromTomlFile(fpath string) error {
 	bs, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return err
 	}
-	bs = trimBOM(bs)
+
+	// Handle any potential Byte-Order-Marks that may be in the config file.
+	// This is for Windows compatibility only.
+	// See https://github.com/influxdata/telegraf/issues/1378 and
+	// https://github.com/influxdata/influxdb/issues/8965.
+	bom := unicode.BOMOverride(transform.Nop)
+	bs, _, err = transform.Bytes(bom, bs)
+	if err != nil {
+		return err
+	}
 	return c.FromToml(string(bs))
 }
 

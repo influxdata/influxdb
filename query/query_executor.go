@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 var (
@@ -35,6 +36,9 @@ var (
 
 	// ErrQueryTimeoutLimitExceeded is an error when a query hits the max time allowed to run.
 	ErrQueryTimeoutLimitExceeded = errors.New("query-timeout limit exceeded")
+
+	// ErrAlreadyKilled is returned when attempting to kill a query that has already been killed.
+	ErrAlreadyKilled = errors.New("already killed")
 )
 
 // Statistics for the QueryExecutor
@@ -64,7 +68,7 @@ func ErrMaxConcurrentQueriesLimitExceeded(n, limit int) error {
 	return fmt.Errorf("max-concurrent-queries limit exceeded(%d, %d)", n, limit)
 }
 
-// Authorizer reports whether certain operations are authorized.
+// Authorizer determines if certain operations are authorized.
 type Authorizer interface {
 	// AuthorizeDatabase indicates whether the given Privilege is authorized on the database with the given name.
 	AuthorizeDatabase(p influxql.Privilege, name string) bool
@@ -81,22 +85,26 @@ type Authorizer interface {
 
 // OpenAuthorizer is the Authorizer used when authorization is disabled.
 // It allows all operations.
-type OpenAuthorizer struct{}
+type openAuthorizer struct{}
 
-var _ Authorizer = OpenAuthorizer{}
+// OpenAuthorizer can be shared by all goroutines.
+var OpenAuthorizer = openAuthorizer{}
 
 // AuthorizeDatabase returns true to allow any operation on a database.
-func (_ OpenAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
+func (a openAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
 
-func (_ OpenAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
+// AuthorizeSeriesRead allows accesss to any series.
+func (a openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
-func (_ OpenAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
+// AuthorizeSeriesWrite allows accesss to any series.
+func (a openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
-func (_ OpenAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { return nil }
+// AuthorizeSeriesRead allows any query to execute.
+func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { return nil }
 
 // ExecutionOptions contains the options for executing a query.
 type ExecutionOptions struct {
@@ -137,9 +145,6 @@ type ExecutionContext struct {
 	// Output channel where results and errors should be sent.
 	Results chan *Result
 
-	// Hold the query executor's logger.
-	Log zap.Logger
-
 	// A channel that is closed when the query is interrupted.
 	InterruptCh <-chan struct{}
 
@@ -171,6 +176,26 @@ func (ctx *ExecutionContext) Send(result *Result) error {
 	return nil
 }
 
+type contextKey int
+
+const (
+	iteratorsContextKey contextKey = iota
+)
+
+// NewContextWithIterators returns a new context.Context with the *Iterators slice added.
+// The query planner will add instances of AuxIterator to the Iterators slice.
+func NewContextWithIterators(ctx context.Context, itr *Iterators) context.Context {
+	return context.WithValue(ctx, iteratorsContextKey, itr)
+}
+
+// tryAddAuxIteratorToContext will capture itr in the *Iterators slice, when configured
+// with a call to NewContextWithIterators.
+func tryAddAuxIteratorToContext(ctx context.Context, itr AuxIterator) {
+	if v, ok := ctx.Value(iteratorsContextKey).(*Iterators); ok {
+		*v = append(*v, itr)
+	}
+}
+
 // StatementExecutor executes a statement within the QueryExecutor.
 type StatementExecutor interface {
 	// ExecuteStatement executes a statement. Results should be sent to the
@@ -195,7 +220,7 @@ type QueryExecutor struct {
 
 	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	// expvar-based stats.
 	stats *QueryStatistics
@@ -205,7 +230,7 @@ type QueryExecutor struct {
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
 		TaskManager: NewTaskManager(),
-		Logger:      zap.New(zap.NullEncoder()),
+		Logger:      zap.NewNop(),
 		stats:       &QueryStatistics{},
 	}
 }
@@ -241,7 +266,7 @@ func (e *QueryExecutor) Close() error {
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (e *QueryExecutor) WithLogger(log zap.Logger) {
+func (e *QueryExecutor) WithLogger(log *zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
 }
@@ -280,7 +305,6 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions
 		QueryID:          qid,
 		Query:            task,
 		Results:          results,
-		Log:              e.Logger,
 		InterruptCh:      task.closing,
 		ExecutionOptions: opt,
 	}
@@ -331,7 +355,7 @@ LOOP:
 
 		// Rewrite statements, if necessary.
 		// This can occur on meta read statements which convert to SELECT statements.
-		newStmt, err := influxql.RewriteStatement(stmt)
+		newStmt, err := RewriteStatement(stmt)
 		if err != nil {
 			results <- &Result{Err: err}
 			break
@@ -478,4 +502,25 @@ func (q *QueryTask) monitor(fn QueryMonitorFunc) {
 		case q.monitorCh <- err:
 		}
 	}
+}
+
+// close closes the query task closing channel if the query hasn't been previously killed.
+func (q *QueryTask) close() {
+	q.mu.Lock()
+	if q.status != KilledTask {
+		close(q.closing)
+	}
+	q.mu.Unlock()
+}
+
+func (q *QueryTask) kill() error {
+	q.mu.Lock()
+	if q.status == KilledTask {
+		q.mu.Unlock()
+		return ErrAlreadyKilled
+	}
+	q.status = KilledTask
+	close(q.closing)
+	q.mu.Unlock()
+	return nil
 }

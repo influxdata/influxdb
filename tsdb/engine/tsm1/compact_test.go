@@ -461,6 +461,10 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, math.MinInt64, math.MaxInt64)
 
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+
 	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a3},
@@ -562,6 +566,10 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 	// a1 should remain after compaction
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, math.MaxInt64)
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
 
 	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
@@ -669,6 +677,10 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	// a1, a3 should remain after compaction
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, 2)
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 4, 4)
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
 
 	a5 := tsm1.NewValue(5, 1.5)
 	writes = map[string][]tsm1.Value{
@@ -2448,6 +2460,104 @@ func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 	if exp, got := 0, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+func TestDefaultPlanner_Plan_ForceFull(t *testing.T) {
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{
+						Path: "000000001-000000001.tsm",
+						Size: 2148340232,
+					},
+					tsm1.FileStat{
+						Path: "000000002-000000001.tsm",
+						Size: 2148356556,
+					},
+					tsm1.FileStat{
+						Path: "000000003-000000001.tsm",
+						Size: 167780181,
+					},
+					tsm1.FileStat{
+						Path: "000000004-000000001.tsm",
+						Size: 2148728539,
+					},
+					tsm1.FileStat{
+						Path: "000000005-000000002.tsm",
+						Size: 701863692,
+					},
+					tsm1.FileStat{
+						Path: "000000006-000000002.tsm",
+						Size: 701863692,
+					},
+					tsm1.FileStat{
+						Path: "000000007-000000002.tsm",
+						Size: 701863692,
+					},
+					tsm1.FileStat{
+						Path: "000000008-000000002.tsm",
+						Size: 701863692,
+					},
+					tsm1.FileStat{
+						Path: "000000009-000000002.tsm",
+						Size: 701863692,
+					},
+				}
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	tsm := cp.PlanLevel(1)
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+	cp.Release(tsm)
+
+	tsm = cp.PlanLevel(2)
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+	cp.Release(tsm)
+
+	cp.ForceFull()
+
+	// Level plans should not return any plans
+	tsm = cp.PlanLevel(1)
+	if exp, got := 0, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+	cp.Release(tsm)
+
+	tsm = cp.PlanLevel(2)
+	if exp, got := 0, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+	cp.Release(tsm)
+
+	tsm = cp.Plan(time.Now())
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(tsm[0]), 9; got != exp {
+		t.Fatalf("plan length mismatch: got %v, exp %v", got, exp)
+	}
+	cp.Release(tsm)
+
+	// Level plans should return plans now that Plan has been called
+	tsm = cp.PlanLevel(1)
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+	cp.Release(tsm)
+
+	tsm = cp.PlanLevel(2)
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+	cp.Release(tsm)
+
 }
 
 func assertValueEqual(t *testing.T, a, b tsm1.Value) {

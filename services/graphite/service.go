@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const udpBufferSize = 65536
@@ -56,7 +56,7 @@ type Service struct {
 	batcher *tsdb.PointBatcher
 	parser  *Parser
 
-	logger      zap.Logger
+	logger      *zap.Logger
 	stats       *Statistics
 	defaultTags models.StatisticTags
 
@@ -103,7 +103,7 @@ func NewService(c Config) (*Service, error) {
 		batchPending:    d.BatchPending,
 		udpReadBuffer:   d.UDPReadBuffer,
 		batchTimeout:    time.Duration(d.BatchTimeout),
-		logger:          zap.New(zap.NullEncoder()),
+		logger:          zap.NewNop(),
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"proto": d.Protocol, "bind": d.BindAddress},
 		tcpConnections:  make(map[string]*tcpConnection),
@@ -128,7 +128,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.closed() {
+	if s.done != nil {
 		return nil // Already open.
 	}
 	s.done = make(chan struct{})
@@ -172,33 +172,41 @@ func (s *Service) closeAllConnections() {
 
 // Close stops all data processing on the Graphite input.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if wait := func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.closed() {
+		if s.closed() {
+			return false
+		}
+		close(s.done)
+
+		s.closeAllConnections()
+
+		if s.ln != nil {
+			s.ln.Close()
+		}
+		if s.udpConn != nil {
+			s.udpConn.Close()
+		}
+
+		if s.batcher != nil {
+			s.batcher.Stop()
+		}
+
+		if s.Monitor != nil {
+			s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
+		}
+		return true
+	}(); !wait {
 		return nil // Already closed.
-	}
-	close(s.done)
-
-	s.closeAllConnections()
-
-	if s.ln != nil {
-		s.ln.Close()
-	}
-	if s.udpConn != nil {
-		s.udpConn.Close()
-	}
-
-	if s.batcher != nil {
-		s.batcher.Stop()
-	}
-
-	if s.Monitor != nil {
-		s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
 	}
 
 	s.wg.Wait()
+
+	s.mu.Lock()
 	s.done = nil
+	s.mu.Unlock()
 
 	return nil
 }
@@ -251,7 +259,7 @@ func (s *Service) createInternalStorage() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.logger = log.With(
 		zap.String("service", "graphite"),
 		zap.String("addr", s.bindAddress),

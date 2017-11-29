@@ -8,8 +8,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // IndexFiles represents a layered set of index files.
@@ -50,9 +52,13 @@ func (p IndexFiles) Files() []File {
 // MeasurementNames returns a sorted list of all measurement names for all files.
 func (p *IndexFiles) MeasurementNames() [][]byte {
 	itr := p.MeasurementIterator()
+	if itr == nil {
+		return nil
+	}
+
 	var names [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		names = append(names, copyBytes(e.Name()))
+		names = append(names, bytesutil.Clone(e.Name()))
 	}
 	sort.Sort(byteSlices(names))
 	return names
@@ -85,8 +91,8 @@ func (p *IndexFiles) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 }
 
 // SeriesIterator returns an iterator that merges series across all files.
-func (p IndexFiles) SeriesIterator() SeriesIterator {
-	a := make([]SeriesIterator, 0, len(p))
+func (p IndexFiles) SeriesIterator() tsdb.SeriesIterator {
+	a := make([]tsdb.SeriesIterator, 0, len(p))
 	for _, f := range p {
 		itr := f.SeriesIterator()
 		if itr == nil {
@@ -98,8 +104,8 @@ func (p IndexFiles) SeriesIterator() SeriesIterator {
 }
 
 // MeasurementSeriesIterator returns an iterator that merges series across all files.
-func (p IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
-	a := make([]SeriesIterator, 0, len(p))
+func (p IndexFiles) MeasurementSeriesIterator(name []byte) tsdb.SeriesIterator {
+	a := make([]tsdb.SeriesIterator, 0, len(p))
 	for _, f := range p {
 		itr := f.MeasurementSeriesIterator(name)
 		if itr == nil {
@@ -111,8 +117,8 @@ func (p IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
 }
 
 // TagValueSeriesIterator returns an iterator that merges series across all files.
-func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
-	a := make([]SeriesIterator, 0, len(p))
+func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) tsdb.SeriesIterator {
+	a := make([]tsdb.SeriesIterator, 0, len(p))
 	for i := range p {
 		itr := p[i].TagValueSeriesIterator(name, key, value)
 		if itr != nil {
@@ -218,6 +224,10 @@ func (p IndexFiles) writeSeriesBlockTo(w io.Writer, m, k uint64, info *indexComp
 
 func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	mitr := p.MeasurementIterator()
+	if mitr == nil {
+		return nil
+	}
+
 	for m := mitr.Next(); m != nil; m = mitr.Next() {
 		if err := p.writeTagsetTo(w, m.Name(), info, n); err != nil {
 			return err
@@ -289,24 +299,26 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 
 	// Add measurement data & compute sketches.
 	mitr := p.MeasurementIterator()
-	for m := mitr.Next(); m != nil; m = mitr.Next() {
-		name := m.Name()
+	if mitr != nil {
+		for m := mitr.Next(); m != nil; m = mitr.Next() {
+			name := m.Name()
 
-		// Look-up series ids.
-		itr := p.MeasurementSeriesIterator(name)
-		var seriesIDs []uint32
-		for e := itr.Next(); e != nil; e = itr.Next() {
-			seriesID, _ := info.sblk.Offset(e.Name(), e.Tags(), seriesKey[:0])
-			if seriesID == 0 {
-				panic(fmt.Sprintf("expected series id: %s %s", e.Name(), e.Tags().String()))
+			// Look-up series ids.
+			itr := p.MeasurementSeriesIterator(name)
+			var seriesIDs []uint32
+			for e := itr.Next(); e != nil; e = itr.Next() {
+				seriesID, _ := info.sblk.Offset(e.Name(), e.Tags(), seriesKey[:0])
+				if seriesID == 0 {
+					panic(fmt.Sprintf("expected series id: %s %s", e.Name(), e.Tags().String()))
+				}
+				seriesIDs = append(seriesIDs, seriesID)
 			}
-			seriesIDs = append(seriesIDs, seriesID)
-		}
-		sort.Sort(uint32Slice(seriesIDs))
+			sort.Sort(uint32Slice(seriesIDs))
 
-		// Add measurement to writer.
-		pos := info.tagSets[string(name)]
-		mw.Add(name, m.Deleted(), pos.offset, pos.size, seriesIDs)
+			// Add measurement to writer.
+			pos := info.tagSets[string(name)]
+			mw.Add(name, m.Deleted(), pos.offset, pos.size, seriesIDs)
+		}
 	}
 
 	// Flush data to writer.

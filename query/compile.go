@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxql"
 )
 
 // CompileOptions are the customization options for the compiler.
@@ -123,12 +123,12 @@ func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
 	c.HasTarget = stmt.Target != nil
 
 	valuer := influxql.NowValuer{Now: c.Options.Now, Location: stmt.Location}
-	if cond, t, err := influxql.ConditionExpr(stmt.Condition, &valuer); err != nil {
+	cond, t, err := influxql.ConditionExpr(stmt.Condition, &valuer)
+	if err != nil {
 		return err
-	} else {
-		c.Condition = cond
-		c.TimeRange = t
 	}
+	c.Condition = cond
+	c.TimeRange = t
 
 	// Read the dimensions of the query, validate them, and retrieve the interval
 	// if it exists.
@@ -250,7 +250,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		case "sample":
 			return c.compileSample(expr.Args)
 		case "distinct":
-			return c.compileDistinct(expr.Args)
+			return c.compileDistinct(expr.Args, false)
 		case "top", "bottom":
 			return c.compileTopBottom(expr)
 		case "derivative", "non_negative_derivative":
@@ -276,7 +276,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 	case *influxql.Distinct:
 		call := expr.NewCall()
 		c.global.FunctionCalls = append(c.global.FunctionCalls, call)
-		return c.compileDistinct(call.Args)
+		return c.compileDistinct(call.Args, false)
 	case *influxql.BinaryExpr:
 		// Disallow wildcards in binary expressions. RewriteFields, which expands
 		// wildcards, is too complicated if we allow wildcards inside of expressions.
@@ -349,10 +349,10 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	if expr.Name == "count" {
 		// If we have count(), the argument may be a distinct() call.
 		if arg0, ok := expr.Args[0].(*influxql.Call); ok && arg0.Name == "distinct" {
-			return c.compileDistinct(arg0.Args)
+			return c.compileDistinct(arg0.Args, true)
 		} else if arg0, ok := expr.Args[0].(*influxql.Distinct); ok {
 			call := arg0.NewCall()
-			return c.compileDistinct(call.Args)
+			return c.compileDistinct(call.Args, true)
 		}
 	}
 	return c.compileSymbol(expr.Name, expr.Args[0])
@@ -591,7 +591,7 @@ func (c *compiledField) compileHoltWinters(args []influxql.Expr, withFit bool) e
 	return c.compileExpr(call)
 }
 
-func (c *compiledField) compileDistinct(args []influxql.Expr) error {
+func (c *compiledField) compileDistinct(args []influxql.Expr, nested bool) error {
 	if len(args) == 0 {
 		return errors.New("distinct function requires at least one argument")
 	} else if len(args) != 1 {
@@ -601,7 +601,9 @@ func (c *compiledField) compileDistinct(args []influxql.Expr) error {
 	if _, ok := args[0].(*influxql.VarRef); !ok {
 		return errors.New("expected field argument in distinct()")
 	}
-	c.global.HasDistinct = true
+	if !nested {
+		c.global.HasDistinct = true
+	}
 	c.global.OnlySelectors = false
 	return nil
 }
@@ -792,7 +794,7 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	// we need to limit the possible time range that can be used when mapping shards but not when actually executing
 	// the select statement. Determine the shard time range here.
 	timeRange := c.TimeRange
-	if sopt.MaxBucketsN > 0 && !c.stmt.IsRawQuery && timeRange.MinTime() == influxql.MinTime {
+	if sopt.MaxBucketsN > 0 && !c.stmt.IsRawQuery && timeRange.MinTimeNano() == influxql.MinTime {
 		interval, err := c.stmt.GroupByInterval()
 		if err != nil {
 			return nil, err
@@ -811,7 +813,7 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 					Offset:   offset,
 				},
 			}
-			last, _ := opt.Window(c.TimeRange.MaxTime() - 1)
+			last, _ := opt.Window(c.TimeRange.MaxTimeNano() - 1)
 
 			// Determine the time difference using the number of buckets.
 			// Determine the maximum difference between the buckets based on the end time.
@@ -843,10 +845,10 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 		shards.Close()
 		return nil, err
 	}
-	opt.StartTime, opt.EndTime = c.TimeRange.MinTime(), c.TimeRange.MaxTime()
+	opt.StartTime, opt.EndTime = c.TimeRange.MinTimeNano(), c.TimeRange.MaxTimeNano()
 	opt.Ascending = c.Ascending
 
-	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery && c.TimeRange.MinTime() > influxql.MinTime {
+	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery && c.TimeRange.MinTimeNano() > influxql.MinTime {
 		interval, err := stmt.GroupByInterval()
 		if err != nil {
 			shards.Close()

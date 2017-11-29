@@ -14,12 +14,13 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/influxdb/tsdb"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxql"
 )
 
 // Log errors.
@@ -246,7 +247,7 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 }
 
 // TagKeySeriesIterator returns a series iterator for a tag key.
-func (f *LogFile) TagKeySeriesIterator(name, key []byte) SeriesIterator {
+func (f *LogFile) TagKeySeriesIterator(name, key []byte) tsdb.SeriesIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -261,7 +262,7 @@ func (f *LogFile) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 	}
 
 	// Combine iterators across all tag keys.
-	itrs := make([]SeriesIterator, 0, len(tk.tagValues))
+	itrs := make([]tsdb.SeriesIterator, 0, len(tk.tagValues))
 	for _, tv := range tk.tagValues {
 		if len(tv.series) == 0 {
 			continue
@@ -361,7 +362,7 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 }
 
 // TagValueSeriesIterator returns a series iterator for a tag value.
-func (f *LogFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
+func (f *LogFile) TagValueSeriesIterator(name, key, value []byte) tsdb.SeriesIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -562,12 +563,12 @@ func (f *LogFile) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]
 }
 
 // Series returns a series by name/tags.
-func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
+func (f *LogFile) Series(name []byte, tags models.Tags) tsdb.SeriesElem {
 	return f.SeriesWithBuffer(name, tags, nil)
 }
 
 // SeriesWithBuffer returns a series by name/tags.
-func (f *LogFile) SeriesWithBuffer(name []byte, tags models.Tags, buf []byte) SeriesElem {
+func (f *LogFile) SeriesWithBuffer(name []byte, tags models.Tags, buf []byte) tsdb.SeriesElem {
 	key := AppendSeriesKey(buf[:0], name, tags)
 
 	f.mu.RLock()
@@ -704,7 +705,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 }
 
 // SeriesIterator returns an iterator over all series in the log file.
-func (f *LogFile) SeriesIterator() SeriesIterator {
+func (f *LogFile) SeriesIterator() tsdb.SeriesIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -783,7 +784,7 @@ func (f *LogFile) MeasurementIterator() MeasurementIterator {
 }
 
 // MeasurementSeriesIterator returns an iterator over all series for a measurement.
-func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
+func (f *LogFile) MeasurementSeriesIterator(name []byte) tsdb.SeriesIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -966,8 +967,16 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 		tagSetInfo := mmInfo.tagSet[k]
 		assert(tagSetInfo != nil, "tag set info not found")
 
+		// Sort tag values.
+		values := make([]string, 0, len(tag.tagValues))
+		for v := range tag.tagValues {
+			values = append(values, v)
+		}
+		sort.Strings(values)
+
 		// Add each value.
-		for v, value := range tag.tagValues {
+		for _, v := range values {
+			value := tag.tagValues[v]
 			tagValueInfo := tagSetInfo.tagValues[v]
 			sort.Sort(uint32Slice(tagValueInfo.seriesIDs))
 
@@ -1281,6 +1290,17 @@ type logMeasurement struct {
 
 func (m *logMeasurement) Name() []byte  { return m.name }
 func (m *logMeasurement) Deleted() bool { return m.deleted }
+func (m *logMeasurement) HasSeries() bool {
+	if m.deleted {
+		return false
+	}
+	for _, v := range m.series {
+		if !v.deleted {
+			return true
+		}
+	}
+	return false
+}
 
 func (m *logMeasurement) createTagSetIfNotExists(key []byte) logTagKey {
 	ts, ok := m.tagSet[string(key)]
@@ -1443,7 +1463,7 @@ func newLogSeriesIterator(m map[string]*logSerie) *logSeriesIterator {
 }
 
 // Next returns the next element in the iterator.
-func (itr *logSeriesIterator) Next() (e SeriesElem) {
+func (itr *logSeriesIterator) Next() (e tsdb.SeriesElem) {
 	if len(itr.series) == 0 {
 		return nil
 	}

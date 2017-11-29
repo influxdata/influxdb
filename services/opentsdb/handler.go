@@ -15,7 +15,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Handler is an http.Handler for the OpenTSDB service.
@@ -27,7 +27,7 @@ type Handler struct {
 		WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	stats *Statistics
 }

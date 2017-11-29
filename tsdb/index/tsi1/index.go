@@ -15,12 +15,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 const (
@@ -99,7 +100,7 @@ type Index struct {
 	CompactionEnabled         bool
 	CompactionMonitorInterval time.Duration
 
-	logger zap.Logger
+	logger *zap.Logger
 
 	// Index's version.
 	version int
@@ -114,7 +115,7 @@ func NewIndex() *Index {
 		MaxLogFileSize:    DefaultMaxLogFileSize,
 		CompactionEnabled: true,
 
-		logger:  zap.New(zap.NullEncoder()),
+		logger:  zap.NewNop(),
 		version: Version,
 	}
 }
@@ -323,7 +324,7 @@ func (i *Index) writeManifestFile() error {
 }
 
 // WithLogger sets the logger for the index.
-func (i *Index) WithLogger(logger zap.Logger) {
+func (i *Index) WithLogger(logger *zap.Logger) {
 	i.logger = logger.With(zap.String("index", "tsi"))
 }
 
@@ -399,10 +400,14 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	return m != nil && !m.Deleted(), nil
 }
 
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-	return fs.MeasurementNamesByExpr(expr)
+
+	names, err := fs.MeasurementNamesByExpr(auth, expr)
+
+	// Clone byte slices since they will be used after the fileset is released.
+	return bytesutil.CloneSlice(names), err
 }
 
 func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
@@ -410,10 +415,15 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	defer fs.Release()
 
 	itr := fs.MeasurementIterator()
+	if itr == nil {
+		return nil, nil
+	}
+
 	var a [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if re.Match(e.Name()) {
-			a = append(a, e.Name())
+			// Clone bytes since they will be used after the fileset is released.
+			a = append(a, bytesutil.Clone(e.Name()))
 		}
 	}
 	return a, nil
@@ -549,7 +559,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return nil
 }
 
-func (i *Index) DropSeries(key []byte) error {
+func (i *Index) DropSeries(key []byte, ts int64) error {
 	if err := func() error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
@@ -565,11 +575,8 @@ func (i *Index) DropSeries(key []byte) error {
 		fs := i.retainFileSet()
 		defer fs.Release()
 
-		// Check if that was the last series for the measurement in the entire index.
-		itr := fs.MeasurementSeriesIterator(mname)
-		if itr == nil {
-			return nil
-		} else if e := itr.Next(); e != nil {
+		mm := fs.Measurement(mname)
+		if mm == nil || mm.HasSeries() {
 			return nil
 		}
 
@@ -633,6 +640,29 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.MeasurementTagKeysByExpr(name, expr)
+}
+
+// TagKeyHasAuthorizedSeries determines if there exist authorized series for the
+// provided measurement name and tag key.
+func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	itr := fs.TagValueIterator(name, []byte(key))
+	for val := itr.Next(); val != nil; val = itr.Next() {
+		if auth == nil || auth == query.OpenAuthorizer {
+			return true
+		}
+
+		// Identify an authorized series.
+		si := fs.TagValueSeriesIterator(name, []byte(key), val.Value())
+		for se := si.Next(); se != nil; se = si.Next() {
+			if auth.AuthorizeSeriesRead(i.Database, se.Name(), se.Tags()) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
@@ -722,11 +752,28 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	itr, err := fs.MeasurementSeriesByExprIterator(name, condition, i.fieldset)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+	return itr, err
+}
+
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-	return fs.MeasurementSeriesKeysByExpr(name, expr, i.fieldset)
+
+	keys, err := fs.MeasurementSeriesKeysByExpr(name, expr, i.fieldset)
+
+	// Clone byte slices since they will be used after the fileset is released.
+	return bytesutil.CloneSlice(keys), err
 }
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
@@ -747,9 +794,21 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	// TagSet are then grouped together, because for the purpose of GROUP BY
 	// they are part of the same composite series.
 	tagSets := make(map[string]*query.TagSet, 64)
+	var seriesN int
 
 	if itr != nil {
 		for e := itr.Next(); e != nil; e = itr.Next() {
+			// Abort if the query was killed
+			select {
+			case <-opt.InterruptCh:
+				return nil, query.ErrQueryInterrupted
+			default:
+			}
+
+			if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
+				return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
+			}
+
 			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, e.Tags()) {
 				continue
 			}
@@ -777,11 +836,19 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 
 			// Ensure it's back in the map.
 			tagSets[string(tagsAsKey)] = tagSet
+			seriesN++
 		}
 	}
 
 	// Sort the series in each tag set.
 	for _, t := range tagSets {
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			return nil, query.ErrQueryInterrupted
+		default:
+		}
+
 		sort.Sort(t)
 	}
 
@@ -832,9 +899,9 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 func (i *Index) RemoveShard(shardID uint64)                   {}
 func (i *Index) AssignShard(k string, shardID uint64)         {}
 
-func (i *Index) UnassignShard(k string, shardID uint64) error {
+func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k))
+	return i.DropSeries([]byte(k), ts)
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.
@@ -1136,7 +1203,7 @@ type seriesPointIterator struct {
 	fs       *FileSet
 	fieldset *tsdb.MeasurementFieldSet
 	mitr     MeasurementIterator
-	sitr     SeriesIterator
+	sitr     tsdb.SeriesIterator
 	opt      query.IteratorOptions
 
 	point query.FloatPoint // reusable point
@@ -1170,6 +1237,10 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		// Create new series iterator, if necessary.
 		// Exit if there are no measurements remaining.
 		if itr.sitr == nil {
+			if itr.mitr == nil {
+				return nil, nil
+			}
+
 			m := itr.mitr.Next()
 			if m == nil {
 				return nil, nil
@@ -1188,6 +1259,14 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		e := itr.sitr.Next()
 		if e == nil {
 			itr.sitr = nil
+			continue
+		}
+
+		// TODO(edd): It seems to me like this authorisation check should be
+		// further down in the index. At this point we're going to be filtering
+		// series that have already been materialised in the LogFiles and
+		// IndexFiles.
+		if itr.opt.Authorizer != nil && !itr.opt.Authorizer.AuthorizeSeriesRead(itr.fs.database, e.Name(), e.Tags()) {
 			continue
 		}
 

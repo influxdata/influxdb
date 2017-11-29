@@ -74,6 +74,7 @@ func TestIntegerValues_Exclude(t *testing.T) {
 		min, max int64
 		exp      []int64
 	}{
+		{"excl bad range", 18, 11, []int64{10, 12, 14, 16, 18}},
 		{"excl none-lo", 0, 9, []int64{10, 12, 14, 16, 18}},
 		{"excl none-hi", 19, 30, []int64{10, 12, 14, 16, 18}},
 		{"excl first", 0, 10, []int64{12, 14, 16, 18}},

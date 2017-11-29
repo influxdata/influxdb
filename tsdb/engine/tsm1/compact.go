@@ -77,6 +77,10 @@ type CompactionPlanner interface {
 	PlanOptimize() []CompactionGroup
 	Release(group []CompactionGroup)
 	FullyCompacted() bool
+
+	// ForceFull causes the planner to return a full compaction plan the next
+	// time Plan() is called if there are files that could be compacted.
+	ForceFull()
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -101,6 +105,11 @@ type DefaultPlanner struct {
 
 	// lastGenerations is the last set of generations found by findGenerations
 	lastGenerations tsmGenerations
+
+	// forceFull causes the next full plan requests to plan any files
+	// that may need to be compacted.  Normally, these files are skipped and scheduled
+	// infrequently as the plans are more expensive to run.
+	forceFull bool
 
 	// filesInUse is the set of files that have been returned as part of a plan and might
 	// be being compacted.  Two plans should not return the same file at any given time.
@@ -173,8 +182,26 @@ func (c *DefaultPlanner) FullyCompacted() bool {
 	return len(gens) <= 1 && !gens.hasTombstones()
 }
 
+// ForceFull causes the planner to return a full compaction plan the next time
+// a plan is requested.  When ForceFull is called, level and optimize plans will
+// not return plans until a full plan is requested and released.
+func (c *DefaultPlanner) ForceFull() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.forceFull = true
+}
+
 // PlanLevel returns a set of TSM files to rewrite for a specific level.
 func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
+	// If a full plan has been requested, don't plan any levels which will prevent
+	// the full plan from acquiring them.
+	c.mu.RLock()
+	if c.forceFull {
+		c.mu.RUnlock()
+		return nil
+	}
+	c.mu.RUnlock()
+
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
@@ -276,6 +303,15 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 // to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
 func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
+	// If a full plan has been requested, don't plan any levels which will prevent
+	// the full plan from acquiring them.
+	c.mu.RLock()
+	if c.forceFull {
+		c.mu.RUnlock()
+		return nil
+	}
+	c.mu.RUnlock()
+
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
@@ -355,8 +391,20 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations(true)
 
+	c.mu.RLock()
+	forceFull := c.forceFull
+	c.mu.RUnlock()
+
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
+	if forceFull || c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
+
+		// Reset the full schedule if we planned because of it.
+		if forceFull {
+			c.mu.Lock()
+			c.forceFull = false
+			c.mu.Unlock()
+		}
+
 		var tsmFiles []string
 		var genCount int
 		for i, group := range generations {
@@ -1045,6 +1093,11 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		}
 	}
 
+	// Were there any errors encountered during iteration?
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
 	// We're all done.  Close out the file.
 	if err := w.WriteIndex(); err != nil {
 		return err
@@ -1089,6 +1142,9 @@ type KeyIterator interface {
 
 	// Close closes the iterator.
 	Close() error
+
+	// Err returns any errors encountered during iteration.
+	Err() error
 }
 
 // tsmKeyIterator implements the KeyIterator for set of TSMReaders.  Iteration produces
@@ -1316,6 +1372,10 @@ func (k *tsmKeyIterator) Next() bool {
 					blk.readMax = math.MinInt64
 				}
 			}
+
+			if iter.Err() != nil {
+				k.err = iter.Err()
+			}
 		}
 	}
 
@@ -1403,6 +1463,11 @@ func (k *tsmKeyIterator) Close() error {
 	return nil
 }
 
+// Error returns any errors encountered during iteration.
+func (k *tsmKeyIterator) Err() error {
+	return k.err
+}
+
 type cacheKeyIterator struct {
 	cache *Cache
 	size  int
@@ -1412,6 +1477,7 @@ type cacheKeyIterator struct {
 	blocks    [][]cacheBlock
 	ready     []chan struct{}
 	interrupt chan struct{}
+	err       error
 }
 
 type cacheBlock struct {
@@ -1513,6 +1579,10 @@ func (c *cacheKeyIterator) encode() {
 						b:       b,
 						err:     err,
 					})
+
+					if err != nil {
+						c.err = err
+					}
 				}
 				// Notify this key is fully encoded
 				c.ready[i] <- struct{}{}
@@ -1542,7 +1612,8 @@ func (c *cacheKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	// See if snapshot compactions were disabled while we were running.
 	select {
 	case <-c.interrupt:
-		return nil, 0, 0, nil, errCompactionAborted{}
+		c.err = errCompactionAborted{}
+		return nil, 0, 0, nil, c.err
 	default:
 	}
 
@@ -1552,6 +1623,10 @@ func (c *cacheKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 
 func (c *cacheKeyIterator) Close() error {
 	return nil
+}
+
+func (c *cacheKeyIterator) Err() error {
+	return c.err
 }
 
 type tsmGenerations []*tsmGeneration

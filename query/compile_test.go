@@ -3,8 +3,8 @@ package query_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxql"
 )
 
 func TestCompile_Success(t *testing.T) {
@@ -80,6 +80,7 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT max(value) FROM (SELECT value + total FROM cpu) WHERE time >= now() - 1m GROUP BY time(10s)`,
 		`SELECT value FROM cpu WHERE time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T01:00:00Z'`,
 		`SELECT value FROM (SELECT value FROM cpu) ORDER BY time DESC`,
+		`SELECT count(distinct(value)), max(value) FROM cpu`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
@@ -121,7 +122,6 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT mean() FROM cpu`, err: `invalid number of arguments for mean, expected 1, got 0`},
 		{s: `SELECT mean(value, host) FROM cpu`, err: `invalid number of arguments for mean, expected 1, got 2`},
 		{s: `SELECT distinct(value), max(value) FROM cpu`, err: `aggregate function distinct() cannot be combined with other functions or fields`},
-		{s: `SELECT count(distinct(value)), max(value) FROM cpu`, err: `aggregate function distinct() cannot be combined with other functions or fields`},
 		{s: `SELECT count(distinct()) FROM cpu`, err: `distinct function requires at least one argument`},
 		{s: `SELECT count(distinct(value, host)) FROM cpu`, err: `distinct function can only have one argument`},
 		{s: `SELECT count(distinct(2)) FROM cpu`, err: `expected field argument in distinct()`},

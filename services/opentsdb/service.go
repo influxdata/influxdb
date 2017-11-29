@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // statistics gathered by the openTSDB package.
@@ -73,7 +73,7 @@ type Service struct {
 	batcher      *tsdb.PointBatcher
 
 	LogPointErrors bool
-	Logger         zap.Logger
+	Logger         *zap.Logger
 
 	stats       *Statistics
 	defaultTags models.StatisticTags
@@ -93,7 +93,7 @@ func NewService(c Config) (*Service, error) {
 		batchSize:       d.BatchSize,
 		batchPending:    d.BatchPending,
 		batchTimeout:    time.Duration(d.BatchTimeout),
-		Logger:          zap.New(zap.NullEncoder()),
+		Logger:          zap.NewNop(),
 		LogPointErrors:  d.LogPointErrors,
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"bind": d.BindAddress},
@@ -106,7 +106,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.closed() {
+	if s.done != nil {
 		return nil // Already open.
 	}
 	s.done = make(chan struct{})
@@ -157,28 +157,37 @@ func (s *Service) Open() error {
 
 // Close closes the openTSDB service.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if wait, err := func() (bool, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.closed() {
-		return nil // Already closed.
-	}
-	close(s.done)
+		if s.closed() {
+			return false, nil // Already closed.
+		}
+		close(s.done)
 
-	// Close the listeners.
-	if err := s.ln.Close(); err != nil {
+		// Close the listeners.
+		if err := s.ln.Close(); err != nil {
+			return false, err
+		}
+		if err := s.httpln.Close(); err != nil {
+			return false, err
+		}
+
+		if s.batcher != nil {
+			s.batcher.Stop()
+		}
+		return true, nil
+	}(); err != nil {
 		return err
+	} else if !wait {
+		return nil
 	}
-	if err := s.httpln.Close(); err != nil {
-		return err
-	}
-
 	s.wg.Wait()
-	s.done = nil
 
-	if s.batcher != nil {
-		s.batcher.Stop()
-	}
+	s.mu.Lock()
+	s.done = nil
+	s.mu.Unlock()
 
 	return nil
 }
@@ -221,7 +230,7 @@ func (s *Service) createInternalStorage() error {
 }
 
 // WithLogger sets the logger for the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "opentsdb"))
 }
 

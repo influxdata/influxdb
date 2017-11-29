@@ -6,20 +6,20 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 type Index interface {
 	Open() error
 	Close() error
-	WithLogger(zap.Logger)
+	WithLogger(*zap.Logger)
 
 	MeasurementExists(name []byte) (bool, error)
-	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
+	MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
 	ForEachMeasurementName(fn func(name []byte) error) error
@@ -27,7 +27,7 @@ type Index interface {
 	InitializeSeries(key, name []byte, tags models.Tags) error
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
-	DropSeries(key []byte) error
+	DropSeries(key []byte, ts int64) error
 
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
@@ -37,11 +37,13 @@ type Index interface {
 	TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
+	TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool
 
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL system iterators
+	MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (SeriesIterator, error)
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 
@@ -54,12 +56,27 @@ type Index interface {
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
 	AssignShard(k string, shardID uint64)
-	UnassignShard(k string, shardID uint64) error
+	UnassignShard(k string, shardID uint64, ts int64) error
 	RemoveShard(shardID uint64)
 
 	Type() string
 
 	Rebuild()
+}
+
+// SeriesElem represents a generic series element.
+type SeriesElem interface {
+	Name() []byte
+	Tags() models.Tags
+	Deleted() bool
+
+	// InfluxQL expression associated with series during filtering.
+	Expr() influxql.Expr
+}
+
+// SeriesIterator represents a iterator over a list of series.
+type SeriesIterator interface {
+	Next() SeriesElem
 }
 
 // IndexFormat represents the format for an index.

@@ -1,0 +1,373 @@
+package tsm1
+
+import (
+	"context"
+	"sort"
+
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
+)
+
+{{range .}}
+
+// build{{.Name}}Cursor creates a cursor for a {{.name}} field.
+func (e *Engine) build{{.Name}}Cursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) {{.name}}Cursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
+	return new{{.Name}}Cursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+// build{{.Name}}BatchCursor creates a batch cursor for a {{.name}} field.
+func (e *Engine) build{{.Name}}BatchCursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) tsdb.{{.Name}}BatchCursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
+	return new{{.Name}}BatchCursor(seriesKey, opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+{{end}}
+
+// Cursors
+
+{{range .}}
+
+func new{{.Name}}BatchCursor(key string, seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) tsdb.{{.Name}}BatchCursor {
+	if ascending {
+		return new{{.Name}}AscendingBatchCursor(key, seek, cacheValues, tsmKeyCursor)
+	}
+	return new{{.Name}}DescendingBatchCursor(key, seek, cacheValues, tsmKeyCursor)
+}
+
+type {{.name}}AscendingBatchCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []{{.Name}}Value
+		pos       int
+		keyCursor *KeyCursor
+	}
+
+	key string
+	t   []int64
+	v   []{{.Type}}
+}
+
+func new{{.Name}}AscendingBatchCursor(key string, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *{{.name}}AscendingBatchCursor {
+	c := &{{.name}}AscendingBatchCursor{key: key}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+
+	c.tsm.keyCursor = tsmKeyCursor
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= seek
+	})
+
+	c.t = make([]int64, tsdb.DefaultMaxPointsPerBlock)
+	c.v = make([]{{.Type}}, tsdb.DefaultMaxPointsPerBlock)
+
+	return c
+}
+
+func (c *{{.name}}AscendingBatchCursor) Err() error        { return nil }
+func (c *{{.name}}AscendingBatchCursor) SeriesKey() string { return c.key }
+
+// close closes the cursor and any dependent cursors.
+func (c *{{.name}}AscendingBatchCursor) Close() {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+}
+
+// Next returns the next key/value for the cursor.
+func (c *{{.name}}AscendingBatchCursor) Next() ([]int64, []{{.Type}}) {
+	var ckey, tkey int64
+	var cvalue, tvalue {{.Type}}
+
+	pos := 0
+	for ; pos < cap(c.t); pos++ {
+		tkey, tvalue = c.peekTSM()
+
+		if c.cache.pos < len(c.cache.values) {
+			ckey, cvalue = c.peekCache()
+
+			var cache, tsm bool
+
+			// Both cache and tsm files have the same key, cache takes precedence.
+			if ckey == tkey {
+				cache, tsm = true, true
+				tkey = ckey
+				tvalue = cvalue
+			} else if ckey < tkey || tkey == tsdb.EOF {
+				// Buffered cache key precedes that in TSM file.
+				cache = true
+				tkey = ckey
+				tvalue = cvalue
+			} else {
+				// Buffered TSM key precedes that in cache.
+				tsm = true
+			}
+
+			if cache {
+				c.nextCache()
+			}
+
+			if tsm {
+				c.nextTSM()
+			}
+		} else {
+			if tkey == tsdb.EOF {
+				break
+			}
+			c.nextTSM()
+		}
+
+		c.t[pos] = tkey
+		c.v[pos] = tvalue
+	}
+
+	return c.t[:pos], c.v[:pos]
+}
+
+// peekCache returns the current time/value from the cache.
+func (c *{{.name}}AscendingBatchCursor) peekCache() (t int64, v {{.Type}}) {
+	item := c.cache.values[c.cache.pos]
+	return item.UnixNano(), item.({{.Name}}Value).value
+}
+
+// nextCache returns the next value from the cache.
+func (c *{{.name}}AscendingBatchCursor) nextCache() {
+	if c.cache.pos < len(c.cache.values) {
+		c.cache.pos++
+	}
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *{{.name}}AscendingBatchCursor) peekTSM() (t int64, v {{.Type}}) {
+	if c.tsm.pos >= len(c.tsm.values) {
+		return tsdb.EOF, {{.Nil}}
+	}
+
+	item := c.tsm.values[c.tsm.pos]
+	return item.UnixNano(), item.value
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *{{.name}}AscendingBatchCursor) nextTSM() {
+	c.tsm.pos++
+	if c.tsm.pos >= len(c.tsm.values) {
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
+		c.tsm.pos = 0
+	}
+}
+
+type {{.name}}DescendingBatchCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []{{.Name}}Value
+		pos       int
+		keyCursor *KeyCursor
+	}
+
+	key string
+	t   []int64
+	v   []{{.Type}}
+}
+
+func new{{.Name}}DescendingBatchCursor(key string, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *{{.name}}DescendingBatchCursor {
+	c := &{{.name}}DescendingBatchCursor{key: key}
+
+	c.cache.values = cacheValues
+	if len(c.cache.values) > 0 {
+		c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+			return c.cache.values[i].UnixNano() >= seek
+		})
+		if c.cache.pos == len(c.cache.values) {
+			c.cache.pos--
+		} else if t, _ := c.peekCache(); t != seek {
+			c.cache.pos--
+		}
+	} else {
+		c.cache.pos = -1
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= seek
+	})
+	if len(c.tsm.values) > 0 {
+		if c.tsm.pos == len(c.tsm.values) {
+			c.tsm.pos--
+		} else if t, _ := c.peekTSM(); t != seek {
+			c.tsm.pos--
+		}
+	} else {
+		c.tsm.pos = -1
+	}
+
+	c.t = make([]int64, tsdb.DefaultMaxPointsPerBlock)
+	c.v = make([]{{.Type}}, tsdb.DefaultMaxPointsPerBlock)
+
+	return c
+}
+
+func (c *{{.name}}DescendingBatchCursor) Err() error        { return nil }
+func (c *{{.name}}DescendingBatchCursor) SeriesKey() string { return c.key }
+
+// close closes the cursor and any dependent cursors.
+func (c *{{.name}}DescendingBatchCursor) Close() {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+}
+
+// next{{.Name}} returns the next key/value for the cursor.
+func (c *{{.name}}DescendingBatchCursor) Next() ([]int64, []{{.Type}}) {
+	var ckey, tkey int64
+	var cvalue, tvalue {{.Type}}
+
+	pos := 0
+	for ; pos < cap(c.t); pos++ {
+		tkey, tvalue = c.peekTSM()
+
+		if  c.cache.pos >= 0 {
+			ckey, cvalue = c.peekCache()
+
+			var cache, tsm bool
+
+			// Both cache and tsm files have the same key, cache takes precedence.
+			if ckey == tkey {
+				cache, tsm = true, true
+				tkey = ckey
+				tvalue = cvalue
+			} else if ckey > tkey || tkey == tsdb.EOF {
+				// Buffered cache key succeeds that in TSM file.
+				cache = true
+				tkey = ckey
+				tvalue = cvalue
+			} else {
+				// Buffered TSM key succeeds that in cache.
+				tsm = true
+			}
+
+			if cache {
+				c.nextCache()
+			}
+
+			if tsm {
+				c.nextTSM()
+			}
+		} else {
+			if tkey == tsdb.EOF {
+				break
+			}
+			c.nextTSM()
+		}
+
+		c.t[pos] = tkey
+		c.v[pos] = tvalue
+	}
+
+	return c.t[:pos], c.v[:pos]
+}
+
+// peekCache returns the current time/value from the cache.
+func (c *{{.name}}DescendingBatchCursor) peekCache() (t int64, v {{.Type}}) {
+	item := c.cache.values[c.cache.pos]
+	return item.UnixNano(), item.({{.Name}}Value).value
+}
+
+// nextCache returns the next value from the cache.
+func (c *{{.name}}DescendingBatchCursor) nextCache() {
+	if c.cache.pos >= 0 {
+		c.cache.pos--
+	}
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *{{.name}}DescendingBatchCursor) peekTSM() (t int64, v {{.Type}}) {
+	if c.tsm.pos < 0 {
+		return tsdb.EOF, {{.Nil}}
+	}
+
+	item := c.tsm.values[c.tsm.pos]
+	return item.UnixNano(), item.value
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *{{.name}}DescendingBatchCursor) nextTSM() {
+	c.tsm.pos--
+	if c.tsm.pos < 0 {
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
+		c.tsm.pos = len(c.tsm.values) - 1
+	}
+}
+
+
+func new{{.Name}}RangeBatchCursor(time int64, asc bool, cur tsdb.{{.Name}}BatchCursor) tsdb.{{.Name}}BatchCursor {
+	if asc {
+		return &{{.name}}AscendingRangeBatchCursor{ {{- .Name}}BatchCursor: cur, t: time}
+	}
+	return &{{.name}}DescendingRangeBatchCursor{ {{- .Name}}BatchCursor: cur, t: time}
+}
+
+type {{.name}}AscendingRangeBatchCursor struct {
+	tsdb.{{.Name}}BatchCursor
+	t int64
+}
+
+func (l *{{.name}}AscendingRangeBatchCursor) Next() ([]int64, []{{.Type}}) {
+	k, v := l.{{.Name}}BatchCursor.Next()
+
+	// strip out remaining time that is outside the range
+	if len(k) > 0 && k[len(k)-1] > l.t {
+		i := len(k)-2
+		for i >= 0 && k[i] > l.t {
+			i--
+		}
+		k = k[:i+1]
+		v = v[:i+1]
+	}
+
+	return k, v
+}
+
+type {{.name}}DescendingRangeBatchCursor struct {
+	tsdb.{{.Name}}BatchCursor
+	t int64
+}
+
+func (l *{{.name}}DescendingRangeBatchCursor) Next() ([]int64, []{{.Type}}) {
+	k, v := l.{{.Name}}BatchCursor.Next()
+
+	// strip out remaining time that is outside the range
+	if len(k) > 0 && k[len(k)-1] < l.t {
+		i := len(k)-2
+		for i >= 0 && k[i] < l.t {
+			i--
+		}
+		k = k[:i+1]
+		v = v[:i+1]
+	}
+
+	return k, v
+}
+
+
+{{end}}

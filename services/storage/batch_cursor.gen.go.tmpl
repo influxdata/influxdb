@@ -1,0 +1,218 @@
+package storage
+
+import (
+	"context"
+	"errors"
+
+	"github.com/influxdata/influxdb/tsdb"
+)
+
+{{range .}}
+
+// ********************
+// {{.Name}} BatchCursor
+
+type {{.name}}FilterBatchCursor struct {
+	tsdb.{{.Name}}BatchCursor
+	cond expression
+	m    *singleValue
+	t    []int64
+	v    []{{.Type}}
+	tb   []int64
+	vb   []{{.Type}}
+}
+
+func new{{.Name}}FilterBatchCursor(cond expression) *{{.name}}FilterBatchCursor {
+	return &{{.name}}FilterBatchCursor{
+		cond: cond,
+		m:    &singleValue{},
+		t:    make([]int64, tsdb.DefaultMaxPointsPerBlock),
+		v:    make([]{{.Type}}, tsdb.DefaultMaxPointsPerBlock),
+	}
+}
+
+func (c *{{.name}}FilterBatchCursor) reset(cur tsdb.{{.Name}}BatchCursor) {
+	c.{{.Name}}BatchCursor = cur
+	c.tb, c.vb = nil, nil
+}
+
+func (c *{{.name}}FilterBatchCursor) Next() (key []int64, value []{{.Type}}) {
+	pos := 0
+	var ks []int64
+	var vs []{{.Type}}
+
+	if len(c.tb) > 0 {
+		ks, vs = c.tb, c.vb
+		c.tb, c.vb = nil, nil
+	} else {
+		ks, vs = c.{{.Name}}BatchCursor.Next()
+	}
+
+	for len(ks) > 0 {
+		for i, v := range vs {
+			c.m.v = v
+			if c.cond.EvalBool(c.m) {
+				c.t[pos], c.v[pos] = ks[i], v
+				pos++
+				if pos >= tsdb.DefaultMaxPointsPerBlock {
+					c.tb, c.vb = ks[i+1:], vs[i+1:]
+					return c.t[:pos], c.v[:pos]
+				}
+			}
+		}
+		ks, vs = c.{{.Name}}BatchCursor.Next()
+	}
+
+	return c.t[:pos], c.v[:pos]
+}
+
+type {{.name}}MultiShardBatchCursor struct {
+	tsdb.{{.Name}}BatchCursor
+	ctx    context.Context
+	filter *{{.name}}FilterBatchCursor
+	shards []*tsdb.Shard
+	req    *tsdb.CursorRequest
+	err    error
+	limit  uint64
+	count  uint64
+}
+
+func new{{.Name}}MultiShardBatchCursor(ctx context.Context, cur tsdb.{{.Name}}BatchCursor, rr *readRequest, req *tsdb.CursorRequest, shards []*tsdb.Shard, cond expression) *{{.name}}MultiShardBatchCursor {
+	var filter *{{.name}}FilterBatchCursor
+	if cond != nil {
+		filter = new{{.Name}}FilterBatchCursor(cond)
+		filter.reset(cur)
+		cur = filter
+	}
+
+	c := &{{.name}}MultiShardBatchCursor{
+		{{.Name}}BatchCursor: cur,
+		ctx:    ctx,
+		filter: filter,
+		req:    req,
+		shards: shards,
+		limit:  rr.limit,
+	}
+
+	return c
+}
+
+func (c *{{.name}}MultiShardBatchCursor) Err() error        { return c.err }
+func (c *{{.name}}MultiShardBatchCursor) SeriesKey() string { return c.req.Series }
+
+func (c *{{.name}}MultiShardBatchCursor) Next() (key []int64, value []{{.Type}}) {
+	for {
+		ks, vs := c.{{.Name}}BatchCursor.Next()
+		if len(ks) == 0 {
+			if c.nextBatchCursor() {
+				continue
+			}
+		}
+		c.count += uint64(len(ks))
+		if c.count > c.limit {
+			diff := c.count - c.limit
+			c.count -= diff
+			rem := uint64(len(ks)) - diff
+			ks = ks[:rem]
+			vs = vs[:rem]
+		}
+		return ks, vs
+	}
+}
+
+func (c *{{.name}}MultiShardBatchCursor) nextBatchCursor() bool {
+	if len(c.shards) == 0 {
+		return false
+	}
+
+	c.{{.Name}}BatchCursor.Close()
+
+	var shard *tsdb.Shard
+	var cur tsdb.Cursor
+	for cur == nil && len(c.shards) > 0 {
+		shard, c.shards = c.shards[0], c.shards[1:]
+		cur, _ = shard.CreateCursor(c.ctx, c.req)
+	}
+
+	var ok bool
+	if cur != nil {
+		var next tsdb.{{.Name}}BatchCursor
+		next, ok = cur.(tsdb.{{.Name}}BatchCursor)
+		if !ok {
+			cur.Close()
+			next = {{.Name}}EmptyBatchCursor
+			c.shards = nil
+			c.err = errors.New("expected {{.name}} cursor")
+		} else {
+			if c.filter != nil {
+				c.filter.reset(next)
+				next = c.filter
+			}
+		}
+		c.{{.Name}}BatchCursor = next
+	} else {
+		c.{{.Name}}BatchCursor = {{.Name}}EmptyBatchCursor
+	}
+
+	return ok
+}
+
+{{if .Agg}}
+
+type {{.name}}SumBatchCursor struct {
+	tsdb.{{.Name}}BatchCursor
+}
+
+func (c *{{.name}}SumBatchCursor) Next() (key []int64, value []{{.Type}}) {
+	ks, vs := c.{{.Name}}BatchCursor.Next()
+	if len(ks) == 0 {
+		return nil, nil
+	}
+
+	ts := ks[0]
+	var acc {{.Type}}
+
+	for {
+    	for _, v := range vs {
+    		acc += v
+    	}
+		ks, vs = c.{{.Name}}BatchCursor.Next()
+    	if len(ks) == 0 {
+    		return []int64{ts}, []{{.Type}}{acc}
+    	}
+	}
+}
+
+{{end}}
+
+type integer{{.Name}}CountBatchCursor struct {
+	tsdb.{{.Name}}BatchCursor
+}
+
+func (c *integer{{.Name}}CountBatchCursor) Next() (key []int64, value []int64) {
+	ks, _ := c.{{.Name}}BatchCursor.Next()
+	if len(ks) == 0 {
+		return nil, nil
+	}
+
+    ts := ks[0]
+    var acc int64
+    for {
+    	acc += int64(len(ks))
+    	ks, _ = c.{{.Name}}BatchCursor.Next()
+		if len(ks) == 0 {
+			return []int64{ts}, []int64{acc}
+		}
+	}
+}
+
+type {{.name}}EmptyBatchCursor struct{}
+
+var {{.Name}}EmptyBatchCursor tsdb.{{.Name}}BatchCursor = &{{.name}}EmptyBatchCursor{}
+
+func (*{{.name}}EmptyBatchCursor) Err() error { return nil }
+func (*{{.name}}EmptyBatchCursor) Close() {}
+func (*{{.name}}EmptyBatchCursor) SeriesKey() string { return "" }
+func (*{{.name}}EmptyBatchCursor) Next() (key []int64, value []{{.Type}}) { return nil, nil }
+
+{{end}}
