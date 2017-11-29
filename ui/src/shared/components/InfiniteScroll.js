@@ -23,15 +23,12 @@ class InfiniteScroll extends Component {
     bottomPadding: 0,
   }
 
-  windowing = props => {
+  windowing = (props, state) => {
     const {itemHeight, items} = props
-    const {bottomIndex} = this.state
+    const {bottomIndex} = state
 
     const itemDistance = Math.round(this.scrollTop / itemHeight)
-    const itemCount = Math.round(this.containerHeight / itemHeight)
-
-    console.log(this.containerHeight)
-    console.log(itemDistance, itemCount)
+    const itemCount = Math.round(this.containerHeight / itemHeight) + 1
 
     // If state is the same, do not setState to the same value multiple times.
     // Improves performance and prevents errors.
@@ -54,7 +51,7 @@ class InfiniteScroll extends Component {
   handleScroll = evt => {
     if (evt.target === this.scrollElement) {
       this.scrollTop = evt.target.scrollTop
-      this.windowing(this.props)
+      this.windowing(this.props, this.state)
     }
   }
 
@@ -64,8 +61,8 @@ class InfiniteScroll extends Component {
 
   componentDidMount() {
     this.containerHeight = this.scrollElement.clientHeight
-    this.windowing(this.props)
-    
+    this.windowing(this.props, this.state)
+
     window.addEventListener('scroll', this.handleScroll, true)
     window.addEventListener('resize', this.handleResize, true)
   }
@@ -75,16 +72,15 @@ class InfiniteScroll extends Component {
     window.removeEventListener('resize', this.handleResize, true)
   }
 
-  componentWillReceiveProps(nextProps) {
-    console.log(nextProps)
+  componentWillReceiveProps(nextProps, nextState) {
     // Updates values if new items are added
-    this.windowing(nextProps)
+    this.windowing(nextProps, nextState)
   }
 
   render() {
     const {className, items} = this.props
     const {topIndex, bottomIndex, topPadding, bottomPadding} = this.state
-    console.log(items.length)
+
     return (
       <div
         className={className}
