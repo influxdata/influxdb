@@ -48,6 +48,15 @@ type Query struct {
 	//
 	// Chunked must be set to true for this option to be used.
 	ChunkSize int
+
+	// NodeID sets the data node to use for the query results. This option only
+	// has any effect in the enterprise version of the software where there can be
+	// more than one data node and is primarily useful for analyzing differences in
+	// data. The default behavior is to automatically select the appropriate data
+	// nodes to retrieve all of the data. On a database where the number of data nodes
+	// is greater than the replication factor, it is expected that setting this option
+	// will only retrieve partial data.
+	NodeID int
 }
 
 // ParseConnectionString will parse a string to create a valid connection URL
@@ -197,6 +206,9 @@ func (c *Client) QueryContext(ctx context.Context, q Query) (*Response, error) {
 		if q.ChunkSize > 0 {
 			values.Set("chunk_size", strconv.Itoa(q.ChunkSize))
 		}
+	}
+	if q.NodeID > 0 {
+		values.Set("node_id", strconv.Itoa(q.NodeID))
 	}
 	if c.precision != "" {
 		values.Set("epoch", c.precision)

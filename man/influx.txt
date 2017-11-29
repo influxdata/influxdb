@@ -63,6 +63,9 @@ OPTIONS
 -pretty::
   Turns on pretty print format for the JSON format.
 
+-node <n>::
+  Specifies the data node that should be queried for data. This option is only valid on enterprise clusters.
+
 -import::
   Import a previous database export from a file. If specified, '-path <path>' must also be specified.
 
