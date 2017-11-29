@@ -5,7 +5,7 @@ import classnames from 'classnames'
 import {Link} from 'react-router'
 import uuid from 'node-uuid'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import InfiniteScroll from 'shared/components/InfiniteScroll'
 
 import {ALERTS_TABLE} from 'src/alerts/constants/tableSizing'
 
@@ -117,11 +117,10 @@ class AlertsTable extends Component {
               Value
             </div>
           </div>
-          <FancyScrollbar
+          <InfiniteScroll
             className="alert-history-table--tbody"
-            autoHide={false}
-          >
-            {alerts.map(({name, level, time, host, value}) => {
+            itemHeight={25}
+            items={alerts.map(({name, level, time, host, value}) => {
               return (
                 <div className="alert-history-table--tr" key={uuid.v4()}>
                   <div
@@ -165,7 +164,7 @@ class AlertsTable extends Component {
                 </div>
               )
             })}
-          </FancyScrollbar>
+          />
         </div>
       : this.renderTableEmpty()
   }

@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import InfiniteScroll from 'shared/components/InfiniteScroll'
 import LogsTableRow from 'src/kapacitor/components/LogsTableRow'
 
 const LogsTable = ({logs}) =>
@@ -8,18 +8,17 @@ const LogsTable = ({logs}) =>
     <div className="logs-table--header">
       <h2 className="panel-title">Logs</h2>
     </div>
-    <FancyScrollbar
-      className="logs-table--panel fancy-scroll--kapacitor"
-      autoHide={false}
-    >
-      <div className="logs-table">
-        {logs.length
-          ? logs.map((log, i) =>
+    <div className="logs-table--panel fancy-scroll--kapacitor">
+      {logs.length
+        ? <InfiniteScroll
+            className="logs-table"
+            itemHeight={87}
+            items={logs.map((log, i) =>
               <LogsTableRow key={log.key} logItem={log} index={i} />
-            )
-          : <div className="page-spinner" />}
-      </div>
-    </FancyScrollbar>
+            )}
+          />
+        : <div className="page-spinner" />}
+    </div>
   </div>
 
 const {arrayOf, shape, string} = PropTypes
