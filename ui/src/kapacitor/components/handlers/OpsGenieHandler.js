@@ -19,6 +19,7 @@ const OpsgenieHandler = ({
             placeholder=""
             redacted={true}
             disabled={true}
+            fieldColumns="col-md-12"
           />
         </div>
         <div className="endpoint-tab--parameters">

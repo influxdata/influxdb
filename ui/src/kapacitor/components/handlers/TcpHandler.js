@@ -12,6 +12,7 @@ const TcpHandler = ({selectedHandler, handleModifyHandler}) => {
           fieldName="address"
           fieldDisplay="Address"
           placeholder="ex: exampleendpoint.com:5678"
+          fieldColumns="col-md-12"
         />
       </div>
     </div>

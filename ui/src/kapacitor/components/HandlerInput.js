@@ -16,7 +16,7 @@ const HandlerInput = ({
       <label htmlFor={fieldName}>
         {fieldDisplay}
       </label>
-      <div className={redacted ? 'form-control-static redacted-input' : null}>
+      <div className={redacted ? 'form-control-static redacted-handler' : null}>
         <input
           name={fieldName}
           id={fieldName}

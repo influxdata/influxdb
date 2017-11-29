@@ -19,6 +19,7 @@ const VictoropsHandler = ({
             placeholder="ex: api_key"
             disabled={true}
             redacted={true}
+            fieldColumns="col-md-12"
           />
         </div>
         <div className="endpoint-tab--parameters">
@@ -29,6 +30,7 @@ const VictoropsHandler = ({
             fieldName="routingKey"
             fieldDisplay="Routing Key:"
             placeholder="ex: routing_key"
+            fieldColumns="col-md-12"
           />
         </div>
       </div>

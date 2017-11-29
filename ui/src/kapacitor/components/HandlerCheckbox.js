@@ -7,8 +7,8 @@ const HandlerCheckbox = ({
   handleModifyHandler,
 }) => {
   return (
-    <div className="form-group">
-      <div className="form-control-static">
+    <div className="form-group ">
+      <div className="form-control-static handler-checkbox">
         <input
           name={fieldName}
           id={fieldName}

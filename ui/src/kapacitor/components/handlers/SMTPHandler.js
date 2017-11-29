@@ -10,10 +10,20 @@ const SmtpHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
           <HandlerInput
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
+            fieldName="from"
+            fieldDisplay="From E-mail"
+            placeholder=""
+            disabled={true}
+            fieldColumns="col-md-4"
+          />
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
             fieldName="host"
             fieldDisplay="SMTP Host"
             placeholder=""
             disabled={true}
+            fieldColumns="col-md-4"
           />
           <HandlerInput
             selectedHandler={selectedHandler}
@@ -22,14 +32,7 @@ const SmtpHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             fieldDisplay="SMTP Port"
             placeholder=""
             disabled={true}
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="from"
-            fieldDisplay="from"
-            placeholder=""
-            disabled={true}
+            fieldColumns="col-md-4"
           />
         </div>
         <div className="endpoint-tab--parameters">
@@ -38,7 +41,7 @@ const SmtpHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             fieldName="to"
-            fieldDisplay="E-mail Addresses: (separated by spaces)"
+            fieldDisplay="Recipient E-mail Addresses: (separated by spaces)"
             placeholder="ex: bob@domain.com susan@domain.com"
           />
         </div>

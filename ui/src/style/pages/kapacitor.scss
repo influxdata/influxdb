@@ -564,3 +564,16 @@ $rule-builder--radius-lg: 5px;
     }
   }
 }
+.endpoint-tab--parameters .form-control-static {
+  min-height: 30px;
+  height: 30px;
+}
+.endpoint-tab--parameters .handler-checkbox {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+.redacted-handler {
+  height: 30px;
+  align-items: center;
+  justify-content: space-between;
+}
