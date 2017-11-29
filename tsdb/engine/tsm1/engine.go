@@ -1165,8 +1165,6 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return err
 	}
 
-	var abort = errors.New("iteration aborted") // sentinel error value
-
 	// find the keys in the cache and remove them
 	deleteKeys := make([][]byte, 0, len(seriesKeys))
 
@@ -1203,6 +1201,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// being removed.  A write could occur and exist in the cache at this point, but we
 	// would delete it from the index.
 	minKey, maxKey := seriesKeys[0], seriesKeys[len(seriesKeys)-1]
+
+	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
+	// by different goroutines setting positions to nil.
 	if err := e.FileStore.Apply(func(r TSMFile) error {
 		tsmMin, tsmMax := r.KeyRange()
 
@@ -1216,27 +1217,32 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 		n := r.KeyCount()
 		var j int
+
+		// Start from the min deleted key that exists in this file.
 		for i := r.Seek(minKey); i < n; i++ {
 			if j >= len(seriesKeys) {
-				return abort
+				return nil
 			}
 
 			indexKey, _ := r.KeyAt(i)
 			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
 
+			// Skip over any deleted keys that are less than our tsm key
 			cmp := bytes.Compare(seriesKeys[j], seriesKey)
 			for j < len(seriesKeys) && cmp < 0 {
-				cmp = bytes.Compare(seriesKeys[j], seriesKey)
 				j++
+				if j >= len(seriesKeys) {
+					return nil
+				}
+				cmp = bytes.Compare(seriesKeys[j], seriesKey)
 			}
 
+			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
 				seriesKeys[j] = nil
 				j++
 			}
-			return nil
 		}
-
 		return nil
 	}); err != nil {
 		return err
@@ -1270,6 +1276,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				continue
 			}
 
+			// Remove the series from the index for this shard
 			if err := e.index.UnassignShard(string(k), e.id, ts); err != nil {
 				return err
 			}
