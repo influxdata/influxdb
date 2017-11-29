@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -390,6 +389,17 @@ func (i *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
+// MeasurementIterator returns an iterator over all measurement names.
+func (i *Partition) MeasurementIterator() (tsdb.MeasurementIterator, error) {
+	fs := i.RetainFileSet()
+	itr := fs.MeasurementIterator()
+	if itr == nil {
+		fs.Release()
+		return nil, nil
+	}
+	return newFileSetMeasurementIterator(fs, NewTSDBMeasurementIteratorAdapter(itr)), nil
+}
+
 // MeasurementExists returns true if a measurement exists.
 func (i *Partition) MeasurementExists(name []byte) (bool, error) {
 	fs := i.RetainFileSet()
@@ -425,6 +435,11 @@ func (i *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 		}
 	}
 	return a, nil
+}
+
+func (i *Partition) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator, error) {
+	fs := i.RetainFileSet()
+	return newFileSetSeriesIDIterator(fs, fs.MeasurementSeriesIDIterator(name)), nil
 }
 
 // DropMeasurement deletes a measurement from the index.
@@ -465,7 +480,15 @@ func (i *Partition) DropMeasurement(name []byte) error {
 
 	// Delete all series in measurement.
 	if sitr := fs.MeasurementSeriesIDIterator(name); sitr != nil {
-		for s := sitr.Next(); s.SeriesID != 0; s = sitr.Next() {
+		defer sitr.Close()
+
+		for {
+			s, err := sitr.Next()
+			if err != nil {
+				return err
+			} else if s.SeriesID == 0 {
+				break
+			}
 			if !fs.SeriesFile().IsDeleted(s.SeriesID) {
 				if err := func() error {
 					i.mu.RLock()
@@ -535,10 +558,15 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 		defer fs.Release()
 
 		// Check if that was the last series for the measurement in the entire index.
-		itr := FilterUndeletedSeriesIDIterator(i.sfile, fs.MeasurementSeriesIDIterator(mname))
+		itr := tsdb.FilterUndeletedSeriesIDIterator(i.sfile, fs.MeasurementSeriesIDIterator(mname))
 		if itr == nil {
 			return nil
-		} else if e := itr.Next(); e.SeriesID != 0 {
+		}
+		defer itr.Close()
+
+		if e, err := itr.Next(); err != nil {
+			return err
+		} else if e.SeriesID != 0 {
 			return nil
 		}
 
@@ -573,6 +601,39 @@ func (i *Partition) HasTagKey(name, key []byte) (bool, error) {
 	return fs.HasTagKey(name, key), nil
 }
 
+// TagValueIterator returns an iterator for all values across a single key.
+func (i *Partition) TagValueIterator(name, key []byte) tsdb.TagValueIterator {
+	fs := i.RetainFileSet()
+	itr := fs.TagValueIterator(name, key)
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
+	return newFileSetTagValueIterator(fs, NewTSDBTagValueIteratorAdapter(itr))
+}
+
+// TagKeySeriesIDIterator returns a series iterator for all values across a single key.
+func (i *Partition) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
+	fs := i.RetainFileSet()
+	itr := fs.TagKeySeriesIDIterator(name, key)
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
+	return newFileSetSeriesIDIterator(fs, itr)
+}
+
+// TagValueSeriesIDIterator returns a series iterator for a single key value.
+func (i *Partition) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
+	fs := i.RetainFileSet()
+	itr := fs.TagValueSeriesIDIterator(name, key, value)
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
+	return newFileSetSeriesIDIterator(fs, itr)
+}
+
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (i *Partition) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	fs := i.RetainFileSet()
@@ -605,6 +666,7 @@ func (i *Partition) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
+/*
 func (i *Partition) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
@@ -617,7 +679,9 @@ func (i *Partition) MeasurementSeriesKeysByExprIterator(name []byte, condition i
 	}
 	return itr, err
 }
+*/
 
+/*
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (i *Partition) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
@@ -628,6 +692,7 @@ func (i *Partition) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr)
 	// Clone byte slices since they will be used after the fileset is released.
 	return bytesutil.CloneSlice(keys), err
 }
+*/
 
 // SnapshotTo creates hard links to the file set into path.
 func (i *Partition) SnapshotTo(path string) error {
@@ -671,12 +736,14 @@ func (i *Partition) UnassignShard(k string, shardID uint64, ts int64) error {
 	return i.DropSeries([]byte(k), ts)
 }
 
+/*
 // seriesIDIterator returns an iterator over all matching series.
 func (i *Partition) seriesPointIterator(opt query.IteratorOptions) tsdb.SeriesIDIterator {
 	// NOTE: The iterator handles releasing the file set.
 	fs := i.RetainFileSet()
 	return newSeriesPointIterator(fs, i.fieldset, opt), nil
 }
+*/
 
 // Compact requests a compaction of log files.
 func (i *Partition) Compact() {

@@ -183,10 +183,12 @@ type rawSeriesIDIterator struct {
 	data []byte
 }
 
+func (itr *rawSeriesIDIterator) Close() error { return nil }
+
 // Next returns the next decoded series.
-func (itr *rawSeriesIDIterator) Next() tsdb.SeriesIDElem {
+func (itr *rawSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 	if len(itr.data) == 0 {
-		return tsdb.SeriesIDElem{}
+		return tsdb.SeriesIDElem{}, nil
 	}
 
 	delta, n := binary.Uvarint(itr.data)
@@ -194,7 +196,7 @@ func (itr *rawSeriesIDIterator) Next() tsdb.SeriesIDElem {
 
 	seriesID := itr.prev + uint64(delta)
 	itr.prev = seriesID
-	return tsdb.SeriesIDElem{SeriesID: seriesID}
+	return tsdb.SeriesIDElem{SeriesID: seriesID}, nil
 }
 
 // MeasurementBlockTrailer represents meta data at the end of a MeasurementBlock.

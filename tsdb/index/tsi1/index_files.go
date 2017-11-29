@@ -97,7 +97,7 @@ func (p IndexFiles) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterat
 		}
 		a = append(a, itr)
 	}
-	return MergeSeriesIDIterators(a...)
+	return tsdb.MergeSeriesIDIterators(a...)
 }
 
 // TagValueSeriesIDIterator returns an iterator that merges series across all files.
@@ -110,7 +110,7 @@ func (p IndexFiles) TagValueSeriesIDIterator(name, key, value []byte) tsdb.Serie
 			a = append(a, itr)
 		}
 	}
-	return MergeSeriesIDIterators(a...)
+	return tsdb.MergeSeriesIDIterators(a...)
 }
 
 // CompactTo merges all index files and writes them to w.
@@ -197,14 +197,25 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 			seriesIDs = seriesIDs[:0]
 
 			// Merge all series together.
-			sitr := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
-			for se := sitr.Next(); se.SeriesID != 0; se = sitr.Next() {
-				seriesIDs = append(seriesIDs, se.SeriesID)
-			}
+			if err := func() error {
+				sitr := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
+				if sitr != nil {
+					defer sitr.Close()
+					for {
+						se, err := sitr.Next()
+						if err != nil {
+							return err
+						} else if se.SeriesID == 0 {
+							break
+						}
+						seriesIDs = append(seriesIDs, se.SeriesID)
+					}
+				}
 
-			// Encode value.
-			if err := enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs); err != nil {
-				return err
+				// Encode value.
+				return enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs)
+			}(); err != nil {
+				return nil
 			}
 		}
 	}
@@ -238,16 +249,30 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 			name := m.Name()
 
 			// Look-up series ids.
-			itr := p.MeasurementSeriesIDIterator(name)
-			var seriesIDs []uint64
-			for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
-				seriesIDs = append(seriesIDs, e.SeriesID)
-			}
-			sort.Sort(uint64Slice(seriesIDs))
+			if err := func() error {
+				itr := p.MeasurementSeriesIDIterator(name)
+				defer itr.Close()
 
-			// Add measurement to writer.
-			pos := info.tagSets[string(name)]
-			mw.Add(name, m.Deleted(), pos.offset, pos.size, seriesIDs)
+				var seriesIDs []uint64
+				for {
+					e, err := itr.Next()
+					if err != nil {
+						return err
+					} else if e.SeriesID == 0 {
+						break
+					}
+					seriesIDs = append(seriesIDs, e.SeriesID)
+				}
+				sort.Sort(uint64Slice(seriesIDs))
+
+				// Add measurement to writer.
+				pos := info.tagSets[string(name)]
+				mw.Add(name, m.Deleted(), pos.offset, pos.size, seriesIDs)
+
+				return nil
+			}(); err != nil {
+				return err
+			}
 		}
 	}
 

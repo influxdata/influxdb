@@ -961,13 +961,14 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 
 		// Find matching series keys for each measurement.
 		for _, name := range names {
-
-			itr, err := sh.MeasurementSeriesKeysByExprIterator([]byte(name), condition)
+			indexSet := IndexSet{sh.index}
+			itr, err := indexSet.MeasurementSeriesByExprIterator([]byte(name), condition)
 			if err != nil {
 				return err
 			} else if itr == nil {
 				continue
 			}
+			defer itr.Close()
 
 			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max); err != nil {
 				return err

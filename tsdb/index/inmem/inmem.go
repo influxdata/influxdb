@@ -49,6 +49,7 @@ type Index struct {
 
 	database string
 	sfile    *tsdb.SeriesFile
+	fieldset *tsdb.MeasurementFieldSet
 
 	// In-memory metadata index, built on load and updated when new series come in
 	measurements map[string]*Measurement // measurement name to object and index
@@ -83,6 +84,11 @@ func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
 
 func (i *Index) WithLogger(*zap.Logger) {}
+
+// Database returns the name of the database the index was initialized with.
+func (i *Index) Database() string {
+	return i.database
+}
 
 // Series returns a series by key.
 func (i *Index) Series(key []byte) (*Series, error) {
@@ -142,6 +148,14 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*Measurement, error) {
 		}
 	}
 	return a, nil
+}
+
+func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
+	names, err := i.MeasurementNamesByExpr(nil)
+	if err != nil {
+		return nil, err
+	}
+	return tsdb.NewMeasurementSliceIterator(names), nil
 }
 
 // CreateSeriesIfNotExists adds the series for the given measurement to the
@@ -662,10 +676,18 @@ func (i *Index) SeriesKeys() []string {
 	}
 	i.mu.RUnlock()
 	return s
+
 }
 
 // SetFieldSet sets a shared field set from the engine.
-func (i *Index) SetFieldSet(*tsdb.MeasurementFieldSet) {}
+func (i *Index) SetFieldSet(fieldset *tsdb.MeasurementFieldSet) {
+	i.fieldset = fieldset
+}
+
+// FieldSet returns the assigned fieldset.
+func (i *Index) FieldSet() *tsdb.MeasurementFieldSet {
+	return i.fieldset
+}
 
 // SetFieldName adds a field name to a measurement.
 func (i *Index) SetFieldName(measurement []byte, name string) {
@@ -689,6 +711,50 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 		}
 	}
 	return nil
+}
+
+func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator, error) {
+	return i.MeasurementSeriesKeysByExprIterator(name, nil)
+}
+
+func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDsByTagKey(key))), nil
+}
+
+func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDsByTagValue(key, value))), nil
+}
+
+func (i *Index) TagValueIterator(auth query.Authorizer, name, key []byte) (tsdb.TagValueIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	values := m.TagValues(auth, string(key))
+	sort.Strings(values)
+
+	a := make([][]byte, len(values))
+	for i := range a {
+		a[i] = []byte(values[i])
+	}
+	return tsdb.NewTagValueSliceIterator(a), nil
 }
 
 func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {

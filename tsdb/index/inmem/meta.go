@@ -560,6 +560,30 @@ func unionSeriesFilters(lids, rids SeriesIDs, lfilters, rfilters FilterExprs) (S
 	return ids, filters
 }
 
+// SeriesIDsByTagKey returns a list of all series for a tag key.
+func (m *Measurement) SeriesIDsByTagKey(key []byte) SeriesIDs {
+	tagVals := m.seriesByTagKeyValue[string(key)]
+	if tagVals == nil {
+		return nil
+	}
+
+	var ids SeriesIDs
+	tagVals.RangeAll(func(_ string, a SeriesIDs) {
+		ids = append(ids, a...)
+	})
+	sort.Sort(ids)
+	return ids
+}
+
+// SeriesIDsByTagValue returns a list of all series for a tag value.
+func (m *Measurement) SeriesIDsByTagValue(key, value []byte) SeriesIDs {
+	tagVals := m.seriesByTagKeyValue[string(key)]
+	if tagVals == nil {
+		return nil
+	}
+	return tagVals.Load(string(value))
+}
+
 // IDsForExpr returns the series IDs that are candidates to match the given expression.
 func (m *Measurement) IDsForExpr(n *influxql.BinaryExpr) SeriesIDs {
 	ids, _, _ := m.idsForExpr(n)

@@ -8,9 +8,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxql"
 )
 
 // LoadFactor is the fill percent for RHH indexes.
@@ -115,28 +113,31 @@ func (p measurementMergeElem) Deleted() bool {
 	return p[0].Deleted()
 }
 
-// filterUndeletedMeasurementIterator returns all measurements which are not deleted.
-type filterUndeletedMeasurementIterator struct {
+// tsdbMeasurementIteratorAdapter wraps MeasurementIterator to match the TSDB interface.
+// This is needed because TSDB doesn't have a concept of "deleted" measurements.
+type tsdbMeasurementIteratorAdapter struct {
 	itr MeasurementIterator
 }
 
-// FilterUndeletedMeasurementIterator returns an iterator which filters all deleted measurement.
-func FilterUndeletedMeasurementIterator(itr MeasurementIterator) MeasurementIterator {
+// NewTSDBMeasurementIteratorAdapter return an iterator which implements tsdb.MeasurementIterator.
+func NewTSDBMeasurementIteratorAdapter(itr MeasurementIterator) tsdb.MeasurementIterator {
 	if itr == nil {
 		return nil
 	}
-	return &filterUndeletedMeasurementIterator{itr: itr}
+	return &tsdbMeasurementIteratorAdapter{itr: itr}
 }
 
-func (itr *filterUndeletedMeasurementIterator) Next() MeasurementElem {
+func (itr *tsdbMeasurementIteratorAdapter) Close() error { return nil }
+
+func (itr *tsdbMeasurementIteratorAdapter) Next() ([]byte, error) {
 	for {
 		e := itr.itr.Next()
 		if e == nil {
-			return nil
+			return nil, nil
 		} else if e.Deleted() {
 			continue
 		}
-		return e
+		return e.Name(), nil
 	}
 }
 
@@ -262,6 +263,34 @@ type TagValueIterator interface {
 	Next() TagValueElem
 }
 
+// tsdbTagValueIteratorAdapter wraps TagValueIterator to match the TSDB interface.
+// This is needed because TSDB doesn't have a concept of "deleted" tag values.
+type tsdbTagValueIteratorAdapter struct {
+	itr TagValueIterator
+}
+
+// NewTSDBTagValueIteratorAdapter return an iterator which implements tsdb.TagValueIterator.
+func NewTSDBTagValueIteratorAdapter(itr TagValueIterator) tsdb.TagValueIterator {
+	if itr == nil {
+		return nil
+	}
+	return &tsdbTagValueIteratorAdapter{itr: itr}
+}
+
+func (itr *tsdbTagValueIteratorAdapter) Close() error { return nil }
+
+func (itr *tsdbTagValueIteratorAdapter) Next() ([]byte, error) {
+	for {
+		e := itr.itr.Next()
+		if e == nil {
+			return nil, nil
+		} else if e.Deleted() {
+			continue
+		}
+		return e.Value(), nil
+	}
+}
+
 // MergeTagValueIterators returns an iterator that merges a set of iterators.
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
@@ -342,63 +371,6 @@ func (p tagValueMergeElem) Deleted() bool {
 	return p[0].Deleted()
 }
 
-// MergeSeriesIDIterators returns an iterator that merges a set of iterators.
-// Iterators that are first in the list take precendence and a deletion by those
-// early iterators will invalidate elements by later iterators.
-func MergeSeriesIDIterators(itrs ...tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
-	if n := len(itrs); n == 0 {
-		return nil
-	} else if n == 1 {
-		return itrs[0]
-	}
-
-	return &seriesIDMergeIterator{
-		buf:  make([]tsdb.SeriesIDElem, len(itrs)),
-		itrs: itrs,
-	}
-}
-
-// seriesIDMergeIterator is an iterator that merges multiple iterators together.
-type seriesIDMergeIterator struct {
-	buf  []tsdb.SeriesIDElem
-	itrs []tsdb.SeriesIDIterator
-}
-
-// Next returns the element with the next lowest name/tags across the iterators.
-func (itr *seriesIDMergeIterator) Next() tsdb.SeriesIDElem {
-	// Find next lowest id amongst the buffers.
-	var elem tsdb.SeriesIDElem
-	for i := range itr.buf {
-		buf := &itr.buf[i]
-
-		// Fill buffer.
-		if buf.SeriesID == 0 {
-			elem := itr.itrs[i].Next()
-			if elem.SeriesID == 0 {
-				continue
-			}
-			itr.buf[i] = elem
-		}
-
-		if elem.SeriesID == 0 || buf.SeriesID < elem.SeriesID {
-			elem = *buf
-		}
-	}
-
-	// Return EOF if no elements remaining.
-	if elem.SeriesID == 0 {
-		return tsdb.SeriesIDElem{}
-	}
-
-	// Clear matching buffers.
-	for i := range itr.buf {
-		if itr.buf[i].SeriesID == elem.SeriesID {
-			itr.buf[i].SeriesID = 0
-		}
-	}
-	return elem
-}
-
 /*
 type SeriesPointMergeIterator interface {
 	Next() (*query.FloatPoint, error)
@@ -474,240 +446,6 @@ func (itr *seriesPointMergeIterator) Next() (_ *query.FloatPoint, err error) {
 }
 */
 
-// IntersectSeriesIDIterators returns an iterator that only returns series which
-// occur in both iterators. If both series have associated expressions then
-// they are combined together.
-func IntersectSeriesIDIterators(itr0, itr1 tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
-	if itr0 == nil || itr1 == nil {
-		return nil
-	}
-
-	return &seriesIDIntersectIterator{itrs: [2]tsdb.SeriesIDIterator{itr0, itr1}}
-}
-
-// seriesIDIntersectIterator is an iterator that merges two iterators together.
-type seriesIDIntersectIterator struct {
-	buf  [2]tsdb.SeriesIDElem
-	itrs [2]tsdb.SeriesIDIterator
-}
-
-// Next returns the next element which occurs in both iterators.
-func (itr *seriesIDIntersectIterator) Next() tsdb.SeriesIDElem {
-	for {
-		// Fill buffers.
-		if itr.buf[0].SeriesID == 0 {
-			itr.buf[0] = itr.itrs[0].Next()
-		}
-		if itr.buf[1].SeriesID == 0 {
-			itr.buf[1] = itr.itrs[1].Next()
-		}
-
-		// Exit if either buffer is still empty.
-		if itr.buf[0].SeriesID == 0 || itr.buf[1].SeriesID == 0 {
-			return tsdb.SeriesIDElem{}
-		}
-
-		// Skip if both series are not equal.
-		if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; a < b {
-			itr.buf[0].SeriesID = 0
-			continue
-		} else if a > b {
-			itr.buf[1].SeriesID = 0
-			continue
-		}
-
-		// Merge series together if equal.
-		elem := itr.buf[0]
-
-		// Attach expression.
-		expr0 := itr.buf[0].Expr
-		expr1 := itr.buf[1].Expr
-		if expr0 == nil {
-			elem.Expr = expr1
-		} else if expr1 == nil {
-			elem.Expr = expr0
-		} else {
-			elem.Expr = influxql.Reduce(&influxql.BinaryExpr{
-				Op:  influxql.AND,
-				LHS: expr0,
-				RHS: expr1,
-			}, nil)
-		}
-
-		itr.buf[0].SeriesID, itr.buf[1].SeriesID = 0, 0
-		return elem
-	}
-}
-
-// UnionSeriesIDIterators returns an iterator that returns series from both
-// both iterators. If both series have associated expressions then they are
-// combined together.
-func UnionSeriesIDIterators(itr0, itr1 tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
-	// Return other iterator if either one is nil.
-	if itr0 == nil {
-		return itr1
-	} else if itr1 == nil {
-		return itr0
-	}
-
-	return &seriesIDUnionIterator{itrs: [2]tsdb.SeriesIDIterator{itr0, itr1}}
-}
-
-// seriesIDUnionIterator is an iterator that unions two iterators together.
-type seriesIDUnionIterator struct {
-	buf  [2]tsdb.SeriesIDElem
-	itrs [2]tsdb.SeriesIDIterator
-}
-
-// Next returns the next element which occurs in both iterators.
-func (itr *seriesIDUnionIterator) Next() tsdb.SeriesIDElem {
-	// Fill buffers.
-	if itr.buf[0].SeriesID == 0 {
-		itr.buf[0] = itr.itrs[0].Next()
-	}
-	if itr.buf[1].SeriesID == 0 {
-		itr.buf[1] = itr.itrs[1].Next()
-	}
-
-	// Return non-zero or lesser series.
-	if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; b == 0 || a < b {
-		elem := itr.buf[0]
-		itr.buf[0].SeriesID = 0
-		return elem
-	} else if a == 0 || a > b {
-		elem := itr.buf[1]
-		itr.buf[1].SeriesID = 0
-		return elem
-	}
-
-	// Attach element.
-	elem := itr.buf[0]
-
-	// Attach expression.
-	expr0 := itr.buf[0].Expr
-	expr1 := itr.buf[1].Expr
-	if expr0 != nil && expr1 != nil {
-		elem.Expr = influxql.Reduce(&influxql.BinaryExpr{
-			Op:  influxql.OR,
-			LHS: expr0,
-			RHS: expr1,
-		}, nil)
-	} else {
-		elem.Expr = nil
-	}
-
-	itr.buf[0].SeriesID, itr.buf[1].SeriesID = 0, 0
-	return elem
-}
-
-// DifferenceSeriesIDIterators returns an iterator that only returns series which
-// occur the first iterator but not the second iterator.
-func DifferenceSeriesIDIterators(itr0, itr1 tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
-	if itr0 != nil && itr1 == nil {
-		return itr0
-	} else if itr0 == nil {
-		return nil
-	}
-	return &seriesIDDifferenceIterator{itrs: [2]tsdb.SeriesIDIterator{itr0, itr1}}
-}
-
-// seriesIDDifferenceIterator is an iterator that merges two iterators together.
-type seriesIDDifferenceIterator struct {
-	buf  [2]tsdb.SeriesIDElem
-	itrs [2]tsdb.SeriesIDIterator
-}
-
-// Next returns the next element which occurs only in the first iterator.
-func (itr *seriesIDDifferenceIterator) Next() tsdb.SeriesIDElem {
-	for {
-		// Fill buffers.
-		if itr.buf[0].SeriesID == 0 {
-			itr.buf[0] = itr.itrs[0].Next()
-		}
-		if itr.buf[1].SeriesID == 0 {
-			itr.buf[1] = itr.itrs[1].Next()
-		}
-
-		// Exit if first buffer is still empty.
-		if itr.buf[0].SeriesID == 0 {
-			return tsdb.SeriesIDElem{}
-		} else if itr.buf[1].SeriesID == 0 {
-			elem := itr.buf[0]
-			itr.buf[0].SeriesID = 0
-			return elem
-		}
-
-		// Return first series if it's less.
-		// If second series is less then skip it.
-		// If both series are equal then skip both.
-		if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; a < b {
-			elem := itr.buf[0]
-			itr.buf[0].SeriesID = 0
-			return elem
-		} else if a > b {
-			itr.buf[1].SeriesID = 0
-			continue
-		} else {
-			itr.buf[0].SeriesID, itr.buf[1].SeriesID = 0, 0
-			continue
-		}
-	}
-}
-
-// filterUndeletedSeriesIDIterator returns all series which are not deleted.
-type filterUndeletedSeriesIDIterator struct {
-	sfile *tsdb.SeriesFile
-	itr   tsdb.SeriesIDIterator
-}
-
-// FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIDIterator(sfile *tsdb.SeriesFile, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
-	if itr == nil {
-		return nil
-	}
-	return &filterUndeletedSeriesIDIterator{sfile: sfile, itr: itr}
-}
-
-func (itr *filterUndeletedSeriesIDIterator) Next() tsdb.SeriesIDElem {
-	for {
-		e := itr.itr.Next()
-		if e.SeriesID == 0 {
-			return tsdb.SeriesIDElem{}
-		} else if itr.sfile.IsDeleted(e.SeriesID) {
-			continue
-		}
-		return e
-	}
-}
-
-// seriesIDExprIterator is an iterator that attaches an associated expression.
-type seriesIDExprIterator struct {
-	itr  tsdb.SeriesIDIterator
-	expr influxql.Expr
-}
-
-// newSeriesIDExprIterator returns a new instance of seriesIDExprIterator.
-func newSeriesIDExprIterator(itr tsdb.SeriesIDIterator, expr influxql.Expr) tsdb.SeriesIDIterator {
-	if itr == nil {
-		return nil
-	}
-
-	return &seriesIDExprIterator{
-		itr:  itr,
-		expr: expr,
-	}
-}
-
-// Next returns the next element in the iterator.
-func (itr *seriesIDExprIterator) Next() tsdb.SeriesIDElem {
-	elem := itr.itr.Next()
-	if elem.SeriesID == 0 {
-		return tsdb.SeriesIDElem{}
-	}
-	elem.Expr = itr.expr
-	return elem
-}
-
 // writeTo writes write v into w. Updates n.
 func writeTo(w io.Writer, v []byte, n *int64) error {
 	nn, err := w.Write(v)
@@ -782,12 +520,6 @@ func assert(condition bool, msg string, v ...interface{}) {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
 }
-
-type byTagKey []*query.TagSet
-
-func (t byTagKey) Len() int           { return len(t) }
-func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
-func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 
 // hexdump is a helper for dumping binary data to stderr.
 func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }

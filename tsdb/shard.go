@@ -742,24 +742,6 @@ func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	return engine.MeasurementNamesByRegex(re)
 }
 
-func (s *Shard) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIDIterator, error) {
-	engine, err := s.engine()
-	if err != nil {
-		return nil, err
-	}
-	return engine.MeasurementSeriesKeysByExprIterator(name, expr)
-}
-
-// MeasurementSeriesKeysByExpr returns a list of series keys from the shard
-// matching expr.
-func (s *Shard) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
-	engine, err := s.engine()
-	if err != nil {
-		return nil, err
-	}
-	return engine.MeasurementSeriesKeysByExpr(name, expr)
-}
-
 // MeasurementTagKeysByExpr returns all the tag keys for the provided expression.
 func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	engine, err := s.engine()
@@ -772,11 +754,8 @@ func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 // MeasurementTagKeyValuesByExpr returns all the tag keys values for the
 // provided expression.
 func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	engine, err := s.engine()
-	if err != nil {
-		return nil, err
-	}
-	return engine.MeasurementTagKeyValuesByExpr(auth, name, key, expr, keysSorted)
+	indexSet := IndexSet{s.index}
+	return indexSet.MeasurementTagKeyValuesByExpr(auth, s.sfile, name, key, expr, keysSorted)
 }
 
 // MeasurementFields returns fields for a measurement.
@@ -823,7 +802,8 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 	case "_fieldKeys":
 		return NewFieldKeysIterator(engine, opt)
 	case "_series":
-		return s.createSeriesIterator(opt)
+		// TODO(benbjohnson): Move up to the Shards.CreateIterator().
+		return NewSeriesPointIterator(s.sfile, IndexSet{s.index}, engine.MeasurementFieldSet(), opt)
 	case "_tagKeys":
 		return NewTagKeysIterator(engine, opt)
 	}
@@ -836,32 +816,6 @@ func (s *Shard) CreateCursor(ctx context.Context, r *CursorRequest) (Cursor, err
 		return nil, err
 	}
 	return engine.CreateCursor(ctx, r)
-}
-
-// createSeriesIterator returns a new instance of SeriesIterator.
-func (s *Shard) createSeriesIterator(opt query.IteratorOptions) (query.Iterator, error) {
-	engine, err := s.engine()
-	if err != nil {
-		return nil, err
-	}
-
-	// Only equality operators are allowed.
-	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
-		switch n := n.(type) {
-		case *influxql.BinaryExpr:
-			switch n.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX,
-				influxql.OR, influxql.AND:
-			default:
-				err = errors.New("invalid tag comparison operator")
-			}
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return engine.SeriesPointIterator(opt)
 }
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.

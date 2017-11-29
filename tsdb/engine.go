@@ -59,6 +59,7 @@ type Engine interface {
 	MeasurementExists(name []byte) (bool, error)
 	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
+	MeasurementFieldSet() *MeasurementFieldSet
 	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error
 	DeleteMeasurement(name []byte) error
@@ -66,14 +67,9 @@ type Engine interface {
 	// TagKeys(name []byte) ([][]byte, error)
 	HasTagKey(name, key []byte) (bool, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
-	MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
+	// MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 	TagKeyCardinality(name, key []byte) int
-
-	// InfluxQL iterators
-	MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (SeriesIDIterator, error)
-	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
-	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 
 	// Statistics will return statistics relevant to this engine.
 	Statistics(tags map[string]string) []models.Statistic

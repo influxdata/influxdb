@@ -233,7 +233,7 @@ func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterat
 		itrs = append(itrs, sitr)
 	}
 
-	return MergeSeriesIDIterators(itrs...)
+	return tsdb.MergeSeriesIDIterators(itrs...)
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a tag value and a flag

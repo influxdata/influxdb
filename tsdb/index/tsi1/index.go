@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -91,7 +90,7 @@ type Index struct {
 	version int
 
 	// Name of database.
-	Database string
+	database string
 
 	// Number of partitions used by the index.
 	PartitionN uint64
@@ -111,6 +110,11 @@ func NewIndex(sfile *tsdb.SeriesFile, options ...IndexOption) *Index {
 	}
 
 	return idx
+}
+
+// Database returns the name of the database the index was initialized with.
+func (i *Index) Database() string {
+	return i.database
 }
 
 // WithLogger sets the logger on the index after it's been created.
@@ -151,7 +155,7 @@ func (i *Index) Open() error {
 	i.partitions = make([]*Partition, i.PartitionN)
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
-		p.Database = i.Database
+		p.Database = i.database
 		p.compactionsDisabled = i.disableCompactions
 		p.logger = i.logger.With(zap.String("partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
@@ -246,6 +250,14 @@ func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
 	for _, p := range i.partitions {
 		p.SetFieldSet(fs)
 	}
+}
+
+// FieldSet returns the assigned fieldset.
+func (i *Index) FieldSet() *tsdb.MeasurementFieldSet {
+	if len(i.partitions) == 0 {
+		return nil
+	}
+	return i.partitions[0].FieldSet()
 }
 
 // ForEachMeasurementName iterates over all measurement names in the index,
@@ -369,6 +381,34 @@ func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, e
 	return slices.MergeSortedBytes(names[:]...), nil
 }
 
+// MeasurementIterator returns an iterator over all measurements.
+func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
+	itrs := make([]tsdb.MeasurementIterator, 0, len(i.partitions))
+	for _, p := range i.partitions {
+		itr, err := p.MeasurementIterator()
+		if err != nil {
+			tsdb.MeasurementIterators(itrs).Close()
+			return nil, err
+		}
+		itrs = append(itrs, itr)
+	}
+	return tsdb.MergeMeasurementIterators(itrs...), nil
+}
+
+// MeasurementSeriesIDIterator returns an iterator over all series in a measurement.
+func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator, error) {
+	itrs := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
+	for _, p := range i.partitions {
+		itr, err := p.MeasurementSeriesIDIterator(name)
+		if err != nil {
+			tsdb.SeriesIDIterators(itrs).Close()
+			return nil, err
+		}
+		itrs = append(itrs, itr)
+	}
+	return tsdb.MergeSeriesIDIterators(itrs...), nil
+}
+
 // MeasurementNamesByExpr returns measurement names for the provided expression.
 func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	return i.fetchByteValues(func(idx int) ([][]byte, error) {
@@ -383,12 +423,14 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	})
 }
 
+/*
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	return i.fetchByteValues(func(idx int) ([][]byte, error) {
 		return i.partitions[idx].MeasurementSeriesKeysByExpr(name, expr)
 	})
 }
+*/
 
 // DropMeasurement deletes a measurement from the index. It returns the first
 // error encountered, if any.
@@ -561,6 +603,42 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 	return atomic.LoadUint32(&found) == 1, nil
 }
 
+// TagValueIterator returns an iterator for all values across a single key.
+func (i *Index) TagValueIterator(auth query.Authorizer, name, key []byte) (tsdb.TagValueIterator, error) {
+	a := make([]tsdb.TagValueIterator, 0, len(i.partitions))
+	for _, p := range i.partitions {
+		itr := p.TagValueIterator(name, key)
+		if itr != nil {
+			a = append(a, itr)
+		}
+	}
+	return tsdb.MergeTagValueIterators(a...), nil
+}
+
+// TagKeySeriesIDIterator returns a series iterator for all values across a single key.
+func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
+	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
+	for _, p := range i.partitions {
+		itr := p.TagKeySeriesIDIterator(name, key)
+		if itr != nil {
+			a = append(a, itr)
+		}
+	}
+	return tsdb.MergeSeriesIDIterators(a...), nil
+}
+
+// TagValueSeriesIDIterator returns a series iterator for a single tag value.
+func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
+	for _, p := range i.partitions {
+		itr := p.TagValueSeriesIDIterator(name, key, value)
+		if itr != nil {
+			a = append(a, itr)
+		}
+	}
+	return tsdb.MergeSeriesIDIterators(a...), nil
+}
+
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	n := i.availableThreads()
@@ -604,6 +682,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return result, nil
 }
 
+/*
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
@@ -648,7 +727,7 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 								}
 
 								name, tags := tsdb.ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
-								if auth.AuthorizeSeriesRead(i.Database, name, tags) {
+								if auth.AuthorizeSeriesRead(i.database, name, tags) {
 									resultSet[ki][string(val.Value())] = struct{}{}
 									break
 								}
@@ -687,6 +766,7 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 	}
 	return results, nil
 }
+*/
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement and applies
 // the provided function.
@@ -704,110 +784,6 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 // thus it cannot be done across partitions.
 func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
-}
-
-func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {
-	a := make([]tsdb.SeriesIDIterator, 0, i.PartitionN)
-	for _, p := range i.partitions {
-		itr, err := p.MeasurementSeriesKeysByExprIterator(name, condition)
-		if err != nil {
-			return nil, err
-		} else if itr == nil {
-			continue
-		}
-		a = append(a, itr)
-	}
-	return MergeSeriesIDIterators(a...), nil
-}
-
-// TagSets returns an ordered list of tag sets for a measurement by dimension
-// and filtered by an optional conditional expression.
-func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
-	// Obtain filesets for each partition.
-	fileSets := make([]*FileSet, i.PartitionN)
-	for j := range fileSets {
-		fileSets[j] = i.partitions[j].RetainFileSet()
-	}
-	defer func() {
-		for _, fs := range fileSets {
-			fs.Release()
-		}
-	}()
-
-	// Merge all iterators together.
-	a := make([]tsdb.SeriesIDIterator, 0, i.PartitionN)
-	for j, fs := range fileSets {
-		mitr, err := fs.MeasurementSeriesByExprIterator(name, opt.Condition, i.partitions[j].FieldSet())
-		if err != nil {
-			return nil, err
-		} else if mitr == nil {
-			continue
-		}
-		a = append(a, mitr)
-	}
-	itr := MergeSeriesIDIterators(a...)
-
-	// For every series, get the tag values for the requested tag keys i.e.
-	// dimensions. This is the TagSet for that series. Series with the same
-	// TagSet are then grouped together, because for the purpose of GROUP BY
-	// they are part of the same composite series.
-	tagSets := make(map[string]*query.TagSet, 64)
-
-	if itr != nil {
-		for {
-			e, err := itr.Next()
-			if err != nil {
-				return nil, err
-			} else if e.SeriesID == 0 {
-				break
-			}
-
-			_, tags := tsdb.ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
-			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
-				continue
-			}
-
-			tagsMap := make(map[string]string, len(opt.Dimensions))
-
-			// Build the TagSet for this series.
-			for _, dim := range opt.Dimensions {
-				tagsMap[dim] = tags.GetString(dim)
-			}
-
-			// Convert the TagSet to a string, so it can be added to a map
-			// allowing TagSets to be handled as a set.
-			tagsAsKey := tsdb.MarshalTags(tagsMap)
-			tagSet, ok := tagSets[string(tagsAsKey)]
-			if !ok {
-				// This TagSet is new, create a new entry for it.
-				tagSet = &query.TagSet{
-					Tags: tagsMap,
-					Key:  tagsAsKey,
-				}
-			}
-
-			// Associate the series and filter with the Tagset.
-			tagSet.AddFilter(string(models.MakeKey(name, tags)), e.Expr)
-
-			// Ensure it's back in the map.
-			tagSets[string(tagsAsKey)] = tagSet
-		}
-	}
-
-	// Sort the series in each tag set.
-	for _, t := range tagSets {
-		sort.Sort(t)
-	}
-
-	// The TagSets have been created, as a map of TagSets. Just send
-	// the values back as a slice, sorting for consistency.
-	sortedTagsSets := make([]*query.TagSet, 0, len(tagSets))
-	for _, v := range tagSets {
-		sortedTagsSets = append(sortedTagsSets, v)
-	}
-	sort.Sort(byTagKey(sortedTagsSets))
-
-	return sortedTagsSets, nil
 }
 
 // SnapshotTo creates hard links to the file set into path.
@@ -840,7 +816,7 @@ func (i *Index) RetainFileSet() *FileSet {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	fs, _ := NewFileSet(i.Database, nil, i.sfile, nil)
+	fs, _ := NewFileSet(i.database, nil, i.sfile, nil)
 	for _, p := range i.partitions {
 		pfs := p.RetainFileSet()
 		fs.files = append(fs.files, pfs.files...)
@@ -857,92 +833,15 @@ func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	return i.DropSeries([]byte(k), ts)
 }
 
+/*
 // SeriesIDIterator returns a series iterator over all matching series.
 func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterator, error) {
 	itrs := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for k, p := range i.partitions {
 		itrs = append(itrs, p.seriesIDIterator(opt))
 	}
-	return MergeSeriesIDIterators(itrs...), nil
+	return tsdb.MergeSeriesIDIterators(itrs...), nil
 }
+*/
 
 func (i *Index) Rebuild() {}
-
-// seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
-type seriesPointIterator struct {
-	once     sync.Once
-	fs       *FileSet
-	fieldset *tsdb.MeasurementFieldSet
-	mitr     MeasurementIterator
-	sitr     tsdb.SeriesIDIterator
-	opt      query.IteratorOptions
-
-	point query.FloatPoint // reusable point
-}
-
-// newSeriesPointIterator returns a new instance of seriesPointIterator.
-func newSeriesPointIterator(itr, fieldset *tsdb.MeasurementFieldSet, opt query.IteratorOptions) *seriesPointIterator {
-	return &seriesPointIterator{
-		fs:       fs,
-		fieldset: fieldset,
-		mitr:     fs.MeasurementIterator(),
-		point: query.FloatPoint{
-			Aux: make([]interface{}, len(opt.Aux)),
-		},
-		opt: opt,
-	}
-}
-
-// Stats returns stats about the points processed.
-func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
-
-// Close closes the iterator.
-func (itr *seriesPointIterator) Close() error {
-	itr.once.Do(func() { itr.fs.Release() })
-	return nil
-}
-
-// Next emits the next point in the iterator.
-func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
-	for {
-		// Create new series iterator, if necessary.
-		// Exit if there are no measurements remaining.
-		if itr.sitr == nil {
-			if itr.mitr == nil {
-				return nil, nil
-			}
-
-			m := itr.mitr.Next()
-			if m == nil {
-				return nil, nil
-			}
-
-			sitr, err := itr.fs.MeasurementSeriesByExprIterator(m.Name(), itr.opt.Condition, itr.fieldset)
-			if err != nil {
-				return nil, err
-			} else if sitr == nil {
-				continue
-			}
-			itr.sitr = sitr
-		}
-
-		// Read next series element.
-		e := itr.sitr.Next()
-		if e.SeriesID == 0 {
-			itr.sitr = nil
-			continue
-		}
-
-		// Convert to a key.
-		name, tags := tsdb.ParseSeriesKey(itr.fs.sfile.SeriesKey(e.SeriesID))
-		key := string(models.MakeKey(name, tags))
-
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = key
-			}
-		}
-	}
-}

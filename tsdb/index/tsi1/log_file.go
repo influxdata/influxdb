@@ -270,7 +270,7 @@ func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
 		itrs = append(itrs, newLogSeriesIDIterator(tv.series))
 	}
 
-	return MergeSeriesIDIterators(itrs...)
+	return tsdb.MergeSeriesIDIterators(itrs...)
 }
 
 // TagKeyIterator returns a value iterator for a measurement.
@@ -1229,14 +1229,16 @@ func newLogSeriesIDIterator(m map[uint64]struct{}) *logSeriesIDIterator {
 	return &itr
 }
 
+func (itr *logSeriesIDIterator) Close() error { return nil }
+
 // Next returns the next element in the iterator.
-func (itr *logSeriesIDIterator) Next() tsdb.SeriesIDElem {
+func (itr *logSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 	if len(itr.series) == 0 {
-		return tsdb.SeriesIDElem{}
+		return tsdb.SeriesIDElem{}, nil
 	}
 	elem := itr.series[0]
 	itr.series = itr.series[1:]
-	return elem
+	return elem, nil
 }
 
 // FormatLogFileName generates a log filename for the given index.

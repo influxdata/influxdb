@@ -30,7 +30,6 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
-	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 )
@@ -360,6 +359,11 @@ func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	return e.index.MeasurementNamesByRegex(re)
 }
 
+// MeasurementFieldSet returns the measurement field set.
+func (e *Engine) MeasurementFieldSet() *tsdb.MeasurementFieldSet {
+	return e.fieldset
+}
+
 // MeasurementFields returns the measurement fields for a measurement.
 func (e *Engine) MeasurementFields(measurement []byte) *tsdb.MeasurementFields {
 	return e.fieldset.CreateFieldsIfNotExists(measurement)
@@ -382,9 +386,11 @@ func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[
 // for the earliest tag k will be available in index 0 of the returned values
 // slice.
 //
+/*
 func (e *Engine) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	return e.index.MeasurementTagKeyValuesByExpr(auth, name, keys, expr, keysSorted)
 }
+*/
 
 func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
 	return e.index.ForEachMeasurementTagKey(name, fn)
@@ -936,16 +942,15 @@ func (e *Engine) WritePoints(points []models.Point) error {
 func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
 	var disableOnce bool
 
-	// Ensure that the index does not compact away the measurement or series we're
-	// going to delete before we're done with them.
-	if tsiIndex, ok := e.index.(*tsi1.Index); ok {
-		fs := tsiIndex.RetainFileSet()
-		defer fs.Release()
-	}
-
 	var sz int
 	batch := make([][]byte, 0, 10000)
-	for elem := itr.Next(); elem != nil; elem = itr.Next() {
+	for {
+		elem, err := itr.Next()
+		if err != nil {
+			return err
+		} else if elem == nil {
+			break
+		}
 		if elem.Expr() != nil {
 			if v, ok := elem.Expr().(*influxql.BooleanLiteral); !ok || !v.Val {
 				return errors.New("fields not supported in WHERE clause during deletion")
@@ -1213,13 +1218,14 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) deleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
-	itr, err := e.index.MeasurementSeriesKeysByExprIterator(name, nil)
+	itr, err := (tsdb.IndexSet{e.index}).MeasurementSeriesByExprIterator(name, nil)
 	if err != nil {
 		return err
-	} else if itr != nil {
-		return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
+	} else if itr == nil {
+		return nil
 	}
-	return nil
+	defer itr.Close()
+	return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
 }
 
 // ForEachMeasurementName iterates over each measurement name in the engine.
@@ -1227,14 +1233,18 @@ func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
 	return e.index.ForEachMeasurementName(fn)
 }
 
+/*
 func (e *Engine) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (tsdb.SeriesIDIterator, error) {
 	return e.index.MeasurementSeriesKeysByExprIterator(name, expr)
 }
+*/
 
+/*
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (e *Engine) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	return e.index.MeasurementSeriesKeysByExpr(name, expr)
 }
+*/
 
 func (e *Engine) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
 	return e.index.CreateSeriesListIfNotExists(keys, names, tagsSlice)
@@ -1825,7 +1835,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := e.index.TagSets([]byte(measurement), opt)
+	tagSets, err := (tsdb.IndexSet{e.index}).TagSets(e.sfile, []byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -1895,7 +1905,7 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := e.index.TagSets([]byte(measurement), opt)
+	tagSets, err := (tsdb.IndexSet{e.index}).TagSets(e.sfile, []byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -2357,7 +2367,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 	}
 
 	// Determine all of the tag sets for this query.
-	tagSets, err := e.index.TagSets([]byte(measurement), opt)
+	tagSets, err := (tsdb.IndexSet{e.index}).TagSets(e.sfile, []byte(measurement), opt)
 	if err != nil {
 		return query.IteratorCost{}, err
 	}
@@ -2417,10 +2427,6 @@ func (e *Engine) seriesCost(seriesKey, field string, tmin, tmax int64) query.Ite
 	cacheValues := e.Cache.Values(key)
 	c.CachedValues = int64(len(cacheValues.Include(tmin, tmax)))
 	return c
-}
-
-func (e *Engine) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
-	return e.index.SeriesPointIterator(opt)
 }
 
 // SeriesFieldKey combine a series key and field name for a unique string to be hashed to a numeric ID.
