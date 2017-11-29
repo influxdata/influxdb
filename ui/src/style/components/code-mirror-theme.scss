@@ -7,45 +7,6 @@
 
 */
 
-$tickscript-console-height: 120px;
-
-.tickscript-console,
-.tickscript-editor {
-  padding-left: $page-wrapper-padding;
-  padding-right: $page-wrapper-padding;
-  margin: 0 auto;
-  max-width: $page-wrapper-max-width;
-  position: relative;
-}
-.tickscript-console {
-  height: $tickscript-console-height;
-  padding-top: 30px;
-}
-.tickscript-console--output {
-  padding: 0 60px;
-  font-family: $code-font;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  background-color: $g3-castle;
-  position: relative;
-  height: 100%;
-  width: 100%;
-  border-radius: $radius $radius 0 0;
-
-  > p {
-    margin: 0;
-  }
-}
-.tickscript-console--default {
-  color: $g10-wolf;
-  font-style: italic;
-}
-.tickscript-editor {
-  margin: 0 auto;
-  padding-bottom: 30px;
-  height: calc(100% - #{$tickscript-console-height});
-}
 .ReactCodeMirror {
   position: relative;
   width: 100%;
@@ -54,8 +15,8 @@ $tickscript-console-height: 120px;
 .cm-s-material.CodeMirror {
   border-radius: 0 0 $radius $radius;
   font-family: $code-font;
-  background-color: $g2-kevlar;
-  color: $c-neutrino;
+  background-color: transparent;
+  color: $g13-mist;
   font-weight: 600;
   height: 100%;
 }
@@ -63,7 +24,7 @@ $tickscript-console-height: 120px;
   @include custom-scrollbar-round($g2-kevlar,$g6-smoke);
 }
 .cm-s-material .CodeMirror-gutters {
-  background-color: fade-out($g4-onyx, 0.5);
+  background-color: fade-out($g4-onyx, 0.7);
   border: none;
 }
 .CodeMirror-gutter.CodeMirror-linenumbers {
