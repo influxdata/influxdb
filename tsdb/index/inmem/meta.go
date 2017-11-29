@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -130,6 +131,11 @@ func (m *Measurement) SeriesKeysByID(ids SeriesIDs) [][]byte {
 		}
 		keys = append(keys, []byte(s.Key))
 	}
+
+	if !bytesutil.IsSorted(keys) {
+		bytesutil.Sort(keys)
+	}
+
 	return keys
 }
 
@@ -144,6 +150,11 @@ func (m *Measurement) SeriesKeys() [][]byte {
 		}
 		keys = append(keys, []byte(s.Key))
 	}
+
+	if !bytesutil.IsSorted(keys) {
+		bytesutil.Sort(keys)
+	}
+
 	return keys
 }
 
