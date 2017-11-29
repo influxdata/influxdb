@@ -12,32 +12,30 @@ const HandlerInput = ({
 }) => {
   const formGroupClass = `form-group ${fieldColumns}`
   return (
-    <form>
-      <div className={formGroupClass}>
-        <label htmlFor={fieldName}>
-          {fieldDisplay}
-        </label>
-        <div className={redacted ? 'form-control-static redacted-input' : null}>
-          <input
-            name={fieldName}
-            id={fieldName}
-            className="form-control input-sm form-malachite"
-            type={redacted ? 'hidden' : 'text'}
-            placeholder={placeholder}
-            onChange={handleModifyHandler(selectedHandler, fieldName)}
-            value={selectedHandler[fieldName]}
-            autoComplete="off"
-            spellCheck="false"
-            disabled={disabled}
-          />
-          {redacted
-            ? <span className="alert-value-set">
-                <span className="icon checkmark" /> Value set in Config
-              </span>
-            : null}
-        </div>
+    <div className={formGroupClass}>
+      <label htmlFor={fieldName}>
+        {fieldDisplay}
+      </label>
+      <div className={redacted ? 'form-control-static redacted-input' : null}>
+        <input
+          name={fieldName}
+          id={fieldName}
+          className="form-control input-sm form-malachite"
+          type={redacted ? 'hidden' : 'text'}
+          placeholder={placeholder}
+          onChange={handleModifyHandler(selectedHandler, fieldName)}
+          value={selectedHandler[fieldName]}
+          autoComplete="off"
+          spellCheck="false"
+          disabled={disabled}
+        />
+        {redacted
+          ? <span className="alert-value-set">
+              <span className="icon checkmark" /> Value set in Config
+            </span>
+          : null}
       </div>
-    </form>
+    </div>
   )
 }
 

@@ -542,9 +542,9 @@ $rule-builder--radius-lg: 5px;
     padding-bottom: $rule-builder--padding-lg;
   }
 }
-.endpoint-tab--parameters form {
-  margin-left: -7px;
-  margin-right: -7px;
+.endpoint-tab--parameters .form-group {
+  margin-left: -18px;
+  margin-right: 18px;
 }
 .endpoint-tab--parameters--empty {
   align-items: center;
