@@ -274,6 +274,48 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return mm.TagKeysByExpr(expr)
 }
 
+// TagKeyHasAuthorizedSeries determines if there exists an authorized series for
+// the provided measurement name and tag key.
+func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+	i.mu.RLock()
+	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
+	if mm == nil {
+		return false
+	}
+
+	// TODO(edd): This looks like it's inefficient. Since a series can have multiple
+	// tag key/value pairs on it, it's possible that the same unauthorised series
+	// will be checked multiple times. It would be more efficient if it were
+	// possible to get the set of unique series IDs for a given measurement name
+	// and tag key.
+	var authorized bool
+	mm.SeriesByTagKeyValue(key).Range(func(_ string, seriesIDs SeriesIDs) bool {
+		if auth == nil || auth == query.OpenAuthorizer {
+			authorized = true
+			return false
+		}
+
+		for _, id := range seriesIDs {
+			s := mm.SeriesByID(id)
+			if s == nil {
+				continue
+			}
+
+			if auth.AuthorizeSeriesRead(i.database, mm.name, s.Tags()) {
+				authorized = true
+				return false
+			}
+		}
+
+		// This tag key/value combination doesn't have any authorised series, so
+		// keep checking other tag values.
+		return true
+	})
+	return authorized
+}
+
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this

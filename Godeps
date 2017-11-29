@@ -15,6 +15,7 @@ github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/influxdata/yamux 1f58ded512de5feabbe30b60c7d33a7a896c5f16
 github.com/influxdata/yarpc 036268cdec22b7074cd6d50cc6d7315c667063c7
 github.com/jwilder/encoding 27894731927e49b0a9023f00312be26733744815
+github.com/opentracing/opentracing-go 1361b9cd60be79c4c3a7fa9841b3c132e40066a7
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 88609521dc4b6c858fd4c98b628147da928ce4ac
 github.com/philhofer/fwd 1612a298117663d7bc9a760ae20d383413859798
@@ -26,5 +27,6 @@ go.uber.org/atomic 54f72d32435d760d5604f17a82e2435b28dc4ba5
 go.uber.org/multierr fb7d312c2c04c34f0ad621048bbb953b168f9ff6
 go.uber.org/zap 35aad584952c3e7020db7b839f6b102de6271f89
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
+golang.org/x/net 9dfe39835686865bff950a07b394c12a98ddc811
 golang.org/x/sys 062cd7e4e68206d8bab9b18396626e855c992658
 golang.org/x/text a71fd10341b064c10f4a81ceac72bcf70f26ea34

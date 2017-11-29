@@ -261,7 +261,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 	defer e.Close()
 
 	// e.CreateMeasurement("cpu")
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -313,7 +313,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -365,7 +365,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -418,7 +418,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -471,8 +471,8 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("F"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("F"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -527,9 +527,9 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("X"), influxql.Float, false)
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("Y"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("X"), influxql.Float)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("Y"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	e.SetFieldName([]byte("cpu"), "X")
 	e.SetFieldName([]byte("cpu"), "Y")
@@ -725,7 +725,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -774,7 +774,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -814,6 +814,35 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 	if !cmp.Equal([]float64{11.2, 10.1, 1.3, 1.2}, vs) {
 		t.Fatal("unexpect timestamps")
 	}
+}
+
+// This test ensures that "sync: WaitGroup is reused before previous Wait has returned" is
+// is not raised.
+func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	e := MustOpenDefaultEngine()
+	defer e.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(true)
+			e.SetCompactionsEnabled(false)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(false)
+			e.SetCompactionsEnabled(true)
+		}
+	}()
+	wg.Wait()
 }
 
 func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
@@ -890,7 +919,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
 			e := MustOpenEngine(index)
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 			pp := make([]models.Point, 0, sz)
 			for i := 0; i < sz; i++ {
 				p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
@@ -916,7 +945,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
 			e := MustOpenEngine(index)
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 
 			cpus := runtime.GOMAXPROCS(0)
 			pp := make([]models.Point, 0, sz*cpus)
@@ -1015,7 +1044,7 @@ func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
 	e := MustOpenEngine(tsdb.DefaultIndex)
 
 	// Initialize metadata.
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	// Generate time ascending points with jitterred time & value.

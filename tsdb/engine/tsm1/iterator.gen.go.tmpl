@@ -131,9 +131,10 @@ func new{{.Name}}FinalizerIterator(inner query.{{.Name}}Iterator, logger *zap.Lo
 }
 
 func (itr *{{.name}}FinalizerIterator) closeGC() {
-	runtime.SetFinalizer(itr, nil)
-	itr.logger.Error("{{.Name}}Iterator finalized by GC")
-	itr.Close()
+	go func() {
+		itr.logger.Error("{{.Name}}Iterator finalized by GC")
+		itr.Close()
+	}()
 }
 
 func (itr *{{.name}}FinalizerIterator) Close() error {

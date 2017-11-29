@@ -642,6 +642,29 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return fs.MeasurementTagKeysByExpr(name, expr)
 }
 
+// TagKeyHasAuthorizedSeries determines if there exist authorized series for the
+// provided measurement name and tag key.
+func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	itr := fs.TagValueIterator(name, []byte(key))
+	for val := itr.Next(); val != nil; val = itr.Next() {
+		if auth == nil || auth == query.OpenAuthorizer {
+			return true
+		}
+
+		// Identify an authorized series.
+		si := fs.TagValueSeriesIterator(name, []byte(key), val.Value())
+		for se := si.Next(); se != nil; se = si.Next() {
+			if auth.AuthorizeSeriesRead(i.Database, se.Name(), se.Tags()) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this

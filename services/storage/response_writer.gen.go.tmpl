@@ -47,13 +47,13 @@ func (w *responseWriter) stream{{.Name}}Points(cur tsdb.{{.Name}}BatchCursor) {
 	cur.Close()
 
 	seriesValueCount += b
+	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
 		// no points collected, strip series frame
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
 		w.flushFrames()
-		w.vc += seriesValueCount
 	}
 }
 {{end}}
