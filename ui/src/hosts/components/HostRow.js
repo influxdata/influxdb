@@ -20,13 +20,13 @@ class HostRow extends Component {
     const {colName, colStatus, colCPU, colLoad} = HOSTS_TABLE
 
     return (
-      <tr>
-        <td style={{width: colName}}>
+      <div className="hosts-table--tr">
+        <div className="hosts-table--td" style={{width: colName}}>
           <Link to={`/sources/${source.id}/hosts/${name}`}>
             {name}
           </Link>
-        </td>
-        <td style={{width: colStatus}}>
+        </div>
+        <div className="hosts-table--td" style={{width: colStatus}}>
           <div
             className={classnames(
               'table-dot',
@@ -35,14 +35,14 @@ class HostRow extends Component {
                 : 'dot-critical'
             )}
           />
-        </td>
-        <td style={{width: colCPU}} className="monotype">
+        </div>
+        <div style={{width: colCPU}} className="monotype hosts-table--td">
           {isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}
-        </td>
-        <td style={{width: colLoad}} className="monotype">
+        </div>
+        <div style={{width: colLoad}} className="monotype hosts-table--td">
           {isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}
-        </td>
-        <td>
+        </div>
+        <div className="hosts-table--td">
           {apps.map((app, index) => {
             return (
               <span key={app}>
@@ -59,8 +59,8 @@ class HostRow extends Component {
               </span>
             )
           })}
-        </td>
-      </tr>
+        </div>
+      </div>
     )
   }
 }

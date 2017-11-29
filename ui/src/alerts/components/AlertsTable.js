@@ -49,7 +49,7 @@ class AlertsTable extends Component {
     }
   }
 
-  sortableClasses = key => () => {
+  sortableClasses = key => {
     if (this.state.sortKey === key) {
       if (this.state.sortDirection === 'asc') {
         return 'alert-history-table--th sortable-header sorting-ascending'
