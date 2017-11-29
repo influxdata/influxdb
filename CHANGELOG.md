@@ -15,6 +15,7 @@
 1. [#2398](https://github.com/influxdata/chronograf/pull/2398): Fix apps on hosts page from parsing tags with null values
 1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
 1. [#2423](https://github.com/influxdata/chronograf/pull/2423): Gracefully scale Template Variables Manager overlay on smaller displays
+1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Fix Influx Enterprise users from deletion in race condition
 
 ### Features
 1. [#2188](https://github.com/influxdata/chronograf/pull/2188): Add Kapacitor logs to the TICKscript editor
