@@ -26,6 +26,10 @@ const (
 	BackupFilePattern = "%s.%s.%05d"
 
 	EnterpriseFileNamePattern = "20060102T150405Z"
+
+	OSSManifest = "OSS"
+
+	ENTManifest = "ENT"
 )
 
 func GetMetaBytes(fname string) ([]byte, error) {
