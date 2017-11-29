@@ -1,11 +1,14 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import uuid from 'node-uuid'
 
 import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
+import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
+import {publishNotification} from 'shared/actions/notifications'
 
 class TickscriptPage extends Component {
   constructor(props) {
@@ -23,6 +26,96 @@ class TickscriptPage extends Component {
       },
       validation: '',
       isEditingID: true,
+      logs: [],
+      areLogsEnabled: false,
+      failStr: '',
+    }
+  }
+
+  fetchChunkedLogs = async (kapacitor, ruleID) => {
+    const {notify} = this.props
+
+    try {
+      const version = await pingKapacitorVersion(kapacitor)
+
+      if (version && parseInt(version.split('.')[1], 10) < 4) {
+        this.setState({
+          areLogsEnabled: false,
+        })
+        notify(
+          'warning',
+          'Could not use logging, requires Kapacitor version 1.4'
+        )
+        return
+      }
+
+      if (this.state.logs.length === 0) {
+        this.setState({
+          areLogsEnabled: true,
+          logs: [
+            {
+              id: uuid.v4(),
+              key: uuid.v4(),
+              lvl: 'info',
+              msg: 'created log session',
+              service: 'sessions',
+              tags: 'nil',
+              ts: new Date().toISOString(),
+            },
+          ],
+        })
+      }
+
+      const response = await getLogStreamByRuleID(kapacitor, ruleID)
+
+      const reader = await response.body.getReader()
+      const decoder = new TextDecoder()
+
+      let result
+
+      while (this.state.areLogsEnabled === true && !(result && result.done)) {
+        result = await reader.read()
+
+        const chunk = decoder.decode(result.value || new Uint8Array(), {
+          stream: !result.done,
+        })
+
+        const json = chunk.split('\n')
+
+        let logs = []
+        let failStr = this.state.failStr
+
+        try {
+          for (let objStr of json) {
+            objStr = failStr + objStr
+            failStr = objStr
+            const jsonStr = `[${objStr.split('}{').join('},{')}]`
+            logs = [
+              ...logs,
+              ...JSON.parse(jsonStr).map(log => ({
+                ...log,
+                key: uuid.v4(),
+              })),
+            ]
+            failStr = ''
+          }
+
+          this.setState({
+            logs: [...this.state.logs, ...logs],
+            failStr,
+          })
+        } catch (err) {
+          console.warn(err, failStr)
+          this.setState({
+            logs: [...this.state.logs, ...logs],
+            failStr,
+          })
+        }
+      }
+    } catch (error) {
+      console.error(error)
+      notify('error', error)
+      throw error
     }
   }
 
@@ -50,7 +143,15 @@ class TickscriptPage extends Component {
       this.setState({task: {tickscript, dbrps, type, status, name, id}})
     }
 
+    this.fetchChunkedLogs(kapacitor, ruleID)
+
     this.setState({kapacitor})
+  }
+
+  componentWillUnmount() {
+    this.setState({
+      areLogsEnabled: false,
+    })
   }
 
   handleSave = async () => {
@@ -96,13 +197,18 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, id: e.target.value}})
   }
 
+  handleToggleLogsVisbility = () => {
+    this.setState({areLogsVisible: !this.state.areLogsVisible})
+  }
+
   render() {
     const {source} = this.props
-    const {task, validation} = this.state
+    const {task, validation, logs, areLogsVisible, areLogsEnabled} = this.state
 
     return (
       <Tickscript
         task={task}
+        logs={logs}
         source={source}
         validation={validation}
         onSave={this.handleSave}
@@ -111,6 +217,9 @@ class TickscriptPage extends Component {
         onChangeScript={this.handleChangeScript}
         onChangeType={this.handleChangeType}
         onChangeID={this.handleChangeID}
+        areLogsVisible={areLogsVisible}
+        areLogsEnabled={areLogsEnabled}
+        onToggleLogsVisbility={this.handleToggleLogsVisbility}
       />
     )
   }
@@ -142,6 +251,7 @@ TickscriptPage.propTypes = {
     ruleID: string,
   }).isRequired,
   rules: arrayOf(shape()),
+  notify: func.isRequired,
 }
 
 const mapStateToProps = state => {
@@ -153,6 +263,7 @@ const mapStateToProps = state => {
 const mapDispatchToProps = dispatch => ({
   kapacitorActions: bindActionCreators(kapactiorActionCreators, dispatch),
   errorActions: bindActionCreators(errorActionCreators, dispatch),
+  notify: bindActionCreators(publishNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TickscriptPage)
