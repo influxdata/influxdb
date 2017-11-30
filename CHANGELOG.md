@@ -16,6 +16,7 @@
 1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
 1. [#2416](https://github.com/influxdata/chronograf/pull/2416): Fix default y-axis labels not displaying properly
 1. [#2423](https://github.com/influxdata/chronograf/pull/2423): Gracefully scale Template Variables Manager overlay on smaller displays
+1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Fix Influx Enterprise users from deletion in race condition
 
 
 ### Features
