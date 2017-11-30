@@ -17,12 +17,16 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	config.Data.Engine = "tsm1"
 	config.BindAddress = freePort()
 
-	backupDir, _ := ioutil.TempDir("", "backup")
-	defer os.RemoveAll(backupDir)
+	fullBackupDir, _ := ioutil.TempDir("", "backup")
+	defer os.RemoveAll(fullBackupDir)
+
+	partialBackupDir, _ := ioutil.TempDir("", "backup")
+	defer os.RemoveAll(fullBackupDir)
 
 	db := "mydb"
 	rp := "forever"
-	expected := `{"results":[{"statement_id":0,"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23]]}]}]}`
+	expected := `{"results":[{"statement_id":0,"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23],["1970-01-01T00:00:00.005Z","B",24],["1970-01-01T00:00:00.009Z","C",25]]}]}]}`
+	partialExpected := `{"results":[{"statement_id":0,"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23],["1970-01-01T00:00:00.005Z","B",24]]}]}]}`
 
 	// set the cache snapshot size low so that a single point will cause TSM file creation
 	config.Data.CacheSnapshotMemorySize = 1
@@ -46,7 +50,23 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		// wait for the snapshot to write
 		time.Sleep(time.Second)
 
-		res, err := s.Query(`select * from "mydb"."forever"."myseries"`)
+		if _, err := s.Write(db, rp, "myseries,host=B value=24 5000000", nil); err != nil {
+			t.Fatalf("failed to write: %s", err)
+		}
+
+		// wait for the snapshot to write
+		time.Sleep(time.Second)
+
+		if _, err := s.Write(db, rp, "myseries,host=C value=25 9000000", nil); err != nil {
+			t.Fatalf("failed to write: %s", err)
+		}
+
+		// wait for the snapshot to write
+		time.Sleep(time.Second)
+
+		res, err := s.Query(`show series on mydb; show retention policies on mydb`)
+
+		res, err = s.Query(`select * from "mydb"."forever"."myseries"`)
 		if err != nil {
 			t.Fatalf("error querying: %s", err.Error())
 		}
@@ -61,7 +81,11 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Fatal(err)
 		}
 		hostAddress := net.JoinHostPort("localhost", port)
-		if err := cmd.Run("-host", hostAddress, "-database", "mydb", backupDir); err != nil {
+		if err := cmd.Run("-host", hostAddress, "-database", "mydb", fullBackupDir); err != nil {
+			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
+		}
+
+		if err := cmd.Run("-host", hostAddress, "-database", "mydb", "-start", "1970-01-01T00:00:00.001Z", "-end", "1970-01-01T00:00:00.007Z", partialBackupDir); err != nil {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
 	}()
@@ -74,10 +98,18 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		t.Fatalf("meta dir should be deleted")
 	}
 
+	// if doing a real restore, these dirs should exist in the real DB.
+	if err := os.MkdirAll(config.Data.Dir, 0777); err != nil {
+		t.Fatalf("error making restore dir: %s", err.Error())
+	}
+	if err := os.MkdirAll(config.Meta.Dir, 0777); err != nil {
+		t.Fatalf("error making restore dir: %s", err.Error())
+	}
+
 	// restore
 	cmd := restore.NewCommand()
 
-	if err := cmd.Run("-metadir", config.Meta.Dir, "-datadir", config.Data.Dir, "-database", "mydb", backupDir); err != nil {
+	if err := cmd.Run("-metadir", config.Meta.Dir, "-datadir", config.Data.Dir, "-database", "mydb", fullBackupDir); err != nil {
 		t.Fatalf("error restoring: %s", err.Error())
 	}
 
@@ -97,6 +129,26 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	}
 	if res != expected {
 		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", expected, res)
+	}
+
+	_, port, err := net.SplitHostPort(config.BindAddress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostAddress := net.JoinHostPort("localhost", port)
+	cmd.Run("-host", hostAddress, "-online", "-newdb", "mydbbak", "-db", "mydb", partialBackupDir)
+	res, err = s.Query(`show databases`)
+
+	// wait for the import to finish, and unlock the shard engine.
+	time.Sleep(time.Second)
+
+	res, err = s.Query(`select * from "mydbbak"."forever"."myseries"`)
+	if err != nil {
+		t.Fatalf("error querying: %s", err.Error())
+	}
+
+	if res != partialExpected {
+		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
 	}
 }
 

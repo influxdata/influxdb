@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
+	intar "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
@@ -776,70 +777,20 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	if err != nil {
 		return err
 	}
-
-	tw := tar.NewWriter(w)
-	defer tw.Close()
-
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
 
-	// Recursively read all files from path.
-	files, err := readDir(path, "")
-	if err != nil {
-		return err
-	}
-
-	// Filter paths to only changed files.
-	var filtered []string
-	for _, file := range files {
-		fi, err := os.Stat(filepath.Join(path, file))
-		if err != nil {
-			return err
-		} else if !fi.ModTime().After(since) {
-			continue
-		}
-		filtered = append(filtered, file)
-	}
-	if len(filtered) == 0 {
-		return nil
-	}
-
-	for _, f := range filtered {
-		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return intar.StreamFunc(w, path, basePath, intar.SinceFilterTarFile(since))
 }
 
-func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
-	path, err := e.CreateSnapshot()
-	if err != nil {
-		return err
-	}
-
-	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
-
-	tw := tar.NewWriter(w)
-	defer tw.Close()
-
-	// Recursively read all files from path.
-	files, err := readDir(path, "")
-	if err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		if !strings.HasSuffix(file, ".tsm") {
-			if err := e.writeFileToBackup(file, basePath, filepath.Join(path, file), tw); err != nil {
-				return err
-			}
+func (e *Engine) timeStampFilterTarFile(start, end time.Time) func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
+	return func(fi os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
+		if !strings.HasSuffix(fi.Name(), ".tsm") {
+			return intar.TarFile(fi, shardRelativePath, fullPath, tw)
 		}
 
 		var tombstonePath string
-		f, err := os.Open(filepath.Join(path, file))
+		f, err := os.Open(fullPath)
 		if err != nil {
 			return err
 		}
@@ -851,6 +802,7 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		// Grab the tombstone file if one exists.
 		if r.HasTombstones() {
 			tombstonePath = filepath.Base(r.TombstoneFiles()[0].Path)
+			return intar.TarFile(fi, shardRelativePath, tombstonePath, tw)
 		}
 
 		min, max := r.TimeRange()
@@ -861,7 +813,7 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		if min >= stun && min <= eun && max > eun || // overlap to the right
 			max >= stun && max <= eun && min < stun || // overlap to the left
 			min <= stun && max >= eun { // TSM file has a range LARGER than the boundary
-			err := e.filterFileToBackup(r, file, basePath, filepath.Join(path, file), start.UnixNano(), end.UnixNano(), tw)
+			err := e.filterFileToBackup(r, fi, shardRelativePath, fullPath, start.UnixNano(), end.UnixNano(), tw)
 			if err != nil {
 				if err := r.Close(); err != nil {
 					return err
@@ -878,24 +830,26 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 
 		// the TSM file is 100% inside the range, so we can just write it without scanning each block
 		if min >= start.UnixNano() && max <= end.UnixNano() {
-			if err := e.writeFileToBackup(file, basePath, filepath.Join(path, file), tw); err != nil {
+			if err := intar.TarFile(fi, shardRelativePath, fullPath, tw); err != nil {
 				return err
 			}
 		}
-
-		// if this TSM file had a tombstone we'll write out the whole thing too.
-		if tombstonePath != "" {
-			if err := e.writeFileToBackup(tombstonePath, basePath, filepath.Join(path, tombstonePath), tw); err != nil {
-				return err
-			}
-		}
-
+		return nil
 	}
-
-	return nil
 }
 
-func (e *Engine) filterFileToBackup(r *TSMReader, name, shardRelativePath, fullPath string, start, end int64, tw *tar.Writer) error {
+func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
+	path, err := e.CreateSnapshot()
+	if err != nil {
+		return err
+	}
+	// Remove the temporary snapshot dir
+	defer os.RemoveAll(path)
+
+	return intar.StreamFunc(w, path, basePath, e.timeStampFilterTarFile(start, end))
+}
+
+func (e *Engine) filterFileToBackup(r *TSMReader, fi os.FileInfo, shardRelativePath, fullPath string, start, end int64, tw *tar.Writer) error {
 	path := fullPath + ".tmp"
 	out, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
@@ -943,36 +897,7 @@ func (e *Engine) filterFileToBackup(r *TSMReader, name, shardRelativePath, fullP
 		return err
 	}
 
-	return e.writeFileToBackup(name, shardRelativePath, path, tw)
-}
-
-// writeFileToBackup copies the file into the tar archive. Files will use the shardRelativePath
-// in their names. This should be the <db>/<retention policy>/<id> part of the path.
-func (e *Engine) writeFileToBackup(name string, shardRelativePath, fullPath string, tw *tar.Writer) error {
-	f, err := os.Stat(fullPath)
-	if err != nil {
-		return err
-	}
-
-	h := &tar.Header{
-		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, name)),
-		ModTime: f.ModTime(),
-		Size:    f.Size(),
-		Mode:    int64(f.Mode()),
-	}
-	if err := tw.WriteHeader(h); err != nil {
-		return err
-	}
-	fr, err := os.Open(fullPath)
-	if err != nil {
-		return err
-	}
-
-	defer fr.Close()
-
-	_, err = io.CopyN(tw, fr, h.Size)
-
-	return err
+	return intar.TarFile(fi, shardRelativePath, path, tw)
 }
 
 // Restore reads a tar archive generated by Backup().
@@ -1034,12 +959,16 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 	readers := make([]chan seriesKey, 0, len(newFiles))
 	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
 	for _, f := range newFiles {
-		ch := make(chan seriesKey, 1)
-		readers = append(readers, ch)
-
 		// If asNew is true, the files created from readFileFromBackup will be new ones
 		// having a temp extension.
 		f = strings.TrimSuffix(f, ext)
+		if !strings.HasSuffix(f, TSMFileExtension) {
+			// This isn't a .tsm file.
+			continue
+		}
+
+		ch := make(chan seriesKey, 1)
+		readers = append(readers, ch)
 
 		fd, err := os.Open(f)
 		if err != nil {
@@ -1089,8 +1018,12 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 		return "", err
 	}
 
-	nativeFileName := filepath.FromSlash(hdr.Name)
+	if !strings.HasSuffix(hdr.Name, TSMFileExtension) {
+		// This isn't a .tsm file.
+		return "", nil
+	}
 
+	nativeFileName := filepath.FromSlash(hdr.Name)
 	// Skip file if it does not have a matching prefix.
 	if !filepath.HasPrefix(nativeFileName, shardRelativePath) {
 		return "", nil
@@ -1098,6 +1031,14 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 	filename, err := filepath.Rel(shardRelativePath, nativeFileName)
 	if err != nil {
 		return "", err
+	}
+
+	// If this is a directory entry (usually just `index` for tsi), create it an move on.
+	if hdr.Typeflag == tar.TypeDir {
+		if err := os.MkdirAll(filepath.Join(e.path, filename), os.FileMode(hdr.Mode).Perm()); err != nil {
+			return "", err
+		}
+		return "", nil
 	}
 
 	if asNew {
@@ -1136,9 +1077,14 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType) erro
 		return err
 	}
 
+	tags := models.ParseTags(seriesKey)
 	// Build in-memory index, if necessary.
 	if e.index.Type() == inmem.IndexName {
-		if err := e.index.InitializeSeries(seriesKey, name, models.ParseTags(seriesKey)); err != nil {
+		if err := e.index.InitializeSeries(seriesKey, name, tags); err != nil {
+			return err
+		}
+	} else {
+		if err := e.index.CreateSeriesIfNotExists(seriesKey, name, tags); err != nil {
 			return err
 		}
 	}
