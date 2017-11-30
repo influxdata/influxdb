@@ -21,11 +21,11 @@ type MockUsers struct{}
 
 func TestService_Me(t *testing.T) {
 	type fields struct {
-		UsersStore            chronograf.UsersStore
-		OrganizationsStore    chronograf.OrganizationsStore
-		Logger                chronograf.Logger
-		UseAuth               bool
-		NewUsersNotSuperAdmin bool
+		UsersStore              chronograf.UsersStore
+		OrganizationsStore      chronograf.OrganizationsStore
+		Logger                  chronograf.Logger
+		UseAuth                 bool
+		SuperAdminFirstUserOnly bool
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -47,9 +47,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -179,9 +179,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: false,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: false,
+				Logger:                  log.New(log.DebugLevel),
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -235,9 +235,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -291,9 +291,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -347,8 +347,8 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -396,9 +396,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               false,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 false,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
@@ -412,9 +412,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 			},
 			wantStatus: http.StatusUnprocessableEntity,
 			principal: oauth2.Principal{
@@ -476,9 +476,9 @@ func TestService_Me(t *testing.T) {
 				UsersStore:         tt.fields.UsersStore,
 				OrganizationsStore: tt.fields.OrganizationsStore,
 			},
-			Logger:                tt.fields.Logger,
-			UseAuth:               tt.fields.UseAuth,
-			NewUsersNotSuperAdmin: tt.fields.NewUsersNotSuperAdmin,
+			Logger:                  tt.fields.Logger,
+			UseAuth:                 tt.fields.UseAuth,
+			SuperAdminFirstUserOnly: tt.fields.SuperAdminFirstUserOnly,
 		}
 
 		s.Me(tt.args.w, tt.args.r)

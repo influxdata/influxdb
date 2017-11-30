@@ -313,7 +313,7 @@ func (s *Service) newUsersAreSuperAdmin() bool {
 	if s.firstUser() {
 		return true
 	}
-	return !s.NewUsersNotSuperAdmin
+	return !s.SuperAdminFirstUserOnly
 }
 
 func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {
