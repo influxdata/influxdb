@@ -1,5 +1,7 @@
 package chronograf
 
+import "encoding/json"
+
 // AlertHandlers defines all possible kapacitor interactions with an alert.
 type AlertHandlers struct {
 	IsStateChangesOnly bool         `json:"stateChangesOnly"` // IsStateChangesOnly will only send alerts on state changes.
@@ -11,27 +13,27 @@ type AlertHandlers struct {
 	Email              []*Email     `json:"email"`            // Email  will send alert data to the specified emails.
 	Exec               []*Exec      `json:"exec"`             // Exec  will run shell commandss when an alert triggers
 	Log                []*Log       `json:"log"`              // Log  will log JSON alert data to files in JSON lines format.
-	VictorOps          []*VictorOps `json:"victorOps"`        // VictorOps  will send alert to all VictorOps  .
-	PagerDuty          []*PagerDuty `json:"pagerDuty"`        // PagerDuty  will send alert to all PagerDuty  .
-	Pushover           []*Pushover  `json:"pushover"`         // Pushover  will send alert to all Pushover  .
-	Sensu              []*Sensu     `json:"sensu"`            // Sensu  will send alert to all Sensu  .
-	Slack              []*Slack     `json:"slack"`            // Slack  will send alert to Slack  .
-	Telegram           []*Telegram  `json:"telegram"`         // Telegram  will send alert to all Telegram  .
-	HipChat            []*HipChat   `json:"hipChat"`          // HipChat  will send alert to all HipChat  .
-	Alerta             []*Alerta    `json:"alerta"`           // Alerta  will send alert to all Alerta  .
-	OpsGenie           []*OpsGenie  `json:"opsGenie"`         // OpsGenie  will send alert to all OpsGenie  .
-	Talk               []*Talk      `json:"talk"`             // Talk  will send alert to all Talk  .
+	VictorOps          []*VictorOps `json:"victorOps"`        // VictorOps  will send alert to all VictorOps
+	PagerDuty          []*PagerDuty `json:"pagerDuty"`        // PagerDuty  will send alert to all PagerDuty
+	Pushover           []*Pushover  `json:"pushover"`         // Pushover  will send alert to all Pushover
+	Sensu              []*Sensu     `json:"sensu"`            // Sensu  will send alert to all Sensu
+	Slack              []*Slack     `json:"slack"`            // Slack  will send alert to Slack
+	Telegram           []*Telegram  `json:"telegram"`         // Telegram  will send alert to all Telegram
+	HipChat            []*HipChat   `json:"hipChat"`          // HipChat  will send alert to all HipChat
+	Alerta             []*Alerta    `json:"alerta"`           // Alerta  will send alert to all Alerta
+	OpsGenie           []*OpsGenie  `json:"opsGenie"`         // OpsGenie  will send alert to all OpsGenie
+	Talk               []*Talk      `json:"talk"`             // Talk  will send alert to all Talk
 }
 
 // Post will POST alerts to a destination URL
 type Post struct {
-	URL     string            `json:"url"` // URL is the destination of the POST.
-	Headers map[string]string `json:"headers"`
+	URL     string            `json:"url"`     // URL is the destination of the POST.
+	Headers map[string]string `json:"headers"` // Headers are added to the output POST
 }
 
 // Log sends the output of the alert to a file
 type Log struct {
-	FilePath string `json:"filePath"` // Absolute path the the log file. // It will be created if it does not exist.
+	FilePath string `json:"filePath"` // Absolute path the the log file; it will be created if it does not exist.
 }
 
 // Alerta sends the output of the alert to an alerta service
@@ -58,7 +60,7 @@ type TCP struct {
 
 // Email sends the alert to a list of email addresses
 type Email struct {
-	ToList []string `json:"to"` // ToList is the list of email recipients.
+	To []string `json:"to"` // ToList is the list of email recipients.
 }
 
 // VictorOps sends alerts to the victorops.com service
@@ -132,3 +134,17 @@ type OpsGenie struct {
 
 // Talk sends alerts to Jane Talk (https://jianliao.com/site)
 type Talk struct{}
+
+// MarshalJSON converts AlertHandlers to JSON
+func (n *AlertHandlers) MarshalJSON() ([]byte, error) {
+	type Alias AlertHandlers
+	var raw = &struct {
+		Type string `json:"typeOf"`
+		*Alias
+	}{
+		Type:  "alert",
+		Alias: (*Alias)(n),
+	}
+
+	return json.Marshal(raw)
+}

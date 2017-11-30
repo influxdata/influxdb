@@ -1112,7 +1112,7 @@ func TestClient_Update(t *testing.T) {
 					},
 					Trigger: Relative,
 					TriggerValues: chronograf.TriggerValues{
-						Operator: InsideRange,
+						Operator: insideRange,
 					},
 				},
 			},

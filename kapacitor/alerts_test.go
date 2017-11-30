@@ -1,6 +1,7 @@
 package kapacitor
 
 import (
+	"log"
 	"testing"
 
 	"github.com/influxdata/chronograf"
@@ -16,34 +17,24 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test several valid services",
 			rule: chronograf.AlertRule{
-				Alerts: []string{"slack", "victorops", "email"},
+				AlertHandlers: chronograf.AlertHandlers{
+					Slack:     []*chronograf.Slack{{}},
+					VictorOps: []*chronograf.VictorOps{{}},
+					Email:     []*chronograf.Email{{}},
+				},
 			},
 			want: `alert()
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 `,
-		},
-		{
-			name: "Test single invalid services amongst several valid",
-			rule: chronograf.AlertRule{
-				Alerts: []string{"slack", "invalid", "email"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name: "Test single invalid service",
-			rule: chronograf.AlertRule{
-				Alerts: []string{"invalid"},
-			},
-			want:    ``,
-			wantErr: true,
 		},
 		{
 			name: "Test single valid service",
 			rule: chronograf.AlertRule{
-				Alerts: []string{"slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					Slack: []*chronograf.Slack{{}},
+				},
 			},
 			want: `alert()
         .slack()
@@ -52,15 +43,10 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test single valid service and property",
 			rule: chronograf.AlertRule{
-				Alerts: []string{"slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "slack",
-						Properties: []chronograf.KapacitorProperty{
-							{
-								Name: "channel",
-								Args: []string{"#general"},
-							},
+				AlertHandlers: chronograf.AlertHandlers{
+					Slack: []*chronograf.Slack{
+						{
+							Channel: "#general",
 						},
 					},
 				},
@@ -73,10 +59,11 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test tcp",
 			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "tcp",
-						Args: []string{"myaddress:22"},
+				AlertHandlers: chronograf.AlertHandlers{
+					TCPs: []*chronograf.TCP{
+						{
+							Address: "myaddress:22",
+						},
 					},
 				},
 			},
@@ -87,10 +74,8 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test tcp no argument",
 			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "tcp",
-					},
+				AlertHandlers: chronograf.AlertHandlers{
+					TCPs: []*chronograf.TCP{{}},
 				},
 			},
 			wantErr: true,
@@ -98,10 +83,11 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test log",
 			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "log",
-						Args: []string{"/tmp/alerts.log"},
+				AlertHandlers: chronograf.AlertHandlers{
+					Log: []*chronograf.Log{
+						{
+							FilePath: "/tmp/alerts.log",
+						},
 					},
 				},
 			},
@@ -112,10 +98,8 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test log no argument",
 			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "log",
-					},
+				AlertHandlers: chronograf.AlertHandlers{
+					Log: []*chronograf.Log{{}},
 				},
 			},
 			wantErr: true,
@@ -123,11 +107,10 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test tcp no argument with other services",
 			rule: chronograf.AlertRule{
-				Alerts: []string{"slack", "tcp", "email"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "tcp",
-					},
+				AlertHandlers: chronograf.AlertHandlers{
+					Slack: []*chronograf.Slack{{}},
+					TCPs:  []*chronograf.TCP{{}},
+					Email: []*chronograf.Email{{}},
 				},
 			},
 			wantErr: true,
@@ -135,24 +118,11 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test http as post",
 			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "http",
-						Args: []string{"http://myaddress"},
-					},
-				},
-			},
-			want: `alert()
-        .post('http://myaddress')
-`,
-		},
-		{
-			name: "Test post",
-			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "post",
-						Args: []string{"http://myaddress"},
+				AlertHandlers: chronograf.AlertHandlers{
+					Posts: []*chronograf.Post{
+						{
+							URL: "http://myaddress",
+						},
 					},
 				},
 			},
@@ -163,9 +133,11 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test http no arguments",
 			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "http",
+				AlertHandlers: chronograf.AlertHandlers{
+					Posts: []*chronograf.Post{
+						{
+							URL: "",
+						},
 					},
 				},
 			},
@@ -176,15 +148,11 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test post with headers",
 			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "post",
-						Args: []string{"http://myaddress"},
-						Properties: []chronograf.KapacitorProperty{
-							{
-								Name: "header",
-								Args: []string{"key", "value"},
-							},
+				AlertHandlers: chronograf.AlertHandlers{
+					Posts: []*chronograf.Post{
+						{
+							URL:     "http://myaddress",
+							Headers: map[string]string{"key": "value"},
 						},
 					},
 				},
@@ -194,31 +162,11 @@ func TestAlertServices(t *testing.T) {
         .header('key', 'value')
 `,
 		},
-		{
-			name: "Test post with headers",
-			rule: chronograf.AlertRule{
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "post",
-						Args: []string{"http://myaddress"},
-						Properties: []chronograf.KapacitorProperty{
-							{
-								Name: "endpoint",
-								Args: []string{"myendpoint"},
-							},
-						},
-					},
-				},
-			},
-			want: `alert()
-        .post('http://myaddress')
-        .endpoint('myendpoint')
-`,
-		},
 	}
 	for _, tt := range tests {
 		got, err := AlertServices(tt.rule)
 		if (err != nil) != tt.wantErr {
+			log.Printf("GOT %s", got)
 			t.Errorf("%q. AlertServices() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
@@ -233,5 +181,48 @@ func TestAlertServices(t *testing.T) {
 		if formatted != tt.want {
 			t.Errorf("%q. AlertServices() = %v, want %v", tt.name, formatted, tt.want)
 		}
+	}
+}
+
+func Test_addAlertNodes(t *testing.T) {
+	tests := []struct {
+		name     string
+		handlers chronograf.AlertHandlers
+		want     string
+		wantErr  bool
+	}{
+		{
+			name: "foo",
+			handlers: chronograf.AlertHandlers{
+				IsStateChangesOnly: true,
+				Message:            "mymessage",
+				Details:            "mydetails",
+				Email: []*chronograf.Email{
+					{
+						To: []string{
+							"me@me.com", "you@you.com",
+						},
+					},
+				},
+			},
+			want: `
+        .stateChangesOnly()
+        .email()
+        .to('me@me.com')
+        .to('you@you.com')
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := addAlertNodes(tt.handlers)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("addAlertNodes() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("addAlertNodes() =\n%v\n, want\n%v", got, tt.want)
+			}
+		})
 	}
 }
