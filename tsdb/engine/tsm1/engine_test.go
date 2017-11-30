@@ -718,6 +718,80 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 	}
 }
 
+func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			// Create a few points.
+			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000") // Should not be deleted
+
+			e := NewEngine(index)
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+
+			if err := e.Open(); err != nil {
+				panic(err)
+			}
+			defer e.Close()
+
+			for _, p := range []models.Point{p1} {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+					t.Fatalf("create series index error: %v", err)
+				}
+			}
+
+			if err := e.WritePoints([]models.Point{p1}); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+			if err := e.WriteSnapshot(); err != nil {
+				t.Fatalf("failed to snapshot: %s", err.Error())
+			}
+
+			keys := e.FileStore.Keys()
+			if exp, got := 1, len(keys); exp != got {
+				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+			}
+
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
+				t.Fatalf("failed to delete series: %v", err)
+			}
+
+			keys = e.FileStore.Keys()
+			if exp, got := 1, len(keys); exp != got {
+				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+			}
+
+			exp := "cpu,host=A#!~#value"
+			if _, ok := keys[exp]; !ok {
+				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
+			}
+
+			// Check that the series still exists in the index
+			iter, err := e.MeasurementSeriesKeysByExprIterator([]byte("cpu"), nil)
+			if err != nil {
+				t.Fatalf("iterator error: %v", err)
+			}
+
+			if iter == nil {
+				t.Fatalf("series iterator nil")
+			}
+
+			elem := iter.Next()
+			if elem == nil {
+				t.Fatalf("series index mismatch: got nil, exp 1 series")
+			}
+
+			if got, exp := elem.Name(), []byte("cpu"); !bytes.Equal(got, exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			if got, exp := elem.Tags(), models.NewTags(map[string]string{"host": "A"}); !got.Equal(exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+		})
+	}
+}
+
 func TestEngine_LastModified(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {

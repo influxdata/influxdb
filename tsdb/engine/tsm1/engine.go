@@ -1204,21 +1204,11 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// Note: this is inherently racy if writes are occuring to the same measurement/series are
 	// being removed.  A write could occur and exist in the cache at this point, but we
 	// would delete it from the index.
-	minKey, maxKey := seriesKeys[0], seriesKeys[len(seriesKeys)-1]
+	minKey := seriesKeys[0]
 
 	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
 	// by different goroutines setting positions to nil.
 	if err := e.FileStore.Apply(func(r TSMFile) error {
-		tsmMin, tsmMax := r.KeyRange()
-
-		tsmMin, _ = SeriesAndFieldFromCompositeKey(tsmMin)
-		tsmMax, _ = SeriesAndFieldFromCompositeKey(tsmMax)
-
-		overlaps := bytes.Compare(tsmMin, maxKey) <= 0 && bytes.Compare(tsmMax, minKey) >= 0
-		if !overlaps || !r.OverlapsTimeRange(min, max) {
-			return nil
-		}
-
 		n := r.KeyCount()
 		var j int
 
