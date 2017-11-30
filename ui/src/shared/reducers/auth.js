@@ -8,8 +8,6 @@ const getInitialState = () => ({
 
 import {getMeRole} from 'shared/reducers/helpers/auth'
 
-import {DEFAULT_ORG_NAME} from 'src/admin/constants/chronografAdmin'
-
 export const initialState = getInitialState()
 
 const authReducer = (state = initialState, action) => {
@@ -43,7 +41,7 @@ const authReducer = (state = initialState, action) => {
         me: {
           ...me,
           role: getMeRole(me),
-          currentOrganization: currentOrganization || DEFAULT_ORG_NAME, // TODO: make sure currentOrganization is received as non-superadmin
+          currentOrganization,
         },
         isMeLoading: false,
       }
