@@ -44,8 +44,13 @@ const adminChronograf = (state = initialState, action) => {
       const {user} = action.payload
       return {
         ...state,
-        // stale user does not have links, so uniqueness is on name, provider, & scheme
-        users: state.users.filter(u => !isSameUser(u, user)),
+        // stale user does not necessarily have links, so uniqueness is on name,
+        // provider, & scheme, except for a created users that is a duplicate
+        // of an existing user, in which case a temp uuid is used to match
+        users: state.users.filter(
+          u =>
+            user._tempID ? u._tempID !== user._tempID : !isSameUser(u, user)
+        ),
       }
     }
 
