@@ -72,15 +72,6 @@ func TestAlertServices(t *testing.T) {
 `,
 		},
 		{
-			name: "Test tcp no argument",
-			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
-					TCPs: []*chronograf.TCP{{}},
-				},
-			},
-			wantErr: true,
-		},
-		{
 			name: "Test log",
 			rule: chronograf.AlertRule{
 				AlertHandlers: chronograf.AlertHandlers{
@@ -96,26 +87,6 @@ func TestAlertServices(t *testing.T) {
 `,
 		},
 		{
-			name: "Test log no argument",
-			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
-					Log: []*chronograf.Log{{}},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "Test tcp no argument with other services",
-			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
-					Slack: []*chronograf.Slack{{}},
-					TCPs:  []*chronograf.TCP{{}},
-					Email: []*chronograf.Email{{}},
-				},
-			},
-			wantErr: true,
-		},
-		{
 			name: "Test http as post",
 			rule: chronograf.AlertRule{
 				AlertHandlers: chronograf.AlertHandlers{
@@ -128,21 +99,6 @@ func TestAlertServices(t *testing.T) {
 			},
 			want: `alert()
         .post('http://myaddress')
-`,
-		},
-		{
-			name: "Test http no arguments",
-			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
-					Posts: []*chronograf.Post{
-						{
-							URL: "",
-						},
-					},
-				},
-			},
-			want: `alert()
-        .post()
 `,
 		},
 		{
