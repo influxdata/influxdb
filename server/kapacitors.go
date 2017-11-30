@@ -358,26 +358,111 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 		},
 	}
 
-	if res.Alerts == nil {
-		res.Alerts = make([]string, 0)
+	if res.AlertHandlers.Alerta == nil {
+		res.AlertHandlers.Alerta = []*chronograf.Alerta{}
 	}
 
-	if res.AlertNodes == nil {
-		res.AlertNodes = make([]chronograf.KapacitorNode, 0)
+	for i, a := range res.AlertHandlers.Alerta {
+		if a.Service == nil {
+			a.Service = []string{}
+			res.AlertHandlers.Alerta[i] = a
+		}
 	}
 
-	for _, n := range res.AlertNodes {
-		if n.Args == nil {
-			n.Args = make([]string, 0)
+	if res.AlertHandlers.Email == nil {
+		res.AlertHandlers.Email = []*chronograf.Email{}
+	}
+
+	for i, a := range res.AlertHandlers.Email {
+		if a.To == nil {
+			a.To = []string{}
+			res.AlertHandlers.Email[i] = a
 		}
-		if n.Properties == nil {
-			n.Properties = make([]chronograf.KapacitorProperty, 0)
+	}
+
+	if res.AlertHandlers.Exec == nil {
+		res.AlertHandlers.Exec = []*chronograf.Exec{}
+	}
+
+	for i, a := range res.AlertHandlers.Exec {
+		if a.Command == nil {
+			a.Command = []string{}
+			res.AlertHandlers.Exec[i] = a
 		}
-		for _, p := range n.Properties {
-			if p.Args == nil {
-				p.Args = make([]string, 0)
-			}
+	}
+
+	if res.AlertHandlers.HipChat == nil {
+		res.AlertHandlers.HipChat = []*chronograf.HipChat{}
+	}
+
+	if res.AlertHandlers.Log == nil {
+		res.AlertHandlers.Log = []*chronograf.Log{}
+	}
+
+	if res.AlertHandlers.OpsGenie == nil {
+		res.AlertHandlers.OpsGenie = []*chronograf.OpsGenie{}
+	}
+
+	for i, a := range res.AlertHandlers.OpsGenie {
+		if a.Teams == nil {
+			a.Teams = []string{}
+			res.AlertHandlers.OpsGenie[i] = a
 		}
+
+		if a.Recipients == nil {
+			a.Recipients = []string{}
+			res.AlertHandlers.OpsGenie[i] = a
+		}
+	}
+
+	if res.AlertHandlers.PagerDuty == nil {
+		res.AlertHandlers.PagerDuty = []*chronograf.PagerDuty{}
+	}
+
+	if res.AlertHandlers.Posts == nil {
+		res.AlertHandlers.Posts = []*chronograf.Post{}
+	}
+
+	for i, a := range res.AlertHandlers.Posts {
+		if a.Headers == nil {
+			a.Headers = map[string]string{}
+			res.AlertHandlers.Posts[i] = a
+		}
+	}
+
+	if res.AlertHandlers.Pushover == nil {
+		res.AlertHandlers.Pushover = []*chronograf.Pushover{}
+	}
+
+	if res.AlertHandlers.Sensu == nil {
+		res.AlertHandlers.Sensu = []*chronograf.Sensu{}
+	}
+
+	for i, a := range res.AlertHandlers.Sensu {
+		if a.Handlers == nil {
+			a.Handlers = []string{}
+			res.AlertHandlers.Sensu[i] = a
+		}
+	}
+
+	if res.AlertHandlers.Slack == nil {
+		res.AlertHandlers.Slack = []*chronograf.Slack{}
+	}
+
+	if res.AlertHandlers.Talk == nil {
+		res.AlertHandlers.Talk = []*chronograf.Talk{}
+	}
+
+	if res.AlertHandlers.TCPs == nil {
+		res.AlertHandlers.TCPs = []*chronograf.TCP{}
+	}
+
+	if res.AlertHandlers.Telegram == nil {
+		res.AlertHandlers.Telegram = []*chronograf.Telegram{}
+	}
+
+	if res.AlertHandlers.VictorOps == nil {
+		res.AlertHandlers.VictorOps = []*chronograf.VictorOps{}
 	}
 
 	if res.Query != nil {
