@@ -1013,7 +1013,7 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 	}
 
 	elapsed := time.Since(start)
-	logger.Error("log file compacted",
+	logger.Info("log file compacted",
 		zap.String("elapsed", elapsed.String()),
 		zap.Int64("bytes", n),
 		zap.Int("kb_per_sec", int(float64(n)/elapsed.Seconds())/1024),
