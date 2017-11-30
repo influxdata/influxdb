@@ -4,6 +4,7 @@
 
 - [#9036](https://github.com/influxdata/influxdb/issues/9036): Add 'influx_inspect inmem2tsi' command.
 - [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
+- [#9185](https://github.com/influxdata/influxdb/pull/9185): Fix compaction aborting early and dropping remaining series
 
 ## v1.3.7 [2017-10-26]
 
