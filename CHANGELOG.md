@@ -7,6 +7,7 @@
 - [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
 - [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
 - [#9161](https://github.com/influxdata/influxdb/issues/9161): DELETE doesn't delete fresh data
+- [#9185](https://github.com/influxdata/influxdb/pull/9185): Fix compaction aborting early and dropping remaining series
 
 ## v1.4.2 [2017-11-15]
 
