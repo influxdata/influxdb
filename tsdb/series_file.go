@@ -21,7 +21,7 @@ import (
 // ErrSeriesOverflow is returned when too many series are added to a series writer.
 var ErrSeriesOverflow = errors.New("series overflow")
 
-// Series list field size constants.
+// SeriesIDSize is the size in bytes of a series key ID.
 const SeriesIDSize = 8
 
 // Series flag constants.
@@ -30,14 +30,16 @@ const (
 	SeriesFileTombstoneFlag = 0x01
 )
 
+// DefaultMaxSeriesFileSize is the maximum series file size. Assuming that each
+// series key takes, for example, 150 bytes, the limit would support ~229M series.
 const DefaultMaxSeriesFileSize = 32 * (1 << 30) // 32GB
 
-// MaxSeriesFileHashSize is the maximum number of series in a single hash.
-const MaxSeriesFileHashSize = (1048576 * SeriesMapLoadFactor) / 100
+// MaxSeriesFileHashSize is the maximum number of series in a single hash map.
+const MaxSeriesFileHashSize = (1 << 20 * SeriesMapLoadFactor) / 100 // (1MB * 90) / 100 == ~943K
 
-// SeriesMapThreshold is the number of series to hold in the in-memory series map
-// before compacting and rebuilding the on-disk map.
-const SeriesMapThreshold = 300000
+// SeriesMapThreshold is the number of series IDs to hold in the in-memory
+// series map before compacting and rebuilding the on-disk representation.
+const SeriesMapThreshold = 1 << 22 // ~4M ids * 8 bytes per id == ~32MB
 
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
