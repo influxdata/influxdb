@@ -100,3 +100,32 @@ export const updateTask = async (
     throw error
   }
 }
+
+export const getLogStream = kapacitor =>
+  fetch(`${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs`, {
+    method: 'GET',
+    headers: {'Content-Type': 'application/json'},
+  })
+
+export const getLogStreamByRuleID = (kapacitor, ruleID) =>
+  fetch(
+    `${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs?task=${ruleID}`,
+    {
+      method: 'GET',
+      headers: {'Content-Type': 'application/json'},
+    }
+  )
+
+export const pingKapacitorVersion = async kapacitor => {
+  try {
+    const result = await AJAX({
+      method: 'GET',
+      url: `${kapacitor.links.proxy}?path=/kapacitor/v1preview/ping`,
+    })
+    const kapVersion = result.headers['x-kapacitor-version']
+    return kapVersion === '' ? null : kapVersion
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

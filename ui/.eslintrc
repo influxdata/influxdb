@@ -48,7 +48,7 @@
     'arrow-parens': 0,
     'comma-dangle': [2, 'always-multiline'],
     'no-cond-assign': 2,
-    'no-console': ['error', {allow: ['error']}],
+    'no-console': ['error', {allow: ['error', 'warn']}],
     'no-constant-condition': 2,
     'no-control-regex': 2,
     'no-debugger': 2,

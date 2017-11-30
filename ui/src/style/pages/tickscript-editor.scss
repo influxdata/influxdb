@@ -1,0 +1,90 @@
+/*
+    Styles for TICKscript Editor
+    ----------------------------------------------------------------------------
+*/
+
+$tickscript-console-height: 60px;
+
+.tickscript {
+  flex: 1 0 0;
+}
+.tickscript-controls,
+.tickscript-console,
+.tickscript-editor {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  position: relative;
+}
+.tickscript-controls,
+.tickscript-console {
+  height: $tickscript-console-height;
+}
+.tickscript-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 60px;
+  background-color: $g3-castle;
+}
+.tickscript-controls--name {
+  margin: 0;
+  letter-spacing: 0;
+  @include no-user-select();
+  font-size: 17px;
+  font-weight: 400;
+  color: $g13-mist;
+}
+.tickscript-controls--right {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  > * {margin-left: 8px;}
+}
+.tickscript-console--output {
+  padding: 0 60px;
+  font-family: $code-font;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  background-color: $g2-kevlar;
+  border-bottom: 2px solid $g3-castle;
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: $radius $radius 0 0;
+
+  > p {
+    margin: 0;
+  }
+}
+.tickscript-console--default {
+  color: $g10-wolf;
+  font-style: italic;
+}
+.tickscript-editor {
+  height: calc(100% - #{$tickscript-console-height * 2});
+}
+
+/*
+    Toggle for displaying Logs
+    ----------------------------------------------------------------------------
+*/
+.logs-toggle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+
+  > li {
+    width: 100px;
+    justify-content: center;
+  }
+  > li:not(.active) {
+    background-color: $g0-obsidian;
+
+    &:hover {
+      background-color: $g3-castle;
+    }
+  }
+}
