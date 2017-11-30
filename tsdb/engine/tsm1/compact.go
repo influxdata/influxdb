@@ -1280,6 +1280,7 @@ func (k *tsmKeyIterator) hasMergedValues() bool {
 
 // Next returns true if there are any values remaining in the iterator.
 func (k *tsmKeyIterator) Next() bool {
+RETRY:
 	// Any merged blocks pending?
 	if len(k.merged) > 0 {
 		k.merged = k.merged[1:]
@@ -1413,6 +1414,12 @@ func (k *tsmKeyIterator) Next() bool {
 	}
 
 	k.merge()
+
+	// After merging all the values for this key, we might not have any.  (e.g. they were all deleted
+	// through many tombstones).  In this case, move on to the next key instead of ending iteration.
+	if len(k.merged) == 0 {
+		goto RETRY
+	}
 
 	return len(k.merged) > 0
 }
