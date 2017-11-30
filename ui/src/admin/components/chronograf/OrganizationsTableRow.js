@@ -4,8 +4,8 @@ import SlideToggle from 'shared/components/SlideToggle'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
 
-import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
-import {USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
+import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 
 const OrganizationsTableRowDeleteButton = ({organization, onClickDelete}) =>
   organization.id === DEFAULT_ORG_ID

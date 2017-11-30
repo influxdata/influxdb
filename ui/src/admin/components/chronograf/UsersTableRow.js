@@ -6,7 +6,7 @@ import Dropdown from 'shared/components/Dropdown'
 import SlideToggle from 'shared/components/SlideToggle'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
-import {USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const UsersTableRow = ({

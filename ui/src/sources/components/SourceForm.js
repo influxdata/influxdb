@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
 import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
-import {USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import _ from 'lodash'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'

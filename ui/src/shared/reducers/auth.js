@@ -8,7 +8,7 @@ const getInitialState = () => ({
 
 import {getMeRole} from 'shared/reducers/helpers/auth'
 
-import {DEFAULT_ORG_NAME} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_NAME} from 'src/admin/constants/chronografAdmin'
 
 export const initialState = getInitialState()
 
