@@ -16,13 +16,13 @@ class DashboardsPage extends Component {
     this.props.handleGetDashboards()
   }
 
-  async handleCreateDashbord() {
+  handleCreateDashbord = async () => {
     const {source: {id}, router: {push}} = this.props
     const {data} = await createDashboard(NEW_DASHBOARD)
     push(`/sources/${id}/dashboards/${data.id}`)
   }
 
-  handleDeleteDashboard(dashboard) {
+  handleDeleteDashboard = dashboard => {
     this.props.handleDeleteDashboard(dashboard)
   }
 
