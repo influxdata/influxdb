@@ -58,6 +58,12 @@ func TestClient_MetastoreBackup_InvalidMetadata(t *testing.T) {
 			return
 		}
 
+		var typ [1]byte
+		if _, err := conn.Read(typ[:]); err != nil {
+			t.Errorf("unable to read typ header: %s", err)
+			return
+		}
+
 		var m map[string]interface{}
 		dec := json.NewDecoder(conn)
 		if err := dec.Decode(&m); err != nil {

@@ -132,6 +132,10 @@ func TestSnapshotter_RequestShardBackup(t *testing.T) {
 		Since:   time.Unix(0, 0),
 	}
 	conn.Write([]byte{snapshotter.MuxHeader})
+	_, err = conn.Write([]byte{byte(req.Type)})
+	if err != nil {
+		t.Errorf("could not encode request type to conn: %v", err)
+	}
 	enc := json.NewEncoder(conn)
 	if err := enc.Encode(&req); err != nil {
 		t.Errorf("unable to encode request: %s", err)
@@ -222,10 +226,14 @@ func TestSnapshotter_RequestDatabaseInfo(t *testing.T) {
 	defer conn.Close()
 
 	req := snapshotter.Request{
-		Type:     snapshotter.RequestDatabaseInfo,
-		Database: "db0",
+		Type:           snapshotter.RequestDatabaseInfo,
+		BackupDatabase: "db0",
 	}
 	conn.Write([]byte{snapshotter.MuxHeader})
+	_, err = conn.Write([]byte{byte(req.Type)})
+	if err != nil {
+		t.Errorf("could not encode request type to conn: %v", err)
+	}
 	enc := json.NewEncoder(conn)
 	if err := enc.Encode(&req); err != nil {
 		t.Errorf("unable to encode request: %s", err)
@@ -272,10 +280,14 @@ func TestSnapshotter_RequestDatabaseInfo_ErrDatabaseNotFound(t *testing.T) {
 	defer conn.Close()
 
 	req := snapshotter.Request{
-		Type:     snapshotter.RequestDatabaseInfo,
-		Database: "doesnotexist",
+		Type:           snapshotter.RequestDatabaseInfo,
+		BackupDatabase: "doesnotexist",
 	}
 	conn.Write([]byte{snapshotter.MuxHeader})
+	_, err = conn.Write([]byte{byte(req.Type)})
+	if err != nil {
+		t.Errorf("could not encode request type to conn: %v", err)
+	}
 	enc := json.NewEncoder(conn)
 	if err := enc.Encode(&req); err != nil {
 		t.Errorf("unable to encode request: %s", err)
@@ -332,11 +344,15 @@ func TestSnapshotter_RequestRetentionPolicyInfo(t *testing.T) {
 	defer conn.Close()
 
 	req := snapshotter.Request{
-		Type:            snapshotter.RequestRetentionPolicyInfo,
-		Database:        "db0",
-		RetentionPolicy: "rp0",
+		Type:                  snapshotter.RequestRetentionPolicyInfo,
+		BackupDatabase:        "db0",
+		BackupRetentionPolicy: "rp0",
 	}
 	conn.Write([]byte{snapshotter.MuxHeader})
+	_, err = conn.Write([]byte{byte(req.Type)})
+	if err != nil {
+		t.Errorf("could not encode request type to conn: %v", err)
+	}
 	enc := json.NewEncoder(conn)
 	if err := enc.Encode(&req); err != nil {
 		t.Errorf("unable to encode request: %s", err)

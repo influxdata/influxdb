@@ -42,6 +42,7 @@ type Engine interface {
 
 	CreateSnapshot() (string, error)
 	Backup(w io.Writer, basePath string, since time.Time) error
+	Export(w io.Writer, basePath string, start time.Time, end time.Time) error
 	Restore(r io.Reader, basePath string) error
 	Import(r io.Reader, basePath string) error
 
