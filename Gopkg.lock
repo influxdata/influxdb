@@ -71,7 +71,7 @@
 [[projects]]
   name = "github.com/influxdata/kapacitor"
   packages = ["client/v1","pipeline","pipeline/tick","services/k8s/client","tick","tick/ast","tick/stateful","udf/agent"]
-  revision = "291ca33f5d7b8b277cbb9a7afb65397d1769a99e"
+  revision = "6b3dc1247fd3e1c2a329b24ea6a0665fa6cf37c1"
 
 [[projects]]
   name = "github.com/influxdata/usage-client"
@@ -140,6 +140,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "46184c2d3fedb48dad6649bb1a97237bc5eef1f48ee1f4b69373e99783a2a47f"
+  inputs-digest = "8dfb14505e667cb0e0402350f84db401dcb54cb73d5d41384fec0b98a1d2ba8c"
   solver-name = "gps-cdcl"
   solver-version = 1
