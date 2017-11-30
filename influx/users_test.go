@@ -573,6 +573,102 @@ func TestClient_revokePermission(t *testing.T) {
 	}
 }
 
+func TestClient_Num(t *testing.T) {
+	type args struct {
+		ctx context.Context
+	}
+	tests := []struct {
+		name         string
+		args         args
+		statusUsers  int
+		showUsers    []byte
+		statusGrants int
+		showGrants   []byte
+		want         []chronograf.User
+		wantErr      bool
+	}{
+		{
+			name:         "All Users",
+			statusUsers:  http.StatusOK,
+			showUsers:    []byte(`{"results":[{"series":[{"columns":["user","admin"],"values":[["admin",true],["docbrown",true],["reader",false]]}]}]}`),
+			statusGrants: http.StatusOK,
+			showGrants:   []byte(`{"results":[{"series":[{"columns":["database","privilege"],"values":[["mydb","ALL PRIVILEGES"]]}]}]}`),
+			args: args{
+				ctx: context.Background(),
+			},
+			want: []chronograf.User{
+				{
+					Name: "admin",
+					Permissions: chronograf.Permissions{
+						chronograf.Permission{
+							Scope:   "all",
+							Allowed: []string{"ALL"},
+						},
+						chronograf.Permission{
+							Scope:   "database",
+							Name:    "mydb",
+							Allowed: []string{"WRITE", "READ"},
+						},
+					},
+				},
+				{
+					Name: "docbrown",
+					Permissions: chronograf.Permissions{
+						chronograf.Permission{
+							Scope:   "all",
+							Allowed: []string{"ALL"},
+						},
+						chronograf.Permission{
+							Scope:   "database",
+							Name:    "mydb",
+							Allowed: []string{"WRITE", "READ"},
+						},
+					},
+				},
+				{
+					Name: "reader",
+					Permissions: chronograf.Permissions{
+						chronograf.Permission{
+							Scope:   "database",
+							Name:    "mydb",
+							Allowed: []string{"WRITE", "READ"},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if path := r.URL.Path; path != "/query" {
+				t.Error("Expected the path to contain `/query` but was", path)
+			}
+			query := r.URL.Query().Get("q")
+			if strings.Contains(query, "GRANTS") {
+				rw.WriteHeader(tt.statusGrants)
+				rw.Write(tt.showGrants)
+			} else if strings.Contains(query, "USERS") {
+				rw.WriteHeader(tt.statusUsers)
+				rw.Write(tt.showUsers)
+			}
+		}))
+		u, _ := url.Parse(ts.URL)
+		c := &Client{
+			URL:    u,
+			Logger: log.New(log.DebugLevel),
+		}
+		defer ts.Close()
+		got, err := c.Num(tt.args.ctx)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. Client.Num() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if got != len(tt.want) {
+			t.Errorf("%q. Client.Num() = %v, want %v", tt.name, got, len(tt.want))
+		}
+	}
+}
+
 func TestClient_All(t *testing.T) {
 	type args struct {
 		ctx context.Context

@@ -31,3 +31,7 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 func (s *UsersStore) Update(context.Context, *chronograf.User) error {
 	return fmt.Errorf("failed to update user")
 }
+
+func (s *UsersStore) Num(context.Context) (int, error) {
+	return 0, fmt.Errorf("failed to get number of users")
+}
