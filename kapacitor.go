@@ -6,8 +6,6 @@ import "encoding/json"
 type AlertHandlers struct {
 	IsStateChangesOnly bool         `json:"stateChangesOnly"` // IsStateChangesOnly will only send alerts on state changes.
 	UseFlapping        bool         `json:"useFlapping"`      // UseFlapping enables flapping detection. Flapping occurs when a service or host changes state too frequently, resulting in a storm of problem and recovery notification
-	Message            string       `json:"message"`          // Message is a template for constructing a meaningful message for the alert.
-	Details            string       `json:"details"`          // Details is a template for constructing a detailed HTML message for the alert.
 	Posts              []*Post      `json:"post"`             // HTTPPost  will post the JSON alert data to the specified URLs.
 	TCPs               []*TCP       `json:"tcp"`              // TCP  will send the JSON alert data to the specified endpoint via TCP.
 	Email              []*Email     `json:"email"`            // Email  will send alert data to the specified emails.

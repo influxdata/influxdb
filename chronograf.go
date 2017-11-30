@@ -225,26 +225,24 @@ type DBRP struct {
 
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
-	ID            string          `json:"id,omitempty"`           // ID is the unique ID of the alert
-	TICKScript    TICKScript      `json:"tickscript"`             // TICKScript is the raw tickscript associated with this Alert
-	Query         *QueryConfig    `json:"query"`                  // Query is the filter of data for the alert.
-	Every         string          `json:"every"`                  // Every how often to check for the alerting criteria
-	Alerts        []string        `json:"alerts"`                 // Alerts name all the services to notify (e.g. pagerduty)
-	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"`   // AlertNodes define additional arguments to alerts
-	AlertHandlers AlertHandlers   `json:"alertHandlers"`          // AlertHandlers defines the destinations for the alert
-	Message       string          `json:"message"`                // Message included with alert
-	Details       string          `json:"details"`                // Details is generally used for the Email alert.  If empty will not be added.
-	Trigger       string          `json:"trigger"`                // Trigger is a type that defines when to trigger the alert
-	TriggerValues TriggerValues   `json:"values"`                 // Defines the values that cause the alert to trigger
-	Name          string          `json:"name"`                   // Name is the user-defined name for the alert
-	Type          string          `json:"type"`                   // Represents the task type where stream is data streamed to kapacitor and batch is queried by kapacitor
-	DBRPs         []DBRP          `json:"dbrps"`                  // List of database retention policy pairs the task is allowed to access
-	Status        string          `json:"status"`                 // Represents if this rule is enabled or disabled in kapacitor
-	Executing     bool            `json:"executing"`              // Whether the task is currently executing
-	Error         string          `json:"error"`                  // Any error encountered when kapacitor executes the task
-	Created       time.Time       `json:"created"`                // Date the task was first created
-	Modified      time.Time       `json:"modified"`               // Date the task was last modified
-	LastEnabled   time.Time       `json:"last-enabled,omitempty"` // Date the task was last set to status enabled
+	ID            string        `json:"id,omitempty"`           // ID is the unique ID of the alert
+	TICKScript    TICKScript    `json:"tickscript"`             // TICKScript is the raw tickscript associated with this Alert
+	Query         *QueryConfig  `json:"query"`                  // Query is the filter of data for the alert.
+	Every         string        `json:"every"`                  // Every how often to check for the alerting criteria
+	AlertHandlers AlertHandlers `json:"alertHandlers"`          // AlertHandlers defines the destinations for the alert
+	Message       string        `json:"message"`                // Message included with alert
+	Details       string        `json:"details"`                // Details is generally used for the Email alert.  If empty will not be added.
+	Trigger       string        `json:"trigger"`                // Trigger is a type that defines when to trigger the alert
+	TriggerValues TriggerValues `json:"values"`                 // Defines the values that cause the alert to trigger
+	Name          string        `json:"name"`                   // Name is the user-defined name for the alert
+	Type          string        `json:"type"`                   // Represents the task type where stream is data streamed to kapacitor and batch is queried by kapacitor
+	DBRPs         []DBRP        `json:"dbrps"`                  // List of database retention policy pairs the task is allowed to access
+	Status        string        `json:"status"`                 // Represents if this rule is enabled or disabled in kapacitor
+	Executing     bool          `json:"executing"`              // Whether the task is currently executing
+	Error         string        `json:"error"`                  // Any error encountered when kapacitor executes the task
+	Created       time.Time     `json:"created"`                // Date the task was first created
+	Modified      time.Time     `json:"modified"`               // Date the task was last modified
+	LastEnabled   time.Time     `json:"last-enabled,omitempty"` // Date the task was last set to status enabled
 }
 
 // TICKScript task to be used by kapacitor
