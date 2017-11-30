@@ -81,9 +81,13 @@ func (mux *Mux) Serve(ln net.Listener) error {
 		if err != nil {
 			// Wait for all connections to be demux
 			mux.wg.Wait()
+
+			mux.mu.Lock()
 			for _, ln := range mux.m {
 				close(ln.c)
 			}
+			mux.m = nil
+			mux.mu.Unlock()
 
 			if mux.defaultListener != nil {
 				close(mux.defaultListener.c)
@@ -169,6 +173,20 @@ func (mux *Mux) Listen(header byte) net.Listener {
 	return ln
 }
 
+// release removes the listener from the mux.
+func (mux *Mux) release(ln *listener) bool {
+	mux.mu.Lock()
+	defer mux.mu.Unlock()
+
+	for b, l := range mux.m {
+		if l == ln {
+			delete(mux.m, b)
+			return true
+		}
+	}
+	return false
+}
+
 // DefaultListener will return a net.Listener that will pass-through any
 // connections with non-registered values for the first byte of the connection.
 // The connections returned from this listener's Accept() method will replay the
@@ -203,8 +221,13 @@ func (ln *listener) Accept() (c net.Conn, err error) {
 	return conn, nil
 }
 
-// Close is a no-op. The mux's listener should be closed instead.
-func (ln *listener) Close() error { return nil }
+// Close removes this listener from the parent mux and closes the channel.
+func (ln *listener) Close() error {
+	if ok := ln.mux.release(ln); ok {
+		close(ln.c)
+	}
+	return nil
+}
 
 // Addr returns the Addr of the listener
 func (ln *listener) Addr() net.Addr {
