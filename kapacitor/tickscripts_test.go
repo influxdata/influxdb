@@ -368,7 +368,6 @@ func TestThresholdStringCritGreater(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "haproxy",
 		Trigger: "threshold",
-		Alerts:  []string{"email"},
 		AlertHandlers: chronograf.AlertHandlers{
 			Email: []*chronograf.Email{{}},
 		},

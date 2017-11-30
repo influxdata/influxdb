@@ -59,7 +59,7 @@ func TestReverse(t *testing.T) {
 															.durationField(durationField)
 															.slack()
 															.victorOps()
-															.email('howdy@howdy.com')
+															.email('howdy@howdy.com', 'doody@doody.com')
 															.log('/tmp/alerts.log')
 															.post('http://backin.tm')
 															.endpoint('myendpoint')
@@ -69,35 +69,29 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				Alerts:  []string{"victorops", "smtp", "http", "slack", "log"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{
-						Name: "victorops",
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
 					},
-					{
-						Name: "smtp",
-						Args: []string{"howdy@howdy.com"},
+					VictorOps: []*chronograf.VictorOps{
+						{},
 					},
-					{
-						Name: "http",
-						Args: []string{"http://backin.tm"},
-						Properties: []chronograf.KapacitorProperty{
-							{
-								Name: "endpoint",
-								Args: []string{"myendpoint"},
-							},
-							{
-								Name: "header",
-								Args: []string{"key", "value"},
-							},
+					Email: []*chronograf.Email{
+						{
+							To: []string{"howdy@howdy.com", "doody@doody.com"},
 						},
 					},
-					{
-						Name: "slack",
+					Log: []*chronograf.Log{
+						{
+							FilePath: "/tmp/alerts.log",
+						},
 					},
-					{
-						Name: "log",
-						Args: []string{"/tmp/alerts.log"},
+					Posts: []*chronograf.Post{
+						{
+							URL:     "http://backin.tm",
+							Headers: map[string]string{"key": "value"},
+						},
 					},
 				},
 				TriggerValues: chronograf.TriggerValues{
@@ -247,20 +241,19 @@ func TestReverse(t *testing.T) {
 					AreTagsAccepted: true,
 				},
 				Every: "30s",
-				Alerts: []string{
-					"victorops",
-					"smtp",
-					"slack",
-				},
-				AlertNodes: []chronograf.KapacitorNode{
-					chronograf.KapacitorNode{
-						Name: "victorops",
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+
+					Slack: []*chronograf.Slack{
+						{},
 					},
-					chronograf.KapacitorNode{
-						Name: "smtp",
+					VictorOps: []*chronograf.VictorOps{
+						{},
 					},
-					chronograf.KapacitorNode{
-						Name: "slack",
+					Email: []*chronograf.Email{
+						{
+							To: []string{},
+						},
 					},
 				},
 				Message: "message",
@@ -354,10 +347,14 @@ func TestReverse(t *testing.T) {
 		    |httpOut('output')
 		`,
 			want: chronograf.AlertRule{
-				Name:       "haproxy",
-				Trigger:    "threshold",
-				Alerts:     []string{"smtp"},
-				AlertNodes: []chronograf.KapacitorNode{chronograf.KapacitorNode{Name: "smtp"}},
+				Name:    "haproxy",
+				Trigger: "threshold",
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
+				},
 				TriggerValues: chronograf.TriggerValues{
 					Operator: "equal to",
 					Value:    "DOWN",
@@ -473,10 +470,10 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "haproxy",
 				Trigger: "threshold",
-				Alerts:  []string{"smtp"},
-				AlertNodes: []chronograf.KapacitorNode{
-					chronograf.KapacitorNode{
-						Name: "smtp",
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Email: []*chronograf.Email{
+						{To: []string{}},
 					},
 				},
 				TriggerValues: chronograf.TriggerValues{
@@ -596,11 +593,17 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				Alerts:  []string{"victorops", "smtp", "slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{Name: "victorops"},
-					{Name: "smtp"},
-					{Name: "slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
+					},
+					VictorOps: []*chronograf.VictorOps{
+						{},
+					},
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
 				},
 				TriggerValues: chronograf.TriggerValues{
 					Operator: "greater than",
@@ -727,11 +730,17 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				Alerts:  []string{"victorops", "smtp", "slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{Name: "victorops"},
-					{Name: "smtp"},
-					{Name: "slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
+					},
+					VictorOps: []*chronograf.VictorOps{
+						{},
+					},
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
 				},
 				TriggerValues: chronograf.TriggerValues{
 					Operator:   "inside range",
@@ -858,11 +867,17 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				Alerts:  []string{"victorops", "smtp", "slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{Name: "victorops"},
-					{Name: "smtp"},
-					{Name: "slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
+					},
+					VictorOps: []*chronograf.VictorOps{
+						{},
+					},
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
 				},
 				TriggerValues: chronograf.TriggerValues{
 					Operator:   "outside range",
@@ -979,11 +994,17 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				Alerts:  []string{"victorops", "smtp", "slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{Name: "victorops"},
-					{Name: "smtp"},
-					{Name: "slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
+					},
+					VictorOps: []*chronograf.VictorOps{
+						{},
+					},
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
 				},
 				TriggerValues: chronograf.TriggerValues{
 					Operator: "greater than",
@@ -1111,11 +1132,17 @@ trigger
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "relative",
-				Alerts:  []string{"victorops", "smtp", "slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{Name: "victorops"},
-					{Name: "smtp"},
-					{Name: "slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
+					},
+					VictorOps: []*chronograf.VictorOps{
+						{},
+					},
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
 				},
 				TriggerValues: chronograf.TriggerValues{
 					Change:   "% change",
@@ -1253,11 +1280,17 @@ trigger
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "relative",
-				Alerts:  []string{"victorops", "smtp", "slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{Name: "victorops"},
-					{Name: "smtp"},
-					{Name: "slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
+					},
+					VictorOps: []*chronograf.VictorOps{
+						{},
+					},
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
 				},
 				TriggerValues: chronograf.TriggerValues{
 					Change:   "change",
@@ -1377,11 +1410,17 @@ trigger
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "deadman",
-				Alerts:  []string{"victorops", "smtp", "slack"},
-				AlertNodes: []chronograf.KapacitorNode{
-					{Name: "victorops"},
-					{Name: "smtp"},
-					{Name: "slack"},
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+					Slack: []*chronograf.Slack{
+						{},
+					},
+					VictorOps: []*chronograf.VictorOps{
+						{},
+					},
+					Email: []*chronograf.Email{
+						{To: []string{}},
+					},
 				},
 				TriggerValues: chronograf.TriggerValues{
 					Period: "10m0s",
@@ -1480,7 +1519,6 @@ trigger
 			want: chronograf.AlertRule{
 				Name:    "rule 1",
 				Trigger: "threshold",
-				Alerts:  []string{},
 				TriggerValues: chronograf.TriggerValues{
 					Operator: "greater than",
 					Value:    "90000",
@@ -1488,6 +1526,9 @@ trigger
 				Every:   "",
 				Message: "",
 				Details: "",
+				AlertHandlers: chronograf.AlertHandlers{
+					IsStateChangesOnly: true,
+				},
 				Query: &chronograf.QueryConfig{
 					Database:        "_internal",
 					RetentionPolicy: "monitor",
@@ -1514,7 +1555,7 @@ trigger
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Reverse() = \n%#v\n, want \n%#v\n", got, tt.want)
+				t.Errorf("Reverse() = %s", cmp.Diff(got, tt.want))
 				if tt.want.Query != nil {
 					if got.Query == nil {
 						t.Errorf("Reverse() = got nil QueryConfig")

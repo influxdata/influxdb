@@ -312,10 +312,12 @@ trigger
     |httpOut('output')
 `,
 						Trigger: "threshold",
-						Alerts:  []string{},
 						TriggerValues: chronograf.TriggerValues{
 							Operator: "greater than",
 							Value:    "90000",
+						},
+						AlertHandlers: chronograf.AlertHandlers{
+							IsStateChangesOnly: true,
 						},
 						Query: &chronograf.QueryConfig{
 							Database:        "_internal",
@@ -635,10 +637,12 @@ trigger
     |httpOut('output')
 `,
 					Trigger: "threshold",
-					Alerts:  []string{},
 					TriggerValues: chronograf.TriggerValues{
 						Operator: "greater than",
 						Value:    "90000",
+					},
+					AlertHandlers: chronograf.AlertHandlers{
+						IsStateChangesOnly: true,
 					},
 					Query: &chronograf.QueryConfig{
 						Database:        "_internal",

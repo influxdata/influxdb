@@ -151,8 +151,6 @@ func Test_addAlertNodes(t *testing.T) {
 			name: "foo",
 			handlers: chronograf.AlertHandlers{
 				IsStateChangesOnly: true,
-				Message:            "mymessage",
-				Details:            "mydetails",
 				Email: []*chronograf.Email{
 					{
 						To: []string{
