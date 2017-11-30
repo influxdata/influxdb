@@ -42,19 +42,15 @@ const SeriesFileName = "series"
 
 // Store manages shards and indexes for databases.
 type Store struct {
-	mu sync.RWMutex
-	// databases keeps track of the number of databases being managed by the store.
+	mu        sync.RWMutex
+	shards    map[uint64]*Shard
 	databases map[string]struct{}
+	sfiles    map[string]*SeriesFile
 
 	path string
 
-	sfiles map[string]*SeriesFile
-
 	// shared per-database indexes, only if using "inmem".
 	indexes map[string]interface{}
-
-	// shards is a map of shard IDs to the associated Shard.
-	shards map[uint64]*Shard
 
 	EngineOptions EngineOptions
 
@@ -340,7 +336,6 @@ func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 		return nil, err
 	}
 	s.sfiles[database] = sfile
-
 	return sfile, nil
 }
 
@@ -819,7 +814,9 @@ func (s *Store) MeasurementsCardinality(database string) (int64, error) {
 
 // BackupSeriesFile writes the current series file to w.
 func (s *Store) BackupSeriesFile(database string, w io.Writer) error {
+	s.mu.RLock()
 	sfile := s.sfiles[database]
+	s.mu.RUnlock()
 	if sfile == nil {
 		return fmt.Errorf("database %s doesn't exist on this server", database)
 	}
@@ -828,10 +825,14 @@ func (s *Store) BackupSeriesFile(database string, w io.Writer) error {
 
 // RestoreSeriesFile restores a series file read from r.
 func (s *Store) RestoreSeriesFile(database string, r io.Reader) error {
+	s.mu.Lock()
 	sfile, err := s.openSeriesFile(database)
 	if err != nil {
+		s.mu.Unlock()
 		return err
 	}
+	s.mu.Unlock()
+
 	return sfile.Restore(r)
 }
 
@@ -926,17 +927,14 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	}
 
 	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
-	s.mu.RUnlock()
-
-	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	sfile := s.sfiles[database]
+	shards := s.filterShards(byDatabase(database))
 
 	// Limit to 1 delete for each shard since expanding the measurement into the list
 	// of series keys can be very memory intensive if run concurrently.
 	limit := limiter.NewFixed(1)
-
-	sfile := s.sfiles[database]
 
 	return s.walkShards(shards, func(sh *Shard) error {
 		// Determine list of measurements from sources.
