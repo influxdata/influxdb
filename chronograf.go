@@ -662,6 +662,8 @@ type UsersStore interface {
 	Get(ctx context.Context, q UserQuery) (*User, error)
 	// Update the user's permissions or roles
 	Update(context.Context, *User) error
+	// Num returns the number of users in the UsersStore
+	Num(context.Context) (int, error)
 }
 
 // Database represents a database in a time series source

@@ -302,15 +302,18 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) firstUser() bool {
 	serverCtx := serverContext(context.Background())
-	users, err := s.Store.Users(serverCtx).All(serverCtx)
+	numUsers, err := s.Store.Users(serverCtx).Num(serverCtx)
 	if err != nil {
 		return false
 	}
 
-	return len(users) == 0
+	return numUsers == 0
 }
 func (s *Service) newUsersAreSuperAdmin() bool {
-	return !s.NewUsersNotSuperAdmin
+	if s.firstUser() {
+		return true
+	}
+	return !s.SuperAdminFirstUserOnly
 }
 
 func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {
