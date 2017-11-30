@@ -13,7 +13,11 @@ func TestGenerate(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Change:   "change",
 			Shift:    "1m",
@@ -65,7 +69,11 @@ func TestThreshold(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Operator: "greater than",
 			Value:    "90",
@@ -176,9 +184,9 @@ var trigger = data
         .levelTag(levelTag)
         .messageField(messageField)
         .durationField(durationField)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |influxDBOut()
@@ -214,7 +222,9 @@ func TestThresholdStringCrit(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "haproxy",
 		Trigger: "threshold",
-		Alerts:  []string{"email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Email: []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Operator: "equal to",
 			Value:    "DOWN",
@@ -359,6 +369,9 @@ func TestThresholdStringCritGreater(t *testing.T) {
 		Name:    "haproxy",
 		Trigger: "threshold",
 		Alerts:  []string{"email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Email: []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Operator: "greater than",
 			Value:    "DOWN",
@@ -500,7 +513,11 @@ func TestThresholdDetail(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Operator: "greater than",
 			Value:    "90",
@@ -615,9 +632,9 @@ var trigger = data
         .messageField(messageField)
         .durationField(durationField)
         .details(details)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |influxDBOut()
@@ -653,7 +670,11 @@ func TestThresholdInsideRange(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Operator:   "inside range",
 			Value:      "90",
@@ -767,9 +788,9 @@ var trigger = data
         .levelTag(levelTag)
         .messageField(messageField)
         .durationField(durationField)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |influxDBOut()
@@ -805,7 +826,11 @@ func TestThresholdOutsideRange(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Operator:   "outside range",
 			Value:      "90",
@@ -919,9 +944,9 @@ var trigger = data
         .levelTag(levelTag)
         .messageField(messageField)
         .durationField(durationField)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |influxDBOut()
@@ -957,7 +982,11 @@ func TestThresholdNoAggregate(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Operator: "greater than",
 			Value:    "90",
@@ -1054,9 +1083,9 @@ var trigger = data
         .levelTag(levelTag)
         .messageField(messageField)
         .durationField(durationField)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |influxDBOut()
@@ -1092,7 +1121,11 @@ func TestRelative(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Change:   "% change",
 			Shift:    "1m",
@@ -1217,9 +1250,9 @@ var trigger = past
         .levelTag(levelTag)
         .messageField(messageField)
         .durationField(durationField)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |influxDBOut()
@@ -1255,7 +1288,11 @@ func TestRelativeChange(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Change:   "change",
 			Shift:    "1m",
@@ -1380,9 +1417,9 @@ var trigger = past
         .levelTag(levelTag)
         .messageField(messageField)
         .durationField(durationField)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |influxDBOut()
@@ -1418,7 +1455,11 @@ func TestDeadman(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "deadman",
-		Alerts:  []string{"slack", "victorops", "email"},
+		AlertHandlers: chronograf.AlertHandlers{
+			Slack:     []*chronograf.Slack{{}},
+			VictorOps: []*chronograf.VictorOps{{}},
+			Email:     []*chronograf.Email{{}},
+		},
 		TriggerValues: chronograf.TriggerValues{
 			Period: "10m",
 		},
@@ -1519,9 +1560,9 @@ var trigger = data
         .levelTag(levelTag)
         .messageField(messageField)
         .durationField(durationField)
-        .slack()
-        .victorOps()
         .email()
+        .victorOps()
+        .slack()
 
 trigger
     |eval(lambda: "emitted")
