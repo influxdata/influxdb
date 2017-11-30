@@ -7,6 +7,7 @@ import {Table, Column, Cell} from 'fixed-data-table'
 import Dropdown from 'shared/components/Dropdown'
 import CustomCell from 'src/data_explorer/components/CustomCell'
 import TabItem from 'src/data_explorer/components/TableTabItem'
+import {TEMPLATES} from 'src/data_explorer/constants'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
@@ -43,7 +44,11 @@ class ChronoTable extends Component {
     this.setState({isLoading: true})
     // second param is db, we want to leave this blank
     try {
-      const {results} = await fetchTimeSeriesAsync({source: query.host, query})
+      const {results} = await fetchTimeSeriesAsync({
+        source: query.host,
+        query,
+        tempVars: TEMPLATES,
+      })
       this.setState({isLoading: false})
 
       let series = _.get(results, ['0', 'series'], [])

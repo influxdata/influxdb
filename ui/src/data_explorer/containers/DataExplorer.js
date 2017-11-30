@@ -15,7 +15,7 @@ import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {VIS_VIEWS, AUTO_GROUP_BY} from 'shared/constants'
-import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
+import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS, TEMPLATES} from '../constants'
 import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
@@ -88,27 +88,6 @@ class DataExplorer extends Component {
 
     const {showWriteForm} = this.state
     const selectedDatabase = _.get(queryConfigs, ['0', 'database'], null)
-    const interval = {
-      id: 'interval',
-      type: 'autoGroupBy',
-      tempVar: ':interval:',
-      label: 'automatically determine the best group by time',
-      values: [
-        {
-          value: '1000', // pixels
-          type: 'resolution',
-          selected: true,
-        },
-        {
-          value: '3',
-          type: 'pointsPerPixel',
-          selected: true,
-        },
-      ],
-    }
-
-    const templates = [interval]
-
     return (
       <div className="data-explorer">
         {showWriteForm
@@ -148,7 +127,7 @@ class DataExplorer extends Component {
             views={VIS_VIEWS}
             activeQueryIndex={0}
             timeRange={timeRange}
-            templates={templates}
+            templates={TEMPLATES}
             autoRefresh={autoRefresh}
             queryConfigs={queryConfigs}
             manualRefresh={manualRefresh}
