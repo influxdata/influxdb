@@ -106,14 +106,17 @@ class RuleHandlers extends Component {
       }
     }
 
-    const remainingEndpoints = _.reject(handlersOnThisAlert, [
+    const modifiedIndex = _.findIndex(handlersOnThisAlert, [
       'alias',
       modifiedEP.alias,
     ])
+
+    handlersOnThisAlert[modifiedIndex] = modifiedEP
+
     this.setState(
       {
         selectedHandler: modifiedEP,
-        handlersOnThisAlert: [...remainingEndpoints, modifiedEP],
+        handlersOnThisAlert: [...handlersOnThisAlert],
       },
       this.handleUpdateAllAlerts
     )
