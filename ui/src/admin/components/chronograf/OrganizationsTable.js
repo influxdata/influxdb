@@ -63,8 +63,7 @@ class OrganizationsTable extends Component {
         </div>
         <div className="panel-body">
           <div className="orgs-table--org-labels">
-            <div className="orgs-table--id">ID</div>
-            <div className="orgs-table--active">Active</div>
+            <div className="orgs-table--active" />
             <div className="orgs-table--name">Name</div>
             <div className="orgs-table--public">
               Public{' '}

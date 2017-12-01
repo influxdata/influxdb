@@ -131,9 +131,6 @@ class OrganizationsTableRow extends Component {
 
     return (
       <div className="orgs-table--org">
-        <div className="orgs-table--id">
-          {organization.id}
-        </div>
         <div className="orgs-table--active">
           {organization.id === currentOrganization.id
             ? <button className="btn btn-sm btn-success">Connected</button>
