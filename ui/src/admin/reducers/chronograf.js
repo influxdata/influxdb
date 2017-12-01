@@ -85,7 +85,10 @@ const adminChronograf = (state = initialState, action) => {
       return {
         ...state,
         organizations: state.organizations.filter(
-          o => o.name !== organization.name
+          o =>
+            organization._tempID
+              ? o._tempID !== organization._tempID
+              : o.name !== organization.name
         ),
       }
     }

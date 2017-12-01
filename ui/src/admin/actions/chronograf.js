@@ -180,13 +180,23 @@ export const createOrganizationAsync = (
   url,
   organization
 ) => async dispatch => {
-  dispatch(addOrganization(organization))
+  // temp uuid is added to be able to disambiguate a created organization with
+  // the same name as an existing organization
+  const organizationWithTempID = {...organization, _tempID: uuid.v4()}
+  dispatch(addOrganization(organizationWithTempID))
   try {
     const {data} = await createOrganizationAJAX(url, organization)
     dispatch(syncOrganization(organization, data))
   } catch (error) {
-    dispatch(errorThrown(error))
-    dispatch(removeOrganization(organization))
+    const message = `${_.upperFirst(
+      _.toLower(error.data.message)
+    )}: ${organization.name}`
+    dispatch(errorThrown(error, message))
+    // undo optimistic update
+    setTimeout(
+      () => dispatch(removeOrganization(organizationWithTempID)),
+      REVERT_STATE_DELAY
+    )
   }
 }
 
