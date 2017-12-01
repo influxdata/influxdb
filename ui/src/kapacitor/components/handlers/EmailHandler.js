@@ -44,6 +44,7 @@ const EmailHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             fieldDisplay="Recipient E-mail Addresses: (separated by spaces)"
             placeholder="ex: bob@domain.com susan@domain.com"
             parseToArray={true}
+            fieldColumns="col-md-12"
           />
         </div>
       </div>
