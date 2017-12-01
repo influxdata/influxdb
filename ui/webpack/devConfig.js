@@ -1,11 +1,17 @@
-var webpack = require('webpack')
-var path = require('path')
-var ExtractTextPlugin = require('extract-text-webpack-plugin')
-var HtmlWebpackPlugin = require('html-webpack-plugin')
-var package = require('../package.json')
-const WebpackOnBuildPlugin = require('on-build-webpack')
+const path = require('path')
 const fs = require('fs')
-var dependencies = package.dependencies
+const util = require('util')
+const webpack = require('webpack')
+const ExtractTextPlugin = require('extract-text-webpack-plugin')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const WebpackOnBuildPlugin = require('on-build-webpack')
+const _ = require('lodash')
+
+const readdir = util.promisify(fs.readdir)
+const unlink = util.promisify(fs.unlink)
+
+const package = require('../package.json')
+const dependencies = package.dependencies
 
 const buildDir = path.resolve(__dirname, '../build')
 
@@ -105,25 +111,22 @@ module.exports = {
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
     }),
-    new WebpackOnBuildPlugin(function(stats) {
-      const newlyCreatedAssets = stats.compilation.assets
+    new WebpackOnBuildPlugin(async stats => {
+      try {
+        const newlyCreatedAssets = stats.compilation.assets
+        const buildDirFiles = await readdir(buildDir)
+        const assetFileNames = _.keys(newlyCreatedAssets)
+        const filesToRemove = _.difference(buildDirFiles, assetFileNames)
 
-      const unlinked = []
-      fs.readdir(path.resolve(buildDir), (err, files) => {
-        files.forEach(file => {
-          if (!newlyCreatedAssets[file]) {
-            const del = path.resolve(buildDir + file)
-            fs.stat(del, function(err, stat) {
-              if (err == null) {
-                try {
-                  fs.unlink(path.resolve(buildDir + file))
-                  unlinked.push(file)
-                } catch (e) {}
-              }
-            })
+        for (file of filesToRemove) {
+          const ext = path.extname(file)
+          if (['.js', '.json', '.map'].includes(ext)) {
+            unlink(path.join(buildDir, file))
           }
-        })
-      })
+        }
+      } catch (err) {
+        console.error(err)
+      }
     }),
   ],
   postcss: require('./postcss'),
