@@ -87,6 +87,11 @@ class UserNavBlock extends Component {
                 })}
               </FancyScrollbar>
               <div className="sidebar-menu--section">Account</div>
+              <div className="sidebar-menu--provider">
+                <div>
+                  {me.scheme} / {me.provider}
+                </div>
+              </div>
               <a className="sidebar-menu--item" href={logoutLink}>
                 Logout
               </a>
@@ -100,6 +105,11 @@ class UserNavBlock extends Component {
                 {me.name}
               </div>
               <div className="sidebar-menu--section">Account</div>
+              <div className="sidebar-menu--provider">
+                <div>
+                  {me.scheme} / {me.provider}
+                </div>
+              </div>
               <a className="sidebar-menu--item" href={logoutLink}>
                 Logout
               </a>
