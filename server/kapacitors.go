@@ -315,7 +315,7 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, h.Logger)
+		invalidData(w, err, h.Logger)
 		return
 	}
 	// TODO: validate this data
@@ -529,7 +529,7 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, h.Logger)
+		invalidData(w, err, h.Logger)
 		return
 	}
 	// TODO: validate this data
