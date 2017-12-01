@@ -17,7 +17,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test several valid services",
 			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					Slack:     []*chronograf.Slack{{}},
 					VictorOps: []*chronograf.VictorOps{{}},
 					Email:     []*chronograf.Email{{}},
@@ -32,7 +32,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test single valid service",
 			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					Slack: []*chronograf.Slack{{}},
 				},
 			},
@@ -43,7 +43,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test single valid service and property",
 			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					Slack: []*chronograf.Slack{
 						{
 							Channel: "#general",
@@ -59,7 +59,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test tcp",
 			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					TCPs: []*chronograf.TCP{
 						{
 							Address: "myaddress:22",
@@ -74,7 +74,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test log",
 			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					Log: []*chronograf.Log{
 						{
 							FilePath: "/tmp/alerts.log",
@@ -89,7 +89,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test http as post",
 			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					Posts: []*chronograf.Post{
 						{
 							URL: "http://myaddress",
@@ -104,7 +104,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test post with headers",
 			rule: chronograf.AlertRule{
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					Posts: []*chronograf.Post{
 						{
 							URL:     "http://myaddress",
@@ -143,13 +143,13 @@ func TestAlertServices(t *testing.T) {
 func Test_addAlertNodes(t *testing.T) {
 	tests := []struct {
 		name     string
-		handlers chronograf.AlertHandlers
+		handlers chronograf.AlertNodes
 		want     string
 		wantErr  bool
 	}{
 		{
 			name: "foo",
-			handlers: chronograf.AlertHandlers{
+			handlers: chronograf.AlertNodes{
 				IsStateChangesOnly: true,
 				Email: []*chronograf.Email{
 					{

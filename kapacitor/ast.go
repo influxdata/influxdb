@@ -495,7 +495,7 @@ func extractAlertNodes(p *pipeline.Pipeline, rule *chronograf.AlertRule) error {
 			if err != nil {
 				return err
 			}
-			return json.Unmarshal(octets, &rule.AlertHandlers)
+			return json.Unmarshal(octets, &rule.AlertNodes)
 		}
 		return nil
 	})

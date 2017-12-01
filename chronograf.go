@@ -229,7 +229,7 @@ type AlertRule struct {
 	TICKScript    TICKScript    `json:"tickscript"`             // TICKScript is the raw tickscript associated with this Alert
 	Query         *QueryConfig  `json:"query"`                  // Query is the filter of data for the alert.
 	Every         string        `json:"every"`                  // Every how often to check for the alerting criteria
-	AlertHandlers AlertHandlers `json:"alertHandlers"`          // AlertHandlers defines the destinations for the alert
+	AlertNodes    AlertNodes    `json:"alertNodes"`             // AlertNodes defines the destinations for the alert
 	Message       string        `json:"message"`                // Message included with alert
 	Details       string        `json:"details"`                // Details is generally used for the Email alert.  If empty will not be added.
 	Trigger       string        `json:"trigger"`                // Trigger is a type that defines when to trigger the alert

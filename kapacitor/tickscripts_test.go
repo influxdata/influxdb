@@ -13,7 +13,7 @@ func TestGenerate(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -69,7 +69,7 @@ func TestThreshold(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -222,7 +222,7 @@ func TestThresholdStringCrit(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "haproxy",
 		Trigger: "threshold",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Email: []*chronograf.Email{{}},
 		},
 		TriggerValues: chronograf.TriggerValues{
@@ -368,7 +368,7 @@ func TestThresholdStringCritGreater(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "haproxy",
 		Trigger: "threshold",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Email: []*chronograf.Email{{}},
 		},
 		TriggerValues: chronograf.TriggerValues{
@@ -512,7 +512,7 @@ func TestThresholdDetail(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -669,7 +669,7 @@ func TestThresholdInsideRange(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -825,7 +825,7 @@ func TestThresholdOutsideRange(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -981,7 +981,7 @@ func TestThresholdNoAggregate(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -1120,7 +1120,7 @@ func TestRelative(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -1287,7 +1287,7 @@ func TestRelativeChange(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},
@@ -1454,7 +1454,7 @@ func TestDeadman(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "deadman",
-		AlertHandlers: chronograf.AlertHandlers{
+		AlertNodes: chronograf.AlertNodes{
 			Slack:     []*chronograf.Slack{{}},
 			VictorOps: []*chronograf.VictorOps{{}},
 			Email:     []*chronograf.Email{{}},

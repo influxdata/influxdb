@@ -114,7 +114,7 @@ func Test_KapacitorRulesGet(t *testing.T) {
 					Type:       "stream",
 					DBRPs:      []chronograf.DBRP{{DB: "telegraf", RP: "autogen"}},
 					TICKScript: tickScript,
-					AlertHandlers: chronograf.AlertHandlers{
+					AlertNodes: chronograf.AlertNodes{
 						Posts:     []*chronograf.Post{},
 						TCPs:      []*chronograf.TCP{},
 						Email:     []*chronograf.Email{},

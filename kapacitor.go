@@ -2,8 +2,8 @@ package chronograf
 
 import "encoding/json"
 
-// AlertHandlers defines all possible kapacitor interactions with an alert.
-type AlertHandlers struct {
+// AlertNodes defines all possible kapacitor interactions with an alert.
+type AlertNodes struct {
 	IsStateChangesOnly bool         `json:"stateChangesOnly"` // IsStateChangesOnly will only send alerts on state changes.
 	UseFlapping        bool         `json:"useFlapping"`      // UseFlapping enables flapping detection. Flapping occurs when a service or host changes state too frequently, resulting in a storm of problem and recovery notification
 	Posts              []*Post      `json:"post"`             // HTTPPost  will post the JSON alert data to the specified URLs.
@@ -133,9 +133,9 @@ type OpsGenie struct {
 // Talk sends alerts to Jane Talk (https://jianliao.com/site)
 type Talk struct{}
 
-// MarshalJSON converts AlertHandlers to JSON
-func (n *AlertHandlers) MarshalJSON() ([]byte, error) {
-	type Alias AlertHandlers
+// MarshalJSON converts AlertNodes to JSON
+func (n *AlertNodes) MarshalJSON() ([]byte, error) {
+	type Alias AlertNodes
 	var raw = &struct {
 		Type string `json:"typeOf"`
 		*Alias

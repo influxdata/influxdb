@@ -316,7 +316,7 @@ trigger
 							Operator: "greater than",
 							Value:    "90000",
 						},
-						AlertHandlers: chronograf.AlertHandlers{
+						AlertNodes: chronograf.AlertNodes{
 							IsStateChangesOnly: true,
 						},
 						Query: &chronograf.QueryConfig{
@@ -641,7 +641,7 @@ trigger
 						Operator: "greater than",
 						Value:    "90000",
 					},
-					AlertHandlers: chronograf.AlertHandlers{
+					AlertNodes: chronograf.AlertNodes{
 						IsStateChangesOnly: true,
 					},
 					Query: &chronograf.QueryConfig{

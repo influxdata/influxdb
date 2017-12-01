@@ -69,7 +69,7 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -241,7 +241,7 @@ func TestReverse(t *testing.T) {
 					AreTagsAccepted: true,
 				},
 				Every: "30s",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 
 					Slack: []*chronograf.Slack{
@@ -349,7 +349,7 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "haproxy",
 				Trigger: "threshold",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Email: []*chronograf.Email{
 						{To: []string{}},
@@ -470,7 +470,7 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "haproxy",
 				Trigger: "threshold",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Email: []*chronograf.Email{
 						{To: []string{}},
@@ -593,7 +593,7 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -730,7 +730,7 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -867,7 +867,7 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -994,7 +994,7 @@ func TestReverse(t *testing.T) {
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -1132,7 +1132,7 @@ trigger
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "relative",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -1280,7 +1280,7 @@ trigger
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "relative",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -1410,7 +1410,7 @@ trigger
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "deadman",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 					Slack: []*chronograf.Slack{
 						{},
@@ -1526,7 +1526,7 @@ trigger
 				Every:   "",
 				Message: "",
 				Details: "",
-				AlertHandlers: chronograf.AlertHandlers{
+				AlertNodes: chronograf.AlertNodes{
 					IsStateChangesOnly: true,
 				},
 				Query: &chronograf.QueryConfig{

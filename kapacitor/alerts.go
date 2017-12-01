@@ -89,7 +89,7 @@ func addAlertNodes(rule chronograf.AlertRule) (string, error) {
 
 // AlertServices generates alert chaining methods to be attached to an alert from all rule Services
 func AlertServices(rule chronograf.AlertRule) (string, error) {
-	node, err := addAlertNodes(rule.AlertHandlers)
+	node, err := addAlertNodes(rule.AlertNodes)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +100,7 @@ func AlertServices(rule chronograf.AlertRule) (string, error) {
 	return node, nil
 }
 
-func addAlertNodes(handlers chronograf.AlertHandlers) (string, error) {
+func addAlertNodes(handlers chronograf.AlertNodes) (string, error) {
 	octets, err := json.Marshal(&handlers)
 	if err != nil {
 		return "", err
