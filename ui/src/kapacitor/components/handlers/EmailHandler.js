@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
 
-const SmtpHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
+const EmailHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
@@ -51,10 +51,10 @@ const SmtpHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
 
 const {func, shape, string} = PropTypes
 
-SmtpHandler.propTypes = {
+EmailHandler.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
   configLink: string,
 }
 
-export default SmtpHandler
+export default EmailHandler

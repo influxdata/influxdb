@@ -9,7 +9,7 @@ import PagerdutyHandler from './PagerdutyHandler'
 import PushoverHandler from './PushoverHandler'
 import SensuHandler from './SensuHandler'
 import SlackHandler from './SlackHandler'
-import SmtpHandler from './SmtpHandler'
+import EmailHandler from './EmailHandler'
 import TalkHandler from './TalkHandler'
 import TelegramHandler from './TelegramHandler'
 import VictoropsHandler from './VictoropsHandler'
@@ -19,7 +19,7 @@ export {
   TcpHandler,
   ExecHandler,
   LogHandler,
-  SmtpHandler,
+  EmailHandler,
   AlertaHandler,
   HipchatHandler,
   OpsgenieHandler,

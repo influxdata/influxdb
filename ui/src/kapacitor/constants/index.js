@@ -173,7 +173,6 @@ export const ALERTS_TO_RULE = {
   sensu: ['source', 'handlers'],
   slack: ['channel', 'username', 'iconEmoji'],
   email: ['to'],
-  snmpTrap: ['trapOid', 'data'], // [oid/type/value]
   talk: [],
   telegram: [
     'chatId',
@@ -186,6 +185,7 @@ export const ALERTS_TO_RULE = {
   tcp: ['address'],
   exec: ['command'],
   log: ['filePath'],
+  // snmpTrap: ['trapOid', 'data'], // [oid/type/value]
 }
 
 export const RULE_ALERT_OPTIONS = {

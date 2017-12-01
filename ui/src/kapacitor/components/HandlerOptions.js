@@ -4,7 +4,7 @@ import {
   TcpHandler,
   ExecHandler,
   LogHandler,
-  SmtpHandler,
+  EmailHandler,
   AlertaHandler,
   HipchatHandler,
   OpsgenieHandler,
@@ -59,7 +59,7 @@ class HandlerOptions extends Component {
         )
       case 'email':
         return (
-          <SmtpHandler
+          <EmailHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             configLink={configLink}
