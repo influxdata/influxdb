@@ -776,6 +776,142 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	return nil
 }
 
+func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
+	path, err := e.CreateSnapshot()
+	if err != nil {
+		return err
+	}
+
+	// Remove the temporary snapshot dir
+	defer os.RemoveAll(path)
+	if err := e.index.SnapshotTo(path); err != nil {
+		return err
+	}
+
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+
+	// Recursively read all files from path.
+	files, err := readDir(path, "")
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if !strings.HasSuffix(file, ".tsm") {
+			if err := e.writeFileToBackup(file, basePath, filepath.Join(path, file), tw); err != nil {
+				return err
+			}
+		}
+
+		var tombstonePath string
+		f, err := os.Open(filepath.Join(path, file))
+		if err != nil {
+			return err
+		}
+		r, err := NewTSMReader(f)
+		if err != nil {
+			return err
+		}
+
+		// Grab the tombstone file if one exists.
+		if r.HasTombstones() {
+			tombstonePath = filepath.Base(r.TombstoneFiles()[0].Path)
+		}
+
+		min, max := r.TimeRange()
+		stun := start.UnixNano()
+		eun := end.UnixNano()
+
+		// We overlap time ranges, we need to filter the file
+		if min >= stun && min <= eun && max > eun || // overlap to the right
+			max >= stun && max <= eun && min < stun || // overlap to the left
+			min <= stun && max >= eun { // TSM file has a range LARGER than the boundary
+			err := e.filterFileToBackup(r, file, basePath, filepath.Join(path, file), start.UnixNano(), end.UnixNano(), tw)
+			if err != nil {
+				if err := r.Close(); err != nil {
+					return err
+				}
+				return err
+			}
+
+		}
+
+		// above is the only case where we need to keep the reader open.
+		if err := r.Close(); err != nil {
+			return err
+		}
+
+		// the TSM file is 100% inside the range, so we can just write it without scanning each block
+		if min >= start.UnixNano() && max <= end.UnixNano() {
+			if err := e.writeFileToBackup(file, basePath, filepath.Join(path, file), tw); err != nil {
+				return err
+			}
+		}
+
+		// if this TSM file had a tombstone we'll write out the whole thing too.
+		if tombstonePath != "" {
+			if err := e.writeFileToBackup(tombstonePath, basePath, filepath.Join(path, tombstonePath), tw); err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (e *Engine) filterFileToBackup(r *TSMReader, name, shardRelativePath, fullPath string, start, end int64, tw *tar.Writer) error {
+	path := fullPath + ".tmp"
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(path)
+
+	w, err := NewTSMWriter(out)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	// implicit else: here we iterate over the blocks and only keep the ones we really want.
+	var bi *BlockIterator
+	bi = r.BlockIterator()
+
+	for bi.Next() {
+		// not concerned with typ or checksum since we are just blindly writing back, with no decoding
+		key, minTime, maxTime, _, _, buf, err := bi.Read()
+		if err != nil {
+			return err
+		}
+		if minTime >= start && minTime <= end ||
+			maxTime >= start && maxTime <= end ||
+			minTime <= start && maxTime >= end {
+			err := w.WriteBlock(key, minTime, maxTime, buf)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := bi.Err(); err != nil {
+		return err
+	}
+
+	err = w.WriteIndex()
+	if err != nil {
+		return err
+	}
+
+	// make sure the whole file is out to disk
+	if err := w.Flush(); err != nil {
+		return err
+	}
+
+	return e.writeFileToBackup(name, shardRelativePath, path, tw)
+}
+
 // writeFileToBackup copies the file into the tar archive. Files will use the shardRelativePath
 // in their names. This should be the <db>/<retention policy>/<id> part of the path.
 func (e *Engine) writeFileToBackup(name string, shardRelativePath, fullPath string, tw *tar.Writer) error {

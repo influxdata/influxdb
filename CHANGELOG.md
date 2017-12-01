@@ -7,6 +7,9 @@
 ### Features
 
 - [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
+- [#9146](https://github.com/influxdata/influxdb/issues/9146): Backup/Restore can produce/consume data in the same format as the enterprise backup/restore tool. 
+- [#8880](https://github.com/influxdata/influxdb/issues/8879): Restore runs in online mode
+- [#8879](https://github.com/influxdata/influxdb/issues/8879): Export functionality using start/end to filter exported data by timestamp
 - [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
 - [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
 - [#8491](https://github.com/influxdata/influxdb/pull/8491): Add further tsi support for streaming/copying shards.

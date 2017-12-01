@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
+	"io"
 )
 
 const (
@@ -68,7 +69,9 @@ func (s *Service) Open() error {
 // Close implements the Service interface.
 func (s *Service) Close() error {
 	if s.Listener != nil {
-		s.Listener.Close()
+		if err := s.Listener.Close(); err != nil {
+			return err
+		}
 	}
 	s.wg.Wait()
 	return nil
@@ -86,6 +89,7 @@ func (s *Service) serve() {
 	for {
 		// Wait for next connection.
 		conn, err := s.Listener.Accept()
+
 		if err != nil && strings.Contains(err.Error(), "connection closed") {
 			s.Logger.Info("snapshot listener closed")
 			return
@@ -108,24 +112,41 @@ func (s *Service) serve() {
 
 // handleConn processes conn. This is run in a separate goroutine.
 func (s *Service) handleConn(conn net.Conn) error {
-	r, err := s.readRequest(conn)
+	var typ [1]byte
+
+	_, err := conn.Read(typ[:])
+	if err != nil {
+		return err
+	}
+
+	if RequestType(typ[0]) == RequestShardUpdate {
+		return s.updateShardsLive(conn)
+	}
+
+	r, bytes, err := s.readRequest(conn)
 	if err != nil {
 		return fmt.Errorf("read request: %s", err)
 	}
 
-	switch r.Type {
+	switch RequestType(typ[0]) {
 	case RequestShardBackup:
 		if err := s.TSDBStore.BackupShard(r.ShardID, r.Since, conn); err != nil {
 			return err
 		}
+	case RequestShardExport:
+		if err := s.TSDBStore.ExportShard(r.ShardID, r.ExportStart, r.ExportEnd, conn); err != nil {
+			return err
+		}
 	case RequestMetastoreBackup:
-		if err := s.writeMetaStore(conn); err != nil {
+		if err := s.writeMetaStore(conn, r.BackupDatabase); err != nil {
 			return err
 		}
 	case RequestDatabaseInfo:
-		return s.writeDatabaseInfo(conn, r.Database)
+		return s.writeDatabaseInfo(conn, r.BackupDatabase)
 	case RequestRetentionPolicyInfo:
-		return s.writeRetentionPolicyInfo(conn, r.Database, r.RetentionPolicy)
+		return s.writeRetentionPolicyInfo(conn, r.BackupDatabase, r.BackupRetentionPolicy)
+	case RequestMetaStoreUpdate:
+		return s.updateMetaStore(conn, bytes, r.BackupDatabase, r.RestoreDatabase, r.BackupRetentionPolicy, r.RestoreRetentionPolicy)
 	default:
 		return fmt.Errorf("request type unknown: %v", r.Type)
 	}
@@ -133,9 +154,99 @@ func (s *Service) handleConn(conn net.Conn) error {
 	return nil
 }
 
-func (s *Service) writeMetaStore(conn net.Conn) error {
+func (s *Service) updateShardsLive(conn net.Conn) error {
+	var sidBytes [8]byte
+	_, err := conn.Read(sidBytes[:])
+	if err != nil {
+		return err
+	}
+	sid := binary.BigEndian.Uint64(sidBytes[:])
+	if err := s.TSDBStore.SetShardEnabled(sid, false); err != nil {
+		return err
+	}
+	if err := s.TSDBStore.RestoreShard(sid, conn); err != nil {
+		return err
+	}
+	if err := s.TSDBStore.SetShardEnabled(sid, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, restoreDBName, backupRPName, restoreRPName string) error {
+	md := meta.Data{}
+	err := md.UnmarshalBinary(bits)
+	if err != nil {
+		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
+			return err
+		}
+		return fmt.Errorf("failed to decode meta: %s", err)
+	}
+
+	data := s.MetaClient.(*meta.Client).Data()
+
+	IDMap, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
+	if err != nil {
+		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
+			return err
+		}
+		return err
+	}
+
+	rpName := data.Database(restoreDBName).DefaultRetentionPolicy
+	err = s.MetaClient.(*meta.Client).SetData(&data)
+
+	for _, v := range IDMap {
+		err := s.TSDBStore.CreateShard(restoreDBName, rpName, v, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = s.respondIDMap(conn, IDMap)
+	return err
+}
+
+// send the IDMapping based on the metadata from the source server vs the shard ID
+// metadata on this server.  Sends back [BackupMagicHeader,0] if there's no mapped
+// values, signaling that nothing should be imported.
+func (s *Service) respondIDMap(conn net.Conn, IDMap map[uint64]uint64) error {
+	npairs := len(IDMap)
+	// 2 information ints, then npairs of 8byte ints.
+	numBytes := make([]byte, (npairs+1)*16)
+
+	binary.BigEndian.PutUint64(numBytes[:8], BackupMagicHeader)
+	binary.BigEndian.PutUint64(numBytes[8:16], uint64(npairs))
+	next := 16
+	for k, v := range IDMap {
+		binary.BigEndian.PutUint64(numBytes[next:next+8], k)
+		binary.BigEndian.PutUint64(numBytes[next+8:next+16], v)
+		next += 16
+	}
+
+	if _, err := conn.Write(numBytes[:]); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) writeMetaStore(conn net.Conn, dbName string) error {
 	// Retrieve and serialize the current meta data.
-	metaBlob, err := s.MetaClient.MarshalBinary()
+	// if the dbName is non-empty, then we drop all the DB's from the metadata
+	// that aren't being exported.
+
+	x := s.MetaClient.(*meta.Client)
+	data := x.Data()
+
+	if dbName != "" {
+		keepDB := data.Database(dbName)
+		if keepDB == nil {
+			return fmt.Errorf("database %s not found", dbName)
+		}
+		data.Databases = []meta.DatabaseInfo{*keepDB}
+	}
+	metaBlob, err := data.MarshalBinary()
+
 	if err != nil {
 		return fmt.Errorf("marshal meta: %s", err)
 	}
@@ -174,29 +285,37 @@ func (s *Service) writeMetaStore(conn net.Conn) error {
 // this server into the connection.
 func (s *Service) writeDatabaseInfo(conn net.Conn, database string) error {
 	res := Response{}
-	db := s.MetaClient.Database(database)
-	if db == nil {
-		return influxdb.ErrDatabaseNotFound(database)
+	dbs := []meta.DatabaseInfo{}
+	if database != "" {
+		db := s.MetaClient.Database(database)
+		if db == nil {
+			return influxdb.ErrDatabaseNotFound(database)
+		}
+		dbs = append(dbs, *db)
+	} else {
+		// we'll allow collecting info on all databases
+		dbs = s.MetaClient.(*meta.Client).Databases()
 	}
 
-	for _, rp := range db.RetentionPolicies {
-		for _, sg := range rp.ShardGroups {
-			for _, sh := range sg.Shards {
-				// ignore if the shard isn't on the server
-				if s.TSDBStore.Shard(sh.ID) == nil {
-					continue
-				}
+	for _, db := range dbs {
+		for _, rp := range db.RetentionPolicies {
+			for _, sg := range rp.ShardGroups {
+				for _, sh := range sg.Shards {
+					// ignore if the shard isn't on the server
+					if s.TSDBStore.Shard(sh.ID) == nil {
+						continue
+					}
 
-				path, err := s.TSDBStore.ShardRelativePath(sh.ID)
-				if err != nil {
-					return err
-				}
+					path, err := s.TSDBStore.ShardRelativePath(sh.ID)
+					if err != nil {
+						return err
+					}
 
-				res.Paths = append(res.Paths, path)
+					res.Paths = append(res.Paths, path)
+				}
 			}
 		}
 	}
-
 	if err := json.NewEncoder(conn).Encode(res); err != nil {
 		return fmt.Errorf("encode response: %s", err.Error())
 	}
@@ -250,12 +369,46 @@ func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPol
 }
 
 // readRequest unmarshals a request object from the conn.
-func (s *Service) readRequest(conn net.Conn) (Request, error) {
+func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 	var r Request
-	if err := json.NewDecoder(conn).Decode(&r); err != nil {
-		return r, err
+	d := json.NewDecoder(conn)
+
+	if err := d.Decode(&r); err != nil {
+		return r, []byte{}, err
 	}
-	return r, nil
+
+	bits := make([]byte, r.UploadSize+1)
+
+	if r.UploadSize > 0 {
+
+		remainder := d.Buffered()
+
+		//// no time to investigate.  It seems the JSON encoder puts one extra byte on the stream,
+		//// but the decoder does not consume it.  so we eat a byte here and then everything works.
+		//onebyte := bufio.NewReader(remainder)
+		//_, err := onebyte.ReadByte()
+		//if err != nil {
+		//	return r, bits, err
+		//}
+
+		n, err := remainder.Read(bits)
+		if err != nil && err != io.EOF {
+			return r, bits, err
+		}
+
+		// it is a bit random but sometimes the Json decoder will consume all the bytes and sometimes
+		// it will leave a few behind.
+		if err != io.EOF && n < int(r.UploadSize+1) {
+			n, err = conn.Read(bits[n:])
+		}
+
+		if err != nil && err != io.EOF {
+			return r, bits, err
+		}
+		return r, bits[1:], nil
+	}
+
+	return r, bits, nil
 }
 
 // RequestType indicates the typeof snapshot request.
@@ -273,16 +426,33 @@ const (
 
 	// RequestRetentionPolicyInfo represents a request for retention policy info.
 	RequestRetentionPolicyInfo
+
+	// RequestShardExport represents a request to export Shard data.  Similar to a backup, but shards
+	// may be filtered based on the start/end times on each block.
+	RequestShardExport
+
+	// RequestMetaStoreUpdate represents a request to upload a metafile that will be used to do a live update
+	// to the existing metastore.
+	RequestMetaStoreUpdate
+
+	// RequestShardUpdate will initiate the upload of a shard data tar file
+	// and have the engine import the data.
+	RequestShardUpdate
 )
 
 // Request represents a request for a specific backup or for information
 // about the shards on this server for a database or retention policy.
 type Request struct {
-	Type            RequestType
-	Database        string
-	RetentionPolicy string
-	ShardID         uint64
-	Since           time.Time
+	Type                   RequestType
+	BackupDatabase         string
+	RestoreDatabase        string
+	BackupRetentionPolicy  string
+	RestoreRetentionPolicy string
+	ShardID                uint64
+	Since                  time.Time
+	ExportStart            time.Time
+	ExportEnd              time.Time
+	UploadSize             int64
 }
 
 // Response contains the relative paths for all the shards on this server
