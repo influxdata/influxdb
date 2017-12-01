@@ -15,6 +15,7 @@ const UsersTableRow = ({
   onChangeUserRole,
   onChangeSuperAdmin,
   onDelete,
+  meID,
 }) => {
   const {colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
 
@@ -65,6 +66,7 @@ const UsersTableRow = ({
         onDelete={onDelete}
         item={user}
         buttonSize="btn-xs"
+        disabled={user.id === meID}
       />
     </tr>
   )
@@ -81,6 +83,7 @@ UsersTableRow.propTypes = {
   onChangeUserRole: func.isRequired,
   onChangeSuperAdmin: func.isRequired,
   onDelete: func.isRequired,
+  meID: string.isRequired,
 }
 
 export default UsersTableRow

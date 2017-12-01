@@ -4,10 +4,11 @@ import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 
-const DeleteButton = ({onClickDelete, buttonSize, text}) =>
+const DeleteButton = ({onClickDelete, buttonSize, text, disabled}) =>
   <button
     className={classnames('btn btn-danger table--show-on-row-hover', {
       [buttonSize]: buttonSize,
+      disabled,
     })}
     onClick={onClickDelete}
   >
@@ -37,7 +38,7 @@ class DeleteConfirmButtons extends Component {
   }
 
   render() {
-    const {onDelete, item, buttonSize, text} = this.props
+    const {onDelete, item, buttonSize, text, disabled} = this.props
     const {isConfirming} = this.state
 
     return isConfirming
@@ -51,16 +52,18 @@ class DeleteConfirmButtons extends Component {
           text={text}
           onClickDelete={this.handleClickDelete}
           buttonSize={buttonSize}
+          disabled={disabled}
         />
   }
 }
 
-const {func, oneOfType, shape, string} = PropTypes
+const {bool, func, oneOfType, shape, string} = PropTypes
 
 DeleteButton.propTypes = {
   text: string.isRequired,
   onClickDelete: func.isRequired,
   buttonSize: string,
+  disabled: bool,
 }
 
 DeleteButton.defaultProps = {
@@ -72,6 +75,7 @@ DeleteConfirmButtons.propTypes = {
   item: oneOfType([(string, shape())]),
   onDelete: func.isRequired,
   buttonSize: string,
+  disabled: bool,
 }
 
 DeleteConfirmButtons.defaultProps = {

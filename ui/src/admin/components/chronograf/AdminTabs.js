@@ -22,6 +22,7 @@ const AdminTabs = ({
   onUpdateUserRole,
   onUpdateUserSuperAdmin,
   onDeleteUser,
+  meID,
 }) => {
   const tabs = [
     {
@@ -40,6 +41,7 @@ const AdminTabs = ({
           onUpdateUserRole={onUpdateUserRole}
           onUpdateUserSuperAdmin={onUpdateUserSuperAdmin}
           onDeleteUser={onDeleteUser}
+          meID={meID}
         />
       ),
     },
@@ -65,16 +67,34 @@ const AdminTabs = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 AdminTabs.propTypes = {
   meRole: string.isRequired,
+  meID: string.isRequired,
   // UsersTable
-  users: arrayOf(shape()),
+  users: arrayOf(
+    shape({
+      id: string,
+      links: shape({
+        self: string.isRequired,
+      }),
+      name: string.isRequired,
+      provider: string.isRequired,
+      roles: arrayOf(
+        shape({
+          name: string.isRequired,
+          organization: string.isRequired,
+        })
+      ),
+      scheme: string.isRequired,
+      superAdmin: bool,
+    })
+  ).isRequired,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
-  }),
+  }).isRequired,
   onCreateUser: func.isRequired,
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
