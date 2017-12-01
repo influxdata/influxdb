@@ -60,6 +60,7 @@ class OrganizationsTableRowNew extends Component {
     return (
       <div className="orgs-table--org orgs-table--new-org">
         <div className="orgs-table--id">&mdash;</div>
+        <div className="orgs-table--active">&mdash;</div>
         <input
           type="text"
           className="form-control input-sm orgs-table--input"

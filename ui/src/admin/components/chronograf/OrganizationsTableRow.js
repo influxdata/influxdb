@@ -106,7 +106,7 @@ class OrganizationsTableRow extends Component {
 
   render() {
     const {workingName, isEditing, isDeleting} = this.state
-    const {organization} = this.props
+    const {organization, currentOrganization} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
       ...role,
@@ -121,6 +121,18 @@ class OrganizationsTableRow extends Component {
       <div className="orgs-table--org">
         <div className="orgs-table--id">
           {organization.id}
+        </div>
+        <div className="orgs-table--active">
+          {organization.id === currentOrganization.id
+            ? <button className="btn btn-sm btn-success">
+                <span className="icon checkmark" />
+              </button>
+            : <button
+                className="btn btn-sm btn-default"
+                onClick={this.handleChangeCurrentOrganization()}
+              >
+                Switch
+              </button>}
         </div>
         {isEditing
           ? <input
@@ -185,6 +197,10 @@ OrganizationsTableRow.propTypes = {
   onRename: func.isRequired,
   onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
+  currentOrganization: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }),
 }
 
 OrganizationsTableRowDeleteButton.propTypes = {
