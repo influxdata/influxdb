@@ -3,11 +3,9 @@ import React, {Component, PropTypes} from 'react'
 import uuid from 'node-uuid'
 
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
-import OrganizationsTableRowDefault from 'src/admin/components/chronograf/OrganizationsTableRowDefault'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
-import {DEFAULT_ORG_ID} from 'src/admin/constants/dummyUsers'
 import {PUBLIC_TOOLTIP} from 'src/admin/constants/index'
 
 class OrganizationsTable extends Component {
@@ -79,22 +77,15 @@ class OrganizationsTable extends Component {
                 onCancelCreateOrganization={this.handleCancelCreateOrganization}
               />
             : null}
-          {organizations.map(
-            org =>
-              org.id === DEFAULT_ORG_ID
-                ? <OrganizationsTableRowDefault
-                    key={uuid.v4()}
-                    organization={org}
-                    onTogglePublic={onTogglePublic}
-                    onChooseDefaultRole={onChooseDefaultRole}
-                  />
-                : <OrganizationsTableRow
-                    key={uuid.v4()}
-                    organization={org}
-                    onDelete={onDeleteOrg}
-                    onRename={onRenameOrg}
-                    onChooseDefaultRole={onChooseDefaultRole}
-                  />
+          {organizations.map(org =>
+            <OrganizationsTableRow
+              key={uuid.v4()}
+              organization={org}
+              onTogglePublic={onTogglePublic}
+              onDelete={onDeleteOrg}
+              onRename={onRenameOrg}
+              onChooseDefaultRole={onChooseDefaultRole}
+            />
           )}
         </div>
       </div>

@@ -875,3 +875,131 @@ func TestUsersStore_All(t *testing.T) {
 		}
 	}
 }
+
+func TestUsersStore_Num(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		ctx     context.Context
+		orgID   string
+		want    int
+		wantErr bool
+	}{
+		{
+			name: "No users",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								Name:     "howdy",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "viewer",
+									},
+									{
+										Organization: "1336",
+										Name:         "viewer",
+									},
+								},
+							},
+							{
+								Name:     "doody2",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1337",
+										Name:         "editor",
+									},
+								},
+							},
+							{
+								Name:     "doody",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "editor",
+									},
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			ctx:   context.Background(),
+			orgID: "2330",
+		},
+		{
+			name:  "get all users",
+			orgID: "1338",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								Name:     "howdy",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "viewer",
+									},
+									{
+										Organization: "1336",
+										Name:         "viewer",
+									},
+								},
+							},
+							{
+								Name:     "doody2",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1337",
+										Name:         "editor",
+									},
+								},
+							},
+							{
+								Name:     "doody",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Organization: "1338",
+										Name:         "editor",
+									},
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			ctx:  context.Background(),
+			want: 2,
+		},
+	}
+	for _, tt := range tests {
+		tt.ctx = context.WithValue(tt.ctx, organizations.ContextKey, tt.orgID)
+		s := organizations.NewUsersStore(tt.fields.UsersStore, tt.orgID)
+		got, err := s.Num(tt.ctx)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. UsersStore.Num() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("%q. UsersStore.Num() = %d. want %d", tt.name, got, tt.want)
+		}
+	}
+}

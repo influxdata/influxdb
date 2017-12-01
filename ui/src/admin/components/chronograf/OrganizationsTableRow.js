@@ -1,9 +1,26 @@
 import React, {Component, PropTypes} from 'react'
 
+import SlideToggle from 'shared/components/SlideToggle'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
 
-import {USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
+import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
+
+const OrganizationsTableRowDeleteButton = ({organization, onClickDelete}) =>
+  organization.id === DEFAULT_ORG_ID
+    ? <button
+        className="btn btn-sm btn-default btn-square orgs-table--delete"
+        disabled={true}
+      >
+        <span className="icon trash" />
+      </button>
+    : <button
+        className="btn btn-sm btn-default btn-square"
+        onClick={onClickDelete}
+      >
+        <span className="icon trash" />
+      </button>
 
 class OrganizationsTableRow extends Component {
   constructor(props) {
@@ -77,6 +94,11 @@ class OrganizationsTableRow extends Component {
     onDelete(organization)
   }
 
+  handleTogglePublic = () => {
+    const {organization, onTogglePublic} = this.props
+    onTogglePublic(organization)
+  }
+
   handleChooseDefaultRole = role => {
     const {organization, onChooseDefaultRole} = this.props
     onChooseDefaultRole(organization, role.name)
@@ -117,7 +139,15 @@ class OrganizationsTableRow extends Component {
               {workingName}
               <span className="icon pencil" />
             </div>}
-        <div className="orgs-table--public disabled">&mdash;</div>
+        {organization.id === DEFAULT_ORG_ID
+          ? <div className="orgs-table--public">
+              <SlideToggle
+                size="xs"
+                active={organization.public}
+                onToggle={this.handleTogglePublic}
+              />
+            </div>
+          : <div className="orgs-table--public disabled">&mdash;</div>}
         <div className={defaultRoleClassName}>
           <Dropdown
             items={dropdownRolesItems}
@@ -134,12 +164,10 @@ class OrganizationsTableRow extends Component {
               onClickOutside={this.handleDismissDeleteConfirmation}
               confirmLeft={true}
             />
-          : <button
-              className="btn btn-sm btn-default btn-square"
-              onClick={this.handleDeleteClick}
-            >
-              <span className="icon trash" />
-            </button>}
+          : <OrganizationsTableRowDeleteButton
+              organization={organization}
+              onClickDelete={this.handleDeleteClick}
+            />}
       </div>
     )
   }
@@ -155,7 +183,17 @@ OrganizationsTableRow.propTypes = {
   }).isRequired,
   onDelete: func.isRequired,
   onRename: func.isRequired,
+  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
+}
+
+OrganizationsTableRowDeleteButton.propTypes = {
+  organization: shape({
+    id: string, // when optimistically created, organization will not have an id
+    name: string.isRequired,
+    defaultRole: string.isRequired,
+  }).isRequired,
+  onClickDelete: func.isRequired,
 }
 
 export default OrganizationsTableRow

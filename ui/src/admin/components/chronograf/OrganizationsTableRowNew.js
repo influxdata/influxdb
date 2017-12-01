@@ -3,7 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
 
-import {USER_ROLES} from 'src/admin/constants/dummyUsers'
+import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 class OrganizationsTableRowNew extends Component {

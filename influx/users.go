@@ -126,6 +126,16 @@ func (c *Client) All(ctx context.Context) ([]chronograf.User, error) {
 	return users, nil
 }
 
+// Number of users in Influx
+func (c *Client) Num(ctx context.Context) (int, error) {
+	all, err := c.All(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(all), nil
+}
+
 // showUsers runs SHOW USERS InfluxQL command and returns chronograf users.
 func (c *Client) showUsers(ctx context.Context) ([]chronograf.User, error) {
 	res, err := c.Query(ctx, chronograf.Query{

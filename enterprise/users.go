@@ -37,6 +37,16 @@ func (c *UserStore) Delete(ctx context.Context, u *chronograf.User) error {
 	return c.Ctrl.DeleteUser(ctx, u.Name)
 }
 
+// Number of users in Influx
+func (c *UserStore) Num(ctx context.Context) (int, error) {
+	all, err := c.All(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(all), nil
+}
+
 // Get retrieves a user if name exists.
 func (c *UserStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 	if q.Name == nil {

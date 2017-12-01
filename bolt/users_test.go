@@ -522,3 +522,67 @@ func TestUsersStore_All(t *testing.T) {
 		}
 	}
 }
+
+func TestUsersStore_Num(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		users   []chronograf.User
+		want    int
+		wantErr bool
+	}{
+		{
+			name: "No users",
+			want: 0,
+		},
+		{
+			name: "Update new user",
+			want: 2,
+			users: []chronograf.User{
+				{
+					Name:     "howdy",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name: "viewer",
+						},
+					},
+				},
+				{
+					Name:     "doody",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name: "editor",
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		client, err := NewTestClient()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Open(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+		s := client.UsersStore
+
+		for _, u := range tt.users {
+			s.Add(tt.ctx, &u)
+		}
+		got, err := s.Num(tt.ctx)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. UsersStore.Num() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("%q. UsersStore.Num() = %d. want %d", tt.name, got, tt.want)
+		}
+	}
+}

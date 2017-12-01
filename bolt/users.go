@@ -51,6 +51,24 @@ func (s *UsersStore) each(ctx context.Context, fn func(*chronograf.User)) error 
 	})
 }
 
+// Num returns the number of users in the UsersStore
+func (s *UsersStore) Num(ctx context.Context) (int, error) {
+	count := 0
+
+	err := s.client.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(UsersBucket).ForEach(func(k, v []byte) error {
+			count++
+			return nil
+		})
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 // Get searches the UsersStore for user with name
 func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 	if q.ID != nil {

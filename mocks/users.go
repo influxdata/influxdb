@@ -15,11 +15,17 @@ type UsersStore struct {
 	DeleteF func(context.Context, *chronograf.User) error
 	GetF    func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error)
 	UpdateF func(context.Context, *chronograf.User) error
+	NumF    func(context.Context) (int, error)
 }
 
 // All lists all users from the UsersStore
 func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
 	return s.AllF(ctx)
+}
+
+// Num returns the number of users in the UsersStore
+func (s *UsersStore) Num(ctx context.Context) (int, error) {
+	return s.NumF(ctx)
 }
 
 // Add a new User in the UsersStore

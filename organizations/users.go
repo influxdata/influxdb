@@ -241,3 +241,20 @@ func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
 
 	return us, nil
 }
+
+// Num returns the number of users in the UsersStore
+// This is unperformant, but should rarely be used.
+func (s *UsersStore) Num(ctx context.Context) (int, error) {
+	err := validOrganization(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	// retrieve all users from the underlying UsersStore
+	usrs, err := s.All(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(usrs), nil
+}

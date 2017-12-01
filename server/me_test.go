@@ -21,11 +21,11 @@ type MockUsers struct{}
 
 func TestService_Me(t *testing.T) {
 	type fields struct {
-		UsersStore            chronograf.UsersStore
-		OrganizationsStore    chronograf.OrganizationsStore
-		Logger                chronograf.Logger
-		UseAuth               bool
-		NewUsersNotSuperAdmin bool
+		UsersStore              chronograf.UsersStore
+		OrganizationsStore      chronograf.OrganizationsStore
+		Logger                  chronograf.Logger
+		UseAuth                 bool
+		SuperAdminFirstUserOnly bool
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -47,9 +47,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -79,9 +79,9 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+					NumF: func(ctx context.Context) (int, error) {
 						// This function gets to verify that there is at least one first user
-						return []chronograf.User{{}}, nil
+						return 1, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
@@ -144,6 +144,10 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 1, nil
+					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
@@ -231,9 +235,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: false,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: false,
+				Logger:                  log.New(log.DebugLevel),
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -253,6 +257,10 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 1, nil
+					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
@@ -277,15 +285,15 @@ func TestService_Me(t *testing.T) {
 `,
 		},
 		{
-			name: "New user - New users not super admin",
+			name: "New user - New users not super admin, not first user",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -305,6 +313,10 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 1, nil
+					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
 							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
@@ -329,14 +341,70 @@ func TestService_Me(t *testing.T) {
 `,
 		},
 		{
+			name: "New user - New users not super admin, first user",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+			},
+			fields: fields{
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          0,
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
+						}, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          0,
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
+						}, nil
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 0, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return nil, chronograf.ErrUserNotFound
+					},
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject: "secret",
+				Issuer:  "auth0",
+			},
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
+`,
+		},
+		{
 			name: "Error adding user",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -353,6 +421,10 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 1, nil
+					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						return nil, chronograf.ErrUserNotFound
 					},
@@ -380,9 +452,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               false,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 false,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
@@ -396,9 +468,9 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:               true,
-				NewUsersNotSuperAdmin: true,
-				Logger:                log.New(log.DebugLevel),
+				UseAuth:                 true,
+				SuperAdminFirstUserOnly: true,
+				Logger:                  log.New(log.DebugLevel),
 			},
 			wantStatus: http.StatusUnprocessableEntity,
 			principal: oauth2.Principal{
@@ -426,9 +498,9 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+					NumF: func(ctx context.Context) (int, error) {
 						// This function gets to verify that there is at least one first user
-						return []chronograf.User{{}}, nil
+						return 1, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
@@ -460,9 +532,9 @@ func TestService_Me(t *testing.T) {
 				UsersStore:         tt.fields.UsersStore,
 				OrganizationsStore: tt.fields.OrganizationsStore,
 			},
-			Logger:                tt.fields.Logger,
-			UseAuth:               tt.fields.UseAuth,
-			NewUsersNotSuperAdmin: tt.fields.NewUsersNotSuperAdmin,
+			Logger:                  tt.fields.Logger,
+			UseAuth:                 tt.fields.UseAuth,
+			SuperAdminFirstUserOnly: tt.fields.SuperAdminFirstUserOnly,
 		}
 
 		s.Me(tt.args.w, tt.args.r)
