@@ -11,14 +11,14 @@
   "scripts": {
     "build": "yarn run clean && env NODE_ENV=production webpack --optimize-minimize --config ./webpack/prodConfig.js",
     "build:dev": "webpack --config ./webpack/devConfig.js",
-    "start": "webpack --watch --config ./webpack/devConfig.js",
+    "start": "yarn run clean && webpack --watch --config ./webpack/devConfig.js",
     "start:hmr": "webpack-dev-server --open --config ./webpack/devConfig.js",
     "lint": "esw src/",
     "test": "karma start",
     "test:integration": "nightwatch tests --skip",
     "test:lint": "yarn run lint; yarn run test",
     "test:dev": "concurrently \"yarn run lint --watch\" \"yarn run test --no-single-run --reporters=verbose\"",
-    "clean": "rm -rf build",
+    "clean": "rm -rf build/*",
     "storybook": "node ./storybook.js",
     "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix"
   },
