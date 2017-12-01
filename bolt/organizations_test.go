@@ -373,7 +373,7 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			addFirst: true,
 		},
 		{
-			name: "Update organization name - name already taken",
+			name: "Update organization name - organization already exists",
 			fields: fields{
 				orgs: []chronograf.Organization{
 					{
@@ -552,7 +552,7 @@ func TestOrganizationsStore_Add(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Add organization - name already taken",
+			name: "Add organization - organization already exists",
 			fields: fields{
 				orgs: []chronograf.Organization{
 					{
