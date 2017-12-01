@@ -564,6 +564,11 @@ func (t *tsmWriter) Write(key []byte, values Values) error {
 
 	// Increment file position pointer
 	t.n += int64(n)
+
+	if len(t.index.Entries(key)) >= maxIndexEntries {
+		return ErrMaxBlocksExceeded
+	}
+
 	return nil
 }
 
