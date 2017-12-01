@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/graphite"
 )
@@ -131,6 +133,94 @@ func TestTemplateApply(t *testing.T) {
 				t.Fatalf("unexpected tag value for tags[%s].  expected %q, got %q", k, v, tags[k])
 			}
 		}
+	}
+}
+
+func TestRegexpTemplateApply(t *testing.T) {
+	var tests = []struct {
+		name        string
+		input       string
+		template    string
+		measurement string
+		tags        map[string]string
+		field       string
+		err         string
+	}{
+		{
+			name:        "metric only",
+			input:       `cpu`,
+			template:    `^(?P<measurement>[^.]+)$`,
+			measurement: `cpu`,
+		},
+		{
+			name:        "metric with single series",
+			input:       "cpu.server01",
+			template:    `^(?P<measurement>[^.]+)\.(?P<hostname>[^.]+)$`,
+			measurement: "cpu",
+			tags:        map[string]string{"hostname": "server01"},
+		},
+		{
+			name:        "metric with multiple series",
+			input:       "cpu.us-west.server01",
+			template:    `^(?P<measurement>[^.]+)\.(?P<region>[^.]+)\.(?P<hostname>[^.]+)$`,
+			measurement: "cpu",
+			tags:        map[string]string{"hostname": "server01", "region": "us-west"},
+		},
+		{
+			name:        "metric with multiple tags",
+			input:       "server01.example.org.cpu.us-west",
+			template:    `^(?P<hostname>([^.]+\.){2}[^.]+)\.(?P<measurement>[^.]+)\.(?P<region>[^.]+)$`,
+			measurement: "cpu",
+			tags:        map[string]string{"hostname": "server01.example.org", "region": "us-west"},
+		},
+		{
+			name:     "no metric",
+			template: `(?P<hostname>.*)`,
+			tags:     make(map[string]string),
+			err:      `measurement must be included as a named capture group`,
+		},
+		{
+			name:        "field name",
+			input:       "cpu.usage_user",
+			template:    `^(?P<measurement>[^.]+)\.(?P<field>.+)$`,
+			measurement: "cpu",
+			field:       "usage_user",
+		},
+		{
+			name:        "split a section",
+			input:       "h1.Interface_xe0.in",
+			template:    `^(?P<host>[^.]+)\.(?P<measurement>[^.]+)_(?P<interface>[^.]+)\.(?P<field>[^.]+)$`,
+			measurement: "Interface",
+			tags:        map[string]string{"host": "h1", "interface": "xe0"},
+			field:       "in",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tmpl, err := graphite.NewRegexpTemplate(test.template, nil)
+			if errstr(err) != test.err {
+				t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
+			}
+			if err != nil {
+				// If we erred out, it was intended and the following tests won't work.
+				return
+			}
+
+			measurement, tags, field, _ := tmpl.Apply(test.input)
+			if measurement != test.measurement {
+				t.Fatalf("name parse failed.  expected %v, got %v", test.measurement, measurement)
+			}
+			if diff := cmp.Diff(tags, test.tags, cmpopts.EquateEmpty()); diff != "" {
+				t.Fatalf("unexpected tags:\n%s", diff)
+			}
+			if test.field == "" {
+				test.field = "value"
+			}
+			if field != test.field {
+				t.Fatalf("field parse failed.  expected %v, got %v", test.field, field)
+			}
+		})
 	}
 }
 

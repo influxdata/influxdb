@@ -1,7 +1,9 @@
 package graphite
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -265,6 +267,10 @@ func (c *Config) validateTemplates() error {
 			if err := c.validateTemplate(t.Template); err != nil {
 				return err
 			}
+		case "regexp":
+			if err := c.validateRegexpTemplate(t.Template); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unknown template format '%s' at position: %d", t.Format, i+len(c.Templates))
 		}
@@ -306,6 +312,26 @@ func (c *Config) validateTemplate(template string) error {
 		return fmt.Errorf("no measurement in template `%s`", template)
 	}
 
+	return nil
+}
+
+func (c *Config) validateRegexpTemplate(template string) error {
+	re, err := regexp.Compile(template)
+	if err != nil {
+		return err
+	}
+
+	var hasMeasurement bool
+	for _, name := range re.SubexpNames() {
+		switch name {
+		case "measurement":
+			hasMeasurement = true
+		}
+	}
+
+	if !hasMeasurement {
+		return errors.New("measurement must be included as a named capture group")
+	}
 	return nil
 }
 

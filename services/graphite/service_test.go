@@ -252,6 +252,84 @@ func Test_Service_UDP(t *testing.T) {
 	conn.Close()
 }
 
+func Test_Service_TemplateConcatenation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC().Round(time.Second)
+
+	config := Config{}
+	config.Database = "graphitedb"
+	config.BatchSize = 0 // No batching.
+	config.BatchTimeout = toml.Duration(time.Second)
+	config.BindAddress = ":0"
+	config.Templates = []string{"measurement.field"}
+	config.Template = []TemplateConfig{
+		{
+			Format:   "regexp",
+			Template: `^(?P<measurement>[^.]+)\.(?P<host>[^.]+)$`,
+			Filter:   "servers.*",
+		},
+	}
+
+	service := NewTestService(&config)
+
+	// Allow test to wait until points are written.
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	service.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+		defer wg.Done()
+
+		pt1, _ := models.NewPoint(
+			"cpu",
+			models.NewTags(map[string]string{}),
+			map[string]interface{}{"usage_user": 23.456},
+			time.Unix(now.Unix(), 0))
+		pt2, _ := models.NewPoint(
+			"servers",
+			models.NewTags(map[string]string{"host": "us-west"}),
+			map[string]interface{}{"value": float64(5)},
+			time.Unix(now.Unix(), 0))
+
+		if database != "graphitedb" {
+			t.Fatalf("unexpected database: %s", database)
+		} else if retentionPolicy != "" {
+			t.Fatalf("unexpected retention policy: %s", retentionPolicy)
+		} else if len(points) != 2 {
+			t.Fatalf("expected 2 points, got %d", len(points))
+		} else if points[0].String() != pt1.String() {
+			t.Fatalf("expected point %v, got %v", pt1.String(), points[0].String())
+		} else if points[1].String() != pt2.String() {
+			t.Fatalf("expected point %v, got %v", pt2.String(), points[1].String())
+		}
+		return nil
+	}
+
+	if err := service.Service.Open(); err != nil {
+		t.Fatalf("failed to open Graphite service: %s", err.Error())
+	}
+
+	// Connect to the graphite endpoint we just spun up
+	_, port, _ := net.SplitHostPort(service.Service.Addr().String())
+	conn, err := net.Dial("tcp", "127.0.0.1:"+port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []byte(`cpu.usage_user 23.456 `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, '\n')
+	data = append(data, []byte(`servers.us-west 5 `)...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wg.Wait()
+}
+
 type TestService struct {
 	Service       *Service
 	MetaClient    *internal.MetaClientMock
