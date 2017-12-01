@@ -4,16 +4,23 @@ import {ALERTS_TO_RULE} from 'src/kapacitor/constants'
 export const getHandlersFromRule = rule => {
   const handlersOfKind = {}
   const handlersOnThisAlert = []
+  const handlersFromRule = _.pickBy(rule.alertNodes, (v, k) => {
+    return k in ALERTS_TO_RULE
+  })
 
-  _.forEach(rule.alertNodes, (v, k) => {
-    const count = _.get(handlersOfKind, k, 0) + 1
-    handlersOfKind[k] = count
-    const ep = {
-      ...v,
-      alias: k + count,
-      type: k,
+  _.forEach(handlersFromRule, (v, alertKind) => {
+    if (v.length > 0) {
+      _.forEach(v, alertOptions => {
+        const count = _.get(handlersOfKind, alertKind, 0) + 1
+        handlersOfKind[alertKind] = count
+        const ep = {
+          ...alertOptions,
+          alias: alertKind + count,
+          type: alertKind,
+        }
+        handlersOnThisAlert.push(ep)
+      })
     }
-    handlersOnThisAlert.push(ep)
   })
   const selectedHandler = handlersOnThisAlert.length
     ? handlersOnThisAlert[0]

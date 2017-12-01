@@ -4,30 +4,9 @@ import _ from 'lodash'
 import HandlerOptions from 'src/kapacitor/components/HandlerOptions'
 import HandlerTabs from 'src/kapacitor/components/HandlerTabs'
 import Dropdown from 'shared/components/Dropdown'
-// import {getHandlersFromRule} from 'src/shared/parsing/parseHandlersFromRule'
+import {getHandlersFromRule} from 'src/shared/parsing/parseHandlersFromRule'
 
 import {DEFAULT_HANDLERS} from 'src/kapacitor/constants'
-
-const getHandlersFromRule = rule => {
-  const handlersOfKind = {}
-  const handlersOnThisAlert = []
-  rule.alertNodes.forEach(an => {
-    const count = _.get(handlersOfKind, an.name, 0) + 1
-    handlersOfKind[an.name] = count
-    const ep = {
-      ...an.properties,
-      ...an.args,
-      ...an,
-      alias: an.name + count,
-      type: an.name,
-    }
-    handlersOnThisAlert.push(ep)
-  })
-  const selectedHandler = handlersOnThisAlert.length
-    ? handlersOnThisAlert[0]
-    : null
-  return {handlersOnThisAlert, selectedHandler, handlersOfKind}
-}
 
 class RuleHandlers extends Component {
   constructor(props) {
