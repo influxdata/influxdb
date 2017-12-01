@@ -16,7 +16,7 @@ export default function rules(state = {}, action) {
           trigger: 'threshold',
           values: defaultRuleConfigs.threshold,
           message: '',
-          alertNodes: [],
+          alertNodes: {},
           every: null,
           name: 'Untitled Rule',
         },
