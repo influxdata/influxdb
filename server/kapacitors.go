@@ -328,7 +328,7 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 
 	task, err := c.Create(ctx, req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
+		invalidData(w, err, h.Logger)
 		return
 	}
 	res := newAlertResponse(task, srv.SrcID, srv.ID)
@@ -554,7 +554,7 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	req.ID = tid
 	task, err := c.Update(ctx, c.Href(tid), req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
+		invalidData(w, err, h.Logger)
 		return
 	}
 	res := newAlertResponse(task, srv.SrcID, srv.ID)
