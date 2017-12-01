@@ -31,5 +31,6 @@ export const getAlertNodeList = rule => {
     },
     []
   )
-  return _.join(nodeList, ', ')
+  const uniqNodeList = _.uniq(nodeList)
+  return _.join(uniqNodeList, ', ')
 }
