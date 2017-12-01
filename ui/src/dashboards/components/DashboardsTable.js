@@ -56,13 +56,15 @@ const DashboardsTable = ({
         <h4 style={{marginTop: '90px'}}>
           Looks like you don’t have any dashboards
         </h4>
-        <button
-          className="btn btn-sm btn-primary"
-          onClick={onCreateDashboard}
-          style={{marginBottom: '90px'}}
-        >
-          <span className="icon plus" /> Create Dashboard
-        </button>
+        <Authorized requiredRole={EDITOR_ROLE}>
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={onCreateDashboard}
+            style={{marginBottom: '90px'}}
+          >
+            <span className="icon plus" /> Create Dashboard
+          </button>
+        </Authorized>
       </div>
 }
 
