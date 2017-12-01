@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
-	"github.com/influxdata/chronograf/roles"
 )
 
 func Test_ValidSourceRequest(t *testing.T) {
@@ -54,7 +53,6 @@ func Test_ValidSourceRequest(t *testing.T) {
 					Default:            true,
 					Telegraf:           "telegraf",
 					Organization:       "0",
-					Role:               roles.ViewerRoleName,
 				},
 			},
 			wants: wants{
@@ -77,7 +75,6 @@ func Test_ValidSourceRequest(t *testing.T) {
 					Default:            true,
 					Telegraf:           "telegraf",
 					Organization:       "0",
-					Role:               roles.ViewerRoleName,
 				},
 			},
 			wants: wants{
@@ -100,7 +97,6 @@ func Test_ValidSourceRequest(t *testing.T) {
 					InsecureSkipVerify: true,
 					Default:            true,
 					Telegraf:           "telegraf",
-					Role:               roles.ViewerRoleName,
 				},
 			},
 			wants: wants{
@@ -117,7 +113,6 @@ func Test_ValidSourceRequest(t *testing.T) {
 					Default:            true,
 					Organization:       "2",
 					Telegraf:           "telegraf",
-					Role:               roles.ViewerRoleName,
 				},
 			},
 		},
@@ -137,70 +132,10 @@ func Test_ValidSourceRequest(t *testing.T) {
 					Organization:       "0",
 					Default:            true,
 					Telegraf:           "telegraf",
-					Role:               roles.ViewerRoleName,
 				},
 			},
 			wants: wants{
 				err: fmt.Errorf("invalid source URI: parse im a bad url: invalid URI for request"),
-			},
-		},
-		{
-			name: "set Role to be viewer if not specified",
-			args: args{
-				source: &chronograf.Source{
-					ID:                 1,
-					Name:               "I'm a really great source",
-					Type:               chronograf.InfluxDB,
-					Username:           "fancy",
-					Password:           "i'm so",
-					SharedSecret:       "supersecret",
-					URL:                "http://www.any.url.com",
-					MetaURL:            "http://www.so.meta.com",
-					InsecureSkipVerify: true,
-					Default:            true,
-					Telegraf:           "telegraf",
-					Organization:       "0",
-				},
-			},
-			wants: wants{
-				source: &chronograf.Source{
-					ID:                 1,
-					Name:               "I'm a really great source",
-					Type:               chronograf.InfluxDB,
-					Username:           "fancy",
-					Password:           "i'm so",
-					SharedSecret:       "supersecret",
-					URL:                "http://www.any.url.com",
-					MetaURL:            "http://www.so.meta.com",
-					InsecureSkipVerify: true,
-					Default:            true,
-					Organization:       "0",
-					Telegraf:           "telegraf",
-					Role:               roles.ViewerRoleName,
-				},
-			},
-		},
-		{
-			name: "bad role type",
-			args: args{
-				source: &chronograf.Source{
-					ID:                 1,
-					Name:               "I'm a really great source",
-					Type:               chronograf.InfluxDB,
-					Username:           "fancy",
-					Password:           "i'm so",
-					SharedSecret:       "supersecret",
-					URL:                "http://www.any.url.com",
-					MetaURL:            "http://www.so.meta.com",
-					InsecureSkipVerify: true,
-					Default:            true,
-					Telegraf:           "telegraf",
-					Organization:       "0",
-					Role:               "superperson",
-				},
-			},
-			wants: wants{
-				err: fmt.Errorf("Unknown role superperson. Valid roles are 'viewer', 'editor', and 'admin'"),
 			},
 		},
 	}
