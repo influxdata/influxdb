@@ -110,8 +110,13 @@ func NewService(c Config) (*Service, error) {
 		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
 
+	// Concatenate the templates from different sections of the config.
+	templates := make([]TemplateConfig, 0, len(d.Templates)+len(d.Template))
+	templates = append(templates, SimpleTemplates(d.Templates)...)
+	templates = append(templates, d.Template...)
+
 	parser, err := NewParserWithOptions(Options{
-		Templates:   d.Templates,
+		Templates:   templates,
 		DefaultTags: d.DefaultTags(),
 		Separator:   d.Separator})
 

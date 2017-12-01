@@ -302,7 +302,7 @@ func TestFilterMatchMultipleMeasurement(t *testing.T) {
 
 func TestFilterMatchMultipleMeasurementSeparator(t *testing.T) {
 	p, err := graphite.NewParserWithOptions(graphite.Options{
-		Templates: []string{"servers.localhost .host.measurement.measurement*"},
+		Templates: graphite.SimpleTemplates([]string{"servers.localhost .host.measurement.measurement*"}),
 		Separator: "_",
 	})
 	if err != nil {
@@ -566,7 +566,7 @@ func TestParseTemplateWhitespace(t *testing.T) {
 func TestApplyTemplate(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
-		Templates: []string{"current.* measurement.measurement"},
+		Templates: graphite.SimpleTemplates([]string{"current.* measurement.measurement"}),
 	}
 	p, err := graphite.NewParserWithOptions(o)
 	if err != nil {
@@ -584,7 +584,7 @@ func TestApplyTemplate(t *testing.T) {
 func TestApplyTemplateNoMatch(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
-		Templates: []string{"foo.bar measurement.measurement"},
+		Templates: graphite.SimpleTemplates([]string{"foo.bar measurement.measurement"}),
 	}
 	p, err := graphite.NewParserWithOptions(o)
 	if err != nil {
@@ -602,10 +602,10 @@ func TestApplyTemplateNoMatch(t *testing.T) {
 func TestApplyTemplateSpecific(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
-		Templates: []string{
+		Templates: graphite.SimpleTemplates([]string{
 			"current.* measurement.measurement",
 			"current.*.* measurement.measurement.service",
-		},
+		}),
 	}
 	p, err := graphite.NewParserWithOptions(o)
 	if err != nil {
@@ -630,10 +630,10 @@ func TestApplyTemplateSpecific(t *testing.T) {
 func TestApplyTemplateSpecificIsNA(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
-		Templates: []string{
+		Templates: graphite.SimpleTemplates([]string{
 			"current.* measurement.service",
 			"current.*.*.test measurement.measurement.service",
-		},
+		}),
 	}
 	p, err := graphite.NewParserWithOptions(o)
 	if err != nil {
@@ -650,7 +650,7 @@ func TestApplyTemplateSpecificIsNA(t *testing.T) {
 func TestApplyTemplateTags(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
-		Templates: []string{"current.* measurement.measurement region=us-west"},
+		Templates: graphite.SimpleTemplates([]string{"current.* measurement.measurement region=us-west"}),
 	}
 	p, err := graphite.NewParserWithOptions(o)
 	if err != nil {
@@ -675,7 +675,7 @@ func TestApplyTemplateTags(t *testing.T) {
 func TestApplyTemplateField(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
-		Templates: []string{"current.* measurement.measurement.field"},
+		Templates: graphite.SimpleTemplates([]string{"current.* measurement.measurement.field"}),
 	}
 	p, err := graphite.NewParserWithOptions(o)
 	if err != nil {
@@ -701,7 +701,7 @@ func TestApplyTemplateField(t *testing.T) {
 func TestApplyTemplateFieldError(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
-		Templates: []string{"current.* measurement.field.field"},
+		Templates: graphite.SimpleTemplates([]string{"current.* measurement.field.field"}),
 	}
 	p, err := graphite.NewParserWithOptions(o)
 	if err != nil {
