@@ -13,6 +13,7 @@ const ExecHandler = ({selectedHandler, handleModifyHandler}) => {
           fieldDisplay="Command (arguments separated by spaces):"
           placeholder="ex: command argument"
           fieldColumns="col-md-12"
+          parseToArray={true}
         />
       </div>
     </div>

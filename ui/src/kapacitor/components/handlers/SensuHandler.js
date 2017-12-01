@@ -32,6 +32,7 @@ const SensuHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             fieldDisplay="Handlers"
             placeholder="ex: my_handlers"
             fieldColumns="col-md-12"
+            parseToArray={true}
           />
         </div>
       </div>

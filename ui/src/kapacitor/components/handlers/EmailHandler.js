@@ -43,6 +43,7 @@ const EmailHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             fieldName="to"
             fieldDisplay="Recipient E-mail Addresses: (separated by spaces)"
             placeholder="ex: bob@domain.com susan@domain.com"
+            parseToArray={true}
           />
         </div>
       </div>

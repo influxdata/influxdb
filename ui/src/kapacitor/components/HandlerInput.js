@@ -9,6 +9,7 @@ const HandlerInput = ({
   redacted = false,
   disabled = false,
   fieldColumns = 'col-md-6',
+  parseToArray = false,
 }) => {
   const formGroupClass = `form-group ${fieldColumns}`
   return (
@@ -23,8 +24,16 @@ const HandlerInput = ({
           className="form-control input-sm form-malachite"
           type={redacted ? 'hidden' : 'text'}
           placeholder={placeholder}
-          onChange={handleModifyHandler(selectedHandler, fieldName)}
-          value={selectedHandler[fieldName]}
+          onChange={handleModifyHandler(
+            selectedHandler,
+            fieldName,
+            parseToArray
+          )}
+          value={
+            parseToArray
+              ? _.join(selectedHandler[fieldName], ' ')
+              : selectedHandler[fieldName]
+          }
           autoComplete="off"
           spellCheck="false"
           disabled={disabled}
@@ -50,6 +59,7 @@ HandlerInput.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
   fieldColumns: string,
+  parseToArray: bool,
 }
 
 export default HandlerInput

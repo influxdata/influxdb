@@ -85,18 +85,27 @@ class RuleHandlers extends Component {
     actions.updateAlertNodes(rule.id, handlersOnThisAlert)
   }
 
-  handleModifyHandler = (selectedHandler, fieldName) => e => {
+  handleModifyHandler = (selectedHandler, fieldName, parseToArray) => e => {
     const {handlersOnThisAlert} = this.state
-    const modifiedEP =
-      e.target.type === 'checkbox'
-        ? {
-            ...selectedHandler,
-            [fieldName]: !selectedHandler[fieldName],
-          }
-        : {
-            ...selectedHandler,
-            [fieldName]: e.target.value,
-          }
+
+    let modifiedEP
+    if (e.target.type === 'checkbox') {
+      modifiedEP = {
+        ...selectedHandler,
+        [fieldName]: !selectedHandler[fieldName],
+      }
+    } else if (parseToArray) {
+      modifiedEP = {
+        ...selectedHandler,
+        [fieldName]: _.split(e.target.value, ' '),
+      }
+    } else {
+      modifiedEP = {
+        ...selectedHandler,
+        [fieldName]: e.target.value,
+      }
+    }
+
     const remainingEndpoints = _.reject(handlersOnThisAlert, [
       'alias',
       modifiedEP.alias,

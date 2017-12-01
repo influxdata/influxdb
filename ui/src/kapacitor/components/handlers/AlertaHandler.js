@@ -67,6 +67,7 @@ const AlertaHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             fieldName="service"
             fieldDisplay="Service"
             placeholder=""
+            parseToArray={true}
           />
         </div>
       </div>

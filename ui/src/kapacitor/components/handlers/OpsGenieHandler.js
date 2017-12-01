@@ -30,6 +30,7 @@ const OpsgenieHandler = ({
             fieldName="teams"
             fieldDisplay="Teams"
             placeholder="ex: teams_name"
+            parseToArray={true}
           />
           <HandlerInput
             selectedHandler={selectedHandler}
@@ -37,6 +38,7 @@ const OpsgenieHandler = ({
             fieldName="recipients"
             fieldDisplay="Recipients"
             placeholder="ex: recipients_name"
+            parseToArray={true}
           />
         </div>
       </div>
