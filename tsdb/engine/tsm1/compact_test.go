@@ -778,7 +778,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	// number of full blocks that can fit in a TSM file
 	f1, f1Name := MustTSMWriter(dir, 1)
 	values := make([]tsm1.Value, 1000)
-	for i := 0; i < 65535; i++ {
+	for i := 0; i < 65534; i++ {
 		values = values[:0]
 		for j := 0; j < 1000; j++ {
 			values = append(values, tsm1.NewValue(int64(i*1000+j), int64(1)))
@@ -792,16 +792,18 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	}
 	f1.Close()
 
-	// Write a new file with 1 block that when compacted would exceed the max
+	// Write a new file with 2 blocks that when compacted would exceed the max
 	// blocks
-	lastTimeStamp := values[len(values)-1].UnixNano()
-	values = values[:0]
 	f2, f2Name := MustTSMWriter(dir, 2)
-	for j := lastTimeStamp; j < lastTimeStamp+1000; j++ {
-		values = append(values, tsm1.NewValue(int64(j), int64(1)))
-	}
-	if err := f2.Write([]byte("cpu,host=A#!~#value"), values); err != nil {
-		t.Fatalf("write tsm f1: %v", err)
+	for i := 0; i < 2; i++ {
+		lastTimeStamp := values[len(values)-1].UnixNano() + 1
+		values = values[:0]
+		for j := lastTimeStamp; j < lastTimeStamp+1000; j++ {
+			values = append(values, tsm1.NewValue(int64(j), int64(1)))
+		}
+		if err := f2.Write([]byte("cpu,host=A#!~#value"), values); err != nil {
+			t.Fatalf("write tsm f1: %v", err)
+		}
 	}
 
 	if err := f2.WriteIndex(); err != nil {
