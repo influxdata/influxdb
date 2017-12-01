@@ -1,8 +1,13 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+import {withRouter} from 'react-router'
 
 import SlideToggle from 'shared/components/SlideToggle'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
+
+import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
 import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
@@ -31,6 +36,13 @@ class OrganizationsTableRow extends Component {
       isDeleting: false,
       workingName: this.props.organization.name,
     }
+  }
+
+  handleChangeCurrentOrganization = () => async () => {
+    const {router, links, meChangeOrganization, organization} = this.props
+
+    await meChangeOrganization(links.me, {organization: organization.id})
+    router.push('')
   }
 
   handleNameClick = () => {
@@ -185,7 +197,7 @@ class OrganizationsTableRow extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 OrganizationsTableRow.propTypes = {
   organization: shape({
@@ -201,6 +213,21 @@ OrganizationsTableRow.propTypes = {
     name: string.isRequired,
     id: string.isRequired,
   }),
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
+  links: shape({
+    me: string,
+    external: shape({
+      custom: arrayOf(
+        shape({
+          name: string.isRequired,
+          url: string.isRequired,
+        })
+      ),
+    }),
+  }),
+  meChangeOrganization: func.isRequired,
 }
 
 OrganizationsTableRowDeleteButton.propTypes = {
@@ -212,4 +239,14 @@ OrganizationsTableRowDeleteButton.propTypes = {
   onClickDelete: func.isRequired,
 }
 
-export default OrganizationsTableRow
+const mapDispatchToProps = dispatch => ({
+  meChangeOrganization: bindActionCreators(meChangeOrganizationAsync, dispatch),
+})
+
+const mapStateToProps = ({links}) => ({
+  links,
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(
+  withRouter(OrganizationsTableRow)
+)
