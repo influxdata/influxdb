@@ -1,8 +1,15 @@
 import React, {PropTypes} from 'react'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
+import RuleDetailsText from 'src/kapacitor/components/RuleDetailsText'
 
-const EmailHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
+const EmailHandler = ({
+  rule,
+  updateDetails,
+  selectedHandler,
+  handleModifyHandler,
+  configLink,
+}) => {
   return selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
@@ -46,6 +53,7 @@ const EmailHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
             parseToArray={true}
             fieldColumns="col-md-12"
           />
+          <RuleDetailsText rule={rule} updateDetails={updateDetails} />
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />
@@ -57,6 +65,8 @@ EmailHandler.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
   configLink: string,
+  updateDetails: func,
+  rule: shape({}),
 }
 
 export default EmailHandler

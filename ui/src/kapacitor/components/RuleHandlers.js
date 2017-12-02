@@ -25,8 +25,8 @@ class RuleHandlers extends Component {
   }
 
   handleChangeMessage = e => {
-    const {actions, rule} = this.props
-    actions.updateMessage(rule.id, e.target.value)
+    const {ruleActions, rule} = this.props
+    ruleActions.updateMessage(rule.id, e.target.value)
   }
 
   handleChooseHandler = ep => () => {
@@ -79,10 +79,10 @@ class RuleHandlers extends Component {
   }
 
   handleUpdateAllAlerts = () => {
-    const {rule, actions} = this.props
+    const {rule, ruleActions} = this.props
     const {handlersOnThisAlert} = this.state
 
-    actions.updateAlertNodes(rule.id, handlersOnThisAlert)
+    ruleActions.updateAlertNodes(rule.id, handlersOnThisAlert)
   }
 
   handleModifyHandler = (selectedHandler, fieldName, parseToArray) => e => {
@@ -123,7 +123,7 @@ class RuleHandlers extends Component {
   }
 
   render() {
-    const {handlersFromConfig, configLink} = this.props
+    const {handlersFromConfig, configLink, rule, ruleActions} = this.props
     const {handlersOnThisAlert, selectedHandler} = this.state
     const alerts = _.map([...DEFAULT_HANDLERS, ...handlersFromConfig], a => {
       return {...a, text: a.type}
@@ -162,6 +162,8 @@ class RuleHandlers extends Component {
                   configLink={configLink}
                   selectedHandler={selectedHandler}
                   handleModifyHandler={this.handleModifyHandler}
+                  updateDetails={ruleActions.updateDetails}
+                  rule={rule}
                 />
               </div>
             : null}
@@ -175,7 +177,7 @@ const {arrayOf, func, shape, string} = PropTypes
 
 RuleHandlers.propTypes = {
   rule: shape({}).isRequired,
-  actions: shape({
+  ruleActions: shape({
     updateAlertNodes: func.isRequired,
     updateMessage: func.isRequired,
     updateDetails: func.isRequired,

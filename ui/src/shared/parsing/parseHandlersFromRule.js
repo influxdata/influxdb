@@ -17,6 +17,7 @@ export const getHandlersFromRule = rule => {
           ...alertOptions,
           alias: alertKind + count,
           type: alertKind,
+          enabled: true,
         }
         handlersOnThisAlert.push(ep)
       })

@@ -23,7 +23,13 @@ class HandlerOptions extends Component {
   }
 
   render() {
-    const {selectedHandler, handleModifyHandler, configLink} = this.props
+    const {
+      selectedHandler,
+      handleModifyHandler,
+      configLink,
+      rule,
+      updateDetails,
+    } = this.props
     switch (selectedHandler && selectedHandler.type) {
       case 'post':
         return (
@@ -63,6 +69,8 @@ class HandlerOptions extends Component {
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             configLink={configLink}
+            updateDetails={updateDetails}
+            rule={rule}
           />
         )
       case 'alerta':
@@ -157,6 +165,8 @@ HandlerOptions.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
   configLink: string,
+  updateDetails: func,
+  rule: shape({}),
 }
 
 export default HandlerOptions

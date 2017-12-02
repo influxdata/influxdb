@@ -9,12 +9,12 @@ class RuleMessage extends Component {
   }
 
   handleChangeMessage = e => {
-    const {actions, rule} = this.props
-    actions.updateMessage(rule.id, e.target.value)
+    const {ruleActions, rule} = this.props
+    ruleActions.updateMessage(rule.id, e.target.value)
   }
 
   render() {
-    const {rule, actions} = this.props
+    const {rule, ruleActions} = this.props
 
     return (
       <div className="rule-section">
@@ -26,7 +26,7 @@ class RuleMessage extends Component {
           />
           <RuleMessageTemplates
             rule={rule}
-            updateMessage={actions.updateMessage}
+            updateMessage={ruleActions.updateMessage}
           />
         </div>
       </div>
@@ -38,7 +38,7 @@ const {func, shape} = PropTypes
 
 RuleMessage.propTypes = {
   rule: shape().isRequired,
-  actions: shape({
+  ruleActions: shape({
     updateMessage: func.isRequired,
   }).isRequired,
 }

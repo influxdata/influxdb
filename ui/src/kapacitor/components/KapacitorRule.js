@@ -183,10 +183,10 @@ class KapacitorRule extends Component {
                   <RuleHandlers
                     configLink={configLink}
                     rule={rule}
-                    actions={ruleActions}
+                    ruleActions={ruleActions}
                     handlersFromConfig={handlersFromConfig}
                   />
-                  <RuleMessage rule={rule} actions={ruleActions} />
+                  <RuleMessage rule={rule} ruleActions={ruleActions} />
                 </div>
               </div>
             </div>
