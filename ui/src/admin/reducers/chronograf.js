@@ -48,8 +48,7 @@ const adminChronograf = (state = initialState, action) => {
         // provider, & scheme, except for a created users that is a duplicate
         // of an existing user, in which case a temp uuid is used to match
         users: state.users.filter(
-          u =>
-            user._tempID ? u._tempID !== user._tempID : !isSameUser(u, user)
+          u => (user._tempID ? u._tempID !== user._tempID : u.id !== user.id)
         ),
       }
     }
@@ -88,7 +87,7 @@ const adminChronograf = (state = initialState, action) => {
           o =>
             organization._tempID
               ? o._tempID !== organization._tempID
-              : o.name !== organization.name
+              : o.id !== organization.id
         ),
       }
     }
