@@ -606,8 +606,9 @@ type fileSetSeriesIDIterator struct {
 	itr  tsdb.SeriesIDIterator
 }
 
-func newFileSetSeriesIDIterator(fs *FileSet, itr tsdb.SeriesIDIterator) *fileSetSeriesIDIterator {
+func newFileSetSeriesIDIterator(fs *FileSet, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
 	if itr == nil {
+		fs.Release()
 		return nil
 	}
 	return &fileSetSeriesIDIterator{fs: fs, itr: itr}

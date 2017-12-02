@@ -109,8 +109,10 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 
 	var prevSeriesID uint64
 	for i := 0; i < len(tvs); i++ {
-		elem := itr.Next()
-		if elem.SeriesID == 0 {
+		elem, err := itr.Next()
+		if err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID == 0 {
 			t.Fatal("got nil series")
 		} else if elem.SeriesID < prevSeriesID {
 			t.Fatalf("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)

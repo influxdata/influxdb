@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxql"
 )
@@ -141,6 +140,7 @@ func newFloatMergeIterator(inputs []FloatIterator, opt IteratorOptions) *floatMe
 		// Append to the heap.
 		itr.heap.items = append(itr.heap.items, &floatMergeHeapItem{itr: bufInput})
 	}
+
 	return itr
 }
 
@@ -960,8 +960,6 @@ func (itr *floatAuxIterator) stream() {
 		}
 	}
 
-	spew.Dump(itr.input)
-	itr.Close()
 	close(itr.output)
 	itr.fields.close()
 }

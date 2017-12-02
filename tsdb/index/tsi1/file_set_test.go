@@ -33,17 +33,25 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 			t.Fatal("expected iterator")
 		}
 
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `mem` || tags.String() != `[{region east}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `mem` || tags.String() != `[{region east}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if e := itr.Next(); e.SeriesID != 0 {
-			t.Fatalf("expected eof, got: %d", e.SeriesID)
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %d", elem.SeriesID)
 		}
 	})
 	/*
@@ -115,14 +123,20 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 			t.Fatal("expected iterator")
 		}
 
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if e := itr.Next(); e.SeriesID != 0 {
-			t.Fatalf("expected eof, got: %d", e.SeriesID)
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %d", elem.SeriesID)
 		}
 	})
 
@@ -144,17 +158,25 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 			t.Fatalf("expected iterator")
 		}
 
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region north}]` {
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region north}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if e := itr.Next(); e.SeriesID != 0 {
-			t.Fatalf("expected eof, got: %d", e.SeriesID)
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %d", elem.SeriesID)
 		}
 	})
 }

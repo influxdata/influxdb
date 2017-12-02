@@ -168,36 +168,6 @@ func TestSeriesIDIterator(t *testing.T) {
 	}
 }
 
-// Ensure iterator can merge multiple iterators together.
-func TestMergeSeriesIDIterators(t *testing.T) {
-	itr := tsi1.MergeSeriesIDIterators(
-		&SeriesIDIterator{Elems: []tsdb.SeriesIDElem{
-			{SeriesID: 1},
-			{SeriesID: 2},
-			{SeriesID: 3},
-		}},
-		&SeriesIDIterator{},
-		&SeriesIDIterator{Elems: []tsdb.SeriesIDElem{
-			{SeriesID: 1},
-			{SeriesID: 2},
-			{SeriesID: 3},
-			{SeriesID: 4},
-		}},
-	)
-
-	if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 1}) {
-		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 2}) {
-		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 3}) {
-		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 4}) {
-		t.Fatalf("unexpected elem(3): %#v", e)
-	} else if e := itr.Next(); e.SeriesID != 0 {
-		t.Fatalf("expected nil elem: %#v", e)
-	}
-}
-
 // MeasurementElem represents a test implementation of tsi1.MeasurementElem.
 type MeasurementElem struct {
 	name      []byte

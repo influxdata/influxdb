@@ -389,8 +389,9 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 		if err != nil {
 			tsdb.MeasurementIterators(itrs).Close()
 			return nil, err
+		} else if itr != nil {
+			itrs = append(itrs, itr)
 		}
-		itrs = append(itrs, itr)
 	}
 	return tsdb.MergeMeasurementIterators(itrs...), nil
 }
@@ -403,8 +404,9 @@ func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator,
 		if err != nil {
 			tsdb.SeriesIDIterators(itrs).Close()
 			return nil, err
+		} else if itr != nil {
+			itrs = append(itrs, itr)
 		}
-		itrs = append(itrs, itr)
 	}
 	return tsdb.MergeSeriesIDIterators(itrs...), nil
 }
@@ -832,16 +834,5 @@ func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
 	return i.DropSeries([]byte(k), ts)
 }
-
-/*
-// SeriesIDIterator returns a series iterator over all matching series.
-func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterator, error) {
-	itrs := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
-	for k, p := range i.partitions {
-		itrs = append(itrs, p.seriesIDIterator(opt))
-	}
-	return tsdb.MergeSeriesIDIterators(itrs...), nil
-}
-*/
 
 func (i *Index) Rebuild() {}

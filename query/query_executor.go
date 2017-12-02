@@ -276,8 +276,7 @@ func (e *QueryExecutor) ExecuteQuery(query *influxql.Query, opt ExecutionOptions
 
 func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions, closing <-chan struct{}, results chan *Result) {
 	defer close(results)
-	println("dbg/no.recover")
-	// defer e.recover(query, results)
+	defer e.recover(query, results)
 
 	atomic.AddInt64(&e.stats.ActiveQueries, 1)
 	atomic.AddInt64(&e.stats.ExecutedQueries, 1)
