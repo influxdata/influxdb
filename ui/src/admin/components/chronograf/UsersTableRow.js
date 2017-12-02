@@ -10,6 +10,7 @@ import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const UsersTableRow = ({
+  me,
   user,
   organization,
   onChangeUserRole,
@@ -26,12 +27,19 @@ const UsersTableRow = ({
     role => role.organization === organization.id
   )
 
+  const userIsMe = me.id === user.id && me.name === user.name
+
   return (
     <tr className={'chronograf-admin-table--user'}>
       <td>
-        <strong>
-          {user.name}
-        </strong>
+        {userIsMe
+          ? <strong className="chronograf-user--me">
+              <span className="icon user" />
+              {user.name}
+            </strong>
+          : <strong>
+              {user.name}
+            </strong>}
       </td>
       <td style={{width: colRole}}>
         <span className="chronograf-user--role">
@@ -81,6 +89,10 @@ UsersTableRow.propTypes = {
   onChangeUserRole: func.isRequired,
   onChangeSuperAdmin: func.isRequired,
   onDelete: func.isRequired,
+  me: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }).isRequired,
 }
 
 export default UsersTableRow

@@ -40,7 +40,7 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {organization, users, onCreateUser} = this.props
+    const {me, organization, users, onCreateUser} = this.props
 
     const {isCreatingUser} = this.state
     const {
@@ -88,6 +88,7 @@ class UsersTable extends Component {
               {users.length || !isCreatingUser
                 ? users.map(user =>
                     <UsersTableRow
+                      me={me}
                       user={user}
                       key={uuid.v4()}
                       organization={organization}
@@ -122,6 +123,10 @@ const {arrayOf, func, shape, string} = PropTypes
 
 UsersTable.propTypes = {
   users: arrayOf(shape()),
+  me: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }).isRequired,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,

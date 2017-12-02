@@ -64,7 +64,7 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users, currentOrganization, meRole} = this.props
+    const {users, currentOrganization, meRole, me} = this.props
 
     return (
       <div className="page">
@@ -82,6 +82,7 @@ class AdminChronografPage extends Component {
                   <AdminTabs
                     meRole={meRole}
                     // UsersTable
+                    me={me}
                     users={users}
                     organization={currentOrganization}
                     onCreateUser={this.handleCreateUser}
@@ -110,6 +111,10 @@ AdminChronografPage.propTypes = {
     name: string.isRequired,
   }).isRequired,
   meRole: string.isRequired,
+  me: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }).isRequired,
   actions: shape({
     loadUsersAsync: func.isRequired,
     createUserAsync: func.isRequired,
@@ -122,12 +127,13 @@ AdminChronografPage.propTypes = {
 const mapStateToProps = ({
   links,
   adminChronograf: {users},
-  auth: {me: {currentOrganization, role: meRole}},
+  auth: {me, me: {currentOrganization, role: meRole}},
 }) => ({
   links,
   users,
   currentOrganization,
   meRole,
+  me,
 })
 
 const mapDispatchToProps = dispatch => ({

@@ -16,6 +16,7 @@ const USERS_TAB_NAME = 'Users'
 const AdminTabs = ({
   meRole,
   // UsersTable
+  me,
   users,
   organization,
   onCreateUser,
@@ -34,6 +35,7 @@ const AdminTabs = ({
       type: USERS_TAB_NAME,
       component: (
         <UsersTable
+          me={me}
           users={users}
           organization={organization}
           onCreateUser={onCreateUser}
@@ -70,6 +72,10 @@ const {arrayOf, func, shape, string} = PropTypes
 AdminTabs.propTypes = {
   meRole: string.isRequired,
   // UsersTable
+  me: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }).isRequired,
   users: arrayOf(shape()),
   organization: shape({
     name: string.isRequired,
