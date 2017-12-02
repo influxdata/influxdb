@@ -96,7 +96,7 @@ const SourceForm = ({
             />
           </div>
         : null}
-      <div className={`form-group col-xs-12 ${isUsingAuth ? 'col-sm-6' : ''}`}>
+      <div className="form-group col-xs-12">
         <label htmlFor="telegraf">Telegraf Database</label>
         <input
           type="text"
