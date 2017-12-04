@@ -11,10 +11,10 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 class AdminChronografPage extends Component {
   // TODO: revisit this, possibly don't call setState if both are deep equal
   componentWillReceiveProps(nextProps) {
-    const {currentOrganization} = nextProps
+    const {meCurrentOrganization} = nextProps
 
     const hasChangedCurrentOrganization =
-      currentOrganization.id !== this.props.currentOrganization.id
+      meCurrentOrganization.id !== this.props.meCurrentOrganization.id
 
     if (hasChangedCurrentOrganization) {
       this.loadUsers()
@@ -64,7 +64,7 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users, currentOrganization, meRole} = this.props
+    const {users, meCurrentOrganization, meRole, meID} = this.props
 
     return (
       <div className="page">
@@ -81,9 +81,10 @@ class AdminChronografPage extends Component {
                 <div className="row">
                   <AdminTabs
                     meRole={meRole}
+                    meID={meID}
                     // UsersTable
                     users={users}
-                    organization={currentOrganization}
+                    organization={meCurrentOrganization}
                     onCreateUser={this.handleCreateUser}
                     onUpdateUserRole={this.handleUpdateUserRole}
                     onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
@@ -105,11 +106,12 @@ AdminChronografPage.propTypes = {
     users: string.isRequired,
   }),
   users: arrayOf(shape),
-  currentOrganization: shape({
+  meCurrentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
   meRole: string.isRequired,
+  meID: string.isRequired,
   actions: shape({
     loadUsersAsync: func.isRequired,
     createUserAsync: func.isRequired,
@@ -122,12 +124,15 @@ AdminChronografPage.propTypes = {
 const mapStateToProps = ({
   links,
   adminChronograf: {users},
-  auth: {me: {currentOrganization, role: meRole}},
+  auth: {
+    me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
+  },
 }) => ({
   links,
   users,
-  currentOrganization,
+  meCurrentOrganization,
   meRole,
+  meID,
 })
 
 const mapDispatchToProps = dispatch => ({

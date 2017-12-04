@@ -40,7 +40,7 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {organization, users, onCreateUser} = this.props
+    const {organization, users, onCreateUser, meID} = this.props
 
     const {isCreatingUser} = this.state
     const {
@@ -94,6 +94,7 @@ class UsersTable extends Component {
                       onChangeUserRole={this.handleChangeUserRole}
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
                       onDelete={this.handleDeleteUser}
+                      meID={meID}
                     />
                   )
                 : <tr className="table-empty-state">
@@ -130,5 +131,6 @@ UsersTable.propTypes = {
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
+  meID: string.isRequired,
 }
 export default UsersTable
