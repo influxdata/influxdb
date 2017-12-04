@@ -1,23 +1,30 @@
 import _ from 'lodash'
 import {ALERTS_TO_RULE} from 'src/kapacitor/constants'
 
-export const getHandlersFromRule = rule => {
+export const getHandlersFromRule = (rule, handlersFromConfig) => {
   const handlersOfKind = {}
   const handlersOnThisAlert = []
+
   const handlersFromRule = _.pickBy(rule.alertNodes, (v, k) => {
     return k in ALERTS_TO_RULE
   })
 
   _.forEach(handlersFromRule, (v, alertKind) => {
+    const thisAlertFromConfig = _.find(
+      handlersFromConfig,
+      h => h.type === alertKind
+    )
+
     if (v.length > 0) {
       _.forEach(v, alertOptions => {
         const count = _.get(handlersOfKind, alertKind, 0) + 1
         handlersOfKind[alertKind] = count
         const ep = {
+          ...thisAlertFromConfig,
           ...alertOptions,
           alias: alertKind + count,
-          type: alertKind,
           enabled: true,
+          type: alertKind,
         }
         handlersOnThisAlert.push(ep)
       })

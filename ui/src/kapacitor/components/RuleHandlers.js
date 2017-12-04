@@ -11,11 +11,12 @@ import {DEFAULT_HANDLERS} from 'src/kapacitor/constants'
 class RuleHandlers extends Component {
   constructor(props) {
     super(props)
+    const {handlersFromConfig} = this.props
     const {
       handlersOnThisAlert,
       selectedHandler,
       handlersOfKind,
-    } = getHandlersFromRule(this.props.rule)
+    } = getHandlersFromRule(this.props.rule, handlersFromConfig) // nagging feeling that this should not be in constructor. ?
 
     this.state = {
       selectedHandler,
