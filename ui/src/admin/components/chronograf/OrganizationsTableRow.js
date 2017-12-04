@@ -38,7 +38,7 @@ class OrganizationsTableRow extends Component {
     }
   }
 
-  handleChangeCurrentOrganization = () => async () => {
+  handleChangeCurrentOrganization = async () => {
     const {router, links, meChangeOrganization, organization} = this.props
 
     await meChangeOrganization(links.me, {organization: organization.id})
@@ -138,7 +138,7 @@ class OrganizationsTableRow extends Component {
               </button>
             : <button
                 className="btn btn-sm btn-default"
-                onClick={this.handleChangeCurrentOrganization()}
+                onClick={this.handleChangeCurrentOrganization}
               >
                 <span className="icon shuffle" /> Switch to
               </button>}
