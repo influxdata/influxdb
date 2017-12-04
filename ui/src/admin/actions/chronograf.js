@@ -1,3 +1,6 @@
+import _ from 'lodash'
+import uuid from 'node-uuid'
+
 import {
   getUsers as getUsersAJAX,
   getOrganizations as getOrganizationsAJAX,
@@ -11,6 +14,8 @@ import {
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
+
+import {REVERT_STATE_DELAY} from 'shared/constants'
 
 // action creators
 
@@ -109,13 +114,20 @@ export const loadOrganizationsAsync = url => async dispatch => {
 }
 
 export const createUserAsync = (url, user) => async dispatch => {
-  dispatch(addUser(user))
+  // temp uuid is added to be able to disambiguate a created user that has the
+  // same scheme, provider, and name as an existing user
+  const userWithTempID = {...user, _tempID: uuid.v4()}
+  dispatch(addUser(userWithTempID))
   try {
     const {data} = await createUserAJAX(url, user)
-    dispatch(syncUser(user, data))
+    dispatch(syncUser(userWithTempID, data))
   } catch (error) {
-    dispatch(errorThrown(error))
-    dispatch(removeUser(user))
+    const message = `${_.upperFirst(
+      _.toLower(error.data.message)
+    )}: ${user.scheme}::${user.provider}::${user.name}`
+    dispatch(errorThrown(error, message))
+    // undo optimistic update
+    setTimeout(() => dispatch(removeUser(userWithTempID)), REVERT_STATE_DELAY)
   }
 }
 
@@ -168,13 +180,23 @@ export const createOrganizationAsync = (
   url,
   organization
 ) => async dispatch => {
-  dispatch(addOrganization(organization))
+  // temp uuid is added to be able to disambiguate a created organization with
+  // the same name as an existing organization
+  const organizationWithTempID = {...organization, _tempID: uuid.v4()}
+  dispatch(addOrganization(organizationWithTempID))
   try {
     const {data} = await createOrganizationAJAX(url, organization)
     dispatch(syncOrganization(organization, data))
   } catch (error) {
-    dispatch(errorThrown(error))
-    dispatch(removeOrganization(organization))
+    const message = `${_.upperFirst(
+      _.toLower(error.data.message)
+    )}: ${organization.name}`
+    dispatch(errorThrown(error, message))
+    // undo optimistic update
+    setTimeout(
+      () => dispatch(removeOrganization(organizationWithTempID)),
+      REVERT_STATE_DELAY
+    )
   }
 }
 
