@@ -133,14 +133,14 @@ class OrganizationsTableRow extends Component {
       <div className="orgs-table--org">
         <div className="orgs-table--active">
           {organization.id === currentOrganization.id
-            ? <button className="btn btn-square btn-sm btn-success">
-                <span className="icon checkmark" />
+            ? <button className="btn btn-sm btn-success">
+                <span className="icon checkmark" /> Current
               </button>
             : <button
-                className="btn btn-square btn-sm btn-default"
+                className="btn btn-sm btn-default"
                 onClick={this.handleChangeCurrentOrganization()}
               >
-                <span className="icon shuffle" />
+                <span className="icon shuffle" /> Switch
               </button>}
         </div>
         {isEditing

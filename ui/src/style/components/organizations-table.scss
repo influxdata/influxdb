@@ -26,12 +26,11 @@
 }
 .orgs-table--active {
   padding: 0 4px 0 0;
-  width: 34px;
+  width: 92px;
   height: 30px;
-  line-height: 30px;
 
-  button.btn > .icon {
-    margin: 0;
+  button.btn {
+    width: 100%;
   }
 }
 .orgs-table--name,
