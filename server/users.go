@@ -295,18 +295,24 @@ func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 }
 
 func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) error {
+	// At a high level, this function checks the following
+	//   1. Is the user making the request a SuperAdmin.
+	//      If they are, allow them to make whatever changes they please.
+	//
+	//   2. Is the user making the request trying to change the SuperAdmin
+	//      status. If so, return an error.
+	//
+	//   3. If none of the above are the case, let the user make whichever
+	//      changes were requested.
+
 	// Only allow users to set SuperAdmin if they have the superadmin context
 	// TODO(desa): Refactor this https://github.com/influxdata/chronograf/issues/2207
 	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
 		user.SuperAdmin = req.SuperAdmin
-	} else if !isSuperAdmin && (req.SuperAdmin == true) {
+	} else if !isSuperAdmin && (user.SuperAdmin != req.SuperAdmin) {
 		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
 		// context, return error
-		//
-		// Even though req.SuperAdmin == true is logically equivalent to req.SuperAdmin it is
-		// more clear that this code should only be ran in the case that a user is trying to
-		// set the SuperAdmin field.
-		return fmt.Errorf("Cannot set SuperAdmin")
+		return fmt.Errorf("User does not have authorization required to set SuperAdmin status")
 	}
 
 	return nil
