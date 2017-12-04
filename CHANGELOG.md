@@ -11,6 +11,7 @@
 - [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
 - [#8491](https://github.com/influxdata/influxdb/pull/8491): Add further tsi support for streaming/copying shards.
 - [#9181](https://github.com/influxdata/influxdb/pull/9181): Schedule a full compaction after a successful import
+- [#9194](https://github.com/influxdata/influxdb/pull/9194): Support graphite templates using a regular expression.
 
 ### Bugfixes
 

@@ -345,6 +345,28 @@
   #   # Default template
   #   "server.*",
   # ]
+  #
+  ### Alternatively, templates can be specified using the advanced syntax. The advanced
+  ### syntax may be easier to use for some and also allows more advanced parsing formats
+  ### to be used. If both exist, the advanced templates will be concatenated with the simple
+  ### templates.
+  #
+  ### The simple format uses the same rules as above, but the filter and tags should be included
+  ### as separate keys and should not be included within the template itself.
+  # [[graphite.template]]
+  #   format = "simple"
+  #   template = "server.*"
+  #   filter = ""
+  #   tags = { region = "us-west" }
+  #
+  ### The regexp format uses named captures to extract the measurement name, tags, and a field
+  ### from the line protocol. If no field is captured, the default is to use value as the field name.
+  ### A measurement name is required in this format.
+  # [[graphite.template]]
+  #   format = "regexp"
+  #   template = "^(?P<env>[^.]+)\\.(?P<service>[^.]+)\\.(?P<resource>[^.]+)\\.(?P<measurement>[^.]+)$"
+  #   filter = "*.app"
+  #   tags = { region = "us-west" }
 
 ###
 ### [collectd]
