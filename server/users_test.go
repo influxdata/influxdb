@@ -305,7 +305,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"Cannot set SuperAdmin"}`,
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
 		},
 		{
 			name: "Create a new SuperAdmin User - as superadmin",
@@ -708,6 +708,66 @@ func TestService_UpdateUser(t *testing.T) {
 			wantBody:        `{"code":422,"message":"duplicate organization \"1\" in roles"}`,
 		},
 		{
+			name: "Update a SuperAdmin's Roles - without super admin context",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:         1336,
+								Name:       "bobbetta",
+								Provider:   "github",
+								Scheme:     "oauth2",
+								SuperAdmin: true,
+								Roles: []chronograf.Role{
+									{
+										Name:         roles.EditorRoleName,
+										Organization: "1",
+									},
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+					},
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"links":{"self":"/chronograf/v1/users/1336"},"id":"1336","name":"bobbetta","provider":"github","scheme":"oauth2","superAdmin":true,"roles":[{"name":"admin","organization":"1"}]}`,
+		},
+		{
 			name: "Update a Chronograf user to super admin - without super admin context",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
@@ -761,7 +821,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"Cannot set SuperAdmin"}`,
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
 		},
 		{
 			name: "Update a Chronograf user to super admin - with super admin context",
