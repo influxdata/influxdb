@@ -140,7 +140,7 @@ class OrganizationsTableRow extends Component {
                 className="btn btn-sm btn-default"
                 onClick={this.handleChangeCurrentOrganization()}
               >
-                <span className="icon shuffle" /> Switch
+                <span className="icon shuffle" /> Switch to
               </button>}
         </div>
         {isEditing
