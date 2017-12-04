@@ -20,11 +20,14 @@ func InfluxOut(rule chronograf.AlertRule) (string, error) {
 	return fmt.Sprintf(`
 			trigger
 			%s
+			|eval(lambda: float("value"))
+				.as('value')
+				.keep()
 			|influxDBOut()
-            	.create()
-            	.database(outputDB)
-            	.retentionPolicy(outputRP)
-            	.measurement(outputMeasurement)
+				.create()
+				.database(outputDB)
+				.retentionPolicy(outputRP)
+				.measurement(outputMeasurement)
 				.tag('alertName', name)
 				.tag('triggerType', triggerType)
 			`, rename), nil
