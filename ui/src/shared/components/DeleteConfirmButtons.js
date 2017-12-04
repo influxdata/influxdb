@@ -50,7 +50,7 @@ class DeleteConfirmButtons extends Component {
         />
       : <DeleteButton
           text={text}
-          onClickDelete={this.handleClickDelete}
+          onClickDelete={disabled ? () => {} : this.handleClickDelete}
           buttonSize={buttonSize}
           disabled={disabled}
         />
