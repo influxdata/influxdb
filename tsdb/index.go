@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"sync"
 
@@ -502,11 +503,13 @@ func (itr *seriesIDUnionIterator) Next() (_ SeriesIDElem, err error) {
 	}
 
 	// Return non-zero or lesser series.
-	if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; b == 0 || a < b {
+	if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; a == 0 && b == 0 {
+		return SeriesIDElem{}, nil
+	} else if b == 0 || (a != 0 && a < b) {
 		elem := itr.buf[0]
 		itr.buf[0].SeriesID = 0
 		return elem, nil
-	} else if a == 0 || a > b {
+	} else if a == 0 || (b != 0 && a > b) {
 		elem := itr.buf[1]
 		itr.buf[1].SeriesID = 0
 		return elem, nil
@@ -640,6 +643,7 @@ func NewSeriesPointIterator(sfile *SeriesFile, indexSet IndexSet, fieldset *Meas
 		indexSet: indexSet,
 		fieldset: fieldset,
 		mitr:     mitr,
+		sfile:    sfile,
 		point: query.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
 		},
@@ -714,6 +718,8 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 				itr.point.Aux[i] = key
 			}
 		}
+
+		return &itr.point, nil
 	}
 }
 
@@ -1296,7 +1302,7 @@ func (is IndexSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, val
 			e, err := vitr.Next()
 			if err != nil {
 				return err
-			} else if e != nil {
+			} else if e == nil {
 				break
 			}
 
@@ -1338,7 +1344,7 @@ func (is IndexSet) matchTagValueEqualNotEmptySeriesIDIterator(name, key []byte, 
 		if err != nil {
 			SeriesIDIterators(itrs).Close()
 			return nil, err
-		} else if e != nil {
+		} else if e == nil {
 			break
 		}
 
@@ -1369,7 +1375,7 @@ func (is IndexSet) matchTagValueNotEqualEmptySeriesIDIterator(name, key []byte, 
 		if err != nil {
 			SeriesIDIterators(itrs).Close()
 			return nil, err
-		} else if e != nil {
+		} else if e == nil {
 			break
 		}
 
@@ -1400,7 +1406,7 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 		if err != nil {
 			SeriesIDIterators(itrs).Close()
 			return nil, err
-		} else if e != nil {
+		} else if e == nil {
 			break
 		}
 		if value.Match(e) {
@@ -1750,3 +1756,7 @@ type byTagKey []*query.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+
+func stack() string {
+	return "------------------------\n" + string(debug.Stack()) + "------------------------\n\n"
+}

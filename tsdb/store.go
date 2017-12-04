@@ -1266,7 +1266,7 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 		return e
 	}), nil)
 
-	// Get set of Shards to work on.
+	// Build index set to work on.
 	shards := make([]*Shard, 0, len(shardIDs))
 	s.mu.RLock()
 	for _, sid := range shardIDs {

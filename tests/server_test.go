@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,11 +28,6 @@ func TestMain(m *testing.M) {
 	verboseServerLogs = *vv
 	var r int
 	for _, indexType = range tsdb.RegisteredIndexes() {
-		if indexType != "tsi1" {
-			println("dbg/skipping", indexType)
-			continue
-		}
-
 		// Setup benchmark server
 		c := NewConfig()
 		c.Retention.Enabled = false
@@ -6360,13 +6356,14 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}
@@ -8100,13 +8097,14 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}
