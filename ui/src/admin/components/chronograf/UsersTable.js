@@ -40,7 +40,7 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {me, organization, users, onCreateUser} = this.props
+    const {organization, users, onCreateUser, meID} = this.props
 
     const {isCreatingUser} = this.state
     const {
@@ -88,13 +88,13 @@ class UsersTable extends Component {
               {users.length || !isCreatingUser
                 ? users.map(user =>
                     <UsersTableRow
-                      me={me}
                       user={user}
                       key={uuid.v4()}
                       organization={organization}
                       onChangeUserRole={this.handleChangeUserRole}
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
                       onDelete={this.handleDeleteUser}
+                      meID={meID}
                     />
                   )
                 : <tr className="table-empty-state">
@@ -123,10 +123,6 @@ const {arrayOf, func, shape, string} = PropTypes
 
 UsersTable.propTypes = {
   users: arrayOf(shape()),
-  me: shape({
-    name: string.isRequired,
-    id: string.isRequired,
-  }).isRequired,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
@@ -135,5 +131,6 @@ UsersTable.propTypes = {
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
+  meID: string.isRequired,
 }
 export default UsersTable

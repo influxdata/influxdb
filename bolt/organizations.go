@@ -87,7 +87,7 @@ func (s *OrganizationsStore) DefaultOrganization(ctx context.Context) (*chronogr
 // Add creates a new Organization in the OrganizationsStore
 func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
 	if !s.nameIsUnique(ctx, o.Name) {
-		return nil, chronograf.ErrOrganizationNameTaken
+		return nil, chronograf.ErrOrganizationAlreadyExists
 	}
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
@@ -276,7 +276,7 @@ func (s *OrganizationsStore) Update(ctx context.Context, o *chronograf.Organizat
 		return err
 	}
 	if o.Name != org.Name && !s.nameIsUnique(ctx, o.Name) {
-		return chronograf.ErrOrganizationNameTaken
+		return chronograf.ErrOrganizationAlreadyExists
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		if v, err := internal.MarshalOrganization(o); err != nil {

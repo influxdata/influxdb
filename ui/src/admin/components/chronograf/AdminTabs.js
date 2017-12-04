@@ -16,13 +16,13 @@ const USERS_TAB_NAME = 'Users'
 const AdminTabs = ({
   meRole,
   // UsersTable
-  me,
   users,
   organization,
   onCreateUser,
   onUpdateUserRole,
   onUpdateUserSuperAdmin,
   onDeleteUser,
+  meID,
 }) => {
   const tabs = [
     {
@@ -35,13 +35,13 @@ const AdminTabs = ({
       type: USERS_TAB_NAME,
       component: (
         <UsersTable
-          me={me}
           users={users}
           organization={organization}
           onCreateUser={onCreateUser}
           onUpdateUserRole={onUpdateUserRole}
           onUpdateUserSuperAdmin={onUpdateUserSuperAdmin}
           onDeleteUser={onDeleteUser}
+          meID={meID}
         />
       ),
     },
@@ -67,20 +67,34 @@ const AdminTabs = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 AdminTabs.propTypes = {
   meRole: string.isRequired,
+  meID: string.isRequired,
   // UsersTable
-  me: shape({
-    name: string.isRequired,
-    id: string.isRequired,
-  }).isRequired,
-  users: arrayOf(shape()),
+  users: arrayOf(
+    shape({
+      id: string,
+      links: shape({
+        self: string.isRequired,
+      }),
+      name: string.isRequired,
+      provider: string.isRequired,
+      roles: arrayOf(
+        shape({
+          name: string.isRequired,
+          organization: string.isRequired,
+        })
+      ),
+      scheme: string.isRequired,
+      superAdmin: bool,
+    })
+  ).isRequired,
   organization: shape({
     name: string.isRequired,
     id: string.isRequired,
-  }),
+  }).isRequired,
   onCreateUser: func.isRequired,
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
