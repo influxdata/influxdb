@@ -266,6 +266,8 @@ func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closin
 
 		t.queryError(qid, err)
 	case <-timerCh:
+		t.Logger.Warn(fmt.Sprintf("Query killed by QueryTimeout: %s (qid: %d, database: %s, threshold: %s)",
+			query.query, qid, query.database, t.QueryTimeout))
 		t.queryError(qid, ErrQueryTimeoutLimitExceeded)
 	case <-interrupt:
 		// Query was manually closed so exit the select.
