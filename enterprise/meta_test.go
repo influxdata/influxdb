@@ -11,13 +11,16 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/influxdata/chronograf/influx"
 )
 
 func TestMetaClient_ShowCluster(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	tests := []struct {
@@ -128,7 +131,7 @@ func TestMetaClient_Users(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -265,7 +268,7 @@ func TestMetaClient_User(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -366,7 +369,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -437,7 +440,7 @@ func TestMetaClient_ChangePassword(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -509,7 +512,7 @@ func TestMetaClient_DeleteUser(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -578,7 +581,7 @@ func TestMetaClient_SetUserPerms(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -699,7 +702,7 @@ func TestMetaClient_Roles(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -798,7 +801,7 @@ func TestMetaClient_Role(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -881,7 +884,7 @@ func TestMetaClient_UserRoles(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -985,7 +988,7 @@ func TestMetaClient_CreateRole(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -1051,7 +1054,7 @@ func TestMetaClient_DeleteRole(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -1120,7 +1123,7 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -1241,7 +1244,7 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
 		client interface {
-			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 		}
 	}
 	type args struct {
@@ -1361,7 +1364,7 @@ func NewMockClient(code int, body []byte, headers http.Header, err error) *MockC
 	}
 }
 
-func (c *MockClient) Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error) {
+func (c *MockClient) Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error) {
 	if c == nil {
 		return nil, fmt.Errorf("NIL MockClient")
 	}
@@ -1451,5 +1454,73 @@ func Test_AuthedCheckRedirect_Do(t *testing.T) {
 
 	if got := res.Header.Get("Result"); got != "ok" {
 		t.Errorf("result = %q; want ok", got)
+	}
+}
+
+func Test_defaultClient_Do(t *testing.T) {
+	type args struct {
+		path       string
+		method     string
+		authorizer influx.Authorizer
+		params     map[string]string
+		body       io.Reader
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "test authorizer",
+			args: args{
+				path:   "/tictactoe",
+				method: "GET",
+				authorizer: &influx.BasicAuth{
+					Username: "Steven Falken",
+					Password: "JOSHUA",
+				},
+			},
+			want: "Basic U3RldmVuIEZhbGtlbjpKT1NIVUE=",
+		},
+		{
+			name: "test authorizer",
+			args: args{
+				path:   "/tictactoe",
+				method: "GET",
+				authorizer: &influx.BearerJWT{
+					Username:     "minifig",
+					SharedSecret: "legos",
+					Now:          func() time.Time { return time.Time{} },
+				},
+			},
+			want: "Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOi02MjEzNTU5Njc0MCwidXNlcm5hbWUiOiJtaW5pZmlnIn0.uwFGBQ3MykqEmk9Zx0sBdJGefcESVEXG_qt0C1J8b_aS62EAES-Q1FwtURsbITNvSnfzMxYFnkbSG0AA1pEzWw",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/tictactoe" {
+					t.Fatal("Expected request to '/query' but was", r.URL.Path)
+				}
+				got, ok := r.Header["Authorization"]
+				if !ok {
+					t.Fatal("No Authorization header")
+				}
+				if got[0] != tt.want {
+					t.Fatalf("Expected auth %s got %s", tt.want, got)
+				}
+				rw.Write([]byte(`{}`))
+			}))
+			defer ts.Close()
+
+			d := &defaultClient{}
+			u, _ := url.Parse(ts.URL)
+			_, err := d.Do(u, tt.args.path, tt.args.method, tt.args.authorizer, tt.args.params, tt.args.body)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("defaultClient.Do() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
 	}
 }

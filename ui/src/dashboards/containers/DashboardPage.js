@@ -37,13 +37,14 @@ class DashboardPage extends Component {
     super(props)
 
     this.state = {
-      dygraphs: [],
       isEditMode: false,
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
     }
   }
+
+  dygraphs = []
 
   async componentDidMount() {
     const {
@@ -184,16 +185,19 @@ class DashboardPage extends Component {
   }
 
   synchronizer = dygraph => {
-    const dygraphs = [...this.state.dygraphs, dygraph].filter(d => d.graphDiv)
+    const dygraphs = [...this.dygraphs, dygraph].filter(d => d.graphDiv)
     const {dashboards, params: {dashboardID}} = this.props
 
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
     )
 
+    // Get only the graphs that can sync the hover line
+    const graphsToSync = dashboard.cells.filter(c => c.type !== 'single-stat')
+
     if (
       dashboard &&
-      dygraphs.length === dashboard.cells.length &&
+      dygraphs.length === graphsToSync.length &&
       dashboard.cells.length > 1
     ) {
       Dygraph.synchronize(dygraphs, {
@@ -203,7 +207,7 @@ class DashboardPage extends Component {
       })
     }
 
-    this.setState({dygraphs})
+    this.dygraphs = dygraphs
   }
 
   handleToggleTempVarControls = () => {
