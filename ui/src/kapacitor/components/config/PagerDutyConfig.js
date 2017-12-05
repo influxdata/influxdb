@@ -21,7 +21,7 @@ class PagerDutyConfig extends Component {
     const {options} = this.props.config
     const {url} = options
     const serviceKey = options['service-key']
-
+    const refFunc = r => (this.serviceKey = r)
     return (
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
@@ -29,7 +29,7 @@ class PagerDutyConfig extends Component {
           <RedactedInput
             defaultValue={serviceKey || ''}
             id="service-key"
-            refFunc={r => (this.serviceKey = r)}
+            refFunc={refFunc}
           />
         </div>
 
