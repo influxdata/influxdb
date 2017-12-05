@@ -101,10 +101,16 @@ export const updateTask = async (
   }
 }
 
+const kapacitorLogHeaders = {
+  'Content-Type': 'application/json',
+  Accept: 'application/json',
+}
+
 export const getLogStream = kapacitor =>
   fetch(`${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs`, {
     method: 'GET',
-    headers: {'Content-Type': 'application/json'},
+    headers: kapacitorLogHeaders,
+    credentials: 'include',
   })
 
 export const getLogStreamByRuleID = (kapacitor, ruleID) =>
@@ -112,7 +118,8 @@ export const getLogStreamByRuleID = (kapacitor, ruleID) =>
     `${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs?task=${ruleID}`,
     {
       method: 'GET',
-      headers: {'Content-Type': 'application/json'},
+      headers: kapacitorLogHeaders,
+      credentials: 'include',
     }
   )
 
@@ -121,6 +128,8 @@ export const pingKapacitorVersion = async kapacitor => {
     const result = await AJAX({
       method: 'GET',
       url: `${kapacitor.links.proxy}?path=/kapacitor/v1preview/ping`,
+      headers: kapacitorLogHeaders,
+      credentials: 'include',
     })
     const kapVersion = result.headers['x-kapacitor-version']
     return kapVersion === '' ? null : kapVersion

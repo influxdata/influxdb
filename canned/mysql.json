@@ -13,7 +13,7 @@
       "name": "MySQL – Reads/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"commands_select\")) AS selects_per_second FROM mysql",
+          "query": "SELECT non_negative_derivative(last(\"commands_select\"), 1s) AS selects_per_second FROM mysql",
           "groupbys": [
             "\"server\""
           ],
@@ -30,7 +30,7 @@
       "name": "MySQL – Writes/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"commands_insert\")) AS inserts_per_second, non_negative_derivative(max(\"commands_update\")) AS updates_per_second, non_negative_derivative(max(\"commands_delete\")) AS deletes_per_second FROM mysql",
+          "query": "SELECT non_negative_derivative(last(\"commands_insert\"), 1s) AS inserts_per_second, non_negative_derivative(last(\"commands_update\"), 1s) AS updates_per_second, non_negative_derivative(last(\"commands_delete\"), 1s) AS deletes_per_second FROM mysql",
           "groupbys": [
             "\"server\""
           ],
@@ -47,7 +47,7 @@
       "name": "MySQL – Connections/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"threads_connected\")) AS cxn_per_second, non_negative_derivative(max(\"threads_running\")) AS threads_running_per_second FROM mysql",
+          "query": "SELECT non_negative_derivative(last(\"threads_connected\"), 1s) AS cxn_per_second, non_negative_derivative(last(\"threads_running\"), 1s) AS threads_running_per_second FROM mysql",
           "groupbys": [
             "\"server\""
           ],
@@ -64,7 +64,7 @@
       "name": "MySQL – Connections Errors/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"connection_errors_max_connections\")) AS cxn_errors_per_second, non_negative_derivative(max(\"connection_errors_internal\")) AS internal_cxn_errors_per_second, non_negative_derivative(max(\"aborted_connects\")) AS cxn_aborted_per_second FROM mysql",
+          "query": "SELECT non_negative_derivative(last(\"connection_errors_max_connections\"), 1s) AS cxn_errors_per_second, non_negative_derivative(last(\"connection_errors_internal\"), 1s) AS internal_cxn_errors_per_second, non_negative_derivative(last(\"aborted_connects\"), 1s) AS cxn_aborted_per_second FROM mysql",
           "groupbys": [
             "\"server\""
           ],
