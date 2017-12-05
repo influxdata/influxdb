@@ -26,6 +26,7 @@ class DashboardsPageContents extends Component {
       onCreateDashboard,
       dashboardLink,
     } = this.props
+    const {searchTerm} = this.state
 
     let tableHeader
     if (dashboards === null) {
@@ -36,7 +37,7 @@ class DashboardsPageContents extends Component {
       tableHeader = `${dashboards.length} Dashboards`
     }
     const filteredDashboards = dashboards.filter(d =>
-      d.name.includes(this.state.searchTerm)
+      d.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     return (
