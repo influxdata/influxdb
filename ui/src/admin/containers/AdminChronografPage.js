@@ -111,6 +111,10 @@ AdminChronografPage.propTypes = {
     name: string.isRequired,
   }).isRequired,
   meRole: string.isRequired,
+  me: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }).isRequired,
   meID: string.isRequired,
   actions: shape({
     loadUsersAsync: func.isRequired,
@@ -125,6 +129,7 @@ const mapStateToProps = ({
   links,
   adminChronograf: {users},
   auth: {
+    me,
     me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
   },
 }) => ({
@@ -132,6 +137,7 @@ const mapStateToProps = ({
   users,
   meCurrentOrganization,
   meRole,
+  me,
   meID,
 })
 

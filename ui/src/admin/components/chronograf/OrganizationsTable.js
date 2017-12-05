@@ -38,6 +38,7 @@ class OrganizationsTable extends Component {
       onRenameOrg,
       onChooseDefaultRole,
       onTogglePublic,
+      currentOrganization,
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -62,7 +63,7 @@ class OrganizationsTable extends Component {
         </div>
         <div className="panel-body">
           <div className="orgs-table--org-labels">
-            <div className="orgs-table--id">ID</div>
+            <div className="orgs-table--active" />
             <div className="orgs-table--name">Name</div>
             <div className="orgs-table--public">
               Public{' '}
@@ -85,6 +86,7 @@ class OrganizationsTable extends Component {
               onDelete={onDeleteOrg}
               onRename={onRenameOrg}
               onChooseDefaultRole={onChooseDefaultRole}
+              currentOrganization={currentOrganization}
             />
           )}
         </div>
@@ -102,6 +104,10 @@ OrganizationsTable.propTypes = {
       name: string.isRequired,
     })
   ).isRequired,
+  currentOrganization: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }),
   onCreateOrg: func.isRequired,
   onDeleteOrg: func.isRequired,
   onRenameOrg: func.isRequired,

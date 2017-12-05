@@ -87,16 +87,14 @@ class UserNavBlock extends Component {
                 })}
               </FancyScrollbar>
               <div className="sidebar-menu--section">Account</div>
+              <div className="sidebar-menu--provider">
+                <div>
+                  {me.scheme} / {me.provider}
+                </div>
+              </div>
               <a className="sidebar-menu--item" href={logoutLink}>
                 Logout
               </a>
-              {isSuperAdmin
-                ? <div className="sidebar-menu--superadmin">
-                    <div>
-                      <span className="icon crown2" /> You are a SuperAdmin
-                    </div>
-                  </div>
-                : null}
               <div className="sidebar-menu--heading sidebar--no-hover">
                 {me.name}
               </div>
@@ -107,13 +105,11 @@ class UserNavBlock extends Component {
                 {me.name}
               </div>
               <div className="sidebar-menu--section">Account</div>
-              {isSuperAdmin
-                ? <div className="sidebar-menu--superadmin">
-                    <div>
-                      <span className="icon crown2" /> You are a SuperAdmin
-                    </div>
-                  </div>
-                : null}
+              <div className="sidebar-menu--provider">
+                <div>
+                  {me.scheme} / {me.provider}
+                </div>
+              </div>
               <a className="sidebar-menu--item" href={logoutLink}>
                 Logout
               </a>
