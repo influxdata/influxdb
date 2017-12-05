@@ -148,7 +148,7 @@ class RuleHandlers extends Component {
               menuClass="dropdown-malachite"
               selected={dropdownLabel}
               onChoose={this.handleAddEndpoint}
-              className="dropdown-200 rule-message--add-endpoint"
+              className="dropdown-170 rule-message--add-endpoint"
             />
           </div>
           {handlersOnThisAlert.length
