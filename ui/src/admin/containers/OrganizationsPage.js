@@ -52,7 +52,7 @@ class OrganizationsPage extends Component {
   }
 
   render() {
-    const {organizations} = this.props
+    const {organizations, currentOrganization} = this.props
 
     return (
       <OrganizationsTable
@@ -62,6 +62,7 @@ class OrganizationsPage extends Component {
         onRenameOrg={this.handleRenameOrganization}
         onTogglePublic={this.handleTogglePublic}
         onChooseDefaultRole={this.handleChooseDefaultRole}
+        currentOrganization={currentOrganization}
       />
     )
   }
@@ -87,6 +88,10 @@ OrganizationsPage.propTypes = {
     deleteOrganizationAsync: func.isRequired,
   }),
   getMe: func.isRequired,
+  currentOrganization: shape({
+    name: string.isRequired,
+    id: string.isRequired,
+  }),
 }
 
 const mapStateToProps = ({links, adminChronograf: {organizations}}) => ({

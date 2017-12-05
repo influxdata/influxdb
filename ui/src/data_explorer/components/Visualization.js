@@ -1,12 +1,12 @@
 import React, {PropTypes, Component} from 'react'
-import buildInfluxQLQuery from 'utils/influxql'
 import classnames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'shared/constants'
+import buildQueries from 'utils/buildQueriesForGraphs'
 import _ from 'lodash'
 
-const META_QUERY_REGEX = /^show/i
+const META_QUERY_REGEX = /^(show|create|drop)/i
 
 class Visualization extends Component {
   constructor(props) {
@@ -61,19 +61,11 @@ class Visualization extends Component {
       resizerBottomHeight,
       errorThrown,
     } = this.props
+
     const {source: {links: {proxy}}} = this.context
     const {view} = this.state
 
-    const statements = queryConfigs.map(query => {
-      const text =
-        query.rawText || buildInfluxQLQuery(query.range || timeRange, query)
-      return {text, id: query.id, queryConfig: query}
-    })
-
-    const queries = statements.filter(s => s.text !== null).map(s => {
-      return {host: [proxy], text: s.text, id: s.id, queryConfig: s.queryConfig}
-    })
-
+    const queries = buildQueries(proxy, queryConfigs, timeRange)
     const activeQuery = queries[activeQueryIndex]
     const defaultQuery = queries[0]
     const query = activeQuery || defaultQuery
@@ -81,12 +73,12 @@ class Visualization extends Component {
     return (
       <div className="graph" style={{height}}>
         <VisHeader
-          views={views}
           view={view}
-          onToggleView={this.handleToggleView}
-          name={cellName}
+          views={views}
           query={query}
+          name={cellName}
           errorThrown={errorThrown}
+          onToggleView={this.handleToggleView}
         />
         <div
           className={classnames({

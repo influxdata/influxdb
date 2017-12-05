@@ -14,8 +14,8 @@ import ResizeContainer from 'shared/components/ResizeContainer'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
-import {VIS_VIEWS, INITIAL_GROUP_BY_TIME} from 'shared/constants'
-import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
+import {VIS_VIEWS, AUTO_GROUP_BY} from 'shared/constants'
+import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS, TEMPLATES} from '../constants'
 import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
@@ -88,7 +88,6 @@ class DataExplorer extends Component {
 
     const {showWriteForm} = this.state
     const selectedDatabase = _.get(queryConfigs, ['0', 'database'], null)
-
     return (
       <div className="data-explorer">
         {showWriteForm
@@ -122,12 +121,13 @@ class DataExplorer extends Component {
             actions={queryConfigActions}
             timeRange={timeRange}
             activeQuery={this.getActiveQuery()}
-            initialGroupByTime={INITIAL_GROUP_BY_TIME}
+            initialGroupByTime={AUTO_GROUP_BY}
           />
           <Visualization
             views={VIS_VIEWS}
             activeQueryIndex={0}
             timeRange={timeRange}
+            templates={TEMPLATES}
             autoRefresh={autoRefresh}
             queryConfigs={queryConfigs}
             manualRefresh={manualRefresh}

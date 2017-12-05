@@ -1,11 +1,13 @@
-var webpack = require('webpack')
-var path = require('path')
-var ExtractTextPlugin = require('extract-text-webpack-plugin')
-var HtmlWebpackPlugin = require('html-webpack-plugin')
-var package = require('../package.json')
-const WebpackOnBuildPlugin = require('on-build-webpack')
+const path = require('path')
 const fs = require('fs')
-var dependencies = package.dependencies
+const webpack = require('webpack')
+const ExtractTextPlugin = require('extract-text-webpack-plugin')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const WebpackOnBuildPlugin = require('on-build-webpack')
+const _ = require('lodash')
+
+const package = require('../package.json')
+const dependencies = package.dependencies
 
 const buildDir = path.resolve(__dirname, '../build')
 
@@ -105,24 +107,27 @@ module.exports = {
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
     }),
-    new WebpackOnBuildPlugin(function(stats) {
+    new WebpackOnBuildPlugin(stats => {
       const newlyCreatedAssets = stats.compilation.assets
+      fs.readdir(buildDir, (readdirErr, buildDirFiles) => {
+        if (readdirErr) {
+          console.error('webpack build directory error')
+          return
+        }
 
-      const unlinked = []
-      fs.readdir(path.resolve(buildDir), (err, files) => {
-        files.forEach(file => {
-          if (!newlyCreatedAssets[file]) {
-            const del = path.resolve(buildDir + file)
-            fs.stat(del, function(err, stat) {
-              if (err == null) {
-                try {
-                  fs.unlink(path.resolve(buildDir + file))
-                  unlinked.push(file)
-                } catch (e) {}
+        const assetFileNames = _.keys(newlyCreatedAssets)
+        const filesToRemove = _.difference(buildDirFiles, assetFileNames)
+
+        for (const file of filesToRemove) {
+          const ext = path.extname(file)
+          if (['.js', '.json', '.map'].includes(ext)) {
+            fs.unlink(path.join(buildDir, file), unlinkErr => {
+              if (unlinkErr) {
+                console.error('webpack cleanup error', unlinkErr)
               }
             })
           }
-        })
+        }
       })
     }),
   ],

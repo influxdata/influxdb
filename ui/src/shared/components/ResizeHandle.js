@@ -6,15 +6,19 @@ const ResizeHandle = React.createClass({
   propTypes: {
     onHandleStartDrag: func.isRequired,
     isDragging: bool.isRequired,
+    theme: string,
     top: string,
   },
 
   render() {
-    const {isDragging, onHandleStartDrag, top} = this.props
+    const {isDragging, onHandleStartDrag, top, theme} = this.props
 
     return (
       <div
-        className={classnames('resizer--handle', {dragging: isDragging})}
+        className={classnames('resizer--handle', {
+          dragging: isDragging,
+          'resizer--malachite': theme === 'kapacitor',
+        })}
         onMouseDown={onHandleStartDrag}
         style={{top}}
       />

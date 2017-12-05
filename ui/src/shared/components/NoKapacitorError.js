@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 const NoKapacitorError = React.createClass({
   propTypes: {
     source: PropTypes.shape({
@@ -16,9 +18,11 @@ const NoKapacitorError = React.createClass({
           The current source does not have an associated Kapacitor instance
           <br />
           <br />
-          <Link to={path} className="btn btn-sm btn-primary">
-            Configure Kapacitor
-          </Link>
+          <Authorized requiredRole={EDITOR_ROLE}>
+            <Link to={path} className="btn btn-sm btn-primary">
+              Configure Kapacitor
+            </Link>
+          </Authorized>
         </p>
       </div>
     )

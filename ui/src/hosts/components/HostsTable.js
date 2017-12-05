@@ -103,7 +103,10 @@ class HostsTable extends Component {
           <h2 className="panel-title">
             {hostsTitle}
           </h2>
-          <SearchBar onSearch={this.updateSearchTerm} />
+          <SearchBar
+            placeholder="Filter by Host..."
+            onSearch={this.updateSearchTerm}
+          />
         </div>
         <div className="panel-body">
           {hostCount > 0 && !hostsError.length

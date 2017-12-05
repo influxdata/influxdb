@@ -54,7 +54,10 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 		},
 	}
 
-	if src.Type == chronograf.InfluxEnterprise {
+	// MetaURL is currently a string, but eventually, we'd like to change it
+	// to a slice. Checking len(src.MetaURL) is functionally equivalent to
+	// checking if it is equal to the empty string.
+	if src.Type == chronograf.InfluxEnterprise && len(src.MetaURL) != 0 {
 		res.Links.Roles = fmt.Sprintf("%s/%d/roles", httpAPISrcs, src.ID)
 	}
 	return res
@@ -250,7 +253,9 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	if req.URL != "" {
 		src.URL = req.URL
 	}
-	if req.MetaURL != "" {
+	// If the supplied MetaURL is different from the
+	// one supplied on the request, update the value
+	if req.MetaURL != src.MetaURL {
 		src.MetaURL = req.MetaURL
 	}
 	if req.Type != "" {

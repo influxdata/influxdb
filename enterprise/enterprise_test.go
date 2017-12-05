@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/enterprise"
+	"github.com/influxdata/chronograf/influx"
 	"github.com/influxdata/chronograf/log"
 )
 
@@ -75,7 +76,16 @@ func Test_Enterprise_IssuesQueries(t *testing.T) {
 func Test_Enterprise_AdvancesDataNodes(t *testing.T) {
 	m1 := NewMockTimeSeries("http://host-1.example.com:8086")
 	m2 := NewMockTimeSeries("http://host-2.example.com:8086")
-	cl, err := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), "http://meta.example.com:8091", "marty", "thelake", false, chronograf.TimeSeries(m1), chronograf.TimeSeries(m2))
+	cl, err := enterprise.NewClientWithTimeSeries(
+		log.New(log.DebugLevel),
+		"http://meta.example.com:8091",
+		&influx.BasicAuth{
+			Username: "marty",
+			Password: "thelake",
+		},
+		false,
+		chronograf.TimeSeries(m1),
+		chronograf.TimeSeries(m2))
 	if err != nil {
 		t.Error("Unexpected error while initializing client: err:", err)
 	}
@@ -124,7 +134,14 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 	}
 
 	for _, testURL := range urls {
-		_, err := enterprise.NewClientWithURL(testURL.url, testURL.username, testURL.password, testURL.tls, log.New(log.DebugLevel))
+		_, err := enterprise.NewClientWithURL(
+			testURL.url,
+			&influx.BasicAuth{
+				Username: testURL.username,
+				Password: testURL.password,
+			},
+			testURL.tls,
+			log.New(log.DebugLevel))
 		if err != nil && !testURL.shouldErr {
 			t.Errorf("Unexpected error creating Client with URL %s and TLS preference %t. err: %s", testURL.url, testURL.tls, err.Error())
 		} else if err == nil && testURL.shouldErr {
@@ -135,7 +152,14 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 
 func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
 	m1 := NewMockTimeSeries("http://host-1.example.com:8086")
-	cl, err := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), "http://meta.example.com:8091", "docbrown", "1.21 gigawatts", false, chronograf.TimeSeries(m1))
+	cl, err := enterprise.NewClientWithTimeSeries(
+		log.New(log.DebugLevel),
+		"http://meta.example.com:8091",
+		&influx.BasicAuth{
+			Username: "docbrown",
+			Password: "1.21 gigawatts",
+		},
+		false, chronograf.TimeSeries(m1))
 	if err != nil {
 		t.Error("Expected ErrUnitialized, but was this err:", err)
 	}

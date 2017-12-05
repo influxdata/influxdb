@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/influxdata/chronograf"
 )
@@ -55,7 +56,10 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	command := q.Command
 	// TODO(timraymond): move this upper Query() function
 	if len(q.TemplateVars) > 0 {
-		command = TemplateReplace(q.Command, q.TemplateVars)
+		command, err = TemplateReplace(q.Command, q.TemplateVars, time.Now())
+		if err != nil {
+			return nil, err
+		}
 	}
 	logs := c.Logger.
 		WithField("component", "proxy").

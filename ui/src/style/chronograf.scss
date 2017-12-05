@@ -54,6 +54,7 @@
 @import 'components/info-indicators';
 @import 'components/source-selector';
 @import 'components/tables';
+@import 'components/kapacitor-logs-table';
 
 // Pages
 @import 'pages/config-endpoints';
@@ -63,6 +64,7 @@
 @import 'pages/dashboards';
 @import 'pages/admin';
 @import 'pages/users';
+@import 'pages/tickscript-editor';
 
 // TODO
 @import 'unsorted';

@@ -57,6 +57,7 @@
   justify-content: center;
   color: $g12-forge;
   padding: 20px 0;
+  @include no-user-select();
 
   h4,
   h5 {
