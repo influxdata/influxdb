@@ -1,5 +1,4 @@
 import React, {PropTypes, PureComponent} from 'react'
-import shallowCompare from 'react-addons-shallow-compare'
 import lastValues from 'shared/parsing/lastValues'
 import Gauge from 'shared/components/Gauge'
 
@@ -46,7 +45,7 @@ class GaugeChart extends PureComponent {
       .toString()
 
     return (
-      <div className="single-stat" ref={r => (this.gaugeContainer = r)}>
+      <div className="single-stat">
         <Gauge
           width="900"
           height={height}
