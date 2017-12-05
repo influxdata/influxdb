@@ -32,14 +32,6 @@ $logs-margin: 4px;
   height: calc(100% - #{$logs-table-header-height}) !important;
 }
 
-@keyframes LogsFadeIn {
-  from {
-    background-color: $g6-smoke;
-  }
-  to {
-    background-color: transparent;
-  }
-}
 .logs-table {
   height: 100%;
 }
@@ -47,10 +39,6 @@ $logs-margin: 4px;
   height: 87px; // Fixed height, required for Infinite Scroll, allows for 2 tags / fields per line  
   padding: 8px ($logs-table-padding - 16px) 8px ($logs-table-padding / 2);
   border-bottom: 2px solid $g3-castle;
-  animation-name: LogsFadeIn;
-  animation-duration: 2.5s;
-  animation-iteration-count: 1;
-  animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
   transition: background-color 0.25s ease;
 
   &:hover {
