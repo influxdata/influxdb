@@ -263,10 +263,6 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
   @include no-user-select();
 
   > div {
-    display: flex;
-    padding: 4px 8px;
-    align-items: center;
-    border-radius: 3px;
     @include gradient-h($c-pineapple,$c-tiger);
     color: $c-sapphire;
   }
@@ -288,10 +284,6 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
   @include no-user-select();
 
   > div {
-    display: flex;
-    padding: 4px 8px;
-    align-items: center;
-    border-radius: 3px;
     @include gradient-h($c-rainforest,$c-pool);
     color: $g20-white;
   }
@@ -305,6 +297,15 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
     cursor: default;
   }
 }
+.sidebar-menu--superadmin > div,
+.sidebar-menu--provider > div {
+  display: flex;
+  padding: 4px 8px;
+  align-items: center;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
 .fancy-scroll--container.sidebar-menu--scrollbar {
   .fancy-scroll--thumb-h {display: none !important;}
   .fancy-scroll--thumb-v { @include gradient-v($g20-white,$c-neutrino); }
