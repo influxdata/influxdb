@@ -23,9 +23,9 @@ const AxesOptions = ({
 }) => {
   const [min, max] = bounds
 
-  const formattedSelectedGraphType = GRAPH_TYPES.find(graph => {
-    return graph.type === selectedGraphType
-  }).menuOption
+  const {menuOption} = GRAPH_TYPES.find(
+    graph => graph.type === selectedGraphType
+  )
 
   return (
     <FancyScrollbar
@@ -34,7 +34,7 @@ const AxesOptions = ({
     >
       <div className="display-options--cell-wrapper">
         <h5 className="display-options--header">
-          {formattedSelectedGraphType} Controls
+          {menuOption} Controls
         </h5>
         <form autoComplete="off" style={{margin: '0 -6px'}}>
           <div className="form-group col-sm-12">
