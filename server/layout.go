@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -47,38 +46,6 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 			Rel:  rel,
 		},
 	}
-}
-
-// NewLayout adds a valid layout to store.
-func (s *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
-	var layout chronograf.Layout
-	var err error
-	if err := json.NewDecoder(r.Body).Decode(&layout); err != nil {
-		invalidJSON(w, s.Logger)
-		return
-	}
-
-	ctx := r.Context()
-	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
-	if err != nil {
-		unknownErrorWithMessage(w, err, s.Logger)
-		return
-	}
-
-	if err := ValidLayoutRequest(layout, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
-		invalidData(w, err, s.Logger)
-		return
-	}
-
-	if layout, err = s.Store.Layouts(ctx).Add(r.Context(), layout); err != nil {
-		msg := fmt.Errorf("Error storing layout %v: %v", layout, err)
-		unknownErrorWithMessage(w, msg, s.Logger)
-		return
-	}
-
-	res := newLayoutResponse(layout)
-	location(w, res.Link.Href)
-	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 
 type getLayoutsResponse struct {
@@ -145,83 +112,4 @@ func (s *Service) LayoutsID(w http.ResponseWriter, r *http.Request) {
 
 	res := newLayoutResponse(layout)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
-}
-
-// RemoveLayout deletes layout from store.
-func (s *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	id := httprouter.GetParamFromContext(ctx, "id")
-
-	layout := chronograf.Layout{
-		ID: id,
-	}
-
-	if err := s.Store.Layouts(ctx).Delete(ctx, layout); err != nil {
-		unknownErrorWithMessage(w, err, s.Logger)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// UpdateLayout replaces the layout of ID with new valid layout.
-func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	id := httprouter.GetParamFromContext(ctx, "id")
-
-	_, err := s.Store.Layouts(ctx).Get(ctx, id)
-	if err != nil {
-		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
-		return
-	}
-
-	var req chronograf.Layout
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, s.Logger)
-		return
-	}
-	req.ID = id
-
-	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
-	if err != nil {
-		unknownErrorWithMessage(w, err, s.Logger)
-		return
-	}
-
-	if err := ValidLayoutRequest(req, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
-		invalidData(w, err, s.Logger)
-		return
-	}
-
-	if err := s.Store.Layouts(ctx).Update(ctx, req); err != nil {
-		msg := fmt.Sprintf("Error updating layout ID %s: %v", id, err)
-		Error(w, http.StatusInternalServerError, msg, s.Logger)
-		return
-	}
-
-	res := newLayoutResponse(req)
-	encodeJSON(w, http.StatusOK, res, s.Logger)
-}
-
-// ValidLayoutRequest checks if the layout has valid application, measurement and cells.
-func ValidLayoutRequest(l chronograf.Layout, defaultOrgID string) error {
-	if l.Application == "" || l.Measurement == "" || len(l.Cells) == 0 {
-		return fmt.Errorf("app, measurement, and cells required")
-	}
-
-	if l.Organization == "" {
-		l.Organization = defaultOrgID
-	}
-
-	for _, c := range l.Cells {
-		if c.W == 0 || c.H == 0 {
-			return fmt.Errorf("w, and h required")
-		}
-		for _, q := range c.Queries {
-			if q.Command == "" {
-				return fmt.Errorf("query required")
-			}
-		}
-	}
-	return nil
 }
