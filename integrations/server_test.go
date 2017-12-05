@@ -52,7 +52,9 @@ func TestServer(t *testing.T) {
 		{
 			name:    "GET /users",
 			subName: "User Not Found in the Default Organization",
-			fields:  fields{},
+			fields: fields{
+				Users: []chronograf.User{},
+			},
 			args: args{
 				server: &server.Server{
 					GithubClientID:     "not empty",
@@ -134,185 +136,6 @@ func TestServer(t *testing.T) {
 					    }
 					  ]
 					}`,
-			},
-		},
-		{
-			name:    "GET /users",
-			subName: "Single User in the Default Organization as Admin",
-			fields: fields{
-				Users: []chronograf.User{
-					{
-						ID:       1, // This is artificial, but should be reflective of the users actual ID
-						Name:     "billibob",
-						Provider: "github",
-						Scheme:   "oauth2",
-						Roles: []chronograf.Role{
-							{
-								Name:         "admin",
-								Organization: "0",
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				server: &server.Server{
-					GithubClientID:     "not empty",
-					GithubClientSecret: "not empty",
-				},
-				method: "GET",
-				path:   "/chronograf/v1/users",
-				principal: oauth2.Principal{
-					Organization: "0",
-					Subject:      "billibob",
-					Issuer:       "github",
-					ExpiresAt:    time.Now().Add(10 * time.Second),
-					IssuedAt:     time.Now(),
-				},
-			},
-			wants: wants{
-				statusCode: 200,
-				body: `
-					{
-					  "links": {
-					    "self": "/chronograf/v1/users"
-					  },
-					  "users": [
-					    {
-					      "links": {
-					        "self": "/chronograf/v1/users/1"
-					      },
-					      "id": "1",
-					      "name": "billibob",
-					      "provider": "github",
-					      "scheme": "oauth2",
-					      "superAdmin": false,
-					      "roles": [
-					        {
-					          "name": "admin",
-					          "organization": "0"
-					        }
-					      ]
-					    }
-					  ]
-					}`,
-			},
-		},
-		{
-			name:    "GET /users",
-			subName: "Single User in the Default Organization as Editor",
-			fields: fields{
-				Users: []chronograf.User{
-					{
-						ID:       1, // This is artificial, but should be reflective of the users actual ID
-						Name:     "billibob",
-						Provider: "github",
-						Scheme:   "oauth2",
-						Roles: []chronograf.Role{
-							{
-								Name:         "editor",
-								Organization: "0",
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				server: &server.Server{
-					GithubClientID:     "not empty",
-					GithubClientSecret: "not empty",
-				},
-				method: "GET",
-				path:   "/chronograf/v1/users",
-				principal: oauth2.Principal{
-					Organization: "0",
-					Subject:      "billibob",
-					Issuer:       "github",
-					ExpiresAt:    time.Now().Add(10 * time.Second),
-					IssuedAt:     time.Now(),
-				},
-			},
-			wants: wants{
-				statusCode: 401,
-				body:       `{"code":401,"message":"User is not authorized"}`,
-			},
-		},
-		{
-			name:    "GET /users",
-			subName: "Single User in the Default Organization as Viewer",
-			fields: fields{
-				Users: []chronograf.User{
-					{
-						ID:       1, // This is artificial, but should be reflective of the users actual ID
-						Name:     "billibob",
-						Provider: "github",
-						Scheme:   "oauth2",
-						Roles: []chronograf.Role{
-							{
-								Name:         "viewer",
-								Organization: "0",
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				server: &server.Server{
-					GithubClientID:     "not empty",
-					GithubClientSecret: "not empty",
-				},
-				method: "GET",
-				path:   "/chronograf/v1/users",
-				principal: oauth2.Principal{
-					Organization: "0",
-					Subject:      "billibob",
-					Issuer:       "github",
-					ExpiresAt:    time.Now().Add(10 * time.Second),
-					IssuedAt:     time.Now(),
-				},
-			},
-			wants: wants{
-				statusCode: 401,
-				body:       `{"code":401,"message":"User is not authorized"}`,
-			},
-		},
-		{
-			name:    "GET /users",
-			subName: "Single User in the Default Organization as Member",
-			fields: fields{
-				Users: []chronograf.User{
-					{
-						ID:       1, // This is artificial, but should be reflective of the users actual ID
-						Name:     "billibob",
-						Provider: "github",
-						Scheme:   "oauth2",
-						Roles: []chronograf.Role{
-							{
-								Name:         "viewer",
-								Organization: "0",
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				server: &server.Server{
-					GithubClientID:     "not empty",
-					GithubClientSecret: "not empty",
-				},
-				method: "GET",
-				path:   "/chronograf/v1/users",
-				principal: oauth2.Principal{
-					Organization: "0",
-					Subject:      "billibob",
-					Issuer:       "github",
-					ExpiresAt:    time.Now().Add(10 * time.Second),
-					IssuedAt:     time.Now(),
-				},
-			},
-			wants: wants{
-				statusCode: 401,
-				body:       `{"code":401,"message":"User is not authorized"}`,
 			},
 		},
 	}
@@ -402,6 +225,7 @@ func TestServer(t *testing.T) {
 			go tt.args.server.Serve(ctx)
 			serverURL := fmt.Sprintf("http://%v:%v%v", host, port, tt.args.path)
 
+			// Wait for the server to come online
 			timeout := time.Now().Add(100 * time.Millisecond)
 			for {
 				_, err := http.Get(serverURL + "/swagger.json")
