@@ -284,6 +284,7 @@ func Test_newDashboardResponse(t *testing.T) {
 									},
 								},
 							},
+							CellColors: []chronograf.CellColor{},
 							Axes: map[string]chronograf.Axis{
 								"x": chronograf.Axis{
 									Bounds: []string{"0", "100"},
@@ -317,6 +318,7 @@ func Test_newDashboardResponse(t *testing.T) {
 									Bounds: []string{},
 								},
 							},
+							CellColors: []chronograf.CellColor{},
 							Queries: []chronograf.DashboardQuery{
 								{
 									Command: "SELECT winning_horses from grays_sports_alamanc where time > now() - 15m",

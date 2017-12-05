@@ -23,15 +23,24 @@ message Dashboard {
 }
 
 message DashboardCell {
-	int32 x                 = 1; // X-coordinate of Cell in the Dashboard
-	int32 y                 = 2; // Y-coordinate of Cell in the Dashboard
-	int32 w                 = 3; // Width of Cell in the Dashboard
-	int32 h                 = 4; // Height of Cell in the Dashboard
-	repeated Query queries  = 5; // Time-series data queries for Dashboard
-	string name             = 6; // User-facing name for this Dashboard
-	string type             = 7; // Dashboard visualization type
-	string ID               = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
-	map<string, Axis> axes  = 9; // Axes represent the graphical viewport for a cell's visualizations
+	int32 x                     = 1; // X-coordinate of Cell in the Dashboard
+	int32 y                     = 2; // Y-coordinate of Cell in the Dashboard
+	int32 w                     = 3; // Width of Cell in the Dashboard
+	int32 h                     = 4; // Height of Cell in the Dashboard
+	repeated Query queries      = 5; // Time-series data queries for Dashboard
+	string name                 = 6; // User-facing name for this Dashboard
+	string type                 = 7; // Dashboard visualization type
+	string ID                   = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
+	map<string, Axis> axes      = 9; // Axes represent the graphical viewport for a cell's visualizations
+	repeated Color colors       = 10; // Colors represent encoding data values to color
+}
+
+message Color {
+	string ID                   = 1; // ID is the unique id of the cell color
+	string Type                 = 2; // Type is how the color is used. Accepted (min,max,threshold)
+	string Hex                  = 3; // Hex is the hex number of the color
+	string Name                 = 4; // Name is the user-facing name of the hex color
+	string Value                = 5; // Value is the data value mapped to this color
 }
 
 message Axis {

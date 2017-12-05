@@ -34,6 +34,9 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 		newCell.Queries = make([]chronograf.DashboardQuery, len(cell.Queries))
 		copy(newCell.Queries, cell.Queries)
 
+		newCell.CellColors = make([]chronograf.CellColor, len(cell.CellColors))
+		copy(newCell.CellColors, cell.CellColors)
+
 		// ensure x, y, and y2 axes always returned
 		labels := []string{"x", "y", "y2"}
 		newCell.Axes = make(map[string]chronograf.Axis, len(labels))
@@ -80,7 +83,11 @@ func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 		}
 	}
 	MoveTimeShift(c)
-	return HasCorrectAxes(c)
+	err := HasCorrectAxes(c)
+	if err != nil {
+		return err
+	}
+	return HasCorrectColors(c)
 }
 
 // HasCorrectAxes verifies that only permitted axes exist within a DashboardCell
@@ -99,6 +106,19 @@ func HasCorrectAxes(c *chronograf.DashboardCell) error {
 		}
 	}
 
+	return nil
+}
+
+// HasCorrectColors verifies that the format of each color is correct
+func HasCorrectColors(c *chronograf.DashboardCell) error {
+	for _, color := range c.CellColors {
+		if !oneOf(color.Type, "max", "min", "threshold") {
+			return chronograf.ErrInvalidColorType
+		}
+		if len(color.Hex) != 7 {
+			return chronograf.ErrInvalidColor
+		}
+	}
 	return nil
 }
 
