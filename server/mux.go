@@ -183,16 +183,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyPatch))
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyDelete))
 
-	// Mappings
-	router.GET("/chronograf/v1/mappings", EnsureViewer(service.GetMappings))
-
 	// Layouts
 	router.GET("/chronograf/v1/layouts", EnsureViewer(service.Layouts))
-	router.POST("/chronograf/v1/layouts", EnsureEditor(service.NewLayout))
-
 	router.GET("/chronograf/v1/layouts/:id", EnsureViewer(service.LayoutsID))
-	router.PUT("/chronograf/v1/layouts/:id", EnsureEditor(service.UpdateLayout))
-	router.DELETE("/chronograf/v1/layouts/:id", EnsureEditor(service.RemoveLayout))
 
 	// Users associated with Chronograf
 	router.GET("/chronograf/v1/me", service.Me)

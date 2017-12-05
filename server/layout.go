@@ -117,7 +117,14 @@ func (s *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 	res := getLayoutsResponse{
 		Layouts: []layoutResponse{},
 	}
+
+	seen := make(map[string]bool)
 	for _, layout := range layouts {
+		// remove duplicates
+		if seen[layout.Measurement+layout.ID] {
+			continue
+		}
+		// filter for data that belongs to provided application or measurement
 		if filter(&layout) {
 			res.Layouts = append(res.Layouts, newLayoutResponse(layout))
 		}
