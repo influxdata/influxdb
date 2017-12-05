@@ -125,12 +125,11 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 		}
 	}
 	return proto.Marshal(&Layout{
-		ID:           l.ID,
-		Measurement:  l.Measurement,
-		Application:  l.Application,
-		Autoflow:     l.Autoflow,
-		Cells:        cells,
-		Organization: l.Organization,
+		ID:          l.ID,
+		Measurement: l.Measurement,
+		Application: l.Application,
+		Autoflow:    l.Autoflow,
+		Cells:       cells,
 	})
 }
 
@@ -145,7 +144,6 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 	l.Measurement = pb.Measurement
 	l.Application = pb.Application
 	l.Autoflow = pb.Autoflow
-	l.Organization = pb.Organization
 	cells := make([]chronograf.Cell, len(pb.Cells))
 	for i, c := range pb.Cells {
 		queries := make([]chronograf.Query, len(c.Queries))
