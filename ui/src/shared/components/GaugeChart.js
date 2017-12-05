@@ -1,4 +1,4 @@
-import React, {PropTypes, Component} from 'react'
+import React, {PropTypes, PureComponent} from 'react'
 import shallowCompare from 'react-addons-shallow-compare'
 import lastValues from 'shared/parsing/lastValues'
 import Gauge from 'shared/components/Gauge'
@@ -6,11 +6,7 @@ import Gauge from 'shared/components/Gauge'
 import {DEFAULT_COLORS} from 'src/dashboards/constants/gaugeColors'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 
-class GaugeChart extends Component {
-  shouldComponentUpdate(nextProps, nextState) {
-    return shallowCompare(this, nextProps, nextState)
-  }
-
+class GaugeChart extends PureComponent {
   render() {
     const {
       data,
