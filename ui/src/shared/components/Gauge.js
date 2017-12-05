@@ -42,8 +42,11 @@ class Gauge extends Component {
     const gradientThickness = Math.max(minLineWidth, radius / 4)
     const labelValueFontSize = Math.max(minFontSize, radius / 4)
 
-    // Distill out max and min values
     const {colors} = this.props
+    if (!colors || colors.length === 0) {
+      return
+    }
+    // Distill out max and min values
     const minValue = Number(
       colors.find(color => color.type === COLOR_TYPE_MIN).value
     )
