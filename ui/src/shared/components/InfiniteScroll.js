@@ -10,12 +10,6 @@ class InfiniteScroll extends Component {
   scrollTop = 0
   containerHeight = 0
 
-  static propTypes = {
-    itemHeight: number.isRequired,
-    items: arrayOf(shape()).isRequired,
-    className: string,
-  }
-
   state = {
     topIndex: 0,
     bottomIndex: 0,
@@ -95,6 +89,12 @@ class InfiniteScroll extends Component {
       </div>
     )
   }
+}
+
+InfiniteScroll.propTypes = {
+  itemHeight: number.isRequired,
+  items: arrayOf(shape()).isRequired,
+  className: string,
 }
 
 export default InfiniteScroll
