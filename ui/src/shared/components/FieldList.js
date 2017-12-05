@@ -1,9 +1,8 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 
+import QueryOptions from 'shared/components/QueryOptions'
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
-import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
-import FillQuery from 'shared/components/FillQuery'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
@@ -107,6 +106,10 @@ class FieldList extends Component {
     applyFuncsToField(fieldFunc, groupBy)
   }
 
+  handleTimeShift = shift => {
+    this.props.onTimeShift(shift)
+  }
+
   _getFields = () => {
     const {database, measurement, retentionPolicy} = this.props.query
     const {source} = this.context
@@ -129,12 +132,11 @@ class FieldList extends Component {
 
   render() {
     const {
-      query: {database, measurement, fields = [], groupBy, fill},
+      query: {database, measurement, fields = [], groupBy, fill, shifts},
       isKapacitorRule,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
-    const hasGroupByTime = groupBy.time
     const noDBorMeas = !database || !measurement
 
     return (
@@ -142,16 +144,15 @@ class FieldList extends Component {
         <div className="query-builder--heading">
           <span>Fields</span>
           {hasAggregates
-            ? <div className="query-builder--groupby-fill-container">
-                <GroupByTimeDropdown
-                  isOpen={!hasGroupByTime}
-                  selected={groupBy.time}
-                  onChooseGroupByTime={this.handleGroupByTime}
-                />
-                {isKapacitorRule
-                  ? null
-                  : <FillQuery value={fill} onChooseFill={this.handleFill} />}
-              </div>
+            ? <QueryOptions
+                fill={fill}
+                shift={_.first(shifts)}
+                groupBy={groupBy}
+                onFill={this.handleFill}
+                isKapacitorRule={isKapacitorRule}
+                onTimeShift={this.handleTimeShift}
+                onGroupByTime={this.handleGroupByTime}
+              />
             : null}
         </div>
         {noDBorMeas
@@ -192,7 +193,7 @@ class FieldList extends Component {
   }
 }
 
-const {bool, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 FieldList.defaultProps = {
   isKapacitorRule: false,
@@ -212,7 +213,15 @@ FieldList.propTypes = {
     database: string,
     retentionPolicy: string,
     measurement: string,
+    shifts: arrayOf(
+      shape({
+        label: string,
+        unit: string,
+        quantity: string,
+      })
+    ),
   }).isRequired,
+  onTimeShift: func,
   onToggleField: func.isRequired,
   onGroupByTime: func.isRequired,
   onFill: func,

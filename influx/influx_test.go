@@ -276,11 +276,11 @@ func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
 	called = false
 	q = ""
 	query = chronograf.Query{
-		Command: "select $field from cpu",
-		TemplateVars: chronograf.TemplateVars{
-			chronograf.BasicTemplateVar{
-				Var: "$field",
-				Values: []chronograf.BasicTemplateValue{
+		Command: "select :field: from cpu",
+		TemplateVars: []chronograf.TemplateVar{
+			chronograf.TemplateVar{
+				Var: ":field:",
+				Values: []chronograf.TemplateValue{
 					{
 						Value: "usage_user",
 						Type:  "fieldKey",

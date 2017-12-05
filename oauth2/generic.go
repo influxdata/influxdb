@@ -27,6 +27,7 @@ type Generic struct {
 	AuthURL        string
 	TokenURL       string
 	APIURL         string // APIURL returns OpenID Userinfo
+	APIKey         string // APIKey is the JSON key to lookup email address in APIURL response
 	Logger         chronograf.Logger
 }
 
@@ -69,9 +70,7 @@ func (g *Generic) Config() *oauth2.Config {
 
 // PrincipalID returns the email address of the user.
 func (g *Generic) PrincipalID(provider *http.Client) (string, error) {
-	res := struct {
-		Email string `json:"email"`
-	}{}
+	res := map[string]interface{}{}
 
 	r, err := provider.Get(g.APIURL)
 	if err != nil {
@@ -83,7 +82,11 @@ func (g *Generic) PrincipalID(provider *http.Client) (string, error) {
 		return "", err
 	}
 
-	email := res.Email
+	email := ""
+	value := res[g.APIKey]
+	if e, ok := value.(string); ok {
+		email = e
+	}
 
 	// If we did not receive an email address, try to lookup the email
 	// in a similar way as github

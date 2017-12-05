@@ -49,3 +49,39 @@ func TestVarsCritStringEqual(t *testing.T) {
 		t.Errorf("Error validating alert: %v %s", err, tick)
 	}
 }
+
+func Test_formatValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "parses floats",
+			value: "3.14",
+			want:  "3.14",
+		},
+		{
+			name:  "parses booleans",
+			value: "TRUE",
+			want:  "TRUE",
+		},
+		{
+			name:  "single quotes for strings",
+			value: "up",
+			want:  "'up'",
+		},
+		{
+			name:  "handles escaping of single quotes",
+			value: "down's",
+			want:  "'down\\'s'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatValue(tt.value); got != tt.want {
+				t.Errorf("formatValue() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

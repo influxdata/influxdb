@@ -76,10 +76,12 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 	}
 }
 
+// NotEmpty is an error collector checking if strings are empty values
 type NotEmpty struct {
 	Err error
 }
 
+// Valid checks if string s is empty and if so reports an error using name
 func (n *NotEmpty) Valid(name, s string) error {
 	if n.Err != nil {
 		return n.Err
@@ -91,6 +93,7 @@ func (n *NotEmpty) Valid(name, s string) error {
 	return n.Err
 }
 
+// Escape sanitizes strings with single quotes for kapacitor
 func Escape(str string) string {
 	return strings.Replace(str, "'", `\'`, -1)
 }
@@ -251,5 +254,10 @@ func formatValue(value string) string {
 	if _, err := strconv.ParseFloat(value, 64); err == nil {
 		return value
 	}
-	return "'" + value + "'"
+
+	// If the value is a kapacitor boolean value perform no formatting
+	if value == "TRUE" || value == "FALSE" {
+		return value
+	}
+	return "'" + Escape(value) + "'"
 }

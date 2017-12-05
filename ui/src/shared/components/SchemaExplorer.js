@@ -13,6 +13,7 @@ const SchemaExplorer = ({
   initialGroupByTime,
   actions: {
     fill,
+    timeShift,
     chooseTag,
     groupByTag,
     groupByTime,
@@ -44,13 +45,14 @@ const SchemaExplorer = ({
       source={source}
       query={query}
       querySource={source}
-      initialGroupByTime={initialGroupByTime}
-      onToggleField={actionBinder(id, toggleField)}
       onFill={actionBinder(id, fill)}
-      onGroupByTime={actionBinder(id, groupByTime)}
-      applyFuncsToField={actionBinder(id, applyFuncsToField)}
+      initialGroupByTime={initialGroupByTime}
+      onTimeShift={actionBinder(id, timeShift)}
       removeFuncs={actionBinder(id, removeFuncs)}
+      onToggleField={actionBinder(id, toggleField)}
+      onGroupByTime={actionBinder(id, groupByTime)}
       addInitialField={actionBinder(id, addInitialField)}
+      applyFuncsToField={actionBinder(id, applyFuncsToField)}
     />
   </div>
 

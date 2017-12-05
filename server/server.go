@@ -80,6 +80,7 @@ type Server struct {
 	GenericAuthURL      string   `long:"generic-auth-url" description:"OAuth 2.0 provider's authorization endpoint URL" env:"GENERIC_AUTH_URL"`
 	GenericTokenURL     string   `long:"generic-token-url" description:"OAuth 2.0 provider's token endpoint URL" env:"GENERIC_TOKEN_URL"`
 	GenericAPIURL       string   `long:"generic-api-url" description:"URL that returns OpenID UserInfo compatible information." env:"GENERIC_API_URL"`
+	GenericAPIKey       string   `long:"generic-api-key" description:"JSON lookup key into OpenID UserInfo. (Azure should be userPrincipalName)" default:"email" env:"GENERIC_API_KEY"`
 
 	Auth0Domain        string   `long:"auth0-domain" description:"Subdomain of auth0.com used for Auth0 OAuth2 authentication" env:"AUTH0_DOMAIN"`
 	Auth0ClientID      string   `long:"auth0-client-id" description:"Auth0 Client ID for OAuth2 support" env:"AUTH0_CLIENT_ID"`
@@ -182,6 +183,7 @@ func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticato
 		AuthURL:        s.GenericAuthURL,
 		TokenURL:       s.GenericTokenURL,
 		APIURL:         s.GenericAPIURL,
+		APIKey:         s.GenericAPIKey,
 		Logger:         logger,
 	}
 	jwt := oauth2.NewJWT(s.TokenSecret)

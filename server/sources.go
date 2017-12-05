@@ -55,7 +55,7 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 		},
 	}
 
-	if src.Type == chronograf.InfluxEnterprise {
+	if src.Type == chronograf.InfluxEnterprise && len(src.MetaURL) != 0 {
 		res.Links.Roles = fmt.Sprintf("%s/%d/roles", httpAPISrcs, src.ID)
 	}
 	return res
