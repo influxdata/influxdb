@@ -49,8 +49,15 @@
   }
 
   > .btn {
-    margin-top: ($sidebar--width / 2);
-    margin-bottom: $sidebar--width;
+    margin-top: 6px;
+    margin-bottom: 6px;
+
+    &:first-of-type {
+      margin-top: ($sidebar--width / 2);
+    }
+    &:last-child {
+      margin-bottom: $sidebar--width;
+    }
 
     > .icon {
       font-size: 20px;
