@@ -31,6 +31,7 @@
 1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
 1. [#2456](https://github.com/influxdata/chronograf/pull/2456): Add boolean thresholds for kapacitor threshold alerts
 1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
+1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
 
 ### UI Improvements
 
