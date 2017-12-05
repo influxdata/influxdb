@@ -106,7 +106,6 @@ KapacitorRulePage.propTypes = {
     removeEvery: func.isRequired,
     updateRuleValues: func.isRequired,
     updateMessage: func.isRequired,
-    updateAlerts: func.isRequired,
     updateRuleName: func.isRequired,
   }).isRequired,
   queryConfigActions: shape({}).isRequired,

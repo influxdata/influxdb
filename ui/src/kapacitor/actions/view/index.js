@@ -153,16 +153,6 @@ export const updateAlertProperty = (ruleID, alertNodeName, alertProperty) => ({
   },
 })
 
-export function updateAlerts(ruleID, alerts) {
-  return {
-    type: 'UPDATE_RULE_ALERTS',
-    payload: {
-      ruleID,
-      alerts,
-    },
-  }
-}
-
 export function updateAlertNodes(ruleID, alerts) {
   return {
     type: 'UPDATE_RULE_ALERT_NODES',
