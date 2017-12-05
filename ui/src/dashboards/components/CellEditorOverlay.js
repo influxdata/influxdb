@@ -90,7 +90,7 @@ class CellEditorOverlay extends Component {
       let randomValue
 
       do {
-        randomValue = String(_.round(_.random(minValue, maxValue, true), 2))
+        randomValue = `${_.round(_.random(minValue, maxValue, true), 2)}`
       } while (_.includes(colorsValues, randomValue))
 
       const newThreshold = {
