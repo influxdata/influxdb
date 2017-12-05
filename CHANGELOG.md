@@ -1,5 +1,7 @@
 ## v1.3.11.0 [unreleased]
 ### Bug Fixes
+1. [#2449](https://github.com/influxdata/chronograf/pull/2449): Fix .jsdep step fails when LDFLAGS is exported
+1. [#2157](https://github.com/influxdata/chronograf/pull/2157): Fix logscale producing console errors when only one point in graph
 1. [#2157](https://github.com/influxdata/chronograf/pull/2157): Fix logscale producing console errors when only one point in graph
 1. [#2158](https://github.com/influxdata/chronograf/pull/2158): Fix 'Cannot connect to source' false error flag on Dashboard page
 1. [#2167](https://github.com/influxdata/chronograf/pull/2167): Add fractions of seconds to time field in csv export
@@ -14,9 +16,12 @@
 1. [#2386](https://github.com/influxdata/chronograf/pull/2386): Fix queries that include regex, numbers and wildcard
 1. [#2398](https://github.com/influxdata/chronograf/pull/2398): Fix apps on hosts page from parsing tags with null values
 1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
+1. [#2444](https://github.com/influxdata/chronograf/pull/2444): Fix create dashboard button
 1. [#2416](https://github.com/influxdata/chronograf/pull/2416): Fix default y-axis labels not displaying properly
 1. [#2423](https://github.com/influxdata/chronograf/pull/2423): Gracefully scale Template Variables Manager overlay on smaller displays
 1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Fix Influx Enterprise users from deletion in race condition
+1. [#2467](https://github.com/influxdata/chronograf/pull/2467): Fix oauth2 logout link not having basepath
+1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
 
 
 ### Features
@@ -25,6 +30,8 @@
 1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
 1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
 1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Add auto group by time to Data Explorer
+1. [#2456](https://github.com/influxdata/chronograf/pull/2456): Add boolean thresholds for kapacitor threshold alerts
+1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
 
 ### UI Improvements
 
