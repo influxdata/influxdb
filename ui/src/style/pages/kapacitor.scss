@@ -587,11 +587,10 @@ $rule-builder--radius-lg: 5px;
 .rule-builder--details {
   background-color: $rule-builder--section-bg;
   padding-top: $rule-builder--padding-lg - 2px;
-  padding-left: 0px;
-  padding-right: 33px;
+  padding-left: 6px;
+  padding-right: 6px;
   padding-bottom: 0;
   border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
-  margin-left: -3px;
 }
 .rule-builder--details textarea {
   height: 100px;
