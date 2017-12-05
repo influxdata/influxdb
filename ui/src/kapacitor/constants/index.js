@@ -308,21 +308,3 @@ export const RULE_ALERT_OPTIONS = {
     ],
   },
 }
-
-export const ALERT_NODES_ACCESSORS = {
-  http: rule => _.get(rule, 'alertNodes[0].args[0]', ''),
-  tcp: rule => _.get(rule, 'alertNodes[0].args[0]', ''),
-  exec: rule => _.get(rule, 'alertNodes[0].args', []).join(' '),
-  log: rule => _.get(rule, 'alertNodes[0].args[0]', ''),
-  smtp: rule => _.get(rule, 'alertNodes[0].args', []).join(' '),
-  alerta: rule =>
-    _.get(rule, 'alertNodes[0].properties', [])
-      .reduce(
-        (strs, item) => {
-          strs.push(`${item.name}('${item.args.join(' ')}')`)
-          return strs
-        },
-        ['alerta()']
-      )
-      .join('.'),
-}

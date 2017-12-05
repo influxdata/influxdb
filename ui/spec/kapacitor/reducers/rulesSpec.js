@@ -1,6 +1,5 @@
 import reducer from 'src/kapacitor/reducers/rules'
 import {defaultRuleConfigs} from 'src/kapacitor/constants'
-import {ALERT_NODES_ACCESSORS} from 'src/kapacitor/constants'
 
 import {
   chooseTrigger,
