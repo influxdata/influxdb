@@ -66,8 +66,6 @@ func TestServer(t *testing.T) {
 					Organization: "0",
 					Subject:      "billibob",
 					Issuer:       "github",
-					ExpiresAt:    time.Now().Add(10 * time.Second),
-					IssuedAt:     time.Now(),
 				},
 			},
 			wants: wants{
@@ -106,8 +104,6 @@ func TestServer(t *testing.T) {
 					Organization: "0",
 					Subject:      "billibob",
 					Issuer:       "github",
-					ExpiresAt:    time.Now().Add(10 * time.Second),
-					IssuedAt:     time.Now(),
 				},
 			},
 			wants: wants{
@@ -237,6 +233,10 @@ func TestServer(t *testing.T) {
 					return
 				}
 			}
+
+			// Set the Expiry time on the principal
+			tt.args.principal.IssuedAt = time.Now()
+			tt.args.principal.ExpiresAt = time.Now().Add(10 * time.Second)
 
 			// Construct HTTP Request
 			buf, _ := json.Marshal(tt.args.payload)
