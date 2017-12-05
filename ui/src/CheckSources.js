@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
@@ -15,73 +15,24 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
-const {arrayOf, bool, func, node, shape, string} = PropTypes
-const CheckSources = React.createClass({
-  propTypes: {
-    getSources: func.isRequired,
-    sources: arrayOf(
-      shape({
-        links: shape({
-          proxy: string.isRequired,
-          self: string.isRequired,
-          kapacitors: string.isRequired,
-          queries: string.isRequired,
-          permissions: string.isRequired,
-          users: string.isRequired,
-          databases: string.isRequired,
-        }).isRequired,
-      })
-    ),
-    children: node,
-    params: shape({
-      sourceID: string,
-    }).isRequired,
-    router: shape({
-      push: func.isRequired,
-    }).isRequired,
-    location: shape({
-      pathname: string.isRequired,
-    }).isRequired,
-    auth: shape({
-      isUsingAuth: bool,
-      me: shape({
-        currentOrganization: shape({
-          name: string.isRequired,
-          id: string.isRequired,
-        }),
-      }),
-    }),
-  },
+class CheckSources extends Component {
+  constructor(props) {
+    super(props)
 
-  childContextTypes: {
-    source: shape({
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-        kapacitors: string.isRequired,
-        queries: string.isRequired,
-        permissions: string.isRequired,
-        users: string.isRequired,
-        databases: string.isRequired,
-      }).isRequired,
-    }),
-  },
+    this.state = {
+      isFetching: true,
+    }
+  }
 
   getChildContext() {
     const {sources, params: {sourceID}} = this.props
     return {source: sources.find(s => s.id === sourceID)}
-  },
-
-  getInitialState() {
-    return {
-      isFetching: true,
-    }
-  },
+  }
 
   async componentWillMount() {
     await this.props.getSources()
     this.setState({isFetching: false})
-  },
+  }
 
   shouldComponentUpdate(nextProps) {
     const {auth: {isUsingAuth, me}} = nextProps
@@ -95,7 +46,7 @@ const CheckSources = React.createClass({
       return false
     }
     return true
-  },
+  }
 
   async componentWillUpdate(nextProps, nextState) {
     const {
@@ -150,7 +101,7 @@ const CheckSources = React.createClass({
         errorThrown(error, 'Unable to connect to source')
       }
     }
-  },
+  }
 
   render() {
     const {
@@ -174,8 +125,60 @@ const CheckSources = React.createClass({
         })
       )
     )
-  },
-})
+  }
+}
+
+const {arrayOf, bool, func, node, shape, string} = PropTypes
+
+CheckSources.propTypes = {
+  getSources: func.isRequired,
+  sources: arrayOf(
+    shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
+        kapacitors: string.isRequired,
+        queries: string.isRequired,
+        permissions: string.isRequired,
+        users: string.isRequired,
+        databases: string.isRequired,
+      }).isRequired,
+    })
+  ),
+  children: node,
+  params: shape({
+    sourceID: string,
+  }).isRequired,
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
+  location: shape({
+    pathname: string.isRequired,
+  }).isRequired,
+  auth: shape({
+    isUsingAuth: bool,
+    me: shape({
+      currentOrganization: shape({
+        name: string.isRequired,
+        id: string.isRequired,
+      }),
+    }),
+  }),
+}
+
+CheckSources.childContextTypes = {
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+      self: string.isRequired,
+      kapacitors: string.isRequired,
+      queries: string.isRequired,
+      permissions: string.isRequired,
+      users: string.isRequired,
+      databases: string.isRequired,
+    }).isRequired,
+  }),
+}
 
 const mapStateToProps = ({sources, auth, me}) => ({
   sources,
