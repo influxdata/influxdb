@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/tsdb"
@@ -384,168 +383,6 @@ func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) tsdb.Series
 	return tsdb.MergeSeriesIDIterators(a...)
 }
 
-func (fs *FileSet) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	// Return filtered list if expression exists.
-	if expr != nil {
-		return fs.measurementNamesByExpr(expr)
-	}
-
-	itr := fs.MeasurementIterator()
-	if itr == nil {
-		return nil, nil
-	}
-
-	// Iterate over all measurements if no condition exists.
-	var names [][]byte
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		names = append(names, e.Name())
-	}
-	return names, nil
-}
-
-func (fs *FileSet) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	if expr == nil {
-		return nil, nil
-	}
-
-	switch e := expr.(type) {
-	case *influxql.BinaryExpr:
-		switch e.Op {
-		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-			tag, ok := e.LHS.(*influxql.VarRef)
-			if !ok {
-				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
-			}
-
-			// Retrieve value or regex expression from RHS.
-			var value string
-			var regex *regexp.Regexp
-			if influxql.IsRegexOp(e.Op) {
-				re, ok := e.RHS.(*influxql.RegexLiteral)
-				if !ok {
-					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
-				}
-				regex = re.Val
-			} else {
-				s, ok := e.RHS.(*influxql.StringLiteral)
-				if !ok {
-					return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
-				}
-				value = s.Val
-			}
-
-			// Match on name, if specified.
-			if tag.Val == "_name" {
-				return fs.measurementNamesByNameFilter(e.Op, value, regex), nil
-			} else if influxql.IsSystemName(tag.Val) {
-				return nil, nil
-			}
-			return fs.measurementNamesByTagFilter(e.Op, tag.Val, value, regex), nil
-
-		case influxql.OR, influxql.AND:
-			lhs, err := fs.measurementNamesByExpr(e.LHS)
-			if err != nil {
-				return nil, err
-			}
-
-			rhs, err := fs.measurementNamesByExpr(e.RHS)
-			if err != nil {
-				return nil, err
-			}
-
-			if e.Op == influxql.OR {
-				return bytesutil.Union(lhs, rhs), nil
-			}
-			return bytesutil.Intersect(lhs, rhs), nil
-
-		default:
-			return nil, fmt.Errorf("invalid tag comparison operator")
-		}
-
-	case *influxql.ParenExpr:
-		return fs.measurementNamesByExpr(e.Expr)
-	default:
-		return nil, fmt.Errorf("%#v", expr)
-	}
-}
-
-// measurementNamesByNameFilter returns matching measurement names in sorted order.
-func (fs *FileSet) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
-	itr := fs.MeasurementIterator()
-	if itr == nil {
-		return nil
-	}
-
-	var names [][]byte
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		var matched bool
-		switch op {
-		case influxql.EQ:
-			matched = string(e.Name()) == val
-		case influxql.NEQ:
-			matched = string(e.Name()) != val
-		case influxql.EQREGEX:
-			matched = regex.Match(e.Name())
-		case influxql.NEQREGEX:
-			matched = !regex.Match(e.Name())
-		}
-
-		if matched {
-			names = append(names, e.Name())
-		}
-	}
-	bytesutil.Sort(names)
-	return names
-}
-
-func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val string, regex *regexp.Regexp) [][]byte {
-	var names [][]byte
-
-	mitr := fs.MeasurementIterator()
-	if mitr == nil {
-		return nil
-	}
-
-	for me := mitr.Next(); me != nil; me = mitr.Next() {
-		// If the operator is non-regex, only check the specified value.
-		var tagMatch bool
-		if op == influxql.EQ || op == influxql.NEQ {
-			if fs.HasTagValue(me.Name(), []byte(key), []byte(val)) {
-				tagMatch = true
-			}
-		} else {
-			// Else, the operator is a regex and we have to check all tag
-			// values against the regular expression.
-			vitr := fs.TagValueIterator(me.Name(), []byte(key))
-			if vitr != nil {
-				for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
-					if regex.Match(ve.Value()) {
-						tagMatch = true
-						break
-					}
-				}
-			}
-		}
-
-		//
-		// XNOR gate
-		//
-		// tags match | operation is EQ | measurement matches
-		// --------------------------------------------------
-		//     True   |       True      |      True
-		//     True   |       False     |      False
-		//     False  |       True      |      False
-		//     False  |       False     |      True
-		if tagMatch == (op == influxql.EQ || op == influxql.EQREGEX) {
-			names = append(names, me.Name())
-			continue
-		}
-	}
-
-	bytesutil.Sort(names)
-	return names
-}
-
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -639,6 +476,26 @@ func (itr *fileSetMeasurementIterator) Next() ([]byte, error) {
 }
 
 func (itr *fileSetMeasurementIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return nil
+}
+
+// fileSetTagKeyIterator attaches a fileset to an iterator that is released on close.
+type fileSetTagKeyIterator struct {
+	once sync.Once
+	fs   *FileSet
+	itr  tsdb.TagKeyIterator
+}
+
+func newFileSetTagKeyIterator(fs *FileSet, itr tsdb.TagKeyIterator) *fileSetTagKeyIterator {
+	return &fileSetTagKeyIterator{fs: fs, itr: itr}
+}
+
+func (itr *fileSetTagKeyIterator) Next() ([]byte, error) {
+	return itr.itr.Next()
+}
+
+func (itr *fileSetTagKeyIterator) Close() error {
 	itr.once.Do(func() { itr.fs.Release() })
 	return nil
 }

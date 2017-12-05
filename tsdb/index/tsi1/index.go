@@ -411,12 +411,14 @@ func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator,
 	return tsdb.MergeSeriesIDIterators(itrs...), nil
 }
 
+/*
 // MeasurementNamesByExpr returns measurement names for the provided expression.
 func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	return i.fetchByteValues(func(idx int) ([][]byte, error) {
 		return i.partitions[idx].MeasurementNamesByExpr(expr)
 	})
 }
+*/
 
 // MeasurementNamesByRegex returns measurement names for the provided regex.
 func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
@@ -605,6 +607,63 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 	return atomic.LoadUint32(&found) == 1, nil
 }
 
+// HasTagValue returns true if tag value exists.
+func (i *Index) HasTagValue(name, key, value []byte) (bool, error) {
+	n := i.availableThreads()
+
+	// Store errors
+	var found uint32 // Use this to signal we found the tag key.
+	errC := make(chan error, i.PartitionN)
+
+	// Check each partition for the tag key concurrently.
+	var pidx uint32 // Index of maximum Partition being worked on.
+	for k := 0; k < n; k++ {
+		go func() {
+			for {
+				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to check
+				if idx >= len(i.partitions) {
+					return // No more work.
+				}
+
+				// Check if the tag key has already been found. If it has, we
+				// don't need to check this partition and can just move on.
+				if atomic.LoadUint32(&found) == 1 {
+					errC <- nil
+					continue
+				}
+
+				b, err := i.partitions[idx].HasTagValue(name, key, value)
+				errC <- err
+				if b {
+					atomic.StoreUint32(&found, 1)
+				}
+			}
+		}()
+	}
+
+	// Check for error
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
+			return false, err
+		}
+	}
+
+	// Check if we found the tag key.
+	return atomic.LoadUint32(&found) == 1, nil
+}
+
+// TagKeyIterator returns an iterator for all keys across a single measurement.
+func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
+	a := make([]tsdb.TagKeyIterator, 0, len(i.partitions))
+	for _, p := range i.partitions {
+		itr := p.TagKeyIterator(name)
+		if itr != nil {
+			a = append(a, itr)
+		}
+	}
+	return tsdb.MergeTagKeyIterators(a...), nil
+}
+
 // TagValueIterator returns an iterator for all values across a single key.
 func (i *Index) TagValueIterator(auth query.Authorizer, name, key []byte) (tsdb.TagValueIterator, error) {
 	a := make([]tsdb.TagValueIterator, 0, len(i.partitions))
@@ -769,17 +828,6 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 	return results, nil
 }
 */
-
-// ForEachMeasurementTagKey iterates over all tag keys in a measurement and applies
-// the provided function.
-func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
-	for j := 0; j < len(i.partitions); j++ {
-		if err := i.partitions[j].ForEachMeasurementTagKey(name, fn); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // TagKeyCardinality always returns zero.
 // It is not possible to determine cardinality of tags across index files, and

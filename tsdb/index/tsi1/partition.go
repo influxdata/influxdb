@@ -408,6 +408,7 @@ func (i *Partition) MeasurementExists(name []byte) (bool, error) {
 	return m != nil && !m.Deleted(), nil
 }
 
+/*
 func (i *Partition) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
@@ -417,6 +418,7 @@ func (i *Partition) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	// Clone byte slices since they will be used after the fileset is released.
 	return bytesutil.CloneSlice(names), err
 }
+*/
 
 func (i *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	fs := i.RetainFileSet()
@@ -599,6 +601,24 @@ func (i *Partition) HasTagKey(name, key []byte) (bool, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.HasTagKey(name, key), nil
+}
+
+// HasTagValue returns true if tag value exists.
+func (i *Partition) HasTagValue(name, key, value []byte) (bool, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+	return fs.HasTagValue(name, key, value), nil
+}
+
+// TagKeyIterator returns an iterator for all keys across a single measurement.
+func (i *Partition) TagKeyIterator(name []byte) tsdb.TagKeyIterator {
+	fs := i.RetainFileSet()
+	itr := fs.TagKeyIterator(name)
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
+	return newFileSetTagKeyIterator(fs, NewTSDBTagKeyIteratorAdapter(itr))
 }
 
 // TagValueIterator returns an iterator for all values across a single key.

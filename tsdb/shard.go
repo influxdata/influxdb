@@ -723,6 +723,7 @@ func (s *Shard) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 	return engine.MeasurementsSketches()
 }
 
+/*
 // MeasurementNamesByExpr returns names of measurements matching the condition.
 // If cond is nil then all measurement names are returned.
 func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
@@ -732,6 +733,7 @@ func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
 	}
 	return engine.MeasurementNamesByExpr(cond)
 }
+*/
 
 // MeasurementNamesByRegex returns names of measurements matching the regular expression.
 func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
@@ -800,12 +802,12 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 
 	switch m.SystemIterator {
 	case "_fieldKeys":
-		return NewFieldKeysIterator(engine, opt)
+		return NewFieldKeysIterator(s, opt)
 	case "_series":
 		// TODO(benbjohnson): Move up to the Shards.CreateIterator().
 		return NewSeriesPointIterator(s.sfile, IndexSet{s.index}, engine.MeasurementFieldSet(), opt)
 	case "_tagKeys":
-		return NewTagKeysIterator(engine, opt)
+		return NewTagKeysIterator(s, opt)
 	}
 	return engine.CreateIterator(ctx, m.Name, opt)
 }
@@ -869,7 +871,7 @@ func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influx
 			}
 		}
 
-		if err := engine.ForEachMeasurementTagKey([]byte(name), func(key []byte) error {
+		if err := (IndexSet{s.index}).ForEachMeasurementTagKey([]byte(name), func(key []byte) error {
 			dimensions[string(key)] = struct{}{}
 			return nil
 		}); err != nil {
@@ -1060,14 +1062,6 @@ func (s *Shard) ForEachMeasurementName(fn func(name []byte) error) error {
 		return err
 	}
 	return engine.ForEachMeasurementName(fn)
-}
-
-func (s *Shard) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
-	engine, err := s.engine()
-	if err != nil {
-		return err
-	}
-	return engine.ForEachMeasurementTagKey(name, fn)
 }
 
 func (s *Shard) TagKeyCardinality(name, key []byte) int {
@@ -1529,11 +1523,11 @@ type Field struct {
 
 // NewFieldKeysIterator returns an iterator that can be iterated over to
 // retrieve field keys.
-func NewFieldKeysIterator(engine Engine, opt query.IteratorOptions) (query.Iterator, error) {
-	itr := &fieldKeysIterator{engine: engine}
+func NewFieldKeysIterator(sh *Shard, opt query.IteratorOptions) (query.Iterator, error) {
+	itr := &fieldKeysIterator{shard: sh}
 
 	// Retrieve measurements from shard. Filter if condition specified.
-	names, err := engine.MeasurementNamesByExpr(opt.Condition)
+	names, err := (IndexSet{sh.index}).MeasurementNamesByExpr(opt.Condition)
 	if err != nil {
 		return nil, err
 	}
@@ -1544,9 +1538,9 @@ func NewFieldKeysIterator(engine Engine, opt query.IteratorOptions) (query.Itera
 
 // fieldKeysIterator iterates over measurements and gets field keys from each measurement.
 type fieldKeysIterator struct {
-	engine Engine
-	names  [][]byte // remaining measurement names
-	buf    struct {
+	shard *Shard
+	names [][]byte // remaining measurement names
+	buf   struct {
 		name   []byte  // current measurement name
 		fields []Field // current measurement's fields
 	}
@@ -1568,7 +1562,7 @@ func (itr *fieldKeysIterator) Next() (*query.FloatPoint, error) {
 			}
 
 			itr.buf.name = itr.names[0]
-			mf := itr.engine.MeasurementFields(itr.buf.name)
+			mf := itr.shard.MeasurementFields(itr.buf.name)
 			if mf != nil {
 				fset := mf.FieldSet()
 				if len(fset) == 0 {
@@ -1604,10 +1598,10 @@ func (itr *fieldKeysIterator) Next() (*query.FloatPoint, error) {
 }
 
 // NewTagKeysIterator returns a new instance of TagKeysIterator.
-func NewTagKeysIterator(engine Engine, opt query.IteratorOptions) (query.Iterator, error) {
+func NewTagKeysIterator(sh *Shard, opt query.IteratorOptions) (query.Iterator, error) {
 	fn := func(name []byte) ([][]byte, error) {
 		var keys [][]byte
-		if err := engine.ForEachMeasurementTagKey(name, func(key []byte) error {
+		if err := (IndexSet{sh.index}).ForEachMeasurementTagKey(name, func(key []byte) error {
 			keys = append(keys, key)
 			return nil
 		}); err != nil {
@@ -1615,15 +1609,15 @@ func NewTagKeysIterator(engine Engine, opt query.IteratorOptions) (query.Iterato
 		}
 		return keys, nil
 	}
-	return newMeasurementKeysIterator(engine, fn, opt)
+	return newMeasurementKeysIterator(sh, fn, opt)
 }
 
 // measurementKeyFunc is the function called by measurementKeysIterator.
 type measurementKeyFunc func(name []byte) ([][]byte, error)
 
-func newMeasurementKeysIterator(engine Engine, fn measurementKeyFunc, opt query.IteratorOptions) (*measurementKeysIterator, error) {
+func newMeasurementKeysIterator(sh *Shard, fn measurementKeyFunc, opt query.IteratorOptions) (*measurementKeysIterator, error) {
 	itr := &measurementKeysIterator{fn: fn}
-	names, err := engine.MeasurementNamesByExpr(opt.Condition)
+	names, err := (IndexSet{sh.index}).MeasurementNamesByExpr(opt.Condition)
 	if err != nil {
 		return nil, err
 	}

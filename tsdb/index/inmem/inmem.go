@@ -258,15 +258,15 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 }
 
 // HasTagValue returns true if tag value exists.
-func (i *Index) HasTagValue(name, key, value []byte) bool {
+func (i *Index) HasTagValue(name, key, value []byte) (bool, error) {
 	i.mu.RLock()
 	mm := i.measurements[string(name)]
 	i.mu.RUnlock()
 
 	if mm == nil {
-		return false
+		return false, nil
 	}
-	return mm.HasTagKeyValue(key, value)
+	return mm.HasTagKeyValue(key, value), nil
 }
 
 // TagValueN returns the cardinality of a tag value.
@@ -739,6 +739,24 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDsByTagValue(key, value))), nil
 }
 
+func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	keys := m.TagKeys()
+	sort.Strings(keys)
+
+	a := make([][]byte, len(keys))
+	for i := range a {
+		a[i] = []byte(keys[i])
+	}
+	return tsdb.NewTagKeySliceIterator(a), nil
+}
+
 func (i *Index) TagValueIterator(auth query.Authorizer, name, key []byte) (tsdb.TagValueIterator, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -959,7 +977,7 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 			tags := tagsSlice[i]
 			for _, tag := range tags {
 				// Skip if the tag value already exists.
-				if idx.HasTagValue(name, tag.Key, tag.Value) {
+				if ok, _ := idx.HasTagValue(name, tag.Key, tag.Value); ok {
 					continue
 				}
 

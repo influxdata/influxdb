@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
@@ -1023,34 +1022,15 @@ func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte,
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
-	// If we're using the inmem index then all shards contain a duplicate
-	// version of the global index. We don't need to iterate over all shards
-	// since we have everything we need from the first shard.
-	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
-		shards = shards[:1]
-	}
-
-	// Map to deduplicate measurement names across all shards.  This is kind of naive
-	// and could be improved using a sorted merge of the already sorted measurements in
-	// each shard.
-	set := make(map[string]struct{})
-	var names [][]byte
+	// Build indexset.
+	is := make(IndexSet, 0, len(shards))
 	for _, sh := range shards {
-		a, err := sh.MeasurementNamesByExpr(cond)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, m := range a {
-			if _, ok := set[string(m)]; !ok {
-				set[string(m)] = struct{}{}
-				names = append(names, m)
-			}
+		if sh.index != nil {
+			is = append(is, sh.index)
 		}
 	}
-	bytesutil.Sort(names)
-
-	return names, nil
+	is = is.DedupeInmemIndexes()
+	return is.MeasurementNamesByExpr(cond)
 }
 
 // MeasurementSeriesCounts returns the number of measurements and series in all
@@ -1115,87 +1095,67 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 	}), nil)
 
 	// Get all the shards we're interested in.
-	shards := make([]*Shard, 0, len(shardIDs))
+	var sfile *SeriesFile
+	is := make(IndexSet, 0, len(shardIDs))
 	s.mu.RLock()
 	for _, sid := range shardIDs {
 		shard, ok := s.shards[sid]
 		if !ok {
 			continue
 		}
-		shards = append(shards, shard)
+		sfile = shard.sfile
+		is = append(is, shard.index)
 	}
 	s.mu.RUnlock()
 
-	// If we're using the inmem index then all shards contain a duplicate
-	// version of the global index. We don't need to iterate over all shards
-	// since we have everything we need from the first shard.
-	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
-		shards = shards[:1]
-	}
-
 	// Determine list of measurements.
-	nameSet := make(map[string]struct{})
-	for _, sh := range shards {
-		names, err := sh.MeasurementNamesByExpr(measurementExpr)
-		if err != nil {
-			return nil, err
-		}
-		for _, name := range names {
-			nameSet[string(name)] = struct{}{}
-		}
+	is = is.DedupeInmemIndexes()
+	names, err := is.MeasurementNamesByExpr(measurementExpr)
+	if err != nil {
+		return nil, err
 	}
-
-	// Sort names.
-	names := make([]string, 0, len(nameSet))
-	for name := range nameSet {
-		names = append(names, name)
-	}
-	sort.Strings(names)
 
 	// Iterate over each measurement.
 	var results []TagKeys
 	for _, name := range names {
-		// Build keyset over all shards for measurement.
-		keySet := make(map[string]struct{})
-		for _, sh := range shards {
-			shardKeySet, err := sh.MeasurementTagKeysByExpr([]byte(name), nil)
-			if err != nil {
-				return nil, err
-			} else if len(shardKeySet) == 0 {
-				continue
-			}
+		finalKeySet := make(map[string]struct{})
 
-			// Sort the tag keys.
-			shardKeys := make([]string, 0, len(shardKeySet))
-			for k := range shardKeySet {
-				shardKeys = append(shardKeys, k)
-			}
-			sort.Strings(shardKeys)
-
-			// Filter against tag values, skip if no values exist.
-			shardValues, err := sh.MeasurementTagKeyValuesByExpr(auth, []byte(name), shardKeys, filterExpr, true)
-			if err != nil {
-				return nil, err
-			}
-
-			for i := range shardKeys {
-				if len(shardValues[i]) == 0 {
-					continue
-				}
-				keySet[shardKeys[i]] = struct{}{}
-			}
+		// Build keyset over all indexes for measurement.
+		keySet, err := is.MeasurementTagKeysByExpr(name, nil)
+		if err != nil {
+			return nil, err
+		} else if len(keySet) == 0 {
+			continue
 		}
 
-		// Sort key set.
+		// Sort the tag keys.
 		keys := make([]string, 0, len(keySet))
-		for key := range keySet {
-			keys = append(keys, key)
+		for k := range keySet {
+			keys = append(keys, k)
 		}
 		sort.Strings(keys)
 
+		// Filter against tag values, skip if no values exist.
+		values, err := is.MeasurementTagKeyValuesByExpr(auth, sfile, name, keys, filterExpr, true)
+		if err != nil {
+			return nil, err
+		}
+
+		for i := range keys {
+			if len(values[i]) == 0 {
+				continue
+			}
+			finalKeySet[keys[i]] = struct{}{}
+		}
+
+		finalKeys := make([]string, 0, len(finalKeySet))
+		for k := range finalKeySet {
+			finalKeys = append(finalKeys, k)
+		}
+
 		// Add to resultset.
 		results = append(results, TagKeys{
-			Measurement: name,
+			Measurement: string(name),
 			Keys:        keys,
 		})
 	}
@@ -1267,102 +1227,96 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 	}), nil)
 
 	// Build index set to work on.
-	shards := make([]*Shard, 0, len(shardIDs))
+	var sfile *SeriesFile
+	is := make(IndexSet, 0, len(shardIDs))
 	s.mu.RLock()
 	for _, sid := range shardIDs {
 		shard, ok := s.shards[sid]
 		if !ok {
 			continue
 		}
-		shards = append(shards, shard)
+		sfile = shard.sfile
+		is = append(is, shard.index)
 	}
 	s.mu.RUnlock()
-
-	// If we're using the inmem index then all shards contain a duplicate
-	// version of the global index. We don't need to iterate over all shards
-	// since we have everything we need from the first shard.
-	if len(shards) > 0 && shards[0].IndexType() == "inmem" {
-		shards = shards[:1]
-	}
+	is = is.DedupeInmemIndexes()
 
 	// Stores each list of TagValues for each measurement.
 	var allResults []tagValues
 	var maxMeasurements int // Hint as to lower bound on number of measurements.
-	for _, sh := range shards {
-		// names will be sorted by MeasurementNamesByExpr.
-		names, err := sh.MeasurementNamesByExpr(measurementExpr)
+	// names will be sorted by MeasurementNamesByExpr.
+	names, err := is.MeasurementNamesByExpr(measurementExpr)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(names) > maxMeasurements {
+		maxMeasurements = len(names)
+	}
+
+	if allResults == nil {
+		allResults = make([]tagValues, 0, len(is)*len(names)) // Assuming all series in all shards.
+	}
+
+	// Iterate over each matching measurement in the shard. For each
+	// measurement we'll get the matching tag keys (e.g., when a WITH KEYS)
+	// statement is used, and we'll then use those to fetch all the relevant
+	// values from matching series. Series may be filtered using a WHERE
+	// filter.
+	for _, name := range names {
+		// Determine a list of keys from condition.
+		keySet, err := is.MeasurementTagKeysByExpr(name, cond)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(names) > maxMeasurements {
-			maxMeasurements = len(names)
+		if len(keySet) == 0 {
+			// No matching tag keys for this measurement
+			continue
 		}
 
-		if allResults == nil {
-			allResults = make([]tagValues, 0, len(shards)*len(names)) // Assuming all series in all shards.
+		result := tagValues{
+			name: name,
+			keys: make([]string, 0, len(keySet)),
 		}
 
-		// Iterate over each matching measurement in the shard. For each
-		// measurement we'll get the matching tag keys (e.g., when a WITH KEYS)
-		// statement is used, and we'll then use those to fetch all the relevant
-		// values from matching series. Series may be filtered using a WHERE
-		// filter.
-		for _, name := range names {
-			// Determine a list of keys from condition.
-			keySet, err := sh.MeasurementTagKeysByExpr(name, cond)
-			if err != nil {
-				return nil, err
-			}
+		// Add the keys to the tagValues and sort them.
+		for k := range keySet {
+			result.keys = append(result.keys, k)
+		}
+		sort.Sort(sort.StringSlice(result.keys))
 
-			if len(keySet) == 0 {
-				// No matching tag keys for this measurement
+		// get all the tag values for each key in the keyset.
+		// Each slice in the results contains the sorted values associated
+		// associated with each tag key for the measurement from the key set.
+		if result.values, err = is.MeasurementTagKeyValuesByExpr(auth, sfile, name, result.keys, filterExpr, true); err != nil {
+			return nil, err
+		}
+
+		// remove any tag keys that didn't have any authorized values
+		j := 0
+		for i := range result.keys {
+			if len(result.values[i]) == 0 {
 				continue
 			}
 
-			result := tagValues{
-				name: name,
-				keys: make([]string, 0, len(keySet)),
-			}
+			result.keys[j] = result.keys[i]
+			result.values[j] = result.values[i]
+			j++
+		}
+		result.keys = result.keys[:j]
+		result.values = result.values[:j]
 
-			// Add the keys to the tagValues and sort them.
-			for k := range keySet {
-				result.keys = append(result.keys, k)
-			}
-			sort.Sort(sort.StringSlice(result.keys))
-
-			// get all the tag values for each key in the keyset.
-			// Each slice in the results contains the sorted values associated
-			// associated with each tag key for the measurement from the key set.
-			if result.values, err = sh.MeasurementTagKeyValuesByExpr(auth, name, result.keys, filterExpr, true); err != nil {
-				return nil, err
-			}
-
-			// remove any tag keys that didn't have any authorized values
-			j := 0
-			for i := range result.keys {
-				if len(result.values[i]) == 0 {
-					continue
-				}
-
-				result.keys[j] = result.keys[i]
-				result.values[j] = result.values[i]
-				j++
-			}
-			result.keys = result.keys[:j]
-			result.values = result.values[:j]
-
-			// only include result if there are keys with values
-			if len(result.keys) > 0 {
-				allResults = append(allResults, result)
-			}
+		// only include result if there are keys with values
+		if len(result.keys) > 0 {
+			allResults = append(allResults, result)
 		}
 	}
 
 	result := make([]TagValues, 0, maxMeasurements)
 
 	// We need to sort all results by measurement name.
-	if len(shards) > 1 {
+	if len(is) > 1 {
 		sort.Sort(tagValuesSlice(allResults))
 	}
 
@@ -1370,7 +1324,7 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 	var i, j int
 	// Used as a temporary buffer in mergeTagValues. There can be at most len(shards)
 	// instances of tagValues for a given measurement.
-	idxBuf := make([][2]int, 0, len(shards))
+	idxBuf := make([][2]int, 0, len(is))
 	for i < len(allResults) {
 		// Gather all occurrences of the same measurement for merging.
 		for j+1 < len(allResults) && bytes.Equal(allResults[j+1].name, allResults[i].name) {
@@ -1380,7 +1334,7 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 		// An invariant is that there can't be more than n instances of tag
 		// key value pairs for a given measurement, where n is the number of
 		// shards.
-		if got, exp := j-i+1, len(shards); got > exp {
+		if got, exp := j-i+1, len(is); got > exp {
 			return nil, fmt.Errorf("unexpected results returned engine. Got %d measurement sets for %d shards", got, exp)
 		}
 
@@ -1556,15 +1510,15 @@ func (s *Store) monitorShards() {
 
 				// inmem shards share the same index instance so just use the first one to avoid
 				// allocating the same measurements repeatedly
-				first := shards[0]
-				names, err := first.MeasurementNamesByExpr(nil)
+				first := shards[0].index
+				names, err := (IndexSet{first}).MeasurementNamesByExpr(nil)
 				if err != nil {
 					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
 					return nil
 				}
 
 				for _, name := range names {
-					sh.ForEachMeasurementTagKey(name, func(k []byte) error {
+					(IndexSet{sh.index}).ForEachMeasurementTagKey(name, func(k []byte) error {
 						n := sh.TagKeyCardinality(name, k)
 						perc := int(float64(n) / float64(s.EngineOptions.Config.MaxValuesPerTag) * 100)
 						if perc > 100 {

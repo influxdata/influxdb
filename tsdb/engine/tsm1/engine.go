@@ -351,9 +351,11 @@ func (e *Engine) MeasurementExists(name []byte) (bool, error) {
 	return e.index.MeasurementExists(name)
 }
 
+/*
 func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	return e.index.MeasurementNamesByExpr(expr)
 }
+*/
 
 func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	return e.index.MeasurementNamesByRegex(re)
@@ -391,10 +393,6 @@ func (e *Engine) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byt
 	return e.index.MeasurementTagKeyValuesByExpr(auth, name, keys, expr, keysSorted)
 }
 */
-
-func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
-	return e.index.ForEachMeasurementTagKey(name, fn)
-}
 
 func (e *Engine) TagKeyCardinality(name, key []byte) int {
 	return e.index.TagKeyCardinality(name, key)

@@ -57,7 +57,7 @@ type Engine interface {
 	SeriesN() int64
 
 	MeasurementExists(name []byte) (bool, error)
-	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
+	// MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFieldSet() *MeasurementFieldSet
 	MeasurementFields(measurement []byte) *MeasurementFields
@@ -68,7 +68,7 @@ type Engine interface {
 	HasTagKey(name, key []byte) (bool, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	// MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
-	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
+	// ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 	TagKeyCardinality(name, key []byte) int
 
 	// Statistics will return statistics relevant to this engine.

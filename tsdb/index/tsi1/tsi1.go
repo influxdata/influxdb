@@ -153,6 +153,34 @@ type TagKeyIterator interface {
 	Next() TagKeyElem
 }
 
+// tsdbTagKeyIteratorAdapter wraps TagKeyIterator to match the TSDB interface.
+// This is needed because TSDB doesn't have a concept of "deleted" tag keys.
+type tsdbTagKeyIteratorAdapter struct {
+	itr TagKeyIterator
+}
+
+// NewTSDBTagKeyIteratorAdapter return an iterator which implements tsdb.TagKeyIterator.
+func NewTSDBTagKeyIteratorAdapter(itr TagKeyIterator) tsdb.TagKeyIterator {
+	if itr == nil {
+		return nil
+	}
+	return &tsdbTagKeyIteratorAdapter{itr: itr}
+}
+
+func (itr *tsdbTagKeyIteratorAdapter) Close() error { return nil }
+
+func (itr *tsdbTagKeyIteratorAdapter) Next() ([]byte, error) {
+	for {
+		e := itr.itr.Next()
+		if e == nil {
+			return nil, nil
+		} else if e.Deleted() {
+			continue
+		}
+		return e.Key(), nil
+	}
+}
+
 // MergeTagKeyIterators returns an iterator that merges a set of iterators.
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
