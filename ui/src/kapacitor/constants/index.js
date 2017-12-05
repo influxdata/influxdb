@@ -1,5 +1,3 @@
-import _ from 'lodash'
-
 export const defaultRuleConfigs = {
   deadman: {
     period: '10m',
