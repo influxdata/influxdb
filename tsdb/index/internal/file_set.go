@@ -21,10 +21,10 @@ type File struct {
 	TagKeyIteratorf              func(name []byte) tsi1.TagKeyIterator
 	TagValuef                    func(name, key, value []byte) tsi1.TagValueElem
 	TagValueIteratorf            func(name, key []byte) tsi1.TagValueIterator
-	SeriesIDIteratorf            func() tsi1.SeriesIDIterator
-	MeasurementSeriesIDIteratorf func(name []byte) tsi1.SeriesIDIterator
-	TagKeySeriesIDIteratorf      func(name, key []byte) tsi1.SeriesIDIterator
-	TagValueSeriesIDIteratorf    func(name, key, value []byte) tsi1.SeriesIDIterator
+	SeriesIDIteratorf            func() tsdb.SeriesIDIterator
+	MeasurementSeriesIDIteratorf func(name []byte) tsdb.SeriesIDIterator
+	TagKeySeriesIDIteratorf      func(name, key []byte) tsdb.SeriesIDIterator
+	TagValueSeriesIDIteratorf    func(name, key, value []byte) tsdb.SeriesIDIterator
 	MergeSeriesSketchesf         func(s, t estimator.Sketch) error
 	MergeMeasurementsSketchesf   func(s, t estimator.Sketch) error
 	Retainf                      func()
@@ -50,14 +50,14 @@ func (f *File) TagValue(name, key, value []byte) tsi1.TagValueElem {
 func (f *File) TagValueIterator(name, key []byte) tsi1.TagValueIterator {
 	return f.TagValueIteratorf(name, key)
 }
-func (f *File) SeriesIDIterator() tsi1.SeriesIDIterator { return f.SeriesIDIteratorf() }
-func (f *File) MeasurementSeriesIDIterator(name []byte) tsi1.SeriesIDIterator {
+func (f *File) SeriesIDIterator() tsdb.SeriesIDIterator { return f.SeriesIDIteratorf() }
+func (f *File) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator {
 	return f.MeasurementSeriesIDIteratorf(name)
 }
-func (f *File) TagKeySeriesIDIterator(name, key []byte) tsi1.SeriesIDIterator {
+func (f *File) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
 	return f.TagKeySeriesIDIteratorf(name, key)
 }
-func (f *File) TagValueSeriesIDIterator(name, key, value []byte) tsi1.SeriesIDIterator {
+func (f *File) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
 	return f.TagValueSeriesIDIteratorf(name, key, value)
 }
 func (f *File) MergeSeriesSketches(s, t estimator.Sketch) error { return f.MergeSeriesSketchesf(s, t) }
