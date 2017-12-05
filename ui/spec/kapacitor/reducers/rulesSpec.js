@@ -9,7 +9,6 @@ import {
   updateRuleValues,
   updateDetails,
   updateMessage,
-  updateAlerts,
   updateAlertNodes,
   updateAlertProperty,
   updateRuleName,
@@ -100,56 +99,33 @@ describe('Kapacitor.Reducers.rules', () => {
     expect(newState[ruleID].message).to.equal(message)
   })
 
-  it('can update the alerts', () => {
+  it('can update a slack alert', () => {
     const ruleID = 1
     const initialState = {
       [ruleID]: {
         id: ruleID,
         queryID: 988,
-        alerts: [],
+        alertNodes: {},
       },
     }
-
-    const alerts = ['slack']
-    const newState = reducer(initialState, updateAlerts(ruleID, alerts))
-    expect(newState[ruleID].alerts).to.equal(alerts)
-  })
-
-  it('can update an alerta alert', () => {
-    const ruleID = 1
-    const initialState = {
-      [ruleID]: {
-        id: ruleID,
-        queryID: 988,
-        alerts: [],
-        alertNodes: [],
-      },
+    const updatedSlack = {
+      alias: 'slack-1',
+      username: 'testname',
+      iconEmoji: 'testemoji',
+      enabled: true,
+      text: 'slack',
+      type: 'slack',
+      url: true,
     }
-
-    const tickScript = `stream
-      |alert()
-        .alerta()
-          .resource('Hostname or service')
-          .event('Something went wrong')
-          .environment('Development')
-          .group('Dev. Servers')
-          .services('a b c')
-    `
-
-    let newState = reducer(
+    const expectedSlack = {
+      username: 'testname',
+      iconEmoji: 'testemoji',
+    }
+    const newState = reducer(
       initialState,
-      updateAlertNodes(ruleID, 'alerta', tickScript)
+      updateAlertNodes(ruleID, [updatedSlack])
     )
-    const expectedStr = `alerta().resource('Hostname or service').event('Something went wrong').environment('Development').group('Dev. Servers').services('a b c')`
-    let actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID])
-
-    // Test both data structure and accessor string
-    expect(actualStr).to.equal(expectedStr)
-
-    // Test that accessor string is the same if fed back in
-    newState = reducer(newState, updateAlertNodes(ruleID, 'alerta', actualStr))
-    actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID])
-    expect(actualStr).to.equal(expectedStr)
+    expect(newState[ruleID].alertNodes.slack[0]).to.deep.equal(expectedSlack)
   })
 
   it('can update the name', () => {
