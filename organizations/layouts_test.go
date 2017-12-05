@@ -75,6 +75,43 @@ func TestLayouts_All(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "All Layouts with empty organization",
+			fields: fields{
+				LayoutsStore: &mocks.LayoutsStore{
+					AllF: func(ctx context.Context) ([]chronograf.Layout, error) {
+						return []chronograf.Layout{
+							{
+								Application:  "howdy",
+								Organization: "1337",
+							},
+							{
+								Application:  "doody",
+								Organization: "1338",
+							},
+							{
+								Application:  "noorg",
+								Organization: "",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				organization: "1337",
+				ctx:          context.Background(),
+			},
+			want: []chronograf.Layout{
+				{
+					Application:  "howdy",
+					Organization: "1337",
+				},
+				{
+					Application:  "noorg",
+					Organization: "",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		s := organizations.NewLayoutsStore(tt.fields.LayoutsStore, tt.args.organization)

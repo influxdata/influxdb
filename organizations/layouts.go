@@ -43,6 +43,17 @@ func (s *LayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 	layouts := ds[:0]
 	for _, d := range ds {
 		if d.Organization == s.organization {
+			// If the layout belongs to the organization add it to the list
+			layouts = append(layouts, d)
+		}
+
+		// Layouts stored in the canned layouts store do not
+		// have an organization associated with them and as a result
+		// would be filtered out without this. It may be worth while
+		// to add a `*` organization to check for instead, since this
+		// change has implications elsewhere or possibly a Global
+		// attribute on the layout.
+		if d.Organization == "" {
 			layouts = append(layouts, d)
 		}
 	}
