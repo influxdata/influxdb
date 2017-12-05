@@ -11,29 +11,32 @@ import (
 	"net/url"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
 )
 
 type client interface {
-	Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+	Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 }
 
 // MetaClient represents a Meta node in an Influx Enterprise cluster
 type MetaClient struct {
-	URL    *url.URL
-	client client
+	URL        *url.URL
+	client     client
+	authorizer influx.Authorizer
 }
 
 // NewMetaClient represents a meta node in an Influx Enterprise cluster
-func NewMetaClient(url *url.URL) *MetaClient {
+func NewMetaClient(url *url.URL, authorizer influx.Authorizer) *MetaClient {
 	return &MetaClient{
-		URL:    url,
-		client: &defaultClient{},
+		URL:        url,
+		client:     &defaultClient{},
+		authorizer: authorizer,
 	}
 }
 
 // ShowCluster returns the cluster configuration (not health)
 func (m *MetaClient) ShowCluster(ctx context.Context) (*Cluster, error) {
-	res, err := m.Do(ctx, "GET", "/show-cluster", nil, nil)
+	res, err := m.Do(ctx, "/show-cluster", "GET", m.authorizer, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +57,7 @@ func (m *MetaClient) Users(ctx context.Context, name *string) (*Users, error) {
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := m.Do(ctx, "GET", "/user", params, nil)
+	res, err := m.Do(ctx, "/user", "GET", m.authorizer, params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +190,7 @@ func (m *MetaClient) Roles(ctx context.Context, name *string) (*Roles, error) {
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := m.Do(ctx, "GET", "/role", params, nil)
+	res, err := m.Do(ctx, "/role", "GET", m.authorizer, params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +391,7 @@ func (m *MetaClient) Post(ctx context.Context, path string, action interface{}, 
 		return err
 	}
 	body := bytes.NewReader(b)
-	_, err = m.Do(ctx, "POST", path, params, body)
+	_, err = m.Do(ctx, path, "POST", m.authorizer, params, body)
 	if err != nil {
 		return err
 	}
@@ -400,7 +403,7 @@ type defaultClient struct {
 }
 
 // Do is a helper function to interface with Influx Enterprise's Meta API
-func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error) {
+func (d *defaultClient) Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error) {
 	p := url.Values{}
 	for k, v := range params {
 		p.Add(k, v)
@@ -418,8 +421,15 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 	if err != nil {
 		return nil, err
 	}
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+
+	if authorizer != nil {
+		if err = authorizer.Set(req); err != nil {
+			return nil, err
+		}
 	}
 
 	// Meta servers will redirect (307) to leader. We need
@@ -427,6 +437,7 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 	client := &http.Client{
 		CheckRedirect: d.AuthedCheckRedirect,
 	}
+
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -464,14 +475,14 @@ func (d *defaultClient) AuthedCheckRedirect(req *http.Request, via []*http.Reque
 }
 
 // Do is a cancelable function to interface with Influx Enterprise's Meta API
-func (m *MetaClient) Do(ctx context.Context, method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
+func (m *MetaClient) Do(ctx context.Context, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error) {
 	type result struct {
 		Response *http.Response
 		Err      error
 	}
 	resps := make(chan (result))
 	go func() {
-		resp, err := m.client.Do(m.URL, path, method, params, body)
+		resp, err := m.client.Do(m.URL, path, method, authorizer, params, body)
 		resps <- result{resp, err}
 	}()
 
