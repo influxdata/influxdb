@@ -1,28 +1,30 @@
 import React, {Component, PropTypes} from 'react'
+import classnames from 'classnames'
+import {Scrollbars} from 'react-custom-scrollbars'
+import _ from 'lodash'
 
 const {arrayOf, number, shape, string} = PropTypes
 
 class InfiniteScroll extends Component {
-  scrollElement
-
-  // Cache values that need to be independent of
+  // Cache values from Scrollbars events that need to be independent of render
   // Should not be setState as need not trigger a re-render
-  scrollTop = 0
-  containerHeight = 0
+  scrollbarsScrollTop = 0
+  scrollbarsClientHeight = 0
 
   state = {
     topIndex: 0,
     bottomIndex: 0,
     topPadding: 0,
     bottomPadding: 0,
+    windowHeight: window.innerHeight,
   }
 
   windowing = (props, state) => {
     const {itemHeight, items} = props
     const {bottomIndex} = state
 
-    const itemDistance = Math.round(this.scrollTop / itemHeight)
-    const itemCount = Math.round(this.containerHeight / itemHeight) + 1
+    const itemDistance = Math.round(this.scrollbarsScrollTop / itemHeight)
+    const itemCount = Math.round(this.scrollbarsClientHeight / itemHeight) + 1
 
     // If state is the same, do not setState to the same value multiple times.
     // Improves performance and prevents errors.
@@ -42,27 +44,42 @@ class InfiniteScroll extends Component {
     })
   }
 
-  handleScroll = evt => {
-    if (evt.target === this.scrollElement) {
-      this.scrollTop = evt.target.scrollTop
+  handleScroll = ({clientHeight, scrollTop}) => {
+    let shouldUpdate = false
+
+    if (
+      (typeof clientHeight !== 'undefined' &&
+        this.scrollbarsClientHeight !== clientHeight) ||
+      (typeof scrollTop !== 'undefined' &&
+        this.scrollbarsScrollTop !== scrollTop)
+    ) {
+      shouldUpdate = true
+    }
+
+    this.scrollbarsClientHeight = clientHeight
+    this.scrollbarsScrollTop = scrollTop
+
+    if (shouldUpdate) {
       this.windowing(this.props, this.state)
     }
   }
 
+  throttledHandleScroll = _.throttle(this.handleScroll, 100)
+
   handleResize = () => {
-    this.containerHeight = this.scrollElement.clientHeight
+    this.setState({windowHeight: window.innerHeight})
   }
 
-  componentDidMount() {
-    this.containerHeight = this.scrollElement.clientHeight
-    this.windowing(this.props, this.state)
+  throttledHandleResize = _.throttle(this.handleResize, 100)
 
-    window.addEventListener('scroll', this.handleScroll, true)
+  handleMakeDiv = className => props =>
+    <div {...props} className={`fancy-scroll--${className}`} />
+
+  componentDidMount() {
     window.addEventListener('resize', this.handleResize, true)
   }
 
   componentWillUnmount() {
-    window.removeEventListener('scroll', this.handleScroll, true)
     window.removeEventListener('resize', this.handleResize, true)
   }
 
@@ -73,20 +90,34 @@ class InfiniteScroll extends Component {
 
   render() {
     const {className, items} = this.props
-    const {topIndex, bottomIndex, topPadding, bottomPadding} = this.state
+    const {
+      topIndex,
+      bottomIndex,
+      topPadding,
+      bottomPadding,
+      windowHeight,
+    } = this.state
 
     return (
-      <div
-        className={className}
-        ref={r => (this.scrollElement = r)}
-        style={{
-          overflowY: 'scroll',
-        }}
+      <Scrollbars
+        className={classnames(className, 'fancy-scroll--container')}
+        autoHide={true}
+        autoHideTimeout={1000}
+        autoHideDuration={250}
+        autoHeight={false}
+        renderTrackHorizontal={this.handleMakeDiv('track-h')}
+        renderTrackVertical={this.handleMakeDiv('track-v')}
+        renderThumbHorizontal={this.handleMakeDiv('thumb-h')}
+        renderThumbVertical={this.handleMakeDiv('thumb-v')}
+        renderView={this.handleMakeDiv('view')}
+        onScrollFrame={this.throttledHandleScroll}
+        onUpdate={this.throttledHandleScroll}
+        key={windowHeight}
       >
         <div style={{height: topPadding}} />
         {items.filter((_item, i) => i >= topIndex && i <= bottomIndex)}
         <div style={{height: bottomPadding}} />
-      </div>
+      </Scrollbars>
     )
   }
 }
