@@ -51,7 +51,7 @@ const HandlerInput = ({
   )
 }
 
-const {func, shape, string, bool} = PropTypes
+const {func, shape, string, bool, number} = PropTypes
 
 HandlerInput.propTypes = {
   fieldName: string.isRequired,
@@ -63,6 +63,7 @@ HandlerInput.propTypes = {
   handleModifyHandler: func.isRequired,
   fieldColumns: string,
   parseToArray: bool,
+  headerIndex: number,
 }
 
 export default HandlerInput
