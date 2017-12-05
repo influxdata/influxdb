@@ -1,14 +1,10 @@
 const path = require('path')
 const fs = require('fs')
-const util = require('util')
 const webpack = require('webpack')
 const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const WebpackOnBuildPlugin = require('on-build-webpack')
 const _ = require('lodash')
-
-const readdir = util.promisify(fs.readdir)
-const unlink = util.promisify(fs.unlink)
 
 const package = require('../package.json')
 const dependencies = package.dependencies
@@ -111,22 +107,29 @@ module.exports = {
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
     }),
-    new WebpackOnBuildPlugin(async stats => {
-      try {
-        const newlyCreatedAssets = stats.compilation.assets
-        const buildDirFiles = await readdir(buildDir)
+    new WebpackOnBuildPlugin(stats => {
+      const newlyCreatedAssets = stats.compilation.assets
+      fs.readdir(buildDir, (readdirErr, buildDirFiles) => {
+        if (readdirErr) {
+          console.error('webpack build directory error')
+          return
+        }
+
         const assetFileNames = _.keys(newlyCreatedAssets)
         const filesToRemove = _.difference(buildDirFiles, assetFileNames)
 
-        for (file of filesToRemove) {
+        for (const file of filesToRemove) {
           const ext = path.extname(file)
           if (['.js', '.json', '.map'].includes(ext)) {
-            unlink(path.join(buildDir, file))
+            fs.unlink(path.join(buildDir, file), unlinkErr => {
+              if (unlinkErr) {
+                console.error('webpack cleanup error', unlinkErr)
+                return
+              }
+            })
           }
         }
-      } catch (err) {
-        console.error(err)
-      }
+      })
     }),
   ],
   postcss: require('./postcss'),
