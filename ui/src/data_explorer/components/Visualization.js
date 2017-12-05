@@ -6,7 +6,7 @@ import {GRAPH, TABLE} from 'shared/constants'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import _ from 'lodash'
 
-const META_QUERY_REGEX = /^show/i
+const META_QUERY_REGEX = /^(show|create|drop)/i
 
 class Visualization extends Component {
   constructor(props) {

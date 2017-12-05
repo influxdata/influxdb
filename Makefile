@@ -8,6 +8,7 @@ YARN := $(shell command -v yarn 2> /dev/null)
 SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go' -not -path "./vendor/*" )
 UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -prune \) )
 
+unexport LDFLAGS
 LDFLAGS=-ldflags "-s -X main.version=${VERSION} -X main.commit=${COMMIT}"
 BINARY=chronograf
 

@@ -595,7 +595,7 @@ func TestMetaClient_SetUserPerms(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Successful set permissions User",
+			name: "Remove all permissions for a user",
 			fields: fields{
 				URL: &url.URL{
 					Host:   "twinpinesmall.net:8091",
@@ -615,7 +615,7 @@ func TestMetaClient_SetUserPerms(t *testing.T) {
 			wantRm: `{"action":"remove-permissions","user":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]}}}`,
 		},
 		{
-			name: "Successful set permissions User",
+			name: "Remove some permissions and add others",
 			fields: fields{
 				URL: &url.URL{
 					Host:   "twinpinesmall.net:8091",
@@ -1137,7 +1137,7 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Successful set permissions role",
+			name: "Remove all roles from user",
 			fields: fields{
 				URL: &url.URL{
 					Host:   "twinpinesmall.net:8091",
@@ -1154,10 +1154,10 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 				ctx:  context.Background(),
 				name: "admin",
 			},
-			wantRm: `{"action":"remove-permissions","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]},"users":["marty"]}}`,
+			wantRm: `{"action":"remove-permissions","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]}}}`,
 		},
 		{
-			name: "Successful set single permissions role",
+			name: "Remove some users and add permissions to other",
 			fields: fields{
 				URL: &url.URL{
 					Host:   "twinpinesmall.net:8091",
@@ -1179,7 +1179,7 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 					},
 				},
 			},
-			wantRm:  `{"action":"remove-permissions","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]},"users":["marty"]}}`,
+			wantRm:  `{"action":"remove-permissions","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]}}}`,
 			wantAdd: `{"action":"add-permissions","role":{"name":"admin","permissions":{"telegraf":["ReadData"]}}}`,
 		},
 	}
@@ -1218,7 +1218,7 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 
 		got, _ := ioutil.ReadAll(prm.Body)
 		if string(got) != tt.wantRm {
-			t.Errorf("%q. MetaClient.SetRolePerms() = %v, want %v", tt.name, string(got), tt.wantRm)
+			t.Errorf("%q. MetaClient.SetRolePerms() removal = \n%v\n, want \n%v\n", tt.name, string(got), tt.wantRm)
 		}
 		if tt.wantAdd != "" {
 			prm := reqs[2]
@@ -1231,7 +1231,7 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 
 			got, _ := ioutil.ReadAll(prm.Body)
 			if string(got) != tt.wantAdd {
-				t.Errorf("%q. MetaClient.SetRolePerms() = %v, want %v", tt.name, string(got), tt.wantAdd)
+				t.Errorf("%q. MetaClient.SetRolePerms() addition = \n%v\n, want \n%v\n", tt.name, string(got), tt.wantAdd)
 			}
 		}
 	}

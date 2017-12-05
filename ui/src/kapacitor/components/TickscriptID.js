@@ -10,7 +10,7 @@ class TickscriptID extends Component {
 
     return (
       <input
-        className="page-header--editing kapacitor-theme"
+        className="form-control input-sm form-malachite"
         autoFocus={true}
         value={id}
         onChange={onChangeID}
@@ -23,10 +23,7 @@ class TickscriptID extends Component {
 }
 
 export const TickscriptStaticID = ({id}) =>
-  <h1
-    className="page-header--editing kapacitor-theme"
-    style={{display: 'flex', justifyContent: 'baseline'}}
-  >
+  <h1 className="tickscript-controls--name">
     {id}
   </h1>
 

@@ -105,7 +105,7 @@ class ResizeContainer extends Component {
       bottomHeight,
       isDragging,
     } = this.state
-    const {containerClass, children} = this.props
+    const {containerClass, children, theme} = this.props
 
     if (React.Children.count(children) > maximumNumChildren) {
       console.error(
@@ -135,6 +135,7 @@ class ResizeContainer extends Component {
           })}
         </div>
         <ResizeHandle
+          theme={theme}
           isDragging={isDragging}
           onHandleStartDrag={this.handleStartDrag}
           top={topHeight}
@@ -163,6 +164,7 @@ ResizeContainer.propTypes = {
   minBottomHeight: number,
   initialTopHeight: string,
   initialBottomHeight: string,
+  theme: string,
 }
 
 export default ResizeContainer

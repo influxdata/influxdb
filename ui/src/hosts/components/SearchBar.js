@@ -10,8 +10,7 @@ class SearchBar extends Component {
   }
 
   componentWillMount() {
-    const waitPeriod = 300
-    this.handleSearch = _.debounce(this.handleSearch, waitPeriod)
+    this.handleSearch = _.debounce(this.handleSearch, 50)
   }
 
   handleSearch = () => {
@@ -23,12 +22,13 @@ class SearchBar extends Component {
   }
 
   render() {
+    const {placeholder} = this.props
     return (
       <div className="users__search-widget input-group">
         <input
           type="text"
           className="form-control"
-          placeholder="Filter by Host..."
+          placeholder={placeholder}
           ref="searchInput"
           onChange={this.handleChange}
         />
@@ -40,10 +40,11 @@ class SearchBar extends Component {
   }
 }
 
-const {func} = PropTypes
+const {func, string} = PropTypes
 
 SearchBar.propTypes = {
   onSearch: func.isRequired,
+  placeholder: string.isRequired,
 }
 
 export default SearchBar
