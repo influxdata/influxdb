@@ -27,17 +27,12 @@ export const meGetRequested = () => ({
   type: 'ME_GET_REQUESTED',
 })
 
-export const meGetCompletedNotUsingAuth = me => ({
-  type: 'ME_GET_COMPLETED__NON_AUTH',
+export const meGetCompleted = ({me, auth, logoutLink}) => ({
+  type: 'ME_GET_COMPLETED',
   payload: {
     me,
-  },
-})
-
-export const meGetCompletedUsingAuth = me => ({
-  type: 'ME_GET_COMPLETED__AUTH',
-  payload: {
-    me,
+    auth,
+    logoutLink,
   },
 })
 
@@ -55,13 +50,6 @@ export const meChangeOrganizationCompleted = () => ({
 
 export const meChangeOrganizationFailed = () => ({
   type: 'ME_CHANGE_ORGANIZATION_FAILED',
-})
-
-export const logoutLinkReceived = logoutLink => ({
-  type: 'LOGOUT_LINK_RECEIVED',
-  payload: {
-    logoutLink,
-  },
 })
 
 // shouldResetMe protects against `me` being nullified in Redux temporarily,
@@ -84,13 +72,15 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
       organizations,
       meLink,
     } = await getMeAJAX()
-    const isUsingAuth = !!logoutLink
-    dispatch(
-      isUsingAuth ? meGetCompletedUsingAuth(me) : meGetCompletedNotUsingAuth(me)
-    )
-    dispatch(authReceived(auth))
-    dispatch(logoutLinkReceived(logoutLink))
+
     dispatch(linksReceived({external, users, organizations, me: meLink}))
+    dispatch(
+      meGetCompleted({
+        me,
+        auth,
+        logoutLink,
+      })
+    )
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(meGetFailed())
@@ -111,7 +101,7 @@ export const meChangeOrganizationAsync = (
       )
     )
     dispatch(meChangeOrganizationCompleted())
-    dispatch(meGetCompletedUsingAuth(data))
+    dispatch(meGetCompleted(data))
     // TODO: reload sources upon me change org if non-refresh behavior preferred
     // instead of current behavior on both invocations of meChangeOrganization,
     // which is to refresh index via router.push('')
