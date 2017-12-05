@@ -11,6 +11,7 @@ const HandlerInput = ({
   disabled = false,
   fieldColumns = 'col-md-6',
   parseToArray = false,
+  headerIndex = 0,
 }) => {
   const formGroupClass = `form-group ${fieldColumns}`
   return (
@@ -28,7 +29,8 @@ const HandlerInput = ({
           onChange={handleModifyHandler(
             selectedHandler,
             fieldName,
-            parseToArray
+            parseToArray,
+            headerIndex
           )}
           value={
             parseToArray

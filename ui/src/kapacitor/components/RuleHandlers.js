@@ -86,11 +86,29 @@ class RuleHandlers extends Component {
     ruleActions.updateAlertNodes(rule.id, handlersOnThisAlert)
   }
 
-  handleModifyHandler = (selectedHandler, fieldName, parseToArray) => e => {
+  handleModifyHandler = (
+    selectedHandler,
+    fieldName,
+    parseToArray,
+    headerIndex
+  ) => e => {
     const {handlersOnThisAlert} = this.state
-
     let modifiedEP
-    if (e.target.type === 'checkbox') {
+    if (fieldName === 'headerKey') {
+      const currentHeader = selectedHandler.headers || [[]]
+      currentHeader[headerIndex][0] = e.target.value // only works for headerIndex= 0 atm. would need to initialize if headerindex is larger.
+      modifiedEP = {
+        ...selectedHandler,
+        headers: [...currentHeader],
+      }
+    } else if (fieldName === 'headerValue') {
+      const currentHeader = selectedHandler.headers || [[]]
+      currentHeader[headerIndex][1] = e.target.value
+      modifiedEP = {
+        ...selectedHandler,
+        headers: [...currentHeader],
+      }
+    } else if (e.target.type === 'checkbox') {
       modifiedEP = {
         ...selectedHandler,
         [fieldName]: !selectedHandler[fieldName],

@@ -15,6 +15,20 @@ const HttpHandler = ({selectedHandler, handleModifyHandler}) => {
             placeholder="ex: http://example.com/api/alert"
             fieldColumns="col-md-12"
           />
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="headerKey"
+            fieldDisplay="Header Key"
+            placeholder=""
+          />
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="headerValue"
+            fieldDisplay="Header Value"
+            placeholder=""
+          />
         </div>
       </div>
     </div>
