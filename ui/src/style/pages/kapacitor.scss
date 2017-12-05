@@ -577,3 +577,36 @@ $rule-builder--radius-lg: 5px;
   align-items: center;
   justify-content: space-between;
 }
+
+/*
+  Section 3 - Rule Details
+  -----------------------------------------------------------------------------
+*/
+.rule-builder--details {
+  background-color: $rule-builder--section-bg;
+  padding-top: $rule-builder--padding-lg - 2px;
+  padding-left: 0px;
+  padding-right: 33px;
+  padding-bottom: 0;
+  border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
+  margin-left: -3px;
+}
+.rule-builder--details textarea {
+  height: 100px;
+  min-width: 100%;
+  max-width: 100%;
+  @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
+}
+.rule-builder--details-template {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 ($rule-builder--padding-sm - 2px);
+  margin: 2px;
+  transition: color 0.25s ease;
+  @include no-user-select();
+
+  &:hover {
+    color: $rule-builder--accent-color;
+    cursor: pointer;
+  }
+}

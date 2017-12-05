@@ -13,7 +13,7 @@ class RuleDetailsText extends Component {
   render() {
     const {rule} = this.props
     return (
-      <div className="rule-builder--message">
+      <div className="rule-builder--details">
         <textarea
           className="form-control form-malachite monotype"
           onChange={this.handleUpdateDetails}
