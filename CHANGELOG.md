@@ -22,6 +22,7 @@
 1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Fix Influx Enterprise users from deletion in race condition
 1. [#2467](https://github.com/influxdata/chronograf/pull/2467): Fix oauth2 logout link not having basepath
 1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
+1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
 
 
 ### Features
