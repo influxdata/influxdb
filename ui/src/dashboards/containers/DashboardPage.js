@@ -2,7 +2,10 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import _ from 'lodash'
 import Dygraph from 'src/external/dygraph'
+
+import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
@@ -52,6 +55,8 @@ class DashboardPage extends Component {
         putDashboardByID,
       },
       source,
+      meRole,
+      isUsingAuth,
     } = this.props
 
     const dashboards = await getDashboardsAsync()
@@ -59,9 +64,13 @@ class DashboardPage extends Component {
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
     )
 
-    // Refresh and persists influxql generated template variable values
-    await updateTempVarValues(source, dashboard)
-    await putDashboardByID(dashboardID)
+    // Refresh and persists influxql generated template variable values.
+    // If using auth and role is Viewer, temp vars will be stale until dashboard
+    // is refactored so as not to require a write operation (a PUT in this case)
+    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
+      await updateTempVarValues(source, dashboard)
+      await putDashboardByID(dashboardID)
+    }
 
     const names = dashboards.map(d => ({
       name: d.name,
@@ -109,11 +118,16 @@ class DashboardPage extends Component {
   }
 
   handleUpdatePosition = cells => {
-    const {dashboardActions, dashboard} = this.props
+    const {dashboardActions, dashboard, meRole, isUsingAuth} = this.props
     const newDashboard = {...dashboard, cells}
 
-    dashboardActions.updateDashboard(newDashboard)
-    dashboardActions.putDashboard(newDashboard)
+    // GridLayout invokes onLayoutChange on first load, which bubbles up to
+    // invoke handleUpdatePosition. If using auth, Viewer is not authorized to
+    // PUT, so until the need for PUT is removed, this is prevented.
+    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
+      dashboardActions.updateDashboard(newDashboard)
+      dashboardActions.putDashboard(newDashboard)
+    }
   }
 
   handleAddCell = () => {
@@ -431,6 +445,8 @@ DashboardPage.propTypes = {
   errorThrown: func,
   manualRefresh: number.isRequired,
   onManualRefresh: func.isRequired,
+  meRole: string,
+  isUsingAuth: bool.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -442,7 +458,9 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     dashboardUI: {dashboards, cellQueryStatus},
     sources,
     dashTimeV1,
+    auth: {me, isUsingAuth},
   } = state
+  const meRole = _.get(me, 'role', null)
 
   const timeRange =
     dashTimeV1.ranges.find(
@@ -462,6 +480,8 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     inPresentationMode,
     cellQueryStatus,
     sources,
+    meRole,
+    isUsingAuth,
   }
 }
 
