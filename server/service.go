@@ -51,7 +51,7 @@ func (c *InfluxClient) New(src chronograf.Source, logger chronograf.Logger) (chr
 	}
 	if src.Type == chronograf.InfluxEnterprise && src.MetaURL != "" {
 		tls := strings.Contains(src.MetaURL, "https")
-		return enterprise.NewClientWithTimeSeries(logger, src.MetaURL, src.Username, src.Password, tls, client)
+		return enterprise.NewClientWithTimeSeries(logger, src.MetaURL, influx.DefaultAuthorization(&src), tls, client)
 	}
 	return client, nil
 }

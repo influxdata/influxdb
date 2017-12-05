@@ -33,6 +33,7 @@
 1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Add auto group by time to Data Explorer
 1. [#2456](https://github.com/influxdata/chronograf/pull/2456): Add boolean thresholds for kapacitor threshold alerts
 1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
+1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
 
 ### UI Improvements
