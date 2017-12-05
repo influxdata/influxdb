@@ -11,27 +11,31 @@ const VictoropsHandler = ({
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
           <h4>Parameters from Kapacitor Configuration</h4>
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="api-key"
-            fieldDisplay="API key"
-            placeholder="ex: api_key"
-            disabled={true}
-            redacted={true}
-            fieldColumns="col-md-12"
-          />
+          <div className="faux-form">
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="api-key"
+              fieldDisplay="API key"
+              placeholder="ex: api_key"
+              disabled={true}
+              redacted={true}
+              fieldColumns="col-md-12"
+            />
+          </div>
         </div>
         <div className="endpoint-tab--parameters">
           <h4>Parameters for this Alert Handler</h4>
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="routingKey"
-            fieldDisplay="Routing Key:"
-            placeholder="ex: routing_key"
-            fieldColumns="col-md-12"
-          />
+          <div className="faux-form">
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="routingKey"
+              fieldDisplay="Routing Key:"
+              placeholder="ex: routing_key"
+              fieldColumns="col-md-12"
+            />
+          </div>
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />

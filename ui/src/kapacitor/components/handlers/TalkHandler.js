@@ -7,23 +7,25 @@ const TalkHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
           <h4>Parameters from Kapacitor Configuration</h4>
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="url"
-            fieldDisplay="URL"
-            placeholder=""
-            disabled={true}
-            redacted={true}
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="author_name"
-            fieldDisplay="Author Name"
-            placeholder=""
-            disabled={true}
-          />
+          <div className="faux-form">
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="url"
+              fieldDisplay="URL"
+              placeholder=""
+              disabled={true}
+              redacted={true}
+            />
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="author_name"
+              fieldDisplay="Author Name"
+              placeholder=""
+              disabled={true}
+            />
+          </div>
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />

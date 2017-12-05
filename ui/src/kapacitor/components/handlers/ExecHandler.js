@@ -6,15 +6,17 @@ const ExecHandler = ({selectedHandler, handleModifyHandler}) => {
     <div className="endpoint-tab-contents">
       <div className="endpoint-tab--parameters">
         <h4>Parameters for this Alert Handler</h4>
-        <HandlerInput
-          selectedHandler={selectedHandler}
-          handleModifyHandler={handleModifyHandler}
-          fieldName="command"
-          fieldDisplay="Command (arguments separated by spaces):"
-          placeholder="ex: command argument"
-          fieldColumns="col-md-12"
-          parseToArray={true}
-        />
+        <div className="faux-form">
+          <HandlerInput
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            fieldName="command"
+            fieldDisplay="Command (arguments separated by spaces):"
+            placeholder="ex: command argument"
+            fieldColumns="col-md-12"
+            parseToArray={true}
+          />
+        </div>
       </div>
     </div>
   )

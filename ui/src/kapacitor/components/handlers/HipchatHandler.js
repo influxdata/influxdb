@@ -7,30 +7,32 @@ const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
           <h4>Parameters for this Alert Handler</h4>
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="token"
-            fieldDisplay="Token:"
-            placeholder="ex: the_token"
-            redacted={true}
-            fieldColumns="col-md-12"
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="url"
-            fieldDisplay="Subdomain Url"
-            placeholder="ex: hipchat_subdomain"
-            disabled={true}
-          />
-          <HandlerInput
-            selectedHandler={selectedHandler}
-            handleModifyHandler={handleModifyHandler}
-            fieldName="room"
-            fieldDisplay="Room:"
-            placeholder="ex: room_name"
-          />
+          <div className="faux-form">
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="token"
+              fieldDisplay="Token:"
+              placeholder="ex: the_token"
+              redacted={true}
+              fieldColumns="col-md-12"
+            />
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="url"
+              fieldDisplay="Subdomain Url"
+              placeholder="ex: hipchat_subdomain"
+              disabled={true}
+            />
+            <HandlerInput
+              selectedHandler={selectedHandler}
+              handleModifyHandler={handleModifyHandler}
+              fieldName="room"
+              fieldDisplay="Room:"
+              placeholder="ex: room_name"
+            />
+          </div>
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />

@@ -542,9 +542,11 @@ $rule-builder--radius-lg: 5px;
     padding-bottom: $rule-builder--padding-lg;
   }
 }
-.endpoint-tab--parameters .form-group {
-  margin-left: -18px;
-  margin-right: 18px;
+.endpoint-tab--parameters .faux-form {
+  margin-left: -6px;
+  margin-right: -6px;
+  width: calc(100% + 12px);
+  display: inline-block;
 }
 .endpoint-tab--parameters--empty {
   align-items: center;
@@ -579,7 +581,7 @@ $rule-builder--radius-lg: 5px;
 }
 
 /*
-  Section 3 - Rule Details
+ Rule Details
   -----------------------------------------------------------------------------
 */
 .rule-builder--details {
@@ -595,6 +597,7 @@ $rule-builder--radius-lg: 5px;
   height: 100px;
   min-width: 100%;
   max-width: 100%;
+  width: 100% !important;
   @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
 }
 .rule-builder--details-template {
