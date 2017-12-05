@@ -550,6 +550,7 @@
       "patch": {
         "tags": ["sources", "users"],
         "summary": "Update user configuration",
+        "description": "Update one parameter at a time (one of password, permissions or roles)",
         "parameters": [
           {
             "name": "id",

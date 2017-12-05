@@ -24,6 +24,15 @@
   color: $g13-mist;
   font-weight: 500;
 }
+.orgs-table--active {
+  padding: 0 4px 0 0;
+  width: 102px;
+  height: 30px;
+
+  button.btn {
+    width: 100%;
+  }
+}
 .orgs-table--name,
 .orgs-table--name-disabled,
 input[type="text"].form-control.orgs-table--input {
@@ -76,7 +85,7 @@ input[type="text"].form-control.orgs-table--input {
   height: 30px;
   margin-right: 4px;
   text-align: center;
-  width: 104px;
+  width: 88px;
   background-color: $g4-onyx;
   border-radius: 4px;
   line-height: 30px;
@@ -97,7 +106,7 @@ input[type="text"].form-control.orgs-table--input {
 
 .orgs-table--default-role,
 .orgs-table--default-role-disabled {
-  width: 130px;
+  width: 100px;
   height: 30px;
   margin-right: 4px;
 }
@@ -130,7 +139,8 @@ input[type="text"].form-control.orgs-table--input {
 
   > .orgs-table--name,
   > .orgs-table--name:hover,
-  > .orgs-table--public {
+  > .orgs-table--public,
+  > .orgs-table--active {
     transition: none;
     background-color: transparent;
     border-color: transparent;
@@ -140,12 +150,14 @@ input[type="text"].form-control.orgs-table--input {
   > .orgs-table--name,
   > .orgs-table--name:hover,
   > .orgs-table--default-role,
-  > .orgs-table--public {
+  > .orgs-table--public,
+  > .orgs-table--active {
     color: $g17-whisper;
     font-weight: 500;
   }
   > .orgs-table--default-role,
-  > .orgs-table--public {
+  > .orgs-table--public,
+  > .orgs-table--active {
     line-height: 30px;
     font-size: 13px;
     padding: 0 11px;

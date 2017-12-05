@@ -42,13 +42,12 @@ class DashboardPage extends Component {
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
-      names: [],
     }
   }
 
   async componentDidMount() {
     const {
-      params: {dashboardID, sourceID},
+      params: {dashboardID},
       dashboardActions: {
         getDashboardsAsync,
         updateTempVarValues,
@@ -71,13 +70,6 @@ class DashboardPage extends Component {
       await updateTempVarValues(source, dashboard)
       await putDashboardByID(dashboardID)
     }
-
-    const names = dashboards.map(d => ({
-      name: d.name,
-      link: `/sources/${sourceID}/dashboards/${d.id}`,
-    }))
-
-    this.setState({names})
   }
 
   handleOpenTemplateManager = () => {
@@ -277,14 +269,23 @@ class DashboardPage extends Component {
       ],
     }
 
-    // this controls the auto group by behavior
     const interval = {
       id: 'interval',
-      type: 'constant',
+      type: 'autoGroupBy',
       tempVar: ':interval:',
-      resolution: 1000,
-      reportingInterval: 10000000000,
-      values: [],
+      label: 'automatically determine the best group by time',
+      values: [
+        {
+          value: '1000', // pixels
+          type: 'resolution',
+          selected: true,
+        },
+        {
+          value: '3',
+          type: 'pointsPerPixel',
+          selected: true,
+        },
+      ],
     }
 
     let templatesIncludingDashTime
@@ -299,7 +300,11 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating, names} = this.state
+    const {selectedCell, isEditMode, isTemplating} = this.state
+    const names = dashboards.map(d => ({
+      name: d.name,
+      link: `/sources/${sourceID}/dashboards/${d.id}`,
+    }))
 
     return (
       <div className="page">

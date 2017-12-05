@@ -27,12 +27,19 @@ const UsersTableRow = ({
     role => role.organization === organization.id
   )
 
+  const userIsMe = user.id === meID
+
   return (
     <tr className={'chronograf-admin-table--user'}>
       <td>
-        <strong>
-          {user.name}
-        </strong>
+        {userIsMe
+          ? <strong className="chronograf-user--me">
+              <span className="icon user" />
+              {user.name}
+            </strong>
+          : <strong>
+              {user.name}
+            </strong>}
       </td>
       <td style={{width: colRole}}>
         <span className="chronograf-user--role">
@@ -66,7 +73,7 @@ const UsersTableRow = ({
         onDelete={onDelete}
         item={user}
         buttonSize="btn-xs"
-        disabled={user.id === meID}
+        disabled={userIsMe}
       />
     </tr>
   )

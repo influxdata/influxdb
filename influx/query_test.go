@@ -2,6 +2,7 @@ package influx
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
@@ -763,6 +764,46 @@ func TestConvert(t *testing.T) {
 			}
 			if !cmp.Equal(got, tt.want) {
 				t.Errorf("Convert() = %s", cmp.Diff(got, tt.want))
+			}
+		})
+	}
+}
+
+func TestParseTime(t *testing.T) {
+	tests := []struct {
+		name     string
+		influxQL string
+		now      string
+		want     time.Duration
+		wantErr  bool
+	}{
+		{
+			name:     "time equal",
+			now:      "2000-01-01T00:00:00Z",
+			influxQL: `SELECT mean("numSeries") AS "mean_numSeries" FROM "_internal"."monitor"."database" WHERE time > now() - 1h and time < now() - 1h GROUP BY :interval: FILL(null);`,
+			want:     0,
+		},
+		{
+			name:     "time shifted by one hour",
+			now:      "2000-01-01T00:00:00Z",
+			influxQL: `SELECT mean("numSeries") AS "mean_numSeries" FROM "_internal"."monitor"."database" WHERE time > now() - 1h - 1h and time < now() - 1h GROUP BY :interval: FILL(null);`,
+			want:     3599999999998,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			now, err := time.Parse(time.RFC3339, tt.now)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
+			got, err := ParseTime(tt.influxQL, now)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseTime() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Logf("%d", got)
+				t.Errorf("ParseTime() = %v, want %v", got, tt.want)
 			}
 		})
 	}

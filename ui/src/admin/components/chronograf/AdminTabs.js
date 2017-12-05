@@ -28,7 +28,7 @@ const AdminTabs = ({
     {
       requiredRole: SUPERADMIN_ROLE,
       type: ORGANIZATIONS_TAB_NAME,
-      component: <OrganizationsPage />,
+      component: <OrganizationsPage currentOrganization={organization} />,
     },
     {
       requiredRole: ADMIN_ROLE,

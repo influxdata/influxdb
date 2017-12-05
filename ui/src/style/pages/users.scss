@@ -110,3 +110,13 @@ table.table.chronograf-admin-table tbody tr.chronograf-admin-table--new-user {
     padding-bottom: 8px;
   }
 }
+
+/* Highlight "Me" in the users table */
+.chronograf-user--me {
+  color: $c-rainforest;
+
+  > span.icon {
+    display: inline-block;
+    margin-right: 4px;
+  }
+}

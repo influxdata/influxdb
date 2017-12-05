@@ -15,7 +15,8 @@
 .page {
   flex-grow: 1;
 }
-.page-contents {
+.page-contents,
+.page-contents--split {
   position: absolute !important;
   top: $chronograf-page-header-height;
   left: 0;
@@ -27,6 +28,10 @@
     top: 0;
     height: 100%;
   }
+}
+.page-contents--split {
+  display: flex;
+  align-items: stretch;
 }
 .container-fluid {
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;

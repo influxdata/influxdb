@@ -34,6 +34,7 @@ func TestGenericPrincipalID(t *testing.T) {
 	prov := oauth2.Generic{
 		Logger: logger,
 		APIURL: mockAPI.URL,
+		APIKey: "email",
 	}
 	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
