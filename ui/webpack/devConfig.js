@@ -124,7 +124,6 @@ module.exports = {
             fs.unlink(path.join(buildDir, file), unlinkErr => {
               if (unlinkErr) {
                 console.error('webpack cleanup error', unlinkErr)
-                return
               }
             })
           }
