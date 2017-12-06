@@ -54,6 +54,7 @@ func (b *BasicAuth) Set(r *http.Request) error {
 type BearerJWT struct {
 	Username     string
 	SharedSecret string
+	Now          Now
 }
 
 // Set adds an Authorization Bearer to the request if has a shared secret
@@ -70,7 +71,10 @@ func (b *BearerJWT) Set(r *http.Request) error {
 
 // Token returns the expected InfluxDB JWT signed with the sharedSecret
 func (b *BearerJWT) Token(username string) (string, error) {
-	return JWT(username, b.SharedSecret, time.Now)
+	if b.Now == nil {
+		b.Now = time.Now
+	}
+	return JWT(username, b.SharedSecret, b.Now)
 }
 
 // Now returns the current time

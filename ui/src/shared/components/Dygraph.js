@@ -355,7 +355,8 @@ export default class Dygraph extends Component {
   }
 
   highlightCallback = ({pageX}) => {
-    this.setState({isHidden: false, pageX})
+    this.pageX = pageX
+    this.setState({isHidden: false})
   }
 
   legendFormatter = legend => {
@@ -381,7 +382,6 @@ export default class Dygraph extends Component {
   render() {
     const {
       legend,
-      pageX,
       sortType,
       isHidden,
       isSnipped,
@@ -396,7 +396,7 @@ export default class Dygraph extends Component {
           {...legend}
           graph={this.graphRef}
           legend={this.legendRef}
-          pageX={pageX}
+          pageX={this.pageX}
           sortType={sortType}
           onHide={this.handleHideLegend}
           isHidden={isHidden}

@@ -7,13 +7,10 @@ import Dropdown from 'shared/components/Dropdown'
 
 import {AUTO_GROUP_BY} from 'shared/constants'
 
-const {func, string, shape} = PropTypes
-
 const isInRuleBuilder = pathname => pathname.includes('alert-rules')
-const isInDataExplorer = pathname => pathname.includes('data-explorer')
 
 const getOptions = pathname =>
-  isInDataExplorer(pathname) || isInRuleBuilder(pathname)
+  isInRuleBuilder(pathname)
     ? groupByTimeOptions.filter(({menuOption}) => menuOption !== AUTO_GROUP_BY)
     : groupByTimeOptions
 
@@ -36,6 +33,8 @@ const GroupByTimeDropdown = ({
       selected={selected || 'Time'}
     />
   </div>
+
+const {func, string, shape} = PropTypes
 
 GroupByTimeDropdown.propTypes = {
   location: shape({

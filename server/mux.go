@@ -257,7 +257,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		// Encapsulate the router with OAuth2
 		var auth http.Handler
 		auth, allRoutes.AuthRoutes = AuthAPI(opts, router)
-		allRoutes.LogoutLink = "/oauth/logout"
+		allRoutes.LogoutLink = path.Join(opts.Basepath, "/oauth/logout")
 
 		// Create middleware that redirects to the appropriate provider logout
 		router.GET(allRoutes.LogoutLink, Logout("/", basepath, allRoutes.AuthRoutes))

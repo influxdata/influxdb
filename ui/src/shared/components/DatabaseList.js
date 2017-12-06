@@ -45,12 +45,20 @@ const DatabaseList = React.createClass({
     this.getDbRp()
   },
 
-  componentDidUpdate(prevProps) {
-    if (_.isEqual(prevProps.querySource, this.props.querySource)) {
+  componentDidUpdate({querySource: prevSource, query: prevQuery}) {
+    const {querySource: nextSource, query: nextQuery} = this.props
+    const differentSource = !_.isEqual(prevSource, nextSource)
+
+    if (prevQuery.rawText === nextQuery.rawText) {
       return
     }
 
-    this.getDbRp()
+    const newMetaQuery =
+      nextQuery.rawText && nextQuery.rawText.match(/^(create|drop)/i)
+
+    if (differentSource || newMetaQuery) {
+      setTimeout(this.getDbRp, 100)
+    }
   },
 
   getDbRp() {

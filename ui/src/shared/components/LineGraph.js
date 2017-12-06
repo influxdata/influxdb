@@ -17,12 +17,8 @@ class LineGraph extends Component {
   }
 
   componentWillMount() {
-    const {data, activeQueryIndex, isInDataExplorer} = this.props
-    this._timeSeries = timeSeriesToDygraph(
-      data,
-      activeQueryIndex,
-      isInDataExplorer
-    )
+    const {data, isInDataExplorer} = this.props
+    this._timeSeries = timeSeriesToDygraph(data, isInDataExplorer)
   }
 
   componentWillUpdate(nextProps) {
@@ -33,7 +29,6 @@ class LineGraph extends Component {
     ) {
       this._timeSeries = timeSeriesToDygraph(
         nextProps.data,
-        nextProps.activeQueryIndex,
         nextProps.isInDataExplorer
       )
     }

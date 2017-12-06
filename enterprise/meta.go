@@ -11,31 +11,32 @@ import (
 	"net/url"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
 )
 
 type client interface {
-	Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+	Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
 }
 
 // MetaClient represents a Meta node in an Influx Enterprise cluster
 type MetaClient struct {
-	URL    *url.URL
-	client client
+	URL        *url.URL
+	client     client
+	authorizer influx.Authorizer
 }
 
-type ClientBuilder func() client
-
 // NewMetaClient represents a meta node in an Influx Enterprise cluster
-func NewMetaClient(url *url.URL) *MetaClient {
+func NewMetaClient(url *url.URL, authorizer influx.Authorizer) *MetaClient {
 	return &MetaClient{
-		URL:    url,
-		client: &defaultClient{},
+		URL:        url,
+		client:     &defaultClient{},
+		authorizer: authorizer,
 	}
 }
 
 // ShowCluster returns the cluster configuration (not health)
 func (m *MetaClient) ShowCluster(ctx context.Context) (*Cluster, error) {
-	res, err := m.Do(ctx, "GET", "/show-cluster", nil, nil)
+	res, err := m.Do(ctx, "/show-cluster", "GET", m.authorizer, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func (m *MetaClient) Users(ctx context.Context, name *string) (*Users, error) {
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := m.Do(ctx, "GET", "/user", params, nil)
+	res, err := m.Do(ctx, "/user", "GET", m.authorizer, params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -118,45 +119,48 @@ func (m *MetaClient) DeleteUser(ctx context.Context, name string) error {
 	return m.Post(ctx, "/user", a, nil)
 }
 
-// RemoveAllUserPerms revokes all permissions for a user in Influx Enterprise
-func (m *MetaClient) RemoveAllUserPerms(ctx context.Context, name string) error {
-	user, err := m.User(ctx, name)
-	if err != nil {
-		return err
-	}
-
-	// No permissions to remove
-	if len(user.Permissions) == 0 {
-		return nil
-	}
-
+// RemoveUserPerms revokes permissions for a user in Influx Enterprise
+func (m *MetaClient) RemoveUserPerms(ctx context.Context, name string, perms Permissions) error {
 	a := &UserAction{
 		Action: "remove-permissions",
-		User:   user,
-	}
-	return m.Post(ctx, "/user", a, nil)
-}
-
-// SetUserPerms removes all permissions and then adds the requested perms
-func (m *MetaClient) SetUserPerms(ctx context.Context, name string, perms Permissions) error {
-	err := m.RemoveAllUserPerms(ctx, name)
-	if err != nil {
-		return err
-	}
-
-	// No permissions to add, so, user is in the right state
-	if len(perms) == 0 {
-		return nil
-	}
-
-	a := &UserAction{
-		Action: "add-permissions",
 		User: &User{
 			Name:        name,
 			Permissions: perms,
 		},
 	}
 	return m.Post(ctx, "/user", a, nil)
+}
+
+// SetUserPerms removes permissions not in set and then adds the requested perms
+func (m *MetaClient) SetUserPerms(ctx context.Context, name string, perms Permissions) error {
+	user, err := m.User(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	revoke, add := permissionsDifference(perms, user.Permissions)
+
+	// first, revoke all the permissions the user currently has, but,
+	// shouldn't...
+	if len(revoke) > 0 {
+		err := m.RemoveUserPerms(ctx, name, revoke)
+		if err != nil {
+			return err
+		}
+	}
+
+	// ... next, add any permissions the user should have
+	if len(add) > 0 {
+		a := &UserAction{
+			Action: "add-permissions",
+			User: &User{
+				Name:        name,
+				Permissions: add,
+			},
+		}
+		return m.Post(ctx, "/user", a, nil)
+	}
+	return nil
 }
 
 // UserRoles returns a map of users to all of their current roles
@@ -186,7 +190,7 @@ func (m *MetaClient) Roles(ctx context.Context, name *string) (*Roles, error) {
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := m.Do(ctx, "GET", "/role", params, nil)
+	res, err := m.Do(ctx, "/role", "GET", m.authorizer, params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -235,39 +239,10 @@ func (m *MetaClient) DeleteRole(ctx context.Context, name string) error {
 	return m.Post(ctx, "/role", a, nil)
 }
 
-// RemoveAllRolePerms removes all permissions from a role
-func (m *MetaClient) RemoveAllRolePerms(ctx context.Context, name string) error {
-	role, err := m.Role(ctx, name)
-	if err != nil {
-		return err
-	}
-
-	// No permissions to remove
-	if len(role.Permissions) == 0 {
-		return nil
-	}
-
+// RemoveRolePerms revokes permissions from a role
+func (m *MetaClient) RemoveRolePerms(ctx context.Context, name string, perms Permissions) error {
 	a := &RoleAction{
 		Action: "remove-permissions",
-		Role:   role,
-	}
-	return m.Post(ctx, "/role", a, nil)
-}
-
-// SetRolePerms removes all permissions and then adds the requested perms to role
-func (m *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permissions) error {
-	err := m.RemoveAllRolePerms(ctx, name)
-	if err != nil {
-		return err
-	}
-
-	// No permissions to add, so, role is in the right state
-	if len(perms) == 0 {
-		return nil
-	}
-
-	a := &RoleAction{
-		Action: "add-permissions",
 		Role: &Role{
 			Name:        name,
 			Permissions: perms,
@@ -276,7 +251,39 @@ func (m *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permis
 	return m.Post(ctx, "/role", a, nil)
 }
 
-// SetRoleUsers removes all users and then adds the requested users to role
+// SetRolePerms removes permissions not in set and then adds the requested perms to role
+func (m *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permissions) error {
+	role, err := m.Role(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	revoke, add := permissionsDifference(perms, role.Permissions)
+
+	// first, revoke all the permissions the role currently has, but,
+	// shouldn't...
+	if len(revoke) > 0 {
+		err := m.RemoveRolePerms(ctx, name, revoke)
+		if err != nil {
+			return err
+		}
+	}
+
+	// ... next, add any permissions the role should have
+	if len(add) > 0 {
+		a := &RoleAction{
+			Action: "add-permissions",
+			Role: &Role{
+				Name:        name,
+				Permissions: add,
+			},
+		}
+		return m.Post(ctx, "/role", a, nil)
+	}
+	return nil
+}
+
+// SetRoleUsers removes users not in role and then adds the requested users to role
 func (m *MetaClient) SetRoleUsers(ctx context.Context, name string, users []string) error {
 	role, err := m.Role(ctx, name)
 	if err != nil {
@@ -315,6 +322,29 @@ func Difference(wants []string, haves []string) (revoke []string, add []string) 
 		}
 		if !found {
 			revoke = append(revoke, got)
+		}
+	}
+	return
+}
+
+func permissionsDifference(wants Permissions, haves Permissions) (revoke Permissions, add Permissions) {
+	revoke = make(Permissions)
+	add = make(Permissions)
+	for scope, want := range wants {
+		have, ok := haves[scope]
+		if ok {
+			r, a := Difference(want, have)
+			revoke[scope] = r
+			add[scope] = a
+		} else {
+			add[scope] = want
+		}
+	}
+
+	for scope, have := range haves {
+		_, ok := wants[scope]
+		if !ok {
+			revoke[scope] = have
 		}
 	}
 	return
@@ -361,7 +391,7 @@ func (m *MetaClient) Post(ctx context.Context, path string, action interface{}, 
 		return err
 	}
 	body := bytes.NewReader(b)
-	_, err = m.Do(ctx, "POST", path, params, body)
+	_, err = m.Do(ctx, path, "POST", m.authorizer, params, body)
 	if err != nil {
 		return err
 	}
@@ -373,7 +403,7 @@ type defaultClient struct {
 }
 
 // Do is a helper function to interface with Influx Enterprise's Meta API
-func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error) {
+func (d *defaultClient) Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error) {
 	p := url.Values{}
 	for k, v := range params {
 		p.Add(k, v)
@@ -391,8 +421,15 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 	if err != nil {
 		return nil, err
 	}
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+
+	if authorizer != nil {
+		if err = authorizer.Set(req); err != nil {
+			return nil, err
+		}
 	}
 
 	// Meta servers will redirect (307) to leader. We need
@@ -400,6 +437,7 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 	client := &http.Client{
 		CheckRedirect: d.AuthedCheckRedirect,
 	}
+
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -437,14 +475,14 @@ func (d *defaultClient) AuthedCheckRedirect(req *http.Request, via []*http.Reque
 }
 
 // Do is a cancelable function to interface with Influx Enterprise's Meta API
-func (m *MetaClient) Do(ctx context.Context, method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
+func (m *MetaClient) Do(ctx context.Context, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error) {
 	type result struct {
 		Response *http.Response
 		Err      error
 	}
 	resps := make(chan (result))
 	go func() {
-		resp, err := m.client.Do(m.URL, path, method, params, body)
+		resp, err := m.client.Do(m.URL, path, method, authorizer, params, body)
 		resps <- result{resp, err}
 	}()
 

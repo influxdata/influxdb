@@ -2,7 +2,10 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import _ from 'lodash'
 import Dygraph from 'src/external/dygraph'
+
+import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
@@ -34,24 +37,26 @@ class DashboardPage extends Component {
     super(props)
 
     this.state = {
-      dygraphs: [],
       isEditMode: false,
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
-      names: [],
     }
   }
 
+  dygraphs = []
+
   async componentDidMount() {
     const {
-      params: {dashboardID, sourceID},
+      params: {dashboardID},
       dashboardActions: {
         getDashboardsAsync,
         updateTempVarValues,
         putDashboardByID,
       },
       source,
+      meRole,
+      isUsingAuth,
     } = this.props
 
     const dashboards = await getDashboardsAsync()
@@ -59,16 +64,13 @@ class DashboardPage extends Component {
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
     )
 
-    // Refresh and persists influxql generated template variable values
-    await updateTempVarValues(source, dashboard)
-    await putDashboardByID(dashboardID)
-
-    const names = dashboards.map(d => ({
-      name: d.name,
-      link: `/sources/${sourceID}/dashboards/${d.id}`,
-    }))
-
-    this.setState({names})
+    // Refresh and persists influxql generated template variable values.
+    // If using auth and role is Viewer, temp vars will be stale until dashboard
+    // is refactored so as not to require a write operation (a PUT in this case)
+    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
+      await updateTempVarValues(source, dashboard)
+      await putDashboardByID(dashboardID)
+    }
   }
 
   handleOpenTemplateManager = () => {
@@ -109,11 +111,16 @@ class DashboardPage extends Component {
   }
 
   handleUpdatePosition = cells => {
-    const {dashboardActions, dashboard} = this.props
+    const {dashboardActions, dashboard, meRole, isUsingAuth} = this.props
     const newDashboard = {...dashboard, cells}
 
-    dashboardActions.updateDashboard(newDashboard)
-    dashboardActions.putDashboard(newDashboard)
+    // GridLayout invokes onLayoutChange on first load, which bubbles up to
+    // invoke handleUpdatePosition. If using auth, Viewer is not authorized to
+    // PUT, so until the need for PUT is removed, this is prevented.
+    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
+      dashboardActions.updateDashboard(newDashboard)
+      dashboardActions.putDashboard(newDashboard)
+    }
   }
 
   handleAddCell = () => {
@@ -178,16 +185,19 @@ class DashboardPage extends Component {
   }
 
   synchronizer = dygraph => {
-    const dygraphs = [...this.state.dygraphs, dygraph].filter(d => d.graphDiv)
+    const dygraphs = [...this.dygraphs, dygraph].filter(d => d.graphDiv)
     const {dashboards, params: {dashboardID}} = this.props
 
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
     )
 
+    // Get only the graphs that can sync the hover line
+    const graphsToSync = dashboard.cells.filter(c => c.type !== 'single-stat')
+
     if (
       dashboard &&
-      dygraphs.length === dashboard.cells.length &&
+      dygraphs.length === graphsToSync.length &&
       dashboard.cells.length > 1
     ) {
       Dygraph.synchronize(dygraphs, {
@@ -197,7 +207,7 @@ class DashboardPage extends Component {
       })
     }
 
-    this.setState({dygraphs})
+    this.dygraphs = dygraphs
   }
 
   handleToggleTempVarControls = () => {
@@ -263,14 +273,23 @@ class DashboardPage extends Component {
       ],
     }
 
-    // this controls the auto group by behavior
     const interval = {
       id: 'interval',
-      type: 'constant',
+      type: 'autoGroupBy',
       tempVar: ':interval:',
-      resolution: 1000,
-      reportingInterval: 10000000000,
-      values: [],
+      label: 'automatically determine the best group by time',
+      values: [
+        {
+          value: '1000', // pixels
+          type: 'resolution',
+          selected: true,
+        },
+        {
+          value: '3',
+          type: 'pointsPerPixel',
+          selected: true,
+        },
+      ],
     }
 
     let templatesIncludingDashTime
@@ -285,7 +304,11 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating, names} = this.state
+    const {selectedCell, isEditMode, isTemplating} = this.state
+    const names = dashboards.map(d => ({
+      name: d.name,
+      link: `/sources/${sourceID}/dashboards/${d.id}`,
+    }))
 
     return (
       <div className="page">
@@ -431,6 +454,8 @@ DashboardPage.propTypes = {
   errorThrown: func,
   manualRefresh: number.isRequired,
   onManualRefresh: func.isRequired,
+  meRole: string,
+  isUsingAuth: bool.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -442,7 +467,9 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     dashboardUI: {dashboards, cellQueryStatus},
     sources,
     dashTimeV1,
+    auth: {me, isUsingAuth},
   } = state
+  const meRole = _.get(me, 'role', null)
 
   const timeRange =
     dashTimeV1.ranges.find(
@@ -462,6 +489,8 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     inPresentationMode,
     cellQueryStatus,
     sources,
+    meRole,
+    isUsingAuth,
   }
 }
 

@@ -1,4 +1,5 @@
 import _ from 'lodash'
+import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
 /**
@@ -15,12 +16,7 @@ const cells = {
   responseIndex: new Array(DEFAULT_SIZE),
 }
 
-// activeQueryIndex is an optional argument that indicated which query's series we want highlighted.
-export default function timeSeriesToDygraph(
-  raw = [],
-  activeQueryIndex,
-  isInDataExplorer
-) {
+export default function timeSeriesToDygraph(raw = [], isInDataExplorer) {
   // collect results from each influx response
   const results = reduce(
     raw,
@@ -115,10 +111,15 @@ export default function timeSeriesToDygraph(
 
   const timeSeries = []
   for (let i = 0; i < size; i++) {
-    const time = cells.time[i]
+    let time = cells.time[i]
     const value = cells.value[i]
     const label = cells.label[i]
     const seriesIndex = cells.seriesIndex[i]
+
+    if (label.includes('_shifted__')) {
+      const [, quantity, duration] = label.split('__')
+      time = +shiftDate(time, quantity, duration).format('x')
+    }
 
     let existingRowIndex = tsMemo[time]
 
