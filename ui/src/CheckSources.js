@@ -68,7 +68,12 @@ class CheckSources extends Component {
     const source = sources.find(s => s.id === params.sourceID)
     const defaultSource = sources.find(s => s.default === true)
 
-    if (!isFetching && isUsingAuth && me.role === MEMBER_ROLE) {
+    if (
+      !isFetching &&
+      isUsingAuth &&
+      me.role === MEMBER_ROLE &&
+      !me.superAdmin
+    ) {
       // if you're a member, go to purgatory.
       return router.push('/purgatory')
     }
@@ -77,7 +82,7 @@ class CheckSources extends Component {
       const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
       const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
 
-      if (isUsingAuth && me.role === VIEWER_ROLE) {
+      if (isUsingAuth && me.role === VIEWER_ROLE && !me.superAdmin) {
         if (defaultSource) {
           return router.push(`/sources/${defaultSource.id}/${restString}`)
         } else if (sources[0]) {
