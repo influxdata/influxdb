@@ -1780,14 +1780,6 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 			Path: "08-01.tsm1",
 			Size: 1 * 1024 * 1024,
 		},
-		tsm1.FileStat{
-			Path: "09-01.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "10-01.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -1798,8 +1790,8 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]}
-	expFiles2 := []tsm1.FileStat{data[8], data[9]}
+	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
+	expFiles2 := []tsm1.FileStat{data[4], data[5], data[6], data[7]}
 
 	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
@@ -1875,8 +1867,8 @@ func TestDefaultPlanner_PlanLevel_InUse(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]}
-	expFiles2 := []tsm1.FileStat{data[8], data[9]}
+	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
+	expFiles2 := []tsm1.FileStat{data[4], data[5], data[6], data[7]}
 
 	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles1), len(tsm[0]); got != exp {

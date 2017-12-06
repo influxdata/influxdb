@@ -236,16 +236,9 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 		minGenerations = level + 1
 	}
 
-	// Each compaction group should run against 4 generations.  For level 1, since these
-	// can get created much more quickly, bump the grouping to 8 to keep file counts lower.
-	groupSize := 4
-	if level == 1 {
-		groupSize = 8
-	}
-
 	var cGroups []CompactionGroup
 	for _, group := range levelGroups {
-		for _, chunk := range group.chunk(groupSize) {
+		for _, chunk := range group.chunk(4) {
 			var cGroup CompactionGroup
 			var hasTombstones bool
 			for _, gen := range chunk {
