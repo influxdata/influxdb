@@ -5,6 +5,7 @@ import {withRouter} from 'react-router'
 
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
+import Notifications from 'shared/components/Notifications'
 import SplashPage from 'shared/components/SplashPage'
 import PurgatoryAuthItem from 'src/auth/PurgatoryAuthItem'
 
@@ -45,37 +46,40 @@ const Purgatory = ({
       : `Authenticated in ${rolesAndOrgs.length} Organizations`
 
   return (
-    <SplashPage>
-      <div className="auth--purgatory">
-        <h3>
-          {name}
-        </h3>
-        <h6>
-          {subHeading}{' '}
-          <code>
-            {scheme}/{provider}
-          </code>
-        </h6>
-        {rolesAndOrgs.length
-          ? <div className="auth--list">
-              {rolesAndOrgs.map((rag, i) =>
-                <PurgatoryAuthItem
-                  key={i}
-                  roleAndOrg={rag}
-                  onClickLogin={handleClickLogin({
-                    router,
-                    links,
-                    meChangeOrganization,
-                  })}
-                />
-              )}
-            </div>
-          : <p>You are a Lost Soul</p>}
-        <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
-          Logout
-        </a>
-      </div>
-    </SplashPage>
+    <div>
+      <Notifications />
+      <SplashPage>
+        <div className="auth--purgatory">
+          <h3>
+            {name}
+          </h3>
+          <h6>
+            {subHeading}{' '}
+            <code>
+              {scheme}/{provider}
+            </code>
+          </h6>
+          {rolesAndOrgs.length
+            ? <div className="auth--list">
+                {rolesAndOrgs.map((rag, i) =>
+                  <PurgatoryAuthItem
+                    key={i}
+                    roleAndOrg={rag}
+                    onClickLogin={handleClickLogin({
+                      router,
+                      links,
+                      meChangeOrganization,
+                    })}
+                  />
+                )}
+              </div>
+            : <p>You are a Lost Soul</p>}
+          <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
+            Logout
+          </a>
+        </div>
+      </SplashPage>
+    </div>
   )
 }
 

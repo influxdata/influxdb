@@ -9,6 +9,7 @@ import {showDatabases} from 'shared/apis/metaQuery'
 
 import {getSourcesAsync} from 'shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
@@ -61,19 +62,20 @@ class CheckSources extends Component {
       errorThrown,
       sources,
       auth: {isUsingAuth, me},
+      notify,
     } = nextProps
     const {isFetching} = nextState
     const source = sources.find(s => s.id === params.sourceID)
     const defaultSource = sources.find(s => s.default === true)
 
+    if (!isFetching && isUsingAuth && me.role === MEMBER_ROLE) {
+      // if you're a member, go to purgatory.
+      return router.push('/purgatory')
+    }
+
     if (!isFetching && !source) {
       const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
       const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
-
-      if (isUsingAuth && me.role === MEMBER_ROLE) {
-        // if you're a member, go to purgatory.
-        return router.push('/purgatory')
-      }
 
       if (isUsingAuth && me.role === VIEWER_ROLE) {
         if (defaultSource) {
@@ -82,6 +84,7 @@ class CheckSources extends Component {
           return router.push(`/sources/${sources[0].id}/${restString}`)
         }
         // if you're a viewer and there are no sources, go to purgatory.
+        notify('error', 'Organization has no sources configured')
         return router.push('/purgatory')
       }
 
@@ -171,6 +174,7 @@ CheckSources.propTypes = {
       }),
     }),
   }),
+  notify: func.isRequired,
 }
 
 CheckSources.childContextTypes = {
@@ -195,6 +199,7 @@ const mapStateToProps = ({sources, auth}) => ({
 const mapDispatchToProps = dispatch => ({
   getSources: bindActionCreators(getSourcesAsync, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
