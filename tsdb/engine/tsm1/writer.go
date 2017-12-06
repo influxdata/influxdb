@@ -509,14 +509,23 @@ type tsmWriter struct {
 
 // NewTSMWriter returns a new TSMWriter writing to w.
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
+	index := NewIndexWriter()
+	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 1024*1024), index: index}, nil
+}
+
+// NewTSMWriterWithDiskBuffer returns a new TSMWriter writing to w and will use a disk
+// based buffer for the TSM index if possible.
+func NewTSMWriterWithDiskBuffer(w io.Writer) (TSMWriter, error) {
 	var index IndexWriter
-	if fw, ok := w.(*os.File); ok && !strings.HasSuffix(fw.Name(), "01.tsm.tmp") {
+	// Make sure is a File so we can write the temp index alongside it.
+	if fw, ok := w.(*os.File); ok {
 		f, err := os.OpenFile(strings.TrimSuffix(fw.Name(), ".tsm.tmp")+".idx.tmp", os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
 			return nil, err
 		}
 		index = NewDiskIndexWriter(f)
 	} else {
+		// w is not a file, just use an inmem index
 		index = NewIndexWriter()
 	}
 

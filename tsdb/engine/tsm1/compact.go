@@ -1026,10 +1026,22 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 	}
 
 	// Create the write for the new TSM file.
-	w, err := NewTSMWriter(fd)
-	if err != nil {
-		return err
+	var w TSMWriter
+
+	// Use a disk based TSM buffer if it looks like we might create a big index
+	// in memory.
+	if iter.EstimatedIndexSize() > 64*1024*1024 {
+		w, err = NewTSMWriterWithDiskBuffer(fd)
+		if err != nil {
+			return err
+		}
+	} else {
+		w, err = NewTSMWriter(fd)
+		if err != nil {
+			return err
+		}
 	}
+
 	defer func() {
 		closeErr := w.Close()
 		if err == nil {
@@ -1138,6 +1150,10 @@ type KeyIterator interface {
 
 	// Err returns any errors encountered during iteration.
 	Err() error
+
+	// EstimatedIndexSize returns the estimated size of the index that would
+	// be required to store all the series and entries in the KeyIterator.
+	EstimatedIndexSize() int
 }
 
 // tsmKeyIterator implements the KeyIterator for set of TSMReaders.  Iteration produces
@@ -1269,6 +1285,14 @@ func (k *tsmKeyIterator) hasMergedValues() bool {
 		len(k.mergedUnsignedValues) > 0 ||
 		len(k.mergedStringValues) > 0 ||
 		len(k.mergedBooleanValues) > 0
+}
+
+func (k *tsmKeyIterator) EstimatedIndexSize() int {
+	var size uint32
+	for _, r := range k.readers {
+		size += r.IndexSize()
+	}
+	return int(size) / len(k.readers)
 }
 
 // Next returns true if there are any values remaining in the iterator.
@@ -1507,6 +1531,11 @@ func NewCacheKeyIterator(cache *Cache, size int, interrupt chan struct{}) KeyIte
 	}
 	go cki.encode()
 	return cki
+}
+
+func (c *cacheKeyIterator) EstimatedIndexSize() int {
+	// We return 0 here since we already have all the entries in memory to write an index.
+	return 0
 }
 
 func (c *cacheKeyIterator) encode() {
