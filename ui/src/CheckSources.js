@@ -14,7 +14,7 @@ import {showDatabases} from 'shared/apis/metaQuery'
 
 import {getSourcesAsync} from 'shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {publishNotification} from 'shared/actions/notifications'
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
@@ -68,6 +68,7 @@ class CheckSources extends Component {
       sources,
       auth: {isUsingAuth, me},
       notify,
+      getSources,
     } = nextProps
     const {isFetching} = nextState
     const source = sources.find(s => s.id === params.sourceID)
@@ -90,6 +91,8 @@ class CheckSources extends Component {
       return router.push('/purgatory')
     }
 
+    // TODO: At this point, the sources we have in Redux may be out of sync with what's on the server
+    // Do we need to refresh this data more frequently? Does it need to come as frequently as the `me` response?
     if (!isFetching && !source) {
       const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
       const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
@@ -123,7 +126,22 @@ class CheckSources extends Component {
         // invocation since sources haven't been refreshed yet
         await showDatabases(source.links.proxy)
       } catch (error) {
-        errorThrown(error, 'Unable to connect to source')
+        try {
+          const newSources = await getSources()
+          if (newSources.length) {
+            errorThrown(
+              error,
+              `Source ${source.name} is no longer available. Successfully connected to another source.`
+            )
+          } else {
+            errorThrown(
+              error,
+              `Unable to connect to source ${source.name}. No other sources available.`
+            )
+          }
+        } catch (error2) {
+          errorThrown(error2, 'Unable to retrieve sources')
+        }
       }
     }
   }
@@ -216,7 +234,7 @@ const mapStateToProps = ({sources, auth}) => ({
 const mapDispatchToProps = dispatch => ({
   getSources: bindActionCreators(getSourcesAsync, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  notify: bindActionCreators(publishNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
