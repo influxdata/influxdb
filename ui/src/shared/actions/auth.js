@@ -92,15 +92,15 @@ export const meChangeOrganizationAsync = (
 ) => async dispatch => {
   dispatch(meChangeOrganizationRequested())
   try {
-    const {data} = await updateMeAJAX(url, organization)
+    const {data: me, auth, logoutLink} = await updateMeAJAX(url, organization)
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `Now signed into ${data.currentOrganization.name}`
+        `Now signed into ${me.currentOrganization.name}`
       )
     )
     dispatch(meChangeOrganizationCompleted())
-    dispatch(meGetCompleted(data))
+    dispatch(meGetCompleted({me, auth, logoutLink}))
     // TODO: reload sources upon me change org if non-refresh behavior preferred
     // instead of current behavior on both invocations of meChangeOrganization,
     // which is to refresh index via router.push('')
