@@ -4,6 +4,8 @@ import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import {getNotificationID} from 'src/shared/reducers/notifications'
+
 import {
   publishNotification as publishNotificationAction,
   dismissNotification as dismissNotificationAction,
@@ -25,7 +27,10 @@ class Notifications extends Component {
   }
 
   renderNotification(type, message) {
-    if (!message) {
+    const isDismissed = this.props.dismissedNotifications[
+      getNotificationID(message, type)
+    ]
+    if (!message || isDismissed) {
       return null
     }
     const cls = classnames('alert', {
@@ -86,10 +91,12 @@ Notifications.propTypes = {
     error: string,
     warning: string,
   }),
+  dismissedNotifications: shape({}),
 }
 
-const mapStateToProps = ({notifications}) => ({
+const mapStateToProps = ({notifications, dismissedNotifications}) => ({
   notifications,
+  dismissedNotifications,
 })
 
 const mapDispatchToProps = dispatch => ({

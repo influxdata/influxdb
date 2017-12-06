@@ -44,7 +44,8 @@ class TickscriptPage extends Component {
         })
         notify(
           'warning',
-          'Could not use logging, requires Kapacitor version 1.4'
+          'Could not use logging, requires Kapacitor version 1.4',
+          {once: true}
         )
         return
       }
