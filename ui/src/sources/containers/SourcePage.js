@@ -131,10 +131,12 @@ class SourcePage extends Component {
 
   _createSource = () => {
     const {source} = this.state
+    const {notify} = this.props
     createSource(source)
       .then(({data: sourceFromServer}) => {
         this.props.addSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
+        notify('success', `New source ${source.name} added`)
       })
       .catch(error => {
         this.handleError('Unable to create source', error)
@@ -148,7 +150,7 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.updateSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', `New source ${source.name} added`)
+        notify('success', `Source ${source.name} updated`)
       })
       .catch(error => {
         this.handleError('Unable to update source', error)
