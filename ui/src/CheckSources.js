@@ -3,7 +3,12 @@ import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {isUserAuthorized, MEMBER_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
+import {
+  isUserAuthorized,
+  MEMBER_ROLE,
+  VIEWER_ROLE,
+  ADMIN_ROLE,
+} from 'src/auth/Authorized'
 
 import {showDatabases} from 'shared/apis/metaQuery'
 
@@ -67,6 +72,13 @@ class CheckSources extends Component {
     const {isFetching} = nextState
     const source = sources.find(s => s.id === params.sourceID)
     const defaultSource = sources.find(s => s.default === true)
+
+    if (
+      isUserAuthorized(this.props.auth.me.role, ADMIN_ROLE) &&
+      !isUserAuthorized(nextProps.auth.me.role, ADMIN_ROLE)
+    ) {
+      return router.push('/')
+    }
 
     if (
       !isFetching &&
