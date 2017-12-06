@@ -229,12 +229,12 @@ func Test_KapacitorRulesGet(t *testing.T) {
 			bg := context.Background()
 			params := httprouter.Params{
 				{
-					"id",
-					"1",
+					Key:   "id",
+					Value: "1",
 				},
 				{
-					"kid",
-					"1",
+					Key:   "kid",
+					Value: "1",
 				},
 			}
 			ctx := httprouter.WithParams(bg, params)
@@ -260,8 +260,8 @@ func Test_KapacitorRulesGet(t *testing.T) {
 
 			actual := make([]chronograf.AlertRule, len(frame.Rules))
 
-			for idx, _ := range frame.Rules {
-				actual[idx] = frame.Rules[idx].AlertRule
+			for i := range frame.Rules {
+				actual[i] = frame.Rules[i].AlertRule
 			}
 
 			if resp.StatusCode != http.StatusOK {

@@ -1,5 +1,7 @@
 ## v1.3.11.0 [unreleased]
 ### Bug Fixes
+1. [#2449](https://github.com/influxdata/chronograf/pull/2449): Fix .jsdep step fails when LDFLAGS is exported
+1. [#2157](https://github.com/influxdata/chronograf/pull/2157): Fix logscale producing console errors when only one point in graph
 1. [#2157](https://github.com/influxdata/chronograf/pull/2157): Fix logscale producing console errors when only one point in graph
 1. [#2158](https://github.com/influxdata/chronograf/pull/2158): Fix 'Cannot connect to source' false error flag on Dashboard page
 1. [#2167](https://github.com/influxdata/chronograf/pull/2167): Add fractions of seconds to time field in csv export
@@ -8,9 +10,34 @@
 1. [#2291](https://github.com/influxdata/chronograf/pull/2291): Fix several kapacitor alert creation panics.
 1. [#2303](https://github.com/influxdata/chronograf/pull/2303): Add shadow-utils to RPM release packages
 1. [#2292](https://github.com/influxdata/chronograf/pull/2292): Source extra command line options from defaults file
+1. [#2327](https://github.com/influxdata/chronograf/pull/2327): After CREATE/DELETE queries, refresh list of databases in Data Explorer
+1. [#2327](https://github.com/influxdata/chronograf/pull/2327): Visualize CREATE/DELETE queries with Table view in Data Explorer
 1. [#2329](https://github.com/influxdata/chronograf/pull/2329): Include tag values alongside measurement name in Data Explorer result tabs
+1. [#2410](https://github.com/influxdata/chronograf/pull/2410): Redesign cell display options panel
+1. [#2410](https://github.com/influxdata/chronograf/pull/2410): Introduce customizable Gauge visualization type for dashboard cells
+1. [#2386](https://github.com/influxdata/chronograf/pull/2386): Fix queries that include regex, numbers and wildcard
+1. [#2398](https://github.com/influxdata/chronograf/pull/2398): Fix apps on hosts page from parsing tags with null values
+1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
+1. [#2444](https://github.com/influxdata/chronograf/pull/2444): Fix create dashboard button
+1. [#2416](https://github.com/influxdata/chronograf/pull/2416): Fix default y-axis labels not displaying properly
+1. [#2423](https://github.com/influxdata/chronograf/pull/2423): Gracefully scale Template Variables Manager overlay on smaller displays
+1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Fix Influx Enterprise users from deletion in race condition
+1. [#2467](https://github.com/influxdata/chronograf/pull/2467): Fix oauth2 logout link not having basepath
+1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
+1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Fix hoverline intermittently not rendering
+1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
 
 ### Features
+1. [#2188](https://github.com/influxdata/chronograf/pull/2188): Add Kapacitor logs to the TICKscript editor
+1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
+1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
+1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Add auto group by time to Data Explorer
+1. [#2456](https://github.com/influxdata/chronograf/pull/2456): Add boolean thresholds for kapacitor threshold alerts
+1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
+1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
+1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
+
 ### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]
@@ -33,7 +60,7 @@
 ### UI Improvements
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
 1. [#2120](https://github.com/influxdata/chronograf/pull/2120): Improve appearance of Admin Page tabs on smaller screens
-1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add cancel button to Tickscript editor
+1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add cancel button to TICKscript editor
 1. [#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard naming & renaming interaction
 1. [#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard switching dropdown
 
@@ -53,7 +80,7 @@
 
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
-1. [#1978](https://github.com/influxdata/chronograf/pull/1978): Support editing kapacitor TICKScript
+1. [#1978](https://github.com/influxdata/chronograf/pull/1978): Support editing kapacitor TICKscript
 1. [#1721](https://github.com/influxdata/chronograf/pull/1721): Introduce the TICKscript editor UI
 1. [#1992](https://github.com/influxdata/chronograf/pull/1992): Add .csv download button to data explorer
 1. [#2082](https://github.com/influxdata/chronograf/pull/2082): Add Data Explorer InfluxQL query and location query synchronization, so queries can be shared via a a URL

@@ -219,6 +219,13 @@ func Test_newDashboardResponse(t *testing.T) {
 							{
 								Source:  "/chronograf/v1/sources/1",
 								Command: "SELECT donors from hill_valley_preservation_society where time > '1985-10-25 08:00:00'",
+								Shifts: []chronograf.TimeShift{
+									{
+										Label:    "Best Week Evar",
+										Unit:     "d",
+										Quantity: "7",
+									},
+								},
 							},
 						},
 						Axes: map[string]chronograf.Axis{
@@ -267,9 +274,17 @@ func Test_newDashboardResponse(t *testing.T) {
 										},
 										Tags:            make(map[string][]string, 0),
 										AreTagsAccepted: false,
+										Shifts: []chronograf.TimeShift{
+											{
+												Label:    "Best Week Evar",
+												Unit:     "d",
+												Quantity: "7",
+											},
+										},
 									},
 								},
 							},
+							CellColors: []chronograf.CellColor{},
 							Axes: map[string]chronograf.Axis{
 								"x": chronograf.Axis{
 									Bounds: []string{"0", "100"},
@@ -303,6 +318,7 @@ func Test_newDashboardResponse(t *testing.T) {
 									Bounds: []string{},
 								},
 							},
+							CellColors: []chronograf.CellColor{},
 							Queries: []chronograf.DashboardQuery{
 								{
 									Command: "SELECT winning_horses from grays_sports_alamanc where time > now() - 15m",

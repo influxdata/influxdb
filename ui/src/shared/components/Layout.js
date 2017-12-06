@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
-import {buildQueriesForLayouts} from 'utils/influxql'
+import {buildQueriesForLayouts} from 'utils/buildQueriesForLayouts'
 
 import _ from 'lodash'
 
@@ -43,7 +43,7 @@ const Layout = (
   {
     host,
     cell,
-    cell: {h, axes, type},
+    cell: {h, axes, type, colors},
     source,
     sources,
     onZoom,
@@ -75,6 +75,7 @@ const Layout = (
     {cell.isWidget
       ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
       : <RefreshingGraph
+          colors={colors}
           axes={axes}
           type={type}
           cellHeight={h}
@@ -125,6 +126,15 @@ const propTypes = {
     i: string.isRequired,
     name: string.isRequired,
     type: string.isRequired,
+    colors: arrayOf(
+      shape({
+        type: string.isRequired,
+        hex: string.isRequired,
+        id: string.isRequired,
+        name: string.isRequired,
+        value: string.isRequired,
+      }).isRequired
+    ),
   }).isRequired,
   templates: arrayOf(shape()),
   host: string,

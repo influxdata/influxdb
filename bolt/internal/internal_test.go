@@ -163,6 +163,7 @@ func Test_MarshalDashboard(t *testing.T) {
 							Upper: int64(100),
 						},
 						Source: "/chronograf/v1/sources/1",
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
@@ -176,6 +177,22 @@ func Test_MarshalDashboard(t *testing.T) {
 					},
 				},
 				Type: "line",
+				CellColors: []chronograf.CellColor{
+					{
+						ID:    "myid",
+						Type:  "min",
+						Hex:   "#234567",
+						Name:  "Laser",
+						Value: "0",
+					},
+					{
+						ID:    "id2",
+						Type:  "max",
+						Hex:   "#876543",
+						Name:  "Solitude",
+						Value: "100",
+					},
+				},
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -210,11 +227,28 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
 					"y": chronograf.Axis{
 						LegacyBounds: [2]int64{0, 5},
+					},
+				},
+				CellColors: []chronograf.CellColor{
+					{
+						ID:    "myid",
+						Type:  "min",
+						Hex:   "#234567",
+						Name:  "Laser",
+						Value: "0",
+					},
+					{
+						ID:    "id2",
+						Type:  "max",
+						Hex:   "#876543",
+						Name:  "Solitude",
+						Value: "100",
 					},
 				},
 				Type: "line",
@@ -241,6 +275,7 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
@@ -248,6 +283,22 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 						Bounds: []string{},
 						Base:   "10",
 						Scale:  "linear",
+					},
+				},
+				CellColors: []chronograf.CellColor{
+					{
+						ID:    "myid",
+						Type:  "min",
+						Hex:   "#234567",
+						Name:  "Laser",
+						Value: "0",
+					},
+					{
+						ID:    "id2",
+						Type:  "max",
+						Hex:   "#876543",
+						Name:  "Solitude",
+						Value: "100",
 					},
 				},
 				Type: "line",
@@ -285,11 +336,28 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
 					"y": chronograf.Axis{
 						LegacyBounds: [2]int64{},
+					},
+				},
+				CellColors: []chronograf.CellColor{
+					{
+						ID:    "myid",
+						Type:  "min",
+						Hex:   "#234567",
+						Name:  "Laser",
+						Value: "0",
+					},
+					{
+						ID:    "id2",
+						Type:  "max",
+						Hex:   "#876543",
+						Name:  "Solitude",
+						Value: "100",
 					},
 				},
 				Type: "line",
@@ -316,6 +384,7 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Shifts: []chronograf.TimeShift{},
 					},
 				},
 				Axes: map[string]chronograf.Axis{
@@ -323,6 +392,22 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 						Bounds: []string{},
 						Base:   "10",
 						Scale:  "linear",
+					},
+				},
+				CellColors: []chronograf.CellColor{
+					{
+						ID:    "myid",
+						Type:  "min",
+						Hex:   "#234567",
+						Name:  "Laser",
+						Value: "0",
+					},
+					{
+						ID:    "id2",
+						Type:  "max",
+						Hex:   "#876543",
+						Name:  "Solitude",
+						Value: "100",
 					},
 				},
 				Type: "line",

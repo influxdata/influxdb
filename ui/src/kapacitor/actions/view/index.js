@@ -66,7 +66,7 @@ export const getRule = (kapacitor, ruleID) => async dispatch => {
   }
 }
 
-export function loadDefaultRule() {
+export const loadDefaultRule = () => {
   return dispatch => {
     const queryID = uuid.v4()
     dispatch({
@@ -88,15 +88,13 @@ export const fetchRules = kapacitor => async dispatch => {
   }
 }
 
-export function chooseTrigger(ruleID, trigger) {
-  return {
-    type: 'CHOOSE_TRIGGER',
-    payload: {
-      ruleID,
-      trigger,
-    },
-  }
-}
+export const chooseTrigger = (ruleID, trigger) => ({
+  type: 'CHOOSE_TRIGGER',
+  payload: {
+    ruleID,
+    trigger,
+  },
+})
 
 export const addEvery = (ruleID, frequency) => ({
   type: 'ADD_EVERY',
@@ -113,36 +111,30 @@ export const removeEvery = ruleID => ({
   },
 })
 
-export function updateRuleValues(ruleID, trigger, values) {
-  return {
-    type: 'UPDATE_RULE_VALUES',
-    payload: {
-      ruleID,
-      trigger,
-      values,
-    },
-  }
-}
+export const updateRuleValues = (ruleID, trigger, values) => ({
+  type: 'UPDATE_RULE_VALUES',
+  payload: {
+    ruleID,
+    trigger,
+    values,
+  },
+})
 
-export function updateMessage(ruleID, message) {
-  return {
-    type: 'UPDATE_RULE_MESSAGE',
-    payload: {
-      ruleID,
-      message,
-    },
-  }
-}
+export const updateMessage = (ruleID, message) => ({
+  type: 'UPDATE_RULE_MESSAGE',
+  payload: {
+    ruleID,
+    message,
+  },
+})
 
-export function updateDetails(ruleID, details) {
-  return {
-    type: 'UPDATE_RULE_DETAILS',
-    payload: {
-      ruleID,
-      details,
-    },
-  }
-}
+export const updateDetails = (ruleID, details) => ({
+  type: 'UPDATE_RULE_DETAILS',
+  payload: {
+    ruleID,
+    details,
+  },
+})
 
 export const updateAlertProperty = (ruleID, alertNodeName, alertProperty) => ({
   type: 'UPDATE_RULE_ALERT_PROPERTY',
@@ -160,66 +152,56 @@ export function updateAlertNodes(ruleID, alerts) {
   }
 }
 
-export function updateRuleName(ruleID, name) {
-  return {
-    type: 'UPDATE_RULE_NAME',
-    payload: {
-      ruleID,
-      name,
-    },
-  }
+export const updateRuleName = (ruleID, name) => ({
+  type: 'UPDATE_RULE_NAME',
+  payload: {
+    ruleID,
+    name,
+  },
+})
+
+export const deleteRuleSuccess = ruleID => ({
+  type: 'DELETE_RULE_SUCCESS',
+  payload: {
+    ruleID,
+  },
+})
+
+export const updateRuleStatusSuccess = (ruleID, status) => ({
+  type: 'UPDATE_RULE_STATUS_SUCCESS',
+  payload: {
+    ruleID,
+    status,
+  },
+})
+
+export const deleteRule = rule => dispatch => {
+  deleteRuleAPI(rule)
+    .then(() => {
+      dispatch(deleteRuleSuccess(rule.id))
+      dispatch(
+        publishNotification('success', `${rule.name} deleted successfully`)
+      )
+    })
+    .catch(() => {
+      dispatch(
+        publishNotification('error', `${rule.name} could not be deleted`)
+      )
+    })
 }
 
-export function deleteRuleSuccess(ruleID) {
-  return {
-    type: 'DELETE_RULE_SUCCESS',
-    payload: {
-      ruleID,
-    },
-  }
-}
-
-export function updateRuleStatusSuccess(ruleID, status) {
-  return {
-    type: 'UPDATE_RULE_STATUS_SUCCESS',
-    payload: {
-      ruleID,
-      status,
-    },
-  }
-}
-
-export function deleteRule(rule) {
-  return dispatch => {
-    deleteRuleAPI(rule)
-      .then(() => {
-        dispatch(deleteRuleSuccess(rule.id))
-        dispatch(
-          publishNotification('success', `${rule.name} deleted successfully`)
-        )
-      })
-      .catch(() => {
-        dispatch(
-          publishNotification('error', `${rule.name} could not be deleted`)
-        )
-      })
-  }
-}
-
-export function updateRuleStatus(rule, status) {
-  return dispatch => {
-    updateRuleStatusAPI(rule, status)
-      .then(() => {
-        dispatch(
-          publishNotification('success', `${rule.name} ${status} successfully`)
-        )
-      })
-      .catch(() => {
-        dispatch(
-          publishNotification('error', `${rule.name} could not be ${status}`)
-        )
-      })
-  }
+export const updateRuleStatus = (rule, status) => dispatch => {
+  updateRuleStatusAPI(rule, status)
+    .then(() => {
+      dispatch(
+        publishNotification('success', `${rule.name} ${status} successfully`)
+      )
+    })
+    .catch(() => {
+      dispatch(
+        publishNotification('error', `${rule.name} could not be ${status}`)
+      )
+    })
 }
 
 export const createTask = (

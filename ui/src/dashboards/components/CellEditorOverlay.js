@@ -22,12 +22,21 @@ import {
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {AUTO_GROUP_BY} from 'shared/constants'
+import {
+  COLOR_TYPE_THRESHOLD,
+  MAX_THRESHOLDS,
+  DEFAULT_COLORS,
+  GAUGE_COLORS,
+  COLOR_TYPE_MIN,
+  COLOR_TYPE_MAX,
+  validateColors,
+} from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {name, type, queries, axes}, sources} = props
+    const {cell: {name, type, queries, axes, colors}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -47,6 +56,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
+      colors: validateColors(colors) ? colors : DEFAULT_COLORS,
     }
   }
 
@@ -61,6 +71,111 @@ class CellEditorOverlay extends Component {
         this.setState({queriesWorkingDraft: nextQueries})
       }
     }
+  }
+
+  handleAddThreshold = () => {
+    const {colors} = this.state
+
+    if (colors.length <= MAX_THRESHOLDS) {
+      const randomColor = _.random(0, GAUGE_COLORS.length)
+
+      const maxValue = Number(
+        colors.find(color => color.type === COLOR_TYPE_MAX).value
+      )
+      const minValue = Number(
+        colors.find(color => color.type === COLOR_TYPE_MIN).value
+      )
+
+      const colorsValues = _.mapValues(colors, 'value')
+      let randomValue
+
+      do {
+        randomValue = `${_.round(_.random(minValue, maxValue, true), 2)}`
+      } while (_.includes(colorsValues, randomValue))
+
+      const newThreshold = {
+        type: COLOR_TYPE_THRESHOLD,
+        id: uuid.v4(),
+        value: randomValue,
+        hex: GAUGE_COLORS[randomColor].hex,
+        name: GAUGE_COLORS[randomColor].name,
+      }
+
+      this.setState({colors: [...colors, newThreshold]})
+    }
+  }
+
+  handleDeleteThreshold = threshold => () => {
+    const {colors} = this.state
+
+    const newColors = colors.filter(color => color.id !== threshold.id)
+
+    this.setState({colors: newColors})
+  }
+
+  handleChooseColor = threshold => chosenColor => {
+    const {colors} = this.state
+
+    const newColors = colors.map(
+      color =>
+        color.id === threshold.id
+          ? {...color, hex: chosenColor.hex, name: chosenColor.name}
+          : color
+    )
+
+    this.setState({colors: newColors})
+  }
+
+  handleUpdateColorValue = (threshold, newValue) => {
+    const {colors} = this.state
+    const newColors = colors.map(
+      color => (color.id === threshold.id ? {...color, value: newValue} : color)
+    )
+    this.setState({colors: newColors})
+  }
+
+  handleValidateColorValue = (threshold, e) => {
+    const {colors} = this.state
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
+    const targetValueNumber = Number(e.target.value)
+
+    const maxValue = Number(
+      colors.find(color => color.type === COLOR_TYPE_MAX).value
+    )
+    const minValue = Number(
+      colors.find(color => color.type === COLOR_TYPE_MIN).value
+    )
+
+    let allowedToUpdate = false
+
+    // If type === min, make sure it is less than the next threshold
+    if (threshold.type === COLOR_TYPE_MIN) {
+      const nextValue = Number(sortedColors[1].value)
+      allowedToUpdate = targetValueNumber < nextValue && targetValueNumber >= 0
+    }
+    // If type === max, make sure it is greater than the previous threshold
+    if (threshold.type === COLOR_TYPE_MAX) {
+      const previousValue = Number(sortedColors[sortedColors.length - 2].value)
+      allowedToUpdate = previousValue < targetValueNumber
+    }
+    // If type === threshold, make sure new value is greater than min, less than max, and unique
+    if (threshold.type === COLOR_TYPE_THRESHOLD) {
+      const greaterThanMin = targetValueNumber > minValue
+      const lessThanMax = targetValueNumber < maxValue
+
+      const colorsWithoutMinOrMax = sortedColors.slice(
+        1,
+        sortedColors.length - 1
+      )
+
+      const isUnique = !colorsWithoutMinOrMax.some(
+        color => color.value === e.target.value
+      )
+
+      allowedToUpdate = greaterThanMin && lessThanMax && isUnique
+    }
+
+    return allowedToUpdate
   }
 
   queryStateReducer = queryModifier => (queryID, ...payload) => {
@@ -145,6 +260,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       cellWorkingName: name,
       axes,
+      colors,
     } = this.state
 
     const {cell} = this.props
@@ -166,6 +282,7 @@ class CellEditorOverlay extends Component {
       type,
       queries,
       axes,
+      colors,
     })
   }
 
@@ -296,6 +413,7 @@ class CellEditorOverlay extends Component {
 
     const {
       axes,
+      colors,
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
@@ -323,6 +441,7 @@ class CellEditorOverlay extends Component {
         >
           <Visualization
             axes={axes}
+            colors={colors}
             type={cellWorkingType}
             name={cellWorkingName}
             timeRange={timeRange}
@@ -347,6 +466,12 @@ class CellEditorOverlay extends Component {
             {isDisplayOptionsTabActive
               ? <DisplayOptions
                   axes={axes}
+                  colors={colors}
+                  onChooseColor={this.handleChooseColor}
+                  onValidateColorValue={this.handleValidateColorValue}
+                  onUpdateColorValue={this.handleUpdateColorValue}
+                  onAddThreshold={this.handleAddThreshold}
+                  onDeleteThreshold={this.handleDeleteThreshold}
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}

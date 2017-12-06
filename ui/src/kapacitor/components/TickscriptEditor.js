@@ -21,7 +21,13 @@ class TickscriptEditor extends Component {
     }
 
     return (
-      <CodeMirror value={script} onChange={this.updateCode} options={options} />
+      <div className="tickscript-editor">
+        <CodeMirror
+          value={script}
+          onChange={this.updateCode}
+          options={options}
+        />
+      </div>
     )
   }
 }

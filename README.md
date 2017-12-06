@@ -1,6 +1,8 @@
 # Chronograf
 
-Chronograf is an open-source web application written in Go and React.js that provides the tools to visualize your monitoring data and easily create alerting and automation rules.
+Chronograf is an open-source web application written in Go and React.js that
+provides the tools to visualize your monitoring data and easily create alerting
+and automation rules.
 
 <p align="left">
   <img src="https://github.com/influxdata/chronograf/blob/master/docs/images/overview-readme.png"/>
@@ -16,8 +18,11 @@ Chronograf is an open-source web application written in Go and React.js that pro
 
 ### Dashboard Templates
 
-Chronograf's [pre-canned dashboards](https://github.com/influxdata/chronograf/tree/master/canned) for the supported [Telegraf](https://github.com/influxdata/telegraf) input plugins.
-Currently, Chronograf offers dashboard templates for the following Telegraf input plugins:
+Chronograf's
+[pre-canned dashboards](https://github.com/influxdata/chronograf/tree/master/canned)
+for the supported [Telegraf](https://github.com/influxdata/telegraf) input
+plugins. Currently, Chronograf offers dashboard templates for the following
+Telegraf input plugins:
 
 * [Apache](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/apache)
 * [Consul](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/consul)
@@ -43,40 +48,49 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * [Redis](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/redis)
 * [Riak](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/riak)
 * [System](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md)
-    * [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md)
-    * [Disk](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/DISK_README.md)
-    * [DiskIO](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/disk.go#L136)
-    * [Memory](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/MEM_README.md)
-    * [Net](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/net.go)
-    * [Netstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/NETSTAT_README.md)
-    * [Processes](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/PROCESSES_README.md)
-    * [Procstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/procstat/README.md)
+  * [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md)
+  * [Disk](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/DISK_README.md)
+  * [DiskIO](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/disk.go#L136)
+  * [Memory](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/MEM_README.md)
+  * [Net](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/net.go)
+  * [Netstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/NETSTAT_README.md)
+  * [Processes](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/PROCESSES_README.md)
+  * [Procstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/procstat/README.md)
 * [Varnish](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/varnish)
 * [Windows Performance Counters](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/win_perf_counters)
 
-> Note: If a `telegraf` instance isn't running the `system` and `cpu` plugins the canned dashboards from that instance won't be generated.
+> Note: If a `telegraf` instance isn't running the `system` and `cpu` plugins
+> the canned dashboards from that instance won't be generated.
 
 ### Data Explorer
 
-Chronograf's graphing tool that allows you to dig in and create personalized visualizations of your data.
+Chronograf's graphing tool that allows you to dig in and create personalized
+visualizations of your data.
 
-* Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the query editor
+* Generate and edit
+  [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/)
+  statements with the query editor
 * Use Chronograf's query templates to easily explore your data
 * Create visualizations and view query results in tabular format
 
 ### Dashboards
 
-Create and edit customized dashboards. The dashboards support several visualization types including line graphs, stacked graphs, step plots, single statistic graphs, and line-single-statistic graphs.
+Create and edit customized dashboards. The dashboards support several
+visualization types including line graphs, stacked graphs, step plots, single
+statistic graphs, and line-single-statistic graphs.
 
-Use Chronograf's template variables to easily adjust the data that appear in your graphs and gain deeper insight into your data.
+Use Chronograf's template variables to easily adjust the data that appear in
+your graphs and gain deeper insight into your data.
 
 ### Kapacitor UI
 
-A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and alert tracking.
+A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
+alert tracking.
 
 * Simply generate threshold, relative, and deadman alerts
 * Preview data and alert boundaries while creating an alert
-* Configure alert destinations - Currently, Chronograf supports sending alerts to:
+* Configure alert destinations - Currently, Chronograf supports sending alerts
+  to:
   * [Alerta](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta)
   * [Exec](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#exec)
   * [HipChat](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#hipchat)
@@ -96,45 +110,71 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 
 ### User and Query Management
 
-Manage users, roles, permissions for [OSS InfluxDB](https://github.com/influxdata/influxdb) and InfluxData's [Enterprise](https://docs.influxdata.com/enterprise/v1.2/) product.
-View actively running queries and stop expensive queries on the Query Management page.
+Manage users, roles, permissions for
+[OSS InfluxDB](https://github.com/influxdata/influxdb) and InfluxData's
+[Enterprise](https://docs.influxdata.com/enterprise/v1.2/) product. View
+actively running queries and stop expensive queries on the Query Management
+page.
 
 ### TLS/HTTPS Support
-See [Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) for more information.
+
+See
+[Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md)
+for more information.
 
 ### OAuth Login
-See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
+
+See
+[Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md)
+for more information.
 
 ### Advanced Routing
-Change the default root path of the Chronograf server with the `--basepath` option.
+
+Change the default root path of the Chronograf server with the `--basepath`
+option.
 
 ## Versions
 
-The most recent version of Chronograf is [v1.3.10.0](https://www.influxdata.com/downloads/).
+The most recent version of Chronograf is
+[v1.3.10.0](https://www.influxdata.com/downloads/).
 
-Spotted a bug or have a feature request?
-Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
+Spotted a bug or have a feature request? Please open
+[an issue](https://github.com/influxdata/chronograf/issues/new)!
 
 ### Known Issues
 
 The Chronograf team has identified and is working on the following issues:
 
-* Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
+* Chronograf requires users to run Telegraf's
+  [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md)
+  and
+  [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md)
+  plugins to ensure that all Apps appear on the
+  [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list)
+  page.
 
 ## Installation
 
-Check out the [INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/installation/) guide to get up and running with Chronograf with as little configuration and code as possible.
+Check out the
+[INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/installation/)
+guide to get up and running with Chronograf with as little configuration and
+code as possible.
 
-We recommend installing Chronograf using one of the [pre-built packages](https://influxdata.com/downloads/#chronograf). Then start Chronograf using:
+We recommend installing Chronograf using one of the
+[pre-built packages](https://influxdata.com/downloads/#chronograf). Then start
+Chronograf using:
 
-* `service chronograf start` if you have installed Chronograf using an official Debian or RPM package.
-* `systemctl start chronograf` if you have installed Chronograf using an official Debian or RPM package, and are running a distro with `systemd`. For example, Ubuntu 15 or later.
+* `service chronograf start` if you have installed Chronograf using an official
+  Debian or RPM package.
+* `systemctl start chronograf` if you have installed Chronograf using an
+  official Debian or RPM package, and are running a distro with `systemd`. For
+  example, Ubuntu 15 or later.
 * `$GOPATH/bin/chronograf` if you have built Chronograf from source.
 
 By default, chronograf runs on port `8888`.
 
-
 ### With Docker
+
 To get started right away with Docker, you can pull down our latest release:
 
 ```sh
@@ -144,7 +184,8 @@ docker pull chronograf:1.3.10.0
 ### From Source
 
 * Chronograf works with go 1.8.x, node 6.x/7.x, and yarn 0.18+.
-* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.2.x+ to create and store alerts.
+* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor)
+  1.2.x+ to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)
 1. [Install Node and NPM](https://nodejs.org/en/download/)
@@ -157,11 +198,23 @@ docker pull chronograf:1.3.10.0
 
 ## Documentation
 
-[Getting Started](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/) will get you up and running with Chronograf with as little configuration and code as possible.
-See our [guides](https://docs.influxdata.com/chronograf/v1.3/guides/) to get familiar with Chronograf's main features.
+[Getting Started](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/)
+will get you up and running with Chronograf with as little configuration and
+code as possible. See our
+[guides](https://docs.influxdata.com/chronograf/v1.3/guides/) to get familiar
+with Chronograf's main features.
 
-Documentation for Telegraf, InfluxDB, and Kapacitor are available at https://docs.influxdata.com/.
+Documentation for Telegraf, InfluxDB, and Kapacitor are available at
+https://docs.influxdata.com/.
+
+Chronograf uses
+[swagger](https://swagger.io/specification://swagger.io/specification/) to
+document its REST interfaces. To reach the documentation, run the server and go
+to the `/docs` for example at http://localhost:8888/docs
+
+The swagger JSON document is in `server/swagger.json`
 
 ## Contributing
 
-Please see the [contributing guide](CONTRIBUTING.md) for details on contributing to Chronograf.
+Please see the [contributing guide](CONTRIBUTING.md) for details on contributing
+to Chronograf.

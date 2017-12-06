@@ -8,6 +8,7 @@ YARN := $(shell command -v yarn 2> /dev/null)
 SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go' -not -path "./vendor/*" )
 UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -prune \) )
 
+unexport LDFLAGS
 LDFLAGS=-ldflags "-s -X main.version=${VERSION} -X main.commit=${COMMIT}"
 BINARY=chronograf
 
@@ -23,23 +24,14 @@ ${BINARY}: $(SOURCES) .bindata .jsdep .godep
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
 
 define CHRONOGIRAFFE
-             .-.  .-.
-             |  \/  |
-            /,   ,_  `'-.
-          .-|\   /`\     '.
-        .'  0/   | 0\  \_  `".
-     .-'  _,/    '--'.'|#''---'
-      `--'  |       /   \#
-            |      /     \#
-            \     ;|\    .\#
-            |' ' //  \   ::\#
-            \   /`    \   ':\#
-             `"`       \..   \#
-                        \::.  \#
-                         \::   \#
-                          \'  .:\#
-                           \  :::\#
-                            \  '::\#
+             ._ o o
+             \_`-)|_
+          ,""      _\_
+        ,"  ## |   0 0.
+      ," ##   ,-\__    `.
+    ,"       /     `--._;) - "HAI, I'm Chronogiraffe. Let's be friends!"
+  ,"     ## /
+,"   ##    /
 endef
 export CHRONOGIRAFFE
 chronogiraffe: ${BINARY}

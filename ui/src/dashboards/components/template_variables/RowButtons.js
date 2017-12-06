@@ -1,33 +1,30 @@
 import React, {PropTypes} from 'react'
 import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
 
-const RowButtons = ({
-  onStartEdit,
-  isEditing,
-  onCancelEdit,
-  onDelete,
-  id,
-  selectedType,
-}) => {
+const RowButtons = ({onStartEdit, isEditing, onCancelEdit, onDelete, id}) => {
   if (isEditing) {
     return (
       <div className="tvm-actions">
         <button
-          className="btn btn-sm btn-info"
+          className="btn btn-sm btn-info btn-square"
           type="button"
           onClick={onCancelEdit}
         >
-          Cancel
+          <span className="icon remove" />
         </button>
-        <button className="btn btn-sm btn-success" type="submit">
-          {selectedType === 'csv' ? 'Save Values' : 'Get Values'}
+        <button className="btn btn-sm btn-success btn-square" type="submit">
+          <span className="icon checkmark" />
         </button>
       </div>
     )
   }
   return (
     <div className="tvm-actions">
-      <DeleteConfirmButtons onDelete={onDelete(id)} />
+      <DeleteConfirmButtons
+        onDelete={onDelete(id)}
+        icon="remove"
+        square={true}
+      />
       <button
         className="btn btn-sm btn-info btn-edit btn-square"
         type="button"

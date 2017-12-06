@@ -83,6 +83,11 @@
   &.graph-single-stat {
     top: 0;
   }
+
+  > canvas.gauge {
+    width: 100% !important;
+    height: 100% !important;
+  }
 }
 .single-stat--value {
   position: absolute;

@@ -5,19 +5,23 @@ import {emptyGraphCopy} from 'src/shared/copy/cell'
 import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
+import GaugeChart from 'shared/components/GaugeChart'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
+const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 
 const RefreshingGraph = ({
   axes,
   type,
+  colors,
   onZoom,
   queries,
   templates,
   timeRange,
   cellHeight,
   autoRefresh,
+  resizerTopHeight,
   manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
@@ -42,6 +46,21 @@ const RefreshingGraph = ({
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+      />
+    )
+  }
+
+  if (type === 'gauge') {
+    return (
+      <RefreshingGaugeChart
+        colors={colors}
+        key={manualRefresh}
+        queries={[queries[0]]}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        cellHeight={cellHeight}
+        resizerTopHeight={resizerTopHeight}
+        resizeCoords={resizeCoords}
       />
     )
   }
@@ -83,12 +102,22 @@ RefreshingGraph.propTypes = {
   synchronizer: func,
   type: string.isRequired,
   cellHeight: number,
+  resizerTopHeight: number,
   axes: shape(),
   queries: arrayOf(shape()).isRequired,
   editQueryStatus: func,
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
 }
 
 RefreshingGraph.defaultProps = {

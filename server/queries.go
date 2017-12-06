@@ -84,6 +84,7 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
 		}
+		qc.Shifts = []chronograf.TimeShift{}
 		qr.QueryConfig = qc
 
 		if stmt, err := queries.ParseSelect(query); err == nil {

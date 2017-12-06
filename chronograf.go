@@ -20,6 +20,8 @@ const (
 	ErrAuthentication    = Error("user not authenticated")
 	ErrUninitialized     = Error("client uninitialized. Call Open() method")
 	ErrInvalidAxis       = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrInvalidColorType  = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold'")
+	ErrInvalidColor      = Error("Invalid color. Accepted color format is #RRGGBB")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -171,6 +173,7 @@ type DashboardQuery struct {
 	Range       *Range      `json:"range,omitempty"`       // Range is the default Y-Axis range for the data
 	QueryConfig QueryConfig `json:"queryConfig,omitempty"` // QueryConfig represents the query state that is understood by the data explorer
 	Source      string      `json:"source"`                // Source is the optional URI to the data source for this queryConfig
+	Shifts      []TimeShift `json:"-"`                     // Shifts represents shifts to apply to an influxql query's time range.  Clients expect the shift to be in the generated QueryConfig
 }
 
 // TemplateQuery is used to retrieve choices for template replacement
@@ -284,6 +287,13 @@ type DurationRange struct {
 	Lower string `json:"lower"`
 }
 
+// TimeShift represents a shift to apply to an influxql query's time range
+type TimeShift struct {
+	Label    string `json:"label"`    // Label user facing description
+	Unit     string `json:"unit"`     // Unit influxql time unit representation i.e. ms, s, m, h, d
+	Quantity string `json:"quantity"` // Quantity number of units
+}
+
 // QueryConfig represents UI query from the data explorer
 type QueryConfig struct {
 	ID              string              `json:"id,omitempty"`
@@ -297,6 +307,7 @@ type QueryConfig struct {
 	Fill            string              `json:"fill,omitempty"`
 	RawText         *string             `json:"rawText"`
 	Range           *DurationRange      `json:"range"`
+	Shifts          []TimeShift         `json:"shifts"`
 }
 
 // KapacitorNode adds arguments and properties to an alert
@@ -443,17 +454,27 @@ type Axis struct {
 	Scale        string   `json:"scale"`  // Scale is the axis formatting scale. Supported: "log", "linear"
 }
 
+// CellColor represents the encoding of data into visualizations
+type CellColor struct {
+	ID    string `json:"id"`    // ID is the unique id of the cell color
+	Type  string `json:"type"`  // Type is how the color is used. Accepted (min,max,threshold)
+	Hex   string `json:"hex"`   // Hex is the hex number of the color
+	Name  string `json:"name"`  // Name is the user-facing name of the hex color
+	Value string `json:"value"` // Value is the data value mapped to this color
+}
+
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	ID      string           `json:"i"`
-	X       int32            `json:"x"`
-	Y       int32            `json:"y"`
-	W       int32            `json:"w"`
-	H       int32            `json:"h"`
-	Name    string           `json:"name"`
-	Queries []DashboardQuery `json:"queries"`
-	Axes    map[string]Axis  `json:"axes"`
-	Type    string           `json:"type"`
+	ID         string           `json:"i"`
+	X          int32            `json:"x"`
+	Y          int32            `json:"y"`
+	W          int32            `json:"w"`
+	H          int32            `json:"h"`
+	Name       string           `json:"name"`
+	Queries    []DashboardQuery `json:"queries"`
+	Axes       map[string]Axis  `json:"axes"`
+	Type       string           `json:"type"`
+	CellColors []CellColor      `json:"colors"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards

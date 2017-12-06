@@ -54,13 +54,13 @@ class KapacitorRulePage extends Component {
   render() {
     const {
       rules,
-      queryConfigs,
       params,
-      ruleActions,
       source,
-      queryConfigActions,
-      addFlashMessage,
       router,
+      ruleActions,
+      queryConfigs,
+      addFlashMessage,
+      queryConfigActions,
     } = this.props
     const {handlersFromConfig, kapacitor} = this.state
     const rule =

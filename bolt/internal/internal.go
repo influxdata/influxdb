@@ -191,11 +191,36 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			if q.Range != nil {
 				r.Upper, r.Lower = q.Range.Upper, q.Range.Lower
 			}
+			q.Shifts = q.QueryConfig.Shifts
 			queries[j] = &Query{
 				Command: q.Command,
 				Label:   q.Label,
 				Range:   r,
 				Source:  q.Source,
+			}
+
+			shifts := make([]*TimeShift, len(q.Shifts))
+			for k := range q.Shifts {
+				shift := &TimeShift{
+					Label:    q.Shifts[k].Label,
+					Unit:     q.Shifts[k].Unit,
+					Quantity: q.Shifts[k].Quantity,
+				}
+
+				shifts[k] = shift
+			}
+
+			queries[j].Shifts = shifts
+		}
+
+		colors := make([]*Color, len(c.CellColors))
+		for j, color := range c.CellColors {
+			colors[j] = &Color{
+				ID:    color.ID,
+				Type:  color.Type,
+				Hex:   color.Hex,
+				Name:  color.Name,
+				Value: color.Value,
 			}
 		}
 
@@ -221,6 +246,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			Queries: queries,
 			Type:    c.Type,
 			Axes:    axes,
+			Colors:  colors,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -277,11 +303,36 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				Label:   q.Label,
 				Source:  q.Source,
 			}
+
 			if q.Range.Upper != q.Range.Lower {
 				queries[j].Range = &chronograf.Range{
 					Upper: q.Range.Upper,
 					Lower: q.Range.Lower,
 				}
+			}
+
+			shifts := make([]chronograf.TimeShift, len(q.Shifts))
+			for k := range q.Shifts {
+				shift := chronograf.TimeShift{
+					Label:    q.Shifts[k].Label,
+					Unit:     q.Shifts[k].Unit,
+					Quantity: q.Shifts[k].Quantity,
+				}
+
+				shifts[k] = shift
+			}
+
+			queries[j].Shifts = shifts
+		}
+
+		colors := make([]chronograf.CellColor, len(c.Colors))
+		for j, color := range c.Colors {
+			colors[j] = chronograf.CellColor{
+				ID:    color.ID,
+				Type:  color.Type,
+				Hex:   color.Hex,
+				Name:  color.Name,
+				Value: color.Value,
 			}
 		}
 
@@ -316,15 +367,16 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		}
 
 		cells[i] = chronograf.DashboardCell{
-			ID:      c.ID,
-			X:       c.X,
-			Y:       c.Y,
-			W:       c.W,
-			H:       c.H,
-			Name:    c.Name,
-			Queries: queries,
-			Type:    c.Type,
-			Axes:    axes,
+			ID:         c.ID,
+			X:          c.X,
+			Y:          c.Y,
+			W:          c.W,
+			H:          c.H,
+			Name:       c.Name,
+			Queries:    queries,
+			Type:       c.Type,
+			Axes:       axes,
+			CellColors: colors,
 		}
 	}
 

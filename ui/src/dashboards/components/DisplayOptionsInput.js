@@ -1,7 +1,15 @@
 import React, {PropTypes} from 'react'
 
-const DisplayOptionsInput = ({id, name, value, onChange, labelText}) =>
-  <div className="form-group col-sm-6">
+const DisplayOptionsInput = ({
+  id,
+  name,
+  value,
+  onChange,
+  labelText,
+  colWidth,
+  placeholder,
+}) =>
+  <div className={`form-group ${colWidth}`}>
     <label htmlFor={name}>
       {labelText}
     </label>
@@ -12,6 +20,7 @@ const DisplayOptionsInput = ({id, name, value, onChange, labelText}) =>
       id={id}
       value={value}
       onChange={onChange}
+      placeholder={placeholder}
     />
   </div>
 
@@ -19,6 +28,8 @@ const {func, string} = PropTypes
 
 DisplayOptionsInput.defaultProps = {
   value: '',
+  colWidth: 'col-sm-6',
+  placeholder: '',
 }
 
 DisplayOptionsInput.propTypes = {
@@ -27,6 +38,8 @@ DisplayOptionsInput.propTypes = {
   value: string.isRequired,
   onChange: func.isRequired,
   labelText: string,
+  colWidth: string,
+  placeholder: string,
 }
 
 export default DisplayOptionsInput

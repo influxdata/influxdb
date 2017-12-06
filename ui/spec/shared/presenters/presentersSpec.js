@@ -1,10 +1,15 @@
-import {buildRoles, buildClusterAccounts} from 'shared/presenters'
+import {
+  buildRoles,
+  buildClusterAccounts,
+  buildDefaultYLabel,
+} from 'shared/presenters'
+import defaultQueryConfig from 'utils/defaultQueryConfig'
 
-describe('Presenters', function() {
-  describe('roles utils', function() {
-    describe('buildRoles', function() {
-      describe('when a role has no users', function() {
-        it("sets a role's users as an empty array", function() {
+describe('Presenters', () => {
+  describe('roles utils', () => {
+    describe('buildRoles', () => {
+      describe('when a role has no users', () => {
+        it("sets a role's users as an empty array", () => {
           const roles = [
             {
               name: 'Marketing',
@@ -20,8 +25,8 @@ describe('Presenters', function() {
         })
       })
 
-      describe('when a role has no permissions', function() {
-        it("set's a roles permission as an empty array", function() {
+      describe('when a role has no permissions', () => {
+        it("set's a roles permission as an empty array", () => {
           const roles = [
             {
               name: 'Marketing',
@@ -35,9 +40,10 @@ describe('Presenters', function() {
         })
       })
 
-      describe('when a role has users and permissions', function() {
-        beforeEach(function() {
-          const roles = [
+      describe('when a role has users and permissions', () => {
+        let roles
+        beforeEach(() => {
+          const rs = [
             {
               name: 'Marketing',
               permissions: {
@@ -49,18 +55,18 @@ describe('Presenters', function() {
             },
           ]
 
-          this.roles = buildRoles(roles)
+          roles = buildRoles(rs)
         })
 
-        it('each role has a name and a list of users (if they exist)', function() {
-          const role = this.roles[0]
+        it('each role has a name and a list of users (if they exist)', () => {
+          const role = roles[0]
           expect(role.name).to.equal('Marketing')
           expect(role.users).to.contain('roley@influxdb.com')
           expect(role.users).to.contain('will@influxdb.com')
         })
 
-        it('transforms permissions into a list of objects and each permission has a list of resources', function() {
-          expect(this.roles[0].permissions).to.eql([
+        it('transforms permissions into a list of objects and each permission has a list of resources', () => {
+          expect(roles[0].permissions).to.eql([
             {
               name: 'ViewAdmin',
               displayName: 'View Admin',
@@ -85,10 +91,10 @@ describe('Presenters', function() {
     })
   })
 
-  describe('cluster utils', function() {
-    describe('buildClusterAccounts', function() {
+  describe('cluster utils', () => {
+    describe('buildClusterAccounts', () => {
       // TODO: break down this test into smaller individual assertions.
-      it('adds role information to each cluster account and parses permissions', function() {
+      it('adds role information to each cluster account and parses permissions', () => {
         const users = [
           {
             name: 'jon@example.com',
@@ -192,7 +198,7 @@ describe('Presenters', function() {
         expect(actual).to.eql(expected)
       })
 
-      it('can handle empty results for users and roles', function() {
+      it('can handle empty results for users and roles', () => {
         const users = undefined
         const roles = undefined
 
@@ -201,7 +207,7 @@ describe('Presenters', function() {
         expect(actual).to.eql([])
       })
 
-      it('sets roles to an empty array if a user has no roles', function() {
+      it('sets roles to an empty array if a user has no roles', () => {
         const users = [
           {
             name: 'ned@example.com',
@@ -214,6 +220,43 @@ describe('Presenters', function() {
 
         expect(actual[0].roles).to.eql([])
       })
+    })
+  })
+
+  describe('buildDefaultYLabel', () => {
+    it('can return the correct string for field', () => {
+      const query = defaultQueryConfig({id: 1})
+      const fields = [{value: 'usage_system', type: 'field'}]
+      const measurement = 'm1'
+      const queryConfig = {...query, measurement, fields}
+      const actual = buildDefaultYLabel(queryConfig)
+
+      expect(actual).to.equal('m1.usage_system')
+    })
+
+    it('can return the correct string for funcs with args', () => {
+      const query = defaultQueryConfig({id: 1})
+      const field = {value: 'usage_system', type: 'field'}
+      const args = {
+        value: 'mean',
+        type: 'func',
+        args: [field],
+        alias: '',
+      }
+
+      const f1 = {
+        value: 'derivative',
+        type: 'func',
+        args: [args],
+        alias: '',
+      }
+
+      const fields = [f1]
+      const measurement = 'm1'
+      const queryConfig = {...query, measurement, fields}
+      const actual = buildDefaultYLabel(queryConfig)
+
+      expect(actual).to.equal('m1.derivative_mean_usage_system')
     })
   })
 })

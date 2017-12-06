@@ -189,6 +189,9 @@ var trigger = data
         .slack()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -333,6 +336,9 @@ var trigger = data
         .email()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -479,6 +485,9 @@ var trigger = data
         .email()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -636,6 +645,9 @@ var trigger = data
         .slack()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -792,6 +804,9 @@ var trigger = data
         .slack()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -948,6 +963,9 @@ var trigger = data
         .slack()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -1087,6 +1105,9 @@ var trigger = data
         .slack()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -1254,6 +1275,9 @@ var trigger = past
         .slack()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -1421,6 +1445,9 @@ var trigger = past
         .slack()
 
 trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)
@@ -1567,6 +1594,9 @@ trigger
     |eval(lambda: "emitted")
         .as('value')
         .keep('value', messageField, durationField)
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
     |influxDBOut()
         .create()
         .database(outputDB)

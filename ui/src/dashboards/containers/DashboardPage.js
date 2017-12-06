@@ -34,18 +34,18 @@ class DashboardPage extends Component {
     super(props)
 
     this.state = {
-      dygraphs: [],
       isEditMode: false,
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
-      names: [],
     }
   }
 
+  dygraphs = []
+
   async componentDidMount() {
     const {
-      params: {dashboardID, sourceID},
+      params: {dashboardID},
       dashboardActions: {
         getDashboardsAsync,
         updateTempVarValues,
@@ -62,13 +62,6 @@ class DashboardPage extends Component {
     // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
     await putDashboardByID(dashboardID)
-
-    const names = dashboards.map(d => ({
-      name: d.name,
-      link: `/sources/${sourceID}/dashboards/${d.id}`,
-    }))
-
-    this.setState({names})
   }
 
   handleOpenTemplateManager = () => {
@@ -178,16 +171,19 @@ class DashboardPage extends Component {
   }
 
   synchronizer = dygraph => {
-    const dygraphs = [...this.state.dygraphs, dygraph].filter(d => d.graphDiv)
+    const dygraphs = [...this.dygraphs, dygraph].filter(d => d.graphDiv)
     const {dashboards, params: {dashboardID}} = this.props
 
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
     )
 
+    // Get only the graphs that can sync the hover line
+    const graphsToSync = dashboard.cells.filter(c => c.type !== 'single-stat')
+
     if (
       dashboard &&
-      dygraphs.length === dashboard.cells.length &&
+      dygraphs.length === graphsToSync.length &&
       dashboard.cells.length > 1
     ) {
       Dygraph.synchronize(dygraphs, {
@@ -197,7 +193,7 @@ class DashboardPage extends Component {
       })
     }
 
-    this.setState({dygraphs})
+    this.dygraphs = dygraphs
   }
 
   handleToggleTempVarControls = () => {
@@ -294,7 +290,11 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating, names} = this.state
+    const {selectedCell, isEditMode, isTemplating} = this.state
+    const names = dashboards.map(d => ({
+      name: d.name,
+      link: `/sources/${sourceID}/dashboards/${d.id}`,
+    }))
 
     return (
       <div className="page">

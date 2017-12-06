@@ -25,8 +25,8 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 		shouldFail bool
 	}{
 		{
-			"correct axes",
-			&chronograf.DashboardCell{
+			name: "correct axes",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
 						Bounds: []string{"0", "100"},
@@ -39,11 +39,10 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			false,
 		},
 		{
-			"invalid axes present",
-			&chronograf.DashboardCell{
+			name: "invalid axes present",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"axis of evil": chronograf.Axis{
 						Bounds: []string{"666", "666"},
@@ -53,11 +52,11 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			true,
+			shouldFail: true,
 		},
 		{
-			"linear scale value",
-			&chronograf.DashboardCell{
+			name: "linear scale value",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
 						Scale:  "linear",
@@ -65,11 +64,10 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			false,
 		},
 		{
-			"log scale value",
-			&chronograf.DashboardCell{
+			name: "log scale value",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
 						Scale:  "log",
@@ -77,11 +75,10 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			false,
 		},
 		{
-			"invalid scale value",
-			&chronograf.DashboardCell{
+			name: "invalid scale value",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
 						Scale:  "potatoes",
@@ -89,11 +86,11 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			true,
+			shouldFail: true,
 		},
 		{
-			"base 10 axis",
-			&chronograf.DashboardCell{
+			name: "base 10 axis",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
 						Base:   "10",
@@ -101,11 +98,10 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			false,
 		},
 		{
-			"base 2 axis",
-			&chronograf.DashboardCell{
+			name: "base 2 axis",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
 						Base:   "2",
@@ -113,11 +109,10 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			false,
 		},
 		{
-			"invalid base",
-			&chronograf.DashboardCell{
+			name: "invalid base",
+			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
 						Base:   "all your base are belong to us",
@@ -125,7 +120,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 					},
 				},
 			},
-			true,
+			shouldFail: true,
 		},
 	}
 
@@ -150,26 +145,26 @@ func Test_Service_DashboardCells(t *testing.T) {
 		expectedCode int
 	}{
 		{
-			"happy path",
-			&url.URL{
+			name: "happy path",
+			reqURL: &url.URL{
 				Path: "/chronograf/v1/dashboards/1/cells",
 			},
-			map[string]string{
+			ctxParams: map[string]string{
 				"id": "1",
 			},
-			[]chronograf.DashboardCell{},
-			[]chronograf.DashboardCell{},
-			http.StatusOK,
+			mockResponse: []chronograf.DashboardCell{},
+			expected:     []chronograf.DashboardCell{},
+			expectedCode: http.StatusOK,
 		},
 		{
-			"cell axes should always be \"x\", \"y\", and \"y2\"",
-			&url.URL{
+			name: "cell axes should always be \"x\", \"y\", and \"y2\"",
+			reqURL: &url.URL{
 				Path: "/chronograf/v1/dashboards/1/cells",
 			},
-			map[string]string{
+			ctxParams: map[string]string{
 				"id": "1",
 			},
-			[]chronograf.DashboardCell{
+			mockResponse: []chronograf.DashboardCell{
 				{
 					ID:      "3899be5a-f6eb-4347-b949-de2f4fbea859",
 					X:       0,
@@ -182,16 +177,17 @@ func Test_Service_DashboardCells(t *testing.T) {
 					Axes:    map[string]chronograf.Axis{},
 				},
 			},
-			[]chronograf.DashboardCell{
+			expected: []chronograf.DashboardCell{
 				{
-					ID:      "3899be5a-f6eb-4347-b949-de2f4fbea859",
-					X:       0,
-					Y:       0,
-					W:       4,
-					H:       4,
-					Name:    "CPU",
-					Type:    "bar",
-					Queries: []chronograf.DashboardQuery{},
+					ID:         "3899be5a-f6eb-4347-b949-de2f4fbea859",
+					X:          0,
+					Y:          0,
+					W:          4,
+					H:          4,
+					Name:       "CPU",
+					Type:       "bar",
+					Queries:    []chronograf.DashboardQuery{},
+					CellColors: []chronograf.CellColor{},
 					Axes: map[string]chronograf.Axis{
 						"x": chronograf.Axis{
 							Bounds: []string{},
@@ -205,7 +201,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 					},
 				},
 			},
-			http.StatusOK,
+			expectedCode: http.StatusOK,
 		},
 	}
 
@@ -217,7 +213,10 @@ func Test_Service_DashboardCells(t *testing.T) {
 			ctx := context.Background()
 			params := httprouter.Params{}
 			for k, v := range test.ctxParams {
-				params = append(params, httprouter.Param{k, v})
+				params = append(params, httprouter.Param{
+					Key:   k,
+					Value: v,
+				})
 			}
 			ctx = httprouter.WithParams(ctx, params)
 
@@ -271,6 +270,79 @@ func Test_Service_DashboardCells(t *testing.T) {
 			// compare actual and expected
 			if !cmp.Equal(actual, test.expected) {
 				t.Fatalf("%q - Dashboard Cells do not match: diff: %s", test.name, cmp.Diff(actual, test.expected))
+			}
+		})
+	}
+}
+
+func TestHasCorrectColors(t *testing.T) {
+	tests := []struct {
+		name    string
+		c       *chronograf.DashboardCell
+		wantErr bool
+	}{
+		{
+			name: "min type is valid",
+			c: &chronograf.DashboardCell{
+				CellColors: []chronograf.CellColor{
+					{
+						Type: "min",
+						Hex:  "#FFFFFF",
+					},
+				},
+			},
+		},
+		{
+			name: "max type is valid",
+			c: &chronograf.DashboardCell{
+				CellColors: []chronograf.CellColor{
+					{
+						Type: "max",
+						Hex:  "#FFFFFF",
+					},
+				},
+			},
+		},
+		{
+			name: "threshold type is valid",
+			c: &chronograf.DashboardCell{
+				CellColors: []chronograf.CellColor{
+					{
+						Type: "threshold",
+						Hex:  "#FFFFFF",
+					},
+				},
+			},
+		},
+		{
+			name: "invalid color type",
+			c: &chronograf.DashboardCell{
+				CellColors: []chronograf.CellColor{
+					{
+						Type: "unknown",
+						Hex:  "#FFFFFF",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid color hex",
+			c: &chronograf.DashboardCell{
+				CellColors: []chronograf.CellColor{
+					{
+						Type: "min",
+						Hex:  "bad",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := server.HasCorrectColors(tt.c); (err != nil) != tt.wantErr {
+				t.Errorf("HasCorrectColors() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

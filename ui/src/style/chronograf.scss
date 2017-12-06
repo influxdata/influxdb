@@ -30,6 +30,7 @@
 @import 'components/ceo-display-options';
 @import 'components/confirm-buttons';
 @import 'components/code-mirror-theme';
+@import 'components/color-dropdown';
 @import 'components/custom-time-range';
 @import 'components/dygraphs';
 @import 'components/fancy-scrollbars';
@@ -52,6 +53,7 @@
 @import 'components/source-indicator';
 @import 'components/source-selector';
 @import 'components/tables';
+@import 'components/kapacitor-logs-table';
 
 // Pages
 @import 'pages/config-endpoints';
@@ -60,6 +62,7 @@
 @import 'pages/kapacitor';
 @import 'pages/dashboards';
 @import 'pages/admin';
+@import 'pages/tickscript-editor';
 
 // TODO
 @import 'unsorted';

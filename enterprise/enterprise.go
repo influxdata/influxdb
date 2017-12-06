@@ -51,13 +51,13 @@ type Client struct {
 }
 
 // NewClientWithTimeSeries initializes a Client with a known set of TimeSeries.
-func NewClientWithTimeSeries(lg chronograf.Logger, mu, username, password string, tls bool, series ...chronograf.TimeSeries) (*Client, error) {
+func NewClientWithTimeSeries(lg chronograf.Logger, mu string, authorizer influx.Authorizer, tls bool, series ...chronograf.TimeSeries) (*Client, error) {
 	metaURL, err := parseMetaURL(mu, tls)
 	if err != nil {
 		return nil, err
 	}
-	metaURL.User = url.UserPassword(username, password)
-	ctrl := NewMetaClient(metaURL)
+
+	ctrl := NewMetaClient(metaURL, authorizer)
 	c := &Client{
 		Ctrl: ctrl,
 		UsersStore: &UserStore{
@@ -83,15 +83,15 @@ func NewClientWithTimeSeries(lg chronograf.Logger, mu, username, password string
 // NewClientWithURL initializes an Enterprise client with a URL to a Meta Node.
 // Acceptable URLs include host:port combinations as well as scheme://host:port
 // varieties. TLS is used when the URL contains "https" or when the TLS
-// parameter is set. The latter option is provided for host:port combinations
-// Username and Password are used for Basic Auth
-func NewClientWithURL(mu, username, password string, tls bool, lg chronograf.Logger) (*Client, error) {
+// parameter is set.  authorizer will add the correct `Authorization` headers
+// on the out-bound request.
+func NewClientWithURL(mu string, authorizer influx.Authorizer, tls bool, lg chronograf.Logger) (*Client, error) {
 	metaURL, err := parseMetaURL(mu, tls)
 	if err != nil {
 		return nil, err
 	}
-	metaURL.User = url.UserPassword(username, password)
-	ctrl := NewMetaClient(metaURL)
+
+	ctrl := NewMetaClient(metaURL, authorizer)
 	return &Client{
 		Ctrl: ctrl,
 		UsersStore: &UserStore{

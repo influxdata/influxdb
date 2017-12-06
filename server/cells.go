@@ -31,9 +31,11 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 	cells := make([]dashboardCellResponse, len(dcells))
 	for i, cell := range dcells {
 		newCell := chronograf.DashboardCell{}
-
 		newCell.Queries = make([]chronograf.DashboardQuery, len(cell.Queries))
 		copy(newCell.Queries, cell.Queries)
+
+		newCell.CellColors = make([]chronograf.CellColor, len(cell.CellColors))
+		copy(newCell.CellColors, cell.CellColors)
 
 		// ensure x, y, and y2 axes always returned
 		labels := []string{"x", "y", "y2"}
@@ -70,8 +72,22 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 // ValidDashboardCellRequest verifies that the dashboard cells have a query and
 // have the correct axes specified
 func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
+	if c == nil {
+		return fmt.Errorf("Chronograf dashboard cell was nil")
+	}
+
 	CorrectWidthHeight(c)
-	return HasCorrectAxes(c)
+	for _, q := range c.Queries {
+		if err := ValidateQueryConfig(&q.QueryConfig); err != nil {
+			return err
+		}
+	}
+	MoveTimeShift(c)
+	err := HasCorrectAxes(c)
+	if err != nil {
+		return err
+	}
+	return HasCorrectColors(c)
 }
 
 // HasCorrectAxes verifies that only permitted axes exist within a DashboardCell
@@ -90,6 +106,19 @@ func HasCorrectAxes(c *chronograf.DashboardCell) error {
 		}
 	}
 
+	return nil
+}
+
+// HasCorrectColors verifies that the format of each color is correct
+func HasCorrectColors(c *chronograf.DashboardCell) error {
+	for _, color := range c.CellColors {
+		if !oneOf(color.Type, "max", "min", "threshold") {
+			return chronograf.ErrInvalidColorType
+		}
+		if len(color.Hex) != 7 {
+			return chronograf.ErrInvalidColor
+		}
+	}
 	return nil
 }
 
@@ -115,12 +144,22 @@ func CorrectWidthHeight(c *chronograf.DashboardCell) {
 	}
 }
 
+// MoveTimeShift moves TimeShift from the QueryConfig to the DashboardQuery
+func MoveTimeShift(c *chronograf.DashboardCell) {
+	for i, query := range c.Queries {
+		query.Shifts = query.QueryConfig.Shifts
+		c.Queries[i] = query
+	}
+}
+
 // AddQueryConfig updates a cell by converting InfluxQL into queryconfigs
 // If influxql cannot be represented by a full query config, then, the
 // query config's raw text is set to the command.
 func AddQueryConfig(c *chronograf.DashboardCell) {
 	for i, q := range c.Queries {
 		qc := ToQueryConfig(q.Command)
+		qc.Shifts = append([]chronograf.TimeShift(nil), q.Shifts...)
+		q.Shifts = nil
 		q.QueryConfig = qc
 		c.Queries[i] = q
 	}
