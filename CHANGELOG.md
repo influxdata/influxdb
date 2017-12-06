@@ -37,6 +37,7 @@
 1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
 1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
+1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Add multiple event handlers to rules
 
 ### UI Improvements
 
