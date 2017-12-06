@@ -22,9 +22,12 @@ class KapacitorRulePage extends Component {
 
   async componentDidMount() {
     const {params, source, ruleActions, addFlashMessage} = this.props
-    params.ruleID === 'new'
-      ? ruleActions.loadDefaultRule()
-      : ruleActions.fetchRule(source, params.ruleID)
+
+    if (params.ruleID === 'new') {
+      ruleActions.loadDefaultRule()
+    } else {
+      ruleActions.fetchRule(source, params.ruleID)
+    }
 
     const kapacitor = await getActiveKapacitor(this.props.source)
     if (!kapacitor) {
