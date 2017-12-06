@@ -169,6 +169,12 @@ func (s *Store) loadShards() error {
 	lim := s.EngineOptions.Config.MaxConcurrentCompactions
 	if lim == 0 {
 		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
+
+		// On systems with more cores, cap at 4 to reduce disk utilization
+		if lim > 4 {
+			lim = 4
+		}
+
 		if lim < 1 {
 			lim = 1
 		}
