@@ -252,6 +252,9 @@ var alert5 = from1
         .slack()
 
 alert5
+    |httpOut('output')
+
+alert5
     |eval(lambda: "emitted")
         .as('value')
         .tags()
@@ -265,9 +268,6 @@ alert5
         .create()
         .tag('alertName', 'name')
         .tag('triggerType', 'deadman')
-
-alert5
-    |httpOut('output')
 `
 
 	octets, err := MarshalTICK(script)
@@ -280,7 +280,10 @@ alert5
 	}
 
 	if got != want {
+		fmt.Println("got")
 		fmt.Println(got)
+		fmt.Println("want")
+		fmt.Println(want)
 		diff := diffmatchpatch.New()
 		delta := diff.DiffMain(want, got, true)
 		t.Errorf("%s", diff.DiffPrettyText(delta))
