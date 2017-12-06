@@ -116,7 +116,7 @@ class SourcePage extends Component {
     }
     createSource(source)
       .then(({data: sourceFromServer}) => {
-        addSourceAction(sourceFromServer)
+        this.props.addSourceAction(sourceFromServer)
         this.setState({
           source: {...DEFAULT_SOURCE, ...sourceFromServer},
           isCreated: true,
@@ -133,7 +133,7 @@ class SourcePage extends Component {
     const {source} = this.state
     createSource(source)
       .then(({data: sourceFromServer}) => {
-        addSourceAction(sourceFromServer)
+        this.props.addSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
       })
       .catch(error => {
