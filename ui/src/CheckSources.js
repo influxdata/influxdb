@@ -3,7 +3,7 @@ import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {MEMBER_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
+import {isUserAuthorized, MEMBER_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
 
 import {showDatabases} from 'shared/apis/metaQuery'
 
@@ -30,7 +30,12 @@ class CheckSources extends Component {
   }
 
   async componentWillMount() {
-    await this.props.getSources()
+    const {auth: {isUsingAuth, me}} = this.props
+
+    if (!isUsingAuth || isUserAuthorized(me.role, VIEWER_ROLE)) {
+      await this.props.getSources()
+    }
+
     this.setState({isFetching: false})
   }
 
@@ -116,6 +121,8 @@ class CheckSources extends Component {
       return <div className="page-spinner" />
     }
 
+    // TODO: guard against invalid resource access
+
     return (
       this.props.children &&
       React.cloneElement(
@@ -180,10 +187,9 @@ CheckSources.childContextTypes = {
   }),
 }
 
-const mapStateToProps = ({sources, auth, me}) => ({
+const mapStateToProps = ({sources, auth}) => ({
   sources,
   auth,
-  me,
 })
 
 const mapDispatchToProps = dispatch => ({

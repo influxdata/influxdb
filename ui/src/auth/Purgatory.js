@@ -86,7 +86,7 @@ Purgatory.propTypes = {
     push: func.isRequired,
   }).isRequired,
   links: shape({
-    me: string.isRequired,
+    me: string,
   }),
   name: string.isRequired,
   provider: string.isRequired,
