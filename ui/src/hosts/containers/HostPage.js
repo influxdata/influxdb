@@ -13,12 +13,11 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import {
-  getMappings,
+  getLayouts,
   getAppsForHosts,
   getMeasurementsForHost,
   getAllHosts,
 } from 'src/hosts/apis'
-import {fetchLayouts} from 'shared/apis'
 
 import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
@@ -38,13 +37,12 @@ class HostPage extends Component {
     const {source, params, location} = this.props
 
     // fetching layouts and mappings can be done at the same time
-    const {data: {layouts}} = await fetchLayouts()
-    const {data: {mappings}} = await getMappings()
+    const {data: {layouts}} = await getLayouts()
     const hosts = await getAllHosts(source.links.proxy, source.telegraf)
     const newHosts = await getAppsForHosts(
       source.links.proxy,
       hosts,
-      mappings,
+      layouts,
       source.telegraf
     )
 

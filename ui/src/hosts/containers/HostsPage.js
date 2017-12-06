@@ -5,7 +5,7 @@ import HostsTable from 'src/hosts/components/HostsTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
 
-import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis'
+import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -33,18 +33,18 @@ export const HostsPage = React.createClass({
     const {source, addFlashMessage} = this.props
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
-      getMappings(),
+      getLayouts(),
       new Promise(resolve => {
         this.setState({hostsLoading: true})
         resolve()
       }),
     ])
-      .then(([hosts, {data: {mappings}}]) => {
+      .then(([hosts, {data: {layouts}}]) => {
         this.setState({
           hosts,
           hostsLoading: false,
         })
-        getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf)
+        getAppsForHosts(source.links.proxy, hosts, layouts, source.telegraf)
           .then(newHosts => {
             this.setState({
               hosts: newHosts,
