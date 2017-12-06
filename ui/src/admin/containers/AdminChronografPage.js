@@ -64,7 +64,7 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users, meCurrentOrganization, meRole, meID} = this.props
+    const {users, meCurrentOrganization, meRole, meID, notify} = this.props
 
     return (
       <div className="page">
@@ -89,6 +89,7 @@ class AdminChronografPage extends Component {
                     onUpdateUserRole={this.handleUpdateUserRole}
                     onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
                     onDeleteUser={this.handleDeleteUser}
+                    notify={notify}
                   />
                 </div>
               </div>
