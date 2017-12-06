@@ -149,41 +149,41 @@ alert4
 }
 func TestPipelineJSONDeadman(t *testing.T) {
 	script := `var db = 'telegraf'
-    
+
     var rp = 'autogen'
-    
+
     var measurement = 'cpu'
-    
+
     var groupBy = ['host', 'cluster_id']
-    
+
     var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
-    
+
     var period = 10m
-    
+
     var name = 'name'
-    
+
     var idVar = name + ':{{.Group}}'
-    
+
     var message = 'message'
-    
+
     var idTag = 'alertID'
-    
+
     var levelTag = 'level'
-    
+
     var messageField = 'message'
-    
+
     var durationField = 'duration'
-    
+
     var outputDB = 'chronograf'
-    
+
     var outputRP = 'autogen'
-    
+
     var outputMeasurement = 'alerts'
-    
+
     var triggerType = 'deadman'
-    
+
     var threshold = 0.0
-    
+
     var data = stream
         |from()
             .database(db)
@@ -191,7 +191,7 @@ func TestPipelineJSONDeadman(t *testing.T) {
             .measurement(measurement)
             .groupBy(groupBy)
             .where(whereFilter)
-    
+
     var trigger = data
         |deadman(threshold, period)
             .stateChangesOnly()
@@ -204,7 +204,7 @@ func TestPipelineJSONDeadman(t *testing.T) {
             .slack()
             .victorOps()
             .email()
-    
+
     trigger
         |eval(lambda: "emitted")
             .as('value')
@@ -216,7 +216,7 @@ func TestPipelineJSONDeadman(t *testing.T) {
             .measurement(outputMeasurement)
             .tag('alertName', name)
             .tag('triggerType', triggerType)
-    
+
     trigger
         |httpOut('output')
 `
@@ -252,9 +252,6 @@ var alert5 = from1
         .slack()
 
 alert5
-    |httpOut('output')
-
-alert5
     |eval(lambda: "emitted")
         .as('value')
         .tags()
@@ -268,6 +265,9 @@ alert5
         .create()
         .tag('alertName', 'name')
         .tag('triggerType', 'deadman')
+
+alert5
+    |httpOut('output')
 `
 
 	octets, err := MarshalTICK(script)
