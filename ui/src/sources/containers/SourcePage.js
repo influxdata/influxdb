@@ -146,7 +146,7 @@ class SourcePage extends Component {
     const {notify} = this.props
     updateSource(source)
       .then(({data: sourceFromServer}) => {
-        updateSourceAction(sourceFromServer)
+        this.props.updateSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
         notify('success', `New source ${source.name} added`)
       })
