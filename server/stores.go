@@ -130,17 +130,9 @@ func (s *Store) Servers(ctx context.Context) chronograf.ServersStore {
 	return &noop.ServersStore{}
 }
 
-// Layouts returns a noop.LayoutsStore if the context has no organization specified
-// and a organization.LayoutsStore otherwise.
+// Layouts returns all layouts in the underlying layouts store.
 func (s *Store) Layouts(ctx context.Context) chronograf.LayoutsStore {
-	if isServer := hasServerContext(ctx); isServer {
-		return s.LayoutsStore
-	}
-	if org, ok := hasOrganizationContext(ctx); ok {
-		return organizations.NewLayoutsStore(s.LayoutsStore, org)
-	}
-
-	return &noop.LayoutsStore{}
+	return s.LayoutsStore
 }
 
 // Users returns a chronograf.UsersStore.
