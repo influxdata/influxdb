@@ -71,7 +71,7 @@ class UsersTableRowNew extends Component {
       if (preventCreate) {
         return this.props.notify(
           'warning',
-          'Users must have a name and auth provider.'
+          'User must have a name and provider'
         )
       }
       this.handleConfirmCreateUser()
