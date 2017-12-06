@@ -23,6 +23,7 @@ const AdminTabs = ({
   onUpdateUserSuperAdmin,
   onDeleteUser,
   meID,
+  notify,
 }) => {
   const tabs = [
     {
@@ -42,6 +43,7 @@ const AdminTabs = ({
           onUpdateUserSuperAdmin={onUpdateUserSuperAdmin}
           onDeleteUser={onDeleteUser}
           meID={meID}
+          notify={notify}
         />
       ),
     },
@@ -99,6 +101,7 @@ AdminTabs.propTypes = {
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
+  notify: func.isRequired,
 }
 
 export default AdminTabs

@@ -40,7 +40,7 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {organization, users, onCreateUser, meID} = this.props
+    const {organization, users, onCreateUser, meID, notify} = this.props
 
     const {isCreatingUser} = this.state
     const {
@@ -83,6 +83,7 @@ class UsersTable extends Component {
                     organization={organization}
                     onBlur={this.handleBlurCreateUserRow}
                     onCreateUser={onCreateUser}
+                    notify={notify}
                   />
                 : null}
               {users.length || !isCreatingUser
@@ -132,5 +133,6 @@ UsersTable.propTypes = {
   onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
   meID: string.isRequired,
+  notify: func.isRequired,
 }
 export default UsersTable

@@ -59,6 +59,25 @@ class UsersTableRowNew extends Component {
     this.setState({superAdmin})
   }
 
+  handleKeyDown = e => {
+    const {name, provider} = this.state
+    const preventCreate = !name || !provider
+
+    if (e.key === 'Escape') {
+      this.props.onBlur()
+    }
+
+    if (e.key === 'Enter') {
+      if (preventCreate) {
+        return this.props.notify(
+          'warning',
+          'Users must have a name and auth provider.'
+        )
+      }
+      this.handleConfirmCreateUser()
+    }
+  }
+
   render() {
     const {
       colRole,
@@ -83,6 +102,7 @@ class UsersTableRowNew extends Component {
             autoFocus={true}
             value={name}
             onChange={this.handleInputChange('name')}
+            onKeyDown={this.handleKeyDown}
           />
         </td>
         <td style={{width: colRole}}>
@@ -111,6 +131,7 @@ class UsersTableRowNew extends Component {
             placeholder="OAuth Provider..."
             value={provider}
             onChange={this.handleInputChange('provider')}
+            onKeyDown={this.handleKeyDown}
           />
         </td>
         <td style={{width: colScheme}}>
@@ -148,6 +169,7 @@ UsersTableRowNew.propTypes = {
   }),
   onBlur: func.isRequired,
   onCreateUser: func.isRequired,
+  notify: func.isRequired,
 }
 
 export default UsersTableRowNew
