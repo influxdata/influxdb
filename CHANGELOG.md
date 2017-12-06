@@ -21,6 +21,18 @@
 - [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
 - [#8789](https://github.com/influxdata/influxdb/issues/8789): Fix CLI to allow quoted database names in use statement
 
+## v1.4.3 [unreleased]
+
+### Configuration Changes
+
+#### `[data]` Section
+
+The default value for `cache-snapshot-memory-size` has been changed from `25m` to `256m`.
+
+### Bugfixes
+
+- [#9201](https://github.com/influxdata/influxdb/issues/9201): Fix higher disk i/o utilization
+
 ## v1.4.2 [2017-11-15]
 
 Refer to the 1.4.0 breaking changes section if `influxd` fails to start with an `incompatible tsi1 index MANIFEST` error.
