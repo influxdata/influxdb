@@ -39,6 +39,10 @@ class ManageSources extends Component {
 
     try {
       this.props.removeAndLoadSources(source)
+      addFlashMessage({
+        type: 'success',
+        text: `Deleted source ${source.name}`,
+      })
     } catch (e) {
       addFlashMessage({
         type: 'error',
