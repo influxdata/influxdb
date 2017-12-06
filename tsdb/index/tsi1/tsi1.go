@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -551,3 +552,7 @@ func assert(condition bool, msg string, v ...interface{}) {
 
 // hexdump is a helper for dumping binary data to stderr.
 func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }
+
+func stack() string {
+	return "------------------------\n" + string(debug.Stack()) + "------------------------\n\n"
+}

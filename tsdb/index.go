@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"runtime/debug"
 	"sort"
 	"sync"
 
@@ -387,6 +386,12 @@ func (itr *seriesIDMergeIterator) Next() (SeriesIDElem, error) {
 // they are combined together.
 func IntersectSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 	if itr0 == nil || itr1 == nil {
+		if itr0 != nil {
+			itr0.Close()
+		}
+		if itr1 != nil {
+			itr1.Close()
+		}
 		return nil
 	}
 
@@ -541,9 +546,12 @@ func (itr *seriesIDUnionIterator) Next() (_ SeriesIDElem, err error) {
 // DifferenceSeriesIDIterators returns an iterator that only returns series which
 // occur the first iterator but not the second iterator.
 func DifferenceSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
-	if itr0 != nil && itr1 == nil {
+	if itr0 == nil && itr1 == nil {
+		return nil
+	} else if itr1 == nil {
 		return itr0
 	} else if itr0 == nil {
+		itr1.Close()
 		return nil
 	}
 	return &seriesIDDifferenceIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}
@@ -1398,6 +1406,7 @@ func (is IndexSet) ForEachMeasurementTagKey(name []byte, fn func(key []byte) err
 	} else if itr == nil {
 		return nil
 	}
+	defer itr.Close()
 
 	for {
 		key, err := itr.Next()
@@ -1636,7 +1645,9 @@ func (is IndexSet) seriesByBinaryExprStringIterator(name, key, value []byte, op 
 
 		kitr, err := is.TagKeySeriesIDIterator(name, key)
 		if err != nil {
-			mitr.Close()
+			if mitr != nil {
+				mitr.Close()
+			}
 			return nil, err
 		}
 
@@ -1653,7 +1664,9 @@ func (is IndexSet) seriesByBinaryExprStringIterator(name, key, value []byte, op 
 
 		vitr, err := is.TagValueSeriesIDIterator(name, key, value)
 		if err != nil {
-			mitr.Close()
+			if mitr != nil {
+				mitr.Close()
+			}
 			return nil, err
 		}
 
@@ -1688,7 +1701,9 @@ func (is IndexSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *inf
 
 	itr1, err := is.TagKeySeriesIDIterator(name, []byte(value.Val))
 	if err != nil {
-		itr0.Close()
+		if itr0 != nil {
+			itr0.Close()
+		}
 		return nil, err
 	}
 
@@ -2185,7 +2200,3 @@ type byTagKey []*query.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-
-func stack() string {
-	return "------------------------\n" + string(debug.Stack()) + "------------------------\n\n"
-}
