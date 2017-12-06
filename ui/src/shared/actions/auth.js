@@ -81,8 +81,8 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
     )
     dispatch(linksReceived({external, users, organizations, me: meLink})) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
   } catch (error) {
-    dispatch(errorThrown(error))
     dispatch(meGetFailed())
+    dispatch(errorThrown(error))
   }
 }
 
