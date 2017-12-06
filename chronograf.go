@@ -526,12 +526,11 @@ type Cell struct {
 
 // Layout is a collection of Cells for visualization
 type Layout struct {
-	ID           string `json:"id"`
-	Application  string `json:"app"`
-	Measurement  string `json:"measurement"`
-	Autoflow     bool   `json:"autoflow"`
-	Cells        []Cell `json:"cells"`
-	Organization string `json:"organization"` // Organization is the organization ID that resource belongs to
+	ID          string `json:"id"`
+	Application string `json:"app"`
+	Measurement string `json:"measurement"`
+	Autoflow    bool   `json:"autoflow"`
+	Cells       []Cell `json:"cells"`
 }
 
 // LayoutsStore stores dashboards and associated Cells

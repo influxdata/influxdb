@@ -168,17 +168,6 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 		}
 	}
 
-	layoutsStore := organizations.NewLayoutsStore(s.client.LayoutsStore, org)
-	layouts, err := layoutsStore.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, layout := range layouts {
-		if err := layoutsStore.Delete(ctx, layout); err != nil {
-			return err
-		}
-	}
-
 	dashboardsStore := organizations.NewDashboardsStore(s.client.DashboardsStore, org)
 	dashboards, err := dashboardsStore.All(ctx)
 	if err != nil {
