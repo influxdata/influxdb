@@ -32,6 +32,13 @@ const GaugeOptions = ({
       <div className="display-options--cell-wrapper">
         <h5 className="display-options--header">Gauge Controls</h5>
         <div className="gauge-controls">
+          <button
+            className="btn btn-sm btn-primary gauge-controls--add-threshold"
+            onClick={onAddThreshold}
+            disabled={disableAddThreshold}
+          >
+            <span className="icon plus" /> Add Threshold
+          </button>
           {sortedColors.map(color =>
             <GaugeThreshold
               threshold={color}
@@ -43,13 +50,6 @@ const GaugeOptions = ({
               onDeleteThreshold={onDeleteThreshold}
             />
           )}
-          <button
-            className="btn btn-sm btn-primary gauge-controls--add-threshold"
-            onClick={onAddThreshold}
-            disabled={disableAddThreshold}
-          >
-            <span className="icon plus" /> Add Threshold
-          </button>
         </div>
       </div>
     </FancyScrollbar>
