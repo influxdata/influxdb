@@ -2,7 +2,12 @@ import React, {PropTypes} from 'react'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
 
-const AlertaHandler = ({selectedHandler, handleModifyHandler, configLink}) =>
+const AlertaHandler = ({
+  selectedHandler,
+  handleModifyHandler,
+  onGoToConfig,
+  validationError,
+}) =>
   selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
@@ -76,14 +81,19 @@ const AlertaHandler = ({selectedHandler, handleModifyHandler, configLink}) =>
           </div>
         </div>
       </div>
-    : <HandlerEmpty configLink={configLink} />
+    : <HandlerEmpty
+        onGoToConfig={onGoToConfig}
+        validationError={validationError}
+      />
 
 const {func, shape, string} = PropTypes
 
 AlertaHandler.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
-  configLink: string,
+
+  onGoToConfig: func.isRequired,
+  validationError: string.isRequired,
 }
 
 export default AlertaHandler

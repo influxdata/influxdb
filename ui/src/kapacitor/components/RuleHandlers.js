@@ -142,7 +142,13 @@ class RuleHandlers extends Component {
   }
 
   render() {
-    const {handlersFromConfig, configLink, rule, ruleActions} = this.props
+    const {
+      handlersFromConfig,
+      rule,
+      ruleActions,
+      onGoToConfig,
+      validationError,
+    } = this.props
     const {handlersOnThisAlert, selectedHandler} = this.state
     const alerts = _.map([...DEFAULT_HANDLERS, ...handlersFromConfig], a => {
       return {...a, text: a.type}
@@ -178,11 +184,12 @@ class RuleHandlers extends Component {
                   handleRemoveHandler={this.handleRemoveHandler}
                 />
                 <HandlerOptions
-                  configLink={configLink}
                   selectedHandler={selectedHandler}
                   handleModifyHandler={this.handleModifyHandler}
                   updateDetails={ruleActions.updateDetails}
                   rule={rule}
+                  onGoToConfig={onGoToConfig}
+                  validationError={validationError}
                 />
               </div>
             : null}
@@ -203,7 +210,8 @@ RuleHandlers.propTypes = {
     updateAlertProperty: func.isRequired,
   }).isRequired,
   handlersFromConfig: arrayOf(shape({})),
-  configLink: string,
+  onGoToConfig: func.isRequired,
+  validationError: string.isRequired,
 }
 
 export default RuleHandlers

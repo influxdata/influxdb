@@ -3,7 +3,12 @@ import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerCheckbox from 'src/kapacitor/components/HandlerCheckbox'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
 
-const TelegramHandler = ({selectedHandler, handleModifyHandler, configLink}) =>
+const TelegramHandler = ({
+  selectedHandler,
+  handleModifyHandler,
+  onGoToConfig,
+  validationError,
+}) =>
   selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
@@ -53,14 +58,18 @@ const TelegramHandler = ({selectedHandler, handleModifyHandler, configLink}) =>
           </div>
         </div>
       </div>
-    : <HandlerEmpty configLink={configLink} />
+    : <HandlerEmpty
+        onGoToConfig={onGoToConfig}
+        validationError={validationError}
+      />
 
 const {func, shape, string} = PropTypes
 
 TelegramHandler.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
-  configLink: string,
+  onGoToConfig: func.isRequired,
+  validationError: string.isRequired,
 }
 
 export default TelegramHandler

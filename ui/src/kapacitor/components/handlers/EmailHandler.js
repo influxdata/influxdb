@@ -8,7 +8,8 @@ const EmailHandler = ({
   updateDetails,
   selectedHandler,
   handleModifyHandler,
-  configLink,
+  onGoToConfig,
+  validationError,
 }) =>
   selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
@@ -60,16 +61,21 @@ const EmailHandler = ({
           </div>
         </div>
       </div>
-    : <HandlerEmpty configLink={configLink} />
+    : <HandlerEmpty
+        onGoToConfig={onGoToConfig}
+        validationError={validationError}
+      />
 
 const {func, shape, string} = PropTypes
 
 EmailHandler.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
-  configLink: string,
+
   updateDetails: func,
   rule: shape({}),
+  onGoToConfig: func.isRequired,
+  validationError: string.isRequired,
 }
 
 export default EmailHandler

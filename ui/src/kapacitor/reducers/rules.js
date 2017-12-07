@@ -80,11 +80,13 @@ export default function rules(state = {}, action) {
       const {ruleID, alerts} = action.payload
       const alertNodesByType = {}
       _.forEach(alerts, ep => {
-        const existing = _.get(alertNodesByType, ep.type, [])
-        alertNodesByType[ep.type] = [
-          ...existing,
-          _.pick(ep, ALERTS_TO_RULE[ep.type]),
-        ]
+        if (ep.enabled) {
+          const existing = _.get(alertNodesByType, ep.type, [])
+          alertNodesByType[ep.type] = [
+            ...existing,
+            _.pick(ep, ALERTS_TO_RULE[ep.type]),
+          ]
+        }
       })
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {

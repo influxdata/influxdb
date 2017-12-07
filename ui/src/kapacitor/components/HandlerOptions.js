@@ -26,9 +26,10 @@ class HandlerOptions extends Component {
     const {
       selectedHandler,
       handleModifyHandler,
-      configLink,
       rule,
       updateDetails,
+      onGoToConfig,
+      validationError,
     } = this.props
     switch (selectedHandler && selectedHandler.type) {
       case 'post':
@@ -36,7 +37,6 @@ class HandlerOptions extends Component {
           <PostHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
           />
         )
       case 'tcp':
@@ -44,7 +44,6 @@ class HandlerOptions extends Component {
           <TcpHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
           />
         )
       case 'exec':
@@ -52,7 +51,6 @@ class HandlerOptions extends Component {
           <ExecHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
           />
         )
       case 'log':
@@ -60,7 +58,6 @@ class HandlerOptions extends Component {
           <LogHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
           />
         )
       case 'email':
@@ -68,7 +65,8 @@ class HandlerOptions extends Component {
           <EmailHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
             updateDetails={updateDetails}
             rule={rule}
           />
@@ -78,7 +76,8 @@ class HandlerOptions extends Component {
           <AlertaHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'hipChat':
@@ -86,7 +85,8 @@ class HandlerOptions extends Component {
           <HipchatHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'opsGenie':
@@ -94,7 +94,8 @@ class HandlerOptions extends Component {
           <OpsgenieHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'pagerDuty':
@@ -102,7 +103,8 @@ class HandlerOptions extends Component {
           <PagerdutyHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'pushover':
@@ -110,7 +112,8 @@ class HandlerOptions extends Component {
           <PushoverHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'sensu':
@@ -118,7 +121,8 @@ class HandlerOptions extends Component {
           <SensuHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'slack':
@@ -126,7 +130,8 @@ class HandlerOptions extends Component {
           <SlackHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'talk':
@@ -134,7 +139,8 @@ class HandlerOptions extends Component {
           <TalkHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'telegram':
@@ -142,7 +148,8 @@ class HandlerOptions extends Component {
           <TelegramHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       case 'victorOps':
@@ -150,7 +157,8 @@ class HandlerOptions extends Component {
           <VictoropsHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            configLink={configLink}
+            onGoToConfig={onGoToConfig}
+            validationError={validationError}
           />
         )
       default:
@@ -164,9 +172,10 @@ const {func, shape, string} = PropTypes
 HandlerOptions.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
-  configLink: string,
   updateDetails: func,
   rule: shape({}),
+  onGoToConfig: func.isRequired,
+  validationError: string.isRequired,
 }
 
 export default HandlerOptions

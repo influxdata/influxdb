@@ -74,6 +74,58 @@ class KapacitorRule extends Component {
       })
   }
 
+  handleSaveToConfig = () => {
+    const {
+      addFlashMessage,
+      queryConfigs,
+      rule,
+      router,
+      configLink,
+      kapacitor,
+    } = this.props
+    const updatedRule = Object.assign({}, rule, {
+      query: queryConfigs[rule.queryID],
+    })
+    if (this.validationError()) {
+      router.push(configLink)
+    } else if (rule.id === 'new') {
+      const newRule = Object.assign({}, rule, {
+        query: queryConfigs[rule.queryID],
+      })
+      delete newRule.queryID
+
+      createRule(kapacitor, newRule)
+        .then(() => {
+          router.push(configLink)
+          addFlashMessage({
+            type: 'success',
+            text: 'Rule successfully created',
+          })
+        })
+        .catch(() => {
+          addFlashMessage({
+            type: 'error',
+            text: 'There was a problem creating the rule',
+          })
+        })
+    } else {
+      editRule(updatedRule)
+        .then(() => {
+          router.push(configLink)
+          addFlashMessage({
+            type: 'success',
+            text: `${rule.name} successfully saved!`,
+          })
+        })
+        .catch(() => {
+          addFlashMessage({
+            type: 'error',
+            text: `There was a problem saving ${rule.name}`,
+          })
+        })
+    }
+  }
+
   handleAddEvery = frequency => {
     const {rule: {id: ruleID}, ruleActions: {addEvery}} = this.props
     addEvery(ruleID, frequency)
@@ -143,7 +195,6 @@ class KapacitorRule extends Component {
       queryConfigs,
       handlersFromConfig,
       queryConfigActions,
-      configLink,
     } = this.props
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
@@ -181,10 +232,11 @@ class KapacitorRule extends Component {
                     onChooseTimeRange={this.handleChooseTimeRange}
                   />
                   <RuleHandlers
-                    configLink={configLink}
                     rule={rule}
                     ruleActions={ruleActions}
                     handlersFromConfig={handlersFromConfig}
+                    onGoToConfig={this.handleSaveToConfig}
+                    validationError={this.validationError()}
                   />
                   <RuleMessage rule={rule} ruleActions={ruleActions} />
                 </div>
@@ -215,7 +267,7 @@ KapacitorRule.propTypes = {
     push: func.isRequired,
   }).isRequired,
   kapacitor: shape({}).isRequired,
-  configLink: string,
+  configLink: string.isRequired,
 }
 
 export default KapacitorRule
