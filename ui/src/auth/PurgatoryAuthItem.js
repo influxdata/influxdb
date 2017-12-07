@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react'
 
-import {MEMBER_ROLE} from 'src/auth/Authorized'
+import {isUserAuthorized, VIEWER_ROLE} from 'src/auth/Authorized'
 
-const PurgatoryAuthItem = ({roleAndOrg, onClickLogin}) =>
+const PurgatoryAuthItem = ({roleAndOrg, onClickLogin, superAdmin}) =>
   <div
     className={
       roleAndOrg.currentOrganization
@@ -18,16 +18,16 @@ const PurgatoryAuthItem = ({roleAndOrg, onClickLogin}) =>
         {roleAndOrg.role}
       </div>
     </div>
-    {roleAndOrg.role === MEMBER_ROLE
-      ? <span className="auth--list-blocked">
-          Contact your Admin<br />for access
-        </span>
-      : <button
+    {superAdmin || isUserAuthorized(roleAndOrg.role, VIEWER_ROLE)
+      ? <button
           className="btn btn-sm btn-primary"
           onClick={onClickLogin(roleAndOrg.organization)}
         >
           Login
-        </button>}
+        </button>
+      : <span className="auth--list-blocked">
+          Contact your Admin<br />for access
+        </span>}
   </div>
 
 const {bool, func, shape, string} = PropTypes
@@ -41,6 +41,7 @@ PurgatoryAuthItem.propTypes = {
     role: string,
     currentOrganization: bool,
   }).isRequired,
+  superAdmin: bool,
   onClickLogin: func.isRequired,
 }
 

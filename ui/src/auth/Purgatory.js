@@ -33,6 +33,7 @@ const Purgatory = ({
   logoutLink,
   router,
   links,
+  superAdmin,
 }) => {
   const rolesAndOrgs = organizations.map(organization => ({
     organization,
@@ -65,6 +66,7 @@ const Purgatory = ({
                   <PurgatoryAuthItem
                     key={i}
                     roleAndOrg={rag}
+                    superAdmin={superAdmin}
                     onClickLogin={handleClickLogin({
                       router,
                       links,
@@ -83,7 +85,7 @@ const Purgatory = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 Purgatory.propTypes = {
   router: shape({
@@ -113,12 +115,21 @@ Purgatory.propTypes = {
   ).isRequired,
   logoutLink: string.isRequired,
   meChangeOrganization: func.isRequired,
+  superAdmin: bool,
 }
 
 const mapStateToProps = ({
   links,
   auth: {
-    me: {name, provider, scheme, currentOrganization, roles, organizations},
+    me: {
+      name,
+      provider,
+      scheme,
+      currentOrganization,
+      roles,
+      organizations,
+      superAdmin,
+    },
     logoutLink,
   },
 }) => ({
@@ -130,6 +141,7 @@ const mapStateToProps = ({
   roles,
   organizations,
   logoutLink,
+  superAdmin,
 })
 
 const mapDispatchToProps = dispatch => ({
