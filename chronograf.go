@@ -15,13 +15,15 @@ const (
 	ErrLayoutNotFound                  = Error("layout not found")
 	ErrDashboardNotFound               = Error("dashboard not found")
 	ErrUserNotFound                    = Error("user not found")
-	ErrUserAlreadyExists               = Error("user already exists")
-	ErrOrganizationNotFound            = Error("organization not found")
 	ErrLayoutInvalid                   = Error("layout is invalid")
 	ErrAlertNotFound                   = Error("alert not found")
 	ErrAuthentication                  = Error("user not authenticated")
 	ErrUninitialized                   = Error("client uninitialized. Call Open() method")
 	ErrInvalidAxis                     = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold'")
+	ErrInvalidColor                    = Error("Invalid color. Accepted color format is #RRGGBB")
+	ErrUserAlreadyExists               = Error("user already exists")
+	ErrOrganizationNotFound            = Error("organization not found")
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
 )
@@ -484,17 +486,27 @@ type Axis struct {
 	Scale        string   `json:"scale"`  // Scale is the axis formatting scale. Supported: "log", "linear"
 }
 
+// CellColor represents the encoding of data into visualizations
+type CellColor struct {
+	ID    string `json:"id"`    // ID is the unique id of the cell color
+	Type  string `json:"type"`  // Type is how the color is used. Accepted (min,max,threshold)
+	Hex   string `json:"hex"`   // Hex is the hex number of the color
+	Name  string `json:"name"`  // Name is the user-facing name of the hex color
+	Value string `json:"value"` // Value is the data value mapped to this color
+}
+
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	ID      string           `json:"i"`
-	X       int32            `json:"x"`
-	Y       int32            `json:"y"`
-	W       int32            `json:"w"`
-	H       int32            `json:"h"`
-	Name    string           `json:"name"`
-	Queries []DashboardQuery `json:"queries"`
-	Axes    map[string]Axis  `json:"axes"`
-	Type    string           `json:"type"`
+	ID         string           `json:"i"`
+	X          int32            `json:"x"`
+	Y          int32            `json:"y"`
+	W          int32            `json:"w"`
+	H          int32            `json:"h"`
+	Name       string           `json:"name"`
+	Queries    []DashboardQuery `json:"queries"`
+	Axes       map[string]Axis  `json:"axes"`
+	Type       string           `json:"type"`
+	CellColors []CellColor      `json:"colors"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards

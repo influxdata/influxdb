@@ -13,6 +13,8 @@
 1. [#2327](https://github.com/influxdata/chronograf/pull/2327): After CREATE/DELETE queries, refresh list of databases in Data Explorer
 1. [#2327](https://github.com/influxdata/chronograf/pull/2327): Visualize CREATE/DELETE queries with Table view in Data Explorer
 1. [#2329](https://github.com/influxdata/chronograf/pull/2329): Include tag values alongside measurement name in Data Explorer result tabs
+1. [#2410](https://github.com/influxdata/chronograf/pull/2410): Redesign cell display options panel
+1. [#2410](https://github.com/influxdata/chronograf/pull/2410): Introduce customizable Gauge visualization type for dashboard cells
 1. [#2386](https://github.com/influxdata/chronograf/pull/2386): Fix queries that include regex, numbers and wildcard
 1. [#2398](https://github.com/influxdata/chronograf/pull/2398): Fix apps on hosts page from parsing tags with null values
 1. [#2408](https://github.com/influxdata/chronograf/pull/2408): Fix updated Dashboard names not updating dashboard list
@@ -37,6 +39,7 @@
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
 
 ### UI Improvements
+1. [#2427](https://github.com/influxdata/chronograf/pull/2427): Improve performance of Hosts, Alert History, and TICKscript logging pages when there are many items to display
 
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes

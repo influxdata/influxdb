@@ -2,7 +2,6 @@ import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
 
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
@@ -66,7 +65,7 @@ class HostsPage extends Component {
     const {source} = this.props
     const {hosts, hostsLoading, hostsError} = this.state
     return (
-      <div className="page">
+      <div className="page hosts-list-page">
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
@@ -77,7 +76,7 @@ class HostsPage extends Component {
             </div>
           </div>
         </div>
-        <FancyScrollbar className="page-contents">
+        <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
@@ -90,7 +89,7 @@ class HostsPage extends Component {
               </div>
             </div>
           </div>
-        </FancyScrollbar>
+        </div>
       </div>
     )
   }

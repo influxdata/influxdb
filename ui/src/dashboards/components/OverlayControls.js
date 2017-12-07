@@ -39,7 +39,7 @@ const OverlayControls = ({
         })}
         onClick={onClickDisplayOptions(true)}
       >
-        Options
+        Visualization
       </li>
     </ul>
     <div className="overlay-controls--right">
