@@ -24,14 +24,16 @@ const errorsMiddleware = store => next => action => {
     } = action
 
     if (status === HTTP_FORBIDDEN) {
-      const organizationChanged =
+      const organizationWasRemoved =
         message === `user's current organization was not found` // eslint-disable-line quotes
       const wasSessionTimeout = me !== null
 
       store.dispatch(authExpired(auth))
 
-      if (organizationChanged) {
-        store.dispatch(notify(alertType, 'Your organization has been removed.'))
+      if (organizationWasRemoved) {
+        store.dispatch(
+          notify(alertType, 'Your current organization was deleted.')
+        )
 
         allowNotifications = false
         setTimeout(() => {
