@@ -69,8 +69,8 @@ func TestServer(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode: 401,
-				body:       `{"code":401,"message":"User is not authorized"}`,
+				statusCode: 403,
+				body:       `{"code":403,"message":"User is not authorized"}`,
 			},
 		},
 		{
