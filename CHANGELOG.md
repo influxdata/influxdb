@@ -1,4 +1,4 @@
-## v1.4.0.0 [unreleased]
+## v1.4.0.0-beta1 [2017-12-07]
 ### Bug Fixes
 1. [#2449](https://github.com/influxdata/chronograf/pull/2449): Fix .jsdep step fails when LDFLAGS is exported
 1. [#2157](https://github.com/influxdata/chronograf/pull/2157): Fix logscale producing console errors when only one point in graph
