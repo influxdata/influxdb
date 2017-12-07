@@ -101,13 +101,13 @@ class TickscriptPage extends Component {
           }
 
           this.setState({
-            logs: [...this.state.logs, ...logs],
+            logs: [...logs, ...this.state.logs],
             failStr,
           })
         } catch (err) {
           console.warn(err, failStr)
           this.setState({
-            logs: [...this.state.logs, ...logs],
+            logs: [...logs, ...this.state.logs],
             failStr,
           })
         }
