@@ -118,7 +118,10 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 // Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
 func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	if err := e.WritePointsString(
@@ -150,6 +153,9 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 
 // Ensure that the engine will backup any TSM files created since the passed in time
 func TestEngine_Backup(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
@@ -166,11 +172,11 @@ func TestEngine_Backup(t *testing.T) {
 	// Write those points to the engine.
 	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db)
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), opt)
+	opt.InmemIndex = inmem.NewIndex(db, sfile)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), sfile, opt)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, sfile, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -257,7 +263,10 @@ func TestEngine_Backup(t *testing.T) {
 func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	// e.CreateMeasurement("cpu")
@@ -310,7 +319,10 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -362,7 +374,10 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -415,7 +430,10 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -468,7 +486,10 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 func TestEngine_CreateIterator_Aux(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -524,7 +545,10 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 func TestEngine_CreateIterator_Condition(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -583,12 +607,15 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 func TestEngine_DeleteSeries(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
+			sfile := MustOpenSeriesFile()
+			defer MustCloseSeriesFile(sfile)
+
 			// Create a few points.
 			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e := NewEngine(index)
+			e := NewEngine(index, sfile)
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
 
@@ -630,12 +657,15 @@ func TestEngine_DeleteSeries(t *testing.T) {
 func TestEngine_LastModified(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
+			sfile := MustOpenSeriesFile()
+			defer MustCloseSeriesFile(sfile)
+
 			// Create a few points.
 			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e := NewEngine(index)
+			e := NewEngine(index, sfile)
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
@@ -684,6 +714,9 @@ func TestEngine_LastModified(t *testing.T) {
 }
 
 func TestEngine_SnapshotsDisabled(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
 	// Generate temporary file.
 	dir, _ := ioutil.TempDir("", "tsm")
 	walPath := filepath.Join(dir, "wal")
@@ -693,11 +726,11 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	// Create a tsm1 engine.
 	db := path.Base(dir)
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db)
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), opt)
+	opt.InmemIndex = inmem.NewIndex(db, sfile)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), sfile, opt)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, db, dir, walPath, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, db, dir, walPath, sfile, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -722,7 +755,10 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 func TestEngine_CreateCursor_Ascending(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -771,7 +807,10 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 func TestEngine_CreateCursor_Descending(t *testing.T) {
 	t.Parallel()
 
-	e := MustOpenDefaultEngine()
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenDefaultEngine(sfile)
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -889,7 +928,10 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
-			e := MustOpenEngine(index)
+			sfile := MustOpenSeriesFile()
+			defer MustCloseSeriesFile(sfile)
+
+			e := MustOpenEngine(index, sfile)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
 			pp := make([]models.Point, 0, sz)
 			for i := 0; i < sz; i++ {
@@ -915,7 +957,10 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	batchSizes := []int{1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000}
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
-			e := MustOpenEngine(index)
+			sfile := MustOpenSeriesFile()
+			defer MustCloseSeriesFile(sfile)
+
+			e := MustOpenEngine(index, sfile)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
 
 			cpus := runtime.GOMAXPROCS(0)
@@ -1012,7 +1057,10 @@ func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
 		panic(fmt.Sprintf("point count (%d) must be a multiple of batch size (%d)", pointN, batchSize))
 	}
 
-	e := MustOpenEngine(tsdb.DefaultIndex)
+	sfile := MustOpenSeriesFile()
+	defer MustCloseSeriesFile(sfile)
+
+	e := MustOpenEngine(tsdb.DefaultIndex, sfile)
 
 	// Initialize metadata.
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -1057,10 +1105,11 @@ type Engine struct {
 	*tsm1.Engine
 	root  string
 	index tsdb.Index
+	sfile *tsdb.SeriesFile
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
-func NewEngine(index string) *Engine {
+func NewEngine(index string, sfile *tsdb.SeriesFile) *Engine {
 	root, err := ioutil.TempDir("", "tsm1-")
 	if err != nil {
 		panic(err)
@@ -1070,10 +1119,10 @@ func NewEngine(index string) *Engine {
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
 	if index == "inmem" {
-		opt.InmemIndex = inmem.NewIndex(db)
+		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
 
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(root, "data", "index"), opt)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(root, "data", "index"), sfile, opt)
 
 	return &Engine{
 		Engine: tsm1.NewEngine(1,
@@ -1081,16 +1130,18 @@ func NewEngine(index string) *Engine {
 			db,
 			filepath.Join(root, "data"),
 			filepath.Join(root, "wal"),
+			sfile,
 			opt).(*tsm1.Engine),
 		root:  root,
 		index: idx,
+		sfile: sfile,
 	}
 }
 
 // MustOpenDefaultEngine returns a new, open instance of Engine using the default
 // index. Useful when the index is not directly under test.
-func MustOpenDefaultEngine() *Engine {
-	e := NewEngine(tsdb.DefaultIndex)
+func MustOpenDefaultEngine(sfile *tsdb.SeriesFile) *Engine {
+	e := NewEngine(tsdb.DefaultIndex, sfile)
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
@@ -1098,8 +1149,8 @@ func MustOpenDefaultEngine() *Engine {
 }
 
 // MustOpenEngine returns a new, open instance of Engine.
-func MustOpenEngine(index string) *Engine {
-	e := NewEngine(index)
+func MustOpenEngine(index string, sfile *tsdb.SeriesFile) *Engine {
+	e := NewEngine(index, sfile)
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
@@ -1125,15 +1176,16 @@ func (e *Engine) Reopen() error {
 
 	db := path.Base(e.root)
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db)
+	opt.InmemIndex = inmem.NewIndex(db, e.sfile)
 
-	e.index = tsdb.MustOpenIndex(1, db, filepath.Join(e.root, "data", "index"), opt)
+	e.index = tsdb.MustOpenIndex(1, db, filepath.Join(e.root, "data", "index"), e.sfile, opt)
 
 	e.Engine = tsm1.NewEngine(1,
 		e.index,
 		db,
 		filepath.Join(e.root, "data"),
 		filepath.Join(e.root, "wal"),
+		e.sfile,
 		opt).(*tsm1.Engine)
 
 	if err := e.Engine.Open(); err != nil {
@@ -1199,12 +1251,42 @@ func (s series) Tags() models.Tags   { return s.tags }
 func (s series) Deleted() bool       { return s.deleted }
 func (s series) Expr() influxql.Expr { return nil }
 
-func (itr *seriesIterator) Next() tsdb.SeriesElem {
+func (itr *seriesIterator) Close() error { return nil }
+
+func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 	if len(itr.keys) == 0 {
-		return nil
+		return nil, nil
 	}
 	name, tags := models.ParseKeyBytes(itr.keys[0])
 	s := series{name: name, tags: tags}
 	itr.keys = itr.keys[1:]
-	return s
+	return s, nil
+}
+
+// NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
+func NewSeriesFile() *tsdb.SeriesFile {
+	file, err := ioutil.TempFile("", "tsm1-series-file-")
+	if err != nil {
+		panic(err)
+	}
+	file.Close()
+
+	return tsdb.NewSeriesFile(file.Name())
+}
+
+// MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
+func MustOpenSeriesFile() *tsdb.SeriesFile {
+	f := NewSeriesFile()
+	if err := f.Open(); err != nil {
+		panic(err)
+	}
+	return f
+}
+
+// MustCloseSeriesFile closes the log file and removes it from disk.
+func MustCloseSeriesFile(sfile *tsdb.SeriesFile) {
+	defer os.Remove(sfile.Path())
+	if err := sfile.Close(); err != nil {
+		panic(err)
+	}
 }
