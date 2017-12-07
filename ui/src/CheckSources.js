@@ -5,8 +5,8 @@ import {bindActionCreators} from 'redux'
 
 import {
   isUserAuthorized,
-  MEMBER_ROLE,
   VIEWER_ROLE,
+  EDITOR_ROLE,
   ADMIN_ROLE,
 } from 'src/auth/Authorized'
 
@@ -81,12 +81,7 @@ class CheckSources extends Component {
       return router.push('/')
     }
 
-    if (
-      !isFetching &&
-      isUsingAuth &&
-      me.role === MEMBER_ROLE &&
-      !me.superAdmin
-    ) {
+    if (!isFetching && isUsingAuth && !isUserAuthorized(me.role, VIEWER_ROLE)) {
       // if you're a member, go to purgatory.
       return router.push('/purgatory')
     }
@@ -97,7 +92,7 @@ class CheckSources extends Component {
       const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
       const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
 
-      if (isUsingAuth && me.role === VIEWER_ROLE && !me.superAdmin) {
+      if (isUsingAuth && !isUserAuthorized(me.role, EDITOR_ROLE)) {
         if (defaultSource) {
           return router.push(`/sources/${defaultSource.id}/${restString}`)
         } else if (sources[0]) {
