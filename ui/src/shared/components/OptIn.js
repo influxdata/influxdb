@@ -121,19 +121,19 @@ class OptIn extends Component {
           handleClickOutsideInput={this.handleClickOutsideInput}
         />
         <div
-          className="opt-in--groove-knob-container"
+          className="opt-in--container"
           id={this.id}
           ref={el => (this.grooveKnobContainer = el)}
-          onClick={this.handleClickToggle}
         >
           <div
             className="opt-in--groove-knob"
             id={this.id}
             ref={el => (this.grooveKnob = el)}
+            onClick={this.handleClickToggle}
           />
-        </div>
-        <div className="opt-in--left-label" onClick={this.useFixedValue}>
-          {fixedPlaceholder}
+          <div className="opt-in--label" onClick={this.useFixedValue}>
+            {fixedPlaceholder}
+          </div>
         </div>
       </div>
     )
