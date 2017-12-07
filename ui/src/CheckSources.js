@@ -66,7 +66,7 @@ class CheckSources extends Component {
       params,
       errorThrown,
       sources,
-      auth: {isUsingAuth, me},
+      auth: {isUsingAuth, me, me: {organizations, currentOrganization}},
       notify,
       getSources,
     } = nextProps
@@ -79,6 +79,14 @@ class CheckSources extends Component {
       !isUserAuthorized(nextProps.auth.me.role, ADMIN_ROLE)
     ) {
       return router.push('/')
+    }
+
+    if (
+      me.superAdmin &&
+      !organizations.find(o => o.id === currentOrganization.id)
+    ) {
+      notify('error', 'You were removed from your current organization')
+      return router.push('/purgatory')
     }
 
     if (!isFetching && isUsingAuth && !isUserAuthorized(me.role, VIEWER_ROLE)) {
