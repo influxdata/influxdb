@@ -22,6 +22,7 @@
   -ms-user-select: none !important;
   -o-user-select: none !important;
   color: $c-pool;
+  background-color: $g2-kevlar;
   font-family: $code-font;
   padding-right: 11px;
   line-height: 24px;
@@ -36,6 +37,7 @@
 .opt-in--groove-knob {
   width: 48px;
   position: relative;
+  background-color: $g2-kevlar;
 
   &:hover {
     cursor: pointer;
@@ -68,37 +70,19 @@
     transition: background-color 0.25s ease, transform 0.25s ease;
     transform: translate(0%, -50%);
   }
+  // Gradient
+  .opt-in--gradient {
+    z-index: 1;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    @include gradient-h($g2-kevlar,$g3-castle);
+    transition: opacity 0.25s ease;
+    opacity: 0;
+  }
 }
-
-  // // Background Gradients
-  // &:before,
-  // &:after {
-  //   content: '';
-  //   display: block;
-  //   position: absolute;
-  //   left: 0;
-  //   width: 100%;
-  //   height: 100%;
-  //   transition: opacity 0.25s ease;
-  // }
-  // // Left
-  // &:before {
-  //   background-color: $g2-kevlar;
-  //   z-index: 2;
-  //   opacity: 1;
-  // }
-  // // Right
-  // &:after {
-  //   @include gradient-h($g2-kevlar,$g3-castle);
-  //   z-index: 1;
-  // }
-  //
-  // &:hover {
-  //   cursor: pointer;
-  //   > div:after {
-  //     background-color: $c-laser;
-  //   }
-  // }
 
 // Customize form input
 .opt-in > input.form-control {
@@ -112,11 +96,12 @@
     transform: translate(-100%, -50%);
   }
   // Fade out left, fade in right
-  .opt-in--groove-knob-container:before {
-    opacity: 0;
+  .opt-in--gradient {
+    opacity: 1;
   }
   // Make left label look disabled
   .opt-in--label {
+    background-color: $g3-castle;
     color: $g8-storm;
     font-style: italic;
 

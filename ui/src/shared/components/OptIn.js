@@ -130,7 +130,9 @@ class OptIn extends Component {
             id={this.id}
             ref={el => (this.grooveKnob = el)}
             onClick={this.handleClickToggle}
-          />
+          >
+            <div className="opt-in--gradient" />
+          </div>
           <div className="opt-in--label" onClick={this.useFixedValue}>
             {fixedPlaceholder}
           </div>
