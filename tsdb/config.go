@@ -26,7 +26,7 @@ const (
 
 	// DefaultCacheSnapshotMemorySize is the size at which the engine will
 	// snapshot the cache and write it to a TSM file, freeing up memory
-	DefaultCacheSnapshotMemorySize = 25 * 1024 * 1024 // 25MB
+	DefaultCacheSnapshotMemorySize = 256 * 1024 * 1024 // 256MB
 
 	// DefaultCacheSnapshotWriteColdDuration is the length of time at which
 	// the engine will snapshot the cache and write it to a new TSM file if
