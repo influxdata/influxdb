@@ -1,3 +1,8 @@
+## v1.4.0.0-beta2 [unreleased]
+### Bug Fixes
+### Features
+### UI Improvements
+
 ## v1.4.0.0-beta1 [2017-12-07]
 ### Bug Fixes
 1. [#2449](https://github.com/influxdata/chronograf/pull/2449): Fix .jsdep step fails when LDFLAGS is exported
