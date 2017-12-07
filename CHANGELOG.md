@@ -39,6 +39,7 @@
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
 
 ### UI Improvements
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
 
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes
