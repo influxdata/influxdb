@@ -16,13 +16,6 @@ export const authRequested = () => ({
   type: 'AUTH_REQUESTED',
 })
 
-export const authReceived = auth => ({
-  type: 'AUTH_RECEIVED',
-  payload: {
-    auth,
-  },
-})
-
 export const meGetRequested = () => ({
   type: 'ME_GET_REQUESTED',
 })
