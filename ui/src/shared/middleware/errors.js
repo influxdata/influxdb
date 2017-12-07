@@ -30,6 +30,13 @@ const errorsMiddleware = store => next => action => {
 
       store.dispatch(authExpired(auth))
 
+      if (
+        message ===
+        `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
+      ) {
+        store.dispatch(notify(alertType, message))
+      }
+
       if (organizationWasRemoved) {
         store.dispatch(
           notify(alertType, 'Your current organization was deleted.')
