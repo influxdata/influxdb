@@ -602,6 +602,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	// Read measurement name.
 	name, remainder := tsdb.ReadSeriesKeyMeasurement(remainder)
 	mm := f.createMeasurementIfNotExists(name)
+	mm.deleted = false
 	mm.series[e.SeriesID] = struct{}{}
 
 	// Read tag count.

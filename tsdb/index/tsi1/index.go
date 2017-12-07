@@ -528,7 +528,36 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 
 // DropSeries drops the provided series from the index.
 func (i *Index) DropSeries(key []byte, ts int64) error {
-	return i.partition(key).DropSeries(key, ts)
+	// Remove from partition.
+	if err := i.partition(key).DropSeries(key, ts); err != nil {
+		return err
+	}
+
+	// Extract measurement name.
+	name, _ := models.ParseKey(key)
+	mname := []byte(name)
+
+	// Check if that was the last series for the measurement in the entire index.
+	itr, err := i.MeasurementSeriesIDIterator(mname)
+	if err != nil {
+		return err
+	} else if itr == nil {
+		return nil
+	}
+	itr = tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
+	defer itr.Close()
+
+	if e, err := itr.Next(); err != nil {
+		return err
+	} else if e.SeriesID != 0 {
+		return nil
+	}
+
+	// If no more series exist in the measurement then delete the measurement.
+	if err := i.DropMeasurement(mname); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all

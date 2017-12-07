@@ -555,27 +555,6 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 			return err
 		}
 
-		// Obtain file set after deletion because that may add a new log file.
-		fs := i.retainFileSet()
-		defer fs.Release()
-
-		// Check if that was the last series for the measurement in the entire index.
-		itr := tsdb.FilterUndeletedSeriesIDIterator(i.sfile, fs.MeasurementSeriesIDIterator(mname))
-		if itr == nil {
-			return nil
-		}
-		defer itr.Close()
-
-		if e, err := itr.Next(); err != nil {
-			return err
-		} else if e.SeriesID != 0 {
-			return nil
-		}
-
-		// If no more series exist in the measurement then delete the measurement.
-		if err := i.activeLogFile.DeleteMeasurement(mname); err != nil {
-			return err
-		}
 		return nil
 	}(); err != nil {
 		return err
