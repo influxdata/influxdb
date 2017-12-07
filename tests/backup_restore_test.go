@@ -21,7 +21,11 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	defer os.RemoveAll(fullBackupDir)
 
 	partialBackupDir, _ := ioutil.TempDir("", "backup")
-	defer os.RemoveAll(fullBackupDir)
+	defer os.RemoveAll(partialBackupDir)
+
+	enterpriseBackupDir, _ := ioutil.TempDir("", "backup")
+	manifestFile := ""
+	defer os.RemoveAll(enterpriseBackupDir)
 
 	db := "mydb"
 	rp := "forever"
@@ -88,6 +92,11 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		if err := cmd.Run("-host", hostAddress, "-database", "mydb", "-start", "1970-01-01T00:00:00.001Z", "-end", "1970-01-01T00:00:00.007Z", partialBackupDir); err != nil {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
+
+		if err := cmd.Run("-enterprise", "-host", hostAddress, "-database", "mydb", "-start", "1970-01-01T00:00:00.001Z", "-end", "1970-01-01T00:00:00.007Z", enterpriseBackupDir); err != nil {
+			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
+		}
+		manifestFile = cmd.BackupFiles[len(cmd.BackupFiles)-1]
 	}()
 
 	if _, err := os.Stat(config.Meta.Dir); err == nil || !os.IsNotExist(err) {
@@ -137,7 +146,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	}
 	hostAddress := net.JoinHostPort("localhost", port)
 	cmd.Run("-host", hostAddress, "-online", "-newdb", "mydbbak", "-db", "mydb", partialBackupDir)
-	res, err = s.Query(`show databases`)
 
 	// wait for the import to finish, and unlock the shard engine.
 	time.Sleep(time.Second)
@@ -150,6 +158,22 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	if res != partialExpected {
 		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
 	}
+
+	// enterprise should be the same as the non-enterprise live restore
+	cmd.Run("-host", hostAddress, "-enterprise", "-newdb", "mydbbak2", "-db", "mydb", filepath.Join(enterpriseBackupDir, manifestFile))
+
+	// wait for the import to finish, and unlock the shard engine.
+	time.Sleep(time.Second)
+
+	res, err = s.Query(`select * from "mydbbak2"."forever"."myseries"`)
+	if err != nil {
+		t.Fatalf("error querying: %s", err.Error())
+	}
+
+	if res != partialExpected {
+		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
+	}
+
 }
 
 func freePort() string {

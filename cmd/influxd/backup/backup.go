@@ -57,6 +57,8 @@ type Command struct {
 	enterprise         bool
 	manifest           backup_util.Manifest
 	enterpriseFileBase string
+
+	BackupFiles []string
 }
 
 // NewCommand returns a new instance of Command with default settings.
@@ -122,13 +124,17 @@ func (cmd *Command) Run(args ...string) error {
 			cmd.StderrLogger.Printf("manifest save failed: %v", err)
 			return err
 		}
+		cmd.BackupFiles = append(cmd.BackupFiles, filename)
 	}
 
 	if err != nil {
 		cmd.StderrLogger.Printf("backup failed: %v", err)
 		return err
 	}
-	cmd.StdoutLogger.Println("backup complete")
+	cmd.StdoutLogger.Println("backup complete:")
+	for _, v := range cmd.BackupFiles {
+		cmd.StdoutLogger.Println("\t" + filepath.Join(cmd.path, v))
+	}
 
 	return nil
 }
@@ -156,6 +162,8 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	if err != nil {
 		return err
 	}
+
+	cmd.BackupFiles = []string{}
 
 	// for enterprise saving, if needed
 	cmd.enterpriseFileBase = time.Now().UTC().Format(backup_util.EnterpriseFileNamePattern)
@@ -236,6 +244,9 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 
 	// TODO: verify shard backup data
 	err = cmd.downloadAndVerify(req, shardArchivePath, nil)
+	if !cmd.enterprise {
+		cmd.BackupFiles = append(cmd.BackupFiles, shardArchivePath)
+	}
 
 	if err != nil {
 		return err
@@ -294,6 +305,8 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 		if err := out.Close(); err != nil {
 			return err
 		}
+
+		cmd.BackupFiles = append(cmd.BackupFiles, filename)
 	}
 	return nil
 
@@ -400,6 +413,10 @@ func (cmd *Command) backupMetastore() error {
 		return err
 	}
 
+	if !cmd.enterprise {
+		cmd.BackupFiles = append(cmd.BackupFiles, metastoreArchivePath)
+	}
+
 	if cmd.enterprise {
 		metaBytes, err := backup_util.GetMetaBytes(metastoreArchivePath)
 		defer os.Remove(metastoreArchivePath)
@@ -419,6 +436,7 @@ func (cmd *Command) backupMetastore() error {
 
 		cmd.manifest.Meta.FileName = filename
 		cmd.manifest.Meta.Size = int64(len(metaBytes))
+		cmd.BackupFiles = append(cmd.BackupFiles, filename)
 	}
 
 	return nil
