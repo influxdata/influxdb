@@ -1,7 +1,6 @@
 import Login from './Login'
-import {
-  UserIsAuthenticated,
-  Authenticated,
-  UserIsNotAuthenticated,
-} from './Authenticated'
-export {Login, UserIsAuthenticated, Authenticated, UserIsNotAuthenticated}
+import Purgatory from './Purgatory'
+
+import {UserIsAuthenticated, UserIsNotAuthenticated} from './Authenticated'
+
+export {Login, Purgatory, UserIsAuthenticated, UserIsNotAuthenticated}

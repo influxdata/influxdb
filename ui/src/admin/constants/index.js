@@ -46,3 +46,6 @@ export const NEW_DEFAULT_DATABASE = {
   isNew: true,
   retentionPolicies: [NEW_DEFAULT_RP],
 }
+
+export const PUBLIC_TOOLTIP =
+  'If set to <code>false</code>, users cannot<br/>authenticate unless an <strong>Admin</strong> explicitly<br/>adds them to the organization.'

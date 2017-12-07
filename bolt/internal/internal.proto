@@ -13,6 +13,8 @@ message Source {
 	bool InsecureSkipVerify   = 9;  // InsecureSkipVerify accepts any certificate from the influx server
 	string MetaURL            = 10; // MetaURL is the connection URL for the meta node.
 	string SharedSecret       = 11; // SharedSecret signs the optional InfluxDB JWT Authorization
+	string Organization       = 12; // Organization is the organization ID that resource belongs to
+	string Role               = 13; // Role is the name of the miniumum role that a user must possess to access the resource
 }
 
 message Dashboard {
@@ -20,6 +22,7 @@ message Dashboard {
 	string Name                  = 2; // Name is the user-defined name of the dashboard
 	repeated DashboardCell cells = 3; // a representation of all visual data required for rendering the dashboard
 	repeated Template templates  = 4; // Templates replace template variables within InfluxQL
+	string Organization          = 5; // Organization is the organization ID that resource belongs to
 }
 
 message DashboardCell {
@@ -85,6 +88,7 @@ message Server {
 	string URL              = 5; // URL is the path to the server
 	int64 SrcID             = 6; // SrcID is the ID of the data source
 	bool Active             = 7; // is this the currently active server for the source
+	string Organization     = 8; // Organization is the organization ID that resource belongs to
 }
 
 message Layout {
@@ -140,8 +144,24 @@ message AlertRule {
 }
 
 message User {
-	uint64 ID                 = 1; // ID is the unique ID of this user
-	string Name               = 2; // Name is the user's login name
+	uint64 ID               = 1; // ID is the unique ID of this user
+	string Name             = 2; // Name is the user's login name
+	string Provider         = 3; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
+	string Scheme           = 4; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
+	repeated Role Roles     = 5; // Roles is set of roles a user has
+	bool SuperAdmin         = 6; // SuperAdmin is bool that specifies whether a user is a super admin
+}
+
+message Role {
+	string Organization   = 1; // Organization is the ID of the organization that this user has a role in
+	string Name           = 2; // Name is the name of the role of this user in the respective organization
+}
+
+message Organization {
+	uint64 ID               = 1; // ID is the unique ID of the organization
+	string Name             = 2; // Name is the organization's name
+	string DefaultRole      = 3; // DefaultRole is the name of the role that is the default for any users added to the organization
+	bool Public             = 4; // Public specifies that users must be explicitly added to the organization
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

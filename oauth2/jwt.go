@@ -31,6 +31,9 @@ var _ gojwt.Claims = &Claims{}
 // Claims extends jwt.StandardClaims' Valid to make sure claims has a subject.
 type Claims struct {
 	gojwt.StandardClaims
+	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtmldd
+	// that felt appropriate for Organization. As a result, we added a custom `org` field.
+	Organization string `json:"org,omitempty"`
 }
 
 // Valid adds an empty subject test to the StandardClaims checks.
@@ -93,10 +96,11 @@ func (j *JWT) ValidClaims(jwtToken Token, lifespan time.Duration, alg gojwt.Keyf
 	}
 
 	return Principal{
-		Subject:   claims.Subject,
-		Issuer:    claims.Issuer,
-		ExpiresAt: exp,
-		IssuedAt:  iat,
+		Subject:      claims.Subject,
+		Issuer:       claims.Issuer,
+		Organization: claims.Organization,
+		ExpiresAt:    exp,
+		IssuedAt:     iat,
 	}, nil
 }
 
@@ -105,13 +109,14 @@ func (j *JWT) Create(ctx context.Context, user Principal) (Token, error) {
 	// Create a new token object, specifying signing method and the claims
 	// you would like it to contain.
 	claims := &Claims{
-		gojwt.StandardClaims{
+		StandardClaims: gojwt.StandardClaims{
 			Subject:   user.Subject,
 			Issuer:    user.Issuer,
 			ExpiresAt: user.ExpiresAt.Unix(),
 			IssuedAt:  user.IssuedAt.Unix(),
 			NotBefore: user.IssuedAt.Unix(),
 		},
+		Organization: user.Organization,
 	}
 	token := gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims)
 	// Sign and get the complete encoded token as a string using the secret

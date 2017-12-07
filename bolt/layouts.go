@@ -8,23 +8,27 @@ import (
 	"github.com/influxdata/chronograf/bolt/internal"
 )
 
-// Ensure LayoutStore implements chronograf.LayoutStore.
-var _ chronograf.LayoutStore = &LayoutStore{}
+// Ensure LayoutsStore implements chronograf.LayoutsStore.
+var _ chronograf.LayoutsStore = &LayoutsStore{}
 
-// LayoutBucket is the bolt bucket layouts are stored in
-var LayoutBucket = []byte("Layout")
+// LayoutsBucket is the bolt bucket layouts are stored in
+var LayoutsBucket = []byte("Layout")
 
-// LayoutStore is the bolt implementation to store layouts
-type LayoutStore struct {
+// LayoutsStore is the bolt implementation to store layouts
+type LayoutsStore struct {
 	client *Client
 	IDs    chronograf.ID
 }
 
+func (s *LayoutsStore) Migrate(ctx context.Context) error {
+	return nil
+}
+
 // All returns all known layouts
-func (s *LayoutStore) All(ctx context.Context) ([]chronograf.Layout, error) {
+func (s *LayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 	var srcs []chronograf.Layout
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(LayoutBucket).ForEach(func(k, v []byte) error {
+		if err := tx.Bucket(LayoutsBucket).ForEach(func(k, v []byte) error {
 			var src chronograf.Layout
 			if err := internal.UnmarshalLayout(v, &src); err != nil {
 				return err
@@ -43,10 +47,10 @@ func (s *LayoutStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 
 }
 
-// Add creates a new Layout in the LayoutStore.
-func (s *LayoutStore) Add(ctx context.Context, src chronograf.Layout) (chronograf.Layout, error) {
+// Add creates a new Layout in the LayoutsStore.
+func (s *LayoutsStore) Add(ctx context.Context, src chronograf.Layout) (chronograf.Layout, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(LayoutBucket)
+		b := tx.Bucket(LayoutsBucket)
 		id, err := s.IDs.Generate()
 		if err != nil {
 			return err
@@ -66,14 +70,14 @@ func (s *LayoutStore) Add(ctx context.Context, src chronograf.Layout) (chronogra
 	return src, nil
 }
 
-// Delete removes the Layout from the LayoutStore
-func (s *LayoutStore) Delete(ctx context.Context, src chronograf.Layout) error {
+// Delete removes the Layout from the LayoutsStore
+func (s *LayoutsStore) Delete(ctx context.Context, src chronograf.Layout) error {
 	_, err := s.Get(ctx, src.ID)
 	if err != nil {
 		return err
 	}
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(LayoutBucket).Delete([]byte(src.ID)); err != nil {
+		if err := tx.Bucket(LayoutsBucket).Delete([]byte(src.ID)); err != nil {
 			return err
 		}
 		return nil
@@ -85,10 +89,10 @@ func (s *LayoutStore) Delete(ctx context.Context, src chronograf.Layout) error {
 }
 
 // Get returns a Layout if the id exists.
-func (s *LayoutStore) Get(ctx context.Context, id string) (chronograf.Layout, error) {
+func (s *LayoutsStore) Get(ctx context.Context, id string) (chronograf.Layout, error) {
 	var src chronograf.Layout
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
-		if v := tx.Bucket(LayoutBucket).Get([]byte(id)); v == nil {
+		if v := tx.Bucket(LayoutsBucket).Get([]byte(id)); v == nil {
 			return chronograf.ErrLayoutNotFound
 		} else if err := internal.UnmarshalLayout(v, &src); err != nil {
 			return err
@@ -102,10 +106,10 @@ func (s *LayoutStore) Get(ctx context.Context, id string) (chronograf.Layout, er
 }
 
 // Update a Layout
-func (s *LayoutStore) Update(ctx context.Context, src chronograf.Layout) error {
+func (s *LayoutsStore) Update(ctx context.Context, src chronograf.Layout) error {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		// Get an existing layout with the same ID.
-		b := tx.Bucket(LayoutBucket)
+		b := tx.Bucket(LayoutsBucket)
 		if v := b.Get([]byte(src.ID)); v == nil {
 			return chronograf.ErrLayoutNotFound
 		}

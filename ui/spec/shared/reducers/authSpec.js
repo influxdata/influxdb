@@ -4,8 +4,8 @@ import {
   authExpired,
   authRequested,
   authReceived,
-  meRequested,
-  meReceived,
+  meGetRequested,
+  meGetCompleted,
 } from 'shared/actions/auth'
 
 const defaultAuth = {
@@ -22,7 +22,6 @@ const defaultAuth = {
 
 const defaultMe = {
   name: 'wishful_modal@overlay.technology',
-  password: '',
   links: {
     self: '/chronograf/v1/users/wishful_modal@overlay.technology',
   },
@@ -44,25 +43,58 @@ describe('Shared.Reducers.authReducer', () => {
     expect(reducedState.isAuthLoading).to.equal(true)
   })
 
-  it('should handle AUTH_RECEIVED', () => {
-    const loadingState = Object.assign({}, initialState, {isAuthLoading: true})
-    const reducedState = authReducer(loadingState, authReceived(defaultAuth))
-
-    expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
-    expect(reducedState.isAuthLoading).to.equal(false)
-  })
-
-  it('should handle ME_REQUESTED', () => {
-    const reducedState = authReducer(initialState, meRequested())
+  it('should handle ME_GET_REQUESTED', () => {
+    const reducedState = authReducer(initialState, meGetRequested())
 
     expect(reducedState.isMeLoading).to.equal(true)
   })
 
-  it('should handle ME_RECEIVED', () => {
-    const loadingState = Object.assign({}, initialState, {isMeLoading: true})
-    const reducedState = authReducer(loadingState, meReceived(defaultMe))
+  it('should handle ME_GET_COMPLETED with auth', () => {
+    const loadingState = {
+      ...initialState,
+      isAuthLoading: true,
+      isMeLoading: true,
+    }
+
+    const meWithAuth = {
+      ...defaultMe,
+      roles: [{name: 'member', organization: '1'}],
+      role: 'member',
+      currentOrganization: {name: 'bob', id: '1'},
+    }
+
+    const reducedState = authReducer(
+      loadingState,
+      meGetCompleted({
+        me: meWithAuth,
+        auth: defaultAuth,
+        logoutLink: '/oauth/logout',
+      })
+    )
+
+    expect(reducedState.me).to.deep.equal(meWithAuth)
+    expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
+    expect(reducedState.isAuthLoading).to.equal(false)
+    expect(reducedState.isMeLoading).to.equal(false)
+  })
+
+  it('should handle ME_GET_COMPLETED without auth', () => {
+    const loadingState = {
+      ...initialState,
+      isAuthLoading: true,
+      isMeLoading: true,
+    }
+    const reducedState = authReducer(
+      loadingState,
+      meGetCompleted({
+        me: defaultMe,
+        auth: defaultAuth,
+      })
+    )
 
     expect(reducedState.me).to.deep.equal(defaultMe)
+    expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
     expect(reducedState.isAuthLoading).to.equal(false)
+    expect(reducedState.isMeLoading).to.equal(false)
   })
 })

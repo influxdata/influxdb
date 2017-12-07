@@ -6,12 +6,18 @@ import {Provider} from 'react-redux'
 import {Router, Route, useRouterHistory} from 'react-router'
 import {createHistory} from 'history'
 import {syncHistoryWithStore} from 'react-router-redux'
+import {bindActionCreators} from 'redux'
 
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
 import App from 'src/App'
-import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
+import {
+  Login,
+  UserIsAuthenticated,
+  UserIsNotAuthenticated,
+  Purgatory,
+} from 'src/auth'
 import CheckSources from 'src/CheckSources'
 import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
@@ -25,21 +31,13 @@ import {
   KapacitorTasksPage,
   TickscriptPage,
 } from 'src/kapacitor'
-import {AdminPage} from 'src/admin'
+import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
 
-import {getMe} from 'shared/apis'
+import {getMeAsync} from 'shared/actions/auth'
 
 import {disablePresentationMode} from 'shared/actions/app'
-import {
-  authRequested,
-  authReceived,
-  meRequested,
-  meReceived,
-  logoutLinkReceived,
-} from 'shared/actions/auth'
-import {linksReceived} from 'shared/actions/links'
 import {errorThrown} from 'shared/actions/errors'
 
 import 'src/style/chronograf.scss'
@@ -81,34 +79,23 @@ const Root = React.createClass({
   },
 
   async checkAuth() {
-    dispatch(authRequested())
-    dispatch(meRequested())
     try {
-      await this.startHeartbeat({shouldDispatchResponse: true})
+      await this.performHeartbeat({shouldResetMe: true})
     } catch (error) {
       dispatch(errorThrown(error))
     }
   },
 
-  async startHeartbeat({shouldDispatchResponse}) {
-    try {
-      // These non-me objects are added to every response by some AJAX trickery
-      const {data: me, auth, logoutLink, external} = await getMe()
-      if (shouldDispatchResponse) {
-        dispatch(authReceived(auth))
-        dispatch(meReceived(me))
-        dispatch(logoutLinkReceived(logoutLink))
-        dispatch(linksReceived({external}))
-      }
+  getMe: bindActionCreators(getMeAsync, dispatch),
 
-      setTimeout(() => {
-        if (store.getState().auth.me !== null) {
-          this.startHeartbeat({shouldDispatchResponse: false})
-        }
-      }, HEARTBEAT_INTERVAL)
-    } catch (error) {
-      dispatch(errorThrown(error))
-    }
+  async performHeartbeat({shouldResetMe = false} = {}) {
+    await this.getMe({shouldResetMe})
+
+    setTimeout(() => {
+      if (store.getState().auth.me !== null) {
+        this.performHeartbeat()
+      }
+    }, HEARTBEAT_INTERVAL)
   },
 
   flushErrorsQueue() {
@@ -125,6 +112,7 @@ const Root = React.createClass({
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
           <Route path="/login" component={UserIsNotAuthenticated(Login)} />
+          <Route path="/purgatory" component={UserIsAuthenticated(Purgatory)} />
           <Route
             path="/sources/new"
             component={UserIsAuthenticated(SourcePage)}
@@ -146,7 +134,8 @@ const Root = React.createClass({
               <Route path="kapacitors/new" component={KapacitorPage} />
               <Route path="kapacitors/:id/edit" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
-              <Route path="admin" component={AdminPage} />
+              <Route path="admin-chronograf" component={AdminChronografPage} />
+              <Route path="admin-influxdb" component={AdminInfluxDBPage} />
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />

@@ -1,20 +1,5 @@
 import AJAX from 'utils/ajax'
 
-export function fetchLayouts() {
-  return AJAX({
-    url: '/chronograf/v1/layouts',
-    method: 'GET',
-    resource: 'layouts',
-  })
-}
-
-export function getMe() {
-  return AJAX({
-    resource: 'me',
-    method: 'GET',
-  })
-}
-
 export function getSources() {
   return AJAX({
     resource: 'sources',

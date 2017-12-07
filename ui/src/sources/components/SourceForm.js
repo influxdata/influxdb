@@ -1,7 +1,11 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
+import {connect} from 'react-redux'
 import _ from 'lodash'
+
+import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
+
+import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 const SourceForm = ({
   source,
@@ -9,10 +13,24 @@ const SourceForm = ({
   onSubmit,
   onInputChange,
   onBlurSourceURL,
+  isUsingAuth,
+  isInitialSource,
+  me,
 }) =>
   <div className="panel-body">
-    <h4 className="text-center">Connection Details</h4>
-    <br />
+    {isUsingAuth && isInitialSource
+      ? <div className="text-center">
+          {me.role === SUPERADMIN_ROLE
+            ? <h3>
+                <strong>{me.currentOrganization.name}</strong> has no sources
+              </h3>
+            : <h3>
+                <strong>{me.currentOrganization.name}</strong> has no sources
+                available to <em>{me.role}s</em>
+              </h3>}
+          <h6>Add a Source below:</h6>
+        </div>
+      : null}
 
     <form onSubmit={onSubmit}>
       <div className="form-group col-xs-12 col-sm-6">
@@ -79,7 +97,7 @@ const SourceForm = ({
           </div>
         : null}
       <div className="form-group col-xs-12">
-        <label htmlFor="telegraf">Telegraf database</label>
+        <label htmlFor="telegraf">Telegraf Database</label>
         <input
           type="text"
           name="telegraf"
@@ -152,6 +170,17 @@ SourceForm.propTypes = {
   onInputChange: func.isRequired,
   onSubmit: func.isRequired,
   onBlurSourceURL: func.isRequired,
+  me: shape({
+    role: string,
+    currentOrganization: shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    }),
+  }),
+  isUsingAuth: bool,
+  isInitialSource: bool,
 }
 
-export default SourceForm
+const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
+
+export default connect(mapStateToProps)(SourceForm)

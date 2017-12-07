@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -46,13 +48,22 @@ const DashboardHeader = ({
                 />
               : null}
             {dashboard
-              ? <DashboardHeaderEdit
-                  onSave={onSave}
-                  onCancel={onCancel}
-                  activeDashboard={activeDashboard}
-                  onEditDashboard={onEditDashboard}
-                  isEditMode={isEditMode}
-                />
+              ? <Authorized
+                  requiredRole={EDITOR_ROLE}
+                  replaceWithIfNotAuthorized={
+                    <h1 className="page-header__title">
+                      {activeDashboard}
+                    </h1>
+                  }
+                >
+                  <DashboardHeaderEdit
+                    onSave={onSave}
+                    onCancel={onCancel}
+                    activeDashboard={activeDashboard}
+                    onEditDashboard={onEditDashboard}
+                    isEditMode={isEditMode}
+                  />
+                </Authorized>
               : <h1 className="page-header__title">
                   {activeDashboard}
                 </h1>}
@@ -61,10 +72,15 @@ const DashboardHeader = ({
             <GraphTips />
             <SourceIndicator />
             {dashboard
-              ? <button className="btn btn-primary btn-sm" onClick={onAddCell}>
-                  <span className="icon plus" />
-                  Add Cell
-                </button>
+              ? <Authorized requiredRole={EDITOR_ROLE}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={onAddCell}
+                  >
+                    <span className="icon plus" />
+                    Add Cell
+                  </button>
+                </Authorized>
               : null}
             {dashboard
               ? <div

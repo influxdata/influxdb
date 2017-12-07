@@ -10,29 +10,29 @@ import (
 )
 
 // KapacitorProxy proxies requests to kapacitor using the path query parameter.
-func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
+func (s *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		Error(w, http.StatusUnprocessableEntity, err.Error(), s.Logger)
 		return
 	}
 
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		Error(w, http.StatusUnprocessableEntity, err.Error(), s.Logger)
 		return
 	}
 
 	path := r.URL.Query().Get("path")
 	if path == "" {
-		Error(w, http.StatusUnprocessableEntity, "path query parameter required", h.Logger)
+		Error(w, http.StatusUnprocessableEntity, "path query parameter required", s.Logger)
 		return
 	}
 
 	ctx := r.Context()
-	srv, err := h.ServersStore.Get(ctx, id)
+	srv, err := s.Store.Servers(ctx).Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id, h.Logger)
+		notFound(w, id, s.Logger)
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		msg := fmt.Sprintf("Error parsing kapacitor url: %v", err)
-		Error(w, http.StatusUnprocessableEntity, msg, h.Logger)
+		Error(w, http.StatusUnprocessableEntity, msg, s.Logger)
 		return
 	}
 
@@ -68,23 +68,23 @@ func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 // KapacitorProxyPost proxies POST to kapacitor
-func (h *Service) KapacitorProxyPost(w http.ResponseWriter, r *http.Request) {
-	h.KapacitorProxy(w, r)
+func (s *Service) KapacitorProxyPost(w http.ResponseWriter, r *http.Request) {
+	s.KapacitorProxy(w, r)
 }
 
 // KapacitorProxyPatch proxies PATCH to kapacitor
-func (h *Service) KapacitorProxyPatch(w http.ResponseWriter, r *http.Request) {
-	h.KapacitorProxy(w, r)
+func (s *Service) KapacitorProxyPatch(w http.ResponseWriter, r *http.Request) {
+	s.KapacitorProxy(w, r)
 }
 
 // KapacitorProxyGet proxies GET to kapacitor
-func (h *Service) KapacitorProxyGet(w http.ResponseWriter, r *http.Request) {
-	h.KapacitorProxy(w, r)
+func (s *Service) KapacitorProxyGet(w http.ResponseWriter, r *http.Request) {
+	s.KapacitorProxy(w, r)
 }
 
 // KapacitorProxyDelete proxies DELETE to kapacitor
-func (h *Service) KapacitorProxyDelete(w http.ResponseWriter, r *http.Request) {
-	h.KapacitorProxy(w, r)
+func (s *Service) KapacitorProxyDelete(w http.ResponseWriter, r *http.Request) {
+	s.KapacitorProxy(w, r)
 }
 
 func singleJoiningSlash(a, b string) string {
