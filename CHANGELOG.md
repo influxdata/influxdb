@@ -1,5 +1,11 @@
 ## v1.4.3 [unreleased]
 
+### Configuration Changes
+
+#### `[data]` Section
+
+The default value for `cache-snapshot-memory-size` has been changed from `25m` to `256m`.
+
 ### Bugfixes
 
 - [#9129](https://github.com/influxdata/influxdb/pull/9129): Fix delete causing too much data to disappear
@@ -8,6 +14,7 @@
 - [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
 - [#9161](https://github.com/influxdata/influxdb/issues/9161): DELETE doesn't delete fresh data
 - [#9185](https://github.com/influxdata/influxdb/pull/9185): Fix compaction aborting early and dropping remaining series
+- [#9201](https://github.com/influxdata/influxdb/issues/9201): Fix higher disk i/o utilization
 
 ## v1.4.2 [2017-11-15]
 
