@@ -93,7 +93,7 @@ Authorized.propTypes = {
   children: node.isRequired,
   router: shape().isRequired,
   me: shape({
-    role: string.isRequired,
+    role: string,
   }),
   requiredRole: string.isRequired,
   propsOverride: shape(),
