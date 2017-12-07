@@ -18,7 +18,7 @@ const HandlerTabs = ({
             })}
             onClick={handleChooseHandler(ep)}
           >
-            {ep.alias}
+            {ep.type}
             <button
               className="endpoint-tab--delete"
               onClick={handleRemoveHandler(ep)}
