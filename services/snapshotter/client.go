@@ -64,6 +64,10 @@ func (c *Client) doRequest(req *Request) ([]byte, error) {
 	defer conn.Close()
 
 	// Write the request
+	_, err = conn.Write([]byte{byte(req.Type)})
+	if err != nil {
+		return nil, err
+	}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		return nil, fmt.Errorf("encode snapshot request: %s", err)
 	}

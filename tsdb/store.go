@@ -796,6 +796,20 @@ func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	return shard.Backup(w, path, since)
 }
 
+func (s *Store) ExportShard(id uint64, start time.Time, end time.Time, w io.Writer) error {
+	shard := s.Shard(id)
+	if shard == nil {
+		return fmt.Errorf("shard %d doesn't exist on this server", id)
+	}
+
+	path, err := relativePath(s.path, shard.path)
+	if err != nil {
+		return err
+	}
+
+	return shard.Export(w, path, start, end)
+}
+
 // RestoreShard restores a backup from r to a given shard.
 // This will only overwrite files included in the backup.
 func (s *Store) RestoreShard(id uint64, r io.Reader) error {
