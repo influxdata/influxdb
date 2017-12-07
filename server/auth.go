@@ -81,13 +81,13 @@ func AuthorizedUser(
 		p, err := getValidPrincipal(ctx)
 		if err != nil {
 			log.Error("Failed to retrieve principal from context")
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
 		}
 		scheme, err := getScheme(ctx)
 		if err != nil {
 			log.Error("Failed to retrieve scheme from context")
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
 		}
 
@@ -95,7 +95,8 @@ func AuthorizedUser(
 		if p.Organization == "" {
 			defaultOrg, err := store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 			if err != nil {
-				unknownErrorWithMessage(w, err, logger)
+				log.Error(fmt.Sprintf("Failed to retrieve the default organization: %v", err))
+				Error(w, http.StatusForbidden, "User is not authorized", logger)
 				return
 			}
 			p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
@@ -105,13 +106,13 @@ func AuthorizedUser(
 		orgID, err := parseOrganizationID(p.Organization)
 		if err != nil {
 			log.Error("Failed to validate organization on context")
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
 		}
 		_, err = store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
 		if err != nil {
 			log.Error(fmt.Sprintf("Failed to retrieve organization %d from organizations store", orgID))
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
 		}
 		ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
@@ -124,7 +125,7 @@ func AuthorizedUser(
 
 		if err != nil {
 			log.Error("Failed to retrieve user")
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
 		}
 		// In particular this is used by sever/users.go so that we know when and when not to
@@ -155,7 +156,7 @@ func AuthorizedUser(
 		})
 		if err != nil {
 			log.Error("Failed to retrieve user")
-			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
 		}
 
@@ -175,7 +176,7 @@ func AuthorizedUser(
 			return
 		}
 
-		Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+		Error(w, http.StatusForbidden, "User is not authorized", logger)
 		return
 	})
 }

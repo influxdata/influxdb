@@ -56,7 +56,7 @@ const SideNav = React.createClass({
           name: string,
         })
       ),
-    }).isRequired,
+    }),
   },
 
   render() {

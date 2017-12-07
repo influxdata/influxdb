@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
+import {withRouter} from 'react-router'
 
 export const MEMBER_ROLE = 'member'
 export const VIEWER_ROLE = 'viewer'
@@ -33,37 +34,53 @@ export const isUserAuthorized = (meRole, requiredRole) => {
   }
 }
 
-const Authorized = ({
-  children,
-  meRole,
-  isUsingAuth,
-  requiredRole,
-  replaceWithIfNotAuthorized,
-  replaceWithIfNotUsingAuth,
-  replaceWithIfAuthorized,
-  propsOverride,
-}) => {
-  // if me response has not been received yet, render nothing
-  if (typeof isUsingAuth !== 'boolean') {
-    return null
+class Authorized extends Component {
+  componentWillUpdate() {
+    const {router, me} = this.props
+
+    if (me === null) {
+      router.push('/login')
+    }
   }
 
-  // React.isValidElement guards against multiple children wrapped by Authorized
-  const firstChild = React.isValidElement(children) ? children : children[0]
+  render() {
+    const {
+      children,
+      me,
+      isUsingAuth,
+      requiredRole,
+      replaceWithIfNotAuthorized,
+      replaceWithIfNotUsingAuth,
+      replaceWithIfAuthorized,
+      propsOverride,
+    } = this.props
 
-  if (!isUsingAuth) {
-    return replaceWithIfNotUsingAuth || firstChild
+    if (me === null) {
+      return null
+    }
+
+    // if me response has not been received yet, render nothing
+    if (typeof isUsingAuth !== 'boolean') {
+      return null
+    }
+
+    // React.isValidElement guards against multiple children wrapped by Authorized
+    const firstChild = React.isValidElement(children) ? children : children[0]
+
+    if (!isUsingAuth) {
+      return replaceWithIfNotUsingAuth || firstChild
+    }
+
+    if (isUserAuthorized(me.role, requiredRole)) {
+      return replaceWithIfAuthorized || firstChild
+    }
+
+    if (propsOverride) {
+      return React.cloneElement(firstChild, {...propsOverride})
+    }
+
+    return replaceWithIfNotAuthorized || null
   }
-
-  if (isUserAuthorized(meRole, requiredRole)) {
-    return replaceWithIfAuthorized || firstChild
-  }
-
-  if (propsOverride) {
-    return React.cloneElement(firstChild, {...propsOverride})
-  }
-
-  return replaceWithIfNotAuthorized || null
 }
 
 const {bool, node, shape, string} = PropTypes
@@ -74,6 +91,7 @@ Authorized.propTypes = {
   replaceWithIfAuthorized: node,
   replaceWithIfNotAuthorized: node,
   children: node.isRequired,
+  router: shape().isRequired,
   me: shape({
     role: string.isRequired,
   }),
@@ -81,9 +99,9 @@ Authorized.propTypes = {
   propsOverride: shape(),
 }
 
-const mapStateToProps = ({auth: {me: {role}, isUsingAuth}}) => ({
-  meRole: role,
+const mapStateToProps = ({auth: {me, isUsingAuth}}) => ({
+  me,
   isUsingAuth,
 })
 
-export default connect(mapStateToProps)(Authorized)
+export default connect(mapStateToProps)(withRouter(Authorized))

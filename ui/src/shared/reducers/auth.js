@@ -10,6 +10,36 @@ import {getMeRole} from 'shared/reducers/helpers/auth'
 
 export const initialState = getInitialState()
 
+const meGetCompleted = (state, {me}, isUsingAuth) => {
+  let newMe = me
+
+  if (isUsingAuth) {
+    newMe = {
+      ...newMe,
+      role: getMeRole(me),
+      currentOrganization: me.currentOrganization,
+    }
+  }
+
+  return {
+    ...state,
+    me: {...newMe},
+    isMeLoading: false,
+  }
+}
+
+const authReceived = (state, {auth: {links}}) => ({
+  ...state,
+  links,
+  isAuthLoading: false,
+})
+
+const logoutLinkReceived = (state, {logoutLink}, isUsingAuth) => ({
+  ...state,
+  logoutLink,
+  isUsingAuth,
+})
+
 const authReducer = (state = initialState, action) => {
   switch (action.type) {
     case 'AUTH_EXPIRED': {
@@ -19,37 +49,18 @@ const authReducer = (state = initialState, action) => {
     case 'AUTH_REQUESTED': {
       return {...state, isAuthLoading: true}
     }
-    case 'AUTH_RECEIVED': {
-      const {auth: {links}} = action.payload
-      return {...state, links, isAuthLoading: false}
-    }
     case 'ME_GET_REQUESTED': {
       return {...state, isMeLoading: true}
     }
-    case 'ME_GET_COMPLETED__NON_AUTH': {
-      const {me} = action.payload
-      return {
-        ...state,
-        me: {...me},
-        isMeLoading: false,
-      }
-    }
-    case 'ME_GET_COMPLETED__AUTH': {
-      const {me, me: {currentOrganization}} = action.payload
-      return {
-        ...state,
-        me: {
-          ...me,
-          role: getMeRole(me),
-          currentOrganization,
-        },
-        isMeLoading: false,
-      }
-    }
-    case 'LOGOUT_LINK_RECEIVED': {
+    case 'ME_GET_COMPLETED': {
       const {logoutLink} = action.payload
       const isUsingAuth = !!logoutLink
-      return {...state, logoutLink, isUsingAuth}
+
+      let newState = meGetCompleted(state, action.payload, isUsingAuth)
+      newState = authReceived(newState, action.payload)
+      newState = logoutLinkReceived(newState, action.payload, isUsingAuth)
+
+      return newState
     }
   }
 

@@ -16,28 +16,16 @@ export const authRequested = () => ({
   type: 'AUTH_REQUESTED',
 })
 
-export const authReceived = auth => ({
-  type: 'AUTH_RECEIVED',
-  payload: {
-    auth,
-  },
-})
-
 export const meGetRequested = () => ({
   type: 'ME_GET_REQUESTED',
 })
 
-export const meGetCompletedNotUsingAuth = me => ({
-  type: 'ME_GET_COMPLETED__NON_AUTH',
+export const meGetCompleted = ({me, auth, logoutLink}) => ({
+  type: 'ME_GET_COMPLETED',
   payload: {
     me,
-  },
-})
-
-export const meGetCompletedUsingAuth = me => ({
-  type: 'ME_GET_COMPLETED__AUTH',
-  payload: {
-    me,
+    auth,
+    logoutLink,
   },
 })
 
@@ -57,18 +45,11 @@ export const meChangeOrganizationFailed = () => ({
   type: 'ME_CHANGE_ORGANIZATION_FAILED',
 })
 
-export const logoutLinkReceived = logoutLink => ({
-  type: 'LOGOUT_LINK_RECEIVED',
-  payload: {
-    logoutLink,
-  },
-})
-
 // shouldResetMe protects against `me` being nullified in Redux temporarily,
 // which currently causes the app to show a loading spinner until me is
 // re-hydrated. if `getMeAsync` is only being used to refresh me after creating
 // an organization, this is undesirable behavior
-export const getMeAsync = ({shouldResetMe}) => async dispatch => {
+export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
   if (shouldResetMe) {
     dispatch(authRequested())
     dispatch(meGetRequested())
@@ -84,16 +65,17 @@ export const getMeAsync = ({shouldResetMe}) => async dispatch => {
       organizations,
       meLink,
     } = await getMeAJAX()
-    const isUsingAuth = !!logoutLink
     dispatch(
-      isUsingAuth ? meGetCompletedUsingAuth(me) : meGetCompletedNotUsingAuth(me)
+      meGetCompleted({
+        me,
+        auth,
+        logoutLink,
+      })
     )
-    dispatch(authReceived(auth))
-    dispatch(logoutLinkReceived(logoutLink))
-    dispatch(linksReceived({external, users, organizations, me: meLink}))
+    dispatch(linksReceived({external, users, organizations, me: meLink})) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
   } catch (error) {
-    dispatch(errorThrown(error))
     dispatch(meGetFailed())
+    dispatch(errorThrown(error))
   }
 }
 
@@ -103,15 +85,15 @@ export const meChangeOrganizationAsync = (
 ) => async dispatch => {
   dispatch(meChangeOrganizationRequested())
   try {
-    const {data} = await updateMeAJAX(url, organization)
+    const {data: me, auth, logoutLink} = await updateMeAJAX(url, organization)
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `Now signed into ${data.currentOrganization.name}`
+        `Now signed into ${me.currentOrganization.name}`
       )
     )
     dispatch(meChangeOrganizationCompleted())
-    dispatch(meGetCompletedUsingAuth(data))
+    dispatch(meGetCompleted({me, auth, logoutLink}))
     // TODO: reload sources upon me change org if non-refresh behavior preferred
     // instead of current behavior on both invocations of meChangeOrganization,
     // which is to refresh index via router.push('')

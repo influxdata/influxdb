@@ -111,10 +111,7 @@ func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
 		return s.SourcesStore
 	}
 	if org, ok := hasOrganizationContext(ctx); ok {
-		store := organizations.NewSourcesStore(s.SourcesStore, org)
-		if role, ok := hasRoleContext(ctx); ok {
-			return roles.NewSourcesStore(store, role)
-		}
+		return organizations.NewSourcesStore(s.SourcesStore, org)
 	}
 
 	return &noop.SourcesStore{}

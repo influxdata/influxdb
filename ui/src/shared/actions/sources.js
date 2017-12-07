@@ -116,6 +116,7 @@ export const getSourcesAsync = () => async dispatch => {
   try {
     const {data: {sources}} = await getSourcesAJAX()
     dispatch(loadSources(sources))
+    return sources
   } catch (error) {
     dispatch(errorThrown(error))
   }

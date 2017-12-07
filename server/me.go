@@ -217,10 +217,16 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
+		if err == chronograf.ErrOrganizationNotFound {
+			// The intent is to force a the user to go through another auth flow
+			Error(w, http.StatusForbidden, "user's current organization was not found", s.Logger)
+			return
+		}
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
+
 		defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
 		// If a user was added via the API, they might not yet be a member of the default organization
 		// Here we check to verify that they are a user in the default organization
