@@ -1,4 +1,4 @@
-package restore;
+package backup_util;
 
 //========================================================================
 //
@@ -6,8 +6,7 @@ package restore;
 //
 //========================================================================
 
-
-
 message EnterpriseData {
     required bytes Data = 1;
+    required uint64 MaxNodeID = 2;
 }

@@ -10,9 +10,17 @@ import (
 	"time"
 )
 
-func StreamFunc(w io.Writer, dir, relativePath string, writeFunc func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error) error {
+// Stream is a convenience function for creating a tar of a shard dir. It walks over the directory and subdirs,
+// possibly writing each file to a tar writer stream.  By default StreamFile is used, which will result in all files
+// being written.  A custom writeFunc can be passed so that each file may be written, modified+written, or skipped
+// depending on the custom logic.
+func Stream(w io.Writer, dir, relativePath string, writeFunc func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error) error {
 	tw := tar.NewWriter(w)
 	defer tw.Close()
+
+	if writeFunc == nil {
+		writeFunc = StreamFile
+	}
 
 	return filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
@@ -25,34 +33,35 @@ func StreamFunc(w io.Writer, dir, relativePath string, writeFunc func(f os.FileI
 		}
 
 		// Figure out the the full relative path including any sub-dirs
-		subDir := strings.TrimPrefix(path, dir+string(filepath.Separator))
-		subDir = strings.TrimSuffix(subDir, f.Name())
+		subDir, _ := filepath.Split(path)
+		subDir, err = filepath.Rel(dir, subDir)
+		if err != nil {
+			return err
+		}
 
 		return writeFunc(f, filepath.Join(relativePath, subDir), path, tw)
 	})
 }
 
-// Stream writes a tar archive to w, containing the files and sub-directories in the directory dir
-// stored relative to relativePath.
-func Stream(w io.Writer, dir, relativePath string) error {
-	return StreamFunc(w, dir, relativePath, TarFile)
-}
-
+// Generates a filtering function for Stream that checks an incoming file, and only writes the file to the stream if
+// its mod time is later than since.  Example: to tar only files newer than a certain datetime, use
+// tar.Stream(w, dir, relativePath, SinceFilterTarFile(datetime))
 func SinceFilterTarFile(since time.Time) func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
 	return func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
 		if f.ModTime().After(since) {
-			return TarFile(f, shardRelativePath, fullPath, tw)
+			return StreamFile(f, shardRelativePath, fullPath, tw)
 		}
 		return nil
 	}
 }
 
-func TarFile(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
+// stream a single file to tw, extending the header name using the shardRelativePath
+func StreamFile(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
 	h, err := tar.FileInfoHeader(f, f.Name())
 	if err != nil {
 		return err
 	}
-	h.Name = filepath.Join(shardRelativePath, f.Name())
+	h.Name = filepath.ToSlash(filepath.Join(shardRelativePath, f.Name()))
 
 	if err := tw.WriteHeader(h); err != nil {
 		return err
@@ -99,7 +108,7 @@ func extractFile(tr *tar.Reader, dir string) error {
 
 	// The hdr.Name is the relative path of the file from the root data dir.
 	// e.g (db/rp/1/xxxxx.tsm or db/rp/1/index/xxxxxx.tsi)
-	sections := strings.Split(hdr.Name, string(filepath.Separator))
+	sections := strings.Split(filepath.FromSlash(hdr.Name), string(filepath.Separator))
 	if len(sections) < 3 {
 		return fmt.Errorf("invalid archive path: %s", hdr.Name)
 	}

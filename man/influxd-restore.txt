@@ -3,13 +3,15 @@ influxd-restore(1)
 
 NAME
 ----
-influxd-restore - Restores the metastore, databases, retention policies, or specific shards.  Legacy mode requires
-the instance to be stopped before running, and will wipe all databases from the system (e.g., for disaster recovery).
-The improved online mode requires the instance to be running, and the database name used must not already exist.
+influxd-restore - Uses backups from the PATH to restore the metastore, databases, retention policies, or specific
+ shards.  Default mode requires the instance to be stopped before running, and will wipe all databases from the
+ system (e.g., for disaster recovery).  The improved online and enterprise modes requiresthe instance to be running,
+ and the database name used must not already exist.
+
 
 SYNOPSIS
 --------
-'influxd restore' [-legacy] [flags] PATH
+'influxd restore' [-enterprise] [flags] PATH
 
 DESCRIPTION
 -----------
@@ -17,9 +19,7 @@ Uses backups from the PATH to restore the metastore, databases, retention polici
 
 OPTIONS
 -------
-Legacy mode consumes files in the pre-1.5 file format. PATH is a directory containing the backup data
-
-Legacy options
+The default mode consumes files in an OSS only file format. PATH is a directory containing the backup data
 
 -metadir <path>::
             Optional. If set the metastore will be recovered to the given path.
@@ -29,26 +29,24 @@ Legacy options
             destinationDatabase, retention policy or shard to the given directory.
 
 -database <name>::
-            Optional. Required if no metadir given. Will restore the database's
-            TSM files.
+            Optional. Required if no metadir given. Will restore a single database's data.
 
 -retention <name>::
             Optional. If given, -database is required. Will restore the retention policy's
-            TSM files.
+            data.
 
 -shard <id>::
             Optional. If given, -database and -retention are required. Will restore the shard's
-            TSM files.
+            data.
 
 -online::
-	        Optional. If given, the restore will be done using the new process, detailed below.  All above legacy
-	        arguments are ignored.
+	        Optional. If given, the restore will be done using the new process, detailed below.  All other arguments
+	        above should be omitted.
 
-Default Restore mode consumes files in an improved format that includes a file manifest.  PATH should indicate
+The -enterprise restore mode consumes files in an improved format that includes a file manifest.  PATH should indicate
 the manifest file.
 
-Default options
-
+Options:
 -host <host:port>::
   The host to connect to and perform a snapshot of. Defaults to '127.0.0.1:8088'.
 
@@ -67,7 +65,7 @@ Default options
 	        If not given, the value of -rp is used.
 
 -shard <id>::
-	        Optional.  If given, -db and -rp are required.  Will restore the shard's TSM files.
+	        Optional.  If given, -db and -rp are required.  Will restore the single shard's data.
 
 SEE ALSO
 --------

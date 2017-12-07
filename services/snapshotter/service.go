@@ -188,7 +188,7 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 
 	data := s.MetaClient.(*meta.Client).Data()
 
-	IDMap, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
+	IDMap, newDBs, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
 	if err != nil {
 		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
 			return err
@@ -196,18 +196,41 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 		return err
 	}
 
-	rpName := data.Database(restoreDBName).DefaultRetentionPolicy
 	err = s.MetaClient.(*meta.Client).SetData(&data)
+	if err != nil {
+		return err
+	}
 
-	for _, v := range IDMap {
-		err := s.TSDBStore.CreateShard(restoreDBName, rpName, v, true)
-		if err != nil {
-			return err
-		}
+	err = s.createNewDBShards(data, newDBs)
+	if err != nil {
+		return err
 	}
 
 	err = s.respondIDMap(conn, IDMap)
 	return err
+}
+
+// iterate over a list of newDB's that should have just been added to the metadata
+// If the db was not created in the metadata return an error.
+// None of the shards should exist on a new DB, and CreateShard protects against double-creation.
+func (s *Service) createNewDBShards(data meta.Data, newDBs []string) error {
+	for _, restoreDBName := range newDBs {
+		dbi := data.Database(restoreDBName)
+		if dbi == nil {
+			return fmt.Errorf("db %s not found when creating new db shards", restoreDBName)
+		}
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				for _, shard := range sgi.Shards {
+					err := s.TSDBStore.CreateShard(restoreDBName, rpi.Name, shard.ID, true)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // send the IDMapping based on the metadata from the source server vs the shard ID
@@ -364,7 +387,7 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 	d := json.NewDecoder(conn)
 
 	if err := d.Decode(&r); err != nil {
-		return r, []byte{}, err
+		return r, nil, err
 	}
 
 	bits := make([]byte, r.UploadSize+1)
@@ -372,14 +395,6 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 	if r.UploadSize > 0 {
 
 		remainder := d.Buffered()
-
-		//// no time to investigate.  It seems the JSON encoder puts one extra byte on the stream,
-		//// but the decoder does not consume it.  so we eat a byte here and then everything works.
-		//onebyte := bufio.NewReader(remainder)
-		//_, err := onebyte.ReadByte()
-		//if err != nil {
-		//	return r, bits, err
-		//}
 
 		n, err := remainder.Read(bits)
 		if err != nil && err != io.EOF {
@@ -395,6 +410,7 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 		if err != nil && err != io.EOF {
 			return r, bits, err
 		}
+		// the JSON encoder on the client side seems to write an extra byte, so trim that off the front.
 		return r, bits[1:], nil
 	}
 

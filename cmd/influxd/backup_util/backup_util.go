@@ -3,16 +3,20 @@ package backup_util
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
-	"encoding/json"
+	"github.com/gogo/protobuf/proto"
+	internal "github.com/influxdata/influxdb/cmd/influxd/backup_util/internal"
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"io/ioutil"
 	"path/filepath"
 )
+
+//go:generate protoc --gogo_out=. internal/data.proto
 
 const (
 	// Suffix is a suffix added to the backup while it's in-process.
@@ -31,6 +35,25 @@ const (
 
 	ENTManifest = "ENT"
 )
+
+type EnterprisePacker struct {
+	Data []byte
+}
+
+func (ep EnterprisePacker) MarshalBinary() ([]byte, error) {
+	ed := internal.EnterpriseData{Data: ep.Data}
+	return proto.Marshal(&ed)
+}
+
+func (ep *EnterprisePacker) UnmarshalBinary(data []byte) error {
+	var pb internal.EnterpriseData
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	ep.Data = pb.GetData()
+	return nil
+}
 
 func GetMetaBytes(fname string) ([]byte, error) {
 	f, err := os.Open(fname)
