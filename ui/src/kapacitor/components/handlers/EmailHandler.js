@@ -9,8 +9,8 @@ const EmailHandler = ({
   selectedHandler,
   handleModifyHandler,
   configLink,
-}) => {
-  return selectedHandler.enabled
+}) =>
+  selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
           <h4>Parameters from Kapacitor Configuration</h4>
@@ -61,7 +61,6 @@ const EmailHandler = ({
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />
-}
 
 const {func, shape, string} = PropTypes
 

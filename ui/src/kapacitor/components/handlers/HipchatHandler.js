@@ -2,8 +2,8 @@ import React, {PropTypes} from 'react'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
 
-const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
-  return selectedHandler.enabled
+const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) =>
+  selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
           <h4>Parameters for this Alert Handler</h4>
@@ -36,7 +36,6 @@ const HipchatHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />
-}
 
 const {func, shape, string} = PropTypes
 

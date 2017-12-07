@@ -2,8 +2,8 @@ import React, {PropTypes} from 'react'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
 
-const SensuHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
-  return selectedHandler.enabled
+const SensuHandler = ({selectedHandler, handleModifyHandler, configLink}) =>
+  selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
           <h4>Parameters from Kapacitor Configuration</h4>
@@ -41,7 +41,6 @@ const SensuHandler = ({selectedHandler, handleModifyHandler, configLink}) => {
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />
-}
 
 const {func, shape, string} = PropTypes
 

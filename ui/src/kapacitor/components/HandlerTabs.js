@@ -7,8 +7,8 @@ const HandlerTabs = ({
   selectedHandler,
   handleChooseHandler,
   handleRemoveHandler,
-}) => {
-  return handlersOnThisAlert.length
+}) =>
+  handlersOnThisAlert.length
     ? <ul className="endpoint-tabs">
         {handlersOnThisAlert.map(ep =>
           <li
@@ -27,7 +27,6 @@ const HandlerTabs = ({
         )}
       </ul>
     : null
-}
 
 const {shape, func, array} = PropTypes
 

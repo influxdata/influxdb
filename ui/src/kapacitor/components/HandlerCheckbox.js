@@ -5,24 +5,21 @@ const HandlerCheckbox = ({
   fieldDisplay,
   selectedHandler,
   handleModifyHandler,
-}) => {
-  return (
-    <div className="form-group ">
-      <div className="form-control-static handler-checkbox">
-        <input
-          name={fieldName}
-          id={fieldName}
-          type="checkbox"
-          defaultChecked={selectedHandler[fieldName]}
-          onClick={handleModifyHandler(selectedHandler, fieldName)}
-        />
-        <label htmlFor={fieldName}>
-          {fieldDisplay}
-        </label>
-      </div>
+}) =>
+  <div className="form-group ">
+    <div className="form-control-static handler-checkbox">
+      <input
+        name={fieldName}
+        id={fieldName}
+        type="checkbox"
+        defaultChecked={selectedHandler[fieldName]}
+        onClick={handleModifyHandler(selectedHandler, fieldName)}
+      />
+      <label htmlFor={fieldName}>
+        {fieldDisplay}
+      </label>
     </div>
-  )
-}
+  </div>
 
 const {func, shape, string, bool} = PropTypes
 

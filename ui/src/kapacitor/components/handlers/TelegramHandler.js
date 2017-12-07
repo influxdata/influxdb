@@ -3,12 +3,8 @@ import HandlerInput from 'src/kapacitor/components/HandlerInput'
 import HandlerCheckbox from 'src/kapacitor/components/HandlerCheckbox'
 import HandlerEmpty from 'src/kapacitor/components/HandlerEmpty'
 
-const TelegramHandler = ({
-  selectedHandler,
-  handleModifyHandler,
-  configLink,
-}) => {
-  return selectedHandler.enabled
+const TelegramHandler = ({selectedHandler, handleModifyHandler, configLink}) =>
+  selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
           <h4>Parameters from Kapacitor Configuration</h4>
@@ -58,7 +54,6 @@ const TelegramHandler = ({
         </div>
       </div>
     : <HandlerEmpty configLink={configLink} />
-}
 
 const {func, shape, string} = PropTypes
 
