@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
+import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
@@ -51,15 +52,13 @@ class DisplayOptions extends Component {
     } = this.props
     const {axes} = this.state
 
-    const isGauge = selectedGraphType === 'gauge'
-
     return (
       <div className="display-options">
         <GraphTypeSelector
           selectedGraphType={selectedGraphType}
           onSelectGraphType={onSelectGraphType}
         />
-        {isGauge
+        {selectedGraphType === 'gauge'
           ? <GaugeOptions
               colors={colors}
               onChooseColor={onChooseColor}
@@ -68,7 +67,19 @@ class DisplayOptions extends Component {
               onAddThreshold={onAddThreshold}
               onDeleteThreshold={onDeleteThreshold}
             />
-          : <AxesOptions
+          : null}
+        {selectedGraphType === 'single-stat'
+          ? <SingleStatOptions
+              colors={colors}
+              onChooseColor={onChooseColor}
+              onValidateColorValue={onValidateColorValue}
+              onUpdateColorValue={onUpdateColorValue}
+              onAddThreshold={onAddThreshold}
+              onDeleteThreshold={onDeleteThreshold}
+            />
+          : null}
+        {selectedGraphType === !('single-stat' || 'gauge')
+          ? <AxesOptions
               selectedGraphType={selectedGraphType}
               axes={axes}
               onSetBase={onSetBase}
@@ -77,7 +88,8 @@ class DisplayOptions extends Component {
               onSetPrefixSuffix={onSetPrefixSuffix}
               onSetYAxisBoundMin={onSetYAxisBoundMin}
               onSetYAxisBoundMax={onSetYAxisBoundMax}
-            />}
+            />
+          : null}
       </div>
     )
   }
