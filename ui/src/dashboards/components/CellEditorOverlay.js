@@ -155,7 +155,7 @@ class CellEditorOverlay extends Component {
     // If type === min, make sure it is less than the next threshold
     if (threshold.type === COLOR_TYPE_MIN) {
       const nextValue = Number(sortedColors[1].value)
-      allowedToUpdate = targetValueNumber < nextValue && targetValueNumber >= 0
+      allowedToUpdate = targetValueNumber < nextValue
     }
     // If type === max, make sure it is greater than the previous threshold
     if (threshold.type === COLOR_TYPE_MAX) {

@@ -87,7 +87,6 @@ class Threshold extends Component {
           type="number"
           onChange={this.handleChangeWorkingValue}
           onBlur={this.handleBlur}
-          min={0}
         />
         <ColorDropdown
           colors={GAUGE_COLORS}
