@@ -38,6 +38,10 @@ const GaugeOptions = ({
           </button>
           {sortedColors.map(color =>
             <Threshold
+              isMin={color.value === sortedColors[0].value}
+              isMax={
+                color.value === sortedColors[sortedColors.length - 1].value
+              }
               visualizationType="gauge"
               threshold={color}
               key={color.id}

@@ -2,11 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {
-  COLOR_TYPE_MIN,
-  COLOR_TYPE_MAX,
-  GAUGE_COLORS,
-} from 'src/dashboards/constants/gaugeColors'
+import {GAUGE_COLORS} from 'src/dashboards/constants/gaugeColors'
 
 class Threshold extends Component {
   constructor(props) {
@@ -38,29 +34,32 @@ class Threshold extends Component {
     const {
       visualizationType,
       threshold,
-      threshold: {type, hex, name},
+      threshold: {hex, name},
       disableMaxColor,
       onChooseColor,
       onDeleteThreshold,
+      isMin,
+      isMax,
     } = this.props
     const {workingValue, valid} = this.state
     const selectedColor = {hex, name}
 
-    const labelClass =
-      (type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX) &&
-      visualizationType === 'gauge'
-        ? 'gauge-controls--label'
-        : 'gauge-controls--label-editable'
-
-    const canBeDeleted =
-      !(type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX) ||
-      visualizationType === 'single-stat'
-
     let label = 'Threshold'
-    if (type === COLOR_TYPE_MIN && visualizationType === 'gauge') {
+    let labelClass = 'gauge-controls--label-editable'
+    let canBeDeleted = true
+
+    if (visualizationType === 'gauge') {
+      labelClass =
+        isMin || isMax
+          ? 'gauge-controls--label'
+          : 'gauge-controls--label-editable'
+      canBeDeleted = !(isMin || isMax)
+    }
+
+    if (isMin && visualizationType === 'gauge') {
       label = 'Minimum'
     }
-    if (type === COLOR_TYPE_MAX && visualizationType === 'gauge') {
+    if (isMax && visualizationType === 'gauge') {
       label = 'Maximum'
     }
 
@@ -92,7 +91,7 @@ class Threshold extends Component {
           colors={GAUGE_COLORS}
           selected={selectedColor}
           onChoose={onChooseColor(threshold)}
-          disabled={type === COLOR_TYPE_MAX && disableMaxColor}
+          disabled={isMax && disableMaxColor}
         />
       </div>
     )
@@ -115,6 +114,8 @@ Threshold.propTypes = {
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
   onDeleteThreshold: func.isRequired,
+  isMin: bool,
+  isMax: bool,
 }
 
 export default Threshold

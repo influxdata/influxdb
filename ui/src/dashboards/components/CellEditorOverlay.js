@@ -28,8 +28,6 @@ import {
   DEFAULT_VALUE_MIN,
   DEFAULT_VALUE_MAX,
   GAUGE_COLORS,
-  COLOR_TYPE_MIN,
-  COLOR_TYPE_MAX,
   validateColors,
 } from 'src/dashboards/constants/gaugeColors'
 
@@ -141,6 +139,7 @@ class CellEditorOverlay extends Component {
   handleValidateColorValue = (threshold, e) => {
     const {colors, cellWorkingType} = this.state
     const sortedColors = _.sortBy(colors, color => Number(color.value))
+    const thresholdValue = Number(threshold.value)
     const targetValueNumber = Number(e.target.value)
     let allowedToUpdate = false
 
@@ -149,25 +148,21 @@ class CellEditorOverlay extends Component {
       return !sortedColors.some(color => color.value === e.target.value)
     }
 
-    const maxValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MAX).value
-    )
-    const minValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MIN).value
-    )
+    const minValue = Number(sortedColors[0].value)
+    const maxValue = Number(sortedColors[sortedColors.length - 1].value)
 
     // If lowest value, make sure it is less than the next threshold
-    if (threshold.value === minValue) {
+    if (thresholdValue === minValue) {
       const nextValue = Number(sortedColors[1].value)
       allowedToUpdate = targetValueNumber < nextValue
     }
     // If highest value, make sure it is greater than the previous threshold
-    if (threshold.value === maxValue) {
+    if (thresholdValue === maxValue) {
       const previousValue = Number(sortedColors[sortedColors.length - 2].value)
       allowedToUpdate = previousValue < targetValueNumber
     }
     // If not min or max, make sure new value is greater than min, less than max, and unique
-    if (threshold.value === !(minValue || maxValue)) {
+    if (thresholdValue !== minValue && thresholdValue !== maxValue) {
       const greaterThanMin = targetValueNumber > minValue
       const lessThanMax = targetValueNumber < maxValue
 
