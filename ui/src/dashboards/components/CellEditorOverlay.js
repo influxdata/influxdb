@@ -156,19 +156,18 @@ class CellEditorOverlay extends Component {
       colors.find(color => color.type === COLOR_TYPE_MIN).value
     )
 
-
-    // If type === min, make sure it is less than the next threshold
-    if (threshold.type === COLOR_TYPE_MIN) {
+    // If lowest value, make sure it is less than the next threshold
+    if (threshold.value === minValue) {
       const nextValue = Number(sortedColors[1].value)
       allowedToUpdate = targetValueNumber < nextValue
     }
-    // If type === max, make sure it is greater than the previous threshold
-    if (threshold.type === COLOR_TYPE_MAX) {
+    // If highest value, make sure it is greater than the previous threshold
+    if (threshold.value === maxValue) {
       const previousValue = Number(sortedColors[sortedColors.length - 2].value)
       allowedToUpdate = previousValue < targetValueNumber
     }
-    // If type === threshold, make sure new value is greater than min, less than max, and unique
-    if (threshold.type === COLOR_TYPE_THRESHOLD) {
+    // If not min or max, make sure new value is greater than min, less than max, and unique
+    if (threshold.value === !(minValue || maxValue)) {
       const greaterThanMin = targetValueNumber > minValue
       const lessThanMax = targetValueNumber < maxValue
 
