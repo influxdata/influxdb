@@ -33,14 +33,13 @@ class DisplayOptions extends Component {
       : axes
   }
 
-  render() {
+  renderOptions = () => {
     const {
       colors,
       onSetBase,
       onSetScale,
       onSetLabel,
       selectedGraphType,
-      onSelectGraphType,
       onSetPrefixSuffix,
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
@@ -52,44 +51,55 @@ class DisplayOptions extends Component {
     } = this.props
     const {axes} = this.state
 
+    switch (selectedGraphType) {
+      case 'gauge':
+        return (
+          <GaugeOptions
+            colors={colors}
+            onChooseColor={onChooseColor}
+            onValidateColorValue={onValidateColorValue}
+            onUpdateColorValue={onUpdateColorValue}
+            onAddThreshold={onAddThreshold}
+            onDeleteThreshold={onDeleteThreshold}
+          />
+        )
+      case 'single-stat':
+        return (
+          <SingleStatOptions
+            colors={colors}
+            onChooseColor={onChooseColor}
+            onValidateColorValue={onValidateColorValue}
+            onUpdateColorValue={onUpdateColorValue}
+            onAddThreshold={onAddThreshold}
+            onDeleteThreshold={onDeleteThreshold}
+          />
+        )
+      default:
+        return (
+          <AxesOptions
+            selectedGraphType={selectedGraphType}
+            axes={axes}
+            onSetBase={onSetBase}
+            onSetLabel={onSetLabel}
+            onSetScale={onSetScale}
+            onSetPrefixSuffix={onSetPrefixSuffix}
+            onSetYAxisBoundMin={onSetYAxisBoundMin}
+            onSetYAxisBoundMax={onSetYAxisBoundMax}
+          />
+        )
+    }
+  }
+
+  render() {
+    const {selectedGraphType, onSelectGraphType} = this.props
+
     return (
       <div className="display-options">
         <GraphTypeSelector
           selectedGraphType={selectedGraphType}
           onSelectGraphType={onSelectGraphType}
         />
-        {selectedGraphType === 'gauge'
-          ? <GaugeOptions
-              colors={colors}
-              onChooseColor={onChooseColor}
-              onValidateColorValue={onValidateColorValue}
-              onUpdateColorValue={onUpdateColorValue}
-              onAddThreshold={onAddThreshold}
-              onDeleteThreshold={onDeleteThreshold}
-            />
-          : null}
-        {selectedGraphType === 'single-stat'
-          ? <SingleStatOptions
-              colors={colors}
-              onChooseColor={onChooseColor}
-              onValidateColorValue={onValidateColorValue}
-              onUpdateColorValue={onUpdateColorValue}
-              onAddThreshold={onAddThreshold}
-              onDeleteThreshold={onDeleteThreshold}
-            />
-          : null}
-        {selectedGraphType === !('single-stat' || 'gauge')
-          ? <AxesOptions
-              selectedGraphType={selectedGraphType}
-              axes={axes}
-              onSetBase={onSetBase}
-              onSetLabel={onSetLabel}
-              onSetScale={onSetScale}
-              onSetPrefixSuffix={onSetPrefixSuffix}
-              onSetYAxisBoundMin={onSetYAxisBoundMin}
-              onSetYAxisBoundMax={onSetYAxisBoundMax}
-            />
-          : null}
+        {this.renderOptions()}
       </div>
     )
   }
