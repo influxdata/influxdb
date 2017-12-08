@@ -7,6 +7,8 @@
 ### Features
 
 - [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
+- [#9146](https://github.com/influxdata/influxdb/issues/9146): Backup can produce data in the same format as the enterprise backup/restore tool.
+- [#8879](https://github.com/influxdata/influxdb/issues/8879): Export functionality using start/end to filter exported data by timestamp
 - [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
 - [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
 - [#8491](https://github.com/influxdata/influxdb/pull/8491): Add further tsi support for streaming/copying shards.
@@ -20,6 +22,18 @@
 - [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
 - [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
 - [#8789](https://github.com/influxdata/influxdb/issues/8789): Fix CLI to allow quoted database names in use statement
+
+## v1.4.3 [unreleased]
+
+### Configuration Changes
+
+#### `[data]` Section
+
+The default value for `cache-snapshot-memory-size` has been changed from `25m` to `256m`.
+
+### Bugfixes
+
+- [#9201](https://github.com/influxdata/influxdb/issues/9201): Fix higher disk i/o utilization
 
 ## v1.4.2 [2017-11-15]
 

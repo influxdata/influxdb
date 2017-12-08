@@ -170,6 +170,12 @@ func (s *Store) loadShards() error {
 	lim := s.EngineOptions.Config.MaxConcurrentCompactions
 	if lim == 0 {
 		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
+
+		// On systems with more cores, cap at 4 to reduce disk utilization
+		if lim > 4 {
+			lim = 4
+		}
+
 		if lim < 1 {
 			lim = 1
 		}
@@ -849,6 +855,20 @@ func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	}
 
 	return shard.Backup(w, path, since)
+}
+
+func (s *Store) ExportShard(id uint64, start time.Time, end time.Time, w io.Writer) error {
+	shard := s.Shard(id)
+	if shard == nil {
+		return fmt.Errorf("shard %d doesn't exist on this server", id)
+	}
+
+	path, err := relativePath(s.path, shard.path)
+	if err != nil {
+		return err
+	}
+
+	return shard.Export(w, path, start, end)
 }
 
 // RestoreShard restores a backup from r to a given shard.
