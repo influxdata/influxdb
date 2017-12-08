@@ -38,21 +38,28 @@ func NewCommand() *Command {
 // Run executes the command.
 func (cmd *Command) Run(args ...string) error {
 	fs := flag.NewFlagSet("inmem2tsi", flag.ExitOnError)
+	seriesFilePath := fs.String("series-file", "", "series file path")
 	dataDir := fs.String("datadir", "", "shard data directory")
 	walDir := fs.String("waldir", "", "shard WAL directory")
 	fs.BoolVar(&cmd.Verbose, "v", false, "verbose")
 	fs.SetOutput(cmd.Stdout)
 	if err := fs.Parse(args); err != nil {
 		return err
-	} else if fs.NArg() > 0 || *dataDir == "" || *walDir == "" {
+	} else if fs.NArg() > 0 || *seriesFilePath == "" || *dataDir == "" || *walDir == "" {
 		return flag.ErrHelp
 	}
 	cmd.Logger = logger.New(cmd.Stderr)
 
-	return cmd.run(*dataDir, *walDir)
+	return cmd.run(*seriesFilePath, *dataDir, *walDir)
 }
 
-func (cmd *Command) run(dataDir, walDir string) error {
+func (cmd *Command) run(seriesFilePath, dataDir, walDir string) error {
+	sfile := tsdb.NewSeriesFile(seriesFilePath)
+	if err := sfile.Open(); err != nil {
+		return err
+	}
+	defer sfile.Close()
+
 	// Check if shard already has a TSI index.
 	indexPath := filepath.Join(dataDir, "index")
 	cmd.Logger.Info("checking index path", zap.String("path", indexPath))
@@ -83,10 +90,10 @@ func (cmd *Command) run(dataDir, walDir string) error {
 	}
 
 	// Open TSI index in temporary path.
-	tsiIndex := tsi1.NewIndex(
+	tsiIndex := tsi1.NewIndex(sfile,
 		tsi1.WithPath(tmpPath),
-		tsi1.WithLogger(cmd.Logger),
 	)
+	tsiIndex.WithLogger(cmd.Logger)
 	cmd.Logger.Info("opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
 		return err

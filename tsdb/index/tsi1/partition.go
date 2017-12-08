@@ -313,7 +313,7 @@ func (i *Partition) writeManifestFile() error {
 }
 
 // WithLogger sets the logger for the index.
-func (i *Partition) WithLogger(logger zap.Logger) {
+func (i *Partition) WithLogger(logger *zap.Logger) {
 	i.logger = logger.With(zap.String("index", "tsi"))
 }
 

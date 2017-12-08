@@ -195,6 +195,15 @@ func (i *Index) Open() error {
 	return nil
 }
 
+// Compact requests a compaction of partitions.
+func (i *Index) Compact() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	for _, p := range i.partitions {
+		p.Compact()
+	}
+}
+
 // Wait blocks until all outstanding compactions have completed.
 func (i *Index) Wait() {
 	for _, p := range i.partitions {
