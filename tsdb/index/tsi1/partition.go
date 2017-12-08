@@ -408,18 +408,6 @@ func (i *Partition) MeasurementExists(name []byte) (bool, error) {
 	return m != nil && !m.Deleted(), nil
 }
 
-/*
-func (i *Partition) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-
-	names, err := fs.MeasurementNamesByExpr(expr)
-
-	// Clone byte slices since they will be used after the fileset is released.
-	return bytesutil.CloneSlice(names), err
-}
-*/
-
 func (i *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()

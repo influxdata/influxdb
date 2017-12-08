@@ -40,11 +40,8 @@ type Index interface {
 	HasTagKey(name, key []byte) (bool, error)
 	HasTagValue(name, key, value []byte) (bool, error)
 
-	// TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
-	// MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
 
-	// ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL system iterators
@@ -54,9 +51,6 @@ type Index interface {
 	MeasurementSeriesIDIterator(name []byte) (SeriesIDIterator, error)
 	TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, error)
 	TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIterator, error)
-	// MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (SeriesIDIterator, error)
-	// MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
-	// SeriesIDIterator(opt query.IteratorOptions) (SeriesIDIterator, error)
 
 	// Sets a shared fieldset from the engine.
 	FieldSet() *MeasurementFieldSet

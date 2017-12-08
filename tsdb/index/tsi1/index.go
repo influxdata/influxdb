@@ -411,30 +411,12 @@ func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator,
 	return tsdb.MergeSeriesIDIterators(itrs...), nil
 }
 
-/*
-// MeasurementNamesByExpr returns measurement names for the provided expression.
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	return i.fetchByteValues(func(idx int) ([][]byte, error) {
-		return i.partitions[idx].MeasurementNamesByExpr(expr)
-	})
-}
-*/
-
 // MeasurementNamesByRegex returns measurement names for the provided regex.
 func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	return i.fetchByteValues(func(idx int) ([][]byte, error) {
 		return i.partitions[idx].MeasurementNamesByRegex(re)
 	})
 }
-
-/*
-// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
-func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
-	return i.fetchByteValues(func(idx int) ([][]byte, error) {
-		return i.partitions[idx].MeasurementSeriesKeysByExpr(name, expr)
-	})
-}
-*/
 
 // DropMeasurement deletes a measurement from the index. It returns the first
 // error encountered, if any.

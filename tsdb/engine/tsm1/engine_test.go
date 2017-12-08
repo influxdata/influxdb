@@ -118,10 +118,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 // Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
 func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	if err := e.WritePointsString(
@@ -263,13 +260,9 @@ func TestEngine_Backup(t *testing.T) {
 func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	// e.CreateMeasurement("cpu")
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
@@ -319,10 +312,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -374,10 +364,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -430,10 +417,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -486,10 +470,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 func TestEngine_CreateIterator_Aux(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -545,10 +526,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 func TestEngine_CreateIterator_Condition(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -755,10 +733,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 func TestEngine_CreateCursor_Ascending(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -807,10 +782,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 func TestEngine_CreateCursor_Descending(t *testing.T) {
 	t.Parallel()
 
-	sfile := MustOpenSeriesFile()
-	defer MustCloseSeriesFile(sfile)
-
-	e := MustOpenDefaultEngine(sfile)
+	e := MustOpenDefaultEngine()
 	defer e.Close()
 
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
@@ -1140,8 +1112,8 @@ func NewEngine(index string, sfile *tsdb.SeriesFile) *Engine {
 
 // MustOpenDefaultEngine returns a new, open instance of Engine using the default
 // index. Useful when the index is not directly under test.
-func MustOpenDefaultEngine(sfile *tsdb.SeriesFile) *Engine {
-	e := NewEngine(tsdb.DefaultIndex, sfile)
+func MustOpenDefaultEngine() *Engine {
+	e := NewEngine(tsdb.DefaultIndex, MustOpenSeriesFile())
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
@@ -1162,6 +1134,11 @@ func (e *Engine) Close() error {
 	if e.index != nil {
 		e.index.Close()
 	}
+
+	if e.sfile != nil {
+		MustCloseSeriesFile(e.sfile)
+	}
+
 	defer os.RemoveAll(e.root)
 	return e.Engine.Close()
 }
@@ -1264,20 +1241,24 @@ func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
-func NewSeriesFile() *tsdb.SeriesFile {
+func NewSeriesFile() (*tsdb.SeriesFile, error) {
 	file, err := ioutil.TempFile("", "tsm1-series-file-")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	file.Close()
 
-	return tsdb.NewSeriesFile(file.Name())
+	return tsdb.NewSeriesFile(file.Name()), nil
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
 func MustOpenSeriesFile() *tsdb.SeriesFile {
-	f := NewSeriesFile()
-	if err := f.Open(); err != nil {
+	f, err := NewSeriesFile()
+	if err != nil {
+		panic(err)
+	}
+
+	if err = f.Open(); err != nil {
 		panic(err)
 	}
 	return f

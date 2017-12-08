@@ -351,12 +351,6 @@ func (e *Engine) MeasurementExists(name []byte) (bool, error) {
 	return e.index.MeasurementExists(name)
 }
 
-/*
-func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	return e.index.MeasurementNamesByExpr(expr)
-}
-*/
-
 func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	return e.index.MeasurementNamesByRegex(re)
 }
@@ -378,21 +372,6 @@ func (e *Engine) HasTagKey(name, key []byte) (bool, error) {
 func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	return e.index.MeasurementTagKeysByExpr(name, expr)
 }
-
-// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
-//
-// MeasurementTagKeyValuesByExpr relies on the provided tag keys being sorted.
-// The caller can indicate the tag keys have been sorted by setting the
-// keysSorted argument appropriately. Tag values are returned in a slice that
-// is indexible according to the sorted order of the tag keys, e.g., the values
-// for the earliest tag k will be available in index 0 of the returned values
-// slice.
-//
-/*
-func (e *Engine) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	return e.index.MeasurementTagKeyValuesByExpr(auth, name, keys, expr, keysSorted)
-}
-*/
 
 func (e *Engine) TagKeyCardinality(name, key []byte) int {
 	return e.index.TagKeyCardinality(name, key)
@@ -1230,19 +1209,6 @@ func (e *Engine) deleteMeasurement(name []byte) error {
 func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
 	return e.index.ForEachMeasurementName(fn)
 }
-
-/*
-func (e *Engine) MeasurementSeriesKeysByExprIterator(name []byte, expr influxql.Expr) (tsdb.SeriesIDIterator, error) {
-	return e.index.MeasurementSeriesKeysByExprIterator(name, expr)
-}
-*/
-
-/*
-// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
-func (e *Engine) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
-	return e.index.MeasurementSeriesKeysByExpr(name, expr)
-}
-*/
 
 func (e *Engine) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
 	return e.index.CreateSeriesListIfNotExists(keys, names, tagsSlice)
