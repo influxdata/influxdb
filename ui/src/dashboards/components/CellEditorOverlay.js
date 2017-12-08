@@ -24,12 +24,10 @@ import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {AUTO_GROUP_BY} from 'shared/constants'
 import {
   COLOR_TYPE_THRESHOLD,
-  MIN_THRESHOLDS,
   MAX_THRESHOLDS,
   GAUGE_COLORS,
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
-  DEFAULT_COLORS,
   validateColors,
 } from 'src/dashboards/constants/gaugeColors'
 
@@ -289,11 +287,8 @@ class CellEditorOverlay extends Component {
 
   handleSelectGraphType = graphType => () => {
     const {colors} = this.state
-    if (colors.length < MIN_THRESHOLDS && graphType === 'gauge') {
-      this.setState({cellWorkingType: graphType, colors: DEFAULT_COLORS})
-    } else {
-      this.setState({cellWorkingType: graphType})
-    }
+    const validatedColors = validateColors(colors, graphType)
+    this.setState({cellWorkingType: graphType, colors: validatedColors})
   }
 
   handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
