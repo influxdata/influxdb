@@ -25,6 +25,8 @@ import {AUTO_GROUP_BY} from 'shared/constants'
 import {
   COLOR_TYPE_THRESHOLD,
   MAX_THRESHOLDS,
+  DEFAULT_VALUE_MIN,
+  DEFAULT_VALUE_MAX,
   GAUGE_COLORS,
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
@@ -73,17 +75,19 @@ class CellEditorOverlay extends Component {
   }
 
   handleAddThreshold = () => {
-    const {colors} = this.state
+    const {colors, cellWorkingType} = this.state
 
     if (colors.length <= MAX_THRESHOLDS) {
       const randomColor = _.random(0, GAUGE_COLORS.length)
 
-      const maxValue = Number(
-        colors.find(color => color.type === COLOR_TYPE_MAX).value
-      )
-      const minValue = Number(
-        colors.find(color => color.type === COLOR_TYPE_MIN).value
-      )
+      const maxValue =
+        cellWorkingType === 'gauge'
+          ? Number(colors.find(color => color.type === COLOR_TYPE_MAX).value)
+          : DEFAULT_VALUE_MAX
+      const minValue =
+        cellWorkingType === 'gauge'
+          ? Number(colors.find(color => color.type === COLOR_TYPE_MIN).value)
+          : DEFAULT_VALUE_MIN
 
       const colorsValues = _.mapValues(colors, 'value')
       let randomValue
