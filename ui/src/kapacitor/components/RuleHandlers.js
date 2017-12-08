@@ -4,7 +4,7 @@ import _ from 'lodash'
 import HandlerOptions from 'src/kapacitor/components/HandlerOptions'
 import HandlerTabs from 'src/kapacitor/components/HandlerTabs'
 import Dropdown from 'shared/components/Dropdown'
-import {getHandlersFromRule} from 'src/shared/parsing/parseHandlersFromRule'
+import {getHandlersFromRule} from 'src/shared/parsing/getHandlersFromRule'
 
 import {DEFAULT_HANDLERS} from 'src/kapacitor/constants'
 

@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
-import {getAlertNodeList} from 'src/shared/parsing/parseHandlersFromRule'
+import {getAlertNodeList} from 'src/shared/parsing/getHandlersFromRule'
 import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {
   colName,

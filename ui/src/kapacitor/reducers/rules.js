@@ -1,7 +1,7 @@
 import {
   defaultRuleConfigs,
   DEFAULT_RULE_ID,
-  ALERTS_TO_RULE,
+  HANDLERS_TO_RULE,
 } from 'src/kapacitor/constants'
 import _ from 'lodash'
 
@@ -77,14 +77,19 @@ export default function rules(state = {}, action) {
     }
 
     case 'UPDATE_RULE_ALERT_NODES': {
-      const {ruleID, alerts} = action.payload
+      const {ruleID, handlers} = action.payload
       const alertNodesByType = {}
-      _.forEach(alerts, ep => {
-        if (ep.enabled) {
-          const existing = _.get(alertNodesByType, ep.type, [])
-          alertNodesByType[ep.type] = [
+      _.forEach(handlers, h => {
+        if (h.enabled) {
+          if (h.type === 'post') {
+            const headers = {}
+            headers[h.headerKey] = h.headerValue
+            h.headers = headers
+          }
+          const existing = _.get(alertNodesByType, h.type, [])
+          alertNodesByType[h.type] = [
             ...existing,
-            _.pick(ep, ALERTS_TO_RULE[ep.type]),
+            _.pick(h, HANDLERS_TO_RULE[h.type]),
           ]
         }
       })

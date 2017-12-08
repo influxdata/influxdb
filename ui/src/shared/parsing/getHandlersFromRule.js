@@ -15,20 +15,26 @@ export const getHandlersFromRule = (rule, handlersFromConfig) => {
       h => h.type === alertKind
     )
 
-    if (v.length > 0) {
-      _.forEach(v, alertOptions => {
-        const count = _.get(handlersOfKind, alertKind, 0) + 1
-        handlersOfKind[alertKind] = count
-        const ep = {
-          ...thisAlertFromConfig,
-          ...alertOptions,
-          alias: alertKind + count,
-          enabled: true,
-          type: alertKind,
-        }
-        handlersOnThisAlert.push(ep)
-      })
-    }
+    _.forEach(v, alertOptions => {
+      const count = _.get(handlersOfKind, alertKind, 0) + 1
+      handlersOfKind[alertKind] = count
+
+      if (alertKind === 'post') {
+        const headers = alertOptions.headers
+        alertOptions.headerKey = _.keys(headers)[0]
+        alertOptions.headerValue = _.values(headers)[0]
+        alertOptions = _.omit(alertOptions, 'headers')
+      }
+
+      const ep = {
+        enabled: true,
+        ...thisAlertFromConfig,
+        ...alertOptions,
+        alias: `${alertKind}-${count}`,
+        type: alertKind,
+      }
+      handlersOnThisAlert.push(ep)
+    })
   })
   const selectedHandler = handlersOnThisAlert.length
     ? handlersOnThisAlert[0]

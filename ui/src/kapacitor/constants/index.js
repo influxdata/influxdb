@@ -91,7 +91,7 @@ export const DEFAULT_HANDLERS = [
     type: 'post',
     enabled: true,
     url: '',
-    headers: '',
+    headers: [[]],
   },
   {type: 'tcp', enabled: true, address: ''},
   {type: 'exec', enabled: true, command: []},
@@ -152,8 +152,8 @@ export const MAP_FIELD_KEYS_FROM_CONFIG = {
   // mqtt: {}
 }
 
-// ALERTS_TO_RULE returns array of fields that may be updated for each alert on rule.
-export const ALERTS_TO_RULE = {
+// HANDLERS_TO_RULE returns array of fields that may be updated for each alert on rule.
+export const HANDLERS_TO_RULE = {
   alerta: [
     'token',
     'resource',
