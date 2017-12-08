@@ -9,7 +9,7 @@ import {
   DEFAULT_COLORS,
 } from 'src/dashboards/constants/singleStatColors'
 
-const GaugeOptions = ({
+const SingleStatOptions = ({
   colors,
   onAddThreshold,
   onDeleteThreshold,
@@ -54,11 +54,11 @@ const GaugeOptions = ({
 
 const {arrayOf, func, shape, string} = PropTypes
 
-GaugeOptions.defaultProps = {
-  colors: DEFAULT_COLORS,
+SingleStatOptions.defaultProps = {
+  colors: [],
 }
 
-GaugeOptions.propTypes = {
+SingleStatOptions.propTypes = {
   colors: arrayOf(
     shape({
       type: string.isRequired,
@@ -75,4 +75,4 @@ GaugeOptions.propTypes = {
   onUpdateColorValue: func.isRequired,
 }
 
-export default GaugeOptions
+export default SingleStatOptions
