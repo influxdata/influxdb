@@ -76,17 +76,18 @@ class CellEditorOverlay extends Component {
 
   handleAddThreshold = () => {
     const {colors, cellWorkingType} = this.state
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
 
-    if (colors.length <= MAX_THRESHOLDS) {
+    if (sortedColors.length <= MAX_THRESHOLDS) {
       const randomColor = _.random(0, GAUGE_COLORS.length)
 
       const maxValue =
         cellWorkingType === 'gauge'
-          ? Number(colors.find(color => color.type === COLOR_TYPE_MAX).value)
+          ? Number(sortedColors[sortedColors.length - 1].value)
           : DEFAULT_VALUE_MAX
       const minValue =
         cellWorkingType === 'gauge'
-          ? Number(colors.find(color => color.type === COLOR_TYPE_MIN).value)
+          ? Number(sortedColors[0].value)
           : DEFAULT_VALUE_MIN
 
       const colorsValues = _.mapValues(colors, 'value')
