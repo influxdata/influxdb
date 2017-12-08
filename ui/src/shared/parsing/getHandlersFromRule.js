@@ -1,12 +1,12 @@
 import _ from 'lodash'
-import {ALERTS_TO_RULE} from 'src/kapacitor/constants'
+import {HANDLERS_TO_RULE} from 'src/kapacitor/constants'
 
 export const getHandlersFromRule = (rule, handlersFromConfig) => {
   const handlersOfKind = {}
   const handlersOnThisAlert = []
 
   const handlersFromRule = _.pickBy(rule.alertNodes, (v, k) => {
-    return k in ALERTS_TO_RULE
+    return k in HANDLERS_TO_RULE
   })
 
   _.forEach(handlersFromRule, (v, alertKind) => {
@@ -46,7 +46,7 @@ export const getAlertNodeList = rule => {
   const nodeList = _.transform(
     rule.alertNodes,
     (acc, v, k) => {
-      if (k in ALERTS_TO_RULE && v.length > 0) {
+      if (k in HANDLERS_TO_RULE && v.length > 0) {
         acc.push(k)
       }
     },
