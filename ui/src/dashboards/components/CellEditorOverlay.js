@@ -79,7 +79,7 @@ class CellEditorOverlay extends Component {
     const sortedColors = _.sortBy(colors, color => Number(color.value))
 
     if (sortedColors.length <= MAX_THRESHOLDS) {
-      const randomColor = _.random(0, GAUGE_COLORS.length)
+      const randomColor = _.random(0, GAUGE_COLORS.length - 1)
 
       const maxValue =
         cellWorkingType === 'gauge'
