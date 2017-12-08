@@ -11,7 +11,13 @@ const SensuHandler = ({
   selectedHandler.enabled
     ? <div className="endpoint-tab-contents">
         <div className="endpoint-tab--parameters">
-          <h4>Parameters from Kapacitor Configuration</h4>
+          <h4 className="u-flex u-jc-space-between">
+            Parameters from Kapacitor Configuration
+            <div className="btn btn-default btn-sm" onClick={onGoToConfig}>
+              <span className="icon cog-thick" />
+              Edit Kapacitor Configuration
+            </div>
+          </h4>
           <div className="faux-form">
             <HandlerInput
               selectedHandler={selectedHandler}
