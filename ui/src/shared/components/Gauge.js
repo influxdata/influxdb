@@ -286,7 +286,14 @@ class Gauge extends Component {
     const {degree, needleColor0, needleColor1} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
-    const needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    let needleRotation
+    if (gaugePosition < minValue) {
+      needleRotation = 0
+    } else if (gaugePosition > maxValue) {
+      needleRotation = 1
+    } else {
+      needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    }
 
     const needleGradient = ctx.createLinearGradient(0, -10, 0, radius)
     needleGradient.addColorStop(0, needleColor0)
