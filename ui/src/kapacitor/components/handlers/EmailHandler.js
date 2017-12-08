@@ -71,7 +71,6 @@ const {func, shape, string} = PropTypes
 EmailHandler.propTypes = {
   selectedHandler: shape({}).isRequired,
   handleModifyHandler: func.isRequired,
-
   updateDetails: func,
   rule: shape({}),
   onGoToConfig: func.isRequired,

@@ -34,7 +34,7 @@ class RuleHandlers extends Component {
     this.setState({selectedHandler: ep})
   }
 
-  handleAddEndpoint = selectedItem => {
+  handleAddHandler = selectedItem => {
     const {handlersOnThisAlert, handlersOfKind} = this.state
     const newItemNumbering = _.get(handlersOfKind, selectedItem.type, 0) + 1
     const newItemName = `${selectedItem.type}-${newItemNumbering}`
@@ -55,26 +55,26 @@ class RuleHandlers extends Component {
     )
   }
 
-  handleRemoveHandler = removedEP => e => {
+  handleRemoveHandler = removedHandler => e => {
     e.stopPropagation()
     const {handlersOnThisAlert, selectedHandler} = this.state
     const removedIndex = _.findIndex(handlersOnThisAlert, [
       'alias',
-      removedEP.alias,
+      removedHandler.alias,
     ])
-    const remainingEndpoints = _.reject(handlersOnThisAlert, [
+    const remainingHandlers = _.reject(handlersOnThisAlert, [
       'alias',
-      removedEP.alias,
+      removedHandler.alias,
     ])
-    if (selectedHandler.alias === removedEP.alias) {
+    if (selectedHandler.alias === removedHandler.alias) {
       const selectedIndex = removedIndex > 0 ? removedIndex - 1 : 0
-      const newSelected = remainingEndpoints.length
-        ? remainingEndpoints[selectedIndex]
+      const newSelected = remainingHandlers.length
+        ? remainingHandlers[selectedIndex]
         : null
       this.setState({selectedHandler: newSelected})
     }
     this.setState(
-      {handlersOnThisAlert: remainingEndpoints},
+      {handlersOnThisAlert: remainingHandlers},
       this.handleUpdateAllAlerts
     )
   }
@@ -86,40 +86,22 @@ class RuleHandlers extends Component {
     ruleActions.updateAlertNodes(rule.id, handlersOnThisAlert)
   }
 
-  handleModifyHandler = (
-    selectedHandler,
-    fieldName,
-    parseToArray,
-    headerIndex
-  ) => e => {
+  handleModifyHandler = (selectedHandler, fieldName, parseToArray) => e => {
     const {handlersOnThisAlert} = this.state
-    let modifiedEP
-    if (fieldName === 'headerKey') {
-      const currentHeader = selectedHandler.headers || [[]]
-      currentHeader[headerIndex][0] = e.target.value // only works for headerIndex= 0 atm. would need to initialize if headerindex is larger.
-      modifiedEP = {
-        ...selectedHandler,
-        headers: [...currentHeader],
-      }
-    } else if (fieldName === 'headerValue') {
-      const currentHeader = selectedHandler.headers || [[]]
-      currentHeader[headerIndex][1] = e.target.value
-      modifiedEP = {
-        ...selectedHandler,
-        headers: [...currentHeader],
-      }
-    } else if (e.target.type === 'checkbox') {
-      modifiedEP = {
+    let modifiedHandler
+
+    if (e.target.type === 'checkbox') {
+      modifiedHandler = {
         ...selectedHandler,
         [fieldName]: !selectedHandler[fieldName],
       }
     } else if (parseToArray) {
-      modifiedEP = {
+      modifiedHandler = {
         ...selectedHandler,
         [fieldName]: _.split(e.target.value, ' '),
       }
     } else {
-      modifiedEP = {
+      modifiedHandler = {
         ...selectedHandler,
         [fieldName]: e.target.value,
       }
@@ -127,14 +109,14 @@ class RuleHandlers extends Component {
 
     const modifiedIndex = _.findIndex(handlersOnThisAlert, [
       'alias',
-      modifiedEP.alias,
+      modifiedHandler.alias,
     ])
 
-    handlersOnThisAlert[modifiedIndex] = modifiedEP
+    handlersOnThisAlert[modifiedIndex] = modifiedHandler
 
     this.setState(
       {
-        selectedHandler: modifiedEP,
+        selectedHandler: modifiedHandler,
         handlersOnThisAlert: [...handlersOnThisAlert],
       },
       this.handleUpdateAllAlerts
@@ -150,9 +132,11 @@ class RuleHandlers extends Component {
       validationError,
     } = this.props
     const {handlersOnThisAlert, selectedHandler} = this.state
-    const alerts = _.map([...DEFAULT_HANDLERS, ...handlersFromConfig], a => {
-      return {...a, text: a.type}
+
+    const handlers = _.map([...DEFAULT_HANDLERS, ...handlersFromConfig], h => {
+      return {...h, text: h.type}
     })
+
     const dropdownLabel = handlersOnThisAlert.length
       ? 'Add another Handler'
       : 'Add a Handler'
@@ -168,10 +152,10 @@ class RuleHandlers extends Component {
           <div className={ruleSectionClassName}>
             <p>Send this Alert to:</p>
             <Dropdown
-              items={alerts}
+              items={handlers}
               menuClass="dropdown-malachite"
               selected={dropdownLabel}
-              onChoose={this.handleAddEndpoint}
+              onChoose={this.handleAddHandler}
               className="dropdown-170 rule-message--add-endpoint"
             />
           </div>
