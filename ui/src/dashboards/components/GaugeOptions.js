@@ -7,7 +7,6 @@ import Threshold from 'src/dashboards/components/Threshold'
 import {
   MAX_THRESHOLDS,
   MIN_THRESHOLDS,
-  DEFAULT_COLORS,
 } from 'src/dashboards/constants/gaugeColors'
 
 const GaugeOptions = ({
@@ -19,9 +18,7 @@ const GaugeOptions = ({
   onUpdateColorValue,
 }) => {
   const disableMaxColor = colors.length > MIN_THRESHOLDS
-
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
-
   const sortedColors = _.sortBy(colors, color => Number(color.value))
 
   return (
@@ -41,6 +38,7 @@ const GaugeOptions = ({
           </button>
           {sortedColors.map(color =>
             <Threshold
+              visualizationType="gauge"
               threshold={color}
               key={color.id}
               disableMaxColor={disableMaxColor}
@@ -57,10 +55,6 @@ const GaugeOptions = ({
 }
 
 const {arrayOf, func, shape, string} = PropTypes
-
-GaugeOptions.defaultProps = {
-  colors: DEFAULT_COLORS,
-}
 
 GaugeOptions.propTypes = {
   colors: arrayOf(

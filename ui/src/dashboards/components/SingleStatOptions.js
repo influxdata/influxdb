@@ -4,10 +4,7 @@ import _ from 'lodash'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
 
-import {
-  MAX_THRESHOLDS,
-  DEFAULT_COLORS,
-} from 'src/dashboards/constants/singleStatColors'
+import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 
 const SingleStatOptions = ({
   colors,
@@ -38,6 +35,7 @@ const SingleStatOptions = ({
           </button>
           {sortedColors.map(color =>
             <Threshold
+              visualizationType="single-stat"
               threshold={color}
               key={color.id}
               onChooseColor={onChooseColor}

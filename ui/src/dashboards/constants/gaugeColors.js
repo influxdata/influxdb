@@ -95,12 +95,15 @@ export const DEFAULT_COLORS = [
   },
 ]
 
-export const validateColors = colors => {
+export const validateColors = (colors, type) => {
+  if (type === 'single-stat') {
+    return colors
+  }
   if (!colors) {
-    return false
+    return DEFAULT_COLORS
   }
   const hasMin = colors.some(color => color.type === COLOR_TYPE_MIN)
   const hasMax = colors.some(color => color.type === COLOR_TYPE_MAX)
 
-  return hasMin && hasMax
+  return hasMin && hasMax ? colors : DEFAULT_COLORS
 }
