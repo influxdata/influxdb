@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -29,8 +30,7 @@ const (
 
 // Service manages the listener for the snapshot endpoint.
 type Service struct {
-	wg  sync.WaitGroup
-	err chan error
+	wg sync.WaitGroup
 
 	Node *influxdb.Node
 
@@ -39,7 +39,12 @@ type Service struct {
 		Database(name string) *meta.DatabaseInfo
 	}
 
-	TSDBStore *tsdb.Store
+	TSDBStore interface {
+		BackupShard(id uint64, since time.Time, w io.Writer) error
+		BackupSeriesFile(database string, w io.Writer) error
+		Shard(id uint64) *tsdb.Shard
+		ShardRelativePath(id uint64) (string, error)
+	}
 
 	Listener net.Listener
 	Logger   *zap.Logger
@@ -48,7 +53,6 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService() *Service {
 	return &Service{
-		err:    make(chan error),
 		Logger: zap.NewNop(),
 	}
 }
@@ -75,9 +79,6 @@ func (s *Service) Close() error {
 func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "snapshot"))
 }
-
-// Err returns a channel for fatal out-of-band errors.
-func (s *Service) Err() <-chan error { return s.err }
 
 // serve serves snapshot requests from the listener.
 func (s *Service) serve() {
@@ -202,7 +203,7 @@ func (s *Service) writeDatabaseInfo(conn net.Conn, database string) error {
 	}
 
 	if err := json.NewEncoder(conn).Encode(res); err != nil {
-		return fmt.Errorf("encode resonse: %s", err.Error())
+		return fmt.Errorf("encode response: %s", err.Error())
 	}
 
 	return nil

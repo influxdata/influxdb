@@ -754,91 +754,12 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return result, nil
 }
 
-/*
-// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
-//
-// See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
-// method.
-func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	if len(keys) == 0 {
-		return nil, nil
-	}
-
-	// If we haven't been provided sorted keys, then we need to sort them.
-	if !keysSorted {
-		sort.Sort(sort.StringSlice(keys))
-	}
-
-	resultSet := make([]map[string]struct{}, len(keys))
-	for i := 0; i < len(resultSet); i++ {
-		resultSet[i] = make(map[string]struct{})
-	}
-
-	// No expression means that the values shouldn't be filtered, so we can
-	// fetch them all.
-	for _, p := range i.partitions {
-		if err := func() error {
-			fs := p.RetainFileSet()
-			defer fs.Release()
-
-			if expr == nil {
-				for ki, key := range keys {
-					itr := fs.TagValueIterator(name, []byte(key))
-					if itr == nil {
-						continue
-					}
-					if auth != nil {
-						for val := itr.Next(); val != nil; val = itr.Next() {
-							si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
-							for {
-								se, err := si.Next()
-								if err != nil {
-									return err
-								} else if se.SeriesID == 0 {
-									break
-								}
-
-								name, tags := tsdb.ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
-								if auth.AuthorizeSeriesRead(i.database, name, tags) {
-									resultSet[ki][string(val.Value())] = struct{}{}
-									break
-								}
-							}
-						}
-					} else {
-						for val := itr.Next(); val != nil; val = itr.Next() {
-							resultSet[ki][string(val.Value())] = struct{}{}
-						}
-					}
-				}
-				return nil
-			}
-
-			// This is the case where we have filtered series by some WHERE condition.
-			// We only care about the tag values for the keys given the
-			// filtered set of series ids.
-			if err := fs.tagValuesByKeyAndExpr(auth, name, keys, expr, p.FieldSet(), resultSet); err != nil {
-				return err
-			}
-			return nil
-		}(); err != nil {
-			return nil, err
-		}
-	}
-
-	// Convert result sets into []string
-	results := make([][]string, len(keys))
-	for i, s := range resultSet {
-		values := make([]string, 0, len(s))
-		for v := range s {
-			values = append(values, v)
-		}
-		sort.Sort(sort.StringSlice(values))
-		results[i] = values
-	}
-	return results, nil
+// DiskSizeBytes returns the size of the index on disk.
+func (i *Index) DiskSizeBytes() int64 {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+	return fs.Size()
 }
-*/
 
 // TagKeyCardinality always returns zero.
 // It is not possible to determine cardinality of tags across index files, and

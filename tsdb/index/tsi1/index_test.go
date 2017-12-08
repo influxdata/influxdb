@@ -2,7 +2,9 @@ package tsi1_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"testing"
@@ -200,6 +202,94 @@ func TestIndex_DropMeasurement(t *testing.T) {
 	})
 }
 
+func TestIndex_Open(t *testing.T) {
+	// Opening a fresh index should set the MANIFEST version to current version.
+	idx := NewIndex()
+	t.Run("open new index", func(t *testing.T) {
+		if err := idx.Open(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Check version set appropriately.
+		if got, exp := idx.Manifest().Version, 1; got != exp {
+			t.Fatalf("got index version %d, expected %d", got, exp)
+		}
+	})
+
+	// Reopening an open index should return an error.
+	t.Run("reopen open index", func(t *testing.T) {
+		err := idx.Open()
+		if err == nil {
+			idx.Close()
+			t.Fatal("didn't get an error on reopen, but expected one")
+		}
+		idx.Close()
+	})
+
+	// Opening an incompatible index should return an error.
+	incompatibleVersions := []int{-1, 0, 2}
+	for _, v := range incompatibleVersions {
+		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
+			idx = NewIndex()
+			// Manually create a MANIFEST file for an incompatible index version.
+			mpath := filepath.Join(idx.Path, tsi1.ManifestFileName)
+			m := tsi1.NewManifest(mpath)
+			m.Levels = nil
+			m.Version = v // Set example MANIFEST version.
+			if err := m.Write(); err != nil {
+				t.Fatal(err)
+			}
+
+			// Log the MANIFEST file.
+			data, err := ioutil.ReadFile(mpath)
+			if err != nil {
+				panic(err)
+			}
+			t.Logf("Incompatible MANIFEST: %s", data)
+
+			// Opening this index should return an error because the MANIFEST has an
+			// incompatible version.
+			err = idx.Open()
+			if err != tsi1.ErrIncompatibleVersion {
+				idx.Close()
+				t.Fatalf("got error %v, expected %v", err, tsi1.ErrIncompatibleVersion)
+			}
+		})
+	}
+}
+
+func TestIndex_Manifest(t *testing.T) {
+	t.Run("current MANIFEST", func(t *testing.T) {
+		idx := MustOpenIndex()
+		if got, exp := idx.Manifest().Version, tsi1.Version; got != exp {
+			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
+		}
+	})
+}
+
+func TestIndex_DiskSizeBytes(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	// Add series to index.
+	if err := idx.CreateSeriesSliceIfNotExists([]Series{
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "north"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "west", "country": "us"})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify on disk size is the same in each stage.
+	expSize := int64(520) // 419 bytes for MANIFEST and 101 bytes for index file
+	idx.Run(t, func(t *testing.T) {
+		if got, exp := idx.DiskSizeBytes(), expSize; got != exp {
+			t.Fatalf("got %d bytes, expected %d", got, exp)
+		}
+	})
+}
+
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index
@@ -284,4 +374,12 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 		}
 	}
 	return nil
+}
+
+func BytesToStrings(a [][]byte) []string {
+	s := make([]string, 0, len(a))
+	for _, v := range a {
+		s = append(s, string(v))
+	}
+	return s
 }

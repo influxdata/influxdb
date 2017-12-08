@@ -250,7 +250,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		case "sample":
 			return c.compileSample(expr.Args)
 		case "distinct":
-			return c.compileDistinct(expr.Args)
+			return c.compileDistinct(expr.Args, false)
 		case "top", "bottom":
 			return c.compileTopBottom(expr)
 		case "derivative", "non_negative_derivative":
@@ -276,7 +276,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 	case *influxql.Distinct:
 		call := expr.NewCall()
 		c.global.FunctionCalls = append(c.global.FunctionCalls, call)
-		return c.compileDistinct(call.Args)
+		return c.compileDistinct(call.Args, false)
 	case *influxql.BinaryExpr:
 		// Disallow wildcards in binary expressions. RewriteFields, which expands
 		// wildcards, is too complicated if we allow wildcards inside of expressions.
@@ -349,10 +349,10 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	if expr.Name == "count" {
 		// If we have count(), the argument may be a distinct() call.
 		if arg0, ok := expr.Args[0].(*influxql.Call); ok && arg0.Name == "distinct" {
-			return c.compileDistinct(arg0.Args)
+			return c.compileDistinct(arg0.Args, true)
 		} else if arg0, ok := expr.Args[0].(*influxql.Distinct); ok {
 			call := arg0.NewCall()
-			return c.compileDistinct(call.Args)
+			return c.compileDistinct(call.Args, true)
 		}
 	}
 	return c.compileSymbol(expr.Name, expr.Args[0])
@@ -591,7 +591,7 @@ func (c *compiledField) compileHoltWinters(args []influxql.Expr, withFit bool) e
 	return c.compileExpr(call)
 }
 
-func (c *compiledField) compileDistinct(args []influxql.Expr) error {
+func (c *compiledField) compileDistinct(args []influxql.Expr, nested bool) error {
 	if len(args) == 0 {
 		return errors.New("distinct function requires at least one argument")
 	} else if len(args) != 1 {
@@ -601,7 +601,9 @@ func (c *compiledField) compileDistinct(args []influxql.Expr) error {
 	if _, ok := args[0].(*influxql.VarRef); !ok {
 		return errors.New("expected field argument in distinct()")
 	}
-	c.global.HasDistinct = true
+	if !nested {
+		c.global.HasDistinct = true
+	}
 	c.global.OnlySelectors = false
 	return nil
 }

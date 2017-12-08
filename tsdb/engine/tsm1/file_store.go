@@ -23,6 +23,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// The extension used to describe temporary snapshot files.
+	TmpTSMFileExtension = "tmp"
+)
+
 // TSMFile represents an on-disk TSM file.
 type TSMFile interface {
 	// Path returns the underlying file path for the TSMFile.  If the file
@@ -303,49 +308,16 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 		return nil
 	}
 
-	readers := make([]chan seriesKey, 0, len(f.files))
-	done := make(chan struct{})
-	for _, f := range f.files {
-		ch := make(chan seriesKey, 1)
-		readers = append(readers, ch)
-
-		go func(c chan seriesKey, r TSMFile) {
-
-			start := 0
-			if len(seek) > 0 {
-				start = r.Seek(seek)
-			}
-			n := r.KeyCount()
-			for i := start; i < n; i++ {
-
-				key, typ := r.KeyAt(i)
-				select {
-				case <-done:
-					// Abort iteration
-					break
-				case c <- seriesKey{key, typ}:
-				}
-
-			}
-			close(ch)
-		}(ch, f)
-	}
+	ki := newMergeKeyIterator(f.files, seek)
 	f.mu.RUnlock()
-
-	merged := merge(readers...)
-	var err error
-	for v := range merged {
-		// Drain the remaing values so goroutines can exit
-		if err != nil {
-			continue
-		}
-		if err = fn(v.key, v.typ); err != nil {
-			// Signal that we should stop iterating
-			close(done)
+	for ki.Next() {
+		key, typ := ki.Read()
+		if err := fn(key, typ); err != nil {
+			return err
 		}
 	}
 
-	return err
+	return nil
 }
 
 // Keys returns all keys and types for all files in the file store.
@@ -466,8 +438,9 @@ func (f *FileStore) Open() error {
 	if err != nil {
 		return err
 	}
+	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
 	for _, fi := range tmpfiles {
-		if fi.IsDir() && strings.HasSuffix(fi.Name(), ".tmp") {
+		if fi.IsDir() && strings.HasSuffix(fi.Name(), ext) {
 			ss := strings.Split(filepath.Base(fi.Name()), ".")
 			if len(ss) == 2 {
 				if i, err := strconv.Atoi(ss[0]); err != nil {
@@ -668,16 +641,20 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	f.mu.RUnlock()
 
 	updated := make([]TSMFile, 0, len(newFiles))
+	tsmTmpExt := fmt.Sprintf("%s.%s", TSMFileExtension, TmpTSMFileExtension)
 
 	// Rename all the new files to make them live on restart
 	for _, file := range newFiles {
 		var newName = file
-		if strings.HasSuffix(file, ".tmp") {
+		if strings.HasSuffix(file, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
 			newName = file[:len(file)-4]
 			if err := os.Rename(file, newName); err != nil {
 				return err
 			}
+		} else if !strings.HasSuffix(file, TSMFileExtension) {
+			// This isn't a .tsm or .tsm.tmp file.
+			continue
 		}
 
 		fd, err := os.Open(newName)
@@ -734,7 +711,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					deletes = append(deletes, file.Path())
 
 					// Rename the TSM file used by this reader
-					tempPath := file.Path() + ".tmp"
+					tempPath := fmt.Sprintf("%s.%s", file.Path(), TmpTSMFileExtension)
 					if err := file.Rename(tempPath); err != nil {
 						return err
 					}
@@ -991,7 +968,7 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	defer f.mu.RUnlock()
 
 	// get a tmp directory name
-	tmpPath := fmt.Sprintf("%s/%d.tmp", f.dir, f.currentTempDirID)
+	tmpPath := fmt.Sprintf("%s/%d.%s", f.dir, f.currentTempDirID, TmpTSMFileExtension)
 	err := os.Mkdir(tmpPath, 0777)
 	if err != nil {
 		return "", err
@@ -1062,12 +1039,6 @@ type KeyCursor struct {
 	// decrement through the size of seeks slice.
 	pos       int
 	ascending bool
-
-	// duplicates is a hint that there are overlapping blocks for this key in
-	// multiple files (e.g. points have been overwritten but not fully compacted)
-	// If this is true, we need to scan the duplicate blocks and dedup the points
-	// as query time until they are compacted.
-	duplicates bool
 }
 
 type location struct {
@@ -1125,8 +1096,6 @@ func newKeyCursor(ctx context.Context, fs *FileStore, key []byte, t int64, ascen
 		col:       metrics.GroupFromContext(ctx),
 		ascending: ascending,
 	}
-
-	c.duplicates = c.hasOverlappingBlocks()
 
 	if ascending {
 		sort.Sort(ascLocations(c.seeks))
@@ -1195,12 +1164,6 @@ func (c *KeyCursor) seekAscending(t int64) {
 			}
 
 			c.current = append(c.current, e)
-
-			// Exit if we don't have duplicates.
-			// Otherwise, keep looking for additional blocks containing this point.
-			if !c.duplicates {
-				return
-			}
 		}
 	}
 }
@@ -1214,12 +1177,6 @@ func (c *KeyCursor) seekDescending(t int64) {
 				c.pos = i
 			}
 			c.current = append(c.current, e)
-
-			// Exit if we don't have duplicates.
-			// Otherwise, keep looking for additional blocks containing this point.
-			if !c.duplicates {
-				return
-			}
 		}
 	}
 }
@@ -1260,11 +1217,6 @@ func (c *KeyCursor) nextAscending() {
 	}
 	c.current[0] = c.seeks[c.pos]
 
-	// We're done if there are no overlapping blocks.
-	if !c.duplicates {
-		return
-	}
-
 	// If we have ovelapping blocks, append all their values so we can dedup
 	for i := c.pos + 1; i < len(c.seeks); i++ {
 		if c.seeks[i].read() {
@@ -1292,11 +1244,6 @@ func (c *KeyCursor) nextDescending() {
 		c.current = c.current[:1]
 	}
 	c.current[0] = c.seeks[c.pos]
-
-	// We're done if there are no overlapping blocks.
-	if !c.duplicates {
-		return
-	}
 
 	// If we have ovelapping blocks, append all their values so we can dedup
 	for i := c.pos; i >= 0; i-- {

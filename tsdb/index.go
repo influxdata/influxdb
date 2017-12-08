@@ -24,7 +24,6 @@ type Index interface {
 
 	Database() string
 	MeasurementExists(name []byte) (bool, error)
-	// MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
 	ForEachMeasurementName(fn func(name []byte) error) error
@@ -58,6 +57,9 @@ type Index interface {
 
 	// Creates hard links inside path for snapshotting.
 	SnapshotTo(path string) error
+
+	// Size of the index on disk, if applicable.
+	DiskSizeBytes() int64
 
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
@@ -1084,34 +1086,7 @@ func (is IndexSet) DedupeInmemIndexes() IndexSet {
 	return other
 }
 
-/*
-// MeasurementNames returns a unique, sorted list of measurements across all indexes.
-func (is IndexSet) MeasurementNames(cond influxql.Expr) ([][]byte, error) {
-	// Map to deduplicate measurement names across all indexes. This is kind of naive
-	// and could be improved using a sorted merge of the already sorted measurements in
-	// each shard.
-	set := make(map[string]struct{})
-	var names [][]byte
-	for _, idx := range is {
-		a, err := is.MeasurementNamesByExpr(cond)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, m := range a {
-			if _, ok := set[string(m)]; !ok {
-				set[string(m)] = struct{}{}
-				names = append(names, m)
-			}
-		}
-	}
-	bytesutil.Sort(names)
-
-	return names, nil
-}
-
-*/
-func (is IndexSet) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	// Return filtered list if expression exists.
 	if expr != nil {
 		return is.measurementNamesByExpr(expr)
@@ -1373,6 +1348,12 @@ func (is IndexSet) TagValueIterator(auth query.Authorizer, name, key []byte) (Ta
 		}
 	}
 	return MergeTagValueIterators(a...), nil
+}
+
+// TagKeyHasAuthorizedSeries determines if there exists an authorized series for
+// the provided measurement name and tag key.
+func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, tagKey string) bool {
+	panic("IMPLEMENT ME")
 }
 
 // MeasurementSeriesIDIterator returns an iterator over all non-tombstoned series

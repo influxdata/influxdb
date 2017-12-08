@@ -6,11 +6,28 @@
 
 ### Features
 
-- [#9088](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+- [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
+- [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+- [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
+- [#8491](https://github.com/influxdata/influxdb/pull/8491): Add further tsi support for streaming/copying shards.
+- [#9181](https://github.com/influxdata/influxdb/pull/9181): Schedule a full compaction after a successful import
 
 ### Bugfixes
 
-- [#9065](https://github.com/influxdata/influxdb/pull/9065): Refuse extra arguments to influx CLI
+- [#9095](https://github.com/influxdata/influxdb/pull/9095): Refuse extra arguments to influx CLI
+- [#9058](https://github.com/influxdata/influxdb/issues/9058): Fix space required after regex operator. Thanks @stop-start!
+- [#9109](https://github.com/influxdata/influxdb/issues/9109): Fix: panic: sync: WaitGroup is reused before previous Wait has returned
+- [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
+- [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
+- [#8789](https://github.com/influxdata/influxdb/issues/8789): Fix CLI to allow quoted database names in use statement
+
+## v1.4.2 [2017-11-15]
+
+Refer to the 1.4.0 breaking changes section if `influxd` fails to start with an `incompatible tsi1 index MANIFEST` error.
+
+### Bugfixes
+
+- [#9117](https://github.com/influxdata/influxdb/pull/9117): Fix panic: runtime error: slice bounds out of range
 
 ## v1.4.1 [2017-11-13]
 
@@ -22,7 +39,29 @@
 
 ### Breaking changes
 
-* You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+
+As part of the ongoing development of the `tsi1` index, the implementation of a Bloom Filter, used
+to efficiently determine if series are not present in the index, was altered in [#8857](https://github.com/influxdata/influxdb/pull/8857).
+While this significantly increases the performance of the index and reduces its memory consumption,
+the existing `tsi1` indexes created while running previous versions of the database are not compatible with 1.4.0.
+
+Users with databases using the `tsi1` index must go through the following process to upgrade to 1.4.0:
+
+1. Stop `influxd`.
+2. Remove all `index` directories on databases using the `tsi1` index. With default configuration these can be found in
+   `/var/lib/influxdb/data/DB_NAME/RP_NAME/SHARD_ID/index` or `~/.influxdb/data/DB_NAME/RP_NAME/SHARD_ID/index`.
+   It's worth noting at this point how many different `shard_ids` you visit.
+3. Run the `influx_inspect inmem2tsi` tool using the shard's data and WAL directories for -datadir and -waldir, respectively.
+   Given the example in step (2) that would be
+   `influx_inspect inmem2tsi -datadir /var/lib/influxdb/data/DB_NAME/RP_NAME/SHARD_ID -waldir /path/to/influxdb/wal/DB_NAME/RP_NAME/SHARD_ID`.
+4. Repeat step (3) for each shard that needs to be converted.
+5. Start `influxd`.
+
+Users with existing `tsi1` shards, who attempt to start version 1.4.0 without following the above steps, will find the shards
+refuse to open, and will most likely see the following error message:
+
+`incompatible tsi1 index MANIFEST`
 
 ### Configuration Changes
 
@@ -58,8 +97,7 @@
 - [#8897](https://github.com/influxdata/influxdb/pull/8897): Add message pack format for query responses.
 - [#8886](https://github.com/influxdata/influxdb/pull/8886): Improved compaction scheduling
 - [#8690](https://github.com/influxdata/influxdb/issues/8690): Implicitly decide on a lower limit for fill queries when none is present.
-- [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.
-- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
+- [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
 - [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion. 
 - [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs. Thanks @darkliquid!
 - [#8984](https://github.com/influxdata/influxdb/pull/8984): EXACT and estimated CARDINALITY queries.
@@ -68,6 +106,7 @@
 - [#9021](https://github.com/influxdata/influxdb/pull/9021): Update to go 1.9.2
 - [#8891](https://github.com/influxdata/influxdb/pull/8891): Allow human-readable byte sizes in config
 - [#9073](https://github.com/influxdata/influxdb/pull/9073): Improve SHOW TAG KEYS performance.
+- [#7355](https://github.com/influxdata/influxdb/issues/7355): Create a command to truncate shard groups
 
 ### Bugfixes
 

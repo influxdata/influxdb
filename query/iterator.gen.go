@@ -112,6 +112,9 @@ type floatMergeIterator struct {
 	heap   *floatMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *floatMergeHeapItem
 	window struct {
@@ -155,17 +158,27 @@ func (itr *floatMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *floatMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *floatMergeIterator) Next() (*FloatPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -3515,6 +3528,9 @@ type integerMergeIterator struct {
 	heap   *integerMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *integerMergeHeapItem
 	window struct {
@@ -3558,17 +3574,27 @@ func (itr *integerMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *integerMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *integerMergeIterator) Next() (*IntegerPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -6915,6 +6941,9 @@ type unsignedMergeIterator struct {
 	heap   *unsignedMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *unsignedMergeHeapItem
 	window struct {
@@ -6958,17 +6987,27 @@ func (itr *unsignedMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *unsignedMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *unsignedMergeIterator) Next() (*UnsignedPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -10315,6 +10354,9 @@ type stringMergeIterator struct {
 	heap   *stringMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *stringMergeHeapItem
 	window struct {
@@ -10358,17 +10400,27 @@ func (itr *stringMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *stringMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *stringMergeIterator) Next() (*StringPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations
@@ -13701,6 +13753,9 @@ type booleanMergeIterator struct {
 	heap   *booleanMergeHeap
 	init   bool
 
+	closed bool
+	mu     sync.RWMutex
+
 	// Current iterator and window.
 	curr   *booleanMergeHeapItem
 	window struct {
@@ -13744,17 +13799,27 @@ func (itr *booleanMergeIterator) Stats() IteratorStats {
 
 // Close closes the underlying iterators.
 func (itr *booleanMergeIterator) Close() error {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
 	for _, input := range itr.inputs {
 		input.Close()
 	}
 	itr.curr = nil
 	itr.inputs = nil
 	itr.heap.items = nil
+	itr.closed = true
 	return nil
 }
 
 // Next returns the next point from the iterator.
 func (itr *booleanMergeIterator) Next() (*BooleanPoint, error) {
+	itr.mu.RLock()
+	defer itr.mu.RUnlock()
+	if itr.closed {
+		return nil, nil
+	}
+
 	// Initialize the heap. This needs to be done lazily on the first call to this iterator
 	// so that iterator initialization done through the Select() call returns quickly.
 	// Queries can only be interrupted after the Select() call completes so any operations

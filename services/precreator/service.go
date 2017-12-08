@@ -25,14 +25,12 @@ type Service struct {
 }
 
 // NewService returns an instance of the precreation service.
-func NewService(c Config) (*Service, error) {
-	s := Service{
+func NewService(c Config) *Service {
+	return &Service{
 		checkInterval: time.Duration(c.CheckInterval),
 		advancePeriod: time.Duration(c.AdvancePeriod),
 		Logger:        zap.NewNop(),
 	}
-
-	return &s, nil
 }
 
 // WithLogger sets the logger for the service.

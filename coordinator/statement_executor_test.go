@@ -280,7 +280,7 @@ func NewQueryExecutor() *QueryExecutor {
 		return nil
 	}
 
-	e.TSDBStore.MeasurementNamesFn = func(database string, cond influxql.Expr) ([][]byte, error) {
+	e.TSDBStore.MeasurementNamesFn = func(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
 		return nil, nil
 	}
 

@@ -1017,7 +1017,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 // MeasurementNames returns a slice of all measurements. Measurements accepts an
 // optional condition expression. If cond is nil, then all measurements for the
 // database will be returned.
-func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
+func (s *Store) MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
@@ -1030,7 +1030,7 @@ func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte,
 		}
 	}
 	is = is.DedupeInmemIndexes()
-	return is.MeasurementNamesByExpr(cond)
+	return is.MeasurementNamesByExpr(auth, cond)
 }
 
 // MeasurementSeriesCounts returns the number of measurements and series in all
@@ -1110,7 +1110,7 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 
 	// Determine list of measurements.
 	is = is.DedupeInmemIndexes()
-	names, err := is.MeasurementNamesByExpr(measurementExpr)
+	names, err := is.MeasurementNamesByExpr(nil, measurementExpr)
 	if err != nil {
 		return nil, err
 	}
@@ -1118,13 +1118,24 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 	// Iterate over each measurement.
 	var results []TagKeys
 	for _, name := range names {
-		finalKeySet := make(map[string]struct{})
 
 		// Build keyset over all indexes for measurement.
-		keySet, err := is.MeasurementTagKeysByExpr(name, nil)
+		tagKeySet, err := is.MeasurementTagKeysByExpr(name, nil)
 		if err != nil {
 			return nil, err
-		} else if len(keySet) == 0 {
+		} else if len(tagKeySet) == 0 {
+			continue
+		}
+
+		keySet := make(map[string]struct{}, len(tagKeySet))
+		// If no tag value filter is present then all the tag keys can be returned
+		// If they have authorized series associated with them.
+		if filterExpr == nil {
+			for tagKey := range tagKeySet {
+				if is.TagKeyHasAuthorizedSeries(auth, []byte(name), tagKey) {
+					keySet[tagKey] = struct{}{}
+				}
+			}
 			continue
 		}
 
@@ -1141,6 +1152,7 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 			return nil, err
 		}
 
+		finalKeySet := make(map[string]struct{})
 		for i := range keys {
 			if len(values[i]) == 0 {
 				continue
@@ -1245,7 +1257,9 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 	var allResults []tagValues
 	var maxMeasurements int // Hint as to lower bound on number of measurements.
 	// names will be sorted by MeasurementNamesByExpr.
-	names, err := is.MeasurementNamesByExpr(measurementExpr)
+	// Authorisation can be done later on, when series may have been filtered
+	// out by other conditions.
+	names, err := is.MeasurementNamesByExpr(nil, measurementExpr)
 	if err != nil {
 		return nil, err
 	}
@@ -1511,7 +1525,7 @@ func (s *Store) monitorShards() {
 				// inmem shards share the same index instance so just use the first one to avoid
 				// allocating the same measurements repeatedly
 				first := shards[0].index
-				names, err := (IndexSet{first}).MeasurementNamesByExpr(nil)
+				names, err := (IndexSet{first}).MeasurementNamesByExpr(nil, nil)
 				if err != nil {
 					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
 					return nil

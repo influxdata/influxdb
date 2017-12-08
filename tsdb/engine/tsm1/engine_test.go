@@ -315,7 +315,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -367,7 +367,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -420,7 +420,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -473,8 +473,8 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("F"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("F"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -529,9 +529,9 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("X"), influxql.Float, false)
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("Y"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("X"), influxql.Float)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("Y"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	e.SetFieldName([]byte("cpu"), "X")
 	e.SetFieldName([]byte("cpu"), "Y")
@@ -627,6 +627,171 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			exp := "cpu,host=B#!~#value"
 			if _, ok := keys[exp]; !ok {
 				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
+			}
+		})
+	}
+}
+
+func TestEngine_DeleteSeriesRange(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			// Create a few points.
+			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000") // Should not be deleted
+			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000")
+			p3 := MustParsePointString("cpu,host=A value=1.3 3000000000")
+			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000") // Should not be deleted
+			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000") // Should not be deleted
+			p6 := MustParsePointString("cpu,host=C value=1.3 1000000000")
+			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")  // Should not be deleted
+			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
+
+			e := NewEngine(index)
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+
+			if err := e.Open(); err != nil {
+				panic(err)
+			}
+			defer e.Close()
+
+			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+					t.Fatalf("create series index error: %v", err)
+				}
+			}
+
+			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+			if err := e.WriteSnapshot(); err != nil {
+				t.Fatalf("failed to snapshot: %s", err.Error())
+			}
+
+			keys := e.FileStore.Keys()
+			if exp, got := 6, len(keys); exp != got {
+				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+			}
+
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
+			if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
+				t.Fatalf("failed to delete series: %v", err)
+			}
+
+			keys = e.FileStore.Keys()
+			if exp, got := 4, len(keys); exp != got {
+				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+			}
+
+			exp := "cpu,host=B#!~#value"
+			if _, ok := keys[exp]; !ok {
+				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
+			}
+
+			// Check that the series still exists in the index
+			iter, err := e.MeasurementSeriesKeysByExprIterator([]byte("cpu"), nil)
+			if err != nil {
+				t.Fatalf("iterator error: %v", err)
+			}
+
+			elem := iter.Next()
+			if elem == nil {
+				t.Fatalf("series index mismatch: got nil, exp 2 series")
+			}
+
+			if got, exp := elem.Name(), []byte("cpu"); !bytes.Equal(got, exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			if got, exp := elem.Tags(), models.NewTags(map[string]string{"host": "0"}); !got.Equal(exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			elem = iter.Next()
+			if elem == nil {
+				t.Fatalf("series index next mismatch: got nil")
+			}
+
+			if got, exp := elem.Name(), []byte("cpu"); !bytes.Equal(got, exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			if got, exp := elem.Tags(), models.NewTags(map[string]string{"host": "B"}); !got.Equal(exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+		})
+	}
+}
+
+func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			// Create a few points.
+			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000") // Should not be deleted
+
+			e := NewEngine(index)
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+
+			if err := e.Open(); err != nil {
+				panic(err)
+			}
+			defer e.Close()
+
+			for _, p := range []models.Point{p1} {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+					t.Fatalf("create series index error: %v", err)
+				}
+			}
+
+			if err := e.WritePoints([]models.Point{p1}); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+			if err := e.WriteSnapshot(); err != nil {
+				t.Fatalf("failed to snapshot: %s", err.Error())
+			}
+
+			keys := e.FileStore.Keys()
+			if exp, got := 1, len(keys); exp != got {
+				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+			}
+
+			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
+				t.Fatalf("failed to delete series: %v", err)
+			}
+
+			keys = e.FileStore.Keys()
+			if exp, got := 1, len(keys); exp != got {
+				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+			}
+
+			exp := "cpu,host=A#!~#value"
+			if _, ok := keys[exp]; !ok {
+				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
+			}
+
+			// Check that the series still exists in the index
+			iter, err := e.MeasurementSeriesKeysByExprIterator([]byte("cpu"), nil)
+			if err != nil {
+				t.Fatalf("iterator error: %v", err)
+			}
+
+			if iter == nil {
+				t.Fatalf("series iterator nil")
+			}
+
+			elem := iter.Next()
+			if elem == nil {
+				t.Fatalf("series index mismatch: got nil, exp 1 series")
+			}
+
+			if got, exp := elem.Name(), []byte("cpu"); !bytes.Equal(got, exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			if got, exp := elem.Tags(), models.NewTags(map[string]string{"host": "A"}); !got.Equal(exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
 			}
 		})
 	}
@@ -736,7 +901,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -785,7 +950,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 	e := MustOpenDefaultEngine()
 	defer e.Close()
 
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	if err := e.WritePointsString(
@@ -825,6 +990,35 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 	if !cmp.Equal([]float64{11.2, 10.1, 1.3, 1.2}, vs) {
 		t.Fatal("unexpect timestamps")
 	}
+}
+
+// This test ensures that "sync: WaitGroup is reused before previous Wait has returned" is
+// is not raised.
+func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	e := MustOpenDefaultEngine()
+	defer e.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(true)
+			e.SetCompactionsEnabled(false)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(false)
+			e.SetCompactionsEnabled(true)
+		}
+	}()
+	wg.Wait()
 }
 
 func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
@@ -1035,7 +1229,7 @@ func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
 	e := MustOpenEngine(tsdb.DefaultIndex, sfile)
 
 	// Initialize metadata.
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float, false)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	// Generate time ascending points with jitterred time & value.
@@ -1202,6 +1396,7 @@ func (m *mockPlanner) PlanLevel(level int) []tsm1.CompactionGroup      { return 
 func (m *mockPlanner) PlanOptimize() []tsm1.CompactionGroup            { return nil }
 func (m *mockPlanner) Release(groups []tsm1.CompactionGroup)           {}
 func (m *mockPlanner) FullyCompacted() bool                            { return false }
+func (m *mockPlanner) ForceFull()                                      {}
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
 func ParseTags(s string) query.Tags {

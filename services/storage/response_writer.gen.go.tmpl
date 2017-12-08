@@ -1,0 +1,59 @@
+package storage
+
+import (
+	"github.com/influxdata/influxdb/tsdb"
+)
+
+
+{{range .}}
+
+func (w *responseWriter) stream{{.Name}}Points(cur tsdb.{{.Name}}BatchCursor) {
+	w.sf.DataType = DataType{{.Name}}
+	ss := len(w.res.Frames) - 1
+
+	frame := &ReadResponse_{{.Name}}PointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]{{.Type}}, 0, batchSize)}
+	w.res.Frames = append(w.res.Frames, ReadResponse_Frame{&ReadResponse_Frame_{{.Name}}Points{frame}})
+
+	var (
+		seriesValueCount = 0
+		b                = 0
+	)
+
+	for {
+		ts, vs := cur.Next()
+		if len(ts) == 0 {
+			break
+		}
+
+		frame.Timestamps = append(frame.Timestamps, ts...)
+		frame.Values = append(frame.Values, vs...)
+
+		b = len(frame.Timestamps)
+		if b >= batchSize {
+			seriesValueCount += b
+			b = 0
+			w.sz += frame.Size()
+			if w.sz >= writeSize {
+				w.flushFrames()
+				if w.err != nil {
+					break
+				}
+			}
+
+			frame = &ReadResponse_{{.Name}}PointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]{{.Type}}, 0, batchSize)}
+			w.res.Frames = append(w.res.Frames, ReadResponse_Frame{&ReadResponse_Frame_{{.Name}}Points{frame}})
+		}
+	}
+	cur.Close()
+
+	seriesValueCount += b
+	w.vc += seriesValueCount
+	if seriesValueCount == 0 {
+		w.sz -= w.sf.Size()
+		// no points collected, strip series frame
+		w.res.Frames = w.res.Frames[:ss]
+	} else if w.sz > writeSize {
+		w.flushFrames()
+	}
+}
+{{end}}

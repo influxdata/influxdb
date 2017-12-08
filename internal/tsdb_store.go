@@ -14,7 +14,7 @@ import (
 // TSDBStoreMock is a mockable implementation of tsdb.Store.
 type TSDBStoreMock struct {
 	BackupShardFn             func(id uint64, since time.Time, w io.Writer) error
-	BackupSeriesFileFn        func(w io.Writer) error
+	BackupSeriesFileFn        func(database string, w io.Writer) error
 	CloseFn                   func() error
 	CreateShardFn             func(database, policy string, shardID uint64, enabled bool) error
 	CreateShardSnapshotFn     func(id uint64) (string, error)
@@ -29,7 +29,7 @@ type TSDBStoreMock struct {
 	ImportShardFn             func(id uint64, r io.Reader) error
 	MeasurementSeriesCountsFn func(database string) (measuments int, series int)
 	MeasurementsCardinalityFn func(database string) (int64, error)
-	MeasurementNamesFn        func(database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNamesFn        func(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	OpenFn                    func() error
 	PathFn                    func() string
 	RestoreShardFn            func(id uint64, r io.Reader) error
@@ -51,8 +51,8 @@ type TSDBStoreMock struct {
 func (s *TSDBStoreMock) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	return s.BackupShardFn(id, since, w)
 }
-func (s *TSDBStoreMock) BackupSeriesFile(w io.Writer) error {
-	return s.BackupSeriesFileFn(w)
+func (s *TSDBStoreMock) BackupSeriesFile(database string, w io.Writer) error {
+	return s.BackupSeriesFileFn(database, w)
 }
 func (s *TSDBStoreMock) Close() error { return s.CloseFn() }
 func (s *TSDBStoreMock) CreateShard(database string, retentionPolicy string, shardID uint64, enabled bool) error {
@@ -88,8 +88,8 @@ func (s *TSDBStoreMock) ExpandSources(sources influxql.Sources) (influxql.Source
 func (s *TSDBStoreMock) ImportShard(id uint64, r io.Reader) error {
 	return s.ImportShardFn(id, r)
 }
-func (s *TSDBStoreMock) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
-	return s.MeasurementNamesFn(database, cond)
+func (s *TSDBStoreMock) MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
+	return s.MeasurementNamesFn(auth, database, cond)
 }
 func (s *TSDBStoreMock) MeasurementSeriesCounts(database string) (measuments int, series int) {
 	return s.MeasurementSeriesCountsFn(database)

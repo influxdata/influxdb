@@ -126,7 +126,7 @@ func (i *Partition) Open() error {
 	// Read manifest file.
 	m, err := ReadManifestFile(filepath.Join(i.path, ManifestFileName))
 	if os.IsNotExist(err) {
-		m = NewManifest()
+		m = NewManifest(i.ManifestPath())
 	} else if err != nil {
 		return err
 	}
@@ -1059,13 +1059,17 @@ type Manifest struct {
 
 	// Version should be updated whenever the TSI format has changed.
 	Version int `json:"version,omitempty"`
+
+	size int64  // Holds the on-disk size of the manifest.
+	path string // location on disk of the manifest.
 }
 
 // NewManifest returns a new instance of Manifest with default compaction levels.
-func NewManifest() *Manifest {
+func NewManifest(path string) *Manifest {
 	m := &Manifest{
 		Levels:  make([]CompactionLevel, len(DefaultCompactionLevels)),
 		Version: Version,
+		path:    path,
 	}
 	copy(m.Levels, DefaultCompactionLevels[:])
 	return m
@@ -1092,6 +1096,17 @@ func (m *Manifest) Validate() error {
 	return nil
 }
 
+// Write writes the manifest file to the provided path.
+func (m *Manifest) Write() error {
+	buf, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	buf = append(buf, '\n')
+	m.size = int64(len(buf))
+	return ioutil.WriteFile(m.path, buf, 0666)
+}
+
 // ReadManifestFile reads a manifest from a file path.
 func ReadManifestFile(path string) (*Manifest, error) {
 	buf, err := ioutil.ReadFile(path)
@@ -1104,6 +1119,10 @@ func ReadManifestFile(path string) (*Manifest, error) {
 	if err := json.Unmarshal(buf, &m); err != nil {
 		return nil, err
 	}
+
+	// Set the size and path of the manifest.
+	m.size = int64(len(buf))
+	m.path = path
 
 	return &m, nil
 }

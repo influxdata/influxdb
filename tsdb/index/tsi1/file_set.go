@@ -14,10 +14,11 @@ import (
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	levels   []CompactionLevel
-	sfile    *tsdb.SeriesFile
-	files    []File
-	database string
+	levels       []CompactionLevel
+	sfile        *tsdb.SeriesFile
+	files        []File
+	database     string
+	manifestSize int64 // Size of the manifest file in bytes.
 }
 
 // NewFileSet returns a new instance of FileSet.
@@ -31,9 +32,9 @@ func NewFileSet(database string, levels []CompactionLevel, sfile *tsdb.SeriesFil
 }
 
 // Close closes all the files in the file set.
-func (p FileSet) Close() error {
+func (fs FileSet) Close() error {
 	var err error
-	for _, f := range p.files {
+	for _, f := range fs.files {
 		if e := f.Close(); e != nil && err == nil {
 			err = e
 		}
@@ -62,14 +63,24 @@ func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
 // Filters do not need to be rebuilt because log files have no bloom filter.
 func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 	return &FileSet{
-		levels: fs.levels,
-		sfile:  fs.sfile,
-		files:  append([]File{f}, fs.files...),
+		database: fs.database,
+		levels:   fs.levels,
+		sfile:    fs.sfile,
+		files:    append([]File{f}, fs.files...),
 	}
 }
 
+// Size returns the on-disk size of the FileSet.
+func (fs *FileSet) Size() int64 {
+	var total int64
+	for _, f := range fs.files {
+		total += f.Size()
+	}
+	return total + int64(fs.manifestSize)
+}
+
 // MustReplace swaps a list of files for a single file and returns a new file set.
-// The caller should always guarentee that the files exist and are contiguous.
+// The caller should always guarantee that the files exist and are contiguous.
 func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 	assert(len(oldFiles) > 0, "cannot replace empty files")
 
@@ -98,8 +109,9 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Build new fileset and rebuild changed filters.
 	return &FileSet{
-		levels: fs.levels,
-		files:  other,
+		levels:   fs.levels,
+		files:    other,
+		database: fs.database,
 	}
 }
 
@@ -424,6 +436,9 @@ type File interface {
 	// Reference counting.
 	Retain()
 	Release()
+
+	// Size of file on disk
+	Size() int64
 }
 
 type Files []File

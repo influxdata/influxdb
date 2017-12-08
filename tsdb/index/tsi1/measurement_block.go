@@ -249,11 +249,11 @@ func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
 	t.HashIndex.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.HashIndex.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Read measurment sketch info.
+	// Read measurement sketch info.
 	t.Sketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.Sketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Read tombstone measurment sketch info.
+	// Read tombstone measurement sketch info.
 	t.TSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.TSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 

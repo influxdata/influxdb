@@ -2082,6 +2082,49 @@ func TestKeyCursor_TombstoneRange(t *testing.T) {
 	}
 }
 
+func TestKeyCursor_TombstoneRange_PartialFirst(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 0.0), tsm1.NewValue(1, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	// Delete part of the block in the first file.
+	r := MustOpenTSMReader(files[0])
+	r.DeleteRange([][]byte{[]byte("cpu")}, 1, 3)
+
+	fs.Replace(nil, files)
+
+	buf := make([]tsm1.FloatValue, 1000)
+	c := fs.KeyCursor(context.Background(), []byte("cpu"), 0, true)
+	expValues := []tsm1.Value{tsm1.NewValue(0, 0.0), tsm1.NewValue(2, 2.0)}
+
+	for _, exp := range expValues {
+		values, err := c.ReadFloatBlock(&buf)
+		if err != nil {
+			t.Fatalf("unexpected error reading values: %v", err)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[0].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", 0, got, exp)
+		}
+		c.Next()
+	}
+}
+
 func TestKeyCursor_TombstoneRange_PartialFloat(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -2391,7 +2434,7 @@ func TestFileStore_Replace(t *testing.T) {
 	}
 
 	// Replace requires assumes new files have a .tmp extension
-	replacement := files[2] + ".tmp"
+	replacement := fmt.Sprintf("%s.%s", files[2], tsm1.TmpTSMFileExtension)
 	os.Rename(files[2], replacement)
 
 	fs := tsm1.NewFileStore(dir)
@@ -2620,9 +2663,9 @@ func TestFileStore_Stats(t *testing.T) {
 		"mem": []tsm1.Value{tsm1.NewValue(0, 1.0)},
 	})
 
-	replacement := files[2] + "-foo" + ".tmp" // Assumes new files have a .tmp extension
+	replacement := fmt.Sprintf("%s.%s.%s", files[2], tsm1.TmpTSMFileExtension, tsm1.TSMFileExtension) // Assumes new files have a .tmp extension
 	if err := os.Rename(newFile, replacement); err != nil {
-
+		t.Fatalf("rename: %v", err)
 	}
 	// Replace 3 w/ 1
 	if err := fs.Replace(files, []string{replacement}); err != nil {
@@ -2632,7 +2675,7 @@ func TestFileStore_Stats(t *testing.T) {
 	var found bool
 	stats = fs.Stats()
 	for _, stat := range stats {
-		if strings.HasSuffix(stat.Path, "-foo") {
+		if strings.HasSuffix(stat.Path, fmt.Sprintf("%s.%s.%s", tsm1.TSMFileExtension, tsm1.TmpTSMFileExtension, tsm1.TSMFileExtension)) {
 			found = true
 		}
 	}

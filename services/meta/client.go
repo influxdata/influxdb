@@ -672,6 +672,16 @@ func (c *Client) DropShard(id uint64) error {
 	return c.commit(data)
 }
 
+// TruncateShardGroups truncates any shard group that could contain timestamps beyond t.
+func (c *Client) TruncateShardGroups(t time.Time) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	data := c.cacheData.Clone()
+	data.TruncateShardGroups(t)
+	return c.commit(data)
+}
+
 // PruneShardGroups remove deleted shard groups from the data store.
 func (c *Client) PruneShardGroups() error {
 	var changed bool

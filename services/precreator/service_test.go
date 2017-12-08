@@ -1,55 +1,55 @@
-package precreator
+package precreator_test
 
 import (
-	"sync"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/internal"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/toml"
 )
 
-func Test_ShardPrecreation(t *testing.T) {
-	t.Parallel()
+func TestShardPrecreation(t *testing.T) {
+	done := make(chan struct{})
+	precreate := false
 
-	now := time.Now().UTC()
-	advancePeriod := 5 * time.Minute
-
-	// A test metastaore which returns 2 shard groups, only 1 of which requires a successor.
-	var wg sync.WaitGroup
-	wg.Add(1)
-	ms := metaClient{
-		PrecreateShardGroupsFn: func(v, u time.Time) error {
-			wg.Done()
-			if u != now.Add(advancePeriod) {
-				t.Fatalf("precreation called with wrong time, got %s, exp %s", u, now)
-			}
-			return nil
-		},
+	var mc internal.MetaClientMock
+	mc.PrecreateShardGroupsFn = func(now, cutoff time.Time) error {
+		if !precreate {
+			close(done)
+			precreate = true
+		}
+		return nil
 	}
 
-	srv, err := NewService(Config{
-		CheckInterval: toml.Duration(time.Minute),
-		AdvancePeriod: toml.Duration(advancePeriod),
-	})
-	if err != nil {
-		t.Fatalf("failed to create shard precreation service: %s", err.Error())
-	}
-	srv.MetaClient = ms
+	s := NewTestService()
+	s.MetaClient = &mc
 
-	err = srv.precreate(now)
-	if err != nil {
-		t.Fatalf("failed to precreate shards: %s", err.Error())
+	if err := s.Open(); err != nil {
+		t.Fatalf("unexpected open error: %s", err)
+	}
+	defer s.Close() // double close should not cause a panic
+
+	timer := time.NewTimer(100 * time.Millisecond)
+	select {
+	case <-done:
+		timer.Stop()
+	case <-timer.C:
+		t.Errorf("timeout exceeded while waiting for precreate")
 	}
 
-	wg.Wait() // Ensure metaClient test function is called.
-	return
+	if err := s.Close(); err != nil {
+		t.Fatalf("unexpected close error: %s", err)
+	}
 }
 
-// PointsWriter represents a mock impl of PointsWriter.
-type metaClient struct {
-	PrecreateShardGroupsFn func(now, cutoff time.Time) error
-}
+func NewTestService() *precreator.Service {
+	config := precreator.NewConfig()
+	config.CheckInterval = toml.Duration(10 * time.Millisecond)
 
-func (m metaClient) PrecreateShardGroups(now, cutoff time.Time) error {
-	return m.PrecreateShardGroupsFn(now, cutoff)
+	s := precreator.NewService(config)
+	s.WithLogger(logger.New(os.Stderr))
+	return s
 }

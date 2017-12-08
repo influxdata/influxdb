@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -21,6 +22,10 @@ func (e *Engine) CreateCursor(ctx context.Context, r *tsdb.CursorRequest) (tsdb.
 	if f == nil {
 		// field doesn't exist for this measurement
 		return nil, nil
+	}
+
+	if grp := metrics.GroupFromContext(ctx); grp != nil {
+		grp.GetCounter(numberOfRefCursorsCounter).Add(1)
 	}
 
 	var opt query.IteratorOptions
