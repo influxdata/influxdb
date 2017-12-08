@@ -16,7 +16,7 @@ class RuleHandlers extends Component {
       handlersOnThisAlert,
       selectedHandler,
       handlersOfKind,
-    } = getHandlersFromRule(this.props.rule, handlersFromConfig) // nagging feeling that this should not be in constructor. ?
+    } = getHandlersFromRule(this.props.rule, handlersFromConfig)
 
     this.state = {
       selectedHandler,
@@ -125,11 +125,11 @@ class RuleHandlers extends Component {
 
   render() {
     const {
-      handlersFromConfig,
       rule,
       ruleActions,
       onGoToConfig,
       validationError,
+      handlersFromConfig,
     } = this.props
     const {handlersOnThisAlert, selectedHandler} = this.state
 
