@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import GaugeThreshold from 'src/dashboards/components/GaugeThreshold'
+import Threshold from 'src/dashboards/components/Threshold'
 
 import {
   MAX_THRESHOLDS,
@@ -37,7 +37,7 @@ const GaugeOptions = ({
             <span className="icon plus" /> Add Threshold
           </button>
           {sortedColors.map(color =>
-            <GaugeThreshold
+            <Threshold
               threshold={color}
               key={color.id}
               onChooseColor={onChooseColor}

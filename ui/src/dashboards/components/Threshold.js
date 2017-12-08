@@ -8,7 +8,7 @@ import {
   GAUGE_COLORS,
 } from 'src/dashboards/constants/gaugeColors'
 
-class GaugeThreshold extends Component {
+class Threshold extends Component {
   constructor(props) {
     super(props)
 
@@ -36,6 +36,7 @@ class GaugeThreshold extends Component {
 
   render() {
     const {
+      visualizationType,
       threshold,
       threshold: {type, hex, name},
       disableMaxColor,
@@ -46,17 +47,20 @@ class GaugeThreshold extends Component {
     const selectedColor = {hex, name}
 
     const labelClass =
-      type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX
+      (type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX) &&
+      visualizationType === 'gauge'
         ? 'gauge-controls--label'
         : 'gauge-controls--label-editable'
 
-    const canBeDeleted = !(type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX)
+    const canBeDeleted =
+      !(type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX) ||
+      visualizationType === 'single-stat'
 
     let label = 'Threshold'
-    if (type === COLOR_TYPE_MIN) {
+    if (type === COLOR_TYPE_MIN && visualizationType === 'gauge') {
       label = 'Minimum'
     }
-    if (type === COLOR_TYPE_MAX) {
+    if (type === COLOR_TYPE_MAX && visualizationType === 'gauge') {
       label = 'Maximum'
     }
 
@@ -98,7 +102,8 @@ class GaugeThreshold extends Component {
 
 const {bool, func, shape, string} = PropTypes
 
-GaugeThreshold.propTypes = {
+Threshold.propTypes = {
+  visualizationType: string.isRequired,
   threshold: shape({
     type: string.isRequired,
     hex: string.isRequired,
@@ -113,4 +118,4 @@ GaugeThreshold.propTypes = {
   onDeleteThreshold: func.isRequired,
 }
 
-export default GaugeThreshold
+export default Threshold
