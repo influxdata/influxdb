@@ -139,7 +139,11 @@ class CellEditorOverlay extends Component {
   }
 
   handleValidateColorValue = (threshold, e) => {
-    const {colors} = this.state
+    const {colors, cellWorkingType} = this.state
+    if (cellWorkingType === 'single-stat') {
+      // If type is single-stat then validation doesn't matter
+      return true
+    }
     const sortedColors = _.sortBy(colors, color => Number(color.value))
     const targetValueNumber = Number(e.target.value)
 
