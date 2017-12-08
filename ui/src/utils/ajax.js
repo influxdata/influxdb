@@ -9,12 +9,18 @@ const addBasepath = (url, excludeBasepath) => {
   return excludeBasepath ? url : `${basepath}${url}`
 }
 
-const generateResponseWithLinks = (response, {auth, logout, external}) => ({
-  ...response,
-  auth: {links: auth},
-  logoutLink: logout,
-  external,
-})
+const generateResponseWithLinks = (response, newLinks) => {
+  const {auth, logout, external, users, organizations, me: meLink} = newLinks
+  return {
+    ...response,
+    auth: {links: auth},
+    logoutLink: logout,
+    external,
+    users,
+    organizations,
+    meLink,
+  }
+}
 
 const AJAX = async (
   {url, resource, id, method = 'GET', data = {}, params = {}, headers = {}},

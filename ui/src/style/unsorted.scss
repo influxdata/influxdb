@@ -57,6 +57,7 @@
   justify-content: center;
   color: $g12-forge;
   padding: 20px 0;
+  @include no-user-select();
 
   h4,
   h5 {
@@ -452,6 +453,7 @@ $dash-editable-header-padding: 7px;
     }
   }
 }
+
 /*  Add borders between items in .nav-tablist
     -----------------------------------------------------------------------------
     TODO: Add these styles into the theme
@@ -526,4 +528,15 @@ div.faux-form {
     padding-left: 6px;
     padding-right: 6px;
   }
+
+/*
+  Stretch to fit Dropdowns
+  -----------------------------------------------------------------------------
+*/
+
+div.dropdown.dropdown-stretch,
+div.dropdown.dropdown-stretch > div.dropdown-toggle,
+div.dropdown.dropdown-stretch > button.dropdown-toggle {
+  width: 100%;
+
 }

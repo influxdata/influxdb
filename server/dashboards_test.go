@@ -144,6 +144,7 @@ func TestValidDashboardRequest(t *testing.T) {
 		{
 			name: "Updates all cell widths/heights",
 			d: chronograf.Dashboard{
+				Organization: "1337",
 				Cells: []chronograf.DashboardCell{
 					{
 						W: 0,
@@ -166,6 +167,7 @@ func TestValidDashboardRequest(t *testing.T) {
 				},
 			},
 			want: chronograf.Dashboard{
+				Organization: "1337",
 				Cells: []chronograf.DashboardCell{
 					{
 						W: 4,
@@ -190,13 +192,14 @@ func TestValidDashboardRequest(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		err := ValidDashboardRequest(&tt.d)
+		// TODO(desa): this Okay?
+		err := ValidDashboardRequest(&tt.d, "0")
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. ValidDashboardRequest() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !reflect.DeepEqual(tt.d, tt.want) {
-			t.Errorf("%q. ValidDashboardRequest() = %v, want %v", tt.name, tt.d, tt.want)
+		if diff := cmp.Diff(tt.d, tt.want); diff != "" {
+			t.Errorf("%q. ValidDashboardRequest(). got/want diff:\n%s", tt.name, diff)
 		}
 	}
 }
@@ -210,6 +213,7 @@ func Test_newDashboardResponse(t *testing.T) {
 		{
 			name: "creates a dashboard response",
 			d: chronograf.Dashboard{
+				Organization: "0",
 				Cells: []chronograf.DashboardCell{
 					{
 						ID: "a",
@@ -252,7 +256,8 @@ func Test_newDashboardResponse(t *testing.T) {
 				},
 			},
 			want: &dashboardResponse{
-				Templates: []templateResponse{},
+				Organization: "0",
+				Templates:    []templateResponse{},
 				Cells: []dashboardCellResponse{
 					dashboardCellResponse{
 						Links: dashboardCellLinks{

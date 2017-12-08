@@ -1,0 +1,63 @@
+/*
+  Slide Toggle Component
+  ------------------------------------------------------------------------------
+*/
+.slide-toggle {
+  background-color: $g1-raven;
+  position: relative;
+  padding: 0 4px;
+  display: inline-block;
+  transition: background-color 0.25s ease;
+
+  &:hover {
+    cursor: pointer;
+    background-color: $g2-kevlar;
+  }
+}
+.slide-toggle--knob {
+  position: absolute;
+  top: 50%;
+  transition:
+    background-color 0.25s ease,
+    transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  background-color: $g4-onyx;
+  transform: translate(0,-50%);
+  border-radius: 50%;
+
+  .slide-toggle:hover & {
+    background-color: $g6-smoke;
+  }
+}
+
+.slide-toggle.active .slide-toggle--knob {
+  background-color: $c-rainforest;
+  transform: translate(100%,-50%);
+}
+.slide-toggle.active:hover .slide-toggle--knob {
+  background-color: $c-honeydew;
+}
+
+/* Size Modifiers */
+
+.slide-toggle {
+  /* Extra Small */
+  &.slide-toggle__xs {
+    .slide-toggle--knob {
+      width: 16px;
+      height: 16px;
+    }
+    height: 22px;
+    border-radius: 11px;
+    width: 40px;
+  }
+  /* Extra Small */
+  &.slide-toggle__sm {
+    .slide-toggle--knob {
+      width: 22px;
+      height: 22px;
+    }
+    height: 30px;
+    border-radius: 15px;
+    width: 52px;
+  }
+}

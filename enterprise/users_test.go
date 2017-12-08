@@ -375,7 +375,7 @@ func TestClient_Get(t *testing.T) {
 			Ctrl:   tt.fields.Ctrl,
 			Logger: tt.fields.Logger,
 		}
-		got, err := c.Get(tt.args.ctx, tt.args.name)
+		got, err := c.Get(tt.args.ctx, chronograf.UserQuery{Name: &tt.args.name})
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. Client.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -530,6 +530,94 @@ func TestClient_Update(t *testing.T) {
 		}
 		if err := c.Update(tt.args.ctx, tt.args.u); (err != nil) != tt.wantErr {
 			t.Errorf("%q. Client.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+	}
+}
+
+func TestClient_Num(t *testing.T) {
+	type fields struct {
+		Ctrl   *mockCtrl
+		Logger chronograf.Logger
+	}
+	type args struct {
+		ctx context.Context
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    []chronograf.User
+		wantErr bool
+	}{
+		{
+			name: "Successful Get User",
+			fields: fields{
+				Ctrl: &mockCtrl{
+					users: func(ctx context.Context, name *string) (*enterprise.Users, error) {
+						return &enterprise.Users{
+							Users: []enterprise.User{
+								{
+									Name:     "marty",
+									Password: "johnny be good",
+									Permissions: map[string][]string{
+										"": {
+											"ViewChronograf",
+											"ReadData",
+											"WriteData",
+										},
+									},
+								},
+							},
+						}, nil
+					},
+					userRoles: func(ctx context.Context) (map[string]enterprise.Roles, error) {
+						return map[string]enterprise.Roles{}, nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+			},
+			want: []chronograf.User{
+				{
+					Name: "marty",
+					Permissions: chronograf.Permissions{
+						{
+							Scope:   chronograf.AllScope,
+							Allowed: chronograf.Allowances{"ViewChronograf", "ReadData", "WriteData"},
+						},
+					},
+					Roles: []chronograf.Role{},
+				},
+			},
+		},
+		{
+			name: "Failure to get User",
+			fields: fields{
+				Ctrl: &mockCtrl{
+					users: func(ctx context.Context, name *string) (*enterprise.Users, error) {
+						return nil, fmt.Errorf("1.21 Gigawatts! Tom, how could I have been so careless?")
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		c := &enterprise.UserStore{
+			Ctrl:   tt.fields.Ctrl,
+			Logger: tt.fields.Logger,
+		}
+		got, err := c.Num(tt.args.ctx)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. Client.Num() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if got != len(tt.want) {
+			t.Errorf("%q. Client.Num() = %v, want %v", tt.name, got, len(tt.want))
 		}
 	}
 }

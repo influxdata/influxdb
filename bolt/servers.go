@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
@@ -18,6 +19,31 @@ var ServersBucket = []byte("Servers")
 // Used store servers that are associated in some way with a source
 type ServersStore struct {
 	client *Client
+}
+
+func (s *ServersStore) Migrate(ctx context.Context) error {
+	servers, err := s.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	defaultOrg, err := s.client.OrganizationsStore.DefaultOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+
+	for _, server := range servers {
+		if server.Organization == "" {
+			server.Organization = defaultOrgID
+			if err := s.Update(ctx, server); err != nil {
+				return nil
+			}
+		}
+	}
+
+	return nil
 }
 
 // All returns all known servers

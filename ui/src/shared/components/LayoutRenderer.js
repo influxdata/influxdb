@@ -4,6 +4,8 @@ import Resizeable from 'react-component-resizable'
 
 import _ from 'lodash'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import Layout from 'src/shared/components/Layout'
 
 import {
@@ -87,43 +89,59 @@ class LayoutRenderer extends Component {
 
     return (
       <Resizeable onResize={this.handleCellResize}>
-        <GridLayout
-          layout={cells}
-          cols={12}
-          rowHeight={rowHeight}
-          margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
-          containerPadding={[0, 0]}
-          useCSSTransforms={false}
-          onResize={this.handleCellResize}
-          onLayoutChange={this.handleLayoutChange}
-          draggableHandle={'.dash-graph--name'}
-          isDraggable={isDashboard}
-          isResizable={isDashboard}
+        <Authorized
+          requiredRole={EDITOR_ROLE}
+          propsOverride={{
+            isDraggable: false,
+            isResizable: false,
+            draggableHandle: null,
+          }}
         >
-          {cells.map(cell =>
-            <div key={cell.i}>
-              <Layout
-                key={cell.i}
-                cell={cell}
-                host={host}
-                source={source}
-                onZoom={onZoom}
-                sources={sources}
-                templates={templates}
-                timeRange={timeRange}
-                isEditable={isEditable}
-                onEditCell={onEditCell}
-                resizeCoords={resizeCoords}
-                autoRefresh={autoRefresh}
-                manualRefresh={manualRefresh}
-                onDeleteCell={onDeleteCell}
-                synchronizer={synchronizer}
-                onCancelEditCell={onCancelEditCell}
-                onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-              />
-            </div>
-          )}
-        </GridLayout>
+          <GridLayout
+            layout={cells}
+            cols={12}
+            rowHeight={rowHeight}
+            margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
+            containerPadding={[0, 0]}
+            useCSSTransforms={false}
+            onResize={this.handleCellResize}
+            onLayoutChange={this.handleLayoutChange}
+            draggableHandle={'.dash-graph--name'}
+            isDraggable={isDashboard}
+            isResizable={isDashboard}
+          >
+            {cells.map(cell =>
+              <div key={cell.i}>
+                <Authorized
+                  requiredRole={EDITOR_ROLE}
+                  propsOverride={{
+                    isEditable: false,
+                  }}
+                >
+                  <Layout
+                    key={cell.i}
+                    cell={cell}
+                    host={host}
+                    source={source}
+                    onZoom={onZoom}
+                    sources={sources}
+                    templates={templates}
+                    timeRange={timeRange}
+                    isEditable={isEditable}
+                    onEditCell={onEditCell}
+                    resizeCoords={resizeCoords}
+                    autoRefresh={autoRefresh}
+                    manualRefresh={manualRefresh}
+                    onDeleteCell={onDeleteCell}
+                    synchronizer={synchronizer}
+                    onCancelEditCell={onCancelEditCell}
+                    onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+                  />
+                </Authorized>
+              </div>
+            )}
+          </GridLayout>
+        </Authorized>
       </Resizeable>
     )
   }

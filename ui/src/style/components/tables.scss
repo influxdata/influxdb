@@ -97,10 +97,14 @@ table.table thead th.sortable-header,
     Empty State for Tables
     ----------------------------------------------
 */
-.table-empty-state {
+tr.table-empty-state,
+.table-highlight tr.table-empty-state:hover {
+  background-color: transparent;
+
   > th {
     text-align: center;
-
+    @include no-user-select();
+    
     > p {
       font-weight: 400;
       font-size: 18px;
@@ -178,7 +182,8 @@ $table-tab-scrollbar-height: 6px;
     Alert History "Page"
     ----------------------------------------------
 */
-.alert-history-page {
+.alert-history-page,
+.hosts-list-page {
   .page-contents > .container-fluid,
   .page-contents > .container-fluid > .row,
   .page-contents > .container-fluid > .row > .col-md-12,
@@ -234,7 +239,7 @@ $table-tab-scrollbar-height: 6px;
   color: $g17-whisper;
 }
 .alert-history-table--tbody {
-  flex: 1 0 0%;
+  flex: 1 0 0;
   width: 100%;
 }
 .alert-history-table--tr {
@@ -271,4 +276,49 @@ table .table-cell-nowrap {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/*
+    Hosts "Table"
+    ----------------------------------------------
+*/
+
+.hosts-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.hosts-table--thead {
+  display: flex;
+  width: 100%;
+  border-bottom: 2px solid $g5-pepper;
+}
+.hosts-table--th {
+  @include no-user-select();
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: $g17-whisper;
+}
+.hosts-table--tbody {
+  flex: 1 0 0;
+  width: 100%;
+}
+.hosts-table--tr {
+  display: flex;
+  width: 100%;
+  &:hover {
+    background-color: $g4-onyx;
+  }
+}
+.hosts-table--td {
+  font-size: 12px;
+  font-family: $code-font;
+  font-weight: 500;
+  padding: 4px 8px;
+  line-height: 1.42857143em;
+  color: $g13-mist;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
