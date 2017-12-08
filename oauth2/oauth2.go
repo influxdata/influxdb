@@ -30,10 +30,11 @@ var (
 
 // Principal is any entity that can be authenticated
 type Principal struct {
-	Subject   string
-	Issuer    string
-	ExpiresAt time.Time
-	IssuedAt  time.Time
+	Subject      string
+	Issuer       string
+	Organization string
+	ExpiresAt    time.Time
+	IssuedAt     time.Time
 }
 
 /* Interfaces */

@@ -1,4 +1,4 @@
-import reducer from 'src/admin/reducers/admin'
+import reducer from 'src/admin/reducers/influxdb'
 
 import {
   addUser,
@@ -21,7 +21,7 @@ import {
   filterUsers,
   addDatabaseDeleteCode,
   removeDatabaseDeleteCode,
-} from 'src/admin/actions'
+} from 'src/admin/actions/influxdb'
 
 import {
   NEW_DEFAULT_USER,
@@ -138,7 +138,7 @@ const db2 = {
   deleteCode: 'DELETE',
 }
 
-describe('Admin.Reducers', () => {
+describe('Admin.InfluxDB.Reducers', () => {
   describe('Databases', () => {
     const state = {databases: [db1, db2]}
 

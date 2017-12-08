@@ -2,10 +2,12 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
+	"github.com/influxdata/chronograf/roles"
 )
 
 // Ensure SourcesStore implements chronograf.SourcesStore.
@@ -17,6 +19,34 @@ var SourcesBucket = []byte("Sources")
 // SourcesStore is a bolt implementation to store time-series source information.
 type SourcesStore struct {
 	client *Client
+}
+
+func (s *SourcesStore) Migrate(ctx context.Context) error {
+	sources, err := s.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	defaultOrg, err := s.client.OrganizationsStore.DefaultOrganization(ctx)
+	if err != nil {
+		return err
+	}
+
+	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+
+	for _, source := range sources {
+		if source.Organization == "" {
+			source.Organization = defaultOrgID
+		}
+		if source.Role == "" {
+			source.Role = roles.ViewerRoleName
+		}
+		if err := s.Update(ctx, source); err != nil {
+			return nil
+		}
+	}
+
+	return nil
 }
 
 // All returns all known sources

@@ -181,8 +181,10 @@ func TestService_Queries(t *testing.T) {
 					},
 				}))
 			s := &Service{
-				SourcesStore: tt.SourcesStore,
-				Logger:       &mocks.TestLogger{},
+				Store: &mocks.Store{
+					SourcesStore: tt.SourcesStore,
+				},
+				Logger: &mocks.TestLogger{},
 			}
 			s.Queries(tt.w, tt.r)
 			got := tt.w.Body.String()

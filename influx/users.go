@@ -21,7 +21,7 @@ func (c *Client) Add(ctx context.Context, u *chronograf.User) (*chronograf.User,
 			return nil, err
 		}
 	}
-	return c.Get(ctx, u.Name)
+	return c.Get(ctx, chronograf.UserQuery{Name: &u.Name})
 }
 
 // Delete the User from InfluxDB
@@ -54,14 +54,18 @@ func (c *Client) Delete(ctx context.Context, u *chronograf.User) error {
 }
 
 // Get retrieves a user if name exists.
-func (c *Client) Get(ctx context.Context, name string) (*chronograf.User, error) {
+func (c *Client) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+	if q.Name == nil {
+		return nil, fmt.Errorf("query must specify name")
+	}
+
 	users, err := c.showUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, user := range users {
-		if user.Name == name {
+		if user.Name == *q.Name {
 			perms, err := c.userPermissions(ctx, user.Name)
 			if err != nil {
 				return nil, err
@@ -82,7 +86,7 @@ func (c *Client) Update(ctx context.Context, u *chronograf.User) error {
 		return c.updatePassword(ctx, u.Name, u.Passwd)
 	}
 
-	user, err := c.Get(ctx, u.Name)
+	user, err := c.Get(ctx, chronograf.UserQuery{Name: &u.Name})
 	if err != nil {
 		return err
 	}
@@ -120,6 +124,16 @@ func (c *Client) All(ctx context.Context) ([]chronograf.User, error) {
 		users[i] = user
 	}
 	return users, nil
+}
+
+// Number of users in Influx
+func (c *Client) Num(ctx context.Context) (int, error) {
+	all, err := c.All(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(all), nil
 }
 
 // showUsers runs SHOW USERS InfluxQL command and returns chronograf users.

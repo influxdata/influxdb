@@ -2,6 +2,8 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import Dropdown from 'shared/components/Dropdown'
 
 const minTempVarDropdownWidth = 146
@@ -75,13 +77,15 @@ const TemplateControlBar = ({
               This dashboard does not have any Template Variables
             </div>}
       </div>
-      <button
-        className="btn btn-primary btn-sm template-control--manage"
-        onClick={onOpenTemplateManager}
-      >
-        <span className="icon cog-thick" />
-        Manage
-      </button>
+      <Authorized requiredRole={EDITOR_ROLE}>
+        <button
+          className="btn btn-primary btn-sm template-control--manage"
+          onClick={onOpenTemplateManager}
+        >
+          <span className="icon cog-thick" />
+          Manage
+        </button>
+      </Authorized>
     </div>
   </div>
 

@@ -12,6 +12,7 @@ import (
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/roles"
 )
 
 const (
@@ -67,120 +68,174 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		hr.NotFound = http.StripPrefix(opts.Basepath, hr.NotFound)
 	}
 
+	EnsureViewer := func(next http.HandlerFunc) http.HandlerFunc {
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			roles.ViewerRoleName,
+			opts.Logger,
+			next,
+		)
+	}
+	EnsureEditor := func(next http.HandlerFunc) http.HandlerFunc {
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			roles.EditorRoleName,
+			opts.Logger,
+			next,
+		)
+	}
+	EnsureAdmin := func(next http.HandlerFunc) http.HandlerFunc {
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			roles.AdminRoleName,
+			opts.Logger,
+			next,
+		)
+	}
+	EnsureSuperAdmin := func(next http.HandlerFunc) http.HandlerFunc {
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			roles.SuperAdminStatus,
+			opts.Logger,
+			next,
+		)
+	}
+
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
 	router.GET("/docs", Redoc("/swagger.json"))
 
 	/* API */
-	// Sources
-	router.GET("/chronograf/v1/sources", service.Sources)
-	router.POST("/chronograf/v1/sources", service.NewSource)
+	// Organizations
+	router.GET("/chronograf/v1/organizations", EnsureAdmin(service.Organizations))
+	router.POST("/chronograf/v1/organizations", EnsureSuperAdmin(service.NewOrganization))
 
-	router.GET("/chronograf/v1/sources/:id", service.SourcesID)
-	router.PATCH("/chronograf/v1/sources/:id", service.UpdateSource)
-	router.DELETE("/chronograf/v1/sources/:id", service.RemoveSource)
+	router.GET("/chronograf/v1/organizations/:id", EnsureAdmin(service.OrganizationID))
+	router.PATCH("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.UpdateOrganization))
+	router.DELETE("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.RemoveOrganization))
+
+	// Sources
+	router.GET("/chronograf/v1/sources", EnsureViewer(service.Sources))
+	router.POST("/chronograf/v1/sources", EnsureEditor(service.NewSource))
+
+	router.GET("/chronograf/v1/sources/:id", EnsureViewer(service.SourcesID))
+	router.PATCH("/chronograf/v1/sources/:id", EnsureEditor(service.UpdateSource))
+	router.DELETE("/chronograf/v1/sources/:id", EnsureEditor(service.RemoveSource))
 
 	// Source Proxy to Influx; Has gzip compression around the handler
-	influx := gziphandler.GzipHandler(http.HandlerFunc(service.Influx))
+	influx := gziphandler.GzipHandler(http.HandlerFunc(EnsureViewer(service.Influx)))
 	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
 
 	// Write proxies line protocol write requests to InfluxDB
-	router.POST("/chronograf/v1/sources/:id/write", service.Write)
+	router.POST("/chronograf/v1/sources/:id/write", EnsureViewer(service.Write))
 
-	// Queries is used to analyze a specific queries
-	router.POST("/chronograf/v1/sources/:id/queries", service.Queries)
+	// Queries is used to analyze a specific queries and does not create any
+	// resources. It's a POST because Queries are POSTed to InfluxDB, but this
+	// only modifies InfluxDB resources with certain metaqueries, e.g. DROP DATABASE.
+	//
+	// Admins should ensure that the InfluxDB source as the proper permissions
+	// intended for Chronograf Users with the Viewer Role type.
+	router.POST("/chronograf/v1/sources/:id/queries", EnsureViewer(service.Queries))
 
 	// All possible permissions for users in this source
-	router.GET("/chronograf/v1/sources/:id/permissions", service.Permissions)
+	router.GET("/chronograf/v1/sources/:id/permissions", EnsureViewer(service.Permissions))
 
 	// Users associated with the data source
-	router.GET("/chronograf/v1/sources/:id/users", service.SourceUsers)
-	router.POST("/chronograf/v1/sources/:id/users", service.NewSourceUser)
+	router.GET("/chronograf/v1/sources/:id/users", EnsureAdmin(service.SourceUsers))
+	router.POST("/chronograf/v1/sources/:id/users", EnsureAdmin(service.NewSourceUser))
 
-	router.GET("/chronograf/v1/sources/:id/users/:uid", service.SourceUserID)
-	router.DELETE("/chronograf/v1/sources/:id/users/:uid", service.RemoveSourceUser)
-	router.PATCH("/chronograf/v1/sources/:id/users/:uid", service.UpdateSourceUser)
+	router.GET("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.SourceUserID))
+	router.DELETE("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.RemoveSourceUser))
+	router.PATCH("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.UpdateSourceUser))
 
 	// Roles associated with the data source
-	router.GET("/chronograf/v1/sources/:id/roles", service.Roles)
-	router.POST("/chronograf/v1/sources/:id/roles", service.NewRole)
+	router.GET("/chronograf/v1/sources/:id/roles", EnsureViewer(service.SourceRoles))
+	router.POST("/chronograf/v1/sources/:id/roles", EnsureEditor(service.NewSourceRole))
 
-	router.GET("/chronograf/v1/sources/:id/roles/:rid", service.RoleID)
-	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", service.RemoveRole)
-	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", service.UpdateRole)
+	router.GET("/chronograf/v1/sources/:id/roles/:rid", EnsureViewer(service.SourceRoleID))
+	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", EnsureEditor(service.RemoveSourceRole))
+	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", EnsureEditor(service.UpdateSourceRole))
 
 	// Kapacitor
-	router.GET("/chronograf/v1/sources/:id/kapacitors", service.Kapacitors)
-	router.POST("/chronograf/v1/sources/:id/kapacitors", service.NewKapacitor)
+	router.GET("/chronograf/v1/sources/:id/kapacitors", EnsureViewer(service.Kapacitors))
+	router.POST("/chronograf/v1/sources/:id/kapacitors", EnsureEditor(service.NewKapacitor))
 
-	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid", service.KapacitorsID)
-	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid", service.UpdateKapacitor)
-	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid", service.RemoveKapacitor)
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid", EnsureViewer(service.KapacitorsID))
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid", EnsureEditor(service.UpdateKapacitor))
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid", EnsureEditor(service.RemoveKapacitor))
 
 	// Kapacitor rules
-	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules", service.KapacitorRulesGet)
-	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/rules", service.KapacitorRulesPost)
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules", EnsureViewer(service.KapacitorRulesGet))
+	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/rules", EnsureEditor(service.KapacitorRulesPost))
 
-	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesID)
-	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesPut)
-	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesStatus)
-	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesDelete)
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureViewer(service.KapacitorRulesID))
+	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureEditor(service.KapacitorRulesPut))
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureEditor(service.KapacitorRulesStatus))
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureEditor(service.KapacitorRulesDelete))
 
 	// Kapacitor Proxy
-	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyGet)
-	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyPost)
-	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyPatch)
-	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyDelete)
-
-	// Mappings
-	router.GET("/chronograf/v1/mappings", service.GetMappings)
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureViewer(service.KapacitorProxyGet))
+	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyPost))
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyPatch))
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyDelete))
 
 	// Layouts
-	router.GET("/chronograf/v1/layouts", service.Layouts)
-	router.POST("/chronograf/v1/layouts", service.NewLayout)
+	router.GET("/chronograf/v1/layouts", EnsureViewer(service.Layouts))
+	router.GET("/chronograf/v1/layouts/:id", EnsureViewer(service.LayoutsID))
 
-	router.GET("/chronograf/v1/layouts/:id", service.LayoutsID)
-	router.PUT("/chronograf/v1/layouts/:id", service.UpdateLayout)
-	router.DELETE("/chronograf/v1/layouts/:id", service.RemoveLayout)
-
-	// Users
+	// Users associated with Chronograf
 	router.GET("/chronograf/v1/me", service.Me)
 
+	// Set current chronograf organization the user is logged into
+	router.PUT("/chronograf/v1/me", service.UpdateMe(opts.Auth))
+
+	// TODO(desa): what to do about admin's being able to set superadmin
+	router.GET("/chronograf/v1/users", EnsureAdmin(service.Users))
+	router.POST("/chronograf/v1/users", EnsureAdmin(service.NewUser))
+
+	router.GET("/chronograf/v1/users/:id", EnsureAdmin(service.UserID))
+	router.DELETE("/chronograf/v1/users/:id", EnsureAdmin(service.RemoveUser))
+	router.PATCH("/chronograf/v1/users/:id", EnsureAdmin(service.UpdateUser))
+
 	// Dashboards
-	router.GET("/chronograf/v1/dashboards", service.Dashboards)
-	router.POST("/chronograf/v1/dashboards", service.NewDashboard)
+	router.GET("/chronograf/v1/dashboards", EnsureViewer(service.Dashboards))
+	router.POST("/chronograf/v1/dashboards", EnsureEditor(service.NewDashboard))
 
-	router.GET("/chronograf/v1/dashboards/:id", service.DashboardID)
-	router.DELETE("/chronograf/v1/dashboards/:id", service.RemoveDashboard)
-	router.PUT("/chronograf/v1/dashboards/:id", service.ReplaceDashboard)
-	router.PATCH("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
+	router.GET("/chronograf/v1/dashboards/:id", EnsureViewer(service.DashboardID))
+	router.DELETE("/chronograf/v1/dashboards/:id", EnsureEditor(service.RemoveDashboard))
+	router.PUT("/chronograf/v1/dashboards/:id", EnsureEditor(service.ReplaceDashboard))
+	router.PATCH("/chronograf/v1/dashboards/:id", EnsureEditor(service.UpdateDashboard))
 	// Dashboard Cells
-	router.GET("/chronograf/v1/dashboards/:id/cells", service.DashboardCells)
-	router.POST("/chronograf/v1/dashboards/:id/cells", service.NewDashboardCell)
+	router.GET("/chronograf/v1/dashboards/:id/cells", EnsureViewer(service.DashboardCells))
+	router.POST("/chronograf/v1/dashboards/:id/cells", EnsureEditor(service.NewDashboardCell))
 
-	router.GET("/chronograf/v1/dashboards/:id/cells/:cid", service.DashboardCellID)
-	router.DELETE("/chronograf/v1/dashboards/:id/cells/:cid", service.RemoveDashboardCell)
-	router.PUT("/chronograf/v1/dashboards/:id/cells/:cid", service.ReplaceDashboardCell)
+	router.GET("/chronograf/v1/dashboards/:id/cells/:cid", EnsureViewer(service.DashboardCellID))
+	router.DELETE("/chronograf/v1/dashboards/:id/cells/:cid", EnsureEditor(service.RemoveDashboardCell))
+	router.PUT("/chronograf/v1/dashboards/:id/cells/:cid", EnsureEditor(service.ReplaceDashboardCell))
 	// Dashboard Templates
-	router.GET("/chronograf/v1/dashboards/:id/templates", service.Templates)
-	router.POST("/chronograf/v1/dashboards/:id/templates", service.NewTemplate)
+	router.GET("/chronograf/v1/dashboards/:id/templates", EnsureViewer(service.Templates))
+	router.POST("/chronograf/v1/dashboards/:id/templates", EnsureEditor(service.NewTemplate))
 
-	router.GET("/chronograf/v1/dashboards/:id/templates/:tid", service.TemplateID)
-	router.DELETE("/chronograf/v1/dashboards/:id/templates/:tid", service.RemoveTemplate)
-	router.PUT("/chronograf/v1/dashboards/:id/templates/:tid", service.ReplaceTemplate)
+	router.GET("/chronograf/v1/dashboards/:id/templates/:tid", EnsureViewer(service.TemplateID))
+	router.DELETE("/chronograf/v1/dashboards/:id/templates/:tid", EnsureEditor(service.RemoveTemplate))
+	router.PUT("/chronograf/v1/dashboards/:id/templates/:tid", EnsureEditor(service.ReplaceTemplate))
 
 	// Databases
-	router.GET("/chronograf/v1/sources/:id/dbs", service.GetDatabases)
-	router.POST("/chronograf/v1/sources/:id/dbs", service.NewDatabase)
+	router.GET("/chronograf/v1/sources/:id/dbs", EnsureViewer(service.GetDatabases))
+	router.POST("/chronograf/v1/sources/:id/dbs", EnsureEditor(service.NewDatabase))
 
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid", service.DropDatabase)
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid", EnsureEditor(service.DropDatabase))
 
 	// Retention Policies
-	router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.RetentionPolicies)
-	router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.NewRetentionPolicy)
+	router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", EnsureViewer(service.RetentionPolicies))
+	router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", EnsureEditor(service.NewRetentionPolicy))
 
-	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
+	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.UpdateRetentionPolicy))
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.DropRetentionPolicy))
 
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,
