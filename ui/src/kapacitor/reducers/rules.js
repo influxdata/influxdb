@@ -77,9 +77,9 @@ export default function rules(state = {}, action) {
     }
 
     case 'UPDATE_RULE_ALERT_NODES': {
-      const {ruleID, handlers} = action.payload
+      const {ruleID, alerts} = action.payload
       const alertNodesByType = {}
-      _.forEach(handlers, h => {
+      _.forEach(alerts, h => {
         if (h.enabled) {
           if (h.type === 'post') {
             const headers = {}
