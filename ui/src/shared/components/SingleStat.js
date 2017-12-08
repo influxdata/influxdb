@@ -5,11 +5,7 @@ import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 
-class SingleStat extends Component {
-  shouldComponentUpdate(nextProps, nextState) {
-    return shallowCompare(this, nextProps, nextState)
-  }
-
+class SingleStat extends PureComponent {
   render() {
     const {data, cellHeight, isFetchingInitially} = this.props
 
