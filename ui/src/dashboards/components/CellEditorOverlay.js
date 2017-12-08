@@ -140,12 +140,14 @@ class CellEditorOverlay extends Component {
 
   handleValidateColorValue = (threshold, e) => {
     const {colors, cellWorkingType} = this.state
-    if (cellWorkingType === 'single-stat') {
-      // If type is single-stat then validation doesn't matter
-      return true
-    }
     const sortedColors = _.sortBy(colors, color => Number(color.value))
     const targetValueNumber = Number(e.target.value)
+    let allowedToUpdate = false
+
+    if (cellWorkingType === 'single-stat') {
+      // If type is single-stat then value only has to be unique
+      return !sortedColors.some(color => color.value === e.target.value)
+    }
 
     const maxValue = Number(
       colors.find(color => color.type === COLOR_TYPE_MAX).value
@@ -154,7 +156,6 @@ class CellEditorOverlay extends Component {
       colors.find(color => color.type === COLOR_TYPE_MIN).value
     )
 
-    let allowedToUpdate = false
 
     // If type === min, make sure it is less than the next threshold
     if (threshold.type === COLOR_TYPE_MIN) {
