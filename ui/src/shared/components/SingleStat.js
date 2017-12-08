@@ -37,12 +37,21 @@ class SingleStat extends PureComponent {
   }
 }
 
-const {arrayOf, bool, number, shape} = PropTypes
+const {arrayOf, bool, number, shape, string} = PropTypes
 
 SingleStat.propTypes = {
   data: arrayOf(shape()).isRequired,
   isFetchingInitially: bool,
   cellHeight: number,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
 }
 
 export default SingleStat
