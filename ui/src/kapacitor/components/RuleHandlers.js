@@ -207,7 +207,6 @@ RuleHandlers.propTypes = {
     updateAlertNodes: func.isRequired,
     updateMessage: func.isRequired,
     updateDetails: func.isRequired,
-    updateAlertProperty: func.isRequired,
   }).isRequired,
   handlersFromConfig: arrayOf(shape({})),
   onGoToConfig: func.isRequired,

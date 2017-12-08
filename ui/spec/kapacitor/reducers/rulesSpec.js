@@ -9,7 +9,6 @@ import {
   updateDetails,
   updateMessage,
   updateAlertNodes,
-  updateAlertProperty,
   updateRuleName,
   deleteRuleSuccess,
   updateRuleStatusSuccess,
@@ -174,106 +173,6 @@ describe('Kapacitor.Reducers.rules', () => {
 
     const newState = reducer(initialState, updateDetails(ruleID, details))
     expect(newState[ruleID].details).to.equal(details)
-  })
-
-  it('can update properties', () => {
-    const ruleID = 1
-
-    const alertNodeName = 'pushover'
-
-    const alertProperty1_Name = 'device'
-    const alertProperty1_ArgsOrig =
-      'pineapple_kingdom_control_room,bob_cOreos_watch'
-    const alertProperty1_ArgsDiff = 'pineapple_kingdom_control_tower'
-
-    const alertProperty2_Name = 'URLTitle'
-    const alertProperty2_ArgsOrig = 'Cubeapple Rising'
-    const alertProperty2_ArgsDiff = 'Cubeapple Falling'
-
-    const alertProperty1_Orig = {
-      name: alertProperty1_Name,
-      args: [alertProperty1_ArgsOrig],
-    }
-    const alertProperty1_Diff = {
-      name: alertProperty1_Name,
-      args: [alertProperty1_ArgsDiff],
-    }
-    const alertProperty2_Orig = {
-      name: alertProperty2_Name,
-      args: [alertProperty2_ArgsOrig],
-    }
-    const alertProperty2_Diff = {
-      name: alertProperty2_Name,
-      args: [alertProperty2_ArgsDiff],
-    }
-
-    const initialState = {
-      [ruleID]: {
-        id: ruleID,
-        alertNodes: [
-          {
-            name: 'pushover',
-            args: null,
-            properties: null,
-          },
-        ],
-      },
-    }
-
-    const getAlertPropertyArgs = (matchState, propertyName) =>
-      matchState[ruleID].alertNodes
-        .find(node => node.name === alertNodeName)
-        .properties.find(property => property.name === propertyName).args[0]
-
-    // add first property
-    let newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty1_Orig)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsOrig
-    )
-
-    // change first property
-    newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty1_Diff)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsDiff
-    )
-
-    // add second property
-    newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty2_Orig)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsDiff
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty2_Name)).to.equal(
-      alertProperty2_ArgsOrig
-    )
-    expect(
-      newState[ruleID].alertNodes.find(node => node.name === alertNodeName)
-        .properties.length
-    ).to.equal(2)
-
-    // change second property
-    newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty2_Diff)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsDiff
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty2_Name)).to.equal(
-      alertProperty2_ArgsDiff
-    )
-    expect(
-      newState[ruleID].alertNodes.find(node => node.name === alertNodeName)
-        .properties.length
-    ).to.equal(2)
   })
 
   it('can update status', () => {

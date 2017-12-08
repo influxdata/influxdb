@@ -95,39 +95,6 @@ export default function rules(state = {}, action) {
       })
     }
 
-    case 'UPDATE_RULE_ALERT_PROPERTY': {
-      const {ruleID, alertNodeName, alertProperty} = action.payload
-      const newAlertNodes = state[ruleID].alertNodes.map(alertNode => {
-        if (alertNode.name !== alertNodeName) {
-          return alertNode
-        }
-        let matched = false
-
-        if (!alertNode.properties) {
-          alertNode.properties = []
-        }
-        alertNode.properties = alertNode.properties.map(property => {
-          if (property.name === alertProperty.name) {
-            matched = true
-            return alertProperty
-          }
-          return property
-        })
-        if (!matched) {
-          alertNode.properties.push(alertProperty)
-        }
-        return alertNode
-      })
-
-      return {
-        ...state,
-        [ruleID]: {
-          ...state[ruleID],
-          alertNodes: newAlertNodes,
-        },
-      }
-    }
-
     case 'UPDATE_RULE_NAME': {
       const {ruleID, name} = action.payload
       return Object.assign({}, state, {
