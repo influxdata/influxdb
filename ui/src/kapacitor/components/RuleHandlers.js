@@ -4,7 +4,7 @@ import _ from 'lodash'
 import HandlerOptions from 'src/kapacitor/components/HandlerOptions'
 import HandlerTabs from 'src/kapacitor/components/HandlerTabs'
 import Dropdown from 'shared/components/Dropdown'
-import {getHandlersFromRule} from 'src/shared/parsing/getHandlersFromRule'
+import {parseHandlersFromRule} from 'src/shared/parsing/parseHandlersFromRule'
 
 import {DEFAULT_HANDLERS} from 'src/kapacitor/constants'
 
@@ -16,7 +16,7 @@ class RuleHandlers extends Component {
       handlersOnThisAlert,
       selectedHandler,
       handlersOfKind,
-    } = getHandlersFromRule(this.props.rule, handlersFromConfig)
+    } = parseHandlersFromRule(this.props.rule, handlersFromConfig)
 
     this.state = {
       selectedHandler,

@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
-import {getAlertNodeList} from 'src/shared/parsing/getHandlersFromRule'
+import {parseAlertNodeList} from 'src/shared/parsing/parseHandlersFromRule'
 import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {
   colName,
@@ -63,7 +63,7 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
       </span>
     </td>
     <td style={{width: colAlerts}} className="monotype">
-      {getAlertNodeList(rule)}
+      {parseAlertNodeList(rule)}
     </td>
     <td style={{width: colEnabled}} className="monotype text-center">
       <div className="dark-checkbox">

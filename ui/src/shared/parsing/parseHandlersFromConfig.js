@@ -5,7 +5,7 @@ import {
   MAP_KEYS_FROM_CONFIG,
 } from 'src/kapacitor/constants'
 
-const getHandlersFromConfig = config => {
+const parseHandlersFromConfig = config => {
   const {data: {sections}} = config
 
   const allHandlers = _.map(sections, (v, k) => {
@@ -43,4 +43,4 @@ const getHandlersFromConfig = config => {
   return fieldKeyMappedHandlers
 }
 
-export default getHandlersFromConfig
+export default parseHandlersFromConfig

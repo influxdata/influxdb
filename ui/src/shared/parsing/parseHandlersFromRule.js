@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import {HANDLERS_TO_RULE} from 'src/kapacitor/constants'
 
-export const getHandlersFromRule = (rule, handlersFromConfig) => {
+export const parseHandlersFromRule = (rule, handlersFromConfig) => {
   const handlersOfKind = {}
   const handlersOnThisAlert = []
 
@@ -42,7 +42,7 @@ export const getHandlersFromRule = (rule, handlersFromConfig) => {
   return {handlersOnThisAlert, selectedHandler, handlersOfKind}
 }
 
-export const getAlertNodeList = rule => {
+export const parseAlertNodeList = rule => {
   const nodeList = _.transform(
     rule.alertNodes,
     (acc, v, k) => {

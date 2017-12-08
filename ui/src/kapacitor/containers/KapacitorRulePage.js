@@ -8,7 +8,7 @@ import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
-import getHandlersFromConfig from 'src/shared/parsing/getHandlersFromConfig'
+import parseHandlersFromConfig from 'src/shared/parsing/parseHandlersFromConfig'
 
 class KapacitorRulePage extends Component {
   constructor(props) {
@@ -39,7 +39,7 @@ class KapacitorRulePage extends Component {
 
     try {
       const kapacitorConfig = await getKapacitorConfig(kapacitor)
-      const handlersFromConfig = getHandlersFromConfig(kapacitorConfig)
+      const handlersFromConfig = parseHandlersFromConfig(kapacitorConfig)
       this.setState({kapacitor, handlersFromConfig})
     } catch (error) {
       addFlashMessage({
