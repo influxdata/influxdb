@@ -177,7 +177,8 @@ func (i *Index) Open() error {
 				if idx >= partitionN {
 					return // No more work.
 				}
-				errC <- i.partitions[idx].Open()
+				err := i.partitions[idx].Open()
+				errC <- err
 			}
 		}(k)
 	}
@@ -767,7 +768,13 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 func (i *Index) DiskSizeBytes() int64 {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-	return fs.Size()
+
+	var manifestSize int64
+	// Get MANIFEST sizes from each partition.
+	for _, p := range i.partitions {
+		manifestSize += p.manifestSize
+	}
+	return fs.Size() + manifestSize
 }
 
 // TagKeyCardinality always returns zero.

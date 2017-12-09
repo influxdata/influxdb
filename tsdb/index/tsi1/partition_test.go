@@ -45,10 +45,10 @@ func TestPartition_Open(t *testing.T) {
 			p = NewPartition(sfile.SeriesFile)
 			// Manually create a MANIFEST file for an incompatible index version.
 			mpath := filepath.Join(p.Path(), tsi1.ManifestFileName)
-			m := tsi1.NewManifest()
+			m := tsi1.NewManifest(mpath)
 			m.Levels = nil
 			m.Version = v // Set example MANIFEST version.
-			if err := tsi1.WriteManifestFile(mpath, m); err != nil {
+			if _, err := m.Write(); err != nil {
 				t.Fatal(err)
 			}
 
