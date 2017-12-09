@@ -126,6 +126,7 @@ $rule-builder--radius-lg: 5px;
     display: none;
   }
 }
+
 // Generic re-usable classes for rule builder sections
 .rule-section--border-top {
   border-top: 2px solid $rule-builder--section-border;
@@ -422,6 +423,9 @@ $rule-builder--radius-lg: 5px;
 
 .rule-message--add-endpoint {
   margin-left: 4px;
+}
+.rule-message--add-endpoint .dropdown-menu {
+  max-height: 229px;
 }
 
 .endpoint-tabs {
