@@ -155,7 +155,6 @@ export const MAP_FIELD_KEYS_FROM_CONFIG = {
 // HANDLERS_TO_RULE returns array of fields that may be updated for each alert on rule.
 export const HANDLERS_TO_RULE = {
   alerta: [
-    'token',
     'resource',
     'event',
     'environment',
@@ -164,10 +163,10 @@ export const HANDLERS_TO_RULE = {
     'origin',
     'service',
   ],
-  hipChat: ['room', 'token'],
+  hipChat: ['room'],
   opsGenie: ['teams', 'recipients'],
-  pagerDuty: ['serviceKey'],
-  pushover: ['userKey', 'device', 'title', 'url', 'urlTitle', 'sound'],
+  pagerDuty: [],
+  pushover: ['device', 'title', 'sound'], // 'url','urlTitle',
   sensu: ['source', 'handlers'],
   slack: ['channel', 'username', 'iconEmoji'],
   email: ['to'],
