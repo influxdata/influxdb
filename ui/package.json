@@ -103,7 +103,7 @@
     "bootstrap": "^3.3.7",
     "calculate-size": "^1.1.1",
     "classnames": "^2.2.3",
-    "dygraphs": "influxdata/dygraphs",
+    "dygraphs": "2.1.0",
     "eslint-plugin-babel": "^4.1.2",
     "fast.js": "^0.1.1",
     "fixed-data-table": "^0.6.1",
