@@ -116,14 +116,40 @@ func (j *AuthMux) Callback() http.Handler {
 			return
 		}
 
-		// Using the token get the principal identifier from the provider
-		oauthClient := conf.Client(r.Context(), token)
-		id, err := j.Provider.PrincipalID(oauthClient)
-		if err != nil {
-			log.Error("Unable to get principal identifier ", err.Error())
-			http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
-			return
-		}
+        // if we received an extra id_token, inspect it
+        var id string
+        if tokenString, ok := token.Extra("id_token").(string); ok {
+            log.Debug("token provides extra id_token")
+            if provider, ok := j.Provider.(ExtendedProvider); ok {
+                log.Debug("provider implements PrincipalIDFromClaims()")
+                claims, err := j.Tokens.GetClaims(tokenString)
+                if err != nil {
+                    log.Error("parsing extra id_token failed:", err)
+                    http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+                    return
+                }
+                log.Debug("found claims: ", claims)
+                if id, err = provider.PrincipalIDFromClaims(claims); err != nil {
+                    log.Error("claim not found:", err)
+                    http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+                    return
+                }
+            } else {
+                log.Debug("provider does not implement PrincipalIDFromClaims()")
+            }
+        }
+
+        // otherwise perform an additional lookup
+        if id == "" {
+            // Using the token get the principal identifier from the provider
+            oauthClient := conf.Client(r.Context(), token)
+            id, err = j.Provider.PrincipalID(oauthClient)
+            if err != nil {
+                log.Error("Unable to get principal identifier ", err.Error())
+                http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+                return
+            }
+        }
 
 		p := Principal{
 			Subject: id,

@@ -190,6 +190,27 @@ func (j *JWT) ValidClaims(jwtToken Token, lifespan time.Duration, alg gojwt.Keyf
 	}, nil
 }
 
+// get claims from id_token
+func (j *JWT) GetClaims(tokenString string) (gojwt.MapClaims, error) {
+    var claims gojwt.MapClaims
+
+    token, err := gojwt.Parse(tokenString, j.KeyFunc)
+    if err != nil {
+        return nil, err
+    }
+
+    if !token.Valid {
+        return nil, fmt.Errorf("token is not valid")
+    }
+
+    claims, ok := token.Claims.(gojwt.MapClaims)
+    if !ok {
+        return nil, fmt.Errorf("token has no claims")
+    }
+
+    return claims, nil
+}
+
 // Create creates a signed JWT token from user that expires at Principal's ExpireAt time.
 func (j *JWT) Create(ctx context.Context, user Principal) (Token, error) {
 	// Create a new token object, specifying signing method and the claims

@@ -9,9 +9,17 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"golang.org/x/oauth2"
+	gojwt "github.com/dgrijalva/jwt-go"
 )
 
-var _ Provider = &Generic{}
+// Provider interface with optional methods
+type ExtendedProvider interface {
+    Provider
+    // get PrincipalID from id_token 
+    PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error)
+}
+
+var _ ExtendedProvider = &Generic{}
 
 // Generic provides OAuth Login and Callback server and is modeled
 // after the Github OAuth2 provider. Callback will set an authentication
@@ -158,4 +166,12 @@ func ofDomain(requiredDomains []string, email string) bool {
 		}
 	}
 	return false
+}
+
+// verify optional id_token and extract email address of the user
+func (g *Generic) PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error) {
+    if id, ok := claims[g.APIKey].(string); ok {
+        return id, nil
+    }
+    return "", fmt.Errorf("no claim for %s", g.APIKey)
 }
