@@ -56,6 +56,7 @@ type Server struct {
 	BoltPath                string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
 	CannedPath              string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
 	TokenSecret             string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+    JwksUrl                 string        `long:"jwks-url" description:"URL that returns OpenID Key Discovery JWKS document." env:"JWKS_URL"`
 	AuthDuration            time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 	SuperAdminFirstUserOnly bool          `long:"superadmin-first-user-only" description:"All new users will not be given the SuperAdmin status" env:"SUPERADMIN_FIRST_USER_ONLY"`
 
@@ -141,7 +142,7 @@ func (s *Server) githubOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Orgs:         s.GithubOrgs,
 		Logger:       logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksUrl)
 	ghMux := oauth2.NewAuthMux(&gh, auth, jwt, s.Basepath, logger)
 	return &gh, ghMux, s.UseGithub
 }
@@ -155,7 +156,7 @@ func (s *Server) googleOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		RedirectURL:  redirectURL,
 		Logger:       logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksUrl)
 	goMux := oauth2.NewAuthMux(&google, auth, jwt, s.Basepath, logger)
 	return &google, goMux, s.UseGoogle
 }
@@ -167,7 +168,7 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Organizations: s.HerokuOrganizations,
 		Logger:        logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksUrl)
 	hMux := oauth2.NewAuthMux(&heroku, auth, jwt, s.Basepath, logger)
 	return &heroku, hMux, s.UseHeroku
 }
@@ -186,7 +187,7 @@ func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticato
 		APIKey:         s.GenericAPIKey,
 		Logger:         logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksUrl)
 	genMux := oauth2.NewAuthMux(&gen, auth, jwt, s.Basepath, logger)
 	return &gen, genMux, s.UseGenericOAuth2
 }
@@ -202,7 +203,7 @@ func (s *Server) auth0OAuth(logger chronograf.Logger, auth oauth2.Authenticator)
 
 	auth0, err := oauth2.NewAuth0(s.Auth0Domain, s.Auth0ClientID, s.Auth0ClientSecret, redirectURL.String(), s.Auth0Organizations, logger)
 
-	jwt := oauth2.NewJWT(s.TokenSecret)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksUrl)
 	genMux := oauth2.NewAuthMux(&auth0, auth, jwt, s.Basepath, logger)
 
 	if err != nil {
