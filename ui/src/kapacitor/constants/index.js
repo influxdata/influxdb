@@ -168,7 +168,7 @@ export const HANDLERS_TO_RULE = {
   hipChat: ['room'],
   opsGenie: ['teams', 'recipients'],
   pagerDuty: [],
-  pushover: ['device', 'title', 'sound'], // 'url','urlTitle',
+  pushover: ['device', 'title', 'sound', 'url', 'urlTitle'],
   sensu: ['source', 'handlers'],
   slack: ['channel', 'username', 'iconEmoji'],
   email: ['to'],
