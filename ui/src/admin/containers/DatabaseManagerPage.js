@@ -5,7 +5,7 @@ import _ from 'lodash'
 
 import DatabaseManager from 'src/admin/components/DatabaseManager'
 
-import * as adminActionCreators from 'src/admin/actions'
+import * as adminActionCreators from 'src/admin/actions/influxdb'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 class DatabaseManagerPage extends Component {
@@ -155,7 +155,7 @@ DatabaseManagerPage.propTypes = {
   notify: func,
 }
 
-const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
+const mapStateToProps = ({adminInfluxDB: {databases, retentionPolicies}}) => ({
   databases,
   retentionPolicies,
 })

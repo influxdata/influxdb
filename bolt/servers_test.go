@@ -22,20 +22,22 @@ func TestServerStore(t *testing.T) {
 
 	srcs := []chronograf.Server{
 		chronograf.Server{
-			Name:     "Of Truth",
-			SrcID:    10,
-			Username: "marty",
-			Password: "I❤️  jennifer parker",
-			URL:      "toyota-hilux.lyon-estates.local",
-			Active:   false,
+			Name:         "Of Truth",
+			SrcID:        10,
+			Username:     "marty",
+			Password:     "I❤️  jennifer parker",
+			URL:          "toyota-hilux.lyon-estates.local",
+			Active:       false,
+			Organization: "133",
 		},
 		chronograf.Server{
-			Name:     "HipToBeSquare",
-			SrcID:    12,
-			Username: "calvinklein",
-			Password: "chuck b3rry",
-			URL:      "toyota-hilux.lyon-estates.local",
-			Active:   false,
+			Name:         "HipToBeSquare",
+			SrcID:        12,
+			Username:     "calvinklein",
+			Password:     "chuck b3rry",
+			URL:          "toyota-hilux.lyon-estates.local",
+			Active:       false,
+			Organization: "133",
 		},
 	}
 
@@ -56,6 +58,7 @@ func TestServerStore(t *testing.T) {
 	// Update server.
 	srcs[0].Username = "calvinklein"
 	srcs[1].Name = "Enchantment Under the Sea Dance"
+	srcs[1].Organization = "1234"
 	if err := s.Update(ctx, srcs[0]); err != nil {
 		t.Fatal(err)
 	} else if err := s.Update(ctx, srcs[1]); err != nil {
@@ -72,6 +75,8 @@ func TestServerStore(t *testing.T) {
 		t.Fatal(err)
 	} else if src.Name != "Enchantment Under the Sea Dance" {
 		t.Fatalf("server 1 update error: got %v, expected %v", src.Name, "Enchantment Under the Sea Dance")
+	} else if src.Organization != "1234" {
+		t.Fatalf("server 1 update error: got %v, expected %v", src.Organization, "1234")
 	}
 
 	// Attempt to make two active sources

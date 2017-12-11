@@ -1,8 +1,9 @@
-package server_test
+package server
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,15 +14,13 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
-	"github.com/influxdata/chronograf/server"
+	"github.com/influxdata/chronograf/roles"
 )
 
-func TestService_NewSourceUser(t *testing.T) {
+func TestService_UserID(t *testing.T) {
 	type fields struct {
-		SourcesStore chronograf.SourcesStore
-		TimeSeries   server.TimeSeriesClient
-		Logger       chronograf.Logger
-		UseAuth      bool
+		UsersStore chronograf.UsersStore
+		Logger     chronograf.Logger
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -31,728 +30,905 @@ func TestService_NewSourceUser(t *testing.T) {
 		name            string
 		fields          fields
 		args            args
-		ID              string
+		id              string
 		wantStatus      int
 		wantContentType string
 		wantBody        string
 	}{
 		{
-			name: "New user for data source",
+			name: "Get Single Chronograf User",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1337:
+							return &chronograf.User{
+								ID:       1337,
+								Name:     "billysteve",
+								Provider: "google",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									roles.ViewerRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			id:              "1337",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1337","superAdmin":false,"name":"billysteve","provider":"google","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"viewer"}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
+			}
+
+			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
+				context.Background(),
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.id,
+					},
+				}))
+
+			s.UserID(tt.args.w, tt.args.r)
+
+			resp := tt.args.w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("%q. UserID() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantContentType != "" && content != tt.wantContentType {
+				t.Errorf("%q. UserID() = %v, want %v", tt.name, content, tt.wantContentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
+				t.Errorf("%q. UserID() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestService_NewUser(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+		Logger     chronograf.Logger
+	}
+	type args struct {
+		w           *httptest.ResponseRecorder
+		r           *http.Request
+		user        *userRequest
+		userKeyUser *chronograf.User
+	}
+	tests := []struct {
+		name            string
+		fields          fields
+		args            args
+		wantStatus      int
+		wantContentType string
+		wantBody        string
+	}{
+		{
+			name: "Create a new Chronograf User",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
 					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:     "bob",
+					Provider: "github",
+					Scheme:   "oauth2",
+				},
 			},
 			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles:    []chronograf.Role{},
 						}, nil
 					},
 				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
-								return u, nil
-							},
-						}
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, fmt.Errorf("no roles")
-					},
-				},
 			},
-			ID:              "1",
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody: `{"links":{"self":"/chronograf/v1/sources/1/users/marty"},"name":"marty","permissions":[]}
-`,
+			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 		{
-			name: "New user for data source with roles",
+			name: "Create a new Chronograf User with multiple roles",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
 					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:     "bob",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+						{
+							Name:         roles.ViewerRoleName,
+							Organization: "2",
+						},
+					},
+				},
 			},
 			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         roles.AdminRoleName,
+									Organization: "1",
+								},
+								{
+									Name:         roles.ViewerRoleName,
+									Organization: "2",
+								},
+							},
 						}, nil
 					},
 				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
-								return u, nil
-							},
-						}
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, nil
-					},
-				},
 			},
-			ID:              "1",
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody: `{"links":{"self":"/chronograf/v1/sources/1/users/marty"},"name":"marty","permissions":[],"roles":[]}
-`,
+			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[{"name":"admin","organization":"1"},{"name":"viewer","organization":"2"}],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 		{
-			name: "Error adding user",
+			name: "Create a new Chronograf User with multiple roles same org",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
 					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
-						}, nil
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:     "bob",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+						{
+							Name:         roles.ViewerRoleName,
+							Organization: "1",
+						},
 					},
 				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
-								return nil, fmt.Errorf("Weight Has Nothing to Do With It")
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         roles.AdminRoleName,
+									Organization: "1",
+								},
+								{
+									Name:         roles.ViewerRoleName,
+									Organization: "1",
+								},
 							},
-						}
-					},
-				},
-			},
-			ID:              "1",
-			wantStatus:      http.StatusBadRequest,
-			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Weight Has Nothing to Do With It"}`,
-		},
-		{
-			name: "Failure connecting to user store",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
 						}, nil
 					},
 				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return fmt.Errorf("Biff just happens to be my supervisor")
-					},
-				},
 			},
-			ID:              "1",
-			wantStatus:      http.StatusBadRequest,
-			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Unable to connect to source 1: Biff just happens to be my supervisor"}`,
-		},
-		{
-			name: "Failure getting source",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{}, fmt.Errorf("No McFly ever amounted to anything in the history of Hill Valley")
-					},
-				},
-			},
-			ID:              "1",
-			wantStatus:      http.StatusNotFound,
-			wantContentType: "application/json",
-			wantBody:        `{"code":404,"message":"ID 1 not found"}`,
-		},
-		{
-			name: "Bad ID",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-			},
-			ID:              "BAD",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"Error converting ID BAD"}`,
+			wantBody:        `{"code":422,"message":"duplicate organization \"1\" in roles"}`,
 		},
 		{
-			name: "Bad name",
+			name: "Create a new SuperAdmin User - Not as superadmin",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
 					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"password": "the_lake"}`)))),
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:       "bob",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
 			},
 			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles:    []chronograf.Role{},
+						}, nil
+					},
+				},
 			},
-			ID:              "BAD",
-			wantStatus:      http.StatusUnprocessableEntity,
+			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"Username required"}`,
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
 		},
 		{
-			name: "Bad JSON",
+			name: "Create a new SuperAdmin User - as superadmin",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
 					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{password}`)))),
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:       "bob",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
 			},
 			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:         1338,
+							Name:       "bob",
+							Provider:   "github",
+							Scheme:     "oauth2",
+							Roles:      []chronograf.Role{},
+							SuperAdmin: true,
+						}, nil
+					},
+				},
 			},
-			ID:              "BAD",
-			wantStatus:      http.StatusBadRequest,
+			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Unparsable JSON"}`,
+			wantBody:        `{"id":"1338","superAdmin":true,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 	}
+
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
-			httprouter.Params{
-				{
-					Key:   "id",
-					Value: tt.ID,
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
 				},
-			}))
+				Logger: tt.fields.Logger,
+			}
 
-		h := &server.Service{
-			SourcesStore:     tt.fields.SourcesStore,
-			TimeSeriesClient: tt.fields.TimeSeries,
-			Logger:           tt.fields.Logger,
-			UseAuth:          tt.fields.UseAuth,
-		}
+			buf, _ := json.Marshal(tt.args.user)
+			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 
-		h.NewSourceUser(tt.args.w, tt.args.r)
+			ctx := tt.args.r.Context()
+			if tt.args.userKeyUser != nil {
+				ctx = context.WithValue(ctx, UserContextKey, tt.args.userKeyUser)
+			}
 
-		resp := tt.args.w.Result()
-		content := resp.Header.Get("Content-Type")
-		body, _ := ioutil.ReadAll(resp.Body)
+			tt.args.r = tt.args.r.WithContext(ctx)
 
-		if resp.StatusCode != tt.wantStatus {
-			t.Errorf("%q. NewSourceUser() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
-		}
-		if tt.wantContentType != "" && content != tt.wantContentType {
-			t.Errorf("%q. NewSourceUser() = %v, want %v", tt.name, content, tt.wantContentType)
-		}
-		if tt.wantBody != "" && string(body) != tt.wantBody {
-			t.Errorf("%q. NewSourceUser() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
-		}
+			s.NewUser(tt.args.w, tt.args.r)
+
+			resp := tt.args.w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("%q. UserID() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantContentType != "" && content != tt.wantContentType {
+				t.Errorf("%q. UserID() = %v, want %v", tt.name, content, tt.wantContentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
+				t.Errorf("%q. UserID() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+			}
+		})
 	}
 }
 
-func TestService_SourceUsers(t *testing.T) {
+func TestService_RemoveUser(t *testing.T) {
 	type fields struct {
-		SourcesStore chronograf.SourcesStore
-		TimeSeries   server.TimeSeriesClient
-		Logger       chronograf.Logger
-		UseAuth      bool
+		UsersStore chronograf.UsersStore
+		Logger     chronograf.Logger
 	}
 	type args struct {
-		w *httptest.ResponseRecorder
-		r *http.Request
+		w    *httptest.ResponseRecorder
+		r    *http.Request
+		user *chronograf.User
+		id   string
 	}
 	tests := []struct {
-		name            string
-		fields          fields
-		args            args
-		ID              string
-		wantStatus      int
-		wantContentType string
-		wantBody        string
+		name       string
+		fields     fields
+		args       args
+		wantStatus int
+		wantBody   string
 	}{
 		{
-			name: "All users for data source",
+			name: "Delete a Chronograf User",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1339:
+							return &chronograf.User{
+								ID:       1339,
+								Name:     "helena",
+								Provider: "heroku",
+								Scheme:   "oauth2",
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+					DeleteF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+				},
+			},
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
-					"GET",
-					"http://server.local/chronograf/v1/sources/1",
-					nil),
+					"DELETE",
+					"http://any.url",
+					nil,
+				),
+				user: &chronograf.User{
+					ID:       1338,
+					Name:     "helena",
+					Provider: "heroku",
+					Scheme:   "oauth2",
+				},
+				id: "1339",
 			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
-						}, nil
-					},
-				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, fmt.Errorf("no roles")
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							AllF: func(ctx context.Context) ([]chronograf.User, error) {
-								return []chronograf.User{
-									{
-										Name:   "strickland",
-										Passwd: "discipline",
-										Permissions: chronograf.Permissions{
-											{
-												Scope:   chronograf.AllScope,
-												Allowed: chronograf.Allowances{"READ"},
-											},
-										},
-									},
-								}, nil
-							},
-						}
-					},
-				},
-			},
-			ID:              "1",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody: `{"users":[{"links":{"self":"/chronograf/v1/sources/1/users/strickland"},"name":"strickland","permissions":[{"scope":"all","allowed":["READ"]}]}]}
-`,
-		},
-		{
-			name: "All users for data source with roles",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"GET",
-					"http://server.local/chronograf/v1/sources/1",
-					nil),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
-						}, nil
-					},
-				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, nil
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							AllF: func(ctx context.Context) ([]chronograf.User, error) {
-								return []chronograf.User{
-									{
-										Name:   "strickland",
-										Passwd: "discipline",
-										Permissions: chronograf.Permissions{
-											{
-												Scope:   chronograf.AllScope,
-												Allowed: chronograf.Allowances{"READ"},
-											},
-										},
-									},
-								}, nil
-							},
-						}
-					},
-				},
-			},
-			ID:              "1",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody: `{"users":[{"links":{"self":"/chronograf/v1/sources/1/users/strickland"},"name":"strickland","permissions":[{"scope":"all","allowed":["READ"]}],"roles":[]}]}
-`,
-		},
-	}
-	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
-			httprouter.Params{
-				{
-					Key:   "id",
-					Value: tt.ID,
-				},
-			}))
-		h := &server.Service{
-			SourcesStore:     tt.fields.SourcesStore,
-			TimeSeriesClient: tt.fields.TimeSeries,
-			Logger:           tt.fields.Logger,
-			UseAuth:          tt.fields.UseAuth,
-		}
-
-		h.SourceUsers(tt.args.w, tt.args.r)
-		resp := tt.args.w.Result()
-		content := resp.Header.Get("Content-Type")
-		body, _ := ioutil.ReadAll(resp.Body)
-
-		if resp.StatusCode != tt.wantStatus {
-			t.Errorf("%q. SourceUsers() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
-		}
-		if tt.wantContentType != "" && content != tt.wantContentType {
-			t.Errorf("%q. SourceUsers() = %v, want %v", tt.name, content, tt.wantContentType)
-		}
-		if tt.wantBody != "" && string(body) != tt.wantBody {
-			t.Errorf("%q. SourceUsers() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
-		}
-	}
-}
-
-func TestService_SourceUserID(t *testing.T) {
-	type fields struct {
-		SourcesStore chronograf.SourcesStore
-		TimeSeries   server.TimeSeriesClient
-		Logger       chronograf.Logger
-		UseAuth      bool
-	}
-	type args struct {
-		w *httptest.ResponseRecorder
-		r *http.Request
-	}
-	tests := []struct {
-		name            string
-		fields          fields
-		args            args
-		ID              string
-		UID             string
-		wantStatus      int
-		wantContentType string
-		wantBody        string
-	}{
-		{
-			name: "Single user for data source",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"GET",
-					"http://server.local/chronograf/v1/sources/1",
-					nil),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
-						}, nil
-					},
-				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, fmt.Errorf("no roles")
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							GetF: func(ctx context.Context, uid string) (*chronograf.User, error) {
-								return &chronograf.User{
-									Name:   "strickland",
-									Passwd: "discipline",
-									Permissions: chronograf.Permissions{
-										{
-											Scope:   chronograf.AllScope,
-											Allowed: chronograf.Allowances{"READ"},
-										},
-									},
-								}, nil
-							},
-						}
-					},
-				},
-			},
-			ID:              "1",
-			UID:             "strickland",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody: `{"links":{"self":"/chronograf/v1/sources/1/users/strickland"},"name":"strickland","permissions":[{"scope":"all","allowed":["READ"]}]}
-`,
-		},
-		{
-			name: "Single user for data source",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"GET",
-					"http://server.local/chronograf/v1/sources/1",
-					nil),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
-						}, nil
-					},
-				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, nil
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							GetF: func(ctx context.Context, uid string) (*chronograf.User, error) {
-								return &chronograf.User{
-									Name:   "strickland",
-									Passwd: "discipline",
-									Permissions: chronograf.Permissions{
-										{
-											Scope:   chronograf.AllScope,
-											Allowed: chronograf.Allowances{"READ"},
-										},
-									},
-								}, nil
-							},
-						}
-					},
-				},
-			},
-			ID:              "1",
-			UID:             "strickland",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody: `{"links":{"self":"/chronograf/v1/sources/1/users/strickland"},"name":"strickland","permissions":[{"scope":"all","allowed":["READ"]}],"roles":[]}
-`,
-		},
-	}
-	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
-			httprouter.Params{
-				{
-					Key:   "id",
-					Value: tt.ID,
-				},
-			}))
-		h := &server.Service{
-			SourcesStore:     tt.fields.SourcesStore,
-			TimeSeriesClient: tt.fields.TimeSeries,
-			Logger:           tt.fields.Logger,
-			UseAuth:          tt.fields.UseAuth,
-		}
-
-		h.SourceUserID(tt.args.w, tt.args.r)
-		resp := tt.args.w.Result()
-		content := resp.Header.Get("Content-Type")
-		body, _ := ioutil.ReadAll(resp.Body)
-
-		if resp.StatusCode != tt.wantStatus {
-			t.Errorf("%q. SourceUserID() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
-		}
-		if tt.wantContentType != "" && content != tt.wantContentType {
-			t.Errorf("%q. SourceUserID() = %v, want %v", tt.name, content, tt.wantContentType)
-		}
-		if tt.wantBody != "" && string(body) != tt.wantBody {
-			t.Errorf("%q. SourceUserID() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
-		}
-	}
-}
-
-func TestService_RemoveSourceUser(t *testing.T) {
-	type fields struct {
-		SourcesStore chronograf.SourcesStore
-		TimeSeries   server.TimeSeriesClient
-		Logger       chronograf.Logger
-		UseAuth      bool
-	}
-	type args struct {
-		w *httptest.ResponseRecorder
-		r *http.Request
-	}
-	tests := []struct {
-		name            string
-		fields          fields
-		args            args
-		ID              string
-		UID             string
-		wantStatus      int
-		wantContentType string
-		wantBody        string
-	}{
-		{
-			name: "Delete user for data source",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"GET",
-					"http://server.local/chronograf/v1/sources/1",
-					nil),
-			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
-						}, nil
-					},
-				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							DeleteF: func(ctx context.Context, u *chronograf.User) error {
-								return nil
-							},
-						}
-					},
-				},
-			},
-			ID:         "1",
-			UID:        "strickland",
 			wantStatus: http.StatusNoContent,
 		},
+		{
+			name: "Deleting yourself",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1339:
+							return &chronograf.User{
+								ID:       1339,
+								Name:     "helena",
+								Provider: "heroku",
+								Scheme:   "oauth2",
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+					DeleteF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"DELETE",
+					"http://any.url",
+					nil,
+				),
+				user: &chronograf.User{
+					ID:       1339,
+					Name:     "helena",
+					Provider: "heroku",
+					Scheme:   "oauth2",
+				},
+				id: "1339",
+			},
+			wantStatus: http.StatusForbidden,
+			wantBody:   `{"code":403,"message":"user cannot delete themselves"}`,
+		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
-			httprouter.Params{
-				{
-					Key:   "id",
-					Value: tt.ID,
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
 				},
-			}))
-		h := &server.Service{
-			SourcesStore:     tt.fields.SourcesStore,
-			TimeSeriesClient: tt.fields.TimeSeries,
-			Logger:           tt.fields.Logger,
-			UseAuth:          tt.fields.UseAuth,
-		}
-		h.RemoveSourceUser(tt.args.w, tt.args.r)
-		resp := tt.args.w.Result()
-		content := resp.Header.Get("Content-Type")
-		body, _ := ioutil.ReadAll(resp.Body)
+				Logger: tt.fields.Logger,
+			}
 
-		if resp.StatusCode != tt.wantStatus {
-			t.Errorf("%q. RemoveSourceUser() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
-		}
-		if tt.wantContentType != "" && content != tt.wantContentType {
-			t.Errorf("%q. RemoveSourceUser() = %v, want %v", tt.name, content, tt.wantContentType)
-		}
-		if tt.wantBody != "" && string(body) != tt.wantBody {
-			t.Errorf("%q. RemoveSourceUser() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
-		}
+			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
+				context.Background(),
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.id,
+					},
+				},
+			))
+
+			if tt.args.user != nil {
+				ctx := tt.args.r.Context()
+				ctx = context.WithValue(ctx, UserContextKey, tt.args.user)
+				tt.args.r = tt.args.r.WithContext(ctx)
+			}
+
+			s.RemoveUser(tt.args.w, tt.args.r)
+
+			resp := tt.args.w.Result()
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("%q. RemoveUser() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantStatus == http.StatusNoContent {
+				return
+			}
+			if eq, _ := jsonEqual(string(body), tt.wantBody); !eq {
+				t.Errorf("%q. RemoveUser() = %v, want %v", tt.name, string(body), tt.wantBody)
+			}
+		})
 	}
 }
 
-func TestService_UpdateSourceUser(t *testing.T) {
+func TestService_UpdateUser(t *testing.T) {
 	type fields struct {
-		SourcesStore chronograf.SourcesStore
-		TimeSeries   server.TimeSeriesClient
-		Logger       chronograf.Logger
-		UseAuth      bool
+		UsersStore chronograf.UsersStore
+		Logger     chronograf.Logger
+	}
+	type args struct {
+		w           *httptest.ResponseRecorder
+		r           *http.Request
+		user        *userRequest
+		userKeyUser *chronograf.User
+	}
+	tests := []struct {
+		name            string
+		fields          fields
+		args            args
+		id              string
+		wantStatus      int
+		wantContentType string
+		wantBody        string
+	}{
+		{
+			name: "Update a Chronograf user",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Name:         roles.EditorRoleName,
+										Organization: "1",
+									},
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID: 1336,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"1"}]}`,
+		},
+		{
+			name: "Update a Chronograf user roles different orgs",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									roles.EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID: 1336,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+						{
+							Name:         roles.ViewerRoleName,
+							Organization: "2",
+						},
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"1"},{"name":"viewer","organization":"2"}]}`,
+		},
+		{
+			name: "Update a Chronograf user roles same org",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									roles.EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID: 1336,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+						{
+							Name:         roles.ViewerRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusUnprocessableEntity,
+			wantContentType: "application/json",
+			wantBody:        `{"code":422,"message":"duplicate organization \"1\" in roles"}`,
+		},
+		{
+			name: "Update a SuperAdmin's Roles - without super admin context",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:         1336,
+								Name:       "bobbetta",
+								Provider:   "github",
+								Scheme:     "oauth2",
+								SuperAdmin: true,
+								Roles: []chronograf.Role{
+									{
+										Name:         roles.EditorRoleName,
+										Organization: "1",
+									},
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+					},
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"links":{"self":"/chronograf/v1/users/1336"},"id":"1336","name":"bobbetta","provider":"github","scheme":"oauth2","superAdmin":true,"roles":[{"name":"admin","organization":"1"}]}`,
+		},
+		{
+			name: "Update a Chronograf user to super admin - without super admin context",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									roles.EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+					},
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusUnauthorized,
+			wantContentType: "application/json",
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
+		},
+		{
+			name: "Update a Chronograf user to super admin - with super admin context",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									roles.EditorRole,
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+					},
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1336","superAdmin":true,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin","organization":"1"}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
+			}
+
+			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(context.Background(),
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.id,
+					},
+				}))
+			buf, _ := json.Marshal(tt.args.user)
+			tt.args.r.Body = ioutil.NopCloser(bytes.NewReader(buf))
+
+			ctx := tt.args.r.Context()
+			if tt.args.userKeyUser != nil {
+				ctx = context.WithValue(ctx, UserContextKey, tt.args.userKeyUser)
+			}
+
+			tt.args.r = tt.args.r.WithContext(ctx)
+
+			s.UpdateUser(tt.args.w, tt.args.r)
+
+			resp := tt.args.w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("%q. UpdateUser() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantContentType != "" && content != tt.wantContentType {
+				t.Errorf("%q. UpdateUser() = %v, want %v", tt.name, content, tt.wantContentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
+				t.Errorf("%q. UpdateUser()\ngot:%v\n,\nwant:%v", tt.name, string(body), tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestService_Users(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+		Logger     chronograf.Logger
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -762,169 +938,384 @@ func TestService_UpdateSourceUser(t *testing.T) {
 		name            string
 		fields          fields
 		args            args
-		ID              string
-		UID             string
 		wantStatus      int
 		wantContentType string
 		wantBody        string
 	}{
 		{
-			name: "Update user password for data source",
-			args: args{
-				w: httptest.NewRecorder(),
-				r: httptest.NewRequest(
-					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
-			},
+			name: "Get all Chronograf users",
 			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								ID:       1337,
+								Name:     "billysteve",
+								Provider: "google",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									roles.EditorRole,
+								},
+							},
+							{
+								ID:       1338,
+								Name:     "bobbettastuhvetta",
+								Provider: "auth0",
+								Scheme:   "oauth2",
+							},
 						}, nil
 					},
 				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, fmt.Errorf("no roles")
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							UpdateF: func(ctx context.Context, u *chronograf.User) error {
-								return nil
-							},
-							GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
-								return &chronograf.User{
-									Name: "marty",
-								}, nil
-							},
-						}
-					},
-				},
 			},
-			ID:              "1",
-			UID:             "marty",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody: `{"links":{"self":"/chronograf/v1/sources/1/users/marty"},"name":"marty","permissions":[]}
-`,
-		},
-		{
-			name: "Update user password for data source with roles",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
-					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty", "password": "the_lake"}`)))),
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
 			},
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"users":[{"id":"1337","superAdmin":false,"name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","superAdmin":false,"name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+		},
+		{
+			name: "Get all Chronograf users, ensuring order of users in response",
 			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{
-							ID:       1,
-							Name:     "muh source",
-							Username: "name",
-							Password: "hunter2",
-							URL:      "http://localhost:8086",
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								ID:       1338,
+								Name:     "bobbettastuhvetta",
+								Provider: "auth0",
+								Scheme:   "oauth2",
+							},
+							{
+								ID:       1337,
+								Name:     "billysteve",
+								Provider: "google",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									roles.EditorRole,
+								},
+							},
 						}, nil
 					},
 				},
-				TimeSeries: &mocks.TimeSeries{
-					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return nil
-					},
-					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
-						return nil, nil
-					},
-					UsersF: func(ctx context.Context) chronograf.UsersStore {
-						return &mocks.UsersStore{
-							UpdateF: func(ctx context.Context, u *chronograf.User) error {
-								return nil
-							},
-							GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
-								return &chronograf.User{
-									Name: "marty",
-								}, nil
-							},
-						}
-					},
-				},
 			},
-			ID:              "1",
-			UID:             "marty",
-			wantStatus:      http.StatusOK,
-			wantContentType: "application/json",
-			wantBody: `{"links":{"self":"/chronograf/v1/sources/1/users/marty"},"name":"marty","permissions":[],"roles":[]}
-`,
-		},
-		{
-			name: "Invalid update JSON",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
-					"POST",
-					"http://server.local/chronograf/v1/sources/1",
-					ioutil.NopCloser(
-						bytes.NewReader([]byte(`{"name": "marty"}`)))),
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
 			},
-			fields: fields{
-				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
-			},
-			ID:              "1",
-			UID:             "marty",
-			wantStatus:      http.StatusUnprocessableEntity,
+			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"No fields to update"}`,
+			wantBody:        `{"users":[{"id":"1337","superAdmin":false,"name":"billysteve","provider":"google","scheme":"oauth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","superAdmin":false,"name":"bobbettastuhvetta","provider":"auth0","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
-	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
-			httprouter.Params{
-				{
-					Key:   "id",
-					Value: tt.ID,
-				},
-				{
-					Key:   "uid",
-					Value: tt.UID,
-				},
-			}))
-		h := &server.Service{
-			SourcesStore:     tt.fields.SourcesStore,
-			TimeSeriesClient: tt.fields.TimeSeries,
-			Logger:           tt.fields.Logger,
-			UseAuth:          tt.fields.UseAuth,
-		}
-		h.UpdateSourceUser(tt.args.w, tt.args.r)
-		resp := tt.args.w.Result()
-		content := resp.Header.Get("Content-Type")
-		body, _ := ioutil.ReadAll(resp.Body)
 
-		if resp.StatusCode != tt.wantStatus {
-			t.Errorf("%q. UpdateSourceUser() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
-		}
-		if tt.wantContentType != "" && content != tt.wantContentType {
-			t.Errorf("%q. UpdateSourceUser() = %v, want %v", tt.name, content, tt.wantContentType)
-		}
-		if tt.wantBody != "" && string(body) != tt.wantBody {
-			t.Errorf("%q. UpdateSourceUser() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					UsersStore: tt.fields.UsersStore,
+				},
+				Logger: tt.fields.Logger,
+			}
+
+			s.Users(tt.args.w, tt.args.r)
+
+			resp := tt.args.w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("%q. Users() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantContentType != "" && content != tt.wantContentType {
+				t.Errorf("%q. Users() = %v, want %v", tt.name, content, tt.wantContentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
+				t.Errorf("%q. Users() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestUserRequest_ValidCreate(t *testing.T) {
+	type args struct {
+		u *userRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		err     error
+	}{
+		{
+			name: "Valid",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			wantErr: false,
+			err:     nil,
+		},
+		{
+			name: "Invalid - bad organization",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "l", // this is the character L not integer One
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
+		},
+		{
+			name: "Invalid – Name missing",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Name required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid – Provider missing",
+			args: args{
+				u: &userRequest{
+					ID:     1337,
+					Name:   "billietta",
+					Scheme: "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Provider required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid – Scheme missing",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Scheme required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid roles - bad role name",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         "BilliettaSpecialRole",
+							Organization: "1",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', and 'admin'"),
+		},
+		{
+			name: "Invalid roles - missing organization",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name: roles.EditorRoleName,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("no organization was provided"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.u.ValidCreate()
+
+			if tt.wantErr {
+				if err == nil || err.Error() != tt.err.Error() {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			}
+		})
+	}
+}
+
+func TestUserRequest_ValidUpdate(t *testing.T) {
+	type args struct {
+		u *userRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		err     error
+	}{
+		{
+			name: "Valid",
+			args: args{
+				u: &userRequest{
+					ID: 1337,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			wantErr: false,
+			err:     nil,
+		},
+		{
+			name: "Invalid – roles missing",
+			args: args{
+				u: &userRequest{},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("No Roles to update"),
+		},
+		{
+			name: "Invalid - bad organization",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "l", // this is the character L not integer One
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
+		},
+		{
+			name: "Invalid - bad role name",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         "BillietaSpecialOrg",
+							Organization: "0",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', and 'admin'"),
+		},
+		{
+			name: "Invalid - duplicate organization",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "0",
+						},
+						{
+							Name:         roles.ViewerRoleName,
+							Organization: "0",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("duplicate organization \"0\" in roles"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.u.ValidUpdate()
+
+			if tt.wantErr {
+				if err == nil || err.Error() != tt.err.Error() {
+					t.Errorf("%q. ValidUpdate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%q. ValidUpdate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			}
+		})
 	}
 }
