@@ -26,6 +26,7 @@
 1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Fix hoverline intermittently not rendering
 1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
+1. [#2545](https://github.com/influxdata/chronograf/pull/2545): Allow configurable thresholds and colors of Single-Stat visualizations in dashboards
 
 ### Features
 1. [#2188](https://github.com/influxdata/chronograf/pull/2188): Add Kapacitor logs to the TICKscript editor
