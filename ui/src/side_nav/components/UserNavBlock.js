@@ -30,7 +30,7 @@ class UserNavBlock extends Component {
 
     const isSuperAdmin = role === SUPERADMIN_ROLE
 
-    const isSmallViewport = window.visualViewport.height < 850
+    const isSmallViewport = window.innerHeight < 850
 
     return (
       <div className="sidebar--item">
