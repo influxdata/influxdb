@@ -3,7 +3,11 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import lastValues from 'shared/parsing/lastValues'
 
-import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
+import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
+import {isBackgroundLight} from 'shared/constants/colorOperations'
+
+const darkText = '#292933'
+const lightText = '#ffffff'
 
 class SingleStat extends PureComponent {
   render() {
@@ -22,18 +26,26 @@ class SingleStat extends PureComponent {
 
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
+    let bgColor = null
+    let textColor = null
+    let className = 'single-stat'
 
-    const sortedColors = _.sortBy(colors, color => Number(color.value))
-    const nearestCrossedThreshold = sortedColors
-      .filter(color => lastValue > color.value)
-      .pop()
+    if (colors && colors.length > 0) {
+      className = 'single-stat single-stat--colored'
+      const sortedColors = _.sortBy(colors, color => Number(color.value))
+      const nearestCrossedThreshold = sortedColors
+        .filter(color => lastValue > color.value)
+        .pop()
 
-    const bgColor = nearestCrossedThreshold ? nearestCrossedThreshold.hex : null
-    const textColor = colors ? '#ffffff' : null
+      bgColor = nearestCrossedThreshold
+        ? nearestCrossedThreshold.hex
+        : '#292933'
+      textColor = isBackgroundLight(bgColor) ? darkText : lightText
+    }
 
     return (
       <div
-        className="single-stat"
+        className={className}
         style={{backgroundColor: bgColor, color: textColor}}
       >
         <span
