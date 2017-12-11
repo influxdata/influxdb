@@ -1,4 +1,5 @@
 import React, {PropTypes, PureComponent} from 'react'
+import _ from 'lodash'
 import classnames from 'classnames'
 import lastValues from 'shared/parsing/lastValues'
 
@@ -6,7 +7,7 @@ import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 
 class SingleStat extends PureComponent {
   render() {
-    const {data, cellHeight, isFetchingInitially} = this.props
+    const {data, cellHeight, isFetchingInitially, colors} = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -22,8 +23,19 @@ class SingleStat extends PureComponent {
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
 
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
+    const nearestCrossedThreshold = sortedColors
+      .filter(color => lastValue > color.value)
+      .pop()
+
+    const bgColor = nearestCrossedThreshold ? nearestCrossedThreshold.hex : null
+    const textColor = colors ? '#ffffff' : null
+
     return (
-      <div className="single-stat">
+      <div
+        className="single-stat"
+        style={{backgroundColor: bgColor, color: textColor}}
+      >
         <span
           className={classnames('single-stat--value', {
             'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
