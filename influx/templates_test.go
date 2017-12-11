@@ -62,10 +62,10 @@ func TestTemplateReplace(t *testing.T) {
 		},
 		{
 			name:  "select with parameters and aggregates",
-			query: `SELECT mean($field) FROM "cpu" WHERE $tag = $value GROUP BY $tag`,
+			query: `SELECT mean(:field:) FROM "cpu" WHERE :tag: = :value: GROUP BY :tag:`,
 			vars: []chronograf.TemplateVar{
 				chronograf.TemplateVar{
-					Var: "$value",
+					Var: ":value:",
 					Values: []chronograf.TemplateValue{
 						{
 							Type:  "tagValue",
@@ -74,7 +74,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 				chronograf.TemplateVar{
-					Var: "$tag",
+					Var: ":tag:",
 					Values: []chronograf.TemplateValue{
 						{
 							Type:  "tagKey",
@@ -83,7 +83,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 				chronograf.TemplateVar{
-					Var: "$field",
+					Var: ":field:",
 					Values: []chronograf.TemplateValue{
 						{
 							Type:  "fieldKey",
@@ -96,25 +96,25 @@ func TestTemplateReplace(t *testing.T) {
 		},
 		{
 			name:  "Non-existant parameters",
-			query: `SELECT $field FROM "cpu"`,
-			want:  `SELECT $field FROM "cpu"`,
+			query: `SELECT :field: FROM "cpu"`,
+			want:  `SELECT :field: FROM "cpu"`,
 		},
 		{
 			name:  "var without a value",
-			query: `SELECT $field FROM "cpu"`,
+			query: `SELECT :field: FROM "cpu"`,
 			vars: []chronograf.TemplateVar{
 				chronograf.TemplateVar{
-					Var: "$field",
+					Var: ":field:",
 				},
 			},
-			want: `SELECT $field FROM "cpu"`,
+			want: `SELECT :field: FROM "cpu"`,
 		},
 		{
 			name:  "var with unknown type",
-			query: `SELECT $field FROM "cpu"`,
+			query: `SELECT :field: FROM "cpu"`,
 			vars: []chronograf.TemplateVar{
 				chronograf.TemplateVar{
-					Var: "$field",
+					Var: ":field:",
 					Values: []chronograf.TemplateValue{
 						{
 							Type:  "who knows?",
@@ -123,7 +123,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT $field FROM "cpu"`,
+			want: `SELECT :field: FROM "cpu"`,
 		},
 		{
 			name:  "auto group by",
@@ -223,6 +223,71 @@ func TestTemplateReplace(t *testing.T) {
 				},
 			},
 			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(93s)`,
+		},
+		{
+			name:  "no template variables specified",
+			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY :interval:`,
+			want:  `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY :interval:`,
+		},
+		{
+			name:  "auto group by failing condition",
+			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY :interval:`,
+			vars: []chronograf.TemplateVar{
+				{
+					Var: ":interval:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "115",
+							Type:  "resolution",
+						},
+						{
+							Value: "3",
+							Type:  "pointsPerPixel",
+						},
+					},
+				},
+				{
+					Var: ":dashboardTime:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value:    "now() - 1h",
+							Type:     "constant",
+							Selected: true,
+						},
+					},
+				},
+			},
+			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(93s)`,
+		},
+		{
+			name:  "query with no template variables contained should return query",
+			query: `SHOW DATABASES`,
+			vars: []chronograf.TemplateVar{
+				{
+					Var: ":interval:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "115",
+							Type:  "resolution",
+						},
+						{
+							Value: "3",
+							Type:  "pointsPerPixel",
+						},
+					},
+				},
+				{
+					Var: ":dashboardTime:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value:    "now() - 1h",
+							Type:     "constant",
+							Selected: true,
+						},
+					},
+				},
+			},
+			want: `SHOW DATABASES`,
 		},
 	}
 	for _, tt := range tests {
@@ -392,10 +457,15 @@ func Test_RenderTemplate(t *testing.T) {
 			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > '1985-10-25T00:01:00Z' and time < '1985-10-25T00:02:00Z' GROUP BY time(179ms)",
 		},
 		{
-			name:       "absolute time with nano seconds and zero duraiton",
+			name:       "absolute time with nano seconds and zero duration",
 			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > '2017-07-24T15:33:42.994Z' and time < '2017-07-24T15:33:42.994Z' GROUP BY :interval:",
 			resolution: 1000,
 			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > '2017-07-24T15:33:42.994Z' and time < '2017-07-24T15:33:42.994Z' GROUP BY time(1ms)",
+		},
+		{
+			name:  "query should be returned if there are no template variables",
+			query: "SHOW DATABASES",
+			want:  "SHOW DATABASES",
 		},
 	}
 
@@ -426,5 +496,3 @@ func Test_RenderTemplate(t *testing.T) {
 		})
 	}
 }
-
-// SELECT mean("numSeries") AS "mean_numSeries" FROM "_internal"."monitor"."database" WHERE time > now() - 1h GROUP BY :interval: FILL(null);SELECT mean("numSeries") AS "mean_numSeries_shifted__1__h" FROM "_internal"."monitor"."database" WHERE time > now() - 1h - 1h AND time < now() - 1h GROUP BY :interval: FILL(null)
