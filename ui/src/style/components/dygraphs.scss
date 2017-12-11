@@ -96,7 +96,7 @@
 }
 .single-stat--value {
   position: absolute;
-  top: calc(50% - 15px);
+  top: 50%;
   left: 50%;
   transform: translate(-50%,-50%);
   width: calc(100% - 32px);
