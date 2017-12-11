@@ -82,9 +82,7 @@ export default function rules(state = {}, action) {
       _.forEach(alerts, h => {
         if (h.enabled) {
           if (h.type === 'post') {
-            const headers = {}
-            headers[h.headerKey] = h.headerValue
-            h.headers = headers
+            h.headers = {[h.headerKey]: h.headerValue}
           }
           const existing = _.get(alertNodesByType, h.type, [])
           alertNodesByType[h.type] = [
