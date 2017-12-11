@@ -2,6 +2,7 @@
 ### Features
 ### UI Improvements
 ### Bug Fixes
+1. [#2543](https://github.com/influxdata/chronograf/pull/2543): Repair rendering bug in Firefox
 
 ## v1.4.0.0-beta1 [2017-12-07]
 ### Features
