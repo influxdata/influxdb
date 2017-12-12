@@ -30,8 +30,6 @@ class UserNavBlock extends Component {
 
     const isSuperAdmin = role === SUPERADMIN_ROLE
 
-    const isSmallViewport = window.innerHeight < 850
-
     return (
       <div className="sidebar--item">
         <div className="sidebar--square">
@@ -64,7 +62,7 @@ class UserNavBlock extends Component {
           <FancyScrollbar
             className="sidebar-menu--scrollbar"
             autoHeight={true}
-            maxHeight={isSmallViewport ? 105 : 300}
+            maxHeight={100}
             autoHide={false}
           >
             {roles.map((r, i) => {
