@@ -138,18 +138,7 @@ const SourceForm = ({
             </label>
           </div>
         : null}
-      {isUsingAuth
-        ? <div className="form-group form-group-submit col-xs-12 col-sm-4 col-sm-offset-2">
-            <button className="btn btn-block btn-default">
-              <span className="icon shuffle" /> Switch Orgs
-            </button>
-          </div>
-        : null}
-      <div
-        className={`form-group form-group-submit ${isUsingAuth
-          ? 'col-xs-12 col-sm-4'
-          : 'col-xs-12 col-sm-6 col-sm-offset-3'}`}
-      >
+      <div className="form-group form-group-submit text-center col-xs-12 col-sm-6 col-sm-offset-3">
         <button
           className={classnames('btn btn-block', {
             'btn-primary': editMode,
@@ -162,6 +151,11 @@ const SourceForm = ({
         </button>
 
         <br />
+        {isUsingAuth
+          ? <button className="btn btn-link btn-sm">
+              <span className="icon shuffle" /> Switch Orgs
+            </button>
+          : null}
       </div>
     </form>
   </div>
