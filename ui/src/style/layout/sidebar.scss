@@ -231,11 +231,6 @@ $sidebar-menu--gutter: 18px;
     height: 2px;
     @include gradient-h($c-laser,$c-potassium);
   }
-
-  &:first-child:after {
-    display: none;
-    border-top-right-radius: $radius;
-  }
 }
 
 // SuperAdminIndicator
@@ -308,6 +303,10 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
 .sidebar-menu--heading                { order: 7; }
 .sidebar-menu--triangle               { order: 8; }
 
+.sidebar-menu--section__custom-links:after {
+  display: none;
+  border-top-right-radius: $radius;
+}
 .sidebar-menu--user-nav {
   top: initial;
   bottom: 0;
@@ -323,6 +322,11 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
   .sidebar-menu--section__custom-links  { order: 6; }
   .sidebar-menu--item__link-name        { order: 7; }
   .sidebar-menu--triangle               { order: 8; }
+
+  .sidebar-menu--section__custom-links:after {
+    display: initial;
+    border-top-right-radius: 0;
+  }
 
   .sidebar-menu--triangle {
     width: 40px;
