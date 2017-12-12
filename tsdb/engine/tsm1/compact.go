@@ -251,21 +251,10 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 		}
 	}
 
-	// Determine the minimum number of files required for the level.  Higher levels are more
-	// CPU intensive so we only want to include them when we have enough data to make them
-	// worthwhile.
-	// minGenerations 1 -> 2
-	// minGenerations 2 -> 2
-	// minGenerations 3 -> 4
-	// minGenerations 4 -> 4
-	minGenerations := level
-	if minGenerations%2 != 0 {
-		minGenerations = level + 1
-	}
-
+	minGenerations := 4
 	var cGroups []CompactionGroup
 	for _, group := range levelGroups {
-		for _, chunk := range group.chunk(4) {
+		for _, chunk := range group.chunk(minGenerations) {
 			var cGroup CompactionGroup
 			var hasTombstones bool
 			for _, gen := range chunk {
@@ -676,6 +665,12 @@ type Compactor struct {
 	snapshotsEnabled   bool
 	compactionsEnabled bool
 
+	// lastSnapshotDuration is the amount of time the last snapshot took to complete.
+	lastSnapshotDuration time.Duration
+
+	// snapshotConcurrency is the amount of parallelism used to snapshot the cache.
+	snapshotConcurrency int
+
 	// The channel to signal that any in progress snapshots should be aborted.
 	snapshotsInterrupt chan struct{}
 	// The channel to signal that any in progress level compactions should be aborted.
@@ -696,6 +691,7 @@ func (c *Compactor) Open() {
 	c.compactionsEnabled = true
 	c.snapshotsInterrupt = make(chan struct{})
 	c.compactionsInterrupt = make(chan struct{})
+	c.snapshotConcurrency = 1
 
 	c.files = make(map[string]struct{})
 }
@@ -764,32 +760,14 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	c.mu.RLock()
 	enabled := c.snapshotsEnabled
 	intC := c.snapshotsInterrupt
+	concurrency := c.snapshotConcurrency
 	c.mu.RUnlock()
 
 	if !enabled {
 		return nil, errSnapshotsDisabled
 	}
 
-	card := cache.Count()
-
-	concurrency, maxConcurrency := 1, runtime.GOMAXPROCS(0)/2
-	if maxConcurrency < 1 {
-		maxConcurrency = 1
-	}
-	if maxConcurrency > 4 {
-		maxConcurrency = 4
-	}
-
-	concurrency = 1
-	if card >= 3*1024*1024 {
-		concurrency = 4
-	} else if card >= 1024*1024 {
-		concurrency = 2
-	}
-
-	if concurrency > maxConcurrency {
-		concurrency = maxConcurrency
-	}
+	start := time.Now()
 
 	splits := cache.Split(concurrency)
 
@@ -818,10 +796,37 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 		files = append(files, result.files...)
 	}
 
+	dur := time.Since(start).Truncate(time.Second)
+	maxConcurrency := runtime.GOMAXPROCS(0) / 2
+	if maxConcurrency < 1 {
+		maxConcurrency = 1
+	}
+	if maxConcurrency > 4 {
+		maxConcurrency = 4
+	}
+
+	c.mu.Lock()
+
 	// See if we were disabled while writing a snapshot
-	c.mu.RLock()
 	enabled = c.snapshotsEnabled
-	c.mu.RUnlock()
+
+	// See if we need to adjust our snapshot concurrency
+	if dur > 30*time.Second && dur > c.lastSnapshotDuration {
+		// Increase snapshot concurrency if they are running slow
+		c.snapshotConcurrency++
+		if c.snapshotConcurrency > maxConcurrency {
+			c.snapshotConcurrency = maxConcurrency
+		}
+	} else if dur < 30*time.Second && dur < c.lastSnapshotDuration {
+		// Decrease snapshot concurrency if they are running too fast
+		c.snapshotConcurrency--
+		if c.snapshotConcurrency < 1 {
+			c.snapshotConcurrency = 1
+		}
+	}
+
+	c.lastSnapshotDuration = dur
+	c.mu.Unlock()
 
 	if !enabled {
 		return nil, errSnapshotsDisabled
