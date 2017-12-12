@@ -172,6 +172,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	c := &Compactor{
 		Dir:       path,
 		FileStore: fs,
+		RateLimit: opt.CompactionThroughputLimiter,
 	}
 
 	logger := zap.New(zap.NullEncoder())
