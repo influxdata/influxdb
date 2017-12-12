@@ -203,15 +203,18 @@ func TestIndex_DropMeasurement(t *testing.T) {
 }
 
 func TestIndex_Open(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
 	// Opening a fresh index should set the MANIFEST version to current version.
-	idx := NewIndex()
+	idx := NewIndex(sfile.SeriesFile)
 	t.Run("open new index", func(t *testing.T) {
 		if err := idx.Open(); err != nil {
 			t.Fatal(err)
 		}
 
 		// Check version set appropriately.
-		if got, exp := idx.Manifest().Version, 1; got != exp {
+		if got, exp := idx.PartitionAt(0).Manifest().Version, 1; got != exp {
 			t.Fatalf("got index version %d, expected %d", got, exp)
 		}
 	})
@@ -230,13 +233,16 @@ func TestIndex_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			idx = NewIndex()
+			idx = NewIndex(sfile.SeriesFile)
+
 			// Manually create a MANIFEST file for an incompatible index version.
-			mpath := filepath.Join(idx.Path, tsi1.ManifestFileName)
+			mpath := filepath.Join(idx.Path(), "0", tsi1.ManifestFileName)
 			m := tsi1.NewManifest(mpath)
 			m.Levels = nil
 			m.Version = v // Set example MANIFEST version.
-			if err := m.Write(); err != nil {
+			if err := os.MkdirAll(filepath.Dir(mpath), 0777); err != nil {
+				t.Fatal(err)
+			} else if err := m.Write(); err != nil {
 				t.Fatal(err)
 			}
 
@@ -260,15 +266,21 @@ func TestIndex_Open(t *testing.T) {
 
 func TestIndex_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
-		idx := MustOpenIndex()
-		if got, exp := idx.Manifest().Version, tsi1.Version; got != exp {
+		sfile := MustOpenSeriesFile()
+		defer sfile.Close()
+
+		idx := MustOpenIndex(sfile.SeriesFile, 1)
+		if got, exp := idx.PartitionAt(0).Manifest().Version, tsi1.Version; got != exp {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 		}
 	})
 }
 
 func TestIndex_DiskSizeBytes(t *testing.T) {
-	idx := MustOpenIndex()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Add series to index.
