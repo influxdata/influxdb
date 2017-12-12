@@ -167,14 +167,12 @@ func (s *Service) updateShardsLive(conn net.Conn) error {
 	if err := s.TSDBStore.SetShardEnabled(sid, false); err != nil {
 		return err
 	}
+	defer s.TSDBStore.SetShardEnabled(sid, true)
 
 	if err := s.TSDBStore.RestoreShard(sid, conn); err != nil {
 		return err
 	}
 
-	if err := s.TSDBStore.SetShardEnabled(sid, true); err != nil {
-		return err
-	}
 	return nil
 }
 

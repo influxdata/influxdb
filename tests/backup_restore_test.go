@@ -132,6 +132,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	s := OpenServer(config)
 	defer s.Close()
 
+	// 1.  offline restore is correct
 	res, err := s.Query(`select * from "mydb"."forever"."myseries"`)
 	if err != nil {
 		t.Fatalf("error querying: %s", err.Error())
@@ -144,6 +145,8 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// 2.  online restore of a partial backup is correct.
 	hostAddress := net.JoinHostPort("localhost", port)
 	cmd.Run("-host", hostAddress, "-online", "-newdb", "mydbbak", "-db", "mydb", partialBackupDir)
 
@@ -159,7 +162,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
 	}
 
-	// enterprise should be the same as the non-enterprise live restore
+	// 3. enterprise should be the same as the non-enterprise live restore
 	cmd.Run("-host", hostAddress, "-enterprise", "-newdb", "mydbbak2", "-db", "mydb", filepath.Join(enterpriseBackupDir, manifestFile))
 
 	// wait for the import to finish, and unlock the shard engine.
@@ -172,6 +175,52 @@ func TestServer_BackupAndRestore(t *testing.T) {
 
 	if res != partialExpected {
 		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
+	}
+
+	// 4.  backup all DB's, then drop them, then restore them and all 3 above tests should pass again.
+	// now backup
+	bCmd := backup.NewCommand()
+
+	if err := bCmd.Run("-enterprise", "-host", hostAddress, enterpriseBackupDir); err != nil {
+		t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
+	}
+	manifestFile = bCmd.BackupFiles[len(bCmd.BackupFiles)-1]
+
+	res, err = s.Query(`drop database mydb; drop database mydbbak; drop database mydbbak2;`)
+	if err != nil {
+		t.Fatalf("Error dropping databases %s", err.Error())
+	}
+
+	// 3. enterprise should be the same as the non-enterprise live restore
+	cmd.Run("-host", hostAddress, "-enterprise", filepath.Join(enterpriseBackupDir, manifestFile))
+
+	// wait for the import to finish, and unlock the shard engine.
+	time.Sleep(time.Second)
+
+	res, err = s.Query(`select * from "mydbbak"."forever"."myseries"`)
+	if err != nil {
+		t.Fatalf("error querying: %s", err.Error())
+	}
+
+	if res != partialExpected {
+		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
+	}
+
+	res, err = s.Query(`select * from "mydbbak2"."forever"."myseries"`)
+	if err != nil {
+		t.Fatalf("error querying: %s", err.Error())
+	}
+
+	if res != partialExpected {
+		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
+	}
+
+	res, err = s.Query(`select * from "mydb"."forever"."myseries"`)
+	if err != nil {
+		t.Fatalf("error querying: %s", err.Error())
+	}
+	if res != expected {
+		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", expected, res)
 	}
 
 }
