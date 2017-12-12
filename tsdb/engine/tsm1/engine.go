@@ -1274,7 +1274,7 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 }
 
 func (e *Engine) compact(quit <-chan struct{}) {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 
 	for {

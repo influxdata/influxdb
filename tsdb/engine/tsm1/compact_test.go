@@ -1449,6 +1449,14 @@ func TestDefaultPlanner_PlanLevel_SmallestCompactionStep(t *testing.T) {
 			Path: "06-01.tsm1",
 			Size: 1 * 1024 * 1024,
 		},
+		tsm1.FileStat{
+			Path: "07-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "08-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -1459,7 +1467,7 @@ func TestDefaultPlanner_PlanLevel_SmallestCompactionStep(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles := []tsm1.FileStat{data[4], data[5]}
+	expFiles := []tsm1.FileStat{data[4], data[5], data[6], data[7]}
 	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
