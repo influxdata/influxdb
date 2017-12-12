@@ -140,11 +140,6 @@ $sidebar-menu--gutter: 18px;
   transition: opacity 0.25s ease;
   display: none;
   flex-direction: column;
-
-  &.sidebar-menu--inverse {
-    top: initial;
-    bottom: 0;
-  }
 }
 .sidebar-menu--heading,
 .sidebar-menu--item {
@@ -204,19 +199,11 @@ $sidebar-menu--gutter: 18px;
   opacity: 0.6;
 }
 // Invisible triangle for easier mouse movement when navigating to sub items
-.sidebar-menu--item + .sidebar-menu--triangle,
-.sidebar-menu--inverse .sidebar-menu--triangle {
+.sidebar-menu--triangle {
   position: absolute;
   z-index: -1;
 }
-.sidebar-menu--item + .sidebar-menu--triangle {
-  width: 40px;
-  height: 40px;
-  top: $sidebar--width;
-  left: 0px;
-  transform: translate(-50%,-50%) rotate(45deg);
-}
-.sidebar-menu--inverse .sidebar-menu--triangle {
+.sidebar-menu .sidebar-menu--triangle {
   width: 50px;
   height: 60px;
   bottom: 12px;
@@ -243,11 +230,6 @@ $sidebar-menu--gutter: 18px;
     width: 100%;
     height: 2px;
     @include gradient-h($c-laser,$c-potassium);
-  }
-
-  &:first-child:after {
-    display: none;
-    border-top-right-radius: $radius;
   }
 }
 
@@ -309,4 +291,53 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
 .fancy-scroll--container.sidebar-menu--scrollbar {
   .fancy-scroll--thumb-h {display: none !important;}
   .fancy-scroll--thumb-v { @include gradient-v($g20-white,$c-neutrino); }
+}
+
+.sidebar-menu--section__custom-links  { order: 0; }
+.sidebar-menu--item__link-name        { order: 1; }
+.sidebar-menu--section__switch-orgs   { order: 2; }
+.sidebar-menu--scrollbar              { order: 3; }
+.sidebar-menu--section__account       { order: 4; }
+.sidebar-menu--provider               { order: 5; }
+.sidebar-menu--item__logout           { order: 6; }
+.sidebar-menu--heading                { order: 7; }
+.sidebar-menu--triangle               { order: 8; }
+
+.sidebar-menu--section__custom-links:after {
+  display: none;
+  border-top-right-radius: $radius;
+}
+.sidebar-menu--user-nav {
+  top: initial;
+  bottom: 0;
+}
+
+@media only screen and (min-height: 800px) {
+  .sidebar-menu--heading                { order: 0; }
+  .sidebar-menu--section__account       { order: 1; }
+  .sidebar-menu--provider               { order: 2; }
+  .sidebar-menu--item__logout           { order: 3; }
+  .sidebar-menu--section__switch-orgs   { order: 4; }
+  .sidebar-menu--scrollbar              { order: 5; }
+  .sidebar-menu--section__custom-links  { order: 6; }
+  .sidebar-menu--item__link-name        { order: 7; }
+  .sidebar-menu--triangle               { order: 8; }
+
+  .sidebar-menu--section__custom-links:after {
+    display: initial;
+    border-top-right-radius: 0;
+  }
+
+  .sidebar-menu--triangle {
+    width: 40px;
+    height: 40px;
+    top: $sidebar--width;
+    left: 0px;
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+
+  .sidebar-menu--user-nav {
+    top: 0;
+    bottom: initial;
+  }
 }
