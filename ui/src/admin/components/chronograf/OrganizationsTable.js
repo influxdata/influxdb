@@ -2,6 +2,8 @@ import React, {Component, PropTypes} from 'react'
 
 import uuid from 'node-uuid'
 
+import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
@@ -32,8 +34,9 @@ class OrganizationsTable extends Component {
     this.setState({isCreatingOrganization: false})
   }
 
-  handleSuperAdminToggle = whatItDo => {
-    console.log(whatItDo)
+  handleChangeAuthSettingsSuperAdminFirstUserOnly = superAdminFirstUserOnly => {
+    const {onUpdateAuthSettings} = this.props
+    onUpdateAuthSettings({superAdminFirstUserOnly})
   }
 
   render() {
@@ -44,6 +47,7 @@ class OrganizationsTable extends Component {
       onChooseDefaultRole,
       onTogglePublic,
       currentOrganization,
+      authSettings: {superAdminFirstUserOnly},
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -94,33 +98,37 @@ class OrganizationsTable extends Component {
               currentOrganization={currentOrganization}
             />
           )}
-          <table className="table v-center superadmin-settings">
-            <thead>
-              <tr>
-                <th style={{width: 70}}>Settings</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{width: 70}}>
-                  <SlideToggle
-                    size="xs"
-                    active={true}
-                    onToggle={this.handleSuperAdminToggle}
-                  />
-                </td>
-                <td>Make new Users SuperAdmins by default?</td>
-              </tr>
-            </tbody>
-          </table>
+          <Authorized requiredRole={SUPERADMIN_ROLE}>
+            <table className="table v-center superadmin-settings">
+              <thead>
+                <tr>
+                  <th style={{width: 70}}>Settings</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{width: 70}}>
+                    <SlideToggle
+                      size="xs"
+                      active={superAdminFirstUserOnly}
+                      onToggle={
+                        this.handleChangeAuthSettingsSuperAdminFirstUserOnly
+                      }
+                    />
+                  </td>
+                  <td>Make new Users SuperAdmins by default?</td>
+                </tr>
+              </tbody>
+            </table>
+          </Authorized>
         </div>
       </div>
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 OrganizationsTable.propTypes = {
   organizations: arrayOf(
@@ -138,5 +146,9 @@ OrganizationsTable.propTypes = {
   onRenameOrg: func.isRequired,
   onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
+  onUpdateAuthSettings: func.isRequired,
+  authSettings: shape({
+    superAdminFirstUserOnly: bool.isRequired,
+  }),
 }
 export default OrganizationsTable

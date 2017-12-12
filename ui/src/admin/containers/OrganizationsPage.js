@@ -9,8 +9,12 @@ import OrganizationsTable from 'src/admin/components/chronograf/OrganizationsTab
 
 class OrganizationsPage extends Component {
   componentDidMount() {
-    const {links, actions: {loadOrganizationsAsync}} = this.props
+    const {
+      links,
+      actions: {loadOrganizationsAsync, getAuthSettingsAsync},
+    } = this.props
     loadOrganizationsAsync(links.organizations)
+    getAuthSettingsAsync(links.config)
   }
 
   handleCreateOrganization = async organization => {
@@ -51,28 +55,36 @@ class OrganizationsPage extends Component {
     this.refreshMe()
   }
 
+  handleUpdateAuthSettings = updatedAuthSettings => {
+    const {actions: {updateAuthSettingsAsync}, authSettings, links} = this.props
+    updateAuthSettingsAsync(links.config, authSettings, updatedAuthSettings)
+  }
+
   render() {
-    const {organizations, currentOrganization} = this.props
+    const {organizations, currentOrganization, authSettings} = this.props
 
     return (
       <OrganizationsTable
         organizations={organizations}
+        currentOrganization={currentOrganization}
         onCreateOrg={this.handleCreateOrganization}
         onDeleteOrg={this.handleDeleteOrganization}
         onRenameOrg={this.handleRenameOrganization}
         onTogglePublic={this.handleTogglePublic}
         onChooseDefaultRole={this.handleChooseDefaultRole}
-        currentOrganization={currentOrganization}
+        authSettings={authSettings}
+        onUpdateAuthSettings={this.handleUpdateAuthSettings}
       />
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 OrganizationsPage.propTypes = {
   links: shape({
     organizations: string.isRequired,
+    application: string.isRequired,
   }),
   organizations: arrayOf(
     shape({
@@ -86,17 +98,26 @@ OrganizationsPage.propTypes = {
     createOrganizationAsync: func.isRequired,
     updateOrganizationAsync: func.isRequired,
     deleteOrganizationAsync: func.isRequired,
+    getAuthSettingsAsync: func.isRequired,
+    updateAuthSettingsAsync: func.isRequired,
   }),
   getMe: func.isRequired,
   currentOrganization: shape({
     name: string.isRequired,
     id: string.isRequired,
   }),
+  authSettings: shape({
+    superAdminFirstUserOnly: bool.isRequired,
+  }),
 }
 
-const mapStateToProps = ({links, adminChronograf: {organizations}}) => ({
+const mapStateToProps = ({
+  links,
+  adminChronograf: {organizations, authSettings},
+}) => ({
   links,
   organizations,
+  authSettings,
 })
 
 const mapDispatchToProps = dispatch => ({
