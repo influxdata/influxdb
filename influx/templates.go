@@ -38,6 +38,12 @@ func RenderTemplate(query string, t chronograf.TemplateVar, now time.Time) (stri
 	if len(t.Values) == 0 {
 		return query, nil
 	}
+
+	// we only need to render the template if the template exists in the query
+	if !strings.Contains(query, t.Var) {
+		return query, nil
+	}
+
 	switch t.Values[0].Type {
 	case "tagKey", "fieldKey", "measurement", "database":
 		return strings.Replace(query, t.Var, `"`+t.Values[0].Value+`"`, -1), nil
