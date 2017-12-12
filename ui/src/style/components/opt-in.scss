@@ -29,9 +29,6 @@
   font-size: 13px;
   font-weight: 500;
   transition: background-color 0.25s ease, color 0.25s ease;
-  &, &:hover {
-    cursor: default;
-  }
 }
 
 .opt-in--groove-knob {
@@ -39,7 +36,7 @@
   position: relative;
   background-color: $g2-kevlar;
 
-  &:hover {
+  &, &:hover {
     cursor: pointer;
   }
 
@@ -92,6 +89,10 @@
 }
 // Right value toggled state
 .opt-in.right-toggled {
+  .opt-in--container,
+  .opt-in--container:hover {
+    cursor: pointer;
+  }
   .opt-in--groove-knob:after {
     transform: translate(-100%, -50%);
   }
@@ -104,9 +105,5 @@
     background-color: $g3-castle;
     color: $g8-storm;
     font-style: italic;
-
-    &, &:hover {
-      cursor: pointer;
-    }
   }
 }
