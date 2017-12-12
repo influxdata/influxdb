@@ -15,6 +15,7 @@ package tsm1
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -24,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -661,6 +663,9 @@ type Compactor struct {
 		TSMReader(path string) *TSMReader
 	}
 
+	// RateLimit is the limit for disk writes for all concurrent compactions.
+	RateLimit limiter.Rate
+
 	mu                 sync.RWMutex
 	snapshotsEnabled   bool
 	compactionsEnabled bool
@@ -1033,15 +1038,20 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 	// Create the write for the new TSM file.
 	var w TSMWriter
 
+	var limitWriter io.Writer = fd
+	if c.RateLimit != nil {
+		limitWriter = limiter.NewWriterWithRate(fd, c.RateLimit)
+	}
+
 	// Use a disk based TSM buffer if it looks like we might create a big index
 	// in memory.
 	if iter.EstimatedIndexSize() > 64*1024*1024 {
-		w, err = NewTSMWriterWithDiskBuffer(fd)
+		w, err = NewTSMWriterWithDiskBuffer(limitWriter)
 		if err != nil {
 			return err
 		}
 	} else {
-		w, err = NewTSMWriter(fd)
+		w, err = NewTSMWriter(limitWriter)
 		if err != nil {
 			return err
 		}

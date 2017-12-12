@@ -37,3 +37,4 @@ golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
 golang.org/x/net 9dfe39835686865bff950a07b394c12a98ddc811
 golang.org/x/sys 062cd7e4e68206d8bab9b18396626e855c992658
 golang.org/x/text a71fd10341b064c10f4a81ceac72bcf70f26ea34
+golang.org/x/time 6dc17368e09b0e8634d71cac8168d853e869a0c7

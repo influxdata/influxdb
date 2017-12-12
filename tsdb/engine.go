@@ -156,7 +156,8 @@ type EngineOptions struct {
 	ShardID       uint64
 	InmemIndex    interface{} // shared in-memory index
 
-	CompactionLimiter limiter.Fixed
+	CompactionLimiter           limiter.Fixed
+	CompactionThroughputLimiter limiter.Rate
 
 	Config Config
 }
