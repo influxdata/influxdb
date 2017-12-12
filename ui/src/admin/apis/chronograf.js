@@ -102,28 +102,3 @@ export const deleteOrganization = async organization => {
     throw error
   }
 }
-
-export const getAuthSettings = async url => {
-  try {
-    return await AJAX({
-      method: 'GET',
-      url,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
-export const updateAuthSettings = async (url, authSettings) => {
-  try {
-    return await AJAX({
-      method: 'PATCH',
-      url,
-      data: authSettings,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}

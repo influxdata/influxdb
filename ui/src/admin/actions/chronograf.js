@@ -10,8 +10,6 @@ import {
   createOrganization as createOrganizationAJAX,
   updateOrganization as updateOrganizationAJAX,
   deleteOrganization as deleteOrganizationAJAX,
-  getAuthSettings as getAuthSettingsAJAX,
-  updateAuthSettings as updateAuthSettingsAJAX,
 } from 'src/admin/apis/chronograf'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -93,39 +91,6 @@ export const removeOrganization = organization => ({
   type: 'CHRONOGRAF_REMOVE_ORGANIZATION',
   payload: {
     organization,
-  },
-})
-
-export const getAuthSettingsRequested = () => ({
-  type: 'CHRONOGRAF_GET_AUTH_SETTINGS_REQUESTED',
-})
-
-export const getAuthSettingsCompleted = authSettings => ({
-  type: 'CHRONOGRAF_GET_AUTH_SETTINGS_COMPLETED',
-  payload: {
-    authSettings,
-  },
-})
-
-export const getAuthSettingsFailed = () => ({
-  type: 'CHRONOGRAF_GET_AUTH_SETTINGS_FAILED',
-})
-
-export const updateAuthSettingsRequested = authSettings => ({
-  type: 'CHRONOGRAF_UPDATE_AUTH_SETTINGS_REQUESTED',
-  payload: {
-    authSettings,
-  },
-})
-
-export const updateAuthSettingsCompleted = () => ({
-  type: 'CHRONOGRAF_UPDATE_AUTH_SETTINGS_COMPLETED',
-})
-
-export const updateAuthSettingsFailed = authSettings => ({
-  type: 'CHRONOGRAF_UPDATE_AUTH_SETTINGS_FAILED',
-  payload: {
-    authSettings,
   },
 })
 
@@ -264,32 +229,5 @@ export const deleteOrganizationAsync = organization => async dispatch => {
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addOrganization(organization))
-  }
-}
-
-export const getAuthSettingsAsync = url => async dispatch => {
-  dispatch(getAuthSettingsRequested())
-  try {
-    const {data} = await getAuthSettingsAJAX(url)
-    dispatch(getAuthSettingsCompleted(data)) // TODO: change authSettings in actions & reducers to reflect final shape
-  } catch (error) {
-    dispatch(errorThrown(error))
-    dispatch(getAuthSettingsFailed())
-  }
-}
-
-export const updateAuthSettingsAsync = (
-  url,
-  oldAuthSettings,
-  updatedAuthSettings
-) => async dispatch => {
-  const newAuthSettings = {...oldAuthSettings, ...updatedAuthSettings}
-  dispatch(updateAuthSettingsRequested(newAuthSettings))
-  try {
-    await updateAuthSettingsAJAX(url, newAuthSettings)
-    dispatch(updateAuthSettingsCompleted())
-  } catch (error) {
-    dispatch(errorThrown(error))
-    dispatch(updateAuthSettingsFailed(oldAuthSettings))
   }
 }

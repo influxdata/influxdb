@@ -3,7 +3,7 @@ import {isSameUser} from 'shared/reducers/helpers/auth'
 const initialState = {
   users: [],
   organizations: [],
-  authSettings: {
+  authConfig: {
     superAdminFirstUserOnly: true,
   },
 }
@@ -92,16 +92,6 @@ const adminChronograf = (state = initialState, action) => {
               ? o._tempID !== organization._tempID
               : o.id !== organization.id
         ),
-      }
-    }
-
-    case 'CHRONOGRAF_GET_AUTH_SETTINGS_COMPLETED':
-    case 'CHRONOGRAF_UPDATE_AUTH_SETTINGS_REQUESTED':
-    case 'CHRONOGRAF_UPDATE_AUTH_SETTINGS_FAILED': {
-      const {authSettings} = action.payload
-      return {
-        ...state,
-        authSettings: {...authSettings}, // TODO: change to reflect final data shape
       }
     }
   }

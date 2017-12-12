@@ -34,9 +34,9 @@ class OrganizationsTable extends Component {
     this.setState({isCreatingOrganization: false})
   }
 
-  handleChangeAuthSettingsSuperAdminFirstUserOnly = superAdminFirstUserOnly => {
-    const {onUpdateAuthSettings} = this.props
-    onUpdateAuthSettings({superAdminFirstUserOnly})
+  handleChangeAuthConfigSuperAdminFirstUserOnly = superAdminFirstUserOnly => {
+    const {onUpdateAuthConfig} = this.props
+    onUpdateAuthConfig({superAdminFirstUserOnly})
   }
 
   render() {
@@ -47,7 +47,7 @@ class OrganizationsTable extends Component {
       onChooseDefaultRole,
       onTogglePublic,
       currentOrganization,
-      authSettings: {superAdminFirstUserOnly},
+      authConfig: {superAdminFirstUserOnly},
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -102,7 +102,7 @@ class OrganizationsTable extends Component {
             <table className="table v-center superadmin-settings">
               <thead>
                 <tr>
-                  <th style={{width: 70}}>Settings</th>
+                  <th style={{width: 70}}>Config</th>
                   <th />
                 </tr>
               </thead>
@@ -113,7 +113,7 @@ class OrganizationsTable extends Component {
                       size="xs"
                       active={superAdminFirstUserOnly}
                       onToggle={
-                        this.handleChangeAuthSettingsSuperAdminFirstUserOnly
+                        this.handleChangeAuthConfigSuperAdminFirstUserOnly
                       }
                     />
                   </td>
@@ -146,9 +146,9 @@ OrganizationsTable.propTypes = {
   onRenameOrg: func.isRequired,
   onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
-  onUpdateAuthSettings: func.isRequired,
-  authSettings: shape({
-    superAdminFirstUserOnly: bool.isRequired,
+  onUpdateAuthConfig: func.isRequired,
+  authConfig: shape({
+    superAdminFirstUserOnly: bool,
   }),
 }
 export default OrganizationsTable
