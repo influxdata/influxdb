@@ -1,26 +1,1038 @@
-export const config = JSON.parse(
-  '{"data":{"link":{"rel":"self","href":"/kapacitor/v1/config"},"sections":{"alerta":{"link":{"rel":"self","href":"/kapacitor/v1/config/alerta"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/alerta/"},"options":{"enabled":true,"environment":"alertaalerta","insecure-skip-verify":false,"origin":"alerta","token":true,"token-prefix":"","url":"alerta"},"redacted":["token"]}]},"hipchat":{"link":{"rel":"self","href":"/kapacitor/v1/config/hipchat"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/hipchat/"},"options":{"enabled":true,"global":false,"room":"hipchat","state-changes-only":false,"token":true,"url":"https://hipchat.hipchat.com/v2/room"},"redacted":["token"]}]},"influxdb":{"link":{"rel":"self","href":"/kapacitor/v1/config/influxdb"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/influxdb/default"},"options":{"default":false,"disable-subscriptions":false,"enabled":true,"excluded-subscriptions":{"_kapacitor":["autogen"]},"http-port":0,"insecure-skip-verify":false,"kapacitor-hostname":"","name":"default","password":false,"ssl-ca":"","ssl-cert":"","ssl-key":"","startup-timeout":"5m0s","subscription-protocol":"http","subscriptions":null,"subscriptions-sync-interval":"1m0s","timeout":"0s","udp-bind":"","udp-buffer":1000,"udp-read-buffer":0,"urls":["http://localhost:8086"],"username":""},"redacted":["password"]}]},"kubernetes":{"link":{"rel":"self","href":"/kapacitor/v1/config/kubernetes"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/kubernetes/"},"options":{"api-servers":[""],"ca-path":"","enabled":false,"id":"","in-cluster":false,"namespace":"","resource":"","token":false},"redacted":["token"]}]},"opsgenie":{"link":{"rel":"self","href":"/kapacitor/v1/config/opsgenie"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/opsgenie/"},"options":{"api-key":true,"enabled":true,"global":false,"recipients":[],"recovery_url":"https://api.opsgenie.com/v1/json/alert/note","teams":[],"url":"https://api.opsgenie.com/v1/json/alert"},"redacted":["api-key"]}]},"pagerduty":{"link":{"rel":"self","href":"/kapacitor/v1/config/pagerduty"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/pagerduty/"},"options":{"enabled":true,"global":false,"service-key":true,"url":"https://events.pagerduty.com/generic/2010-04-15/create_event.json"},"redacted":["service-key"]}]},"pushover":{"link":{"rel":"self","href":"/kapacitor/v1/config/pushover"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/pushover/"},"options":{"enabled":true,"token":true,"url":"https://api.pushover.net/1/messages.json","user-key":true},"redacted":["token","user-key"]}]},"sensu":{"link":{"rel":"self","href":"/kapacitor/v1/config/sensu"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/sensu/"},"options":{"addr":"sensu","enabled":true,"handlers":null,"source":"Kapacitor"},"redacted":null}]},"slack":{"link":{"rel":"self","href":"/kapacitor/v1/config/slack"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/slack/"},"options":{"channel":"asdf","enabled":true,"global":false,"icon-emoji":"","insecure-skip-verify":false,"ssl-ca":"","ssl-cert":"","ssl-key":"","state-changes-only":false,"url":true,"username":"kapacitor"},"redacted":["url"]}]},"smtp":{"link":{"rel":"self","href":"/kapacitor/v1/config/smtp"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/smtp/"},"options":{"enabled":true,"from":"smtp@smtp.com","global":false,"host":"localhost","idle-timeout":"30s","no-verify":false,"password":true,"port":25,"state-changes-only":false,"to":null,"username":"smtp"},"redacted":["password"]}]},"snmptrap":{"link":{"rel":"self","href":"/kapacitor/v1/config/snmptrap"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/snmptrap/"},"options":{"addr":"localhost:162","community":true,"enabled":false,"retries":1},"redacted":["community"]}]},"talk":{"link":{"rel":"self","href":"/kapacitor/v1/config/talk"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/talk/"},"options":{"author_name":"talk","enabled":true,"url":true},"redacted":["url"]}]},"telegram":{"link":{"rel":"self","href":"/kapacitor/v1/config/telegram"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/telegram/"},"options":{"chat-id":"telegram","disable-notification":true,"disable-web-page-preview":true,"enabled":true,"global":false,"parse-mode":"Markdown","state-changes-only":false,"token":true,"url":"https://api.telegram.org/bot"},"redacted":["token"]}]},"victorops":{"link":{"rel":"self","href":"/kapacitor/v1/config/victorops"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/victorops/"},"options":{"api-key":true,"enabled":true,"global":false,"routing-key":"victorops","url":"https://alert.victorops.com/integrations/generic/20131114/alert"},"redacted":["api-key"]}]}}},"status":200,"statusText":"OK","headers":{"x-kapacitor-version":"v1.3.3","date":"Sat, 09 Dec 2017 00:04:12 GMT","content-encoding":"gzip","request-id":"7cbcdc60-dc74-11e7-abeb-000000000000","content-length":"1121","x-chronograf-version":"1.3.8.0-1002-g59bb3f9e","content-type":"application/json; charset=utf-8"},"config":{"transformRequest":{},"transformResponse":{},"headers":{"Accept":"application/json, text/plain, */*"},"timeout":0,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"method":"GET","url":"/chronograf/v1/sources/20/kapacitors/8/proxy","data":"","params":{"path":"/kapacitor/v1/config"}},"request":{},"auth":{"links":[]},"external":{"statusFeed":"https://www.influxdata.com/feed/json"},"meLink":"/chronograf/v1/me"}'
-)
+export const config = {
+  data: {
+    link: {
+      rel: 'self',
+      href: '/kapacitor/v1/config',
+    },
+    sections: {
+      alerta: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/alerta',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/alerta/',
+            },
+            options: {
+              enabled: true,
+              environment: 'alertaalerta',
+              'insecure-skip-verify': false,
+              origin: 'alerta',
+              token: true,
+              'token-prefix': '',
+              url: 'alerta',
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      hipchat: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/hipchat',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/hipchat/',
+            },
+            options: {
+              enabled: true,
+              global: false,
+              room: 'hipchat',
+              'state-changes-only': false,
+              token: true,
+              url: 'https://hipchat.hipchat.com/v2/room',
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      influxdb: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/influxdb',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/influxdb/default',
+            },
+            options: {
+              default: false,
+              'disable-subscriptions': false,
+              enabled: true,
+              'excluded-subscriptions': {
+                _kapacitor: ['autogen'],
+              },
+              'http-port': 0,
+              'insecure-skip-verify': false,
+              'kapacitor-hostname': '',
+              name: 'default',
+              password: false,
+              'ssl-ca': '',
+              'ssl-cert': '',
+              'ssl-key': '',
+              'startup-timeout': '5m0s',
+              'subscription-protocol': 'http',
+              subscriptions: null,
+              'subscriptions-sync-interval': '1m0s',
+              timeout: '0s',
+              'udp-bind': '',
+              'udp-buffer': 1000,
+              'udp-read-buffer': 0,
+              urls: ['http://localhost:8086'],
+              username: '',
+            },
+            redacted: ['password'],
+          },
+        ],
+      },
+      kubernetes: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/kubernetes',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/kubernetes/',
+            },
+            options: {
+              'api-servers': [''],
+              'ca-path': '',
+              enabled: false,
+              id: '',
+              'in-cluster': false,
+              namespace: '',
+              resource: '',
+              token: false,
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      opsgenie: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/opsgenie',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/opsgenie/',
+            },
+            options: {
+              'api-key': true,
+              enabled: true,
+              global: false,
+              recipients: [],
+              recovery_url: 'https://api.opsgenie.com/v1/json/alert/note',
+              teams: [],
+              url: 'https://api.opsgenie.com/v1/json/alert',
+            },
+            redacted: ['api-key'],
+          },
+        ],
+      },
+      pagerduty: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/pagerduty',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/pagerduty/',
+            },
+            options: {
+              enabled: true,
+              global: false,
+              'service-key': true,
+              url:
+                'https://events.pagerduty.com/generic/2010-04-15/create_event.json',
+            },
+            redacted: ['service-key'],
+          },
+        ],
+      },
+      pushover: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/pushover',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/pushover/',
+            },
+            options: {
+              enabled: true,
+              token: true,
+              url: 'https://api.pushover.net/1/messages.json',
+              'user-key': true,
+            },
+            redacted: ['token', 'user-key'],
+          },
+        ],
+      },
+      sensu: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/sensu',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/sensu/',
+            },
+            options: {
+              addr: 'sensu',
+              enabled: true,
+              handlers: null,
+              source: 'Kapacitor',
+            },
+            redacted: null,
+          },
+        ],
+      },
+      slack: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/slack',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/slack/',
+            },
+            options: {
+              channel: 'asdf',
+              enabled: true,
+              global: false,
+              'icon-emoji': '',
+              'insecure-skip-verify': false,
+              'ssl-ca': '',
+              'ssl-cert': '',
+              'ssl-key': '',
+              'state-changes-only': false,
+              url: true,
+              username: 'kapacitor',
+            },
+            redacted: ['url'],
+          },
+        ],
+      },
+      smtp: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/smtp',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/smtp/',
+            },
+            options: {
+              enabled: true,
+              from: 'smtp@smtp.com',
+              global: false,
+              host: 'localhost',
+              'idle-timeout': '30s',
+              'no-verify': false,
+              password: true,
+              port: 25,
+              'state-changes-only': false,
+              to: null,
+              username: 'smtp',
+            },
+            redacted: ['password'],
+          },
+        ],
+      },
+      snmptrap: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/snmptrap',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/snmptrap/',
+            },
+            options: {
+              addr: 'localhost:162',
+              community: true,
+              enabled: false,
+              retries: 1,
+            },
+            redacted: ['community'],
+          },
+        ],
+      },
+      talk: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/talk',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/talk/',
+            },
+            options: {
+              author_name: 'talk',
+              enabled: true,
+              url: true,
+            },
+            redacted: ['url'],
+          },
+        ],
+      },
+      telegram: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/telegram',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/telegram/',
+            },
+            options: {
+              'chat-id': 'telegram',
+              'disable-notification': true,
+              'disable-web-page-preview': true,
+              enabled: true,
+              global: false,
+              'parse-mode': 'Markdown',
+              'state-changes-only': false,
+              token: true,
+              url: 'https://api.telegram.org/bot',
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      victorops: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/victorops',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/victorops/',
+            },
+            options: {
+              'api-key': true,
+              enabled: true,
+              global: false,
+              'routing-key': 'victorops',
+              url:
+                'https://alert.victorops.com/integrations/generic/20131114/alert',
+            },
+            redacted: ['api-key'],
+          },
+        ],
+      },
+    },
+  },
+  status: 200,
+  statusText: 'OK',
+  headers: {
+    'x-kapacitor-version': 'v1.3.3',
+    date: 'Sat, 09 Dec 2017 00:04:12 GMT',
+    'content-encoding': 'gzip',
+    'request-id': '7cbcdc60-dc74-11e7-abeb-000000000000',
+    'content-length': '1121',
+    'x-chronograf-version': '1.3.8.0-1002-g59bb3f9e',
+    'content-type': 'application/json; charset=utf-8',
+  },
+  config: {
+    transformRequest: {},
+    transformResponse: {},
+    headers: {
+      Accept: 'application/json, text/plain, */*',
+    },
+    timeout: 0,
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
+    maxContentLength: -1,
+    method: 'GET',
+    url: '/chronograf/v1/sources/20/kapacitors/8/proxy',
+    data: '',
+    params: {
+      path: '/kapacitor/v1/config',
+    },
+  },
+  request: {},
+  auth: {
+    links: [],
+  },
+  external: {
+    statusFeed: 'https://www.influxdata.com/feed/json',
+  },
+  meLink: '/chronograf/v1/me',
+}
 
-export const configResponse = JSON.parse(
-  '[{"type":"alerta","enabled":true,"environment":"alertaalerta","origin":"alerta","token":true},{"type":"hipChat","enabled":true,"url":"https://hipchat.hipchat.com/v2/room","room":"hipchat","token":true},{"type":"opsGenie","enabled":true,"api-key":true,"teams":[],"recipients":[]},{"type":"pagerDuty","enabled":true,"serviceKey":true},{"type":"pushover","enabled":true,"token":true,"userKey":true},{"type":"sensu","enabled":true,"addr":"sensu","source":"Kapacitor"},{"type":"slack","enabled":true,"url":true,"channel":"asdf"},{"type":"email","enabled":true,"from":"smtp@smtp.com","host":"localhost","password":true,"port":25,"username":"smtp"},{"type":"talk","enabled":true,"url":true,"author_name":"talk"},{"type":"telegram","enabled":true,"token":true,"chatId":"telegram","parseMode":"Markdown","disableWebPagePreview":true,"disableNotification":true},{"type":"victorOps","enabled":true,"api-key":true,"routingKey":"victorops"}]'
-)
+export const configResponse = [
+  {
+    type: 'alerta',
+    enabled: true,
+    environment: 'alertaalerta',
+    origin: 'alerta',
+    token: true,
+  },
+  {
+    type: 'hipChat',
+    enabled: true,
+    url: 'https://hipchat.hipchat.com/v2/room',
+    room: 'hipchat',
+    token: true,
+  },
+  {
+    type: 'opsGenie',
+    enabled: true,
+    'api-key': true,
+    teams: [],
+    recipients: [],
+  },
+  {
+    type: 'pagerDuty',
+    enabled: true,
+    serviceKey: true,
+  },
+  {
+    type: 'pushover',
+    enabled: true,
+    token: true,
+    userKey: true,
+  },
+  {
+    type: 'sensu',
+    enabled: true,
+    addr: 'sensu',
+    source: 'Kapacitor',
+  },
+  {
+    type: 'slack',
+    enabled: true,
+    url: true,
+    channel: 'asdf',
+  },
+  {
+    type: 'email',
+    enabled: true,
+    from: 'smtp@smtp.com',
+    host: 'localhost',
+    password: true,
+    port: 25,
+    username: 'smtp',
+  },
+  {
+    type: 'talk',
+    enabled: true,
+    url: true,
+    author_name: 'talk',
+  },
+  {
+    type: 'telegram',
+    enabled: true,
+    token: true,
+    chatId: 'telegram',
+    parseMode: 'Markdown',
+    disableWebPagePreview: true,
+    disableNotification: true,
+  },
+  {
+    type: 'victorOps',
+    enabled: true,
+    'api-key': true,
+    routingKey: 'victorops',
+  },
+]
 
-export const emptyConfig = JSON.parse(
-  '{"data":{"link":{"rel":"self","href":"/kapacitor/v1/config"},"sections":{"alerta":{"link":{"rel":"self","href":"/kapacitor/v1/config/alerta"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/alerta/"},"options":{"enabled":false,"environment":"","insecure-skip-verify":false,"origin":"","token":false,"token-prefix":"","url":""},"redacted":["token"]}]},"hipchat":{"link":{"rel":"self","href":"/kapacitor/v1/config/hipchat"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/hipchat/"},"options":{"enabled":false,"global":false,"room":"","state-changes-only":false,"token":false,"url":""},"redacted":["token"]}]},"influxdb":{"link":{"rel":"self","href":"/kapacitor/v1/config/influxdb"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/influxdb/default"},"options":{"default":false,"disable-subscriptions":false,"enabled":true,"excluded-subscriptions":{"_kapacitor":["autogen"]},"http-port":0,"insecure-skip-verify":false,"kapacitor-hostname":"","name":"default","password":false,"ssl-ca":"","ssl-cert":"","ssl-key":"","startup-timeout":"5m0s","subscription-protocol":"http","subscriptions":null,"subscriptions-sync-interval":"1m0s","timeout":"0s","udp-bind":"","udp-buffer":1000,"udp-read-buffer":0,"urls":["http://localhost:8086"],"username":""},"redacted":["password"]}]},"kubernetes":{"link":{"rel":"self","href":"/kapacitor/v1/config/kubernetes"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/kubernetes/"},"options":{"api-servers":[""],"ca-path":"","enabled":false,"id":"","in-cluster":false,"namespace":"","resource":"","token":false},"redacted":["token"]}]},"opsgenie":{"link":{"rel":"self","href":"/kapacitor/v1/config/opsgenie"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/opsgenie/"},"options":{"api-key":false,"enabled":false,"global":false,"recipients":null,"recovery_url":"https://api.opsgenie.com/v1/json/alert/note","teams":null,"url":"https://api.opsgenie.com/v1/json/alert"},"redacted":["api-key"]}]},"pagerduty":{"link":{"rel":"self","href":"/kapacitor/v1/config/pagerduty"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/pagerduty/"},"options":{"enabled":false,"global":false,"service-key":false,"url":"https://events.pagerduty.com/generic/2010-04-15/create_event.json"},"redacted":["service-key"]}]},"pushover":{"link":{"rel":"self","href":"/kapacitor/v1/config/pushover"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/pushover/"},"options":{"enabled":false,"token":false,"url":"https://api.pushover.net/1/messages.json","user-key":false},"redacted":["token","user-key"]}]},"sensu":{"link":{"rel":"self","href":"/kapacitor/v1/config/sensu"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/sensu/"},"options":{"addr":"","enabled":false,"handlers":null,"source":"Kapacitor"},"redacted":null}]},"slack":{"link":{"rel":"self","href":"/kapacitor/v1/config/slack"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/slack/"},"options":{"channel":"","enabled":false,"global":false,"icon-emoji":"","insecure-skip-verify":false,"ssl-ca":"","ssl-cert":"","ssl-key":"","state-changes-only":false,"url":false,"username":"kapacitor"},"redacted":["url"]}]},"smtp":{"link":{"rel":"self","href":"/kapacitor/v1/config/smtp"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/smtp/"},"options":{"enabled":false,"from":"","global":false,"host":"localhost","idle-timeout":"30s","no-verify":false,"password":false,"port":25,"state-changes-only":false,"to":null,"username":""},"redacted":["password"]}]},"snmptrap":{"link":{"rel":"self","href":"/kapacitor/v1/config/snmptrap"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/snmptrap/"},"options":{"addr":"localhost:162","community":true,"enabled":false,"retries":1},"redacted":["community"]}]},"talk":{"link":{"rel":"self","href":"/kapacitor/v1/config/talk"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/talk/"},"options":{"author_name":"","enabled":false,"url":false},"redacted":["url"]}]},"telegram":{"link":{"rel":"self","href":"/kapacitor/v1/config/telegram"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/telegram/"},"options":{"chat-id":"","disable-notification":false,"disable-web-page-preview":false,"enabled":false,"global":false,"parse-mode":"","state-changes-only":false,"token":false,"url":"https://api.telegram.org/bot"},"redacted":["token"]}]},"victorops":{"link":{"rel":"self","href":"/kapacitor/v1/config/victorops"},"elements":[{"link":{"rel":"self","href":"/kapacitor/v1/config/victorops/"},"options":{"api-key":false,"enabled":false,"global":false,"routing-key":"","url":"https://alert.victorops.com/integrations/generic/20131114/alert"},"redacted":["api-key"]}]}}},"status":200,"statusText":"OK","headers":{"x-kapacitor-version":"v1.3.3","date":"Sat, 09 Dec 2017 02:03:48 GMT","content-encoding":"gzip","request-id":"31e90f0a-dc85-11e7-801f-000000000000","content-length":"1060","x-chronograf-version":"1.3.8.0-1002-g59bb3f9e","content-type":"application/json; charset=utf-8"},"config":{"transformRequest":{},"transformResponse":{},"headers":{"Accept":"application/json, text/plain, */*"},"timeout":0,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN","maxContentLength":-1,"method":"GET","url":"/chronograf/v1/sources/21/kapacitors/7/proxy","data":"","params":{"path":"/kapacitor/v1/config"}},"request":{},"auth":{"links":[]},"external":{"statusFeed":"https://www.influxdata.com/feed/json"},"meLink":"/chronograf/v1/me"}'
-)
+export const emptyConfig = {
+  data: {
+    link: {
+      rel: 'self',
+      href: '/kapacitor/v1/config',
+    },
+    sections: {
+      alerta: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/alerta',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/alerta/',
+            },
+            options: {
+              enabled: false,
+              environment: '',
+              'insecure-skip-verify': false,
+              origin: '',
+              token: false,
+              'token-prefix': '',
+              url: '',
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      hipchat: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/hipchat',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/hipchat/',
+            },
+            options: {
+              enabled: false,
+              global: false,
+              room: '',
+              'state-changes-only': false,
+              token: false,
+              url: '',
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      influxdb: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/influxdb',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/influxdb/default',
+            },
+            options: {
+              default: false,
+              'disable-subscriptions': false,
+              enabled: true,
+              'excluded-subscriptions': {
+                _kapacitor: ['autogen'],
+              },
+              'http-port': 0,
+              'insecure-skip-verify': false,
+              'kapacitor-hostname': '',
+              name: 'default',
+              password: false,
+              'ssl-ca': '',
+              'ssl-cert': '',
+              'ssl-key': '',
+              'startup-timeout': '5m0s',
+              'subscription-protocol': 'http',
+              subscriptions: null,
+              'subscriptions-sync-interval': '1m0s',
+              timeout: '0s',
+              'udp-bind': '',
+              'udp-buffer': 1000,
+              'udp-read-buffer': 0,
+              urls: ['http://localhost:8086'],
+              username: '',
+            },
+            redacted: ['password'],
+          },
+        ],
+      },
+      kubernetes: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/kubernetes',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/kubernetes/',
+            },
+            options: {
+              'api-servers': [''],
+              'ca-path': '',
+              enabled: false,
+              id: '',
+              'in-cluster': false,
+              namespace: '',
+              resource: '',
+              token: false,
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      opsgenie: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/opsgenie',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/opsgenie/',
+            },
+            options: {
+              'api-key': false,
+              enabled: false,
+              global: false,
+              recipients: null,
+              recovery_url: 'https://api.opsgenie.com/v1/json/alert/note',
+              teams: null,
+              url: 'https://api.opsgenie.com/v1/json/alert',
+            },
+            redacted: ['api-key'],
+          },
+        ],
+      },
+      pagerduty: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/pagerduty',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/pagerduty/',
+            },
+            options: {
+              enabled: false,
+              global: false,
+              'service-key': false,
+              url:
+                'https://events.pagerduty.com/generic/2010-04-15/create_event.json',
+            },
+            redacted: ['service-key'],
+          },
+        ],
+      },
+      pushover: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/pushover',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/pushover/',
+            },
+            options: {
+              enabled: false,
+              token: false,
+              url: 'https://api.pushover.net/1/messages.json',
+              'user-key': false,
+            },
+            redacted: ['token', 'user-key'],
+          },
+        ],
+      },
+      sensu: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/sensu',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/sensu/',
+            },
+            options: {
+              addr: '',
+              enabled: false,
+              handlers: null,
+              source: 'Kapacitor',
+            },
+            redacted: null,
+          },
+        ],
+      },
+      slack: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/slack',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/slack/',
+            },
+            options: {
+              channel: '',
+              enabled: false,
+              global: false,
+              'icon-emoji': '',
+              'insecure-skip-verify': false,
+              'ssl-ca': '',
+              'ssl-cert': '',
+              'ssl-key': '',
+              'state-changes-only': false,
+              url: false,
+              username: 'kapacitor',
+            },
+            redacted: ['url'],
+          },
+        ],
+      },
+      smtp: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/smtp',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/smtp/',
+            },
+            options: {
+              enabled: false,
+              from: '',
+              global: false,
+              host: 'localhost',
+              'idle-timeout': '30s',
+              'no-verify': false,
+              password: false,
+              port: 25,
+              'state-changes-only': false,
+              to: null,
+              username: '',
+            },
+            redacted: ['password'],
+          },
+        ],
+      },
+      snmptrap: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/snmptrap',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/snmptrap/',
+            },
+            options: {
+              addr: 'localhost:162',
+              community: true,
+              enabled: false,
+              retries: 1,
+            },
+            redacted: ['community'],
+          },
+        ],
+      },
+      talk: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/talk',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/talk/',
+            },
+            options: {
+              author_name: '',
+              enabled: false,
+              url: false,
+            },
+            redacted: ['url'],
+          },
+        ],
+      },
+      telegram: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/telegram',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/telegram/',
+            },
+            options: {
+              'chat-id': '',
+              'disable-notification': false,
+              'disable-web-page-preview': false,
+              enabled: false,
+              global: false,
+              'parse-mode': '',
+              'state-changes-only': false,
+              token: false,
+              url: 'https://api.telegram.org/bot',
+            },
+            redacted: ['token'],
+          },
+        ],
+      },
+      victorops: {
+        link: {
+          rel: 'self',
+          href: '/kapacitor/v1/config/victorops',
+        },
+        elements: [
+          {
+            link: {
+              rel: 'self',
+              href: '/kapacitor/v1/config/victorops/',
+            },
+            options: {
+              'api-key': false,
+              enabled: false,
+              global: false,
+              'routing-key': '',
+              url:
+                'https://alert.victorops.com/integrations/generic/20131114/alert',
+            },
+            redacted: ['api-key'],
+          },
+        ],
+      },
+    },
+  },
+  status: 200,
+  statusText: 'OK',
+  headers: {
+    'x-kapacitor-version': 'v1.3.3',
+    date: 'Sat, 09 Dec 2017 02:03:48 GMT',
+    'content-encoding': 'gzip',
+    'request-id': '31e90f0a-dc85-11e7-801f-000000000000',
+    'content-length': '1060',
+    'x-chronograf-version': '1.3.8.0-1002-g59bb3f9e',
+    'content-type': 'application/json; charset=utf-8',
+  },
+  config: {
+    transformRequest: {},
+    transformResponse: {},
+    headers: {
+      Accept: 'application/json, text/plain, */*',
+    },
+    timeout: 0,
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
+    maxContentLength: -1,
+    method: 'GET',
+    url: '/chronograf/v1/sources/21/kapacitors/7/proxy',
+    data: '',
+    params: {
+      path: '/kapacitor/v1/config',
+    },
+  },
+  request: {},
+  auth: {
+    links: [],
+  },
+  external: {
+    statusFeed: 'https://www.influxdata.com/feed/json',
+  },
+  meLink: '/chronograf/v1/me',
+}
 
-export const emptyConfigResponse = JSON.parse(
-  '[{"type":"alerta","enabled":false,"environment":"","origin":"","token":false},{"type":"hipChat","enabled":false,"url":"","room":"","token":false},{"type":"opsGenie","enabled":false,"api-key":false,"teams":null,"recipients":null},{"type":"pagerDuty","enabled":false,"serviceKey":false},{"type":"pushover","enabled":false,"token":false,"userKey":false},{"type":"sensu","enabled":false,"addr":"","source":"Kapacitor"},{"type":"slack","enabled":false,"url":false,"channel":""},{"type":"email","enabled":false,"from":"","host":"localhost","password":false,"port":25,"username":""},{"type":"talk","enabled":false,"url":false,"author_name":""},{"type":"telegram","enabled":false,"token":false,"chatId":"","parseMode":"","disableWebPagePreview":false,"disableNotification":false},{"type":"victorOps","enabled":false,"api-key":false,"routingKey":""}]'
-)
+export const emptyConfigResponse = [
+  {
+    type: 'alerta',
+    enabled: false,
+    environment: '',
+    origin: '',
+    token: false,
+  },
+  {
+    type: 'hipChat',
+    enabled: false,
+    url: '',
+    room: '',
+    token: false,
+  },
+  {
+    type: 'opsGenie',
+    enabled: false,
+    'api-key': false,
+    teams: null,
+    recipients: null,
+  },
+  {
+    type: 'pagerDuty',
+    enabled: false,
+    serviceKey: false,
+  },
+  {
+    type: 'pushover',
+    enabled: false,
+    token: false,
+    userKey: false,
+  },
+  {
+    type: 'sensu',
+    enabled: false,
+    addr: '',
+    source: 'Kapacitor',
+  },
+  {
+    type: 'slack',
+    enabled: false,
+    url: false,
+    channel: '',
+  },
+  {
+    type: 'email',
+    enabled: false,
+    from: '',
+    host: 'localhost',
+    password: false,
+    port: 25,
+    username: '',
+  },
+  {
+    type: 'talk',
+    enabled: false,
+    url: false,
+    author_name: '',
+  },
+  {
+    type: 'telegram',
+    enabled: false,
+    token: false,
+    chatId: '',
+    parseMode: '',
+    disableWebPagePreview: false,
+    disableNotification: false,
+  },
+  {
+    type: 'victorOps',
+    enabled: false,
+    'api-key': false,
+    routingKey: '',
+  },
+]
 
-export const emptyRule = JSON.parse(
-  '{"id":"DEFAULT_RULE_ID","queryID":"4ed63018-4ef2-4d56-95d7-7a813dd9cd04","trigger":"threshold","values":{"operator":"greater than","value":"","rangeValue":"","relation":"once","percentile":"90"},"message":"","alertNodes":{},"every":null,"name":"Untitled Rule"}'
-)
+export const emptyRule = {
+  id: 'DEFAULT_RULE_ID',
+  queryID: '4ed63018-4ef2-4d56-95d7-7a813dd9cd04',
+  trigger: 'threshold',
+  values: {
+    operator: 'greater than',
+    value: '',
+    rangeValue: '',
+    relation: 'once',
+    percentile: '90',
+  },
+  message: '',
+  alertNodes: {},
+  every: null,
+  name: 'Untitled Rule',
+}
 
-export const handlersfromConfig = JSON.parse(
-  '[{"type":"alerta","enabled":true,"environment":"alerta","origin":"alerta","token":true},{"type":"hipChat","enabled":true,"url":"https://hipchat.hipchat.com/v2/room","room":"hipchat","token":true},{"type":"opsGenie","enabled":true,"api-key":true,"teams":[],"recipients":[]},{"type":"pagerDuty","enabled":true,"serviceKey":true},{"type":"pushover","enabled":true,"token":true,"userKey":true},{"type":"sensu","enabled":true,"addr":"sensu","source":"Kapacitor"},{"type":"slack","enabled":true,"url":true,"channel":"slack"},{"type":"email","enabled":true,"from":"smtp@smtp.com","host":"localhost","password":true,"port":25,"username":"smtp"},{"type":"talk","enabled":true,"url":true,"author_name":"talk"},{"type":"telegram","enabled":true,"token":true,"chatId":"telegram","parseMode":"Markdown","disableWebPagePreview":true,"disableNotification":true},{"type":"victorOps","enabled":true,"api-key":true,"routingKey":"victorops"}]'
-)
+export const handlersfromConfig = [
+  {
+    type: 'alerta',
+    enabled: true,
+    environment: 'alerta',
+    origin: 'alerta',
+    token: true,
+  },
+  {
+    type: 'hipChat',
+    enabled: true,
+    url: 'https://hipchat.hipchat.com/v2/room',
+    room: 'hipchat',
+    token: true,
+  },
+  {
+    type: 'opsGenie',
+    enabled: true,
+    'api-key': true,
+    teams: [],
+    recipients: [],
+  },
+  {
+    type: 'pagerDuty',
+    enabled: true,
+    serviceKey: true,
+  },
+  {
+    type: 'pushover',
+    enabled: true,
+    token: true,
+    userKey: true,
+  },
+  {
+    type: 'sensu',
+    enabled: true,
+    addr: 'sensu',
+    source: 'Kapacitor',
+  },
+  {
+    type: 'slack',
+    enabled: true,
+    url: true,
+    channel: 'slack',
+  },
+  {
+    type: 'email',
+    enabled: true,
+    from: 'smtp@smtp.com',
+    host: 'localhost',
+    password: true,
+    port: 25,
+    username: 'smtp',
+  },
+  {
+    type: 'talk',
+    enabled: true,
+    url: true,
+    author_name: 'talk',
+  },
+  {
+    type: 'telegram',
+    enabled: true,
+    token: true,
+    chatId: 'telegram',
+    parseMode: 'Markdown',
+    disableWebPagePreview: true,
+    disableNotification: true,
+  },
+  {
+    type: 'victorOps',
+    enabled: true,
+    'api-key': true,
+    routingKey: 'victorops',
+  },
+]
 
 export const handlersOnThisAlert_expected = [
   {
