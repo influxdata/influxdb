@@ -36,6 +36,7 @@ type getRoutesResponse struct {
 	Sources       string                   `json:"sources"`          // Location of the sources endpoint
 	Me            string                   `json:"me"`               // Location of the me endpoint
 	Dashboards    string                   `json:"dashboards"`       // Location of the dashboards endpoint
+	Config        string                   `json:"config"`           // Location of the config endpoint
 	Auth          []AuthRoute              `json:"auth"`             // Location of all auth routes.
 	Logout        *string                  `json:"logout,omitempty"` // Location of the logout route for all auth routes
 	ExternalLinks getExternalLinksResponse `json:"external"`         // All external links for the client to use
@@ -68,6 +69,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Me:            "/chronograf/v1/me",
 		Mappings:      "/chronograf/v1/mappings",
 		Dashboards:    "/chronograf/v1/dashboards",
+		Config:        "/chronograf/v1/config",
 		Auth:          make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 		ExternalLinks: getExternalLinksResponse{
 			StatusFeed:  &a.StatusFeed,
