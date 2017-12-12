@@ -767,8 +767,8 @@ func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 // MeasurementTagKeyValuesByExpr returns all the tag keys values for the
 // provided expression.
 func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	indexSet := IndexSet{s.index}
-	return indexSet.MeasurementTagKeyValuesByExpr(auth, s.sfile, name, key, expr, keysSorted)
+	indexSet := IndexSet{Indexes: []Index{s.index}, SeriesFile: s.sfile}
+	return indexSet.MeasurementTagKeyValuesByExpr(auth, name, key, expr, keysSorted)
 }
 
 // MeasurementFields returns fields for a measurement.
@@ -816,7 +816,8 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 		return NewFieldKeysIterator(s, opt)
 	case "_series":
 		// TODO(benbjohnson): Move up to the Shards.CreateIterator().
-		return NewSeriesPointIterator(s.sfile, IndexSet{s.index}, engine.MeasurementFieldSet(), opt)
+		indexSet := IndexSet{Indexes: []Index{s.index}, SeriesFile: s.sfile}
+		return NewSeriesPointIterator(indexSet, engine.MeasurementFieldSet(), opt)
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
 	}
@@ -882,7 +883,8 @@ func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influx
 			}
 		}
 
-		if err := (IndexSet{s.index}).ForEachMeasurementTagKey([]byte(name), func(key []byte) error {
+		indexSet := IndexSet{Indexes: []Index{s.index}, SeriesFile: s.sfile}
+		if err := indexSet.ForEachMeasurementTagKey([]byte(name), func(key []byte) error {
 			dimensions[string(key)] = struct{}{}
 			return nil
 		}); err != nil {
@@ -1648,7 +1650,8 @@ func NewFieldKeysIterator(sh *Shard, opt query.IteratorOptions) (query.Iterator,
 	// Retrieve measurements from shard. Filter if condition specified.
 	//
 	// FGA is currently not supported when retrieving field keys.
-	names, err := (IndexSet{sh.index}).MeasurementNamesByExpr(query.OpenAuthorizer, opt.Condition)
+	indexSet := IndexSet{Indexes: []Index{sh.index}, SeriesFile: sh.sfile}
+	names, err := indexSet.MeasurementNamesByExpr(query.OpenAuthorizer, opt.Condition)
 	if err != nil {
 		return nil, err
 	}
@@ -1721,8 +1724,9 @@ func (itr *fieldKeysIterator) Next() (*query.FloatPoint, error) {
 // NewTagKeysIterator returns a new instance of TagKeysIterator.
 func NewTagKeysIterator(sh *Shard, opt query.IteratorOptions) (query.Iterator, error) {
 	fn := func(name []byte) ([][]byte, error) {
+		indexSet := IndexSet{Indexes: []Index{sh.index}, SeriesFile: sh.sfile}
 		var keys [][]byte
-		if err := (IndexSet{sh.index}).ForEachMeasurementTagKey(name, func(key []byte) error {
+		if err := indexSet.ForEachMeasurementTagKey(name, func(key []byte) error {
 			keys = append(keys, key)
 			return nil
 		}); err != nil {
@@ -1737,8 +1741,9 @@ func NewTagKeysIterator(sh *Shard, opt query.IteratorOptions) (query.Iterator, e
 type measurementKeyFunc func(name []byte) ([][]byte, error)
 
 func newMeasurementKeysIterator(sh *Shard, fn measurementKeyFunc, opt query.IteratorOptions) (*measurementKeysIterator, error) {
+	indexSet := IndexSet{Indexes: []Index{sh.index}, SeriesFile: sh.sfile}
 	itr := &measurementKeysIterator{fn: fn}
-	names, err := (IndexSet{sh.index}).MeasurementNamesByExpr(opt.Authorizer, opt.Condition)
+	names, err := indexSet.MeasurementNamesByExpr(opt.Authorizer, opt.Condition)
 	if err != nil {
 		return nil, err
 	}

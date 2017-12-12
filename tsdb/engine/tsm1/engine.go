@@ -1431,7 +1431,8 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) deleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
-	itr, err := (tsdb.IndexSet{e.index}).MeasurementSeriesByExprIterator(name, nil)
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
 	if err != nil {
 		return err
 	} else if itr == nil {
@@ -2041,7 +2042,8 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := (tsdb.IndexSet{e.index}).TagSets(e.sfile, []byte(measurement), opt)
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -2111,7 +2113,8 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := (tsdb.IndexSet{e.index}).TagSets(e.sfile, []byte(measurement), opt)
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -2125,7 +2128,6 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 
 	// Calculate tag sets and apply SLIMIT/SOFFSET.
 	tagSets = query.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
-
 	itrs := make([]query.Iterator, 0, len(tagSets))
 	if err := func() error {
 		for _, t := range tagSets {
@@ -2573,7 +2575,8 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 	}
 
 	// Determine all of the tag sets for this query.
-	tagSets, err := (tsdb.IndexSet{e.index}).TagSets(e.sfile, []byte(measurement), opt)
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
 	if err != nil {
 		return query.IteratorCost{}, err
 	}

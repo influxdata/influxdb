@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/slices"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -35,8 +34,9 @@ func init() {
 		DefaultPartitionN = uint64(i)
 	}
 
-	tsdb.RegisterIndex(IndexName, func(_ uint64, _, path string, sfile *tsdb.SeriesFile, _ tsdb.EngineOptions) tsdb.Index {
+	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, sfile *tsdb.SeriesFile, _ tsdb.EngineOptions) tsdb.Index {
 		idx := NewIndex(sfile, WithPath(path))
+		idx.database = db
 		return idx
 	})
 }
@@ -686,7 +686,7 @@ func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
 }
 
 // TagValueIterator returns an iterator for all values across a single key.
-func (i *Index) TagValueIterator(auth query.Authorizer, name, key []byte) (tsdb.TagValueIterator, error) {
+func (i *Index) TagValueIterator(name, key []byte) (tsdb.TagValueIterator, error) {
 	a := make([]tsdb.TagValueIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
 		itr := p.TagValueIterator(name, key)

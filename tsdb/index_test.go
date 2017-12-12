@@ -105,7 +105,7 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 			t.Run("no authorization", func(t *testing.T) {
 				for _, example := range examples {
 					t.Run(example.name, func(t *testing.T) {
-						names, err := tsdb.IndexSet([]tsdb.Index{indexes[idx]}).MeasurementNamesByExpr(nil, example.expr)
+						names, err := indexes[idx].IndexSet().MeasurementNamesByExpr(nil, example.expr)
 						if err != nil {
 							t.Fatal(err)
 						} else if !reflect.DeepEqual(names, example.expected) {
@@ -118,7 +118,7 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 			t.Run("with authorization", func(t *testing.T) {
 				for _, example := range authExamples {
 					t.Run(example.name, func(t *testing.T) {
-						names, err := tsdb.IndexSet([]tsdb.Index{indexes[idx]}).MeasurementNamesByExpr(authorizer, example.expr)
+						names, err := indexes[idx].IndexSet().MeasurementNamesByExpr(authorizer, example.expr)
 						if err != nil {
 							t.Fatal(err)
 						} else if !reflect.DeepEqual(names, example.expected) {
@@ -167,6 +167,10 @@ func MustNewIndex(index string) *Index {
 		sfile:    sfile,
 	}
 	return idx
+}
+
+func (idx *Index) IndexSet() *tsdb.IndexSet {
+	return &tsdb.IndexSet{Indexes: []tsdb.Index{idx.Index}, SeriesFile: idx.sfile}
 }
 
 func (idx *Index) AddSeries(name string, tags map[string]string) error {

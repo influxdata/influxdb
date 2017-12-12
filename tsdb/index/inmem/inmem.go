@@ -824,7 +824,11 @@ func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
 	return tsdb.NewTagKeySliceIterator(a), nil
 }
 
-func (i *Index) TagValueIterator(auth query.Authorizer, name, key []byte) (tsdb.TagValueIterator, error) {
+// TagValueIterator provides an iterator over all the tag values belonging to
+// series with the provided measurement name and tag key.
+//
+// TagValueIterator does not currently support authorization.
+func (i *Index) TagValueIterator(name, key []byte) (tsdb.TagValueIterator, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -832,7 +836,7 @@ func (i *Index) TagValueIterator(auth query.Authorizer, name, key []byte) (tsdb.
 	if m == nil {
 		return nil, nil
 	}
-	values := m.TagValues(auth, string(key))
+	values := m.TagValues(nil, string(key))
 	sort.Strings(values)
 
 	a := make([][]byte, len(values))
