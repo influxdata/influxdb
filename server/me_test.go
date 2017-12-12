@@ -169,8 +169,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","defaultRole":"viewer","name":"Default","public":true}}
-`,
+			wantBody:        `{"name":"me","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`, // This is kind of a wierd state, but I think it makes sense.
 		},
 		{
 			name: "Existing user - organization doesn't exist",
@@ -652,7 +651,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","public":true,"defaultRole":"admin"},{"id":"1337","name":"The ShillBillThrilliettas","public":true}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ShillBillThrilliettas","public":true}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -727,7 +726,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","public":true,"defaultRole":"editor"},{"id":"1337","name":"The ThrillShilliettos","public":false}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"1337","name":"The ThrillShilliettos","public":false}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
