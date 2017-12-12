@@ -82,7 +82,19 @@ export default function rules(state = {}, action) {
       _.forEach(alerts, h => {
         if (h.enabled) {
           if (h.type === 'post') {
+            if (h.url === '') {
+              return
+            }
             h.headers = {[h.headerKey]: h.headerValue}
+          }
+          if (h.type === 'log' && h.filePath === '') {
+            return
+          }
+          if (h.type === 'tcp' && h.address === '') {
+            return
+          }
+          if (h.type === 'exec' && h.command.length === 0) {
+            return
           }
           const existing = _.get(alertNodesByType, h.type, [])
           alertNodesByType[h.type] = [
