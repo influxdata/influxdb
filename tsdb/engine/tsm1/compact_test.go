@@ -1457,6 +1457,22 @@ func TestDefaultPlanner_PlanLevel_SmallestCompactionStep(t *testing.T) {
 			Path: "08-01.tsm1",
 			Size: 1 * 1024 * 1024,
 		},
+		tsm1.FileStat{
+			Path: "09-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "10-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "11-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "12-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -1467,7 +1483,7 @@ func TestDefaultPlanner_PlanLevel_SmallestCompactionStep(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles := []tsm1.FileStat{data[4], data[5], data[6], data[7]}
+	expFiles := []tsm1.FileStat{data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11]}
 	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
@@ -1522,55 +1538,6 @@ func TestDefaultPlanner_PlanLevel_SplitFile(t *testing.T) {
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4]}
 	tsm := cp.PlanLevel(3)
-	if exp, got := len(expFiles), len(tsm[0]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles {
-		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-}
-
-func TestDefaultPlanner_PlanLevel_IsolatedLowLevel(t *testing.T) {
-	data := []tsm1.FileStat{
-		tsm1.FileStat{
-			Path: "01-03.tsm1",
-			Size: 251 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "02-03.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "03-01.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "04-01.tsm1",
-			Size: 10 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "05-02.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "06-01.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-	}
-
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
-
-	expFiles := []tsm1.FileStat{data[2], data[3]}
-	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
@@ -1798,8 +1765,7 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
-	expFiles2 := []tsm1.FileStat{data[4], data[5], data[6], data[7]}
+	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]}
 
 	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
@@ -1808,16 +1774,6 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 
 	for i, p := range expFiles1 {
 		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-
-	if exp, got := len(expFiles2), len(tsm[1]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles2 {
-		if got, exp := tsm[1][i], p.Path; got != exp {
 			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 		}
 	}
@@ -1865,6 +1821,30 @@ func TestDefaultPlanner_PlanLevel_InUse(t *testing.T) {
 			Path: "10-01.tsm1",
 			Size: 1 * 1024 * 1024,
 		},
+		tsm1.FileStat{
+			Path: "11-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "12-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "13-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "14-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "15-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "16-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -1875,8 +1855,8 @@ func TestDefaultPlanner_PlanLevel_InUse(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
-	expFiles2 := []tsm1.FileStat{data[4], data[5], data[6], data[7]}
+	expFiles1 := data[0:8]
+	expFiles2 := data[8:16]
 
 	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
