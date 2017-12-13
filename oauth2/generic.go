@@ -7,16 +7,16 @@ import (
 	"net/http"
 	"strings"
 
+	gojwt "github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/chronograf"
 	"golang.org/x/oauth2"
-	gojwt "github.com/dgrijalva/jwt-go"
 )
 
 // Provider interface with optional methods
 type ExtendedProvider interface {
-    Provider
-    // get PrincipalID from id_token 
-    PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error)
+	Provider
+	// get PrincipalID from id_token
+	PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error)
 }
 
 var _ ExtendedProvider = &Generic{}
@@ -170,8 +170,8 @@ func ofDomain(requiredDomains []string, email string) bool {
 
 // verify optional id_token and extract email address of the user
 func (g *Generic) PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error) {
-    if id, ok := claims[g.APIKey].(string); ok {
-        return id, nil
-    }
-    return "", fmt.Errorf("no claim for %s", g.APIKey)
+	if id, ok := claims[g.APIKey].(string); ok {
+		return id, nil
+	}
+	return "", fmt.Errorf("no claim for %s", g.APIKey)
 }

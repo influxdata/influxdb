@@ -56,7 +56,7 @@ type Server struct {
 	BoltPath                string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
 	CannedPath              string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
 	TokenSecret             string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
-    JwksUrl                 string        `long:"jwks-url" description:"URL that returns OpenID Key Discovery JWKS document." env:"JWKS_URL"`
+	JwksUrl                 string        `long:"jwks-url" description:"URL that returns OpenID Key Discovery JWKS document." env:"JWKS_URL"`
 	AuthDuration            time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 	SuperAdminFirstUserOnly bool          `long:"superadmin-first-user-only" description:"All new users will not be given the SuperAdmin status" env:"SUPERADMIN_FIRST_USER_ONLY"`
 

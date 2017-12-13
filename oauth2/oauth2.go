@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/oauth2"
 	gojwt "github.com/dgrijalva/jwt-go"
+	"golang.org/x/oauth2"
 )
 
 type principalKey string
