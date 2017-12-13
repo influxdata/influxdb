@@ -22,7 +22,7 @@ func TestConfig_Get(t *testing.T) {
 			wants: wants{
 				config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
-						SuperAdminFirstUserOnly: false,
+						SuperAdminNewUsers: true,
 					},
 				},
 			},
@@ -68,14 +68,14 @@ func TestConfig_Update(t *testing.T) {
 			args: args{
 				config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
-						SuperAdminFirstUserOnly: true,
+						SuperAdminNewUsers: false,
 					},
 				},
 			},
 			wants: wants{
 				config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
-						SuperAdminFirstUserOnly: true,
+						SuperAdminNewUsers: false,
 					},
 				},
 			},

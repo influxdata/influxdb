@@ -34,9 +34,9 @@ class OrganizationsTable extends Component {
     this.setState({isCreatingOrganization: false})
   }
 
-  handleChangeAuthConfigSuperAdminFirstUserOnly = superAdminFirstUserOnly => {
+  handleChangeAuthConfigSuperAdminNewUsers = superAdminNewUsers => {
     const {onUpdateAuthConfig} = this.props
-    onUpdateAuthConfig({superAdminFirstUserOnly})
+    onUpdateAuthConfig({superAdminNewUsers})
   }
 
   render() {
@@ -47,7 +47,7 @@ class OrganizationsTable extends Component {
       onChooseDefaultRole,
       onTogglePublic,
       currentOrganization,
-      authConfig: {superAdminFirstUserOnly},
+      authConfig: {superAdminNewUsers},
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -111,13 +111,11 @@ class OrganizationsTable extends Component {
                   <td style={{width: 70}}>
                     <SlideToggle
                       size="xs"
-                      active={superAdminFirstUserOnly}
-                      onToggle={
-                        this.handleChangeAuthConfigSuperAdminFirstUserOnly
-                      }
+                      active={superAdminNewUsers}
+                      onToggle={this.handleChangeAuthConfigSuperAdminNewUsers}
                     />
                   </td>
-                  <td>Make new Users SuperAdmins by default?</td>
+                  <td>All new users are SuperAdmins</td>
                 </tr>
               </tbody>
             </table>
@@ -148,7 +146,7 @@ OrganizationsTable.propTypes = {
   onChooseDefaultRole: func.isRequired,
   onUpdateAuthConfig: func.isRequired,
   authConfig: shape({
-    superAdminFirstUserOnly: bool,
+    superAdminNewUsers: bool,
   }),
 }
 export default OrganizationsTable

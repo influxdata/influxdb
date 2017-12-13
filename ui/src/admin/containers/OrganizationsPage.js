@@ -117,7 +117,7 @@ OrganizationsPage.propTypes = {
     id: string.isRequired,
   }),
   authConfig: shape({
-    superAdminFirstUserOnly: bool,
+    superAdminNewUsers: bool,
   }),
 }
 

@@ -324,7 +324,7 @@ func (s *Service) newUsersAreSuperAdmin() bool {
 	if err != nil {
 		return false
 	}
-	return !cfg.Auth.SuperAdminFirstUserOnly
+	return cfg.Auth.SuperAdminNewUsers
 }
 
 func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {

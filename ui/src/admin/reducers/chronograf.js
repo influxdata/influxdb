@@ -4,7 +4,7 @@ const initialState = {
   users: [],
   organizations: [],
   authConfig: {
-    superAdminFirstUserOnly: true,
+    superAdminNewUsers: true,
   },
 }
 

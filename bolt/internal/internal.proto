@@ -169,7 +169,7 @@ message Config {
 }
 
 message AuthConfig {
-	bool SuperAdminFirstUserOnly   = 1; // SuperAdminFirstUserOnly configuration option that specifies which users will auto become super admin
+	bool SuperAdminNewUsers   = 1; // SuperAdminNewUsers configuration option that specifies which users will auto become super admin
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

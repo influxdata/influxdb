@@ -34,7 +34,7 @@ func TestConfig(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -42,7 +42,7 @@ func TestConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"auth": {"superAdminFirstUserOnly": true}, "links": {"self": "/chronograf/v1/config"}}`,
+				body:        `{"auth": {"superAdminNewUsers": false}, "links": {"self": "/chronograf/v1/config"}}`,
 			},
 		},
 	}
@@ -103,7 +103,7 @@ func TestConfigSection(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -114,7 +114,7 @@ func TestConfigSection(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"superAdminFirstUserOnly": true, "links": {"self": "/chronograf/v1/config/auth"}}`,
+				body:        `{"superAdminNewUsers": false, "links": {"self": "/chronograf/v1/config/auth"}}`,
 			},
 		},
 		{
@@ -123,7 +123,7 @@ func TestConfigSection(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -204,7 +204,7 @@ func TestReplaceConfigSection(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -212,13 +212,13 @@ func TestReplaceConfigSection(t *testing.T) {
 			args: args{
 				section: "auth",
 				payload: chronograf.AuthConfig{
-					SuperAdminFirstUserOnly: false,
+					SuperAdminNewUsers: true,
 				},
 			},
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"superAdminFirstUserOnly": false, "links": {"self": "/chronograf/v1/config/auth"}}`,
+				body:        `{"superAdminNewUsers": true, "links": {"self": "/chronograf/v1/config/auth"}}`,
 			},
 		},
 		{
@@ -227,7 +227,7 @@ func TestReplaceConfigSection(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},

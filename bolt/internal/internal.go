@@ -597,7 +597,7 @@ func UnmarshalOrganizationPB(data []byte, o *Organization) error {
 func MarshalConfig(c *chronograf.Config) ([]byte, error) {
 	return MarshalConfigPB(&Config{
 		Auth: &AuthConfig{
-			SuperAdminFirstUserOnly: c.Auth.SuperAdminFirstUserOnly,
+			SuperAdminNewUsers: c.Auth.SuperAdminNewUsers,
 		},
 	})
 }
@@ -616,7 +616,7 @@ func UnmarshalConfig(data []byte, c *chronograf.Config) error {
 	if pb.Auth == nil {
 		return fmt.Errorf("Auth config is nil")
 	}
-	c.Auth.SuperAdminFirstUserOnly = pb.Auth.SuperAdminFirstUserOnly
+	c.Auth.SuperAdminNewUsers = pb.Auth.SuperAdminNewUsers
 
 	return nil
 }

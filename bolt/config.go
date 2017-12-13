@@ -32,7 +32,11 @@ func (s *ConfigStore) Migrate(ctx context.Context) error {
 }
 
 func (s *ConfigStore) Initialize(ctx context.Context) error {
-	var cfg chronograf.Config
+	cfg := chronograf.Config{
+		Auth: chronograf.AuthConfig{
+			SuperAdminNewUsers: true,
+		},
+	}
 	return s.Update(ctx, &cfg)
 }
 

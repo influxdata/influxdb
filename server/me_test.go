@@ -52,7 +52,7 @@ func TestService_Me(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -246,7 +246,7 @@ func TestService_Me(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: false,
+							SuperAdminNewUsers: true,
 						},
 					},
 				},
@@ -308,7 +308,7 @@ func TestService_Me(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -370,7 +370,7 @@ func TestService_Me(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -431,7 +431,7 @@ func TestService_Me(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -486,7 +486,7 @@ func TestService_Me(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
@@ -508,7 +508,7 @@ func TestService_Me(t *testing.T) {
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
-							SuperAdminFirstUserOnly: true,
+							SuperAdminNewUsers: false,
 						},
 					},
 				},
