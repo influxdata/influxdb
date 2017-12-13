@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"path"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -16,11 +17,12 @@ type Client struct {
 	Now       func() time.Time
 	LayoutIDs chronograf.ID
 
-	SourcesStore    *SourcesStore
-	ServersStore    *ServersStore
-	LayoutStore     *LayoutStore
-	UsersStore      *UsersStore
-	DashboardsStore *DashboardsStore
+	SourcesStore       *SourcesStore
+	ServersStore       *ServersStore
+	LayoutsStore       *LayoutsStore
+	DashboardsStore    *DashboardsStore
+	UsersStore         *UsersStore
+	OrganizationsStore *OrganizationsStore
 }
 
 // NewClient initializes all stores
@@ -28,8 +30,7 @@ func NewClient() *Client {
 	c := &Client{Now: time.Now}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
-	c.UsersStore = &UsersStore{client: c}
-	c.LayoutStore = &LayoutStore{
+	c.LayoutsStore = &LayoutsStore{
 		client: c,
 		IDs:    &uuid.V4{},
 	}
@@ -37,6 +38,8 @@ func NewClient() *Client {
 		client: c,
 		IDs:    &uuid.V4{},
 	}
+	c.UsersStore = &UsersStore{client: c}
+	c.OrganizationsStore = &OrganizationsStore{client: c}
 	return c
 }
 
@@ -50,6 +53,10 @@ func (c *Client) Open(ctx context.Context) error {
 	c.db = db
 
 	if err := c.db.Update(func(tx *bolt.Tx) error {
+		// Always create Organizations bucket.
+		if _, err := tx.CreateBucketIfNotExists(OrganizationsBucket); err != nil {
+			return err
+		}
 		// Always create Sources bucket.
 		if _, err := tx.CreateBucketIfNotExists(SourcesBucket); err != nil {
 			return err
@@ -59,11 +66,11 @@ func (c *Client) Open(ctx context.Context) error {
 			return err
 		}
 		// Always create Layouts bucket.
-		if _, err := tx.CreateBucketIfNotExists(LayoutBucket); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(LayoutsBucket); err != nil {
 			return err
 		}
 		// Always create Dashboards bucket.
-		if _, err := tx.CreateBucketIfNotExists(DashboardBucket); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(DashboardsBucket); err != nil {
 			return err
 		}
 		// Always create Users bucket.
@@ -76,7 +83,23 @@ func (c *Client) Open(ctx context.Context) error {
 	}
 
 	// Runtime migrations
-	return c.DashboardsStore.Migrate(ctx)
+	if err := c.OrganizationsStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.SourcesStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.ServersStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.LayoutsStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.DashboardsStore.Migrate(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Close the connection to the bolt database
@@ -85,4 +108,8 @@ func (c *Client) Close() error {
 		return c.db.Close()
 	}
 	return nil
+}
+
+func bucket(b []byte, org string) []byte {
+	return []byte(path.Join(string(b), org))
 }

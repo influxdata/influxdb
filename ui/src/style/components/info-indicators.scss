@@ -1,7 +1,8 @@
 /*
-    Source Indicator component styles
-    ----------------------------------------------------------------
+    Source & Role Indicator component styles
+    ----------------------------------------------------------------------------
 */
+.role-indicator,
 .source-indicator {
   @include no-user-select();
   display: inline-block;

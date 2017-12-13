@@ -174,7 +174,7 @@ func (s *Service) DashboardCells(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	e, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	e, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -194,7 +194,7 @@ func (s *Service) NewDashboardCell(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -220,7 +220,7 @@ func (s *Service) NewDashboardCell(w http.ResponseWriter, r *http.Request) {
 	cell.ID = cid
 
 	dash.Cells = append(dash.Cells, cell)
-	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, dash); err != nil {
 		msg := fmt.Sprintf("Error adding cell %s to dashboard %d: %v", cid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -244,7 +244,7 @@ func (s *Service) DashboardCellID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -270,7 +270,7 @@ func (s *Service) RemoveDashboardCell(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -290,7 +290,7 @@ func (s *Service) RemoveDashboardCell(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dash.Cells = append(dash.Cells[:cellid], dash.Cells[cellid+1:]...)
-	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, dash); err != nil {
 		msg := fmt.Sprintf("Error removing cell %s from dashboard %d: %v", cid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -307,7 +307,7 @@ func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -339,7 +339,7 @@ func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 	cell.ID = cid
 
 	dash.Cells[cellid] = cell
-	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, dash); err != nil {
 		msg := fmt.Sprintf("Error updating cell %s in dashboard %d: %v", cid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return

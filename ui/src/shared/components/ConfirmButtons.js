@@ -1,6 +1,8 @@
 import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 
+import OnClickOutside from 'shared/components/OnClickOutside'
+
 class ConfirmButtons extends Component {
   constructor(props) {
     super(props)
@@ -14,31 +16,54 @@ class ConfirmButtons extends Component {
     this.props.onCancel(item)
   }
 
-  render() {
-    const {item, buttonSize, isDisabled} = this.props
+  handleClickOutside = () => {
+    this.props.onClickOutside(this.props.item)
+  }
 
-    return (
-      <div className="confirm-buttons">
-        <button
-          className={classnames('btn btn-info btn-square', {
-            [buttonSize]: buttonSize,
-          })}
-          onClick={this.handleCancel(item)}
-        >
-          <span className="icon remove" />
-        </button>
-        <button
-          className={classnames('btn btn-success btn-square', {
-            [buttonSize]: buttonSize,
-          })}
-          disabled={isDisabled}
-          title={isDisabled ? 'Cannot Save' : 'Save'}
-          onClick={this.handleConfirm(item)}
-        >
-          <span className="icon checkmark" />
-        </button>
-      </div>
-    )
+  render() {
+    const {item, buttonSize, isDisabled, confirmLeft} = this.props
+
+    return confirmLeft
+      ? <div className="confirm-buttons">
+          <button
+            className={classnames('btn btn-success btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            disabled={isDisabled}
+            title={isDisabled ? 'Cannot Save' : 'Save'}
+            onClick={this.handleConfirm(item)}
+          >
+            <span className="icon checkmark" />
+          </button>
+          <button
+            className={classnames('btn btn-info btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            onClick={this.handleCancel(item)}
+          >
+            <span className="icon remove" />
+          </button>
+        </div>
+      : <div className="confirm-buttons">
+          <button
+            className={classnames('btn btn-info btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            onClick={this.handleCancel(item)}
+          >
+            <span className="icon remove" />
+          </button>
+          <button
+            className={classnames('btn btn-success btn-square', {
+              [buttonSize]: buttonSize,
+            })}
+            disabled={isDisabled}
+            title={isDisabled ? 'Cannot Save' : 'Save'}
+            onClick={this.handleConfirm(item)}
+          >
+            <span className="icon checkmark" />
+          </button>
+        </div>
   }
 }
 
@@ -50,9 +75,12 @@ ConfirmButtons.propTypes = {
   onCancel: func.isRequired,
   buttonSize: string,
   isDisabled: bool,
+  onClickOutside: func,
+  confirmLeft: bool,
 }
 
 ConfirmButtons.defaultProps = {
   buttonSize: 'btn-sm',
+  onClickOutside: () => {},
 }
-export default ConfirmButtons
+export default OnClickOutside(ConfirmButtons)

@@ -1,5 +1,8 @@
 import React, {PropTypes} from 'react'
 import {Link, withRouter} from 'react-router'
+import {connect} from 'react-redux'
+
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
 import Dropdown from 'shared/components/Dropdown'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
@@ -13,12 +16,14 @@ const kapacitorDropdown = (
 ) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
-      <Link
-        to={`/sources/${source.id}/kapacitors/new`}
-        className="btn btn-xs btn-default"
-      >
-        <span className="icon plus" /> Add Config
-      </Link>
+      <Authorized requiredRole={EDITOR_ROLE}>
+        <Link
+          to={`/sources/${source.id}/kapacitors/new`}
+          className="btn btn-xs btn-default"
+        >
+          <span className="icon plus" /> Add Config
+        </Link>
+      </Authorized>
     )
   }
   const kapacitorItems = kapacitors.map(k => {
@@ -38,36 +43,47 @@ const kapacitorDropdown = (
     selected = kapacitorItems[0].text
   }
 
+  const unauthorizedDropdown = (
+    <div className="source-table--kapacitor__view-only">
+      {selected}
+    </div>
+  )
+
   return (
-    <Dropdown
-      className="dropdown-260"
-      buttonColor="btn-primary"
-      buttonSize="btn-xs"
-      items={kapacitorItems}
-      onChoose={setActiveKapacitor}
-      addNew={{
-        url: `/sources/${source.id}/kapacitors/new`,
-        text: 'Add Kapacitor',
-      }}
-      actions={[
-        {
-          icon: 'pencil',
-          text: 'edit',
-          handler: item => {
-            router.push(`${item.resource}/edit`)
+    <Authorized
+      requiredRole={EDITOR_ROLE}
+      replaceWithIfNotAuthorized={unauthorizedDropdown}
+    >
+      <Dropdown
+        className="dropdown-260"
+        buttonColor="btn-primary"
+        buttonSize="btn-xs"
+        items={kapacitorItems}
+        onChoose={setActiveKapacitor}
+        addNew={{
+          url: `/sources/${source.id}/kapacitors/new`,
+          text: 'Add Kapacitor',
+        }}
+        actions={[
+          {
+            icon: 'pencil',
+            text: 'edit',
+            handler: item => {
+              router.push(`${item.resource}/edit`)
+            },
           },
-        },
-        {
-          icon: 'trash',
-          text: 'delete',
-          handler: item => {
-            handleDeleteKapacitor(item.kapacitor)
+          {
+            icon: 'trash',
+            text: 'delete',
+            handler: item => {
+              handleDeleteKapacitor(item.kapacitor)
+            },
+            confirmable: true,
           },
-          confirmable: true,
-        },
-      ]}
-      selected={selected}
-    />
+        ]}
+        selected={selected}
+      />
+    </Authorized>
   )
 }
 
@@ -79,18 +95,28 @@ const InfluxTable = ({
   setActiveKapacitor,
   handleDeleteSource,
   handleDeleteKapacitor,
+  isUsingAuth,
+  me,
 }) =>
   <div className="row">
     <div className="col-md-12">
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">InfluxDB Sources</h2>
-          <Link
-            to={`/sources/${source.id}/manage-sources/new`}
-            className="btn btn-sm btn-primary"
-          >
-            <span className="icon plus" /> Add Source
-          </Link>
+          <h2 className="panel-title">
+            {isUsingAuth
+              ? <span>
+                  InfluxDB Sources for <em>{me.currentOrganization.name}</em>
+                </span>
+              : <span>InfluxDB Sources</span>}
+          </h2>
+          <Authorized requiredRole={EDITOR_ROLE}>
+            <Link
+              to={`/sources/${source.id}/manage-sources/new`}
+              className="btn btn-sm btn-primary"
+            >
+              <span className="icon plus" /> Add Source
+            </Link>
+          </Authorized>
         </div>
         <div className="panel-body">
           <table className="table v-center margin-bottom-zero table-highlight">
@@ -131,28 +157,41 @@ const InfluxTable = ({
                     </td>
                     <td>
                       <h5 className="margin-zero">
-                        <Link
-                          to={`${location.pathname}/${s.id}/edit`}
-                          className={s.id === source.id ? 'link-success' : null}
+                        <Authorized
+                          requiredRole={EDITOR_ROLE}
+                          replaceWithIfNotAuthorized={
+                            <strong>
+                              {s.name}
+                            </strong>
+                          }
                         >
-                          <strong>
-                            {s.name}
-                          </strong>
-                          {s.default ? ' (Default)' : null}
-                        </Link>
+                          <Link
+                            to={`${location.pathname}/${s.id}/edit`}
+                            className={
+                              s.id === source.id ? 'link-success' : null
+                            }
+                          >
+                            <strong>
+                              {s.name}
+                            </strong>
+                            {s.default ? ' (Default)' : null}
+                          </Link>
+                        </Authorized>
                       </h5>
                       <span>
                         {s.url}
                       </span>
                     </td>
                     <td className="text-right">
-                      <a
-                        className="btn btn-xs btn-danger table--show-on-row-hover"
-                        href="#"
-                        onClick={handleDeleteSource(s)}
-                      >
-                        Delete Source
-                      </a>
+                      <Authorized requiredRole={EDITOR_ROLE}>
+                        <a
+                          className="btn btn-xs btn-danger table--show-on-row-hover"
+                          href="#"
+                          onClick={handleDeleteSource(s)}
+                        >
+                          Delete Source
+                        </a>
+                      </Authorized>
                     </td>
                     <td className="source-table--kapacitor">
                       {kapacitorDropdown(
@@ -173,7 +212,7 @@ const InfluxTable = ({
     </div>
   </div>
 
-const {array, func, shape, string} = PropTypes
+const {array, bool, func, shape, string} = PropTypes
 
 InfluxTable.propTypes = {
   handleDeleteSource: func.isRequired,
@@ -193,6 +232,15 @@ InfluxTable.propTypes = {
   sources: array.isRequired,
   setActiveKapacitor: func.isRequired,
   handleDeleteKapacitor: func.isRequired,
+  me: shape({
+    currentOrganization: shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    }),
+  }),
+  isUsingAuth: bool,
 }
 
-export default withRouter(InfluxTable)
+const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
+
+export default connect(mapStateToProps)(withRouter(InfluxTable))

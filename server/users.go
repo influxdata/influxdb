@@ -5,313 +5,315 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
+	"sort"
+	"strconv"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/roles"
 )
 
-// NewSourceUser adds user to source
-func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
+type userRequest struct {
+	ID         uint64            `json:"id,string"`
+	Name       string            `json:"name"`
+	Provider   string            `json:"provider"`
+	Scheme     string            `json:"scheme"`
+	SuperAdmin bool              `json:"superAdmin"`
+	Roles      []chronograf.Role `json:"roles"`
+}
+
+func (r *userRequest) ValidCreate() error {
+	if r.Name == "" {
+		return fmt.Errorf("Name required on Chronograf User request body")
+	}
+	if r.Provider == "" {
+		return fmt.Errorf("Provider required on Chronograf User request body")
+	}
+	if r.Scheme == "" {
+		return fmt.Errorf("Scheme required on Chronograf User request body")
+	}
+
+	// TODO: This Scheme value is hard-coded temporarily since we only currently
+	// support OAuth2. This hard-coding should be removed whenever we add
+	// support for other authentication schemes.
+	r.Scheme = "oauth2"
+	return r.ValidRoles()
+}
+
+func (r *userRequest) ValidUpdate() error {
+	if len(r.Roles) == 0 {
+		return fmt.Errorf("No Roles to update")
+	}
+	return r.ValidRoles()
+}
+
+func (r *userRequest) ValidRoles() error {
+	orgs := map[string]bool{}
+	if len(r.Roles) > 0 {
+		for _, r := range r.Roles {
+			if r.Organization == "" {
+				return fmt.Errorf("no organization was provided")
+			}
+			if _, err := parseOrganizationID(r.Organization); err != nil {
+				return fmt.Errorf("failed to parse organization ID: %v", err)
+			}
+			if _, ok := orgs[r.Organization]; ok {
+				return fmt.Errorf("duplicate organization %q in roles", r.Organization)
+			}
+			orgs[r.Organization] = true
+			switch r.Name {
+			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
+				continue
+			default:
+				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', and 'admin'", r.Name)
+			}
+		}
+	}
+	return nil
+}
+
+type userResponse struct {
+	Links      selfLinks         `json:"links"`
+	ID         uint64            `json:"id,string"`
+	Name       string            `json:"name"`
+	Provider   string            `json:"provider"`
+	Scheme     string            `json:"scheme"`
+	SuperAdmin bool              `json:"superAdmin"`
+	Roles      []chronograf.Role `json:"roles"`
+}
+
+func newUserResponse(u *chronograf.User) *userResponse {
+	// This ensures that any user response with no roles returns an empty array instead of
+	// null when marshaled into JSON. That way, JavaScript doesn't need any guard on the
+	// key existing and it can simply be iterated over.
+	if u.Roles == nil {
+		u.Roles = []chronograf.Role{}
+	}
+	return &userResponse{
+		ID:         u.ID,
+		Name:       u.Name,
+		Provider:   u.Provider,
+		Scheme:     u.Scheme,
+		Roles:      u.Roles,
+		SuperAdmin: u.SuperAdmin,
+		Links: selfLinks{
+			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
+		},
+	}
+}
+
+type usersResponse struct {
+	Links selfLinks       `json:"links"`
+	Users []*userResponse `json:"users"`
+}
+
+func newUsersResponse(users []chronograf.User) *usersResponse {
+	usersResp := make([]*userResponse, len(users))
+	for i, user := range users {
+		usersResp[i] = newUserResponse(&user)
+	}
+	sort.Slice(usersResp, func(i, j int) bool {
+		return usersResp[i].ID < usersResp[j].ID
+	})
+	return &usersResponse{
+		Users: usersResp,
+		Links: selfLinks{
+			Self: "/chronograf/v1/users",
+		},
+	}
+}
+
+// UserID retrieves a Chronograf user with ID from store
+func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	idStr := httprouter.GetParamFromContext(ctx, "id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
+		return
+	}
+	user, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
+	}
+
+	res := newUserResponse(user)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+// NewUser adds a new Chronograf user to store
+func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	var req userRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, h.Logger)
+		invalidJSON(w, s.Logger)
 		return
 	}
 
 	if err := req.ValidCreate(); err != nil {
-		invalidData(w, err, h.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 
 	ctx := r.Context()
-	srcID, ts, err := h.sourcesSeries(ctx, w, r)
-	if err != nil {
-		return
-	}
-
-	store := ts.Users(ctx)
 	user := &chronograf.User{
-		Name:        req.Username,
-		Passwd:      req.Password,
-		Permissions: req.Permissions,
-		Roles:       req.Roles,
+		Name:     req.Name,
+		Provider: req.Provider,
+		Scheme:   req.Scheme,
+		Roles:    req.Roles,
 	}
 
-	res, err := store.Add(ctx, user)
-	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+	if err := setSuperAdmin(ctx, req, user); err != nil {
+		Error(w, http.StatusUnauthorized, err.Error(), s.Logger)
 		return
 	}
 
+	res, err := s.Store.Users(ctx).Add(ctx, user)
 	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
 
-	su := newUserResponse(srcID, res.Name).WithPermissions(res.Permissions)
-	if _, hasRoles := h.hasRoles(ctx, ts); hasRoles {
-		su.WithRoles(srcID, res.Roles)
-	}
-	w.Header().Add("Location", su.Links.Self)
-	encodeJSON(w, http.StatusCreated, su, h.Logger)
+	cu := newUserResponse(res)
+	location(w, cu.Links.Self)
+	encodeJSON(w, http.StatusCreated, cu, s.Logger)
 }
 
-// SourceUsers retrieves all users from source.
-func (h *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
+// RemoveUser deletes a Chronograf user from store
+func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	srcID, ts, err := h.sourcesSeries(ctx, w, r)
+	idStr := httprouter.GetParamFromContext(ctx, "id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
+		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
 		return
 	}
 
-	store := ts.Users(ctx)
-	users, err := store.All(ctx)
+	u, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
 	}
-
-	_, hasRoles := h.hasRoles(ctx, ts)
-	ur := make([]userResponse, len(users))
-	for i, u := range users {
-		usr := newUserResponse(srcID, u.Name).WithPermissions(u.Permissions)
-		if hasRoles {
-			usr.WithRoles(srcID, u.Roles)
-		}
-		ur[i] = *usr
-	}
-
-	res := usersResponse{
-		Users: ur,
-	}
-
-	encodeJSON(w, http.StatusOK, res, h.Logger)
-}
-
-// SourceUserID retrieves a user with ID from store.
-func (h *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	uid := httprouter.GetParamFromContext(ctx, "uid")
-
-	srcID, ts, err := h.sourcesSeries(ctx, w, r)
-	if err != nil {
+	ctxUser, ok := hasUserContext(ctx)
+	if !ok {
+		Error(w, http.StatusBadRequest, "failed to retrieve user from context", s.Logger)
 		return
 	}
-	store := ts.Users(ctx)
-	u, err := store.Get(ctx, uid)
-	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+	if ctxUser.ID == u.ID {
+		Error(w, http.StatusForbidden, "user cannot delete themselves", s.Logger)
 		return
 	}
-
-	res := newUserResponse(srcID, u.Name).WithPermissions(u.Permissions)
-	if _, hasRoles := h.hasRoles(ctx, ts); hasRoles {
-		res.WithRoles(srcID, u.Roles)
-	}
-	encodeJSON(w, http.StatusOK, res, h.Logger)
-}
-
-// RemoveSourceUser removes the user from the InfluxDB source
-func (h *Service) RemoveSourceUser(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	uid := httprouter.GetParamFromContext(ctx, "uid")
-
-	_, store, err := h.sourceUsersStore(ctx, w, r)
-	if err != nil {
-		return
-	}
-
-	if err := store.Delete(ctx, &chronograf.User{Name: uid}); err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+	if err := s.Store.Users(ctx).Delete(ctx, u); err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateSourceUser changes the password or permissions of a source user
-func (h *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
+// UpdateUser updates a Chronograf user in store
+func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	var req userRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, h.Logger)
-		return
-	}
-	if err := req.ValidUpdate(); err != nil {
-		invalidData(w, err, h.Logger)
+		invalidJSON(w, s.Logger)
 		return
 	}
 
 	ctx := r.Context()
-	uid := httprouter.GetParamFromContext(ctx, "uid")
-	srcID, ts, err := h.sourcesSeries(ctx, w, r)
+	idStr := httprouter.GetParamFromContext(ctx, "id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
+		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
 		return
 	}
 
-	user := &chronograf.User{
-		Name:        uid,
-		Passwd:      req.Password,
-		Permissions: req.Permissions,
-		Roles:       req.Roles,
-	}
-	store := ts.Users(ctx)
-
-	if err := store.Update(ctx, user); err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+	if err := req.ValidUpdate(); err != nil {
+		invalidData(w, err, s.Logger)
 		return
 	}
 
-	u, err := store.Get(ctx, uid)
+	u, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
 	}
 
-	res := newUserResponse(srcID, u.Name).WithPermissions(u.Permissions)
-	if _, hasRoles := h.hasRoles(ctx, ts); hasRoles {
-		res.WithRoles(srcID, u.Roles)
-	}
-	w.Header().Add("Location", res.Links.Self)
-	encodeJSON(w, http.StatusOK, res, h.Logger)
-}
+	// ValidUpdate should ensure that req.Roles is not nil
+	u.Roles = req.Roles
 
-func (h *Service) sourcesSeries(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, chronograf.TimeSeries, error) {
-	srcID, err := paramID("id", r)
+	// If the request contains a name, it must be the same as the
+	// one on the user. This is particularly useful to the front-end
+	// because they would like to provide the whole user object,
+	// including the name, provider, and scheme in update requests.
+	// But currently, it is not possible to change name, provider, or
+	// scheme via the API.
+	if req.Name != "" && req.Name != u.Name {
+		err := fmt.Errorf("Cannot update Name")
+		invalidData(w, err, s.Logger)
+		return
+	}
+	if req.Provider != "" && req.Provider != u.Provider {
+		err := fmt.Errorf("Cannot update Provider")
+		invalidData(w, err, s.Logger)
+		return
+	}
+	if req.Scheme != "" && req.Scheme != u.Scheme {
+		err := fmt.Errorf("Cannot update Scheme")
+		invalidData(w, err, s.Logger)
+		return
+	}
+
+	if err := setSuperAdmin(ctx, req, u); err != nil {
+		Error(w, http.StatusUnauthorized, err.Error(), s.Logger)
+		return
+	}
+
+	err = s.Store.Users(ctx).Update(ctx, u)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
-		return 0, nil, err
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	cu := newUserResponse(u)
+	location(w, cu.Links.Self)
+	encodeJSON(w, http.StatusOK, cu, s.Logger)
+}
+
+// Users retrieves all Chronograf users from store
+func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	users, err := s.Store.Users(ctx).All(ctx)
 	if err != nil {
-		notFound(w, srcID, h.Logger)
-		return 0, nil, err
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
 	}
 
-	ts, err := h.TimeSeries(src)
-	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
-		Error(w, http.StatusBadRequest, msg, h.Logger)
-		return 0, nil, err
-	}
-
-	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
-		Error(w, http.StatusBadRequest, msg, h.Logger)
-		return 0, nil, err
-	}
-	return srcID, ts, nil
+	res := newUsersResponse(users)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-func (h *Service) sourceUsersStore(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, chronograf.UsersStore, error) {
-	srcID, ts, err := h.sourcesSeries(ctx, w, r)
-	if err != nil {
-		return 0, nil, err
+func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) error {
+	// At a high level, this function checks the following
+	//   1. Is the user making the request a SuperAdmin.
+	//      If they are, allow them to make whatever changes they please.
+	//
+	//   2. Is the user making the request trying to change the SuperAdmin
+	//      status. If so, return an error.
+	//
+	//   3. If none of the above are the case, let the user make whichever
+	//      changes were requested.
+
+	// Only allow users to set SuperAdmin if they have the superadmin context
+	// TODO(desa): Refactor this https://github.com/influxdata/chronograf/issues/2207
+	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+		user.SuperAdmin = req.SuperAdmin
+	} else if !isSuperAdmin && (user.SuperAdmin != req.SuperAdmin) {
+		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
+		// context, return error
+		return fmt.Errorf("User does not have authorization required to set SuperAdmin status")
 	}
 
-	store := ts.Users(ctx)
-	return srcID, store, nil
-}
-
-// hasRoles checks if the influx source has roles or not
-func (h *Service) hasRoles(ctx context.Context, ts chronograf.TimeSeries) (chronograf.RolesStore, bool) {
-	store, err := ts.Roles(ctx)
-	if err != nil {
-		return nil, false
-	}
-	return store, true
-}
-
-type userRequest struct {
-	Username    string                 `json:"name,omitempty"`        // Username for new account
-	Password    string                 `json:"password,omitempty"`    // Password for new account
-	Permissions chronograf.Permissions `json:"permissions,omitempty"` // Optional permissions
-	Roles       []chronograf.Role      `json:"roles,omitempty"`       // Optional roles
-}
-
-func (r *userRequest) ValidCreate() error {
-	if r.Username == "" {
-		return fmt.Errorf("Username required")
-	}
-	if r.Password == "" {
-		return fmt.Errorf("Password required")
-	}
-	return validPermissions(&r.Permissions)
-}
-
-type usersResponse struct {
-	Users []userResponse `json:"users"`
-}
-
-func (r *userRequest) ValidUpdate() error {
-	if r.Password == "" && len(r.Permissions) == 0 && len(r.Roles) == 0 {
-		return fmt.Errorf("No fields to update")
-	}
-	return validPermissions(&r.Permissions)
-}
-
-type userResponse struct {
-	Name           string                 // Username for new account
-	Permissions    chronograf.Permissions // Account's permissions
-	Roles          []roleResponse         // Roles if source uses them
-	Links          selfLinks              // Links are URI locations related to user
-	hasPermissions bool
-	hasRoles       bool
-}
-
-func (u *userResponse) MarshalJSON() ([]byte, error) {
-	res := map[string]interface{}{
-		"name":  u.Name,
-		"links": u.Links,
-	}
-	if u.hasRoles {
-		res["roles"] = u.Roles
-	}
-	if u.hasPermissions {
-		res["permissions"] = u.Permissions
-	}
-	return json.Marshal(res)
-}
-
-// newUserResponse creates an HTTP JSON response for a user w/o roles
-func newUserResponse(srcID int, name string) *userResponse {
-	self := newSelfLinks(srcID, "users", name)
-	return &userResponse{
-		Name:  name,
-		Links: self,
-	}
-}
-
-func (u *userResponse) WithPermissions(perms chronograf.Permissions) *userResponse {
-	u.hasPermissions = true
-	if perms == nil {
-		perms = make(chronograf.Permissions, 0)
-	}
-	u.Permissions = perms
-	return u
-}
-
-// WithRoles adds roles to the HTTP JSON response for a user
-func (u *userResponse) WithRoles(srcID int, roles []chronograf.Role) *userResponse {
-	u.hasRoles = true
-	rr := make([]roleResponse, len(roles))
-	for i, role := range roles {
-		rr[i] = newRoleResponse(srcID, &role)
-	}
-	u.Roles = rr
-	return u
-}
-
-type selfLinks struct {
-	Self string `json:"self"` // Self link mapping to this resource
-}
-
-func newSelfLinks(id int, parent, resource string) selfLinks {
-	httpAPISrcs := "/chronograf/v1/sources"
-	u := &url.URL{Path: resource}
-	encodedResource := u.String()
-	return selfLinks{
-		Self: fmt.Sprintf("%s/%d/%s/%s", httpAPISrcs, id, parent, encodedResource),
-	}
+	return nil
 }

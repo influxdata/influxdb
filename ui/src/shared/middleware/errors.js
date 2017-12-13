@@ -17,14 +17,36 @@ const errorsMiddleware = store => next => action => {
   const {auth: {me}} = store.getState()
 
   if (action.type === 'ERROR_THROWN') {
-    const {error: {status, auth}, altText, alertType = 'error'} = action
+    const {
+      error: {status, auth, data: {message}},
+      altText,
+      alertType = 'error',
+    } = action
 
     if (status === HTTP_FORBIDDEN) {
+      const organizationWasRemoved =
+        message === `user's current organization was not found` // eslint-disable-line quotes
       const wasSessionTimeout = me !== null
 
       store.dispatch(authExpired(auth))
 
-      if (wasSessionTimeout) {
+      if (
+        message ===
+        `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
+      ) {
+        store.dispatch(notify(alertType, message))
+      }
+
+      if (organizationWasRemoved) {
+        store.dispatch(
+          notify(alertType, 'Your current organization was deleted.')
+        )
+
+        allowNotifications = false
+        setTimeout(() => {
+          allowNotifications = true
+        }, notificationsBlackoutDuration)
+      } else if (wasSessionTimeout) {
         store.dispatch(
           notify(alertType, 'Session timed out. Please login again.')
         )

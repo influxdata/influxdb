@@ -14,7 +14,7 @@ import (
 // AppExt is the the file extension searched for in the directory for layout files
 const AppExt = ".json"
 
-// Apps are canned JSON layouts.  Implements LayoutStore.
+// Apps are canned JSON layouts.  Implements LayoutsStore.
 type Apps struct {
 	Dir      string                                      // Dir is the directory contained the pre-canned applications.
 	Load     func(string) (chronograf.Layout, error)     // Load loads string name and return a Layout
@@ -27,7 +27,7 @@ type Apps struct {
 }
 
 // NewApps constructs a layout store wrapping a file system directory
-func NewApps(dir string, ids chronograf.ID, logger chronograf.Logger) chronograf.LayoutStore {
+func NewApps(dir string, ids chronograf.ID, logger chronograf.Logger) chronograf.LayoutsStore {
 	return &Apps{
 		Dir:      dir,
 		Load:     loadFile,

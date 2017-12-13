@@ -14,7 +14,7 @@ import {
   updateRole as updateRoleAJAX,
   updateUser as updateUserAJAX,
   updateRetentionPolicy as updateRetentionPolicyAJAX,
-} from 'src/admin/apis'
+} from 'src/admin/apis/influxdb'
 
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 
@@ -25,54 +25,54 @@ import {REVERT_STATE_DELAY} from 'shared/constants'
 import _ from 'lodash'
 
 export const loadUsers = ({users}) => ({
-  type: 'LOAD_USERS',
+  type: 'INFLUXDB_LOAD_USERS',
   payload: {
     users,
   },
 })
 
 export const loadRoles = ({roles}) => ({
-  type: 'LOAD_ROLES',
+  type: 'INFLUXDB_LOAD_ROLES',
   payload: {
     roles,
   },
 })
 
 export const loadPermissions = ({permissions}) => ({
-  type: 'LOAD_PERMISSIONS',
+  type: 'INFLUXDB_LOAD_PERMISSIONS',
   payload: {
     permissions,
   },
 })
 
 export const loadDatabases = databases => ({
-  type: 'LOAD_DATABASES',
+  type: 'INFLUXDB_LOAD_DATABASES',
   payload: {
     databases,
   },
 })
 
 export const addUser = () => ({
-  type: 'ADD_USER',
+  type: 'INFLUXDB_ADD_USER',
 })
 
 export const addRole = () => ({
-  type: 'ADD_ROLE',
+  type: 'INFLUXDB_ADD_ROLE',
 })
 
 export const addDatabase = () => ({
-  type: 'ADD_DATABASE',
+  type: 'INFLUXDB_ADD_DATABASE',
 })
 
 export const addRetentionPolicy = database => ({
-  type: 'ADD_RETENTION_POLICY',
+  type: 'INFLUXDB_ADD_RETENTION_POLICY',
   payload: {
     database,
   },
 })
 
 export const syncUser = (staleUser, syncedUser) => ({
-  type: 'SYNC_USER',
+  type: 'INFLUXDB_SYNC_USER',
   payload: {
     staleUser,
     syncedUser,
@@ -80,7 +80,7 @@ export const syncUser = (staleUser, syncedUser) => ({
 })
 
 export const syncRole = (staleRole, syncedRole) => ({
-  type: 'SYNC_ROLE',
+  type: 'INFLUXDB_SYNC_ROLE',
   payload: {
     staleRole,
     syncedRole,
@@ -88,7 +88,7 @@ export const syncRole = (staleRole, syncedRole) => ({
 })
 
 export const syncDatabase = (stale, synced) => ({
-  type: 'SYNC_DATABASE',
+  type: 'INFLUXDB_SYNC_DATABASE',
   payload: {
     stale,
     synced,
@@ -96,7 +96,7 @@ export const syncDatabase = (stale, synced) => ({
 })
 
 export const syncRetentionPolicy = (database, stale, synced) => ({
-  type: 'SYNC_RETENTION_POLICY',
+  type: 'INFLUXDB_SYNC_RETENTION_POLICY',
   payload: {
     database,
     stale,
@@ -105,7 +105,7 @@ export const syncRetentionPolicy = (database, stale, synced) => ({
 })
 
 export const editUser = (user, updates) => ({
-  type: 'EDIT_USER',
+  type: 'INFLUXDB_EDIT_USER',
   payload: {
     user,
     updates,
@@ -113,7 +113,7 @@ export const editUser = (user, updates) => ({
 })
 
 export const editRole = (role, updates) => ({
-  type: 'EDIT_ROLE',
+  type: 'INFLUXDB_EDIT_ROLE',
   payload: {
     role,
     updates,
@@ -121,7 +121,7 @@ export const editRole = (role, updates) => ({
 })
 
 export const editDatabase = (database, updates) => ({
-  type: 'EDIT_DATABASE',
+  type: 'INFLUXDB_EDIT_DATABASE',
   payload: {
     database,
     updates,
@@ -129,21 +129,21 @@ export const editDatabase = (database, updates) => ({
 })
 
 export const killQuery = queryID => ({
-  type: 'KILL_QUERY',
+  type: 'INFLUXDB_KILL_QUERY',
   payload: {
     queryID,
   },
 })
 
 export const setQueryToKill = queryIDToKill => ({
-  type: 'SET_QUERY_TO_KILL',
+  type: 'INFLUXDB_SET_QUERY_TO_KILL',
   payload: {
     queryIDToKill,
   },
 })
 
 export const loadQueries = queries => ({
-  type: 'LOAD_QUERIES',
+  type: 'INFLUXDB_LOAD_QUERIES',
   payload: {
     queries,
   },
@@ -151,7 +151,7 @@ export const loadQueries = queries => ({
 
 // TODO: change to 'removeUser'
 export const deleteUser = user => ({
-  type: 'DELETE_USER',
+  type: 'INFLUXDB_DELETE_USER',
   payload: {
     user,
   },
@@ -159,21 +159,21 @@ export const deleteUser = user => ({
 
 // TODO: change to 'removeRole'
 export const deleteRole = role => ({
-  type: 'DELETE_ROLE',
+  type: 'INFLUXDB_DELETE_ROLE',
   payload: {
     role,
   },
 })
 
 export const removeDatabase = database => ({
-  type: 'REMOVE_DATABASE',
+  type: 'INFLUXDB_REMOVE_DATABASE',
   payload: {
     database,
   },
 })
 
 export const removeRetentionPolicy = (database, retentionPolicy) => ({
-  type: 'REMOVE_RETENTION_POLICY',
+  type: 'INFLUXDB_REMOVE_RETENTION_POLICY',
   payload: {
     database,
     retentionPolicy,
@@ -181,35 +181,35 @@ export const removeRetentionPolicy = (database, retentionPolicy) => ({
 })
 
 export const filterUsers = text => ({
-  type: 'FILTER_USERS',
+  type: 'INFLUXDB_FILTER_USERS',
   payload: {
     text,
   },
 })
 
 export const filterRoles = text => ({
-  type: 'FILTER_ROLES',
+  type: 'INFLUXDB_FILTER_ROLES',
   payload: {
     text,
   },
 })
 
 export const addDatabaseDeleteCode = database => ({
-  type: 'ADD_DATABASE_DELETE_CODE',
+  type: 'INFLUXDB_ADD_DATABASE_DELETE_CODE',
   payload: {
     database,
   },
 })
 
 export const removeDatabaseDeleteCode = database => ({
-  type: 'REMOVE_DATABASE_DELETE_CODE',
+  type: 'INFLUXDB_REMOVE_DATABASE_DELETE_CODE',
   payload: {
     database,
   },
 })
 
 export const editRetentionPolicy = (database, retentionPolicy, updates) => ({
-  type: 'EDIT_RETENTION_POLICY',
+  type: 'INFLUXDB_EDIT_RETENTION_POLICY',
   payload: {
     database,
     retentionPolicy,

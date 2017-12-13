@@ -110,18 +110,17 @@ export async function getAllHosts(proxyLink, telegrafDB) {
   }
 }
 
-export function getMappings() {
-  return AJAX({
+export const getLayouts = () =>
+  AJAX({
     method: 'GET',
-    resource: 'mappings',
+    resource: 'layouts',
   })
-}
 
-export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
-  const measurements = appMappings.map(m => `^${m.measurement}$`).join('|')
+export function getAppsForHosts(proxyLink, hosts, appLayouts, telegrafDB) {
+  const measurements = appLayouts.map(m => `^${m.measurement}$`).join('|')
   const measurementsToApps = _.zipObject(
-    appMappings.map(m => m.measurement),
-    appMappings.map(m => m.name)
+    appLayouts.map(m => m.measurement),
+    appLayouts.map(({app}) => app)
   )
 
   return proxy({

@@ -73,7 +73,7 @@ func (s *Service) Templates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	d, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	d, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -94,7 +94,7 @@ func (s *Service) NewTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -121,7 +121,7 @@ func (s *Service) NewTemplate(w http.ResponseWriter, r *http.Request) {
 	template.ID = chronograf.TemplateID(tid)
 
 	dash.Templates = append(dash.Templates, template)
-	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, dash); err != nil {
 		msg := fmt.Sprintf("Error adding template %s to dashboard %d: %v", tid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -140,7 +140,7 @@ func (s *Service) TemplateID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -167,7 +167,7 @@ func (s *Service) RemoveTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -187,7 +187,7 @@ func (s *Service) RemoveTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dash.Templates = append(dash.Templates[:pos], dash.Templates[pos+1:]...)
-	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, dash); err != nil {
 		msg := fmt.Sprintf("Error removing template %s from dashboard %d: %v", tid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
@@ -205,7 +205,7 @@ func (s *Service) ReplaceTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	dash, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	dash, err := s.Store.Dashboards(ctx).Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
@@ -237,7 +237,7 @@ func (s *Service) ReplaceTemplate(w http.ResponseWriter, r *http.Request) {
 	template.ID = chronograf.TemplateID(tid)
 
 	dash.Templates[pos] = template
-	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
+	if err := s.Store.Dashboards(ctx).Update(ctx, dash); err != nil {
 		msg := fmt.Sprintf("Error updating template %s in dashboard %d: %v", tid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return

@@ -1,5 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 import DashboardsTable from 'src/dashboards/components/DashboardsTable'
 import SearchBar from 'src/hosts/components/SearchBar'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -24,6 +26,7 @@ class DashboardsPageContents extends Component {
       onCreateDashboard,
       dashboardLink,
     } = this.props
+    const {searchTerm} = this.state
 
     let tableHeader
     if (dashboards === null) {
@@ -33,9 +36,8 @@ class DashboardsPageContents extends Component {
     } else {
       tableHeader = `${dashboards.length} Dashboards`
     }
-
     const filteredDashboards = dashboards.filter(d =>
-      d.name.includes(this.state.searchTerm)
+      d.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     return (
@@ -53,12 +55,14 @@ class DashboardsPageContents extends Component {
                       placeholder="Filter by Name..."
                       onSearch={this.filterDashboards}
                     />
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={onCreateDashboard}
-                    >
-                      <span className="icon plus" /> Create Dashboard
-                    </button>
+                    <Authorized requiredRole={EDITOR_ROLE}>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={onCreateDashboard}
+                      >
+                        <span className="icon plus" /> Create Dashboard
+                      </button>
+                    </Authorized>
                   </div>
                 </div>
                 <div className="panel-body">

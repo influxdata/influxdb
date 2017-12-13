@@ -57,6 +57,7 @@
   justify-content: center;
   color: $g12-forge;
   padding: 20px 0;
+  @include no-user-select();
 
   h4,
   h5 {
@@ -178,6 +179,11 @@ br {
 .source-table--kapacitor {
   border-left: 2px solid $g5-pepper;
   width: 278px;
+}
+.source-table--kapacitor__view-only {
+  @include no-user-select();
+  font-size: 14px;
+  font-weight: 600;
 }
 
 /*
@@ -418,5 +424,15 @@ $dash-editable-header-padding: 7px;
       }
     }
   }
+}
 
+/*
+  Stretch to fit Dropdowns
+  -----------------------------------------------------------------------------
+*/
+
+div.dropdown.dropdown-stretch,
+div.dropdown.dropdown-stretch > div.dropdown-toggle,
+div.dropdown.dropdown-stretch > button.dropdown-toggle {
+  width: 100%;
 }
