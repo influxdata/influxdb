@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 )
 
@@ -17,6 +19,20 @@ func newConfigResponse(config chronograf.Config) *configResponse {
 			Self: "/chronograf/v1/config",
 		},
 		Config: config,
+	}
+}
+
+type authConfigResponse struct {
+	Links selfLinks `json:"links"`
+	chronograf.AuthConfig
+}
+
+func newAuthConfigResponse(config chronograf.Config) *authConfigResponse {
+	return &authConfigResponse{
+		Links: selfLinks{
+			Self: "/chronograf/v1/config/auth",
+		},
+		AuthConfig: config.Auth,
 	}
 }
 
@@ -35,5 +51,33 @@ func (s *Service) Config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res := newConfigResponse(*config)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+// Config retrieves the global application configuration
+func (s *Service) ConfigSection(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	config, err := s.Store.Config(ctx).Get(ctx)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
+	}
+
+	if config == nil {
+		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
+		return
+	}
+
+	section := httprouter.GetParamFromContext(ctx, "section")
+	var res interface{}
+	switch section {
+	case "auth":
+		res = newAuthConfigResponse(*config)
+	default:
+		Error(w, http.StatusBadRequest, fmt.Sprintf("received unknown section %q", section), s.Logger)
+		return
+	}
+
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
