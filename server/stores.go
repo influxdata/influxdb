@@ -183,5 +183,11 @@ func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore
 
 // Config returns the underlying ConfigStore.
 func (s *Store) Config(ctx context.Context) chronograf.ConfigStore {
-	return nil
+	if isServer := hasServerContext(ctx); isServer {
+		return s.ConfigStore
+	}
+	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+		return s.ConfigStore
+	}
+	return &noop.ConfigStore{}
 }

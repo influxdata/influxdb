@@ -441,7 +441,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 			OrganizationsStore: db.OrganizationsStore,
 			LayoutsStore:       layouts,
 			DashboardsStore:    db.DashboardsStore,
-			//OrganizationUsersStore: organizations.NewUsersStore(db.UsersStore),
+			ConfigStore:        db.ConfigStore,
 		},
 		Logger:    logger,
 		UseAuth:   useAuth,
