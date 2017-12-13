@@ -319,7 +319,12 @@ func (s *Service) newUsersAreSuperAdmin() bool {
 	if s.firstUser() {
 		return true
 	}
-	return !s.SuperAdminFirstUserOnly
+	serverCtx := serverContext(context.Background())
+	cfg, err := s.Store.Config(serverCtx).Get(serverCtx)
+	if err != nil {
+		return false
+	}
+	return !cfg.Auth.SuperAdminFirstUserOnly
 }
 
 func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {

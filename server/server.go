@@ -52,12 +52,11 @@ type Server struct {
 
 	NewSources string `long:"new-sources" description:"Config for adding a new InfluxDB source and Kapacitor server, in JSON as an array of objects, and surrounded by single quotes. E.g. --new-sources='[{\"influxdb\":{\"name\":\"Influx 1\",\"username\":\"user1\",\"password\":\"pass1\",\"url\":\"http://localhost:8086\",\"metaUrl\":\"http://metaurl.com\",\"type\":\"influx-enterprise\",\"insecureSkipVerify\":false,\"default\":true,\"telegraf\":\"telegraf\",\"sharedSecret\":\"cubeapples\"},\"kapacitor\":{\"name\":\"Kapa 1\",\"url\":\"http://localhost:9092\",\"active\":true}}]'" env:"NEW_SOURCES" hidden:"true"`
 
-	Develop                 bool          `short:"d" long:"develop" description:"Run server in develop mode."`
-	BoltPath                string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
-	CannedPath              string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
-	TokenSecret             string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
-	AuthDuration            time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
-	SuperAdminFirstUserOnly bool          `long:"superadmin-first-user-only" description:"All new users will not be given the SuperAdmin status" env:"SUPERADMIN_FIRST_USER_ONLY"`
+	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
+	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
+	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
+	TokenSecret  string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	AuthDuration time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string   `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
@@ -303,7 +302,6 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
-	service.SuperAdminFirstUserOnly = s.SuperAdminFirstUserOnly
 	if err := service.HandleNewSources(ctx, s.NewSources); err != nil {
 		logger.
 			WithField("component", "server").

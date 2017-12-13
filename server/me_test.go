@@ -21,11 +21,11 @@ type MockUsers struct{}
 
 func TestService_Me(t *testing.T) {
 	type fields struct {
-		UsersStore              chronograf.UsersStore
-		OrganizationsStore      chronograf.OrganizationsStore
-		Logger                  chronograf.Logger
-		UseAuth                 bool
-		SuperAdminFirstUserOnly bool
+		UsersStore         chronograf.UsersStore
+		OrganizationsStore chronograf.OrganizationsStore
+		ConfigStore        chronograf.ConfigStore
+		Logger             chronograf.Logger
+		UseAuth            bool
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -47,9 +47,15 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:                 true,
-				SuperAdminFirstUserOnly: true,
-				Logger:                  log.New(log.DebugLevel),
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -235,9 +241,15 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:                 true,
-				SuperAdminFirstUserOnly: false,
-				Logger:                  log.New(log.DebugLevel),
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: false,
+						},
+					},
+				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -291,9 +303,15 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:                 true,
-				SuperAdminFirstUserOnly: true,
-				Logger:                  log.New(log.DebugLevel),
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -347,9 +365,15 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:                 true,
-				SuperAdminFirstUserOnly: true,
-				Logger:                  log.New(log.DebugLevel),
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -403,8 +427,14 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:                 true,
-				SuperAdminFirstUserOnly: true,
+				UseAuth: true,
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -452,9 +482,15 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:                 false,
-				SuperAdminFirstUserOnly: true,
-				Logger:                  log.New(log.DebugLevel),
+				UseAuth: false,
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
+				Logger: log.New(log.DebugLevel),
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
@@ -468,9 +504,15 @@ func TestService_Me(t *testing.T) {
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
 			},
 			fields: fields{
-				UseAuth:                 true,
-				SuperAdminFirstUserOnly: true,
-				Logger:                  log.New(log.DebugLevel),
+				UseAuth: true,
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
+				Logger: log.New(log.DebugLevel),
 			},
 			wantStatus: http.StatusUnprocessableEntity,
 			principal: oauth2.Principal{
@@ -531,10 +573,10 @@ func TestService_Me(t *testing.T) {
 			Store: &mocks.Store{
 				UsersStore:         tt.fields.UsersStore,
 				OrganizationsStore: tt.fields.OrganizationsStore,
+				ConfigStore:        tt.fields.ConfigStore,
 			},
-			Logger:                  tt.fields.Logger,
-			UseAuth:                 tt.fields.UseAuth,
-			SuperAdminFirstUserOnly: tt.fields.SuperAdminFirstUserOnly,
+			Logger:  tt.fields.Logger,
+			UseAuth: tt.fields.UseAuth,
 		}
 
 		s.Me(tt.args.w, tt.args.r)
