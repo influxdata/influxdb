@@ -379,6 +379,16 @@ func (s *Store) ShardN() int {
 	return len(s.shards)
 }
 
+// ShardDigest returns a digest of the shard with the specified ID.
+func (s *Store) ShardDigest(id uint64) (io.ReadCloser, error) {
+	sh := s.Shard(id)
+	if sh == nil {
+		return nil, ErrShardNotFound
+	}
+
+	return sh.Digest()
+}
+
 // CreateShard creates a shard with the given id and retention policy on a database.
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error {
 	s.mu.Lock()

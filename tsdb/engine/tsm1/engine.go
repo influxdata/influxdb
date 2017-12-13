@@ -226,6 +226,55 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	return e
 }
 
+// Digest returns a reader for the shard's digest.
+func (e *Engine) Digest() (io.ReadCloser, error) {
+	digestPath := filepath.Join(e.path, "digest.tsd")
+
+	// See if there's an existing digest file on disk.
+	f, err := os.Open(digestPath)
+	if err == nil {
+		// There is an existing digest file. Now see if it is still fresh.
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			return nil, err
+		}
+
+		if !e.LastModified().After(fi.ModTime()) {
+			// Existing digest is still fresh so return a reader for it.
+			return f, nil
+		}
+
+		if err := f.Close(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Either no digest existed or the existing one was stale
+	// so generate a new digest.
+
+	// Create a tmp file to write the digest to.
+	tf, err := os.Create(digestPath + ".tmp")
+	if err != nil {
+		return nil, err
+	}
+
+	// Write the new digest to the tmp file.
+	if err := Digest(e.path, tf); err != nil {
+		tf.Close()
+		os.Remove(tf.Name())
+		return nil, err
+	}
+
+	// Rename the temporary digest file to the actual digest file.
+	if err := renameFile(tf.Name(), digestPath); err != nil {
+		return nil, err
+	}
+
+	// Create and return a reader for the new digest file.
+	return os.Open(digestPath)
+}
+
 // SetEnabled sets whether the engine is enabled.
 func (e *Engine) SetEnabled(enabled bool) {
 	e.enableCompactionsOnOpen = enabled
