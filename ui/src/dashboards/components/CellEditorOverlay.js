@@ -25,10 +25,9 @@ import {AUTO_GROUP_BY} from 'shared/constants'
 import {
   COLOR_TYPE_THRESHOLD,
   MAX_THRESHOLDS,
-  DEFAULT_COLORS,
+  DEFAULT_VALUE_MIN,
+  DEFAULT_VALUE_MAX,
   GAUGE_COLORS,
-  COLOR_TYPE_MIN,
-  COLOR_TYPE_MAX,
   validateColors,
 } from 'src/dashboards/constants/gaugeColors'
 
@@ -56,7 +55,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
-      colors: validateColors(colors) ? colors : DEFAULT_COLORS,
+      colors: validateColors(colors, type),
     }
   }
 
@@ -74,17 +73,20 @@ class CellEditorOverlay extends Component {
   }
 
   handleAddThreshold = () => {
-    const {colors} = this.state
+    const {colors, cellWorkingType} = this.state
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
 
-    if (colors.length <= MAX_THRESHOLDS) {
-      const randomColor = _.random(0, GAUGE_COLORS.length)
+    if (sortedColors.length <= MAX_THRESHOLDS) {
+      const randomColor = _.random(0, GAUGE_COLORS.length - 1)
 
-      const maxValue = Number(
-        colors.find(color => color.type === COLOR_TYPE_MAX).value
-      )
-      const minValue = Number(
-        colors.find(color => color.type === COLOR_TYPE_MIN).value
-      )
+      const maxValue =
+        cellWorkingType === 'gauge'
+          ? Number(sortedColors[sortedColors.length - 1].value)
+          : DEFAULT_VALUE_MAX
+      const minValue =
+        cellWorkingType === 'gauge'
+          ? Number(sortedColors[0].value)
+          : DEFAULT_VALUE_MIN
 
       const colorsValues = _.mapValues(colors, 'value')
       let randomValue
@@ -135,31 +137,32 @@ class CellEditorOverlay extends Component {
   }
 
   handleValidateColorValue = (threshold, e) => {
-    const {colors} = this.state
+    const {colors, cellWorkingType} = this.state
     const sortedColors = _.sortBy(colors, color => Number(color.value))
+    const thresholdValue = Number(threshold.value)
     const targetValueNumber = Number(e.target.value)
-
-    const maxValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MAX).value
-    )
-    const minValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MIN).value
-    )
-
     let allowedToUpdate = false
 
-    // If type === min, make sure it is less than the next threshold
-    if (threshold.type === COLOR_TYPE_MIN) {
-      const nextValue = Number(sortedColors[1].value)
-      allowedToUpdate = targetValueNumber < nextValue && targetValueNumber >= 0
+    if (cellWorkingType === 'single-stat') {
+      // If type is single-stat then value only has to be unique
+      return !sortedColors.some(color => color.value === e.target.value)
     }
-    // If type === max, make sure it is greater than the previous threshold
-    if (threshold.type === COLOR_TYPE_MAX) {
+
+    const minValue = Number(sortedColors[0].value)
+    const maxValue = Number(sortedColors[sortedColors.length - 1].value)
+
+    // If lowest value, make sure it is less than the next threshold
+    if (thresholdValue === minValue) {
+      const nextValue = Number(sortedColors[1].value)
+      allowedToUpdate = targetValueNumber < nextValue
+    }
+    // If highest value, make sure it is greater than the previous threshold
+    if (thresholdValue === maxValue) {
       const previousValue = Number(sortedColors[sortedColors.length - 2].value)
       allowedToUpdate = previousValue < targetValueNumber
     }
-    // If type === threshold, make sure new value is greater than min, less than max, and unique
-    if (threshold.type === COLOR_TYPE_THRESHOLD) {
+    // If not min or max, make sure new value is greater than min, less than max, and unique
+    if (thresholdValue !== minValue && thresholdValue !== maxValue) {
       const greaterThanMin = targetValueNumber > minValue
       const lessThanMax = targetValueNumber < maxValue
 
@@ -287,7 +290,9 @@ class CellEditorOverlay extends Component {
   }
 
   handleSelectGraphType = graphType => () => {
-    this.setState({cellWorkingType: graphType})
+    const {colors} = this.state
+    const validatedColors = validateColors(colors, graphType)
+    this.setState({cellWorkingType: graphType, colors: validatedColors})
   }
 
   handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {

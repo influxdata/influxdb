@@ -3,11 +3,7 @@ import _ from 'lodash'
 
 import {GAUGE_SPECS} from 'shared/constants/gaugeSpecs'
 
-import {
-  COLOR_TYPE_MIN,
-  COLOR_TYPE_MAX,
-  MIN_THRESHOLDS,
-} from 'src/dashboards/constants/gaugeColors'
+import {MIN_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 
 class Gauge extends Component {
   constructor(props) {
@@ -47,18 +43,23 @@ class Gauge extends Component {
       return
     }
     // Distill out max and min values
-    const minValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MIN).value
-    )
-    const maxValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MAX).value
-    )
+    const sortedColors = _.sortBy(colors, color => Number(color.value))
+    const minValue = Number(sortedColors[0].value)
+    const maxValue = Number(sortedColors[sortedColors.length - 1].value)
 
     // The following functions must be called in the specified order
     if (colors.length === MIN_THRESHOLDS) {
-      this.drawGradientGauge(ctx, centerX, centerY, radius, gradientThickness)
+      this.drawGradientGauge(
+        sortedColors,
+        ctx,
+        centerX,
+        centerY,
+        radius,
+        gradientThickness
+      )
     } else {
       this.drawSegmentedGauge(
+        sortedColors,
         ctx,
         centerX,
         centerY,
@@ -82,10 +83,7 @@ class Gauge extends Component {
     this.drawNeedle(ctx, radius, minValue, maxValue)
   }
 
-  drawGradientGauge = (ctx, xc, yc, r, gradientThickness) => {
-    const {colors} = this.props
-    const sortedColors = _.sortBy(colors, color => Number(color.value))
-
+  drawGradientGauge = (colors, ctx, xc, yc, r, gradientThickness) => {
     const arcStart = Math.PI * 0.75
     const arcEnd = arcStart + Math.PI * 1.5
 
@@ -96,8 +94,8 @@ class Gauge extends Component {
     const yEnd = yc + Math.sin(arcEnd) * r
 
     const gradient = ctx.createLinearGradient(xStart, yStart, xEnd, yEnd)
-    gradient.addColorStop(0, sortedColors[0].hex)
-    gradient.addColorStop(1.0, sortedColors[1].hex)
+    gradient.addColorStop(0, colors[0].hex)
+    gradient.addColorStop(1.0, colors[1].hex)
 
     ctx.beginPath()
     ctx.lineWidth = gradientThickness
@@ -107,6 +105,7 @@ class Gauge extends Component {
   }
 
   drawSegmentedGauge = (
+    colors,
     ctx,
     xc,
     yc,
@@ -115,18 +114,15 @@ class Gauge extends Component {
     maxValue,
     gradientThickness
   ) => {
-    const {colors} = this.props
-    const sortedColors = _.sortBy(colors, color => Number(color.value))
-
     const trueValueRange = Math.abs(maxValue - minValue)
     const totalArcLength = Math.PI * 1.5
     let startingPoint = Math.PI * 0.75
 
     // Iterate through colors, draw arc for each
-    for (let c = 0; c < sortedColors.length - 1; c++) {
+    for (let c = 0; c < colors.length - 1; c++) {
       // Use this color and the next to determine arc length
-      const color = sortedColors[c]
-      const nextColor = sortedColors[c + 1]
+      const color = colors[c]
+      const nextColor = colors[c + 1]
 
       // adjust values by subtracting minValue from them
       const adjustedValue = Number(color.value) - minValue
@@ -290,7 +286,14 @@ class Gauge extends Component {
     const {degree, needleColor0, needleColor1} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
-    const needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    let needleRotation
+    if (gaugePosition < minValue) {
+      needleRotation = 0
+    } else if (gaugePosition > maxValue) {
+      needleRotation = 1
+    } else {
+      needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    }
 
     const needleGradient = ctx.createLinearGradient(0, -10, 0, radius)
     needleGradient.addColorStop(0, needleColor0)
