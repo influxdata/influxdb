@@ -26,6 +26,7 @@ const (
 	ErrOrganizationNotFound            = Error("organization not found")
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
+	ErrConfigNotFound                  = Error("cannot find configuration")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -618,6 +619,8 @@ type Config struct {
 
 // ConfigStore is the storage and retrieval of global application Config
 type ConfigStore interface {
+	// Initialize creates the initial configuration
+	Initialize(context.Context) error
 	// Get retrieves the whole Config from the ConfigStore
 	Get(context.Context) (*Config, error)
 	// Update updates the whole Config in the ConfigStore

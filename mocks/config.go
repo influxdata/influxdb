@@ -11,6 +11,11 @@ type ConfigStore struct {
 	Config *chronograf.Config
 }
 
+// Initialize is noop in mocks store
+func (c ConfigStore) Initialize(ctx context.Context) error {
+	return nil
+}
+
 // Get returns the whole global application configuration
 func (c ConfigStore) Get(ctx context.Context) (*chronograf.Config, error) {
 	return c.Config, nil
