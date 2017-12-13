@@ -16,7 +16,7 @@ class OrganizationsPage extends Component {
       actionsConfig: {getAuthConfigAsync},
     } = this.props
     loadOrganizationsAsync(links.organizations)
-    getAuthConfigAsync(links.config)
+    getAuthConfigAsync(links.config.auth)
   }
 
   handleCreateOrganization = async organization => {
@@ -63,7 +63,7 @@ class OrganizationsPage extends Component {
       authConfig,
       links,
     } = this.props
-    updateAuthConfigAsync(links.config, authConfig, updatedAuthConfig)
+    updateAuthConfigAsync(links.config.auth, authConfig, updatedAuthConfig)
   }
 
   render() {
@@ -90,7 +90,9 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 OrganizationsPage.propTypes = {
   links: shape({
     organizations: string.isRequired,
-    config: string.isRequired,
+    config: shape({
+      auth: string.isRequired,
+    }).isRequired,
   }),
   organizations: arrayOf(
     shape({

@@ -15,7 +15,7 @@ export const getAuthConfig = async url => {
 export const updateAuthConfig = async (url, authConfig) => {
   try {
     return await AJAX({
-      method: 'PATCH',
+      method: 'PUT',
       url,
       data: authConfig,
     })
