@@ -14,6 +14,7 @@ const SourceForm = ({
   onInputChange,
   onBlurSourceURL,
   isUsingAuth,
+  gotoPurgatory,
   isInitialSource,
   me,
 }) =>
@@ -152,7 +153,7 @@ const SourceForm = ({
 
         <br />
         {isUsingAuth
-          ? <button className="btn btn-link btn-sm">
+          ? <button className="btn btn-link btn-sm" onClick={gotoPurgatory}>
               <span className="icon shuffle" /> Switch Orgs
             </button>
           : null}
@@ -186,6 +187,7 @@ SourceForm.propTypes = {
   }),
   isUsingAuth: bool,
   isInitialSource: bool,
+  gotoPurgatory: func,
 }
 
 const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
