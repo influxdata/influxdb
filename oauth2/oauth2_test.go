@@ -10,6 +10,7 @@ import (
 	goauth "golang.org/x/oauth2"
 
 	"github.com/influxdata/chronograf"
+	gojwt "github.com/dgrijalva/jwt-go"
 )
 
 var _ Provider = &MockProvider{}
@@ -69,6 +70,10 @@ func (y *YesManTokenizer) Create(ctx context.Context, p Principal) (Token, error
 
 func (y *YesManTokenizer) ExtendedPrincipal(ctx context.Context, p Principal, ext time.Duration) (Principal, error) {
 	return p, nil
+}
+
+func (m *YesManTokenizer) GetClaims(tokenString string) (gojwt.MapClaims, error) {
+    return gojwt.MapClaims{}, nil
 }
 
 func NewTestTripper(log chronograf.Logger, ts *httptest.Server, rt http.RoundTripper) (*TestTripper, error) {
