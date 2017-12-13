@@ -16,12 +16,13 @@ type writeFlushCloser interface {
 // representation of the contents of a shard.  It can be scoped to one or more series
 // keys, ranges of times or sets of files.
 type DigestWriter struct {
+	w io.WriteCloser
 	F writeFlushCloser
 }
 
 func NewDigestWriter(w io.WriteCloser) (*DigestWriter, error) {
 	gw := gzip.NewWriter(w)
-	return &DigestWriter{F: gw}, nil
+	return &DigestWriter{w: w, F: gw}, nil
 }
 
 func (w *DigestWriter) WriteTimeSpan(key string, t *DigestTimeSpan) error {
@@ -66,7 +67,12 @@ func (w *DigestWriter) Close() error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	return w.F.Close()
+
+	if err := w.F.Close(); err != nil {
+		return err
+	}
+
+	return w.w.Close()
 }
 
 type DigestTimeSpan struct {

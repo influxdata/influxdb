@@ -198,8 +198,10 @@ func TestEngine_Digest(t *testing.T) {
 		// Make sure the digest can be read.
 		dr, err := tsm1.NewDigestReader(r)
 		if err != nil {
+			r.Close()
 			return nil, err
 		}
+		defer dr.Close()
 
 		got := []span{}
 
@@ -215,10 +217,6 @@ func TestEngine_Digest(t *testing.T) {
 				key:   k,
 				tspan: s,
 			})
-		}
-
-		if err := dr.Close(); err != nil {
-			return nil, err
 		}
 
 		return got, nil

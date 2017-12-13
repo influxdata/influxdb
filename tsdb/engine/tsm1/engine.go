@@ -236,12 +236,17 @@ func (e *Engine) Digest() (io.ReadCloser, error) {
 		// There is an existing digest file. Now see if it is still fresh.
 		fi, err := f.Stat()
 		if err != nil {
+			f.Close()
 			return nil, err
 		}
 
 		if !e.LastModified().After(fi.ModTime()) {
 			// Existing digest is still fresh so return a reader for it.
 			return f, nil
+		}
+
+		if err := f.Close(); err != nil {
+			return nil, err
 		}
 	}
 
@@ -262,7 +267,9 @@ func (e *Engine) Digest() (io.ReadCloser, error) {
 	}
 
 	// Rename the temporary digest file to the actual digest file.
-	renameFile(tf.Name(), digestPath)
+	if err := renameFile(tf.Name(), digestPath); err != nil {
+		return nil, err
+	}
 
 	// Create and return a reader for the new digest file.
 	return os.Open(digestPath)

@@ -8,7 +8,8 @@ import (
 )
 
 type DigestReader struct {
-	io.ReadCloser
+	r  io.ReadCloser
+	gr *gzip.Reader
 }
 
 func NewDigestReader(r io.ReadCloser) (*DigestReader, error) {
@@ -16,22 +17,22 @@ func NewDigestReader(r io.ReadCloser) (*DigestReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DigestReader{ReadCloser: gr}, nil
+	return &DigestReader{r: r, gr: gr}, nil
 }
 
 func (w *DigestReader) ReadTimeSpan() (string, *DigestTimeSpan, error) {
 	var n uint16
-	if err := binary.Read(w.ReadCloser, binary.BigEndian, &n); err != nil {
+	if err := binary.Read(w.gr, binary.BigEndian, &n); err != nil {
 		return "", nil, err
 	}
 
 	b := make([]byte, n)
-	if _, err := io.ReadFull(w.ReadCloser, b); err != nil {
+	if _, err := io.ReadFull(w.gr, b); err != nil {
 		return "", nil, err
 	}
 
 	var cnt uint32
-	if err := binary.Read(w.ReadCloser, binary.BigEndian, &cnt); err != nil {
+	if err := binary.Read(w.gr, binary.BigEndian, &cnt); err != nil {
 		return "", nil, err
 	}
 
@@ -40,19 +41,19 @@ func (w *DigestReader) ReadTimeSpan() (string, *DigestTimeSpan, error) {
 		var min, max int64
 		var crc uint32
 
-		if err := binary.Read(w.ReadCloser, binary.BigEndian, &min); err != nil {
+		if err := binary.Read(w.gr, binary.BigEndian, &min); err != nil {
 			return "", nil, err
 		}
 
-		if err := binary.Read(w.ReadCloser, binary.BigEndian, &max); err != nil {
+		if err := binary.Read(w.gr, binary.BigEndian, &max); err != nil {
 			return "", nil, err
 		}
 
-		if err := binary.Read(w.ReadCloser, binary.BigEndian, &crc); err != nil {
+		if err := binary.Read(w.gr, binary.BigEndian, &crc); err != nil {
 			return "", nil, err
 		}
 
-		if err := binary.Read(w.ReadCloser, binary.BigEndian, &n); err != nil {
+		if err := binary.Read(w.gr, binary.BigEndian, &n); err != nil {
 			return "", nil, err
 		}
 		ts.Add(min, max, int(n), crc)
@@ -62,5 +63,8 @@ func (w *DigestReader) ReadTimeSpan() (string, *DigestTimeSpan, error) {
 }
 
 func (w *DigestReader) Close() error {
-	return w.ReadCloser.Close()
+	if err := w.gr.Close(); err != nil {
+		return err
+	}
+	return w.r.Close()
 }

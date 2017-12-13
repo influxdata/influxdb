@@ -22,14 +22,16 @@ func TestDigest_None(t *testing.T) {
 		t.Fatalf("digest error: %v", err)
 	}
 
-	if _, err := df.Seek(0, io.SeekStart); err != nil {
-		t.Fatalf("seek error: %v", err)
+	df, err := os.Open(df.Name())
+	if err != nil {
+		t.Fatalf("open error: %v", err)
 	}
 
 	r, err := tsm1.NewDigestReader(df)
 	if err != nil {
 		t.Fatalf("NewDigestReader error: %v", err)
 	}
+	defer r.Close()
 
 	var count int
 	for {
@@ -65,14 +67,16 @@ func TestDigest_One(t *testing.T) {
 		t.Fatalf("digest error: %v", err)
 	}
 
-	if _, err := df.Seek(0, io.SeekStart); err != nil {
-		t.Fatalf("seek error: %v", err)
+	df, err := os.Open(df.Name())
+	if err != nil {
+		t.Fatalf("open error: %v", err)
 	}
 
 	r, err := tsm1.NewDigestReader(df)
 	if err != nil {
 		t.Fatalf("NewDigestReader error: %v", err)
 	}
+	defer r.Close()
 
 	var count int
 	for {
@@ -124,14 +128,16 @@ func TestDigest_TimeFilter(t *testing.T) {
 		t.Fatalf("digest error: %v", err)
 	}
 
-	if _, err := df.Seek(0, io.SeekStart); err != nil {
-		t.Fatalf("seek error: %v", err)
+	df, err := os.Open(df.Name())
+	if err != nil {
+		t.Fatalf("open error: %v", err)
 	}
 
 	r, err := tsm1.NewDigestReader(df)
 	if err != nil {
 		t.Fatalf("NewDigestReader error: %v", err)
 	}
+	defer r.Close()
 
 	var count int
 	for {
@@ -191,14 +197,16 @@ func TestDigest_KeyFilter(t *testing.T) {
 		t.Fatalf("digest error: %v", err)
 	}
 
-	if _, err := df.Seek(0, io.SeekStart); err != nil {
-		t.Fatalf("seek error: %v", err)
+	df, err := os.Open(df.Name())
+	if err != nil {
+		t.Fatalf("open error: %v", err)
 	}
 
 	r, err := tsm1.NewDigestReader(df)
 	if err != nil {
 		t.Fatalf("NewDigestReader error: %v", err)
 	}
+	defer r.Close()
 
 	var count int
 	for {
