@@ -1,8 +1,11 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import uuid from 'node-uuid'
 
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+import {getMeAsync} from 'shared/actions/auth'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTableRowNew from 'src/admin/components/chronograf/UsersTableRowNew'
@@ -17,6 +20,12 @@ class UsersTable extends Component {
     this.state = {
       isCreatingUser: false,
     }
+  }
+
+  componentDidMount() {
+    // TODO: update the {me: currentOrganization} and {organizations: []} at the same time
+    // updates the current organization.
+    this.props.getMe({shouldResetMe: false})
   }
 
   handleChangeUserRole = (user, currentRole) => newRole => {
@@ -134,5 +143,11 @@ UsersTable.propTypes = {
   onDeleteUser: func.isRequired,
   meID: string.isRequired,
   notify: func.isRequired,
+  getMe: func.isRequired,
 }
-export default UsersTable
+
+const mapDispatchToProps = dispatch => ({
+  getMe: bindActionCreators(getMeAsync, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(UsersTable)
