@@ -1,3 +1,12 @@
+## v1.4.1.0 [unreleased]
+
+### Features
+### UI Improvements
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
+
+### Bug Fixes
+1. [#2572](https://github.com/influxdata/chronograf/pull/2572): Have new Chronograf users role dropdown default to the current organizations default role
+
 ## v1.4.0.0-beta2 [unreleased]
 ### Features
 ### UI Improvements
