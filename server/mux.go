@@ -240,6 +240,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Global application config for Chronograf
 	router.GET("/chronograf/v1/config", EnsureSuperAdmin(service.Config))
 	router.GET("/chronograf/v1/config/:section", EnsureSuperAdmin(service.ConfigSection))
+	router.PUT("/chronograf/v1/config/:section", EnsureSuperAdmin(service.ReplaceConfigSection))
 
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,

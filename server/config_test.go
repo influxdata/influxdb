@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"net/http/httptest"
 	"testing"
@@ -158,6 +160,117 @@ func TestConfigSection(t *testing.T) {
 				}))
 
 			s.ConfigSection(w, r)
+
+			resp := w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. Config() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. Config() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. Config() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			}
+		})
+	}
+}
+
+func TestReplaceConfigSection(t *testing.T) {
+	type fields struct {
+		ConfigStore chronograf.ConfigStore
+	}
+	type args struct {
+		section string
+		payload interface{} // expects JSON serializable struct
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "Set auth configuration",
+			fields: fields{
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
+			},
+			args: args{
+				section: "auth",
+				payload: chronograf.AuthConfig{
+					SuperAdminFirstUserOnly: false,
+				},
+			},
+			wants: wants{
+				statusCode:  200,
+				contentType: "application/json",
+				body:        `{"superAdminFirstUserOnly": false, "links": {"self": "/chronograf/v1/config/auth"}}`,
+			},
+		},
+		{
+			name: "Set unknown configuration",
+			fields: fields{
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminFirstUserOnly: true,
+						},
+					},
+				},
+			},
+			args: args{
+				section: "unknown",
+				payload: struct {
+					Data string `json:"data"`
+				}{
+					Data: "stuff",
+				},
+			},
+			wants: wants{
+				statusCode:  400,
+				contentType: "application/json",
+				body:        `{"code":400,"message":"received unknown section \"unknown\""}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					ConfigStore: tt.fields.ConfigStore,
+				},
+				Logger: log.New(log.DebugLevel),
+			}
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "http://any.url", nil)
+			r = r.WithContext(httprouter.WithParams(
+				r.Context(),
+				httprouter.Params{
+					{
+						Key:   "section",
+						Value: tt.args.section,
+					},
+				}))
+			buf, _ := json.Marshal(tt.args.payload)
+			r.Body = ioutil.NopCloser(bytes.NewReader(buf))
+
+			s.ReplaceConfigSection(w, r)
 
 			resp := w.Result()
 			content := resp.Header.Get("Content-Type")
