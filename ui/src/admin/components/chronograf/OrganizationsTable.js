@@ -99,7 +99,7 @@ class OrganizationsTable extends Component {
             />
           )}
           <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <table className="table v-center superadmin-settings">
+            <table className="table v-center superadmin-config">
               <thead>
                 <tr>
                   <th style={{width: 70}}>Config</th>
