@@ -28,7 +28,7 @@ class OrganizationsTableRowNew extends Component {
   }
 
   handleInputChange = e => {
-    this.setState({name: e.target.value.trim()})
+    this.setState({name: e.target.value})
   }
 
   handleInputFocus = e => {
@@ -39,7 +39,7 @@ class OrganizationsTableRowNew extends Component {
     const {onCreateOrganization} = this.props
     const {name, defaultRole} = this.state
 
-    onCreateOrganization({name, defaultRole})
+    onCreateOrganization({name: name.trim(), defaultRole})
   }
 
   handleChooseDefaultRole = role => {

@@ -43,10 +43,16 @@ const kapacitorDropdown = (
     selected = kapacitorItems[0].text
   }
 
+  const unauthorizedDropdown = (
+    <div className="source-table--kapacitor__view-only">
+      {selected}
+    </div>
+  )
+
   return (
     <Authorized
       requiredRole={EDITOR_ROLE}
-      propsOverride={{addNew: null, actions: null}}
+      replaceWithIfNotAuthorized={unauthorizedDropdown}
     >
       <Dropdown
         className="dropdown-260"
