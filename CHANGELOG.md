@@ -1,3 +1,11 @@
+## v1.4.1.0 [unreleased]
+
+### Features
+### UI Improvements
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
+
+### Bug Fixes
+
 ## v1.4.0.0-beta2 [unreleased]
 ### Features
 ### UI Improvements
