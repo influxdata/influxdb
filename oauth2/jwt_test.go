@@ -3,6 +3,9 @@ package oauth2_test
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
@@ -154,6 +157,80 @@ func TestSigningMethod(t *testing.T) {
 		t.Error("Error was expected while validating incorrectly signed token")
 	} else if err.Error() != "JWKSURL not specified, cannot validate RS256 signature" {
 		t.Errorf("Error wanted 'JWKSURL not specified, cannot validate RS256 signature', got %s", err.Error())
+	}
+}
+
+func TestGetClaims(t *testing.T) {
+	var tests = []struct {
+		Name         string
+		TokenString  string
+		JwksDocument string
+		Iat          int64
+		Err          error
+	}{
+		{
+			Name:         "Valid Token with RS256 signature verified against correct JWKS document",
+			TokenString:  "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSIsImtpZCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSJ9.eyJhdWQiOiJjaHJvbm9ncmFmIiwiaXNzIjoiaHR0cHM6Ly9kc3RjaW1hYWQxcC5kc3QtaXRzLmRlL2FkZnMiLCJpYXQiOjE1MTMxNjU4ODksImV4cCI6MTUxMzE2OTQ4OSwiYXV0aF90aW1lIjoxNTEzMTY1ODg4LCJzdWIiOiJlWVYzamRsZE55RlkxcUZGSDRvQWRCdkRGZmJWZm51RzI5SGlIa1N1andrPSIsInVwbiI6ImJzY0Bkc3QtaXRzLmRlIiwidW5pcXVlX25hbWUiOiJEU1RcXGJzYyIsInNpZCI6IlMtMS01LTIxLTI1MDUxNTEzOTgtMjY2MTAyODEwOS0zNzU0MjY1ODIwLTExMDQifQ.nK51Ui4XN45SVul9igNaKFQd-F63BNstBzW-T5LBVm_ANHCEHyP3_88C3ffkkQIi3PxYacRJGtfswP35ws7YJUcNp-GoGZARqz62NpMtbQyhos6mCaVXwPoxPbrZx4AkMQgxkZwJcOzceX7mpjcT3kCth30chN3lkhzSjGrXe4ZDOAV25liS-dsdBiqDiaTB91sS534GM76qJQxFUs51oSbYTRdCN1VJ0XopMcasfVDzFrtSbyvEIVXlpKK2HplnhheqF4QHrM_3cjV_NGRr3tYLe-AGTdDXKWlJD1GDz1ECXeMGQHPoz3U8cqNsFLYBstIlCgfnBWgWsPZSvJPJUg",
+			JwksDocument: `{"keys":[{"kty":"RSA","use":"sig","alg":"RS256","kid":"YDBUhqdWksKXdGuX0sytjaUuxhA","x5t":"YDBUhqdWksKXdGuX0sytjaUuxhA","n":"uwVVrs5OJRKeLUk0H5N_b4Jbvff3rxlg3WIeOO-zSSPTC5oFOc5_te0rLgVoNJJB4rNM4A7BEXI885xLrjfL3l3LHqaJetvR0tdLAnkvbUKUiGxnuGnmOsgh491P95pHPIAniy2p64FQoBbTJ0a6cF5LRuPPHKVXgjXjTydvmKrt_IVaWUDgICRsw5Bbv290SahmxcdO3akSgfsZtRkR8SmaMzAPYINi2_8P2evaKAnMQLTgUVkctaEamO_6HJ5f5sWheV7trLekU35xPVkPwShDelefnhyJcO5yICXqXzuewBEni9LrxAEJYN2rYfiFQWJy-pDe5DPUBs-IFTpctQ","e":"AQAB","x5c":["MIIC6DCCAdCgAwIBAgIQPszqLhbrpZlE+jEJTyJg7jANBgkqhkiG9w0BAQsFADAwMS4wLAYDVQQDEyVBREZTIFNpZ25pbmcgLSBkc3RjaW1hYWQxcC5kc3QtaXRzLmRlMB4XDTE3MTIwNDE0MDEwOFoXDTE4MTIwNDE0MDEwOFowMDEuMCwGA1UEAxMlQURGUyBTaWduaW5nIC0gZHN0Y2ltYWFkMXAuZHN0LWl0cy5kZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALsFVa7OTiUSni1JNB+Tf2+CW733968ZYN1iHjjvs0kj0wuaBTnOf7XtKy4FaDSSQeKzTOAOwRFyPPOcS643y95dyx6miXrb0dLXSwJ5L21ClIhsZ7hp5jrIIePdT\/eaRzyAJ4stqeuBUKAW0ydGunBeS0bjzxylV4I1408nb5iq7fyFWllA4CAkbMOQW79vdEmoZsXHTt2pEoH7GbUZEfEpmjMwD2CDYtv\/D9nr2igJzEC04FFZHLWhGpjv+hyeX+bFoXle7ay3pFN+cT1ZD8EoQ3pXn54ciXDuciAl6l87nsARJ4vS68QBCWDdq2H4hUFicvqQ3uQz1AbPiBU6XLUCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAPHCisZyPf\/fuuQEW5LyzZSYMwBRYVR6kk\/M2ZNx6TrUEwmOb10RQ3G97bLAshN44g5lWdPYz4EOt6d2o71etIjf79f+IR0MAjEgBB2HThaHcMU9KG229Ftcauie9XeurngMawTRu60YqH7+go8EMf6a1Kdnx37DMy\/1LRlsYJVfEoOCab3GgcIdXrRSYWqsY4SVJZiTPYdqz9vmNPSXXiDSOTl6qXHV\/f53WTS2V5aIQbuJJziXlceusuVNny0o5h+j6ovZ1HhEGAu3lpD+8kY8KUqA4kXMH3VNZqzHBYazJx\/QBB3bG45cZSOvV3gUOnGBgiv9NBWjhvmY0fC3J6Q=="]}]}`,
+			Iat:          int64(1513165889),
+		},
+		{
+			Name:         "Valid Token with RS256 signature verified against correct JWKS document but predated",
+			TokenString:  "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSIsImtpZCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSJ9.eyJhdWQiOiJjaHJvbm9ncmFmIiwiaXNzIjoiaHR0cHM6Ly9kc3RjaW1hYWQxcC5kc3QtaXRzLmRlL2FkZnMiLCJpYXQiOjE1MTMxNjU4ODksImV4cCI6MTUxMzE2OTQ4OSwiYXV0aF90aW1lIjoxNTEzMTY1ODg4LCJzdWIiOiJlWVYzamRsZE55RlkxcUZGSDRvQWRCdkRGZmJWZm51RzI5SGlIa1N1andrPSIsInVwbiI6ImJzY0Bkc3QtaXRzLmRlIiwidW5pcXVlX25hbWUiOiJEU1RcXGJzYyIsInNpZCI6IlMtMS01LTIxLTI1MDUxNTEzOTgtMjY2MTAyODEwOS0zNzU0MjY1ODIwLTExMDQifQ.nK51Ui4XN45SVul9igNaKFQd-F63BNstBzW-T5LBVm_ANHCEHyP3_88C3ffkkQIi3PxYacRJGtfswP35ws7YJUcNp-GoGZARqz62NpMtbQyhos6mCaVXwPoxPbrZx4AkMQgxkZwJcOzceX7mpjcT3kCth30chN3lkhzSjGrXe4ZDOAV25liS-dsdBiqDiaTB91sS534GM76qJQxFUs51oSbYTRdCN1VJ0XopMcasfVDzFrtSbyvEIVXlpKK2HplnhheqF4QHrM_3cjV_NGRr3tYLe-AGTdDXKWlJD1GDz1ECXeMGQHPoz3U8cqNsFLYBstIlCgfnBWgWsPZSvJPJUg",
+			JwksDocument: `{"keys":[{"kty":"RSA","use":"sig","alg":"RS256","kid":"YDBUhqdWksKXdGuX0sytjaUuxhA","x5t":"YDBUhqdWksKXdGuX0sytjaUuxhA","n":"uwVVrs5OJRKeLUk0H5N_b4Jbvff3rxlg3WIeOO-zSSPTC5oFOc5_te0rLgVoNJJB4rNM4A7BEXI885xLrjfL3l3LHqaJetvR0tdLAnkvbUKUiGxnuGnmOsgh491P95pHPIAniy2p64FQoBbTJ0a6cF5LRuPPHKVXgjXjTydvmKrt_IVaWUDgICRsw5Bbv290SahmxcdO3akSgfsZtRkR8SmaMzAPYINi2_8P2evaKAnMQLTgUVkctaEamO_6HJ5f5sWheV7trLekU35xPVkPwShDelefnhyJcO5yICXqXzuewBEni9LrxAEJYN2rYfiFQWJy-pDe5DPUBs-IFTpctQ","e":"AQAB","x5c":["MIIC6DCCAdCgAwIBAgIQPszqLhbrpZlE+jEJTyJg7jANBgkqhkiG9w0BAQsFADAwMS4wLAYDVQQDEyVBREZTIFNpZ25pbmcgLSBkc3RjaW1hYWQxcC5kc3QtaXRzLmRlMB4XDTE3MTIwNDE0MDEwOFoXDTE4MTIwNDE0MDEwOFowMDEuMCwGA1UEAxMlQURGUyBTaWduaW5nIC0gZHN0Y2ltYWFkMXAuZHN0LWl0cy5kZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALsFVa7OTiUSni1JNB+Tf2+CW733968ZYN1iHjjvs0kj0wuaBTnOf7XtKy4FaDSSQeKzTOAOwRFyPPOcS643y95dyx6miXrb0dLXSwJ5L21ClIhsZ7hp5jrIIePdT\/eaRzyAJ4stqeuBUKAW0ydGunBeS0bjzxylV4I1408nb5iq7fyFWllA4CAkbMOQW79vdEmoZsXHTt2pEoH7GbUZEfEpmjMwD2CDYtv\/D9nr2igJzEC04FFZHLWhGpjv+hyeX+bFoXle7ay3pFN+cT1ZD8EoQ3pXn54ciXDuciAl6l87nsARJ4vS68QBCWDdq2H4hUFicvqQ3uQz1AbPiBU6XLUCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAPHCisZyPf\/fuuQEW5LyzZSYMwBRYVR6kk\/M2ZNx6TrUEwmOb10RQ3G97bLAshN44g5lWdPYz4EOt6d2o71etIjf79f+IR0MAjEgBB2HThaHcMU9KG229Ftcauie9XeurngMawTRu60YqH7+go8EMf6a1Kdnx37DMy\/1LRlsYJVfEoOCab3GgcIdXrRSYWqsY4SVJZiTPYdqz9vmNPSXXiDSOTl6qXHV\/f53WTS2V5aIQbuJJziXlceusuVNny0o5h+j6ovZ1HhEGAu3lpD+8kY8KUqA4kXMH3VNZqzHBYazJx\/QBB3bG45cZSOvV3gUOnGBgiv9NBWjhvmY0fC3J6Q=="]}]}`,
+			Iat:          int64(1513165889) - 1,
+			Err:          errors.New("Token used before issued"),
+		},
+		{
+			Name:         "Valid Token with RS256 signature verified against correct JWKS document but outdated",
+			TokenString:  "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSIsImtpZCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSJ9.eyJhdWQiOiJjaHJvbm9ncmFmIiwiaXNzIjoiaHR0cHM6Ly9kc3RjaW1hYWQxcC5kc3QtaXRzLmRlL2FkZnMiLCJpYXQiOjE1MTMxNjU4ODksImV4cCI6MTUxMzE2OTQ4OSwiYXV0aF90aW1lIjoxNTEzMTY1ODg4LCJzdWIiOiJlWVYzamRsZE55RlkxcUZGSDRvQWRCdkRGZmJWZm51RzI5SGlIa1N1andrPSIsInVwbiI6ImJzY0Bkc3QtaXRzLmRlIiwidW5pcXVlX25hbWUiOiJEU1RcXGJzYyIsInNpZCI6IlMtMS01LTIxLTI1MDUxNTEzOTgtMjY2MTAyODEwOS0zNzU0MjY1ODIwLTExMDQifQ.nK51Ui4XN45SVul9igNaKFQd-F63BNstBzW-T5LBVm_ANHCEHyP3_88C3ffkkQIi3PxYacRJGtfswP35ws7YJUcNp-GoGZARqz62NpMtbQyhos6mCaVXwPoxPbrZx4AkMQgxkZwJcOzceX7mpjcT3kCth30chN3lkhzSjGrXe4ZDOAV25liS-dsdBiqDiaTB91sS534GM76qJQxFUs51oSbYTRdCN1VJ0XopMcasfVDzFrtSbyvEIVXlpKK2HplnhheqF4QHrM_3cjV_NGRr3tYLe-AGTdDXKWlJD1GDz1ECXeMGQHPoz3U8cqNsFLYBstIlCgfnBWgWsPZSvJPJUg",
+			JwksDocument: `{"keys":[{"kty":"RSA","use":"sig","alg":"RS256","kid":"YDBUhqdWksKXdGuX0sytjaUuxhA","x5t":"YDBUhqdWksKXdGuX0sytjaUuxhA","n":"uwVVrs5OJRKeLUk0H5N_b4Jbvff3rxlg3WIeOO-zSSPTC5oFOc5_te0rLgVoNJJB4rNM4A7BEXI885xLrjfL3l3LHqaJetvR0tdLAnkvbUKUiGxnuGnmOsgh491P95pHPIAniy2p64FQoBbTJ0a6cF5LRuPPHKVXgjXjTydvmKrt_IVaWUDgICRsw5Bbv290SahmxcdO3akSgfsZtRkR8SmaMzAPYINi2_8P2evaKAnMQLTgUVkctaEamO_6HJ5f5sWheV7trLekU35xPVkPwShDelefnhyJcO5yICXqXzuewBEni9LrxAEJYN2rYfiFQWJy-pDe5DPUBs-IFTpctQ","e":"AQAB","x5c":["MIIC6DCCAdCgAwIBAgIQPszqLhbrpZlE+jEJTyJg7jANBgkqhkiG9w0BAQsFADAwMS4wLAYDVQQDEyVBREZTIFNpZ25pbmcgLSBkc3RjaW1hYWQxcC5kc3QtaXRzLmRlMB4XDTE3MTIwNDE0MDEwOFoXDTE4MTIwNDE0MDEwOFowMDEuMCwGA1UEAxMlQURGUyBTaWduaW5nIC0gZHN0Y2ltYWFkMXAuZHN0LWl0cy5kZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALsFVa7OTiUSni1JNB+Tf2+CW733968ZYN1iHjjvs0kj0wuaBTnOf7XtKy4FaDSSQeKzTOAOwRFyPPOcS643y95dyx6miXrb0dLXSwJ5L21ClIhsZ7hp5jrIIePdT\/eaRzyAJ4stqeuBUKAW0ydGunBeS0bjzxylV4I1408nb5iq7fyFWllA4CAkbMOQW79vdEmoZsXHTt2pEoH7GbUZEfEpmjMwD2CDYtv\/D9nr2igJzEC04FFZHLWhGpjv+hyeX+bFoXle7ay3pFN+cT1ZD8EoQ3pXn54ciXDuciAl6l87nsARJ4vS68QBCWDdq2H4hUFicvqQ3uQz1AbPiBU6XLUCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAPHCisZyPf\/fuuQEW5LyzZSYMwBRYVR6kk\/M2ZNx6TrUEwmOb10RQ3G97bLAshN44g5lWdPYz4EOt6d2o71etIjf79f+IR0MAjEgBB2HThaHcMU9KG229Ftcauie9XeurngMawTRu60YqH7+go8EMf6a1Kdnx37DMy\/1LRlsYJVfEoOCab3GgcIdXrRSYWqsY4SVJZiTPYdqz9vmNPSXXiDSOTl6qXHV\/f53WTS2V5aIQbuJJziXlceusuVNny0o5h+j6ovZ1HhEGAu3lpD+8kY8KUqA4kXMH3VNZqzHBYazJx\/QBB3bG45cZSOvV3gUOnGBgiv9NBWjhvmY0fC3J6Q=="]}]}`,
+			Iat:          int64(1513165889) + 3601,
+			Err:          errors.New("Token is expired"),
+		},
+		{
+			Name:         "Valid Token with RS256 signature verified against empty JWKS document",
+			TokenString:  "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSIsImtpZCI6IllEQlVocWRXa3NLWGRHdVgwc3l0amFVdXhoQSJ9.eyJhdWQiOiJjaHJvbm9ncmFmIiwiaXNzIjoiaHR0cHM6Ly9kc3RjaW1hYWQxcC5kc3QtaXRzLmRlL2FkZnMiLCJpYXQiOjE1MTMxNjU4ODksImV4cCI6MTUxMzE2OTQ4OSwiYXV0aF90aW1lIjoxNTEzMTY1ODg4LCJzdWIiOiJlWVYzamRsZE55RlkxcUZGSDRvQWRCdkRGZmJWZm51RzI5SGlIa1N1andrPSIsInVwbiI6ImJzY0Bkc3QtaXRzLmRlIiwidW5pcXVlX25hbWUiOiJEU1RcXGJzYyIsInNpZCI6IlMtMS01LTIxLTI1MDUxNTEzOTgtMjY2MTAyODEwOS0zNzU0MjY1ODIwLTExMDQifQ.nK51Ui4XN45SVul9igNaKFQd-F63BNstBzW-T5LBVm_ANHCEHyP3_88C3ffkkQIi3PxYacRJGtfswP35ws7YJUcNp-GoGZARqz62NpMtbQyhos6mCaVXwPoxPbrZx4AkMQgxkZwJcOzceX7mpjcT3kCth30chN3lkhzSjGrXe4ZDOAV25liS-dsdBiqDiaTB91sS534GM76qJQxFUs51oSbYTRdCN1VJ0XopMcasfVDzFrtSbyvEIVXlpKK2HplnhheqF4QHrM_3cjV_NGRr3tYLe-AGTdDXKWlJD1GDz1ECXeMGQHPoz3U8cqNsFLYBstIlCgfnBWgWsPZSvJPJUg",
+			JwksDocument: "",
+			Iat:          int64(1513165889),
+			Err:          errors.New("unexpected end of JSON input"),
+		},
+		{
+			Name: "Invalid Token",
+			Err:  errors.New("token contains an invalid number of segments"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			// mock JWKS server
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				io.WriteString(w, tt.JwksDocument)
+			}))
+			defer ts.Close()
+
+			j := oauth2.JWT{
+				Jwksurl: ts.URL,
+				Now: func() time.Time {
+					return time.Unix(tt.Iat, 0)
+				},
+			}
+			_, err := j.GetClaims(tt.TokenString)
+			if tt.Err != nil {
+				if err != nil {
+					if tt.Err.Error() != err.Error() {
+						t.Errorf("Error in test %s expected error: %v actual: %v", tt.Name, tt.Err, err)
+					} // else: that's what we expect
+				} else {
+					t.Errorf("Error in test %s expected error: %v actual: none", tt.Name, tt.Err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Error in tt %s: %v", tt.Name, err)
+				} // else: that's what we expect
+			}
+		})
 	}
 }
 

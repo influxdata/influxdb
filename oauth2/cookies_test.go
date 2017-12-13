@@ -3,6 +3,7 @@ package oauth2
 import (
 	"context"
 	"fmt"
+	gojwt "github.com/dgrijalva/jwt-go"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	gojwt "github.com/dgrijalva/jwt-go"
 )
 
 type MockTokenizer struct {
@@ -34,7 +34,7 @@ func (m *MockTokenizer) ExtendedPrincipal(ctx context.Context, principal Princip
 }
 
 func (m *MockTokenizer) GetClaims(tokenString string) (gojwt.MapClaims, error) {
-    return gojwt.MapClaims{}, nil
+	return gojwt.MapClaims{}, nil
 }
 
 func TestCookieAuthorize(t *testing.T) {
