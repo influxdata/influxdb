@@ -1,5 +1,6 @@
 ## v1.4.0.0-beta2 [unreleased]
 ### Features
+1. [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
 ### UI Improvements
 ### Bug Fixes
 
