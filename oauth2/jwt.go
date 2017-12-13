@@ -110,6 +110,10 @@ func (j *JWT) KeyFuncRS256(token *gojwt.Token) (interface{}, error) {
 	}
 
 	// read JWKS document from key discovery service
+	if j.Jwksurl == "" {
+		return nil, fmt.Errorf("JWKSURL not specified, cannot validate RS256 signature")
+	}
+
 	rr, err := http.Get(j.Jwksurl)
 	if err != nil {
 		return nil, err
@@ -194,6 +198,7 @@ func (j *JWT) ValidClaims(jwtToken Token, lifespan time.Duration, alg gojwt.Keyf
 func (j *JWT) GetClaims(tokenString string) (gojwt.MapClaims, error) {
 	var claims gojwt.MapClaims
 
+	gojwt.TimeFunc = j.Now
 	token, err := gojwt.Parse(tokenString, j.KeyFunc)
 	if err != nil {
 		return nil, err
