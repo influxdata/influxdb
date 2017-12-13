@@ -604,3 +604,22 @@ type OrganizationsStore interface {
 	// DefaultOrganization returns the DefaultOrganization
 	DefaultOrganization(ctx context.Context) (*Organization, error)
 }
+
+// AuthConfig is the global application config section for auth parameters
+type AuthConfig struct {
+	SuperAdminFirstUserOnly bool `json:"superAdminFirstUserOnly"`
+}
+
+// Config is the global application Config for parameters that can be set via
+// API, with different sections, such as Auth
+type Config struct {
+	Auth AuthConfig `json:"auth"`
+}
+
+// ConfigStore is the storage and retrieval of global application Config
+type ConfigStore interface {
+	// Get retrieves the whole Config from the ConfigStore
+	Get(context.Context) (*Config, error)
+	// Update updates the whole Config in the ConfigStore
+	Update(context.Context, *Config) error
+}

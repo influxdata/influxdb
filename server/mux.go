@@ -237,6 +237,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.UpdateRetentionPolicy))
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.DropRetentionPolicy))
 
+	// Global application config for Chronograf
+	router.GET("/chronograf/v1/config", EnsureSuperAdmin(service.Config))
+
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,
 		StatusFeed:  opts.StatusFeedURL,
