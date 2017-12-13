@@ -1,7 +1,6 @@
 package kapacitor
 
 import (
-	"log"
 	"testing"
 
 	"github.com/influxdata/chronograf"
@@ -38,6 +37,30 @@ func TestAlertServices(t *testing.T) {
 			},
 			want: `alert()
         .slack()
+`,
+		},
+		{
+			name: "Test pushoverservice",
+			rule: chronograf.AlertRule{
+				AlertNodes: chronograf.AlertNodes{
+					Pushover: []*chronograf.Pushover{
+						{
+							Device:   "asdf",
+							Title:    "asdf",
+							Sound:    "asdf",
+							URL:      "http://moo.org",
+							URLTitle: "influxdata",
+						},
+					},
+				},
+			},
+			want: `alert()
+        .pushover()
+        .device('asdf')
+        .title('asdf')
+        .uRL('http://moo.org')
+        .uRLTitle('influxdata')
+        .sound('asdf')
 `,
 		},
 		{
@@ -122,7 +145,6 @@ func TestAlertServices(t *testing.T) {
 	for _, tt := range tests {
 		got, err := AlertServices(tt.rule)
 		if (err != nil) != tt.wantErr {
-			log.Printf("GOT %s", got)
 			t.Errorf("%q. AlertServices() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
@@ -148,7 +170,7 @@ func Test_addAlertNodes(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name: "foo",
+			name: "test email alerts",
 			handlers: chronograf.AlertNodes{
 				IsStateChangesOnly: true,
 				Email: []*chronograf.Email{
@@ -164,6 +186,30 @@ func Test_addAlertNodes(t *testing.T) {
         .email()
         .to('me@me.com')
         .to('you@you.com')
+`,
+		},
+		{
+			name: "test pushover alerts",
+			handlers: chronograf.AlertNodes{
+				IsStateChangesOnly: true,
+				Pushover: []*chronograf.Pushover{
+					{
+						Device:   "asdf",
+						Title:    "asdf",
+						Sound:    "asdf",
+						URL:      "http://moo.org",
+						URLTitle: "influxdata",
+					},
+				},
+			},
+			want: `
+        .stateChangesOnly()
+        .pushover()
+        .device('asdf')
+        .title('asdf')
+        .uRL('http://moo.org')
+        .uRLTitle('influxdata')
+        .sound('asdf')
 `,
 		},
 	}
