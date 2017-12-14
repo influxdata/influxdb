@@ -315,9 +315,62 @@ func TestUsersStore_Add(t *testing.T) {
 				Scheme:   "oauth2",
 				Roles: []chronograf.Role{
 					{
-						Organization: "1337",
-						Name:         "editor",
+						Organization: "1336",
+						Name:         "admin",
 					},
+				},
+			},
+		},
+		{
+			name: "Add non-new user with Role. Stored user is not super admin. Provided user is super admin",
+			fields: fields{
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:         1234,
+							Name:       "docbrown",
+							Provider:   "github",
+							Scheme:     "oauth2",
+							SuperAdmin: false,
+							Roles: []chronograf.Role{
+								{
+									Organization: "1337",
+									Name:         "editor",
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					ID:         1234,
+					Name:       "docbrown",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						{
+							Organization: "1336",
+							Name:         "admin",
+						},
+					},
+				},
+				orgID: "1336",
+			},
+			want: &chronograf.User{
+				Name:       "docbrown",
+				Provider:   "github",
+				Scheme:     "oauth2",
+				SuperAdmin: true,
+				Roles: []chronograf.Role{
 					{
 						Organization: "1336",
 						Name:         "admin",
@@ -502,6 +555,9 @@ func TestUsersStore_Add(t *testing.T) {
 		}
 		if got == nil && tt.want == nil {
 			continue
+		}
+		if diff := cmp.Diff(got, tt.want, userCmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
