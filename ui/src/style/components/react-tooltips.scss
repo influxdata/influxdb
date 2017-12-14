@@ -26,6 +26,7 @@ $tooltip-code-color: $c-potassium;
   word-break: keep-all;
   border-radius: $tooltip-radius;
   text-transform: none;
+  text-align: left;
   cursor: default;
 
   &.type-dark {
