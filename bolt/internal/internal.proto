@@ -164,6 +164,14 @@ message Organization {
 	bool Public             = 4; // Public specifies that users must be explicitly added to the organization
 }
 
+message Config {
+	AuthConfig Auth         = 1; // Auth is the configuration for options that auth related
+}
+
+message AuthConfig {
+	bool SuperAdminNewUsers   = 1; // SuperAdminNewUsers configuration option that specifies which users will auto become super admin
+}
+
 // The following is a vim modeline, it autoconfigures vim to have the
 // appropriate tabbing and whitespace management to edit this file
 //

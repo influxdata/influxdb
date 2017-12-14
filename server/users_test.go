@@ -112,8 +112,9 @@ func TestService_UserID(t *testing.T) {
 
 func TestService_NewUser(t *testing.T) {
 	type fields struct {
-		UsersStore chronograf.UsersStore
-		Logger     chronograf.Logger
+		UsersStore  chronograf.UsersStore
+		ConfigStore chronograf.ConfigStore
+		Logger      chronograf.Logger
 	}
 	type args struct {
 		w           *httptest.ResponseRecorder
@@ -146,6 +147,13 @@ func TestService_NewUser(t *testing.T) {
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: false,
+						},
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -189,6 +197,13 @@ func TestService_NewUser(t *testing.T) {
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: false,
+						},
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -241,6 +256,13 @@ func TestService_NewUser(t *testing.T) {
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: false,
+						},
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -291,6 +313,13 @@ func TestService_NewUser(t *testing.T) {
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: false,
+						},
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -332,6 +361,13 @@ func TestService_NewUser(t *testing.T) {
 			},
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: false,
+						},
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -349,13 +385,56 @@ func TestService_NewUser(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"id":"1338","superAdmin":true,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
+		{
+			name: "Create a new User with SuperAdminNewUsers: true in ConfigStore",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"POST",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:     "bob",
+					Provider: "github",
+					Scheme:   "oauth2",
+				},
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: true,
+						},
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						user.ID = 1338
+						return user, nil
+					},
+				},
+			},
+			wantStatus:      http.StatusCreated,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1338","superAdmin":true,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
 				Store: &mocks.Store{
-					UsersStore: tt.fields.UsersStore,
+					UsersStore:  tt.fields.UsersStore,
+					ConfigStore: tt.fields.ConfigStore,
 				},
 				Logger: tt.fields.Logger,
 			}

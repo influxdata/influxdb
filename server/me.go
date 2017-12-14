@@ -206,6 +206,23 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if usr != nil {
+
+		if defaultOrg.Public || usr.SuperAdmin == true {
+			// If the default organization is public, or the user is a super admin
+			// they will always have a role in the default organization
+			defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+			if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
+				usr.Roles = append(usr.Roles, chronograf.Role{
+					Organization: defaultOrgID,
+					Name:         defaultOrg.DefaultRole,
+				})
+				if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
+					unknownErrorWithMessage(w, err, s.Logger)
+					return
+				}
+			}
+		}
+
 		// If the default org is private and the user has no roles, they should not have access
 		if !defaultOrg.Public && len(usr.Roles) == 0 {
 			Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
@@ -227,19 +244,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
-		// If a user was added via the API, they might not yet be a member of the default organization
-		// Here we check to verify that they are a user in the default organization
-		if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
-			usr.Roles = append(usr.Roles, chronograf.Role{
-				Organization: defaultOrgID,
-				Name:         defaultOrg.DefaultRole,
-			})
-			if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
-				unknownErrorWithMessage(w, err, s.Logger)
-				return
-			}
-		}
 		orgs, err := s.usersOrganizations(serverCtx, usr)
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
@@ -316,10 +320,21 @@ func (s *Service) firstUser() bool {
 	return numUsers == 0
 }
 func (s *Service) newUsersAreSuperAdmin() bool {
+	// It's not necessary to enforce that the first user is superAdmin here, since
+	// superAdminNewUsers defaults to true, but there's nothing else in the
+	// application that dictates that it must be true.
+	// So for that reason, we kept this here for now. We've discussed the
+	// future possibility of allowing users to override default values via CLI and
+	// this case could possibly happen then.
 	if s.firstUser() {
 		return true
 	}
-	return !s.SuperAdminFirstUserOnly
+	serverCtx := serverContext(context.Background())
+	cfg, err := s.Store.Config(serverCtx).Get(serverCtx)
+	if err != nil {
+		return false
+	}
+	return cfg.Auth.SuperAdminNewUsers
 }
 
 func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {

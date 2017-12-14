@@ -80,6 +80,11 @@ const getRange = (
     }
   }
 
+  // prevents inversion of graph
+  if (min > max) {
+    return [min, min + 1]
+  }
+
   return [min, max]
 }
 

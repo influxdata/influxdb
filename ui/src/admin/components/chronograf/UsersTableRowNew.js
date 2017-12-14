@@ -3,11 +3,9 @@ import React, {Component, PropTypes} from 'react'
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import Dropdown from 'shared/components/Dropdown'
-import SlideToggle from 'shared/components/SlideToggle'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
-import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 class UsersTableRowNew extends Component {
   constructor(props) {
@@ -17,8 +15,7 @@ class UsersTableRowNew extends Component {
       name: '',
       provider: '',
       scheme: 'oauth2',
-      role: MEMBER_ROLE,
-      superAdmin: false,
+      role: this.props.organization.defaultRole,
     }
   }
 
@@ -55,10 +52,6 @@ class UsersTableRowNew extends Component {
     this.setState({role: newRole.text})
   }
 
-  handleSelectSuperAdmin = superAdmin => {
-    this.setState({superAdmin})
-  }
-
   handleKeyDown = e => {
     const {name, provider} = this.state
     const preventCreate = !name || !provider
@@ -87,7 +80,7 @@ class UsersTableRowNew extends Component {
       colActions,
     } = USERS_TABLE
     const {onBlur} = this.props
-    const {name, provider, scheme, role, superAdmin} = this.state
+    const {name, provider, scheme, role} = this.state
 
     const dropdownRolesItems = USER_ROLES.map(r => ({...r, text: r.name}))
     const preventCreate = !name || !provider
@@ -117,11 +110,7 @@ class UsersTableRowNew extends Component {
         </td>
         <Authorized requiredRole={SUPERADMIN_ROLE}>
           <td style={{width: colSuperAdmin}} className="text-center">
-            <SlideToggle
-              active={superAdmin}
-              size="xs"
-              onToggle={this.handleSelectSuperAdmin}
-            />
+            &mdash;
           </td>
         </Authorized>
         <td style={{width: colProvider}}>

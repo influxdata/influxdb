@@ -23,6 +23,7 @@ type Client struct {
 	DashboardsStore    *DashboardsStore
 	UsersStore         *UsersStore
 	OrganizationsStore *OrganizationsStore
+	ConfigStore        *ConfigStore
 }
 
 // NewClient initializes all stores
@@ -40,6 +41,7 @@ func NewClient() *Client {
 	}
 	c.UsersStore = &UsersStore{client: c}
 	c.OrganizationsStore = &OrganizationsStore{client: c}
+	c.ConfigStore = &ConfigStore{client: c}
 	return c
 }
 
@@ -77,6 +79,10 @@ func (c *Client) Open(ctx context.Context) error {
 		if _, err := tx.CreateBucketIfNotExists(UsersBucket); err != nil {
 			return err
 		}
+		// Always create Config bucket.
+		if _, err := tx.CreateBucketIfNotExists(ConfigBucket); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -96,6 +102,9 @@ func (c *Client) Open(ctx context.Context) error {
 		return err
 	}
 	if err := c.DashboardsStore.Migrate(ctx); err != nil {
+		return err
+	}
+	if err := c.ConfigStore.Migrate(ctx); err != nil {
 		return err
 	}
 
