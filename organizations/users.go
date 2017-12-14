@@ -149,11 +149,9 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 	// I do not like checking super admin here. The organization users store should only be
 	// concerned about organizations.
 	//
-	// This allows users to be promoted to SuperAdmin on Add if they had not previously had the status.
-	// The reason for this is that we reuse Users and it is possible that one may try to "create" a user,
-	// who has super admin status, without super admin status on the request. In this case, a user should
-	// still retain their previous status and not be demoted. If we had done usr.SupderAdmin = u.SuperAdmin
-	// we could possibly demote a users super admin status.
+	// If the user being added already existed in a previous organization, and was already a SuperAdmin,
+	// then this ensures that they retain their SuperAdmin status. And if they weren't a SuperAdmin, and
+	// the user being added has been granted SuperAdmin status, they will be promoted
 	if u.SuperAdmin == true {
 		usr.SuperAdmin = true
 	}
