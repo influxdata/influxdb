@@ -296,6 +296,12 @@ func init() {
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{
+				name:    "Make sure other points are deleted",
+				command: `SELECT COUNT(val) FROM cpu WHERE "host" = 'serverA'`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
 				name:    "Make sure data wasn't deleted from other database.",
 				command: `SELECT * FROM cpu`,
 				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,

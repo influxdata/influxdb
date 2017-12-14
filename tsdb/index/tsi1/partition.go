@@ -540,7 +540,6 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 
 		mname := []byte(name)
 		seriesID := i.sfile.Offset(mname, tags, nil)
-
 		if err := i.sfile.DeleteSeriesID(seriesID); err != nil {
 			return err
 		}
@@ -550,7 +549,7 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 		return err
 	}
 
-	// Swap log file, if necesssary.
+	// Swap log file, if necessary.
 	if err := i.CheckLogFile(); err != nil {
 		return err
 	}
@@ -719,11 +718,6 @@ func (i *Partition) SnapshotTo(path string) error {
 func (i *Partition) SetFieldName(measurement []byte, name string) {}
 func (i *Partition) RemoveShard(shardID uint64)                   {}
 func (i *Partition) AssignShard(k string, shardID uint64)         {}
-
-func (i *Partition) UnassignShard(k string, shardID uint64, ts int64) error {
-	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k), ts)
-}
 
 // Compact requests a compaction of log files.
 func (i *Partition) Compact() {

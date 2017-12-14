@@ -1164,6 +1164,7 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 		} else if elem == nil {
 			break
 		}
+
 		if elem.Expr() != nil {
 			if v, ok := elem.Expr().(*influxql.BooleanLiteral); !ok || !v.Val {
 				return errors.New("fields not supported in WHERE clause during deletion")
@@ -1307,7 +1308,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// exists now.  To reconcile the index, we walk the series keys that still exists
 	// on disk and cross out any keys that match the passed in series.  Any series
 	// left in the slice at the end do not exist and can be deleted from the index.
-	// Note: this is inherently racy if writes are occuring to the same measurement/series are
+	// Note: this is inherently racy if writes are occurring to the same measurement/series are
 	// being removed.  A write could occur and exist in the cache at this point, but we
 	// would delete it from the index.
 	minKey := seriesKeys[0]

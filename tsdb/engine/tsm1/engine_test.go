@@ -885,7 +885,8 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}

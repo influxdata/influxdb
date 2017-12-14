@@ -890,6 +890,53 @@ cpu,secret=foo value=100 0
 		if gotCount != expCount {
 			return fmt.Errorf("got %d series, expected %d", gotCount, expCount)
 		}
+
+		// Delete series cpu,host=serverA,region=uswest
+		if err := sh.Index().DropSeries([]byte("cpu,host=serverA,region=uswest"), time.Now().UnixNano()); err != nil {
+			return err
+		}
+
+		if itr, err = sh.CreateIterator(context.Background(), v.m, query.IteratorOptions{
+			Aux:        v.aux,
+			Ascending:  true,
+			StartTime:  influxql.MinTime,
+			EndTime:    influxql.MaxTime,
+			Authorizer: seriesAuthorizer,
+		}); err != nil {
+			return err
+		}
+
+		if itr == nil {
+			return fmt.Errorf("iterator is nil")
+		}
+		defer itr.Close()
+
+		fitr = itr.(query.FloatIterator)
+		defer fitr.Close()
+		expCount = 1
+		gotCount = 0
+		for {
+			f, err := fitr.Next()
+			if err != nil {
+				return err
+			}
+
+			if f == nil {
+				break
+			}
+
+			if got := f.Aux[0].(string); strings.Contains(got, "secret") {
+				return fmt.Errorf("got a series %q that should be filtered", got)
+			} else if got := f.Aux[0].(string); strings.Contains(got, "serverA") {
+				return fmt.Errorf("got a series %q that should be filtered", got)
+			}
+			gotCount++
+		}
+
+		if gotCount != expCount {
+			return fmt.Errorf("got %d series, expected %d", gotCount, expCount)
+		}
+
 		return nil
 	}
 
@@ -1844,4 +1891,31 @@ func MustTempDir() (string, func()) {
 		panic(fmt.Sprintf("failed to create temp dir: %v", err))
 	}
 	return dir, func() { os.RemoveAll(dir) }
+}
+
+type seriesIterator struct {
+	keys [][]byte
+}
+
+type series struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (s series) Name() []byte        { return s.name }
+func (s series) Tags() models.Tags   { return s.tags }
+func (s series) Deleted() bool       { return s.deleted }
+func (s series) Expr() influxql.Expr { return nil }
+
+func (itr *seriesIterator) Close() error { return nil }
+
+func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
+	if len(itr.keys) == 0 {
+		return nil, nil
+	}
+	name, tags := models.ParseKeyBytes(itr.keys[0])
+	s := series{name: name, tags: tags}
+	itr.keys = itr.keys[1:]
+	return s, nil
 }

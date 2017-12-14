@@ -457,6 +457,9 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a
 // list of matching measurement names.
+//
+// TODO(edd): Remove authorisation from these methods. There shouldn't need to
+// be any auth passed down into the index.
 func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -603,7 +606,14 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 			// Is there a series with this matching tag value that is
 			// authorized to be read?
 			for _, sid := range seriesIDs {
-				if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+				s := m.SeriesByID(sid)
+
+				// If the series is deleted then it can't be used to authorise against.
+				if s != nil && s.Deleted() {
+					continue
+				}
+
+				if s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
 					// The Range call can return early as a matching
 					// tag value with an authorized series has been found.
 					authorized = true
@@ -705,7 +715,6 @@ func (i *Index) DropSeries(key []byte, ts int64) error {
 
 	// Remove the measurement's reference.
 	series.Measurement().DropSeries(series)
-
 	// Mark the series as deleted.
 	series.Delete(ts)
 

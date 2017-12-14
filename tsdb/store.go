@@ -986,7 +986,6 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				continue
 			}
 			defer itr.Close()
-
 			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max); err != nil {
 				return err
 			}

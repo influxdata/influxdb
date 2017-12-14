@@ -1010,6 +1010,36 @@ func TestStore_Measurements_Auth(t *testing.T) {
 		if gotNames != expNames {
 			return fmt.Errorf("got %d measurements, but expected %d", gotNames, expNames)
 		}
+
+		// Now delete all of the cpu series.
+		cond, err := influxql.ParseExpr("host = 'serverA' OR region = 'west'")
+		if err != nil {
+			return err
+		}
+
+		if err := s.DeleteSeries("db0", nil, cond); err != nil {
+			return err
+		}
+
+		if names, err = s.MeasurementNames(authorizer, "db0", nil); err != nil {
+			return err
+		}
+
+		// names should not contain any measurements where none of the associated
+		// series are authorised for reads.
+		expNames = 1
+		gotNames = 0
+		for _, name := range names {
+			if string(name) == "mem" || string(name) == "cpu" {
+				return fmt.Errorf("after delete got measurement %q but it should be filtered.", name)
+			}
+			gotNames++
+		}
+
+		if gotNames != expNames {
+			return fmt.Errorf("after delete got %d measurements, but expected %d", gotNames, expNames)
+		}
+
 		return nil
 	}
 
@@ -1020,6 +1050,7 @@ func TestStore_Measurements_Auth(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestStore_TagKeys_Auth(t *testing.T) {
@@ -1072,6 +1103,41 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 		if gotKeys != expKeys {
 			return fmt.Errorf("got %d keys, but expected %d", gotKeys, expKeys)
 		}
+
+		// Delete the series with region = west
+		cond, err := influxql.ParseExpr("region = 'west'")
+		if err != nil {
+			return err
+		}
+		if err := s.DeleteSeries("db0", nil, cond); err != nil {
+			return err
+		}
+
+		if keys, err = s.TagKeys(authorizer, []uint64{0}, nil); err != nil {
+			return err
+		}
+
+		// keys should not contain any tag keys associated with a series containing
+		// a secret tag or the deleted series
+		expKeys = 2
+		gotKeys = 0
+		for _, tk := range keys {
+			if got, exp := tk.Measurement, "cpu"; got != exp {
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
+			}
+
+			for _, key := range tk.Keys {
+				if key == "secret" || key == "machine" || key == "region" {
+					return fmt.Errorf("got tag key %q but it should be filtered.", key)
+				}
+				gotKeys++
+			}
+		}
+
+		if gotKeys != expKeys {
+			return fmt.Errorf("got %d keys, but expected %d", gotKeys, expKeys)
+		}
+
 		return nil
 	}
 
@@ -1082,6 +1148,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestStore_TagValues_Auth(t *testing.T) {
@@ -1130,6 +1197,48 @@ func TestStore_TagValues_Auth(t *testing.T) {
 
 			for _, v := range tv.Values {
 				if got, exp := v.Value, "serverD"; got == exp {
+					return fmt.Errorf("got tag value %q but it should be filtered.", got)
+				}
+				gotValues++
+			}
+		}
+
+		if gotValues != expValues {
+			return fmt.Errorf("got %d tags, but expected %d", gotValues, expValues)
+		}
+
+		// Delete the series with values serverA
+		cond, err := influxql.ParseExpr("host = 'serverA'")
+		if err != nil {
+			return err
+		}
+		if err := s.DeleteSeries("db0", nil, cond); err != nil {
+			return err
+		}
+
+		values, err = s.TagValues(authorizer, []uint64{0}, &influxql.BinaryExpr{
+			Op:  influxql.EQ,
+			LHS: &influxql.VarRef{Val: "_tagKey"},
+			RHS: &influxql.StringLiteral{Val: "host"},
+		})
+
+		if err != nil {
+			return err
+		}
+
+		// values should not contain any tag values associated with a series containing
+		// a secret tag.
+		expValues = 1
+		gotValues = 0
+		for _, tv := range values {
+			if got, exp := tv.Measurement, "cpu"; got != exp {
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
+			}
+
+			for _, v := range tv.Values {
+				if got, exp := v.Value, "serverD"; got == exp {
+					return fmt.Errorf("got tag value %q but it should be filtered.", got)
+				} else if got, exp := v.Value, "serverA"; got == exp {
 					return fmt.Errorf("got tag value %q but it should be filtered.", got)
 				}
 				gotValues++
