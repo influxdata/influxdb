@@ -164,15 +164,15 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if cfg.Auth.SuperAdminNewUsers {
-		req.SuperAdmin = true
-	}
-
 	user := &chronograf.User{
 		Name:     req.Name,
 		Provider: req.Provider,
 		Scheme:   req.Scheme,
 		Roles:    req.Roles,
+	}
+
+	if cfg.Auth.SuperAdminNewUsers {
+		req.SuperAdmin = true
 	}
 
 	if err := setSuperAdmin(ctx, req, user); err != nil {
