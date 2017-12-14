@@ -1152,7 +1152,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
-func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
+func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64, removeIndex bool) error {
 	var disableOnce bool
 
 	var sz int
@@ -1189,7 +1189,7 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 
 		if sz >= deleteFlushThreshold {
 			// Delete all matching batch.
-			if err := e.deleteSeriesRange(batch, min, max); err != nil {
+			if err := e.deleteSeriesRange(batch, min, max, removeIndex); err != nil {
 				return err
 			}
 			batch = batch[:0]
@@ -1199,20 +1199,24 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 
 	if len(batch) > 0 {
 		// Delete all matching batch.
-		if err := e.deleteSeriesRange(batch, min, max); err != nil {
+		if err := e.deleteSeriesRange(batch, min, max, removeIndex); err != nil {
 			return err
 		}
 		batch = batch[:0]
 	}
 
-	e.index.Rebuild()
+	if removeIndex {
+		e.index.Rebuild()
+	}
 	return nil
 }
 
-// deleteSeriesRange removes the values between min and max (inclusive) from all series.  This
-// does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
-// and not directly.
-func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+// deleteSeriesRange removes the values between min and max (inclusive) from all
+// series in the TSM engine. If removeIndex is true, then series will also be
+// removed from the index.
+//
+// This should mainly be called by DeleteSeriesRange and not directly.
+func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64, removeIndex bool) error {
 	ts := time.Now().UTC().UnixNano()
 	if len(seriesKeys) == 0 {
 		return nil
@@ -1372,12 +1376,11 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				i++
 			}
 
-			// Some cache values still exists, leave the series in the index.
-			if hasCacheValues {
+			if hasCacheValues || !removeIndex {
 				continue
 			}
 
-			// Remove the series from the index for this shard
+			// Remove the series from the index.
 			if err := e.index.UnassignShard(string(k), e.id, ts); err != nil {
 				return err
 			}
@@ -1440,7 +1443,8 @@ func (e *Engine) deleteMeasurement(name []byte) error {
 		return nil
 	}
 	defer itr.Close()
-	return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64)
+	// Delete all associated series and remove them from the index.
+	return e.DeleteSeriesRange(tsdb.NewSeriesIteratorAdapter(e.sfile, itr), math.MinInt64, math.MaxInt64, true)
 }
 
 // ForEachMeasurementName iterates over each measurement name in the engine.
