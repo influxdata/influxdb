@@ -1,11 +1,8 @@
 import React, {Component, PropTypes} from 'react'
-import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import uuid from 'node-uuid'
 
 import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-import {getMeAsync} from 'shared/actions/auth'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTableRowNew from 'src/admin/components/chronograf/UsersTableRowNew'
@@ -137,11 +134,6 @@ UsersTable.propTypes = {
   onDeleteUser: func.isRequired,
   meID: string.isRequired,
   notify: func.isRequired,
-  getMe: func.isRequired,
 }
 
-const mapDispatchToProps = dispatch => ({
-  getMe: bindActionCreators(getMeAsync, dispatch),
-})
-
-export default connect(null, mapDispatchToProps)(UsersTable)
+export default UsersTable
