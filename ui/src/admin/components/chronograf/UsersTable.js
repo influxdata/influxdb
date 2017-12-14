@@ -22,12 +22,6 @@ class UsersTable extends Component {
     }
   }
 
-  componentDidMount() {
-    // TODO: update the {me: currentOrganization} and {organizations: []} at the same time
-    // updates the current organization.
-    this.props.getMe({shouldResetMe: false})
-  }
-
   handleChangeUserRole = (user, currentRole) => newRole => {
     this.props.onUpdateUserRole(user, currentRole, newRole)
   }
