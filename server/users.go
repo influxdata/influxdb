@@ -157,6 +157,17 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
+	cfg, err := s.Store.Config(ctx).Get(ctx)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		return
+	}
+
+	if cfg.Auth.SuperAdminNewUsers {
+		req.SuperAdmin = true
+	}
+
 	user := &chronograf.User{
 		Name:     req.Name,
 		Provider: req.Provider,
