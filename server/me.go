@@ -206,6 +206,23 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if usr != nil {
+
+		if defaultOrg.Public || usr.SuperAdmin == true {
+			// If the default organization is public, or the user is a super admin
+			// they will always have a role in the default organization
+			defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+			if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
+				usr.Roles = append(usr.Roles, chronograf.Role{
+					Organization: defaultOrgID,
+					Name:         defaultOrg.DefaultRole,
+				})
+				if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
+					unknownErrorWithMessage(w, err, s.Logger)
+					return
+				}
+			}
+		}
+
 		// If the default org is private and the user has no roles, they should not have access
 		if !defaultOrg.Public && len(usr.Roles) == 0 {
 			Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
@@ -225,22 +242,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
-		}
-
-		if defaultOrg.Public {
-			defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
-			// If a user was added via the API, they might not yet be a member of the default organization
-			// Here we check to verify that they are a user in the default organization
-			if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
-				usr.Roles = append(usr.Roles, chronograf.Role{
-					Organization: defaultOrgID,
-					Name:         defaultOrg.DefaultRole,
-				})
-				if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
-					unknownErrorWithMessage(w, err, s.Logger)
-					return
-				}
-			}
 		}
 
 		orgs, err := s.usersOrganizations(serverCtx, usr)
