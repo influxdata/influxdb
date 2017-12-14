@@ -77,6 +77,9 @@ type Partition struct {
 
 	logger *zap.Logger
 
+	// Current size of MANIFEST. Used to determine partition size.
+	manifestSize int64
+
 	// Index's version.
 	version int
 }
@@ -124,12 +127,14 @@ func (i *Partition) Open() error {
 	}
 
 	// Read manifest file.
-	m, err := ReadManifestFile(filepath.Join(i.path, ManifestFileName))
+	m, manifestSize, err := ReadManifestFile(filepath.Join(i.path, ManifestFileName))
 	if os.IsNotExist(err) {
 		m = NewManifest(i.ManifestPath())
 	} else if err != nil {
 		return err
 	}
+	// Set manifest size on the partition
+	i.manifestSize = manifestSize
 
 	// Check to see if the MANIFEST file is compatible with the current Index.
 	if err := m.Validate(); err != nil {
@@ -298,6 +303,7 @@ func (i *Partition) Manifest() *Manifest {
 		Levels:  i.levels,
 		Files:   make([]string, len(i.fileSet.files)),
 		Version: i.version,
+		path:    i.ManifestPath(),
 	}
 
 	for j, f := range i.fileSet.files {
@@ -305,11 +311,6 @@ func (i *Partition) Manifest() *Manifest {
 	}
 
 	return m
-}
-
-// writeManifestFile writes the manifest to the appropriate file path.
-func (i *Partition) writeManifestFile() error {
-	return WriteManifestFile(i.ManifestPath(), i.Manifest())
 }
 
 // WithLogger sets the logger for the index.
@@ -362,11 +363,12 @@ func (i *Partition) prependActiveLogFile() error {
 	i.fileSet = i.fileSet.PrependLogFile(f)
 
 	// Write new manifest.
-	if err := i.writeManifestFile(); err != nil {
+	manifestSize, err := i.Manifest().Write()
+	if err != nil {
 		// TODO: Close index if write fails.
 		return err
 	}
-
+	i.manifestSize = manifestSize
 	return nil
 }
 
@@ -847,10 +849,12 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 		i.fileSet = i.fileSet.MustReplace(IndexFiles(files).Files(), file)
 
 		// Write new manifest.
-		if err := i.writeManifestFile(); err != nil {
+		manifestSize, err := i.Manifest().Write()
+		if err != nil {
 			// TODO: Close index if write fails.
 			return err
 		}
+		i.manifestSize = manifestSize
 		return nil
 	}(); err != nil {
 		logger.Error("cannot write manifest", zap.Error(err))
@@ -980,10 +984,13 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 		i.fileSet = i.fileSet.MustReplace([]File{logFile}, file)
 
 		// Write new manifest.
-		if err := i.writeManifestFile(); err != nil {
+		manifestSize, err := i.Manifest().Write()
+		if err != nil {
 			// TODO: Close index if write fails.
 			return err
 		}
+
+		i.manifestSize = manifestSize
 		return nil
 	}(); err != nil {
 		logger.Error("cannot update manifest", zap.Error(err))
@@ -1060,7 +1067,6 @@ type Manifest struct {
 	// Version should be updated whenever the TSI format has changed.
 	Version int `json:"version,omitempty"`
 
-	size int64  // Holds the on-disk size of the manifest.
 	path string // location on disk of the manifest.
 }
 
@@ -1096,50 +1102,38 @@ func (m *Manifest) Validate() error {
 	return nil
 }
 
-// Write writes the manifest file to the provided path.
-func (m *Manifest) Write() error {
+// Write writes the manifest file to the provided path, returning the number of
+// bytes written and an error, if any.
+func (m *Manifest) Write() (int64, error) {
 	buf, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	buf = append(buf, '\n')
-	m.size = int64(len(buf))
-	return ioutil.WriteFile(m.path, buf, 0666)
+
+	if err := ioutil.WriteFile(m.path, buf, 0666); err != nil {
+		return 0, err
+	}
+	return int64(len(buf)), nil
 }
 
-// ReadManifestFile reads a manifest from a file path.
-func ReadManifestFile(path string) (*Manifest, error) {
+// ReadManifestFile reads a manifest from a file path and returns the Manifest,
+// the size of the manifest on disk, and any error if appropriate.
+func ReadManifestFile(path string) (*Manifest, int64, error) {
 	buf, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Decode manifest.
 	var m Manifest
 	if err := json.Unmarshal(buf, &m); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	// Set the size and path of the manifest.
-	m.size = int64(len(buf))
+	// Set the path of the manifest.
 	m.path = path
-
-	return &m, nil
-}
-
-// WriteManifestFile writes a manifest to a file path.
-func WriteManifestFile(path string, m *Manifest) error {
-	buf, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
-	}
-	buf = append(buf, '\n')
-
-	if err := ioutil.WriteFile(path, buf, 0666); err != nil {
-		return err
-	}
-
-	return nil
+	return &m, int64(len(buf)), nil
 }
 
 func joinIntSlice(a []int, sep string) string {

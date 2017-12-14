@@ -48,9 +48,7 @@ func TestPartition_Open(t *testing.T) {
 			m := tsi1.NewManifest(mpath)
 			m.Levels = nil
 			m.Version = v // Set example MANIFEST version.
-			if err := os.MkdirAll(filepath.Dir(mpath), 0777); err != nil {
-				t.Fatal(err)
-			} else if err := tsi1.WriteManifestFile(mpath, m); err != nil {
+			if _, err := m.Write(); err != nil {
 				t.Fatal(err)
 			}
 

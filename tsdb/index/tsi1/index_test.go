@@ -207,15 +207,18 @@ func TestIndex_Open(t *testing.T) {
 	defer sfile.Close()
 
 	// Opening a fresh index should set the MANIFEST version to current version.
-	idx := NewIndex(sfile.SeriesFile)
+	idx := NewIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
 	t.Run("open new index", func(t *testing.T) {
 		if err := idx.Open(); err != nil {
 			t.Fatal(err)
 		}
 
 		// Check version set appropriately.
-		if got, exp := idx.PartitionAt(0).Manifest().Version, 1; got != exp {
-			t.Fatalf("got index version %d, expected %d", got, exp)
+		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
+			partition := idx.PartitionAt(i)
+			if got, exp := partition.Manifest().Version, 1; got != exp {
+				t.Fatalf("got index version %d, expected %d", got, exp)
+			}
 		}
 	})
 
@@ -233,16 +236,19 @@ func TestIndex_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			idx = NewIndex(sfile.SeriesFile)
-
+			sfile := MustOpenSeriesFile()
+			defer sfile.Close()
+			idx = NewIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
 			// Manually create a MANIFEST file for an incompatible index version.
-			mpath := filepath.Join(idx.Path(), "0", tsi1.ManifestFileName)
+			// under one of the partitions.
+			partitionPath := filepath.Join(idx.Path(), "2")
+			os.MkdirAll(partitionPath, 0777)
+
+			mpath := filepath.Join(partitionPath, tsi1.ManifestFileName)
 			m := tsi1.NewManifest(mpath)
 			m.Levels = nil
 			m.Version = v // Set example MANIFEST version.
-			if err := os.MkdirAll(filepath.Dir(mpath), 0777); err != nil {
-				t.Fatal(err)
-			} else if err := m.Write(); err != nil {
+			if _, err := m.Write(); err != nil {
 				t.Fatal(err)
 			}
 
@@ -268,20 +274,23 @@ func TestIndex_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
 		sfile := MustOpenSeriesFile()
 		defer sfile.Close()
+		idx := MustOpenIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
 
-		idx := MustOpenIndex(sfile.SeriesFile, 1)
-		if got, exp := idx.PartitionAt(0).Manifest().Version, tsi1.Version; got != exp {
-			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
+		// Check version set appropriately.
+		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
+			partition := idx.PartitionAt(i)
+			if got, exp := partition.Manifest().Version, tsi1.Version; got != exp {
+				t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
+			}
 		}
 	})
 }
 
 func TestIndex_DiskSizeBytes(t *testing.T) {
 	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	idx := MustOpenIndex(sfile.SeriesFile, 1)
-	defer idx.Close()
+	// defer sfile.Close()
+	idx := MustOpenIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
+	// defer idx.Close()
 
 	// Add series to index.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
@@ -292,7 +301,7 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-
+	fmt.Println(idx.Path())
 	// Verify on disk size is the same in each stage.
 	expSize := int64(520) // 419 bytes for MANIFEST and 101 bytes for index file
 	idx.Run(t, func(t *testing.T) {
@@ -308,14 +317,15 @@ type Index struct {
 }
 
 // NewIndex returns a new instance of Index at a temporary path.
-func NewIndex(sfile *tsdb.SeriesFile) *Index {
-	return &Index{Index: tsi1.NewIndex(sfile, tsi1.WithPath(MustTempDir()))}
+func NewIndex(sfile *tsdb.SeriesFile, partitionN uint64) *Index {
+	idx := &Index{Index: tsi1.NewIndex(sfile, tsi1.WithPath(MustTempDir()))}
+	idx.PartitionN = partitionN
+	return idx
 }
 
 // MustOpenIndex returns a new, open index. Panic on error.
 func MustOpenIndex(sfile *tsdb.SeriesFile, partitionN uint64) *Index {
-	idx := NewIndex(sfile)
-	idx.PartitionN = partitionN
+	idx := NewIndex(sfile, partitionN)
 	if err := idx.Open(); err != nil {
 		panic(err)
 	}

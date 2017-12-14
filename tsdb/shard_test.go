@@ -861,11 +861,11 @@ cpu,secret=foo value=100 0
 		if err != nil {
 			return err
 		}
-		defer itr.Close()
 
 		if itr == nil {
 			return fmt.Errorf("iterator is nil")
 		}
+		defer itr.Close()
 
 		fitr := itr.(query.FloatIterator)
 		defer fitr.Close()
