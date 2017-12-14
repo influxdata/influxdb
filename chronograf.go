@@ -26,6 +26,7 @@ const (
 	ErrOrganizationNotFound            = Error("organization not found")
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
+	ErrConfigNotFound                  = Error("cannot find configuration")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -603,4 +604,31 @@ type OrganizationsStore interface {
 	CreateDefault(ctx context.Context) error
 	// DefaultOrganization returns the DefaultOrganization
 	DefaultOrganization(ctx context.Context) (*Organization, error)
+}
+
+// AuthConfig is the global application config section for auth parameters
+
+type AuthConfig struct {
+	// SuperAdminNewUsers should be true by default to give a seamless upgrade to
+	// 1.4.0 for legacy users. It means that all new users will by default receive
+	// SuperAdmin status. If a SuperAdmin wants to change this behavior, they
+	// can toggle it off via the Chronograf UI, in which case newly authenticating
+	// users will simply receive whatever role they would otherwise receive.
+	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
+}
+
+// Config is the global application Config for parameters that can be set via
+// API, with different sections, such as Auth
+type Config struct {
+	Auth AuthConfig `json:"auth"`
+}
+
+// ConfigStore is the storage and retrieval of global application Config
+type ConfigStore interface {
+	// Initialize creates the initial configuration
+	Initialize(context.Context) error
+	// Get retrieves the whole Config from the ConfigStore
+	Get(context.Context) (*Config, error)
+	// Update updates the whole Config in the ConfigStore
+	Update(context.Context, *Config) error
 }

@@ -3,30 +3,36 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
+import * as configActionCreators from 'shared/actions/config'
 import {getMeAsync} from 'shared/actions/auth'
 
 import OrganizationsTable from 'src/admin/components/chronograf/OrganizationsTable'
 
 class OrganizationsPage extends Component {
   componentDidMount() {
-    const {links, actions: {loadOrganizationsAsync}} = this.props
+    const {
+      links,
+      actionsAdmin: {loadOrganizationsAsync},
+      actionsConfig: {getAuthConfigAsync},
+    } = this.props
     loadOrganizationsAsync(links.organizations)
+    getAuthConfigAsync(links.config.auth)
   }
 
   handleCreateOrganization = async organization => {
-    const {links, actions: {createOrganizationAsync}} = this.props
+    const {links, actionsAdmin: {createOrganizationAsync}} = this.props
     await createOrganizationAsync(links.organizations, organization)
     this.refreshMe()
   }
 
   handleRenameOrganization = async (organization, name) => {
-    const {actions: {updateOrganizationAsync}} = this.props
+    const {actionsAdmin: {updateOrganizationAsync}} = this.props
     await updateOrganizationAsync(organization, {...organization, name})
     this.refreshMe()
   }
 
   handleDeleteOrganization = organization => {
-    const {actions: {deleteOrganizationAsync}} = this.props
+    const {actionsAdmin: {deleteOrganizationAsync}} = this.props
     deleteOrganizationAsync(organization)
     this.refreshMe()
   }
@@ -37,7 +43,7 @@ class OrganizationsPage extends Component {
   }
 
   handleTogglePublic = organization => {
-    const {actions: {updateOrganizationAsync}} = this.props
+    const {actionsAdmin: {updateOrganizationAsync}} = this.props
     updateOrganizationAsync(organization, {
       ...organization,
       public: !organization.public,
@@ -45,34 +51,52 @@ class OrganizationsPage extends Component {
   }
 
   handleChooseDefaultRole = (organization, defaultRole) => {
-    const {actions: {updateOrganizationAsync}} = this.props
+    const {actionsAdmin: {updateOrganizationAsync}} = this.props
     updateOrganizationAsync(organization, {...organization, defaultRole})
     // refreshMe is here to update the org's defaultRole in `me.organizations`
     this.refreshMe()
   }
 
+  handleUpdateAuthConfig = fieldName => updatedValue => {
+    const {
+      actionsConfig: {updateAuthConfigAsync},
+      authConfig,
+      links,
+    } = this.props
+    const updatedAuthConfig = {
+      ...authConfig,
+      [fieldName]: updatedValue,
+    }
+    updateAuthConfigAsync(links.config.auth, authConfig, updatedAuthConfig)
+  }
+
   render() {
-    const {organizations, currentOrganization} = this.props
+    const {organizations, currentOrganization, authConfig} = this.props
 
     return (
       <OrganizationsTable
         organizations={organizations}
+        currentOrganization={currentOrganization}
         onCreateOrg={this.handleCreateOrganization}
         onDeleteOrg={this.handleDeleteOrganization}
         onRenameOrg={this.handleRenameOrganization}
         onTogglePublic={this.handleTogglePublic}
         onChooseDefaultRole={this.handleChooseDefaultRole}
-        currentOrganization={currentOrganization}
+        authConfig={authConfig}
+        onChangeAuthConfig={this.handleUpdateAuthConfig}
       />
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 OrganizationsPage.propTypes = {
   links: shape({
     organizations: string.isRequired,
+    config: shape({
+      auth: string.isRequired,
+    }).isRequired,
   }),
   organizations: arrayOf(
     shape({
@@ -81,26 +105,39 @@ OrganizationsPage.propTypes = {
       link: string,
     })
   ),
-  actions: shape({
+  actionsAdmin: shape({
     loadOrganizationsAsync: func.isRequired,
     createOrganizationAsync: func.isRequired,
     updateOrganizationAsync: func.isRequired,
     deleteOrganizationAsync: func.isRequired,
+  }),
+  actionsConfig: shape({
+    getAuthConfigAsync: func.isRequired,
+    updateAuthConfigAsync: func.isRequired,
   }),
   getMe: func.isRequired,
   currentOrganization: shape({
     name: string.isRequired,
     id: string.isRequired,
   }),
+  authConfig: shape({
+    superAdminNewUsers: bool,
+  }),
 }
 
-const mapStateToProps = ({links, adminChronograf: {organizations}}) => ({
+const mapStateToProps = ({
+  links,
+  adminChronograf: {organizations},
+  config: {auth: authConfig},
+}) => ({
   links,
   organizations,
+  authConfig,
 })
 
 const mapDispatchToProps = dispatch => ({
-  actions: bindActionCreators(adminChronografActionCreators, dispatch),
+  actionsAdmin: bindActionCreators(adminChronografActionCreators, dispatch),
+  actionsConfig: bindActionCreators(configActionCreators, dispatch),
   getMe: bindActionCreators(getMeAsync, dispatch),
 })
 

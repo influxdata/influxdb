@@ -320,10 +320,21 @@ func (s *Service) firstUser() bool {
 	return numUsers == 0
 }
 func (s *Service) newUsersAreSuperAdmin() bool {
+	// It's not necessary to enforce that the first user is superAdmin here, since
+	// superAdminNewUsers defaults to true, but there's nothing else in the
+	// application that dictates that it must be true.
+	// So for that reason, we kept this here for now. We've discussed the
+	// future possibility of allowing users to override default values via CLI and
+	// this case could possibly happen then.
 	if s.firstUser() {
 		return true
 	}
-	return !s.SuperAdminFirstUserOnly
+	serverCtx := serverContext(context.Background())
+	cfg, err := s.Store.Config(serverCtx).Get(serverCtx)
+	if err != nil {
+		return false
+	}
+	return cfg.Auth.SuperAdminNewUsers
 }
 
 func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([]chronograf.Organization, error) {

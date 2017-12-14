@@ -64,6 +64,7 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
       users,
       organizations,
       meLink,
+      config,
     } = await getMeAJAX()
     dispatch(
       meGetCompleted({
@@ -72,7 +73,9 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
         logoutLink,
       })
     )
-    dispatch(linksReceived({external, users, organizations, me: meLink})) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
+    dispatch(
+      linksReceived({external, users, organizations, me: meLink, config})
+    ) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
   } catch (error) {
     dispatch(meGetFailed())
     dispatch(errorThrown(error))
