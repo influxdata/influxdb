@@ -64,7 +64,18 @@ class AdminChronografPage extends Component {
   }
 
   render() {
-    const {users, meCurrentOrganization, meRole, meID, notify} = this.props
+    const {
+      users,
+      meRole,
+      meID,
+      notify,
+      organizations,
+      meCurrentOrganization,
+    } = this.props
+
+    const organization = organizations.find(
+      o => o.id === meCurrentOrganization.id
+    )
 
     return (
       <div className="page">
@@ -84,7 +95,7 @@ class AdminChronografPage extends Component {
                     meID={meID}
                     // UsersTable
                     users={users}
-                    organization={meCurrentOrganization}
+                    organization={organization}
                     onCreateUser={this.handleCreateUser}
                     onUpdateUserRole={this.handleUpdateUserRole}
                     onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
@@ -107,6 +118,7 @@ AdminChronografPage.propTypes = {
     users: string.isRequired,
   }),
   users: arrayOf(shape),
+  organizations: arrayOf(shape),
   meCurrentOrganization: shape({
     id: string.isRequired,
     name: string.isRequired,
@@ -128,18 +140,19 @@ AdminChronografPage.propTypes = {
 
 const mapStateToProps = ({
   links,
-  adminChronograf: {users},
+  adminChronograf: {users, organizations},
   auth: {
     me,
     me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
   },
 }) => ({
-  links,
-  users,
-  meCurrentOrganization,
-  meRole,
   me,
   meID,
+  links,
+  users,
+  meRole,
+  organizations,
+  meCurrentOrganization,
 })
 
 const mapDispatchToProps = dispatch => ({

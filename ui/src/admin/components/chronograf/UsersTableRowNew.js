@@ -7,7 +7,6 @@ import SlideToggle from 'shared/components/SlideToggle'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
-import {MEMBER_ROLE} from 'src/auth/Authorized'
 
 class UsersTableRowNew extends Component {
   constructor(props) {
@@ -17,7 +16,7 @@ class UsersTableRowNew extends Component {
       name: '',
       provider: '',
       scheme: 'oauth2',
-      role: MEMBER_ROLE,
+      role: this.props.organization.defaultRole,
       superAdmin: false,
     }
   }
