@@ -111,34 +111,34 @@ func TestServer(t *testing.T) {
 			wants: wants{
 				statusCode: 200,
 				body: `
-					{
-					  "links": {
-					    "self": "/chronograf/v1/users"
-					  },
-					  "users": [
-					    {
-					      "links": {
-					        "self": "/chronograf/v1/users/1"
-					      },
-					      "id": "1",
-					      "name": "billibob",
-					      "provider": "github",
-					      "scheme": "oauth2",
-					      "superAdmin": true,
-					      "roles": [
-					        {
-					          "name": "admin",
-					          "organization": "0"
-					        }
-					      ]
-					    }
-					  ]
-					}`,
+{
+  "links": {
+    "self": "/chronograf/v1/users"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/users/1"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "0"
+        }
+      ]
+    }
+  ]
+}`,
 			},
 		},
 		{
 			name:    "POST /users",
-			subName: "Create a New User as a SuperAdmin; SuperAdminNewUsers is true (the default case); User on Principal is a SuperAdmin",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is true (the default case); User on Principal is a SuperAdmin",
 			fields: fields{
 				Config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
@@ -208,7 +208,7 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:    "POST /users",
-			subName: "Create a New User as a SuperAdmin; SuperAdminNewUsers is false; User on Principal is a SuperAdmin",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is false; User on Principal is a SuperAdmin",
 			fields: fields{
 				Config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
@@ -278,7 +278,7 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:    "POST /users",
-			subName: "Create a New User as a SuperAdmin; SuperAdminNewUsers is false; User on Principal is not SuperAdmin",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is false; User on Principal is Admin, but not a SuperAdmin",
 			fields: fields{
 				Config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
@@ -348,7 +348,7 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:    "POST /users",
-			subName: "Create a New User as a SuperAdmin; SuperAdminNewUsers is true; User on Principal is not a SuperAdmin",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is true; User on Principal is Admin, but not a SuperAdmin",
 			fields: fields{
 				Config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
