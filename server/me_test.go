@@ -107,7 +107,138 @@ func TestService_Me(t *testing.T) {
 			wantBody:        `{"code":403,"message":"This organization is private. To gain access, you must be explicitly added by an administrator."}`,
 		},
 		{
-			name: "Existing user",
+			name: "Existing user - private default org and user is a super admin",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+			},
+			fields: fields{
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          0,
+							Name:        "Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      false,
+						}, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case 0:
+							return &chronograf.Organization{
+								ID:          0,
+								Name:        "Default",
+								DefaultRole: roles.ViewerRoleName,
+								Public:      true,
+							}, nil
+						case 1:
+							return &chronograf.Organization{
+								ID:     1,
+								Name:   "The Bad Place",
+								Public: true,
+							}, nil
+						}
+						return nil, nil
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 1, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							Name:       "me",
+							Provider:   "github",
+							Scheme:     "oauth2",
+							SuperAdmin: true,
+						}, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject: "me",
+				Issuer:  "github",
+			},
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
+		},
+		{
+			name: "Existing user - private default org",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+			},
+			fields: fields{
+				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          0,
+							Name:        "Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      false,
+						}, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case 0:
+							return &chronograf.Organization{
+								ID:          0,
+								Name:        "Default",
+								DefaultRole: roles.ViewerRoleName,
+								Public:      true,
+							}, nil
+						case 1:
+							return &chronograf.Organization{
+								ID:     1,
+								Name:   "The Bad Place",
+								Public: true,
+							}, nil
+						}
+						return nil, nil
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 1, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return &chronograf.User{
+							Name:     "me",
+							Provider: "github",
+							Scheme:   "oauth2",
+						}, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject: "me",
+				Issuer:  "github",
+			},
+			wantStatus:      http.StatusForbidden,
+			wantContentType: "application/json",
+			wantBody:        `{"code":403,"message":"This organization is private. To gain access, you must be explicitly added by an administrator."}`,
+		},
+		{
+			name: "Existing user - default org public",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -169,8 +300,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","defaultRole":"viewer","name":"Default","public":true}}
-`,
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
 		},
 		{
 			name: "Existing user - organization doesn't exist",
@@ -652,7 +782,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","public":true,"defaultRole":"admin"},{"id":"1337","name":"The ShillBillThrilliettas","public":true}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"admin","public":true},{"id":"1337","name":"The ShillBillThrilliettas","public":true}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -727,7 +857,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","public":true,"defaultRole":"editor"},{"id":"1337","name":"The ThrillShilliettos","public":false}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"editor","public":true},{"id":"1337","name":"The ThrillShilliettos","public":false}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
