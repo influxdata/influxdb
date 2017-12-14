@@ -142,6 +142,20 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 	// and the user that was found in the underlying store
 	usr.Roles = append(roles, u.Roles...)
 
+	// u.SuperAdmin == true is logically equivalent to u.SuperAdmin, however
+	// it is more clear on a conceptual level to check equality
+	//
+	// TODO(desa): this should go away with https://github.com/influxdata/chronograf/issues/2207
+	// I do not like checking super admin here. The organization users store should only be
+	// concerned about organizations.
+	//
+	// If the user being added already existed in a previous organization, and was already a SuperAdmin,
+	// then this ensures that they retain their SuperAdmin status. And if they weren't a SuperAdmin, and
+	// the user being added has been granted SuperAdmin status, they will be promoted
+	if u.SuperAdmin == true {
+		usr.SuperAdmin = true
+	}
+
 	// Update the user in the underlying store
 	if err := s.store.Update(ctx, usr); err != nil {
 		return nil, err

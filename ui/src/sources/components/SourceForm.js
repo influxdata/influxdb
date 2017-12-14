@@ -14,6 +14,7 @@ const SourceForm = ({
   onInputChange,
   onBlurSourceURL,
   isUsingAuth,
+  gotoPurgatory,
   isInitialSource,
   me,
 }) =>
@@ -138,7 +139,7 @@ const SourceForm = ({
             </label>
           </div>
         : null}
-      <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3 text-center">
+      <div className="form-group form-group-submit text-center col-xs-12 col-sm-6 col-sm-offset-3">
         <button
           className={classnames('btn btn-block', {
             'btn-primary': editMode,
@@ -146,9 +147,16 @@ const SourceForm = ({
           })}
           type="submit"
         >
+          <span className={`icon ${editMode ? 'checkmark' : 'plus'}`} />
           {editMode ? 'Save Changes' : 'Add Source'}
         </button>
+
         <br />
+        {isUsingAuth
+          ? <button className="btn btn-link btn-sm" onClick={gotoPurgatory}>
+              <span className="icon shuffle" /> Switch Orgs
+            </button>
+          : null}
       </div>
     </form>
   </div>
@@ -179,6 +187,7 @@ SourceForm.propTypes = {
   }),
   isUsingAuth: bool,
   isInitialSource: bool,
+  gotoPurgatory: func,
 }
 
 const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})

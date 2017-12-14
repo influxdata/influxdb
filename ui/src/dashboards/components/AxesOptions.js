@@ -40,7 +40,7 @@ const AxesOptions = ({
           <div className="form-group col-sm-12">
             <label htmlFor="prefix">Title</label>
             <OptIn
-              customPlaceholder={defaultYLabel}
+              customPlaceholder={defaultYLabel || 'y-axis title'}
               customValue={label}
               onSetValue={onSetLabel}
               type="text"
