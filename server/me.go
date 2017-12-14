@@ -227,6 +227,22 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if defaultOrg.Public {
+			defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+			// If a user was added via the API, they might not yet be a member of the default organization
+			// Here we check to verify that they are a user in the default organization
+			if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
+				usr.Roles = append(usr.Roles, chronograf.Role{
+					Organization: defaultOrgID,
+					Name:         defaultOrg.DefaultRole,
+				})
+				if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
+					unknownErrorWithMessage(w, err, s.Logger)
+					return
+				}
+			}
+		}
+
 		orgs, err := s.usersOrganizations(serverCtx, usr)
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
