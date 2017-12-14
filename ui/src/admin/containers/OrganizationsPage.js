@@ -57,12 +57,16 @@ class OrganizationsPage extends Component {
     this.refreshMe()
   }
 
-  handleUpdateAuthConfig = updatedAuthConfig => {
+  handleUpdateAuthConfig = fieldName => updatedValue => {
     const {
       actionsConfig: {updateAuthConfigAsync},
       authConfig,
       links,
     } = this.props
+    const updatedAuthConfig = {
+      ...authConfig,
+      [fieldName]: updatedValue,
+    }
     updateAuthConfigAsync(links.config.auth, authConfig, updatedAuthConfig)
   }
 
@@ -79,7 +83,7 @@ class OrganizationsPage extends Component {
         onTogglePublic={this.handleTogglePublic}
         onChooseDefaultRole={this.handleChooseDefaultRole}
         authConfig={authConfig}
-        onUpdateAuthConfig={this.handleUpdateAuthConfig}
+        onChangeAuthConfig={this.handleUpdateAuthConfig}
       />
     )
   }

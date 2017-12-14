@@ -34,11 +34,6 @@ class OrganizationsTable extends Component {
     this.setState({isCreatingOrganization: false})
   }
 
-  handleChangeAuthConfigSuperAdminNewUsers = superAdminNewUsers => {
-    const {onUpdateAuthConfig} = this.props
-    onUpdateAuthConfig({superAdminNewUsers})
-  }
-
   render() {
     const {
       organizations,
@@ -48,6 +43,7 @@ class OrganizationsTable extends Component {
       onTogglePublic,
       currentOrganization,
       authConfig: {superAdminNewUsers},
+      onChangeAuthConfig,
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -112,7 +108,7 @@ class OrganizationsTable extends Component {
                     <SlideToggle
                       size="xs"
                       active={superAdminNewUsers}
-                      onToggle={this.handleChangeAuthConfigSuperAdminNewUsers}
+                      onToggle={onChangeAuthConfig('superAdminNewUsers')}
                     />
                   </td>
                   <td>All new users are SuperAdmins</td>
@@ -144,7 +140,7 @@ OrganizationsTable.propTypes = {
   onRenameOrg: func.isRequired,
   onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
-  onUpdateAuthConfig: func.isRequired,
+  onChangeAuthConfig: func.isRequired,
   authConfig: shape({
     superAdminNewUsers: bool,
   }),
