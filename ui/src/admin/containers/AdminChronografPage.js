@@ -22,6 +22,7 @@ class AdminChronografPage extends Component {
   }
 
   componentDidMount() {
+    this.loadOrganizations()
     this.loadUsers()
   }
 
@@ -29,6 +30,11 @@ class AdminChronografPage extends Component {
     const {links, actions: {loadUsersAsync}} = this.props
 
     loadUsersAsync(links.users)
+  }
+
+  loadOrganizations = () => {
+    const {links, actions: {loadOrganizationsAsync}} = this.props
+    loadOrganizationsAsync(links.organizations)
   }
 
   // SINGLE USER ACTIONS
@@ -87,7 +93,7 @@ class AdminChronografPage extends Component {
           </div>
         </div>
         <FancyScrollbar className="page-contents">
-          {users
+          {users.length && organizations.length
             ? <div className="container-fluid">
                 <div className="row">
                   <AdminTabs
@@ -131,6 +137,7 @@ AdminChronografPage.propTypes = {
   meID: string.isRequired,
   actions: shape({
     loadUsersAsync: func.isRequired,
+    loadOrganizationsAsync: func.isRequired,
     createUserAsync: func.isRequired,
     updateUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
