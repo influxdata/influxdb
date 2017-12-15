@@ -26,7 +26,7 @@ OUTPUT_DIR=${OUTPUT_DIR-./test-logs}
 # Set default parallelism
 PARALLELISM=${PARALLELISM-1}
 # Set default timeout
-TIMEOUT=${TIMEOUT-1200s}
+TIMEOUT=${TIMEOUT-1500s}
 
 # Default to deleteing the container
 DOCKER_RM=${DOCKER_RM-true}
