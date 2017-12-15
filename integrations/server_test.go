@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
 	"github.com/influxdata/chronograf/oauth2"
+	"github.com/influxdata/chronograf/roles"
 	"github.com/influxdata/chronograf/server"
 )
 
@@ -28,6 +29,7 @@ func TestServer(t *testing.T) {
 		Servers       []chronograf.Server
 		Layouts       []chronograf.Layout
 		Dashboards    []chronograf.Dashboard
+		Config        *chronograf.Config
 	}
 	type args struct {
 		server    *server.Server
@@ -109,29 +111,298 @@ func TestServer(t *testing.T) {
 			wants: wants{
 				statusCode: 200,
 				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/users/1"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "0"
+        }
+      ]
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is true (the default case); User on Principal is a SuperAdmin",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Users: []chronograf.User{
 					{
-					  "links": {
-					    "self": "/chronograf/v1/users"
-					  },
-					  "users": [
-					    {
-					      "links": {
-					        "self": "/chronograf/v1/users/1"
-					      },
-					      "id": "1",
-					      "name": "billibob",
-					      "provider": "github",
-					      "scheme": "oauth2",
-					      "superAdmin": true,
-					      "roles": [
-					        {
-					          "name": "admin",
-					          "organization": "0"
-					        }
-					      ]
-					    }
-					  ]
-					}`,
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "0",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users",
+				payload: &chronograf.User{
+					Name:     "user",
+					Provider: "provider",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "0",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "0",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/2"
+  },
+  "id": "2",
+  "name": "user",
+  "provider": "provider",
+  "scheme": "oauth2",
+  "superAdmin": true,
+  "roles": [
+    {
+      "name": "editor",
+      "organization": "0"
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is false; User on Principal is a SuperAdmin",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "0",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users",
+				payload: &chronograf.User{
+					Name:     "user",
+					Provider: "provider",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "0",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "0",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/2"
+  },
+  "id": "2",
+  "name": "user",
+  "provider": "provider",
+  "scheme": "oauth2",
+  "superAdmin": false,
+  "roles": [
+    {
+      "name": "editor",
+      "organization": "0"
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is false; User on Principal is Admin, but not a SuperAdmin",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "0",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users",
+				payload: &chronograf.User{
+					Name:     "user",
+					Provider: "provider",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "0",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "0",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/2"
+  },
+  "id": "2",
+  "name": "user",
+  "provider": "provider",
+  "scheme": "oauth2",
+  "superAdmin": false,
+  "roles": [
+    {
+      "name": "editor",
+      "organization": "0"
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is true; User on Principal is Admin, but not a SuperAdmin",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "0",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users",
+				payload: &chronograf.User{
+					Name:       "user",
+					Provider:   "provider",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "0",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "0",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 401,
+				body: `
+{
+  "code": 401,
+  "message": "User does not have authorization required to set SuperAdmin status"
+}`,
 			},
 		},
 	}
@@ -155,6 +426,13 @@ func TestServer(t *testing.T) {
 			boltdb := bolt.NewClient()
 			boltdb.Path = boltFile
 			_ = boltdb.Open(ctx)
+
+			if tt.fields.Config != nil {
+				if err := boltdb.ConfigStore.Update(ctx, tt.fields.Config); err != nil {
+					t.Fatalf("failed to update global application config", err)
+					return
+				}
+			}
 
 			// Populate Organizations
 			for i, organization := range tt.fields.Organizations {

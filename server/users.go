@@ -158,7 +158,8 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	cfg, err := s.Store.Config(ctx).Get(ctx)
+	serverCtx := serverContext(ctx)
+	cfg, err := s.Store.Config(serverCtx).Get(serverCtx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 		return
