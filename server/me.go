@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/organizations"
+	"github.com/influxdata/chronograf/roles"
 )
 
 type meLinks struct {
@@ -133,11 +134,37 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 			Scheme:   &scheme,
 		})
 		if err == chronograf.ErrUserNotFound {
-			// Since a user is not a part of this organization, we should tell them that they are Forbidden (403) from accessing this resource
-			Error(w, http.StatusForbidden, err.Error(), s.Logger)
-			return
+			// If the user was not found, check to see if they are a super admin. If
+			// they are, add them to the organization.
+			u, err := s.Store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
+				Name:     &p.Subject,
+				Provider: &p.Issuer,
+				Scheme:   &scheme,
+			})
+			if err != nil {
+				Error(w, http.StatusForbidden, err.Error(), s.Logger)
+				return
+			}
+
+			if u.SuperAdmin == false {
+				// Since a user is not a part of this organization and not a super admin,
+				// we should tell them that they are Forbidden (403) from accessing this resource
+				Error(w, http.StatusForbidden, chronograf.ErrUserNotFound.Error(), s.Logger)
+				return
+			}
+
+			// If the user is a super admin give them an admin role in the
+			// requested organization.
+			u.Roles = append(u.Roles, chronograf.Role{
+				Organization: req.Organization,
+				Name:         roles.AdminRoleName,
+			})
+			if err := s.Store.Users(serverCtx).Update(serverCtx, u); err != nil {
+				unknownErrorWithMessage(w, err, s.Logger)
+				return
+			}
 		}
-		if err != nil {
+		if err != chronograf.ErrUserNotFound && err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
 		}
