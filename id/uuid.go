@@ -5,7 +5,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-var _ chronograf.ID = &UUID
+var _ chronograf.ID = &UUID{}
 
 // UUID generates a V4 uuid
 type UUID struct{}
