@@ -187,6 +187,13 @@ func (s *Store) loadShards() error {
 
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
+	// Env var to disable throughput limiter.  This will be moved to a config option in 1.5.
+	if os.Getenv("INFLUXDB_DATA_COMPACTION_THROUGHPUT") == "" {
+		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(48*1024*1024, 48*1024*1024)
+	} else {
+		s.Logger.Info("Compaction throughput limit disabled")
+	}
+
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 	resC := make(chan *res)
 	var n int
