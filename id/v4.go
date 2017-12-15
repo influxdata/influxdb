@@ -1,11 +1,16 @@
-package uuid
+package id
 
-import uuid "github.com/satori/go.uuid"
+import (
+	"github.com/influxdata/chronograf"
+	uuid "github.com/satori/go.uuid"
+)
 
-// V4 implements chronograf.ID
-type V4 struct{}
+var _ chronograf.ID = &UUID
+
+// UUID generates a V4 uuid
+type UUID struct{}
 
 // Generate creates a UUID v4 string
-func (i *V4) Generate() (string, error) {
+func (i *UUID) Generate() (string, error) {
 	return uuid.NewV4().String(), nil
 }
