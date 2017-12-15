@@ -35,7 +35,7 @@ const MaxSeriesFileHashSize = (1 << 20 * SeriesMapLoadFactor) / 100 // (1MB * 90
 
 // SeriesMapThreshold is the number of series IDs to hold in the in-memory
 // series map before compacting and rebuilding the on-disk representation.
-const SeriesMapThreshold = 1 << 22 // ~4M ids * 8 bytes per id == ~32MB
+const SeriesMapThreshold = 1 << 25 // ~33M ids * 8 bytes per id == 256MB
 
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
