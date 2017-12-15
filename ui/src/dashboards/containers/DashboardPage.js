@@ -67,7 +67,7 @@ class DashboardPage extends Component {
     )
 
     if (!dashboard) {
-      router.push(`/sources/${source.id}/dashboards`)
+      return router.push(`/sources/${source.id}/dashboards`)
     }
 
     // Refresh and persists influxql generated template variable values.
