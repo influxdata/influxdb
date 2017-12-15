@@ -39,9 +39,19 @@ class OrganizationsTableRow extends Component {
   }
 
   handleChangeCurrentOrganization = async () => {
-    const {router, links, meChangeOrganization, organization} = this.props
+    const {
+      router,
+      links,
+      meChangeOrganization,
+      organization,
+      userHasRoleInOrg,
+    } = this.props
 
-    await meChangeOrganization(links.me, {organization: organization.id})
+    await meChangeOrganization(
+      links.me,
+      {organization: organization.id},
+      {userHasRoleInOrg}
+    )
     router.push('')
   }
 
@@ -118,7 +128,7 @@ class OrganizationsTableRow extends Component {
 
   render() {
     const {workingName, isEditing, isDeleting} = this.state
-    const {organization, currentOrganization, userHasRole} = this.props
+    const {organization, currentOrganization} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
       ...role,
@@ -139,7 +149,6 @@ class OrganizationsTableRow extends Component {
             : <button
                 className="btn btn-sm btn-default"
                 onClick={this.handleChangeCurrentOrganization}
-                disabled={!userHasRole}
               >
                 <span className="icon shuffle" /> Switch to
               </button>}
@@ -226,7 +235,7 @@ OrganizationsTableRow.propTypes = {
     }),
   }),
   meChangeOrganization: func.isRequired,
-  userHasRole: bool.isRequired,
+  userHasRoleInOrg: bool.isRequired,
 }
 
 OrganizationsTableRowDeleteButton.propTypes = {

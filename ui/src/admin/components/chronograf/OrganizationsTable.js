@@ -93,7 +93,7 @@ class OrganizationsTable extends Component {
               onRename={onRenameOrg}
               onChooseDefaultRole={onChooseDefaultRole}
               currentOrganization={currentOrganization}
-              userHasRole={!!me.organizations.find(o => org.id === o.id)}
+              userHasRoleInOrg={!!me.organizations.find(o => org.id === o.id)}
             />
           )}
           <Authorized requiredRole={SUPERADMIN_ROLE}>

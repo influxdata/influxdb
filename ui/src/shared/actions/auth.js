@@ -84,7 +84,8 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
 
 export const meChangeOrganizationAsync = (
   url,
-  organization
+  organization,
+  {userHasRoleInOrg = true}
 ) => async dispatch => {
   dispatch(meChangeOrganizationRequested())
   try {
@@ -92,7 +93,8 @@ export const meChangeOrganizationAsync = (
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `Now signed into ${me.currentOrganization.name}`
+        `Current organization now ${me.currentOrganization
+          .name}${userHasRoleInOrg ? '' : ' and became an Admin in it.'}`
       )
     )
     dispatch(meChangeOrganizationCompleted())
