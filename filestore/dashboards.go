@@ -19,27 +19,25 @@ var _ chronograf.DashboardsStore = &Dashboards{}
 
 // Dashboards are JSON dashboards stored in the filesystem
 type Dashboards struct {
-	Dir      string                                      // Dir is the directory containing the dashboards.
-	Load     func(string) (chronograf.Dashboard, error)  // Load loads string name and return a Dashboard
-	Filename func(string, chronograf.Dashboard) string   // Filename takes dir and dashboard and returns loadable file
-	Create   func(string, chronograf.Dashboard) error    // Create will write dashboard to file.
-	ReadDir  func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
-	Remove   func(name string) error                     // Remove file
-	IDs      chronograf.ID                               // IDs generate unique ids for new dashboards
-	Logger   chronograf.Logger
+	Dir     string                                      // Dir is the directory containing the dashboards.
+	Load    func(string, interface{}) error             // Load loads string name and dashbaord passed in as interface
+	Create  func(string, interface{}) error             // Create will write dashboard to file.
+	ReadDir func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
+	Remove  func(name string) error                     // Remove file
+	IDs     chronograf.ID                               // IDs generate unique ids for new dashboards
+	Logger  chronograf.Logger
 }
 
 // NewDashboards constructs a dashboard store wrapping a file system directory
 func NewDashboards(dir string, ids chronograf.ID, logger chronograf.Logger) chronograf.DashboardsStore {
 	return &Dashboards{
-		Dir:      dir,
-		Load:     dashboardLoad,
-		Filename: dashboardFile,
-		Create:   createDashboard,
-		ReadDir:  ioutil.ReadDir,
-		Remove:   os.Remove,
-		IDs:      ids,
-		Logger:   logger,
+		Dir:     dir,
+		Load:    load,
+		Create:  create,
+		ReadDir: ioutil.ReadDir,
+		Remove:  os.Remove,
+		IDs:     ids,
+		Logger:  logger,
 	}
 }
 
@@ -48,31 +46,28 @@ func dashboardFile(dir string, dashboard chronograf.Dashboard) string {
 	return path.Join(dir, base)
 }
 
-func dashboardLoad(name string) (chronograf.Dashboard, error) {
+func load(name string, resource interface{}) error {
 	octets, err := ioutil.ReadFile(name)
 	if err != nil {
-		return chronograf.Dashboard{}, chronograf.ErrDashboardNotFound
+		return fmt.Errorf("resource %s not found", name)
 	}
-	var dashboard chronograf.Dashboard
-	if err = json.Unmarshal(octets, &dashboard); err != nil {
-		return chronograf.Dashboard{}, chronograf.ErrDashboardInvalid
-	}
-	return dashboard, nil
+	return json.Unmarshal(octets, resource)
 }
 
-func createDashboard(file string, dashboard chronograf.Dashboard) error {
+func create(file string, resource interface{}) error {
 	h, err := os.Create(file)
 	if err != nil {
 		return err
 	}
 	defer h.Close()
-	if octets, err := json.MarshalIndent(dashboard, "    ", "    "); err != nil {
-		return chronograf.ErrDashboardInvalid
-	} else if _, err := h.Write(octets); err != nil {
+
+	octets, err := json.MarshalIndent(resource, "    ", "    ")
+	if err != nil {
 		return err
 	}
 
-	return nil
+	_, err = h.Write(octets)
+	return err
 }
 
 // All returns all dashboards from the directory
@@ -87,7 +82,8 @@ func (d *Dashboards) All(ctx context.Context) ([]chronograf.Dashboard, error) {
 		if path.Ext(file.Name()) != DashExt {
 			continue
 		}
-		if dashboard, err := d.Load(path.Join(d.Dir, file.Name())); err != nil {
+		var dashboard chronograf.Dashboard
+		if err := d.Load(path.Join(d.Dir, file.Name()), &dashboard); err != nil {
 			continue // We want to load all files we can.
 		} else {
 			dashboards = append(dashboards, dashboard)
@@ -116,7 +112,7 @@ func (d *Dashboards) Add(ctx context.Context, dashboard chronograf.Dashboard) (c
 
 	dashboard.ID = chronograf.DashboardID(id)
 
-	file := d.Filename(d.Dir, dashboard)
+	file := dashboardFile(d.Dir, dashboard)
 	if err = d.Create(file, dashboard); err != nil {
 		if err == chronograf.ErrDashboardInvalid {
 			d.Logger.
@@ -181,7 +177,7 @@ func (d *Dashboards) Update(ctx context.Context, dashboard chronograf.Dashboard)
 	if err := d.Delete(ctx, board); err != nil {
 		return err
 	}
-	file := d.Filename(d.Dir, dashboard)
+	file := dashboardFile(d.Dir, dashboard)
 	return d.Create(file, dashboard)
 }
 
@@ -200,8 +196,8 @@ func (d *Dashboards) idToFile(id chronograf.DashboardID) (chronograf.Dashboard, 
 			continue
 		}
 		file := path.Join(d.Dir, f.Name())
-		dashboard, err := d.Load(file)
-		if err != nil {
+		var dashboard chronograf.Dashboard
+		if err := d.Load(file, dashboard); err != nil {
 			return chronograf.Dashboard{}, "", err
 		}
 		if dashboard.ID == id {
