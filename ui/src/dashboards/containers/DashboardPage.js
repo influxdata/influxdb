@@ -1,5 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
+import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
@@ -15,6 +16,7 @@ import TemplateVariableManager from 'src/dashboards/components/template_variable
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
@@ -57,12 +59,19 @@ class DashboardPage extends Component {
       source,
       meRole,
       isUsingAuth,
+      router,
+      notify,
     } = this.props
 
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
     )
+
+    if (!dashboard) {
+      router.push(`/sources/${source.id}/dashboards`)
+      return notify('error', `Dashboard ${dashboardID} could not be found`)
+    }
 
     // Refresh and persists influxql generated template variable values.
     // If using auth and role is Viewer, temp vars will be stale until dashboard
@@ -456,6 +465,8 @@ DashboardPage.propTypes = {
   onManualRefresh: func.isRequired,
   meRole: string,
   isUsingAuth: bool.isRequired,
+  router: shape().isRequired,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -503,8 +514,9 @@ const mapDispatchToProps = dispatch => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
+  notify: bindActionCreators(publishNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  ManualRefresh(DashboardPage)
+  ManualRefresh(withRouter(DashboardPage))
 )
