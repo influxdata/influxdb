@@ -67,26 +67,8 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 
 // Ensure that the engine can write & read shard digest files.
 func TestEngine_Digest(t *testing.T) {
-	// Create a tmp directory for test files.
-	tmpDir, err := ioutil.TempDir("", "TestEngine_Digest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	walPath := filepath.Join(tmpDir, "wal")
-	os.MkdirAll(walPath, 0777)
-
-	idxPath := filepath.Join(tmpDir, "index")
-
-	// Create an engine to write a tsm file.
-	dbName := "db0"
-	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(dbName)
-	idx := tsdb.MustOpenIndex(1, dbName, idxPath, opt)
-	defer idx.Close()
-
-	e := tsm1.NewEngine(1, idx, dbName, tmpDir, walPath, opt).(*tsm1.Engine)
+	e := MustOpenEngine(inmem.IndexName)
+	defer e.Close()
 
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
