@@ -401,7 +401,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "code": 401,
-  "message": "User does not have authorization required to set SuperAdmin status"
+  "message": "User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information."
 }`,
 			},
 		},
