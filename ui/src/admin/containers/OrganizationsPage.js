@@ -71,7 +71,13 @@ class OrganizationsPage extends Component {
   }
 
   render() {
-    const {organizations, currentOrganization, authConfig, me} = this.props
+    const {
+      organizations,
+      currentOrganization,
+      authConfig,
+      me,
+      onCreateUser,
+    } = this.props
 
     return (
       <OrganizationsTable
@@ -85,6 +91,7 @@ class OrganizationsPage extends Component {
         authConfig={authConfig}
         onChangeAuthConfig={this.handleUpdateAuthConfig}
         me={me}
+        onCreateUser={onCreateUser}
       />
     )
   }
@@ -134,6 +141,7 @@ OrganizationsPage.propTypes = {
       })
     ),
   }),
+  onCreateUser: func.isRequired,
 }
 
 const mapStateToProps = ({
