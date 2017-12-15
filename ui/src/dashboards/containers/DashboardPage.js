@@ -1,5 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
+import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
@@ -57,12 +58,17 @@ class DashboardPage extends Component {
       source,
       meRole,
       isUsingAuth,
+      router,
     } = this.props
 
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
     )
+
+    if (!dashboard) {
+      router.push(`/sources/${source.id}/dashboards`)
+    }
 
     // Refresh and persists influxql generated template variable values.
     // If using auth and role is Viewer, temp vars will be stale until dashboard
@@ -456,6 +462,7 @@ DashboardPage.propTypes = {
   onManualRefresh: func.isRequired,
   meRole: string,
   isUsingAuth: bool.isRequired,
+  router: shape().isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -506,5 +513,5 @@ const mapDispatchToProps = dispatch => ({
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  ManualRefresh(DashboardPage)
+  ManualRefresh(withRouter(DashboardPage))
 )
