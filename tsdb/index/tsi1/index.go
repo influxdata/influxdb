@@ -271,33 +271,13 @@ func (i *Index) FieldSet() *tsdb.MeasurementFieldSet {
 }
 
 // ForEachMeasurementName iterates over all measurement names in the index,
-// applying fn. Note, the provided function may be called concurrently, and it
-// must be safe to do so.
+// applying fn. It returns the first error encountered, if any.
 //
-// It returns the first error encountered, if any.
+// ForEachMeasurementName does not call fn on each partition concurrently so the
+// call may provide a non-goroutine safe fn.
 func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
-	n := i.availableThreads()
-
-	// Store results.
-	errC := make(chan error, i.PartitionN)
-
-	// Run fn on each partition using a fixed number of goroutines.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-				errC <- i.partitions[idx].ForEachMeasurementName(fn)
-			}
-		}()
-	}
-
-	// Check for error
-	for i := 0; i < cap(errC); i++ {
-		if err := <-errC; err != nil {
+	for _, p := range i.partitions {
+		if err := p.ForEachMeasurementName(fn); err != nil {
 			return err
 		}
 	}
@@ -730,7 +710,6 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	errC := make(chan error, i.PartitionN)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
-	var err error
 	for k := 0; k < n; k++ {
 		go func() {
 			for {
@@ -741,7 +720,8 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 				// This is safe since there are no readers on keys until all
 				// the writers are done.
-				keys[idx], err = i.partitions[idx].MeasurementTagKeysByExpr(name, expr)
+				tagKeys, err := i.partitions[idx].MeasurementTagKeysByExpr(name, expr)
+				keys[idx] = tagKeys
 				errC <- err
 			}
 		}()
