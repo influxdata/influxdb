@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 import {authExpired} from 'shared/actions/auth'
 import {publishNotification as notify} from 'shared/actions/notifications'
 
@@ -17,13 +19,11 @@ const errorsMiddleware = store => next => action => {
   const {auth: {me}} = store.getState()
 
   if (action.type === 'ERROR_THROWN') {
-    const {
-      error: {status, auth, data: {message}},
-      altText,
-      alertType = 'error',
-    } = action
+    const {error, error: {status, auth}, altText, alertType = 'error'} = action
 
     if (status === HTTP_FORBIDDEN) {
+      const message = _.get(error, 'data.message', '')
+
       const organizationWasRemoved =
         message === `user's current organization was not found` // eslint-disable-line quotes
       const wasSessionTimeout = me !== null
