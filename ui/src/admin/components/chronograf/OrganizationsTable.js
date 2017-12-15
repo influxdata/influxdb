@@ -44,6 +44,7 @@ class OrganizationsTable extends Component {
       currentOrganization,
       authConfig: {superAdminNewUsers},
       onChangeAuthConfig,
+      me,
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -92,6 +93,7 @@ class OrganizationsTable extends Component {
               onRename={onRenameOrg}
               onChooseDefaultRole={onChooseDefaultRole}
               currentOrganization={currentOrganization}
+              userHasRole={!!me.organizations.find(o => org.id === o.id)}
             />
           )}
           <Authorized requiredRole={SUPERADMIN_ROLE}>
@@ -143,6 +145,15 @@ OrganizationsTable.propTypes = {
   onChangeAuthConfig: func.isRequired,
   authConfig: shape({
     superAdminNewUsers: bool,
+  }),
+  me: shape({
+    organizations: arrayOf(
+      shape({
+        id: string.isRequired,
+        name: string.isRequired,
+        defaultRole: string.isRequired,
+      })
+    ),
   }),
 }
 export default OrganizationsTable

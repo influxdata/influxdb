@@ -71,7 +71,7 @@ class OrganizationsPage extends Component {
   }
 
   render() {
-    const {organizations, currentOrganization, authConfig} = this.props
+    const {organizations, currentOrganization, authConfig, me} = this.props
 
     return (
       <OrganizationsTable
@@ -84,6 +84,7 @@ class OrganizationsPage extends Component {
         onChooseDefaultRole={this.handleChooseDefaultRole}
         authConfig={authConfig}
         onChangeAuthConfig={this.handleUpdateAuthConfig}
+        me={me}
       />
     )
   }
@@ -116,6 +117,7 @@ OrganizationsPage.propTypes = {
     updateAuthConfigAsync: func.isRequired,
   }),
   getMe: func.isRequired,
+  // this currentOrganization is based on the /organizations response, not me
   currentOrganization: shape({
     name: string.isRequired,
     id: string.isRequired,
@@ -123,16 +125,27 @@ OrganizationsPage.propTypes = {
   authConfig: shape({
     superAdminNewUsers: bool,
   }),
+  me: shape({
+    organizations: arrayOf(
+      shape({
+        id: string.isRequired,
+        name: string.isRequired,
+        defaultRole: string.isRequired,
+      })
+    ),
+  }),
 }
 
 const mapStateToProps = ({
   links,
   adminChronograf: {organizations},
   config: {auth: authConfig},
+  auth: {me},
 }) => ({
   links,
   organizations,
   authConfig,
+  me,
 })
 
 const mapDispatchToProps = dispatch => ({

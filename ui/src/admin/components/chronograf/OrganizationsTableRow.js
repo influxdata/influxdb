@@ -118,7 +118,7 @@ class OrganizationsTableRow extends Component {
 
   render() {
     const {workingName, isEditing, isDeleting} = this.state
-    const {organization, currentOrganization} = this.props
+    const {organization, currentOrganization, userHasRole} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
       ...role,
@@ -139,6 +139,7 @@ class OrganizationsTableRow extends Component {
             : <button
                 className="btn btn-sm btn-default"
                 onClick={this.handleChangeCurrentOrganization}
+                disabled={!userHasRole}
               >
                 <span className="icon shuffle" /> Switch to
               </button>}
@@ -194,7 +195,7 @@ class OrganizationsTableRow extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 OrganizationsTableRow.propTypes = {
   organization: shape({
@@ -225,6 +226,7 @@ OrganizationsTableRow.propTypes = {
     }),
   }),
   meChangeOrganization: func.isRequired,
+  userHasRole: bool.isRequired,
 }
 
 OrganizationsTableRowDeleteButton.propTypes = {
