@@ -3,25 +3,25 @@ package server
 import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/canned"
-	"github.com/influxdata/chronograf/layouts"
 	"github.com/influxdata/chronograf/memdb"
+	"github.com/influxdata/chronograf/multistore"
 )
 
 // LayoutBuilder is responsible for building Layouts
 type LayoutBuilder interface {
-	Build(chronograf.LayoutsStore) (*layouts.MultiLayoutsStore, error)
+	Build(chronograf.LayoutsStore) (*multistore.Layouts, error)
 }
 
-// MultiLayoutBuilder implements LayoutBuilder and will return a MultiLayoutsStore
+// MultiLayoutBuilder implements LayoutBuilder and will return a Layouts
 type MultiLayoutBuilder struct {
 	Logger     chronograf.Logger
 	UUID       chronograf.ID
 	CannedPath string
 }
 
-// Build will construct a MultiLayoutsStore of canned and db-backed personalized
+// Build will construct a Layouts of canned and db-backed personalized
 // layouts
-func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutsStore) (*layouts.MultiLayoutsStore, error) {
+func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutsStore) (*multistore.Layouts, error) {
 	// These apps are those handled from a directory
 	apps := canned.NewApps(builder.CannedPath, builder.UUID, builder.Logger)
 	// These apps are statically compiled into chronograf
@@ -31,7 +31,7 @@ func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutsStore) (*layouts.M
 	// Acts as a front-end to both the bolt layouts, filesystem layouts and binary statically compiled layouts.
 	// The idea here is that these stores form a hierarchy in which each is tried sequentially until
 	// the operation has success.  So, the database is preferred over filesystem over binary data.
-	layouts := &layouts.MultiLayoutsStore{
+	layouts := &multistore.Layouts{
 		Stores: []chronograf.LayoutsStore{
 			db,
 			apps,
