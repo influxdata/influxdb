@@ -20,7 +20,7 @@ const (
 	ErrAuthentication                  = Error("user not authenticated")
 	ErrUninitialized                   = Error("client uninitialized. Call Open() method")
 	ErrInvalidAxis                     = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
-	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold'")
+	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold', 'text', and 'background'")
 	ErrInvalidColor                    = Error("Invalid color. Accepted color format is #RRGGBB")
 	ErrUserAlreadyExists               = Error("user already exists")
 	ErrOrganizationNotFound            = Error("organization not found")

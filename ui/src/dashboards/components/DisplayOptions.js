@@ -48,6 +48,7 @@ class DisplayOptions extends Component {
       onChooseColor,
       onValidateColorValue,
       onUpdateColorValue,
+      colorSingleStatText,
       onToggleSingleStatText,
       onSetSuffix,
     } = this.props
@@ -76,6 +77,8 @@ class DisplayOptions extends Component {
             onUpdateColorValue={onUpdateColorValue}
             onAddThreshold={onAddThreshold}
             onDeleteThreshold={onDeleteThreshold}
+            colorSingleStatText={colorSingleStatText}
+            onToggleSingleStatText={onToggleSingleStatText}
           />
         )
       default:
@@ -108,7 +111,7 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
   onAddThreshold: func.isRequired,
@@ -136,6 +139,8 @@ DisplayOptions.propTypes = {
     }).isRequired
   ),
   queryConfigs: arrayOf(shape()).isRequired,
+  colorSingleStatText: bool.isRequired,
+  onToggleSingleStatText: func.isRequired,
 }
 
 export default DisplayOptions

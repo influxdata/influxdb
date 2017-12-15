@@ -15,6 +15,8 @@ const SingleStatOptions = ({
   onChooseColor,
   onValidateColorValue,
   onUpdateColorValue,
+  colorSingleStatText,
+  onToggleSingleStatText,
 }) => {
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
 
@@ -49,6 +51,23 @@ const SingleStatOptions = ({
         </div>
         <div className="single-stat-controls">
           <div className="form-group col-xs-6">
+            <label>Coloring</label>
+            <ul className="nav nav-tablist nav-tablist-sm">
+              <li
+                className={colorSingleStatText ? null : 'active'}
+                onClick={onToggleSingleStatText}
+              >
+                Background
+              </li>
+              <li
+                className={colorSingleStatText ? 'active' : null}
+                onClick={onToggleSingleStatText}
+              >
+                Text
+              </li>
+            </ul>
+          </div>
+          <div className="form-group col-xs-6">
             <label>Suffix</label>
             <input
               className="form-control input-sm"
@@ -64,7 +83,7 @@ const SingleStatOptions = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 SingleStatOptions.defaultProps = {
   colors: [],
@@ -85,6 +104,8 @@ SingleStatOptions.propTypes = {
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
+  colorSingleStatText: bool.isRequired,
+  onToggleSingleStatText: func.isRequired,
   onSetSuffix: func.isRequired,
   suffix: string.isRequired,
 }

@@ -112,7 +112,7 @@ func HasCorrectAxes(c *chronograf.DashboardCell) error {
 // HasCorrectColors verifies that the format of each color is correct
 func HasCorrectColors(c *chronograf.DashboardCell) error {
 	for _, color := range c.CellColors {
-		if !oneOf(color.Type, "max", "min", "threshold") {
+		if !oneOf(color.Type, "max", "min", "threshold", "text", "background") {
 			return chronograf.ErrInvalidColorType
 		}
 		if len(color.Hex) != 7 {
