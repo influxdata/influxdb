@@ -43,6 +43,35 @@ func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutsStore) (*multistor
 	return layouts, nil
 }
 
+// DashboardBuilder is responsible for building dashboards
+type DashboardBuilder interface {
+	Build(chronograf.DashboardsStore) (*multistore.DashboardsStore, error)
+}
+
+// MultiDashboardBuilder builds a DashboardsStore backed by bolt and the filesystem
+type MultiDashboardBuilder struct {
+	Logger chronograf.Logger
+	ID     chronograf.ID
+	Path   string
+}
+
+// Build will construct a Dashboard store of filesystem and db-backed dashboards
+func (builder *MultiDashboardBuilder) Build(db chronograf.DashboardsStore) (*multistore.DashboardsStore, error) {
+	// These dashboards are those handled from a directory
+	files := filestore.NewDashboards(builder.Path, builder.ID, builder.Logger)
+	// Acts as a front-end to both the bolt dashboard and filesystem dashboards.
+	// The idea here is that these stores form a hierarchy in which each is tried sequentially until
+	// the operation has success.  So, the database is preferred over filesystem
+	dashboards := &multistore.DashboardsStore{
+		Stores: []chronograf.DashboardsStore{
+			db,
+			files,
+		},
+	}
+
+	return dashboards, nil
+}
+
 // SourcesBuilder builds a MultiSourceStore
 type SourcesBuilder interface {
 	Build(chronograf.SourcesStore) (*multistore.SourcesStore, error)

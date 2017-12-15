@@ -16,10 +16,10 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
+	idgen "github.com/influxdata/chronograf/id"
 	"github.com/influxdata/chronograf/influx"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
-	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
@@ -122,6 +122,7 @@ func (s *Server) UseHeroku() bool {
 	return s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
 }
 
+// UseAuth0 validates the CLI parameters to enable Auth0 oauth support
 func (s *Server) UseAuth0() bool {
 	return s.Auth0ClientID != "" && s.Auth0ClientSecret != ""
 }
@@ -269,24 +270,41 @@ func (s *Server) NewListener() (net.Listener, error) {
 	return listener, nil
 }
 
+type builders struct {
+	Layouts    LayoutBuilder
+	Sources    SourcesBuilder
+	Kapacitors KapacitorBuilder
+	Dashboards DashboardBuilder
+}
+
+func (s *Server) newBuilders(logger chronograf.Logger) builders {
+	return builders{
+		Layouts: &MultiLayoutBuilder{
+			Logger:     logger,
+			UUID:       &idgen.UUID{},
+			CannedPath: s.CannedPath,
+		},
+		Dashboards: &MultiDashboardBuilder{
+			Logger: logger,
+			ID:     idgen.NewTime(),
+			Path:   s.CannedPath,
+		},
+		Sources: &MultiSourceBuilder{
+			InfluxDBURL:      s.InfluxDBURL,
+			InfluxDBUsername: s.InfluxDBUsername,
+			InfluxDBPassword: s.InfluxDBPassword,
+		},
+		Kapacitors: &MultiKapacitorBuilder{
+			KapacitorURL:      s.KapacitorURL,
+			KapacitorUsername: s.KapacitorUsername,
+			KapacitorPassword: s.KapacitorPassword,
+		},
+	}
+}
+
 // Serve starts and runs the chronograf server
 func (s *Server) Serve(ctx context.Context) error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
-	layoutBuilder := &MultiLayoutBuilder{
-		Logger:     logger,
-		UUID:       &uuid.V4{},
-		CannedPath: s.CannedPath,
-	}
-	sourcesBuilder := &MultiSourceBuilder{
-		InfluxDBURL:      s.InfluxDBURL,
-		InfluxDBUsername: s.InfluxDBUsername,
-		InfluxDBPassword: s.InfluxDBPassword,
-	}
-	kapacitorBuilder := &MultiKapacitorBuilder{
-		KapacitorURL:      s.KapacitorURL,
-		KapacitorUsername: s.KapacitorUsername,
-		KapacitorPassword: s.KapacitorPassword,
-	}
 	_, err := NewCustomLinks(s.CustomLinks)
 	if err != nil {
 		logger.
@@ -295,7 +313,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			Error(err)
 		return err
 	}
-	service := openService(ctx, s, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger)
+	service := openService(ctx, s.BuildInfo, s.BoltPath, s.newBuilders(logger), logger, s.useAuth())
 	if err := service.HandleNewSources(ctx, s.NewSources); err != nil {
 		logger.
 			WithField("component", "server").
@@ -390,18 +408,18 @@ func (s *Server) Serve(ctx context.Context) error {
 	return nil
 }
 
-func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilder SourcesBuilder, kapBuilder KapacitorBuilder, logger chronograf.Logger) Service {
+func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath string, builder builders, logger chronograf.Logger, useAuth bool) Service {
 	db := bolt.NewClient()
-	db.Path = s.BoltPath
+	db.Path = boltPath
 
-	if err := db.Open(ctx, logger, s.BuildInfo, bolt.WithBackup()); err != nil {
+	if err := db.Open(ctx, logger, buildInfo, bolt.WithBackup()); err != nil {
 		logger.
 			WithField("component", "boltstore").
 			Error(err)
 		os.Exit(1)
 	}
 
-	layouts, err := lBuilder.Build(db.LayoutsStore)
+	layouts, err := builder.Layouts.Build(db.LayoutsStore)
 	if err != nil {
 		logger.
 			WithField("component", "LayoutsStore").
@@ -409,7 +427,14 @@ func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilde
 		os.Exit(1)
 	}
 
-	sources, err := sBuilder.Build(db.SourcesStore)
+	dashboards, err := builder.Dashboards.Build(db.DashboardsStore)
+	if err != nil {
+		logger.
+			WithField("component", "DashboardsStore").
+			Error("Unable to construct a MultiDashboardsStore", err)
+		os.Exit(1)
+	}
+	sources, err := builder.Sources.Build(db.SourcesStore)
 	if err != nil {
 		logger.
 			WithField("component", "SourcesStore").
@@ -417,7 +442,7 @@ func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilde
 		os.Exit(1)
 	}
 
-	kapacitors, err := kapBuilder.Build(db.ServersStore)
+	kapacitors, err := builder.Kapacitors.Build(db.ServersStore)
 	if err != nil {
 		logger.
 			WithField("component", "KapacitorStore").
@@ -428,16 +453,16 @@ func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilde
 	return Service{
 		TimeSeriesClient: &InfluxClient{},
 		Store: &Store{
+			LayoutsStore:       layouts,
+			DashboardsStore:    dashboards,
 			SourcesStore:       sources,
 			ServersStore:       kapacitors,
 			UsersStore:         db.UsersStore,
 			OrganizationsStore: db.OrganizationsStore,
-			LayoutsStore:       layouts,
-			DashboardsStore:    db.DashboardsStore,
 			ConfigStore:        db.ConfigStore,
 		},
 		Logger:    logger,
-		UseAuth:   s.useAuth(),
+		UseAuth:   useAuth,
 		Databases: &influx.Client{Logger: logger},
 	}
 }
