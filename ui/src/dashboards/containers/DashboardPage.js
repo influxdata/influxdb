@@ -16,6 +16,7 @@ import TemplateVariableManager from 'src/dashboards/components/template_variable
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
@@ -59,6 +60,7 @@ class DashboardPage extends Component {
       meRole,
       isUsingAuth,
       router,
+      notify,
     } = this.props
 
     const dashboards = await getDashboardsAsync()
@@ -67,7 +69,8 @@ class DashboardPage extends Component {
     )
 
     if (!dashboard) {
-      return router.push(`/sources/${source.id}/dashboards`)
+      router.push(`/sources/${source.id}/dashboards`)
+      return notify('error', `Dashboard ${dashboardID} could not be found`)
     }
 
     // Refresh and persists influxql generated template variable values.
@@ -463,6 +466,7 @@ DashboardPage.propTypes = {
   meRole: string,
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -510,6 +514,7 @@ const mapDispatchToProps = dispatch => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
+  notify: bindActionCreators(publishNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
