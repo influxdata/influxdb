@@ -136,7 +136,10 @@ func (cmd *Command) run() error {
 	defer idx.Close()
 	for i := 0; i < int(idx.PartitionN); i++ {
 		if err := func() error {
-			fs := idx.PartitionAt(i).RetainFileSet()
+			fs, err := idx.PartitionAt(i).RetainFileSet()
+			if err != nil {
+				return err
+			}
 			defer fs.Release()
 			return cmd.printFileSet(sfile, fs)
 		}(); err != nil {

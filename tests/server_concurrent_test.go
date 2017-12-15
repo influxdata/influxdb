@@ -103,7 +103,6 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 }
 
 func TestConcurrentServer_ShowMeasurements(t *testing.T) {
-	t.Skip("TODO")
 	t.Parallel()
 
 	if testing.Short() {

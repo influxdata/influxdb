@@ -188,7 +188,10 @@ func TestIndex_DropMeasurement(t *testing.T) {
 		}
 
 		// Obtain file set to perform lower level checks.
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		// Verify tags & values are gone.

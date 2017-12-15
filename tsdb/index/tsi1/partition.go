@@ -55,7 +55,7 @@ type Partition struct {
 
 	// Close management.
 	once    sync.Once
-	closing chan struct{}
+	closing chan struct{} // closing is used to inform iterators the partition is closing.
 	wg      sync.WaitGroup
 
 	// Fieldset shared with engine.
@@ -88,9 +88,8 @@ type Partition struct {
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return &Partition{
 		closing: make(chan struct{}),
-
-		path:  path,
-		sfile: sfile,
+		path:    path,
+		sfile:   sfile,
 
 		// Default compaction thresholds.
 		MaxLogFileSize: DefaultMaxLogFileSize,
@@ -109,6 +108,8 @@ var ErrIncompatibleVersion = errors.New("incompatible tsi1 index MANIFEST")
 func (i *Partition) Open() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+
+	i.closing = make(chan struct{})
 
 	if i.opened {
 		return errors.New("index partition already open")
@@ -258,12 +259,13 @@ func (i *Partition) Wait() {
 // Close closes the index.
 func (i *Partition) Close() error {
 	// Wait for goroutines to finish outstanding compactions.
-	i.once.Do(func() { close(i.closing) })
 	i.wg.Wait()
 
 	// Lock index and close remaining
 	i.mu.Lock()
 	defer i.mu.Unlock()
+
+	i.once.Do(func() { close(i.closing) })
 
 	// Close log files.
 	for _, f := range i.fileSet.files {
@@ -273,6 +275,17 @@ func (i *Partition) Close() error {
 
 	return nil
 }
+
+// closing returns true if the partition is currently closing. It does not require
+// a lock so will always return to callers.
+// func (i *Partition) closing() bool {
+// 	select {
+// 	case <-i.closing:
+// 		return true
+// 	default:
+// 		return false
+// 	}
+// }
 
 // Path returns the path to the partition.
 func (i *Partition) Path() string { return i.path }
@@ -334,11 +347,15 @@ func (i *Partition) FieldSet() *tsdb.MeasurementFieldSet {
 }
 
 // RetainFileSet returns the current fileset and adds a reference count.
-func (i *Partition) RetainFileSet() *FileSet {
-	i.mu.RLock()
-	fs := i.retainFileSet()
-	i.mu.RUnlock()
-	return fs
+func (i *Partition) RetainFileSet() (*FileSet, error) {
+	select {
+	case <-i.closing:
+		return nil, errors.New("index is closing")
+	default:
+		i.mu.RLock()
+		defer i.mu.RUnlock()
+		return i.retainFileSet(), nil
+	}
 }
 
 func (i *Partition) retainFileSet() *FileSet {
@@ -374,7 +391,10 @@ func (i *Partition) prependActiveLogFile() error {
 
 // ForEachMeasurementName iterates over all measurement names in the index.
 func (i *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return err
+	}
 	defer fs.Release()
 
 	itr := fs.MeasurementIterator()
@@ -393,7 +413,10 @@ func (i *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
 
 // MeasurementIterator returns an iterator over all measurement names.
 func (i *Partition) MeasurementIterator() (tsdb.MeasurementIterator, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil, err
+	}
 	itr := fs.MeasurementIterator()
 	if itr == nil {
 		fs.Release()
@@ -404,14 +427,20 @@ func (i *Partition) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 
 // MeasurementExists returns true if a measurement exists.
 func (i *Partition) MeasurementExists(name []byte) (bool, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return false, err
+	}
 	defer fs.Release()
 	m := fs.Measurement(name)
 	return m != nil && !m.Deleted(), nil
 }
 
 func (i *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil, err
+	}
 	defer fs.Release()
 
 	itr := fs.MeasurementIterator()
@@ -430,13 +459,19 @@ func (i *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 }
 
 func (i *Partition) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil, err
+	}
 	return newFileSetSeriesIDIterator(fs, fs.MeasurementSeriesIDIterator(name)), nil
 }
 
 // DropMeasurement deletes a measurement from the index.
 func (i *Partition) DropMeasurement(name []byte) error {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return err
+	}
 	defer fs.Release()
 
 	// Delete all keys and values.
@@ -514,7 +549,10 @@ func (i *Partition) DropMeasurement(name []byte) error {
 // bulk.
 func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) error {
 	// Maintain reference count on files in file set.
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return err
+	}
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
@@ -559,28 +597,41 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 // MeasurementsSketches returns the two sketches for the index by merging all
 // instances of the type sketch types in all the index files.
 func (i *Partition) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil, nil, err
+	}
 	defer fs.Release()
 	return fs.MeasurementsSketches()
 }
 
 // HasTagKey returns true if tag key exists.
 func (i *Partition) HasTagKey(name, key []byte) (bool, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return false, err
+	}
 	defer fs.Release()
 	return fs.HasTagKey(name, key), nil
 }
 
 // HasTagValue returns true if tag value exists.
 func (i *Partition) HasTagValue(name, key, value []byte) (bool, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return false, err
+	}
 	defer fs.Release()
 	return fs.HasTagValue(name, key, value), nil
 }
 
 // TagKeyIterator returns an iterator for all keys across a single measurement.
 func (i *Partition) TagKeyIterator(name []byte) tsdb.TagKeyIterator {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil // TODO(edd): this should probably return an error.
+	}
+
 	itr := fs.TagKeyIterator(name)
 	if itr == nil {
 		fs.Release()
@@ -591,7 +642,11 @@ func (i *Partition) TagKeyIterator(name []byte) tsdb.TagKeyIterator {
 
 // TagValueIterator returns an iterator for all values across a single key.
 func (i *Partition) TagValueIterator(name, key []byte) tsdb.TagValueIterator {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil // TODO(edd): this should probably return an error.
+	}
+
 	itr := fs.TagValueIterator(name, key)
 	if itr == nil {
 		fs.Release()
@@ -602,7 +657,11 @@ func (i *Partition) TagValueIterator(name, key []byte) tsdb.TagValueIterator {
 
 // TagKeySeriesIDIterator returns a series iterator for all values across a single key.
 func (i *Partition) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil // TODO(edd): this should probably return an error.
+	}
+
 	itr := fs.TagKeySeriesIDIterator(name, key)
 	if itr == nil {
 		fs.Release()
@@ -613,7 +672,11 @@ func (i *Partition) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterat
 
 // TagValueSeriesIDIterator returns a series iterator for a single key value.
 func (i *Partition) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil // TODO(edd): this should probably return an error.
+	}
+
 	itr := fs.TagValueSeriesIDIterator(name, key, value)
 	if itr == nil {
 		fs.Release()
@@ -624,14 +687,21 @@ func (i *Partition) TagValueSeriesIDIterator(name, key, value []byte) tsdb.Serie
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (i *Partition) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil, err
+	}
 	defer fs.Release()
+
 	return fs.MeasurementTagKeysByExpr(name, expr)
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement.
 func (i *Partition) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return err
+	}
 	defer fs.Release()
 
 	itr := fs.TagKeyIterator(name)
@@ -653,34 +723,6 @@ func (i *Partition) ForEachMeasurementTagKey(name []byte, fn func(key []byte) er
 func (i *Partition) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
-
-/*
-func (i *Partition) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-
-	itr, err := fs.MeasurementSeriesByExprIterator(name, condition, i.fieldset)
-	if err != nil {
-		return nil, err
-	} else if itr == nil {
-		return nil, nil
-	}
-	return itr, err
-}
-*/
-
-/*
-// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
-func (i *Partition) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-
-	keys, err := fs.MeasurementSeriesKeysByExpr(name, expr, i.fieldset)
-
-	// Clone byte slices since they will be used after the fileset is released.
-	return bytesutil.CloneSlice(keys), err
-}
-*/
 
 // SnapshotTo creates hard links to the file set into path.
 func (i *Partition) SnapshotTo(path string) error {

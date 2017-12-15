@@ -766,7 +766,11 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 // DiskSizeBytes returns the size of the index on disk.
 func (i *Index) DiskSizeBytes() int64 {
-	fs := i.RetainFileSet()
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		i.logger.Warn("Index is closing down")
+		return 0
+	}
 	defer fs.Release()
 
 	var manifestSize int64
@@ -810,16 +814,20 @@ func (i *Index) SnapshotTo(path string) error {
 
 // RetainFileSet returns the set of all files across all partitions.
 // This is only needed when all files need to be retained for an operation.
-func (i *Index) RetainFileSet() *FileSet {
+func (i *Index) RetainFileSet() (*FileSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
 	fs, _ := NewFileSet(i.database, nil, i.sfile, nil)
 	for _, p := range i.partitions {
-		pfs := p.RetainFileSet()
+		pfs, err := p.RetainFileSet()
+		if err != nil {
+			fs.Close()
+			return nil, err
+		}
 		fs.files = append(fs.files, pfs.files...)
 	}
-	return fs
+	return fs, nil
 }
 
 func (i *Index) SetFieldName(measurement []byte, name string) {}

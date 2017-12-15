@@ -1368,9 +1368,12 @@ func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byt
 		return true
 	}
 
-	// TODO(edd) there isn't a need to return an error when instantiating the iterator.
-	sitr, _ := is.MeasurementSeriesIDIterator(name)
+	sitr, err := is.MeasurementSeriesIDIterator(name)
+	if err != nil || sitr == nil {
+		return false
+	}
 	defer sitr.Close()
+
 	for {
 		series, err := sitr.Next()
 		if err != nil {
