@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/canned"
+	"github.com/influxdata/chronograf/filestore"
 	"github.com/influxdata/chronograf/memdb"
 	"github.com/influxdata/chronograf/multistore"
 )
@@ -23,7 +24,7 @@ type MultiLayoutBuilder struct {
 // layouts
 func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutsStore) (*multistore.Layouts, error) {
 	// These apps are those handled from a directory
-	apps := canned.NewApps(builder.CannedPath, builder.UUID, builder.Logger)
+	apps := filestore.NewApps(builder.CannedPath, builder.UUID, builder.Logger)
 	// These apps are statically compiled into chronograf
 	binApps := &canned.BinLayoutsStore{
 		Logger: builder.Logger,

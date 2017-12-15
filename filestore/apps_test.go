@@ -1,4 +1,4 @@
-package canned_test
+package filestore_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/canned"
+	"github.com/influxdata/chronograf/filestore"
 	clog "github.com/influxdata/chronograf/log"
 )
 
@@ -47,7 +47,7 @@ func TestAll(t *testing.T) {
 		apps, _ := MockApps(test.Existing, test.Err)
 		layouts, err := apps.All(context.Background())
 		if err != test.Err {
-			t.Errorf("Test %d: Canned all error expected: %v; actual: %v", i, test.Err, err)
+			t.Errorf("Test %d: apps all error expected: %v; actual: %v", i, test.Err, err)
 		}
 		if !reflect.DeepEqual(layouts, test.Existing) {
 			t.Errorf("Test %d: Layouts should be equal; expected %v; actual %v", i, test.Existing, layouts)
@@ -99,7 +99,7 @@ func TestAdd(t *testing.T) {
 		apps, _ := MockApps(test.Existing, test.Err)
 		layout, err := apps.Add(context.Background(), test.Add)
 		if err != test.Err {
-			t.Errorf("Test %d: Canned add error expected: %v; actual: %v", i, test.Err, err)
+			t.Errorf("Test %d: apps add error expected: %v; actual: %v", i, test.Err, err)
 		}
 
 		if layout.ID != test.ExpectedID {
@@ -150,7 +150,7 @@ func TestDelete(t *testing.T) {
 		apps, actual := MockApps(test.Existing, test.Err)
 		err := apps.Delete(context.Background(), chronograf.Layout{ID: test.DeleteID})
 		if err != test.Err {
-			t.Errorf("Test %d: Canned delete error expected: %v; actual: %v", i, test.Err, err)
+			t.Errorf("Test %d: apps delete error expected: %v; actual: %v", i, test.Err, err)
 		}
 		if !reflect.DeepEqual(*actual, test.Expected) {
 			t.Errorf("Test %d: Layouts should be equal; expected %v; actual %v", i, test.Expected, actual)
@@ -199,7 +199,7 @@ func TestGet(t *testing.T) {
 		apps, _ := MockApps(test.Existing, test.Err)
 		layout, err := apps.Get(context.Background(), test.ID)
 		if err != test.Err {
-			t.Errorf("Test %d: Canned get error expected: %v; actual: %v", i, test.Err, err)
+			t.Errorf("Test %d: Layouts get error expected: %v; actual: %v", i, test.Err, err)
 		}
 		if !reflect.DeepEqual(layout, test.Expected) {
 			t.Errorf("Test %d: Layouts should be equal; expected %v; actual %v", i, test.Expected, layout)
@@ -261,7 +261,7 @@ func TestUpdate(t *testing.T) {
 		apps, actual := MockApps(test.Existing, test.Err)
 		err := apps.Update(context.Background(), test.Update)
 		if err != test.Err {
-			t.Errorf("Test %d: Canned get error expected: %v; actual: %v", i, test.Err, err)
+			t.Errorf("Test %d: Layouts get error expected: %v; actual: %v", i, test.Err, err)
 		}
 		if !reflect.DeepEqual(*actual, test.Expected) {
 			t.Errorf("Test %d: Layouts should be equal; expected %v; actual %v", i, test.Expected, actual)
@@ -312,7 +312,7 @@ func (m *MockID) Generate() (string, error) {
 	return strconv.Itoa(m.id), nil
 }
 
-func MockApps(existing []chronograf.Layout, expected error) (canned.Apps, *map[string]chronograf.Layout) {
+func MockApps(existing []chronograf.Layout, expected error) (filestore.Apps, *map[string]chronograf.Layout) {
 	layouts := map[string]chronograf.Layout{}
 	fileName := func(dir string, layout chronograf.Layout) string {
 		return path.Join(dir, layout.ID+".json")
@@ -326,11 +326,11 @@ func MockApps(existing []chronograf.Layout, expected error) (canned.Apps, *map[s
 			return chronograf.Layout{}, expected
 		}
 
-		if l, ok := layouts[file]; !ok {
+		l, ok := layouts[file]
+		if !ok {
 			return chronograf.Layout{}, chronograf.ErrLayoutNotFound
-		} else {
-			return l, nil
 		}
+		return l, nil
 	}
 
 	create := func(file string, layout chronograf.Layout) error {
@@ -346,7 +346,7 @@ func MockApps(existing []chronograf.Layout, expected error) (canned.Apps, *map[s
 			return nil, expected
 		}
 		info := []os.FileInfo{}
-		for k, _ := range layouts {
+		for k := range layouts {
 			info = append(info, &MockFileInfo{filepath.Base(k)})
 		}
 		sort.Sort(MockFileInfos(info))
@@ -364,7 +364,7 @@ func MockApps(existing []chronograf.Layout, expected error) (canned.Apps, *map[s
 		return nil
 	}
 
-	return canned.Apps{
+	return filestore.Apps{
 		Dir:      dir,
 		Load:     load,
 		Filename: fileName,
