@@ -172,6 +172,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	c := &Compactor{
 		Dir:       path,
 		FileStore: fs,
+		RateLimit: opt.CompactionThroughputLimiter,
 	}
 
 	logger := zap.New(zap.NullEncoder())
@@ -1274,7 +1275,7 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 }
 
 func (e *Engine) compact(quit <-chan struct{}) {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
@@ -1336,15 +1337,15 @@ func (e *Engine) compact(quit <-chan struct{}) {
 
 				switch level {
 				case 1:
-					if e.compactHiPriorityLevel(level1Groups[0], 1) {
+					if e.compactHiPriorityLevel(level1Groups[0], 1, false) {
 						level1Groups = level1Groups[1:]
 					}
 				case 2:
-					if e.compactHiPriorityLevel(level2Groups[0], 2) {
+					if e.compactHiPriorityLevel(level2Groups[0], 2, false) {
 						level2Groups = level2Groups[1:]
 					}
 				case 3:
-					if e.compactLoPriorityLevel(level3Groups[0], 3) {
+					if e.compactLoPriorityLevel(level3Groups[0], 3, true) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
@@ -1365,8 +1366,8 @@ func (e *Engine) compact(quit <-chan struct{}) {
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
 // true if the compaction was started
-func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int) bool {
-	s := e.levelCompactionStrategy(grp, true, level)
+func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast bool) bool {
+	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
 	}
@@ -1394,8 +1395,8 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int) bool {
 
 // compactLoPriorityLevel kicks off compactions using the lo priority policy. It returns
 // the plans that were not able to be started
-func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int) bool {
-	s := e.levelCompactionStrategy(grp, true, level)
+func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast bool) bool {
+	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
 	}
