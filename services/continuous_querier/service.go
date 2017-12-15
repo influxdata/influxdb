@@ -361,7 +361,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	if err := cq.q.SetTimeRange(startTime, endTime); err != nil {
-		s.Logger.Info(fmt.Sprintf("error setting time range: %s\n", err))
+		s.Logger.Info(fmt.Sprintf("error setting time range: %s", err))
 		return false, err
 	}
 
@@ -377,7 +377,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	// Do the actual processing of the query & writing of results.
 	res := s.runContinuousQueryAndWriteResult(cq)
 	if res.Err != nil {
-		s.Logger.Info(fmt.Sprintf("error: %s. running: %s\n", res.Err, cq.q.String()))
+		s.Logger.Info(fmt.Sprintf("error: %s. running: %s", res.Err, cq.q.String()))
 		return false, res.Err
 	}
 
