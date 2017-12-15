@@ -29,12 +29,7 @@ const AdminTabs = ({
     {
       requiredRole: SUPERADMIN_ROLE,
       type: ORGANIZATIONS_TAB_NAME,
-      component: (
-        <OrganizationsPage
-          currentOrganization={organization}
-          onCreateUser={onCreateUser} // allows a SuperAdmin to join organizations where they don't currently have a role
-        />
-      ),
+      component: <OrganizationsPage currentOrganization={organization} />,
     },
     {
       requiredRole: ADMIN_ROLE,

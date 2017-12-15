@@ -11,26 +11,6 @@ import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
 import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
-import {ADMIN_ROLE} from 'src/auth/Authorized'
-
-const AccessOrganizationButton = ({
-  userHasRoleInOrg,
-  handleChangeCurrentOrganization,
-  handleJoinOrganizationAsAdmin,
-}) =>
-  userHasRoleInOrg
-    ? <button
-        className="btn btn-sm btn-default"
-        onClick={handleChangeCurrentOrganization}
-      >
-        <span className="icon shuffle" /> Switch to
-      </button>
-    : <button
-        className="btn btn-sm btn-default"
-        onClick={handleJoinOrganizationAsAdmin}
-      >
-        <span className="icon user" /> Join
-      </button>
 
 const OrganizationsTableRowDeleteButton = ({organization, onClickDelete}) =>
   organization.id === DEFAULT_ORG_ID
@@ -63,15 +43,6 @@ class OrganizationsTableRow extends Component {
 
     await meChangeOrganization(links.me, {organization: organization.id})
     router.push('')
-  }
-
-  handleJoinOrganizationAsAdmin = async () => {
-    const {me, organization, onCreateUser} = this.props
-
-    onCreateUser({
-      ...me,
-      roles: [...me.roles, {name: ADMIN_ROLE, organization: organization.id}],
-    })
   }
 
   handleNameClick = () => {
@@ -147,7 +118,7 @@ class OrganizationsTableRow extends Component {
 
   render() {
     const {workingName, isEditing, isDeleting} = this.state
-    const {organization, currentOrganization, userHasRoleInOrg, me} = this.props
+    const {organization, currentOrganization, userHasRole} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
       ...role,
@@ -165,17 +136,13 @@ class OrganizationsTableRow extends Component {
             ? <button className="btn btn-sm btn-success">
                 <span className="icon checkmark" /> Current
               </button>
-            : <AccessOrganizationButton
-                userHasRoleInOrg={userHasRoleInOrg}
-                me={me}
-                organization={organization}
-                handleChangeCurrentOrganization={
-                  this.handleChangeCurrentOrganization
-                }
-                handleJoinOrganizationAsAdmin={
-                  this.handleJoinOrganizationAsAdmin
-                }
-              />}
+            : <button
+                className="btn btn-sm btn-default"
+                onClick={this.handleChangeCurrentOrganization}
+                disabled={!userHasRole}
+              >
+                <span className="icon shuffle" /> Switch to
+              </button>}
         </div>
         {isEditing
           ? <input
@@ -259,27 +226,7 @@ OrganizationsTableRow.propTypes = {
     }),
   }),
   meChangeOrganization: func.isRequired,
-  userHasRoleInOrg: bool.isRequired,
-  onCreateUser: func.isRequired,
-  me: shape({
-    id: string.isRequired,
-    name: string.isRequired,
-    roles: arrayOf(
-      shape({
-        name: string.isRequired,
-        organization: string.isRequired,
-      })
-    ),
-    provider: string.isRequired,
-    scheme: string.isRequired,
-    organizations: arrayOf(
-      shape({
-        id: string.isRequired,
-        name: string.isRequired,
-        defaultRole: string.isRequired,
-      })
-    ),
-  }),
+  userHasRole: bool.isRequired,
 }
 
 OrganizationsTableRowDeleteButton.propTypes = {
@@ -289,12 +236,6 @@ OrganizationsTableRowDeleteButton.propTypes = {
     defaultRole: string.isRequired,
   }).isRequired,
   onClickDelete: func.isRequired,
-}
-
-AccessOrganizationButton.propTypes = {
-  userHasRoleInOrg: bool.isRequired,
-  handleChangeCurrentOrganization: func.isRequired,
-  handleJoinOrganizationAsAdmin: func.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({
