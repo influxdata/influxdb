@@ -892,7 +892,12 @@ cpu,secret=foo value=100 0
 		}
 
 		// Delete series cpu,host=serverA,region=uswest
-		if err := sh.Index().DropSeries([]byte("cpu,host=serverA,region=uswest"), time.Now().UnixNano()); err != nil {
+		idx, err := sh.Index()
+		if err != nil {
+			return err
+		}
+
+		if err := idx.DropSeries([]byte("cpu,host=serverA,region=uswest"), time.Now().UnixNano()); err != nil {
 			return err
 		}
 

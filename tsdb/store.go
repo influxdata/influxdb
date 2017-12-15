@@ -825,7 +825,12 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 	// TODO(benbjohnson): Series file will be shared by the DB.
 	var max int64
 	for _, shard := range shards {
-		if n := shard.Index().SeriesN(); n > max {
+		index, err := shard.Index()
+		if err != nil {
+			return 0, err
+		}
+
+		if n := index.SeriesN(); n > max {
 			max = n
 		}
 	}
@@ -1003,7 +1008,12 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		limit.Take()
 		defer limit.Release()
 
-		indexSet := IndexSet{Indexes: []Index{sh.index}, SeriesFile: sfile}
+		index, err := sh.Index()
+		if err != nil {
+			return err
+		}
+
+		indexSet := IndexSet{Indexes: []Index{index}, SeriesFile: sfile}
 		// Find matching series keys for each measurement.
 		for _, name := range names {
 			itr, err := indexSet.MeasurementSeriesByExprIterator([]byte(name), condition)
@@ -1076,9 +1086,11 @@ func (s *Store) MeasurementNames(auth query.Authorizer, database string, cond in
 	// Build indexset.
 	is := IndexSet{Indexes: make([]Index, 0, len(shards)), SeriesFile: sfile}
 	for _, sh := range shards {
-		if sh.index != nil {
-			is.Indexes = append(is.Indexes, sh.index)
+		index, err := sh.Index()
+		if err != nil {
+			return nil, err
 		}
+		is.Indexes = append(is.Indexes, index)
 	}
 	is = is.DedupeInmemIndexes()
 	return is.MeasurementNamesByExpr(auth, cond)
@@ -1599,16 +1611,26 @@ func (s *Store) monitorShards() {
 					return err
 				}
 
+				firstShardIndex, err := sh.Index()
+				if err != nil {
+					return err
+				}
+
+				index, err := sh.Index()
+				if err != nil {
+					return err
+				}
+
 				// inmem shards share the same index instance so just use the first one to avoid
 				// allocating the same measurements repeatedly
-				indexSet := IndexSet{Indexes: []Index{shards[0].index}, SeriesFile: sfile}
+				indexSet := IndexSet{Indexes: []Index{firstShardIndex}, SeriesFile: sfile}
 				names, err := indexSet.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
 					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
 					return nil
 				}
 
-				indexSet.Indexes = []Index{sh.Index()}
+				indexSet.Indexes = []Index{index}
 				for _, name := range names {
 					indexSet.ForEachMeasurementTagKey(name, func(k []byte) error {
 						n := sh.TagKeyCardinality(name, k)
