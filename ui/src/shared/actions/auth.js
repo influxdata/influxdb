@@ -93,8 +93,9 @@ export const meChangeOrganizationAsync = (
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `Current organization now ${me.currentOrganization
-          .name}${userHasRoleInOrg ? '' : ' and became an Admin in it.'}`
+        `Now signed in to ${me.currentOrganization.name}${userHasRoleInOrg
+          ? ''
+          : ' with Admin role.'}`
       )
     )
     dispatch(meChangeOrganizationCompleted())
