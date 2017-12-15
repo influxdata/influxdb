@@ -81,7 +81,7 @@ func (fs *MultiSourceBuilder) Build(db chronograf.SourcesStore) (*memdb.MultiSou
 
 // KapacitorBuilder builds a KapacitorStore
 type KapacitorBuilder interface {
-	Build(chronograf.ServersStore) (*memdb.MultiKapacitorStore, error)
+	Build(chronograf.ServersStore) (*multistore.KapacitorStore, error)
 }
 
 // MultiKapacitorBuilder implements KapacitorBuilder
@@ -92,7 +92,7 @@ type MultiKapacitorBuilder struct {
 }
 
 // Build will return a MultiKapacitorStore
-func (builder *MultiKapacitorBuilder) Build(db chronograf.ServersStore) (*memdb.MultiKapacitorStore, error) {
+func (builder *MultiKapacitorBuilder) Build(db chronograf.ServersStore) (*multistore.KapacitorStore, error) {
 	stores := []chronograf.ServersStore{db}
 	if builder.KapacitorURL != "" {
 		memStore := &memdb.KapacitorStore{
@@ -107,7 +107,7 @@ func (builder *MultiKapacitorBuilder) Build(db chronograf.ServersStore) (*memdb.
 		}
 		stores = append([]chronograf.ServersStore{memStore}, stores...)
 	}
-	kapacitors := &memdb.MultiKapacitorStore{
+	kapacitors := &multistore.KapacitorStore{
 		Stores: stores,
 	}
 	return kapacitors, nil
