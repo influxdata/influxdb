@@ -45,7 +45,7 @@ func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutsStore) (*multistor
 
 // SourcesBuilder builds a MultiSourceStore
 type SourcesBuilder interface {
-	Build(chronograf.SourcesStore) (*memdb.MultiSourcesStore, error)
+	Build(chronograf.SourcesStore) (*multistore.SourcesStore, error)
 }
 
 // MultiSourceBuilder implements SourcesBuilder
@@ -56,7 +56,7 @@ type MultiSourceBuilder struct {
 }
 
 // Build will return a MultiSourceStore
-func (fs *MultiSourceBuilder) Build(db chronograf.SourcesStore) (*memdb.MultiSourcesStore, error) {
+func (fs *MultiSourceBuilder) Build(db chronograf.SourcesStore) (*multistore.SourcesStore, error) {
 	stores := []chronograf.SourcesStore{db}
 
 	if fs.InfluxDBURL != "" {
@@ -72,7 +72,7 @@ func (fs *MultiSourceBuilder) Build(db chronograf.SourcesStore) (*memdb.MultiSou
 			}}
 		stores = append([]chronograf.SourcesStore{influxStore}, stores...)
 	}
-	sources := &memdb.MultiSourcesStore{
+	sources := &multistore.SourcesStore{
 		Stores: stores,
 	}
 
@@ -91,7 +91,7 @@ type MultiKapacitorBuilder struct {
 	KapacitorPassword string
 }
 
-// Build will return a MultiKapacitorStore
+// Build will return a multistore facade KapacitorStore over memdb and bolt
 func (builder *MultiKapacitorBuilder) Build(db chronograf.ServersStore) (*multistore.KapacitorStore, error) {
 	stores := []chronograf.ServersStore{db}
 	if builder.KapacitorURL != "" {
