@@ -358,8 +358,17 @@ span.text-color-danger {
 .icon.heroku-simple:before {
   content: "\e948";
 }
+.icon.oauth:before {
+  content: "\e94f";
+}
+.icon.authzero:before {
+  content: "\e951";
+}
 .icon.shuffle:before {
   content: "\e94e";
+}
+.icon.disks:before {
+  content: "\e950";
 }
 .icon.alert-triangle:before {
   content: "\f02d";
@@ -4233,10 +4242,10 @@ p .label {
   Kapacitor Theme Dropdowns
 */
 .dropdown .dropdown-menu.dropdown-malachite {
-  background: #4ed8a0;
-  background:    -moz-linear-gradient(left, #4ed8a0 0%, #22adf6 100%);
-  background: -webkit-linear-gradient(left, #4ed8a0 0%, #22adf6 100%);
-  background:         linear-gradient(to right, #4ed8a0 0%, #22adf6 100%);
+  background: #32b08c;
+  background:    -moz-linear-gradient(left, #32b08c 0%, #22adf6 100%);
+  background: -webkit-linear-gradient(left, #32b08c 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #32b08c 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item:hover,
@@ -4261,10 +4270,10 @@ p .label {
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item > a:focus:active,
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item > a:focus:active:hover {
   color: #fff;
-  background: #32b08c;
-  background:    -moz-linear-gradient(left, #32b08c 0%, #22adf6 100%);
-  background: -webkit-linear-gradient(left, #32b08c 0%, #22adf6 100%);
-  background:         linear-gradient(to right, #32b08c 0%, #22adf6 100%);
+  background: #108174;
+  background:    -moz-linear-gradient(left, #108174 0%, #22adf6 100%);
+  background: -webkit-linear-gradient(left, #108174 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #108174 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item .dropdown-action {
@@ -4274,25 +4283,25 @@ p .label {
   color: #fff;
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item.active {
-  background: #32b08c;
-  background:    -moz-linear-gradient(left, #32b08c 0%, #22adf6 100%);
-  background: -webkit-linear-gradient(left, #32b08c 0%, #22adf6 100%);
-  background:         linear-gradient(to right, #32b08c 0%, #22adf6 100%);
+  background: #108174;
+  background:    -moz-linear-gradient(left, #108174 0%, #22adf6 100%);
+  background: -webkit-linear-gradient(left, #108174 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #108174 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-divider {
-  background: #32b08c;
-  background:    -moz-linear-gradient(left, #32b08c 0%, #4591ed 100%);
-  background: -webkit-linear-gradient(left, #32b08c 0%, #4591ed 100%);
-  background:         linear-gradient(to right, #32b08c 0%, #4591ed 100%);
+  background: #108174;
+  background:    -moz-linear-gradient(left, #108174 0%, #4591ed 100%);
+  background: -webkit-linear-gradient(left, #108174 0%, #4591ed 100%);
+  background:         linear-gradient(to right, #108174 0%, #4591ed 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-header {
   color: #c6ffd0;
-  background: #32b08c;
-  background:    -moz-linear-gradient(left, #32b08c 0%, #4591ed 100%);
-  background: -webkit-linear-gradient(left, #32b08c 0%, #4591ed 100%);
-  background:         linear-gradient(to right, #32b08c 0%, #4591ed 100%);
+  background: #108174;
+  background:    -moz-linear-gradient(left, #108174 0%, #4591ed 100%);
+  background: -webkit-linear-gradient(left, #108174 0%, #4591ed 100%);
+  background:         linear-gradient(to right, #108174 0%, #4591ed 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite.dropdown-menu--no-highlight li.dropdown-item.highlight,
