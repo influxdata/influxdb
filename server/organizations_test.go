@@ -57,7 +57,7 @@ func TestService_OrganizationID(t *testing.T) {
 								Public: false,
 							}, nil
 						default:
-							return nil, fmt.Errorf("Organization with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("Organization with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -481,7 +481,7 @@ func TestService_RemoveOrganization(t *testing.T) {
 								Name: "The Good Place",
 							}, nil
 						default:
-							return nil, fmt.Errorf("Organization with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("Organization with ID %d not found", *q.ID)
 						}
 					},
 				},
