@@ -936,11 +936,17 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
 
 			for _, p := range []models.Point{p1, p2, p3} {
 				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
@@ -1025,10 +1031,17 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
 			p8 := MustParsePointString("disk,host=C value=1.3 1000000000")
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
 
 			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
 				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
@@ -1105,10 +1118,17 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			// Create a few points.
 			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000") // Should not be deleted
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
 
 			for _, p := range []models.Point{p1} {
 				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
@@ -1179,12 +1199,18 @@ func TestEngine_LastModified(t *testing.T) {
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
 			e.SetEnabled(false)
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
 
 			if err := e.WritePoints([]models.Point{p1, p2, p3}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
