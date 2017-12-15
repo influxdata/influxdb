@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path"
 	"reflect"
 	"strings"
 	"sync"
@@ -824,5 +826,36 @@ func TestBatchPoints_SettersGetters(t *testing.T) {
 	}
 	if bp.WriteConsistency() != "wc2" {
 		t.Errorf("Expected: %s, got %s", bp.WriteConsistency(), "wc2")
+	}
+}
+
+func TestClientConcatURLPath(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.String(), "/influxdbproxy/ping") || strings.Contains(r.URL.String(), "/ping/ping") {
+			t.Errorf("unexpected error.  expected %v contains in %v", "/influxdbproxy/ping", r.URL)
+		}
+		var data Response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNoContent)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	url, _ := url.Parse(ts.URL)
+	url.Path = path.Join(url.Path, "influxdbproxy")
+
+	fmt.Println("TestClientConcatURLPath: concat with path 'influxdbproxy' result ", url.String())
+
+	c, _ := NewHTTPClient(HTTPConfig{Addr: url.String()})
+	defer c.Close()
+
+	_, _, err := c.Ping(0)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	_, _, err = c.Ping(0)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 }
