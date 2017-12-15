@@ -30,10 +30,6 @@ const (
 	SeriesFileTombstoneFlag = 0x01
 )
 
-// DefaultMaxSeriesFileSize is the maximum series file size. Assuming that each
-// series key takes, for example, 150 bytes, the limit would support ~229M series.
-const DefaultMaxSeriesFileSize = 32 * (1 << 30) // 32GB
-
 // MaxSeriesFileHashSize is the maximum number of series in a single hash map.
 const MaxSeriesFileHashSize = (1 << 20 * SeriesMapLoadFactor) / 100 // (1MB * 90) / 100 == ~943K
 
@@ -98,7 +94,7 @@ func (f *SeriesFile) Open() error {
 	// Memory map file data.
 	data, err := mmap.Map(f.path, f.MaxSize)
 	if err != nil {
-		return err
+		return fmt.Errorf("open series file: %v", err)
 	}
 	f.data = data
 

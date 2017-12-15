@@ -41,12 +41,12 @@ const SeriesFileName = "series"
 
 // Store manages shards and indexes for databases.
 type Store struct {
-	mu        sync.RWMutex
-	shards    map[uint64]*Shard
-	databases map[string]struct{}
-	sfiles    map[string]*SeriesFile
-
-	path string
+	mu                sync.RWMutex
+	shards            map[uint64]*Shard
+	databases         map[string]struct{}
+	sfiles            map[string]*SeriesFile
+	SeriesFileMaxSize int64 // Determines size of series file mmap. Can be altered in tests.
+	path              string
 
 	// shared per-database indexes, only if using "inmem".
 	indexes map[string]interface{}
@@ -325,22 +325,48 @@ func (s *Store) Close() error {
 	}
 
 	s.mu.Lock()
+	for _, sfile := range s.sfiles {
+		// Close out the series files.
+		if err := sfile.Close(); err != nil {
+			return err
+		}
+	}
+
 	s.shards = nil
+	s.sfiles = map[string]*SeriesFile{}
 	s.opened = false // Store may now be opened again.
 	s.mu.Unlock()
 	return nil
 }
 
+// openSeriesFile either returns or creates a series file for the provided
+// database. It must be called under a full lock.
 func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 	if sfile := s.sfiles[database]; sfile != nil {
 		return sfile, nil
 	}
 
 	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileName))
+	// Set a custom mmap size if one has been specified, otherwise the default
+	// will be used.
+	if s.SeriesFileMaxSize > 0 {
+		sfile.MaxSize = s.SeriesFileMaxSize
+	}
+
 	if err := sfile.Open(); err != nil {
 		return nil, err
 	}
 	s.sfiles[database] = sfile
+	return sfile, nil
+}
+
+func (s *Store) seriesFile(database string) (*SeriesFile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sfile, ok := s.sfiles[database]
+	if !ok {
+		return nil, fmt.Errorf("no series file present for database %q", database)
+	}
 	return sfile, nil
 }
 
@@ -819,11 +845,9 @@ func (s *Store) MeasurementsCardinality(database string) (int64, error) {
 
 // BackupSeriesFile writes the current series file to w.
 func (s *Store) BackupSeriesFile(database string, w io.Writer) error {
-	s.mu.RLock()
-	sfile := s.sfiles[database]
-	s.mu.RUnlock()
-	if sfile == nil {
-		return fmt.Errorf("database %s doesn't exist on this server", database)
+	sfile, err := s.seriesFile(database)
+	if err != nil {
+		return fmt.Errorf("database %s doesn't exist: %v", database, err)
 	}
 	return sfile.Backup(w)
 }
@@ -949,6 +973,9 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	defer s.mu.RUnlock()
 
 	sfile := s.sfiles[database]
+	if sfile == nil {
+		return fmt.Errorf("unable to locate series file for database: %q", database)
+	}
 	shards := s.filterShards(byDatabase(database))
 
 	// Limit to 1 delete for each shard since expanding the measurement into the list
@@ -1041,8 +1068,13 @@ func (s *Store) MeasurementNames(auth query.Authorizer, database string, cond in
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	sfile, err := s.seriesFile(database)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build indexset.
-	is := IndexSet{Indexes: make([]Index, 0, len(shards)), SeriesFile: s.sfiles[database]}
+	is := IndexSet{Indexes: make([]Index, 0, len(shards)), SeriesFile: sfile}
 	for _, sh := range shards {
 		if sh.index != nil {
 			is.Indexes = append(is.Indexes, sh.index)
@@ -1562,9 +1594,14 @@ func (s *Store) monitorShards() {
 				databases[db] = struct{}{}
 				dbLock.Unlock()
 
+				sfile, err := s.seriesFile(sh.database)
+				if err != nil {
+					return err
+				}
+
 				// inmem shards share the same index instance so just use the first one to avoid
 				// allocating the same measurements repeatedly
-				indexSet := IndexSet{Indexes: []Index{shards[0].index}, SeriesFile: s.sfiles[db]}
+				indexSet := IndexSet{Indexes: []Index{shards[0].index}, SeriesFile: sfile}
 				names, err := indexSet.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
 					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))

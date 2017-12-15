@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -769,7 +770,7 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 
 // Creates a large number of series in multiple shards, which will force
 // compactions to occur.
-func testStoreCardinalityCompactions(t *testing.T, store *Store) {
+func testStoreCardinalityCompactions(store *Store) error {
 
 	// Generate point data to write to the shards.
 	series := genTestSeries(300, 5, 5) // 937,500 series
@@ -784,44 +785,43 @@ func testStoreCardinalityCompactions(t *testing.T, store *Store) {
 	// shards such that we never write the same series to multiple shards.
 	for shardID := 0; shardID < 2; shardID++ {
 		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
-			t.Fatalf("create shard: %s", err)
+			return fmt.Errorf("create shard: %s", err)
 		}
 		if err := store.BatchWrite(shardID, points[shardID*468750:(shardID+1)*468750]); err != nil {
-			t.Fatalf("batch write: %s", err)
+			return fmt.Errorf("batch write: %s", err)
 		}
 	}
 
 	// Estimate the series cardinality...
 	cardinality, err := store.Store.SeriesCardinality("db")
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	// Estimated cardinality should be well within 1.5% of the actual cardinality.
 	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
-		t.Errorf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
+		return fmt.Errorf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
 	}
 
 	// Estimate the measurement cardinality...
 	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	// Estimated cardinality should be well within 2 of the actual cardinality. (Arbitrary...)
 	expCardinality = 300
 	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
-		t.Errorf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
+		return fmt.Errorf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
 	}
+	return nil
 }
 
 func TestStore_Cardinality_Compactions(t *testing.T) {
-	t.Parallel()
-
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
-	test := func(index string) {
+	test := func(index string) error {
 		store := NewStore()
 		store.EngineOptions.Config.Index = "inmem"
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
@@ -829,11 +829,15 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 			panic(err)
 		}
 		defer store.Close()
-		testStoreCardinalityCompactions(t, store)
+		return testStoreCardinalityCompactions(store)
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -1509,6 +1513,12 @@ func NewStore() *Store {
 	if testing.Verbose() {
 		s.WithLogger(logger.New(os.Stdout))
 	}
+
+	if runtime.GOARCH == "386" {
+		// Set the mmap size to something addressable in the process.
+		s.SeriesFileMaxSize = 200000000 // 100M bytes
+	}
+
 	return s
 }
 
@@ -1517,6 +1527,7 @@ func NewStore() *Store {
 func MustOpenStore(index string) *Store {
 	s := NewStore()
 	s.EngineOptions.IndexVersion = index
+
 	if err := s.Open(); err != nil {
 		panic(err)
 	}
@@ -1528,8 +1539,13 @@ func (s *Store) Reopen() error {
 	if err := s.Store.Close(); err != nil {
 		return err
 	}
+
+	// Keep old max series file size.
+	seriesMapSize := s.Store.SeriesFileMaxSize
+
 	s.Store = tsdb.NewStore(s.Path())
 	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
+	s.SeriesFileMaxSize = seriesMapSize
 	return s.Open()
 }
 

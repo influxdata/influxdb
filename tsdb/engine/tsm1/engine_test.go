@@ -1524,8 +1524,14 @@ func NewEngine(index string) (*Engine, error) {
 		return nil, err
 	}
 	f.Close()
-
 	sfile := tsdb.NewSeriesFile(f.Name())
+
+	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
+	// can address is in memory.
+	if runtime.GOARCH == "386" {
+		sfile.MaxSize = 100000000 // 100M bytes
+	}
+
 	if err = sfile.Open(); err != nil {
 		return nil, err
 	}
@@ -1564,7 +1570,13 @@ func NewSeriesFile() *SeriesFile {
 	}
 	file.Close()
 
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+	s := &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
+	// can address is in memory.
+	if runtime.GOARCH == "386" {
+		s.SeriesFile.MaxSize = 100000000 // 100M bytes
+	}
+	return s
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.

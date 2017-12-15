@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -251,6 +252,15 @@ type LocalServer struct {
 
 	*client
 	Config *run.Config
+}
+
+// Open opens the server. If running this test on a 32-bit platform it reduces
+// the size of series files so that they can all be addressable in the process.
+func (s *LocalServer) Open() error {
+	if runtime.GOARCH == "386" {
+		s.Server.TSDBStore.SeriesFileMaxSize = 100000000 // 100M bytes
+	}
+	return s.Server.Open()
 }
 
 // Close shuts down the server and removes all temporary paths.
