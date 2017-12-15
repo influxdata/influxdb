@@ -181,6 +181,20 @@ class CellEditorOverlay extends Component {
     return allowedToUpdate
   }
 
+  handleSetSuffix = e => {
+    const {axes} = this.state
+
+    this.setState({
+      axes: {
+        ...axes,
+        y: {
+          ...axes.y,
+          suffix: e.target.value,
+        },
+      },
+    })
+  }
+
   queryStateReducer = queryModifier => (queryID, ...payload) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
@@ -483,6 +497,7 @@ class CellEditorOverlay extends Component {
                   queryConfigs={queriesWorkingDraft}
                   selectedGraphType={cellWorkingType}
                   onSetPrefixSuffix={this.handleSetPrefixSuffix}
+                  onSetSuffix={this.handleSetSuffix}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}

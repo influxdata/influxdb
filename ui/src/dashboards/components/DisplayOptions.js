@@ -48,8 +48,10 @@ class DisplayOptions extends Component {
       onChooseColor,
       onValidateColorValue,
       onUpdateColorValue,
+      onToggleSingleStatText,
+      onSetSuffix,
     } = this.props
-    const {axes} = this.state
+    const {axes, axes: {y: {suffix}}} = this.state
 
     switch (selectedGraphType) {
       case 'gauge':
@@ -67,6 +69,8 @@ class DisplayOptions extends Component {
         return (
           <SingleStatOptions
             colors={colors}
+            suffix={suffix}
+            onSetSuffix={onSetSuffix}
             onChooseColor={onChooseColor}
             onValidateColorValue={onValidateColorValue}
             onUpdateColorValue={onUpdateColorValue}
@@ -115,6 +119,7 @@ DisplayOptions.propTypes = {
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetPrefixSuffix: func.isRequired,
+  onSetSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
   onSetScale: func.isRequired,

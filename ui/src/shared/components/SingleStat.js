@@ -11,7 +11,6 @@ const lightText = '#ffffff'
 
 class SingleStat extends PureComponent {
   render() {
-    const {data, cellHeight, isFetchingInitially, colors} = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -54,6 +53,7 @@ class SingleStat extends PureComponent {
           })}
         >
           {roundedValue}
+          {suffix}
         </span>
       </div>
     )
@@ -75,6 +75,7 @@ SingleStat.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  suffix: string.isRequired,
 }
 
 export default SingleStat

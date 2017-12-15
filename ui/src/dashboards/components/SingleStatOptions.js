@@ -7,6 +7,8 @@ import Threshold from 'src/dashboards/components/Threshold'
 import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 
 const SingleStatOptions = ({
+  suffix,
+  onSetSuffix,
   colors,
   onAddThreshold,
   onDeleteThreshold,
@@ -45,6 +47,18 @@ const SingleStatOptions = ({
             />
           )}
         </div>
+        <div className="single-stat-controls">
+          <div className="form-group col-xs-6">
+            <label>Suffix</label>
+            <input
+              className="form-control input-sm"
+              placeholder="%, MPH, etc."
+              defaultValue={suffix}
+              onChange={onSetSuffix}
+              maxLength="5"
+            />
+          </div>
+        </div>
       </div>
     </FancyScrollbar>
   )
@@ -71,6 +85,8 @@ SingleStatOptions.propTypes = {
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
+  onSetSuffix: func.isRequired,
+  suffix: string.isRequired,
 }
 
 export default SingleStatOptions
