@@ -123,7 +123,7 @@ func (s *Service) Open() error {
 			readdir = func(path string) {
 				files, err := ioutil.ReadDir(path)
 				if err != nil {
-					s.Logger.Info(fmt.Sprintf("Unable to read directory %s: %s\n", path, err))
+					s.Logger.Info(fmt.Sprintf("Unable to read directory %s: %s", path, err))
 					return
 				}
 
@@ -134,10 +134,10 @@ func (s *Service) Open() error {
 						continue
 					}
 
-					s.Logger.Info(fmt.Sprintf("Loading %s\n", fullpath))
+					s.Logger.Info(fmt.Sprintf("Loading %s", fullpath))
 					types, err := TypesDBFile(fullpath)
 					if err != nil {
-						s.Logger.Info(fmt.Sprintf("Unable to parse collectd types file: %s\n", f.Name()))
+						s.Logger.Info(fmt.Sprintf("Unable to parse collectd types file: %s", f.Name()))
 						continue
 					}
 
@@ -147,7 +147,7 @@ func (s *Service) Open() error {
 			readdir(s.Config.TypesDB)
 			s.popts.TypesDB = alltypesdb
 		} else {
-			s.Logger.Info(fmt.Sprintf("Loading %s\n", s.Config.TypesDB))
+			s.Logger.Info(fmt.Sprintf("Loading %s", s.Config.TypesDB))
 			types, err := TypesDBFile(s.Config.TypesDB)
 			if err != nil {
 				return fmt.Errorf("Open(): %s", err)

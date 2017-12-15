@@ -34,6 +34,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -169,6 +170,10 @@ func NewHandler(c Config) *Handler {
 		Route{ // Ping w/ status
 			"status-head",
 			"HEAD", "/status", false, true, h.serveStatus,
+		},
+		Route{
+			"prometheus-metrics",
+			"GET", "/metrics", false, true, promhttp.Handler().ServeHTTP,
 		},
 	}...)
 

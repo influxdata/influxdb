@@ -968,7 +968,8 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	defer f.mu.RUnlock()
 
 	// get a tmp directory name
-	tmpPath := fmt.Sprintf("%s/%d.%s", f.dir, f.currentTempDirID, TmpTSMFileExtension)
+	tmpPath := fmt.Sprintf("%d.%s", f.currentTempDirID, TmpTSMFileExtension)
+	tmpPath = filepath.Join(f.dir, tmpPath)
 	err := os.Mkdir(tmpPath, 0777)
 	if err != nil {
 		return "", err

@@ -190,6 +190,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	c := &Compactor{
 		Dir:       path,
 		FileStore: fs,
+		RateLimit: opt.CompactionThroughputLimiter,
 	}
 
 	logger := zap.NewNop()
@@ -225,6 +226,55 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	}
 
 	return e
+}
+
+// Digest returns a reader for the shard's digest.
+func (e *Engine) Digest() (io.ReadCloser, error) {
+	digestPath := filepath.Join(e.path, "digest.tsd")
+
+	// See if there's an existing digest file on disk.
+	f, err := os.Open(digestPath)
+	if err == nil {
+		// There is an existing digest file. Now see if it is still fresh.
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			return nil, err
+		}
+
+		if !e.LastModified().After(fi.ModTime()) {
+			// Existing digest is still fresh so return a reader for it.
+			return f, nil
+		}
+
+		if err := f.Close(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Either no digest existed or the existing one was stale
+	// so generate a new digest.
+
+	// Create a tmp file to write the digest to.
+	tf, err := os.Create(digestPath + ".tmp")
+	if err != nil {
+		return nil, err
+	}
+
+	// Write the new digest to the tmp file.
+	if err := Digest(e.path, tf); err != nil {
+		tf.Close()
+		os.Remove(tf.Name())
+		return nil, err
+	}
+
+	// Rename the temporary digest file to the actual digest file.
+	if err := renameFile(tf.Name(), digestPath); err != nil {
+		return nil, err
+	}
+
+	// Create and return a reader for the new digest file.
+	return os.Open(digestPath)
 }
 
 // SetEnabled sets whether the engine is enabled.
@@ -1613,7 +1663,7 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 }
 
 func (e *Engine) compact(quit <-chan struct{}) {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
@@ -1675,15 +1725,15 @@ func (e *Engine) compact(quit <-chan struct{}) {
 
 				switch level {
 				case 1:
-					if e.compactHiPriorityLevel(level1Groups[0], 1) {
+					if e.compactHiPriorityLevel(level1Groups[0], 1, false) {
 						level1Groups = level1Groups[1:]
 					}
 				case 2:
-					if e.compactHiPriorityLevel(level2Groups[0], 2) {
+					if e.compactHiPriorityLevel(level2Groups[0], 2, false) {
 						level2Groups = level2Groups[1:]
 					}
 				case 3:
-					if e.compactLoPriorityLevel(level3Groups[0], 3) {
+					if e.compactLoPriorityLevel(level3Groups[0], 3, true) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
@@ -1704,8 +1754,8 @@ func (e *Engine) compact(quit <-chan struct{}) {
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
 // true if the compaction was started
-func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int) bool {
-	s := e.levelCompactionStrategy(grp, true, level)
+func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast bool) bool {
+	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
 	}
@@ -1733,8 +1783,8 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int) bool {
 
 // compactLoPriorityLevel kicks off compactions using the lo priority policy. It returns
 // the plans that were not able to be started
-func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int) bool {
-	s := e.levelCompactionStrategy(grp, true, level)
+func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast bool) bool {
+	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
 	}

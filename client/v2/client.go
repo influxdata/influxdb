@@ -534,7 +534,7 @@ func (c *client) Query(q Query) (*Response, error) {
 		// like downstream serving a large file
 		body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1024))
 		if err != nil || len(body) == 0 {
-			return nil, fmt.Errorf("expected json response, got %q, with status: %v", cType, resp.StatusCode)
+			return nil, fmt.Errorf("expected json response, got empty body, with status: %v", resp.StatusCode)
 		}
 
 		return nil, fmt.Errorf("expected json response, got %q, with status: %v and response body: %q", cType, resp.StatusCode, body)

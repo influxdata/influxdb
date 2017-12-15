@@ -13,6 +13,8 @@
 - [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
 - [#8491](https://github.com/influxdata/influxdb/pull/8491): Add further tsi support for streaming/copying shards.
 - [#9181](https://github.com/influxdata/influxdb/pull/9181): Schedule a full compaction after a successful import
+- [#9218](https://github.com/influxdata/influxdb/pull/9218): Add Prometheus `/metrics` endpoint.
+- [#9213](https://github.com/influxdata/influxdb/pull/9213): Add ability to generate shard digests.
 
 ### Bugfixes
 
@@ -22,6 +24,8 @@
 - [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
 - [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
 - [#8789](https://github.com/influxdata/influxdb/issues/8789): Fix CLI to allow quoted database names in use statement
+- [#9208](https://github.com/influxdata/influxdb/pull/9208): Updated client 4xx error message when response body length is zero.
+- [#9230](https://github.com/influxdata/influxdb/pull/9230): Remove extraneous newlines from the log.
 
 ## v1.4.3 [unreleased]
 
