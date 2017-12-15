@@ -54,7 +54,7 @@ type Server struct {
 
 	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
-	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
+	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned dashboards and application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
 	TokenSecret  string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	AuthDuration time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 
