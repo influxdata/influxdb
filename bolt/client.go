@@ -2,6 +2,9 @@ package bolt
 
 import (
 	"context"
+	"io"
+	"log"
+	"os"
 	"path"
 	"time"
 
@@ -17,6 +20,7 @@ type Client struct {
 	Now       func() time.Time
 	LayoutIDs chronograf.ID
 
+	BuildStore         *BuildStore
 	SourcesStore       *SourcesStore
 	ServersStore       *ServersStore
 	LayoutsStore       *LayoutsStore
@@ -29,6 +33,7 @@ type Client struct {
 // NewClient initializes all stores
 func NewClient() *Client {
 	c := &Client{Now: time.Now}
+	c.BuildStore = &BuildStore{client: c}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
 	c.LayoutsStore = &LayoutsStore{
@@ -116,6 +121,35 @@ func (c *Client) Close() error {
 	if c.db != nil {
 		return c.db.Close()
 	}
+	return nil
+}
+
+func (c *Client) Backup(ctx context.Context, build *chronograf.BuildInfo) error {
+	lastBuild, err := c.BuildStore.Get(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Fatal("moving from version " + lastBuild.Version)
+	log.Fatal("moving to version " + build.Version)
+
+	from, err := os.Open(c.Path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer from.Close()
+
+	toName := c.Path + "." + lastBuild.Version + ".backup"
+	to, err := os.OpenFile(toName, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer to.Close()
+
+	_, err = io.Copy(to, from)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return nil
 }
 
