@@ -142,11 +142,11 @@ func (c *Client) Close() error {
 func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	lastBuild, err := c.BuildStore.Get(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if c.isNew {
 		if err = c.BuildStore.Update(ctx, build); err != nil {
-			log.Fatal(err)
+			return err
 		}
 		return nil
 	}
@@ -159,7 +159,7 @@ func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 
 	from, err := os.Open(c.Path)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer from.Close()
 
@@ -170,17 +170,17 @@ func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	toPath := path.Join(backupDir, toName)
 	to, err := os.OpenFile(toPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer to.Close()
 
 	_, err = io.Copy(to, from)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if err = c.BuildStore.Update(ctx, build); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	log.Printf("Successfully created %s", toPath)

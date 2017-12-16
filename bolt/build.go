@@ -11,6 +11,7 @@ import (
 var _ chronograf.BuildStore = &BuildStore{}
 
 var BuildBucket = []byte("Build")
+var BuildKey = []byte("build")
 
 type BuildStore struct {
 	client *Client
@@ -45,8 +46,7 @@ func (s *BuildStore) Update(ctx context.Context, build chronograf.BuildInfo) err
 
 func (s *BuildStore) get(ctx context.Context, tx *bolt.Tx) (chronograf.BuildInfo, error) {
 	var build chronograf.BuildInfo
-	buildKey := []byte("mock-bucket")
-	if v := tx.Bucket(BuildBucket).Get(buildKey); v == nil {
+	if v := tx.Bucket(BuildBucket).Get(BuildKey); v == nil {
 		build = chronograf.BuildInfo{
 			Version: "pre-1.4.0.0",
 			Commit:  "",
@@ -59,10 +59,9 @@ func (s *BuildStore) get(ctx context.Context, tx *bolt.Tx) (chronograf.BuildInfo
 }
 
 func (s *BuildStore) update(ctx context.Context, build chronograf.BuildInfo, tx *bolt.Tx) error {
-	buildKey := []byte("mock-bucket")
 	if v, err := internal.MarshalBuild(build); err != nil {
 		return err
-	} else if err := tx.Bucket(BuildBucket).Put(buildKey, v); err != nil {
+	} else if err := tx.Bucket(BuildBucket).Put(BuildKey, v); err != nil {
 		return err
 	}
 	return nil

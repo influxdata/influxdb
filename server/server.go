@@ -402,7 +402,10 @@ func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilde
 	}
 
 	if err := db.Backup(ctx, s.BuildInfo); err != nil {
-		// What should happen here? Kill the server?
+		logger.
+			WithField("component", "boltstore").
+			Error("Unable to backup your database prior to migrations:  ", err)
+		os.Exit(1)
 	}
 
 	if err := db.Migrate(ctx); err != nil {
