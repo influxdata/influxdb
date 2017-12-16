@@ -19,6 +19,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
@@ -110,8 +111,8 @@ type PartialWriteError struct {
 	Reason  string
 	Dropped int
 
-	// The set of series keys that were dropped. Can be nil.
-	DroppedKeys map[string]struct{}
+	// A sorted slice of series keys that were dropped.
+	DroppedKeys [][]byte
 }
 
 func (e PartialWriteError) Error() string {
@@ -575,7 +576,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	}
 
 	// Add new series. Check for partial writes.
-	var droppedKeys map[string]struct{}
+	var droppedKeys [][]byte
 	if err := engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
 		switch err := err.(type) {
 		case *PartialWriteError:
@@ -618,10 +619,8 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		// Skip points if keys have been dropped.
 		// The drop count has already been incremented during series creation.
-		if droppedKeys != nil {
-			if _, ok := droppedKeys[string(keys[i])]; ok {
-				continue
-			}
+		if len(droppedKeys) > 0 && bytesutil.Contains(droppedKeys, keys[i]) {
+			continue
 		}
 
 		name := p.Name()

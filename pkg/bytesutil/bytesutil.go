@@ -11,6 +11,27 @@ func Sort(a [][]byte) {
 	sort.Sort(byteSlices(a))
 }
 
+// SortDedup sorts the byte slice a and removes duplicates. The ret
+func SortDedup(a [][]byte) [][]byte {
+	if len(a) < 2 {
+		return a
+	}
+
+	Sort(a)
+
+	i, j := 0, 1
+	for j < len(a) {
+		if bytes.Compare(a[j-1], a[j]) != 0 {
+			a[i] = a[j-1]
+			i++
+		}
+		j++
+	}
+	a[i] = a[j-1]
+	i++
+	return a[:i]
+}
+
 func IsSorted(a [][]byte) bool {
 	return sort.IsSorted(byteSlices(a))
 }

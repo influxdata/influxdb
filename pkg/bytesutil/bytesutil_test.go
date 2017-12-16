@@ -3,8 +3,10 @@ package bytesutil_test
 import (
 	"bytes"
 	"encoding/binary"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 )
 
@@ -77,6 +79,46 @@ func TestContains(t *testing.T) {
 			got := bytesutil.Contains(in, []byte(test.x))
 			if got != test.exp {
 				t.Errorf("got %t, expected %t", got, test.exp)
+			}
+		})
+	}
+}
+
+func toByteSlices(s ...string) [][]byte {
+	r := make([][]byte, len(s))
+	for i, v := range s {
+		r[i] = []byte(v)
+	}
+	return r
+}
+
+func TestSortDedup(t *testing.T) {
+	tests := []struct {
+		name string
+		in   [][]byte
+		exp  [][]byte
+	}{
+		{
+			name: "mixed dupes",
+			in:   toByteSlices("bbb", "aba", "bbb", "aba", "ccc", "bbb", "aba"),
+			exp:  toByteSlices("aba", "bbb", "ccc"),
+		},
+		{
+			name: "no dupes",
+			in:   toByteSlices("bbb", "ccc", "ddd"),
+			exp:  toByteSlices("bbb", "ccc", "ddd"),
+		},
+		{
+			name: "dupe at end",
+			in:   toByteSlices("ccc", "ccc", "aaa"),
+			exp:  toByteSlices("aaa", "ccc"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			out := bytesutil.SortDedup(test.in)
+			if !cmp.Equal(out, test.exp) {
+				t.Error("invalid result")
 			}
 		})
 	}
@@ -176,6 +218,19 @@ func TestPack_WidthOne_LastFill(t *testing.T) {
 		if got, exp := a[i], v; got != exp {
 			t.Fatalf("value mismatch: a[%d] = %v, exp %v", i, got, exp)
 		}
+	}
+}
+
+func BenchmarkSortDedup(b *testing.B) {
+	data := toByteSlices("bbb", "aba", "bbb", "aba", "ccc", "bbb", "aba")
+	in := append([][]byte{}, data...)
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		x := in
+		x = bytesutil.SortDedup(x)
+		copy(in, data)
 	}
 }
 
