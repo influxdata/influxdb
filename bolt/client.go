@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -162,8 +163,12 @@ func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	}
 	defer from.Close()
 
-	toName := c.Path + "." + lastBuild.Version + ".backup"
-	to, err := os.OpenFile(toName, os.O_RDWR|os.O_CREATE, 0666)
+	backupDir := path.Join(path.Dir(c.Path), "backup")
+	_ = os.Mkdir(backupDir, 0700)
+
+	toName := fmt.Sprintf("%s.%s", c.Path, lastBuild.Version)
+	toPath := path.Join(backupDir, toName)
+	to, err := os.OpenFile(toPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -178,7 +183,7 @@ func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 		log.Fatal(err)
 	}
 
-	log.Printf("Successfully created backup of bolt database")
+	log.Printf("Successfully created %s", toPath)
 
 	return nil
 }
