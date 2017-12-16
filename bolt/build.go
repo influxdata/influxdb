@@ -16,7 +16,6 @@ type BuildStore struct {
 	client *Client
 }
 
-// Get returns a Source if the id exists.
 func (s *BuildStore) Get(ctx context.Context) (chronograf.BuildInfo, error) {
 	var build chronograf.BuildInfo
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
@@ -46,24 +45,24 @@ func (s *BuildStore) Update(ctx context.Context, build chronograf.BuildInfo) err
 
 func (s *BuildStore) get(ctx context.Context, tx *bolt.Tx) (chronograf.BuildInfo, error) {
 	var build chronograf.BuildInfo
-	if v := tx.Bucket(BuildBucket).Get(); v == nil {
-		return build, chronograf.ErrSourceNotFound
-	} else if err := internal.UnmarshalSource(v, &build); err != nil {
+	buildKey := []byte("mock-bucket")
+	if v := tx.Bucket(BuildBucket).Get(buildKey); v == nil {
+		build = chronograf.BuildInfo{
+			Version: "pre-1.4.0.0",
+			Commit:  "",
+		}
+		return build, nil
+	} else if err := internal.UnmarshalBuild(v, &build); err != nil {
 		return build, err
 	}
 	return build, nil
 }
 
 func (s *BuildStore) update(ctx context.Context, build chronograf.BuildInfo, tx *bolt.Tx) error {
-	// Get an existing soource with the same ID.
-	b := tx.Bucket(BuildBucket)
-	if v := b.Get(); v == nil {
-		return chronograf.ErrSourceNotFound
-	}
-
-	if v, err := internal.MarshalSource(build); err != nil {
+	buildKey := []byte("mock-bucket")
+	if v, err := internal.MarshalBuild(build); err != nil {
 		return err
-	} else if err := b.Put(v); err != nil {
+	} else if err := tx.Bucket(BuildBucket).Put(buildKey, v); err != nil {
 		return err
 	}
 	return nil

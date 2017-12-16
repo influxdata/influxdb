@@ -640,6 +640,6 @@ type BuildInfo struct {
 }
 
 type BuildStore interface {
-	Get(context.Context) (*BuildInfo, error)
-	Update(context.Context, *BuildInfo) error
+	Get(context.Context) (BuildInfo, error)
+	Update(context.Context, BuildInfo) error
 }

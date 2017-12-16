@@ -11,9 +11,19 @@ import (
 //go:generate protoc --gogo_out=. internal.proto
 
 func MarshalBuild(b chronograf.BuildInfo) ([]byte, error) {
-	return []byte("yo"), nil
+	return proto.Marshal(&BuildInfo{
+		Version: b.Version,
+		Commit:  b.Commit,
+	})
 }
 func UnmarshalBuild(data []byte, b *chronograf.BuildInfo) error {
+	var pb BuildInfo
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	b.Version = pb.Version
+	b.Commit = pb.Commit
 	return nil
 }
 

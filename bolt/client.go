@@ -88,31 +88,40 @@ func (c *Client) Open(ctx context.Context) error {
 		if _, err := tx.CreateBucketIfNotExists(ConfigBucket); err != nil {
 			return err
 		}
+		// Always create Build bucket.
+		if _, err := tx.CreateBucketIfNotExists(BuildBucket); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	// Runtime migrations
-	if err := c.OrganizationsStore.Migrate(ctx); err != nil {
-		return err
-	}
-	if err := c.SourcesStore.Migrate(ctx); err != nil {
-		return err
-	}
-	if err := c.ServersStore.Migrate(ctx); err != nil {
-		return err
-	}
-	if err := c.LayoutsStore.Migrate(ctx); err != nil {
-		return err
-	}
-	if err := c.DashboardsStore.Migrate(ctx); err != nil {
-		return err
-	}
-	if err := c.ConfigStore.Migrate(ctx); err != nil {
-		return err
-	}
+	return nil
+}
 
+func (c *Client) Migrate(ctx context.Context) error {
+	if c.db != nil {
+		// Runtime migrations
+		if err := c.OrganizationsStore.Migrate(ctx); err != nil {
+			return err
+		}
+		if err := c.SourcesStore.Migrate(ctx); err != nil {
+			return err
+		}
+		if err := c.ServersStore.Migrate(ctx); err != nil {
+			return err
+		}
+		if err := c.LayoutsStore.Migrate(ctx); err != nil {
+			return err
+		}
+		if err := c.DashboardsStore.Migrate(ctx); err != nil {
+			return err
+		}
+		if err := c.ConfigStore.Migrate(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -124,13 +133,17 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) Backup(ctx context.Context, build *chronograf.BuildInfo) error {
+func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	lastBuild, err := c.BuildStore.Get(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Fatal("moving from version " + lastBuild.Version)
-	log.Fatal("moving to version " + build.Version)
+	if lastBuild.Version == build.Version {
+		return nil
+	}
+
+	log.Printf("moving from version " + lastBuild.Version)
+	log.Printf("moving to version " + build.Version)
 
 	from, err := os.Open(c.Path)
 	if err != nil {
@@ -149,6 +162,12 @@ func (c *Client) Backup(ctx context.Context, build *chronograf.BuildInfo) error 
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	if err = c.BuildStore.Update(ctx, build); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Successfully created backup of bolt database")
 
 	return nil
 }
