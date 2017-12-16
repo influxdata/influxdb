@@ -85,7 +85,7 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
 export const meChangeOrganizationAsync = (
   url,
   organization,
-  {userHasRoleInOrg = true}
+  {userHasRoleInOrg = true} = {}
 ) => async dispatch => {
   dispatch(meChangeOrganizationRequested())
   try {
