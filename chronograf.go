@@ -639,6 +639,7 @@ type BuildInfo struct {
 	Commit  string
 }
 
+// BuildStore is the storage and retrieval of Chronograf build information
 type BuildStore interface {
 	Get(context.Context) (BuildInfo, error)
 	Update(context.Context, BuildInfo) error

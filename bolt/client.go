@@ -106,6 +106,7 @@ func (c *Client) Open(ctx context.Context) error {
 	return nil
 }
 
+// Migrate moves data from an old schema to a new schema in each Store
 func (c *Client) Migrate(ctx context.Context) error {
 	if c.db != nil {
 		// Runtime migrations
@@ -139,6 +140,10 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// Makes a copy of the database to the backup/ directory, if necessary:
+// - If this is a fresh install, don't create a backup and store the current version
+// - If we are on the same version, don't create a backup
+// - If the version has changed, create a backup and store the current version
 func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	lastBuild, err := c.BuildStore.Get(ctx)
 	if err != nil {
