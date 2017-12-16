@@ -17,6 +17,7 @@ import (
 type Client struct {
 	Path      string
 	db        *bolt.DB
+	isNew     bool
 	Now       func() time.Time
 	LayoutIDs chronograf.ID
 
@@ -52,6 +53,10 @@ func NewClient() *Client {
 
 // Open and initialize boltDB. Initial buckets are created if they do not exist.
 func (c *Client) Open(ctx context.Context) error {
+	if _, err := os.Stat(c.Path); os.IsNotExist(err) {
+		c.isNew = true
+	}
+
 	// Open database file.
 	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
@@ -138,12 +143,18 @@ func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if c.isNew {
+		if err = c.BuildStore.Update(ctx, build); err != nil {
+			log.Fatal(err)
+		}
+		return nil
+	}
 	if lastBuild.Version == build.Version {
 		return nil
 	}
 
-	log.Printf("moving from version " + lastBuild.Version)
-	log.Printf("moving to version " + build.Version)
+	log.Printf("Moving from version " + lastBuild.Version)
+	log.Printf("Moving to version " + build.Version)
 
 	from, err := os.Open(c.Path)
 	if err != nil {
