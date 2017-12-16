@@ -14,8 +14,32 @@ func IsSorted(a [][]byte) bool {
 	return sort.IsSorted(byteSlices(a))
 }
 
+// SearchBytes performs a binary search for x in the sorted slice a.
 func SearchBytes(a [][]byte, x []byte) int {
-	return sort.Search(len(a), func(i int) bool { return bytes.Compare(a[i], x) >= 0 })
+	// Define f(i) => bytes.Compare(a[i], x) < 0
+	// Define f(-1) == false and f(n) == true.
+	// Invariant: f(i-1) == false, f(j) == true.
+	i, j := 0, len(a)
+	for i < j {
+		h := int(uint(i+j) >> 1) // avoid overflow when computing h
+		// i ≤ h < j
+		if bytes.Compare(a[h], x) < 0 {
+			i = h + 1 // preserves f(i-1) == false
+		} else {
+			j = h // preserves f(j) == true
+		}
+	}
+	// i == j, f(i-1) == false, and f(j) (= f(i)) == true  =>  answer is i.
+	return i
+}
+
+// Contains returns true if x is an element of the sorted slice a.
+func Contains(a [][]byte, x []byte) bool {
+	n := SearchBytes(a, x)
+	if n < len(a) {
+		return bytes.Compare(a[n], x) == 0
+	}
+	return false
 }
 
 // Union returns the union of a & b in sorted order.
