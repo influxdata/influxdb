@@ -171,7 +171,7 @@ func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	backupDir := path.Join(path.Dir(c.Path), "backup")
 	_ = os.Mkdir(backupDir, 0700)
 
-	toName := fmt.Sprintf("%s.%s", c.Path, lastBuild.Version)
+	toName := fmt.Sprintf("%s.%s", path.Base(c.Path), lastBuild.Version)
 	toPath := path.Join(backupDir, toName)
 	to, err := os.OpenFile(toPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {

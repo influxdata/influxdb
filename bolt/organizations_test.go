@@ -218,6 +218,9 @@ func TestOrganizationsStore_All(t *testing.T) {
 			if err := client.Open(context.TODO()); err != nil {
 				t.Fatal(err)
 			}
+			if err := client.Migrate(context.TODO()); err != nil {
+				t.Fatal(err)
+			}
 			defer client.Close()
 
 			s := client.OrganizationsStore
@@ -649,6 +652,9 @@ func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := client.Open(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Migrate(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()
