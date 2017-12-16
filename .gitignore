@@ -1,11 +1,14 @@
+# Directories
 ui/reports/
 build/
 backup/
+.vscode/
 
+# Binaries
 /chronograf
 
+# Dotfiles
 .pull-request
-.vscode
 .DS_Store
 .godep
 .jsdep
@@ -13,6 +16,7 @@ backup/
 .dev-jssrc
 .bindata
 
+# Files
 chronograf*.db
 *_gen.go
 canned/apps_gen.go
