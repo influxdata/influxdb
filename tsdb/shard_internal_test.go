@@ -225,7 +225,7 @@ func NewTempShard(index string) *TempShard {
 	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
 	// can address is in memory.
 	if runtime.GOARCH == "386" {
-		sfile.MaxSize = 100000000 // 100M bytes
+		sfile.MaxSize = 1 << 27 // 128MB
 	}
 
 	if err := sfile.Open(); err != nil {

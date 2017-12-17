@@ -258,7 +258,7 @@ type LocalServer struct {
 // the size of series files so that they can all be addressable in the process.
 func (s *LocalServer) Open() error {
 	if runtime.GOARCH == "386" {
-		s.Server.TSDBStore.SeriesFileMaxSize = 100000000 // 100M bytes
+		s.Server.TSDBStore.SeriesFileMaxSize = 1 << 27 // 128MB
 	}
 	return s.Server.Open()
 }
