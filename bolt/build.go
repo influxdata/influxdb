@@ -50,15 +50,23 @@ func (s *BuildStore) Update(ctx context.Context, build chronograf.BuildInfo) err
 	return nil
 }
 
+// Migrate simply stores the current version in the database
+func (s *BuildStore) Migrate(ctx context.Context, build chronograf.BuildInfo) error {
+	return s.Update(ctx, build)
+}
+
 // get retrieves the current build, falling back to a default when missing
 func (s *BuildStore) get(ctx context.Context, tx *bolt.Tx) (chronograf.BuildInfo, error) {
 	var build chronograf.BuildInfo
-	if v := tx.Bucket(BuildBucket).Get(BuildKey); v == nil {
-		build = chronograf.BuildInfo{
-			Version: "pre-1.4.0.0",
-			Commit:  "",
-		}
-		return build, nil
+	defaultBuild := chronograf.BuildInfo{
+		Version: "pre-1.4.0.0",
+		Commit:  "",
+	}
+
+	if bucket := tx.Bucket(BuildBucket); bucket == nil {
+		return defaultBuild, nil
+	} else if v := bucket.Get(BuildKey); v == nil {
+		return defaultBuild, nil
 	} else if err := internal.UnmarshalBuild(v, &build); err != nil {
 		return build, err
 	}

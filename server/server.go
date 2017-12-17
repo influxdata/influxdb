@@ -408,7 +408,14 @@ func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilde
 		os.Exit(1)
 	}
 
-	if err := db.Migrate(ctx); err != nil {
+	if err := db.Initialize(ctx); err != nil {
+		logger.
+			WithField("component", "boltstore").
+			Error("Unable to boot boltdb:  ", err)
+		os.Exit(1)
+	}
+
+	if err := db.Migrate(ctx, s.BuildInfo); err != nil {
 		logger.
 			WithField("component", "boltstore").
 			Error("Unable to migrate data in boltdb:  ", err)

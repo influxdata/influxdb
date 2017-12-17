@@ -65,6 +65,10 @@ func (c *Client) Open(ctx context.Context) error {
 	}
 	c.db = db
 
+	return nil
+}
+
+func (c *Client) Initialize(ctx context.Context) error {
 	if err := c.db.Update(func(tx *bolt.Tx) error {
 		// Always create Organizations bucket.
 		if _, err := tx.CreateBucketIfNotExists(OrganizationsBucket); err != nil {
@@ -107,7 +111,7 @@ func (c *Client) Open(ctx context.Context) error {
 }
 
 // Migrate moves data from an old schema to a new schema in each Store
-func (c *Client) Migrate(ctx context.Context) error {
+func (c *Client) Migrate(ctx context.Context, build chronograf.BuildInfo) error {
 	if c.db != nil {
 		// Runtime migrations
 		if err := c.OrganizationsStore.Migrate(ctx); err != nil {
@@ -128,6 +132,9 @@ func (c *Client) Migrate(ctx context.Context) error {
 		if err := c.ConfigStore.Migrate(ctx); err != nil {
 			return err
 		}
+		if err := c.BuildStore.Migrate(ctx, build); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -140,6 +147,34 @@ func (c *Client) Close() error {
 	return nil
 }
 
+func (c *Client) Copy(ctx context.Context, version string) error {
+	fromFile, err := os.Open(c.Path)
+	if err != nil {
+		return err
+	}
+	defer fromFile.Close()
+
+	backupDir := path.Join(path.Dir(c.Path), "backup")
+	_ = os.Mkdir(backupDir, 0700)
+
+	toName := fmt.Sprintf("%s.%s", path.Base(c.Path), version)
+	toPath := path.Join(backupDir, toName)
+	toFile, err := os.OpenFile(toPath, os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	defer toFile.Close()
+
+	_, err = io.Copy(toFile, fromFile)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Successfully created %s", toPath)
+
+	return nil
+}
+
 // Makes a copy of the database to the backup/ directory, if necessary:
 // - If this is a fresh install, don't create a backup and store the current version
 // - If we are on the same version, don't create a backup
@@ -149,46 +184,22 @@ func (c *Client) Backup(ctx context.Context, build chronograf.BuildInfo) error {
 	if err != nil {
 		return err
 	}
-	if c.isNew {
-		if err = c.BuildStore.Update(ctx, build); err != nil {
-			return err
-		}
-		return nil
-	}
 	if lastBuild.Version == build.Version {
 		return nil
 	}
+	if c.isNew {
+		return nil
+	}
+
+	// The database was pre-existing, and the version has changed
+	// and so create a backup
 
 	log.Printf("Moving from version " + lastBuild.Version)
 	log.Printf("Moving to version " + build.Version)
 
-	from, err := os.Open(c.Path)
-	if err != nil {
+	if err = c.Copy(ctx, lastBuild.Version); err != nil {
 		return err
 	}
-	defer from.Close()
-
-	backupDir := path.Join(path.Dir(c.Path), "backup")
-	_ = os.Mkdir(backupDir, 0700)
-
-	toName := fmt.Sprintf("%s.%s", path.Base(c.Path), lastBuild.Version)
-	toPath := path.Join(backupDir, toName)
-	to, err := os.OpenFile(toPath, os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		return err
-	}
-	defer to.Close()
-
-	_, err = io.Copy(to, from)
-	if err != nil {
-		return err
-	}
-
-	if err = c.BuildStore.Update(ctx, build); err != nil {
-		return err
-	}
-
-	log.Printf("Successfully created %s", toPath)
 
 	return nil
 }
