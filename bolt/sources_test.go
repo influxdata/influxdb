@@ -19,6 +19,10 @@ func TestSourceStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
+
+	if err := c.Initialize(context.TODO()); err != nil {
+		t.Fatal(err)
+	}
 	s := c.SourcesStore
 
 	srcs := []chronograf.Source{

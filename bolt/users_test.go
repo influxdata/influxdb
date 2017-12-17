@@ -67,6 +67,10 @@ func TestUsersStore_GetWithID(t *testing.T) {
 		}
 		defer client.Close()
 
+		if err := client.Initialize(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+
 		s := client.UsersStore
 		if tt.addFirst {
 			tt.args.usr, err = s.Add(tt.args.ctx, tt.args.usr)
@@ -139,6 +143,10 @@ func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 		}
 		defer client.Close()
 
+		if err := client.Initialize(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+
 		s := client.UsersStore
 		if tt.addFirst {
 			tt.args.usr, err = s.Add(tt.args.ctx, tt.args.usr)
@@ -171,6 +179,10 @@ func TestUsersStore_GetInvalid(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
+
+	if err := client.Initialize(context.TODO()); err != nil {
+		t.Fatal(err)
+	}
 
 	s := client.UsersStore
 
@@ -246,6 +258,11 @@ func TestUsersStore_Add(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer client.Close()
+
+		if err := client.Initialize(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+
 		s := client.UsersStore
 		if tt.args.addFirst {
 			_, _ = s.Add(tt.args.ctx, tt.args.u)
@@ -311,6 +328,11 @@ func TestUsersStore_Delete(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer client.Close()
+
+		if err := client.Initialize(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+
 		s := client.UsersStore
 
 		if tt.addFirst {
@@ -412,6 +434,11 @@ func TestUsersStore_Update(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer client.Close()
+
+		if err := client.Initialize(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+
 		s := client.UsersStore
 
 		if tt.addFirst {
@@ -503,6 +530,11 @@ func TestUsersStore_All(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer client.Close()
+
+		if err := client.Initialize(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+
 		s := client.UsersStore
 
 		if tt.addFirst {
@@ -571,6 +603,11 @@ func TestUsersStore_Num(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer client.Close()
+
+		if err := client.Initialize(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+
 		s := client.UsersStore
 
 		for _, u := range tt.users {

@@ -18,6 +18,11 @@ func TestServerStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
+
+	if err := c.Initialize(context.TODO()); err != nil {
+		t.Fatal(err)
+	}
+
 	s := c.ServersStore
 
 	srcs := []chronograf.Server{

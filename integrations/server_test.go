@@ -426,6 +426,7 @@ func TestServer(t *testing.T) {
 			boltdb := bolt.NewClient()
 			boltdb.Path = boltFile
 			_ = boltdb.Open(ctx)
+			_ = boltdb.Initialize(ctx)
 
 			if tt.fields.Config != nil {
 				if err := boltdb.ConfigStore.Update(ctx, tt.fields.Config); err != nil {
