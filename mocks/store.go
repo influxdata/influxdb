@@ -14,6 +14,7 @@ type Store struct {
 	UsersStore         chronograf.UsersStore
 	DashboardsStore    chronograf.DashboardsStore
 	OrganizationsStore chronograf.OrganizationsStore
+	ConfigStore        chronograf.ConfigStore
 }
 
 func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
@@ -38,4 +39,8 @@ func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore
 
 func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	return s.DashboardsStore
+}
+
+func (s *Store) Config(ctx context.Context) chronograf.ConfigStore {
+	return s.ConfigStore
 }

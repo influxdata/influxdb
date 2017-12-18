@@ -58,7 +58,6 @@ type Server struct {
 	TokenSecret             string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	JwksUrl                 string        `long:"jwks-url" description:"URL that returns OpenID Key Discovery JWKS document." env:"JWKS_URL"`
 	AuthDuration            time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
-	SuperAdminFirstUserOnly bool          `long:"superadmin-first-user-only" description:"All new users will not be given the SuperAdmin status" env:"SUPERADMIN_FIRST_USER_ONLY"`
 
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string   `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
@@ -304,7 +303,6 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
-	service.SuperAdminFirstUserOnly = s.SuperAdminFirstUserOnly
 	if err := service.HandleNewSources(ctx, s.NewSources); err != nil {
 		logger.
 			WithField("component", "server").
@@ -442,7 +440,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 			OrganizationsStore: db.OrganizationsStore,
 			LayoutsStore:       layouts,
 			DashboardsStore:    db.DashboardsStore,
-			//OrganizationUsersStore: organizations.NewUsersStore(db.UsersStore),
+			ConfigStore:        db.ConfigStore,
 		},
 		Logger:    logger,
 		UseAuth:   useAuth,

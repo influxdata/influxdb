@@ -100,6 +100,11 @@ class SourcePage extends Component {
     notify('error', `${bannerText}: ${error}`)
   }
 
+  gotoPurgatory = () => {
+    const {router} = this.props
+    router.push('/purgatory')
+  }
+
   _normalizeSource({source}) {
     const url = source.url.trim()
     if (source.url.startsWith('http')) {
@@ -224,6 +229,7 @@ class SourcePage extends Component {
                     onSubmit={this.handleSubmit}
                     onBlurSourceURL={this.handleBlurSourceURL}
                     isInitialSource={isInitialSource}
+                    gotoPurgatory={this.gotoPurgatory}
                   />
                 </div>
               </div>

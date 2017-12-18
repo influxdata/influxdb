@@ -2,7 +2,10 @@
 ### Features
 1. [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
 ### UI Improvements
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
 ### Bug Fixes
+1. [#2528](https://github.com/influxdata/chronograf/pull/2528): Fix template rendering to ignore template if not in query 
+1. [#2563](https://github.com/influxdata/chronograf/pull/2563): Fix graph inversion if user input y-axis min greater than max
 
 ## v1.4.0.0-beta1 [2017-12-07]
 ### Features
@@ -46,6 +49,7 @@
 1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Fix hoverline intermittently not rendering
 1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
+1. [#2545](https://github.com/influxdata/chronograf/pull/2545): Allow configurable thresholds and colors of Single-Stat visualizations in dashboards
 
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes

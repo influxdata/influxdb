@@ -135,4 +135,5 @@ UsersTable.propTypes = {
   meID: string.isRequired,
   notify: func.isRequired,
 }
+
 export default UsersTable

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/chronograf"
@@ -587,6 +588,42 @@ func UnmarshalOrganization(data []byte, o *chronograf.Organization) error {
 // UnmarshalOrganizationPB decodes a organization from binary protobuf data.
 func UnmarshalOrganizationPB(data []byte, o *Organization) error {
 	if err := proto.Unmarshal(data, o); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalConfig encodes a config to binary protobuf format.
+func MarshalConfig(c *chronograf.Config) ([]byte, error) {
+	return MarshalConfigPB(&Config{
+		Auth: &AuthConfig{
+			SuperAdminNewUsers: c.Auth.SuperAdminNewUsers,
+		},
+	})
+}
+
+// MarshalConfigPB encodes a config to binary protobuf format.
+func MarshalConfigPB(c *Config) ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+// UnmarshalConfig decodes a config from binary protobuf data.
+func UnmarshalConfig(data []byte, c *chronograf.Config) error {
+	var pb Config
+	if err := UnmarshalConfigPB(data, &pb); err != nil {
+		return err
+	}
+	if pb.Auth == nil {
+		return fmt.Errorf("Auth config is nil")
+	}
+	c.Auth.SuperAdminNewUsers = pb.Auth.SuperAdminNewUsers
+
+	return nil
+}
+
+// UnmarshalConfigPB decodes a config from binary protobuf data.
+func UnmarshalConfigPB(data []byte, c *Config) error {
+	if err := proto.Unmarshal(data, c); err != nil {
 		return err
 	}
 	return nil

@@ -71,6 +71,13 @@ const AdminTabs = ({
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 
+AdminTabs.defaultProps = {
+  organization: {
+    name: '',
+    id: '0',
+  },
+}
+
 AdminTabs.propTypes = {
   meRole: string.isRequired,
   meID: string.isRequired,

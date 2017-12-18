@@ -89,6 +89,7 @@ type DataStore interface {
 	Users(ctx context.Context) chronograf.UsersStore
 	Organizations(ctx context.Context) chronograf.OrganizationsStore
 	Dashboards(ctx context.Context) chronograf.DashboardsStore
+	Config(ctx context.Context) chronograf.ConfigStore
 }
 
 // ensure that Store implements a DataStore
@@ -102,6 +103,7 @@ type Store struct {
 	UsersStore         chronograf.UsersStore
 	DashboardsStore    chronograf.DashboardsStore
 	OrganizationsStore chronograf.OrganizationsStore
+	ConfigStore        chronograf.ConfigStore
 }
 
 // Sources returns a noop.SourcesStore if the context has no organization specified
@@ -177,4 +179,15 @@ func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore
 		return organizations.NewOrganizationsStore(s.OrganizationsStore, org)
 	}
 	return &noop.OrganizationsStore{}
+}
+
+// Config returns the underlying ConfigStore.
+func (s *Store) Config(ctx context.Context) chronograf.ConfigStore {
+	if isServer := hasServerContext(ctx); isServer {
+		return s.ConfigStore
+	}
+	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+		return s.ConfigStore
+	}
+	return &noop.ConfigStore{}
 }
