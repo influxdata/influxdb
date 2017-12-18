@@ -48,7 +48,7 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
         store.dispatch(
-          notify(alertType, 'Session timed out. Please login again.')
+          notify(alertType, 'Session timed out. Please log in again.')
         )
 
         allowNotifications = false
