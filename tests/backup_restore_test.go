@@ -43,7 +43,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Skip("Skipping.  Cannot modify remote server config")
 		}
 
-		if err := s.CreateDatabaseAndRetentionPolicy(db, newRetentionPolicySpec(rp, 1, 0), true); err != nil {
+		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
 			t.Fatal(err)
 		}
 
