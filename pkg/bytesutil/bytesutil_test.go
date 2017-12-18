@@ -26,7 +26,7 @@ func TestSearchBytes(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got := bytesutil.SearchBytes(in, []byte(test.x))
 			if got != test.exp {
-				t.Errorf("got %t, expected %t", got, test.exp)
+				t.Errorf("got %d, expected %d", got, test.exp)
 			}
 		})
 	}
