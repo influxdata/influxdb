@@ -20,9 +20,10 @@ func Map(path string, sz int64) ([]byte, error) {
 	}
 
 	// Use file size if map size is not passed in.
-	if sz == 0 {
-		sz = fi.Size()
-	}
+	// TODO(edd): test.
+	// if sz == 0 {
+	// }
+	sz = fi.Size()
 	if fi.Size() == 0 {
 		return nil, nil
 	}
