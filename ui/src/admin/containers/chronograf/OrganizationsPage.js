@@ -71,7 +71,7 @@ class OrganizationsPage extends Component {
   }
 
   render() {
-    const {meCurrentOrganization, organizations, authConfig} = this.props
+    const {meCurrentOrganization, organizations, authConfig, me} = this.props
 
     const organization = organizations.find(
       o => o.id === meCurrentOrganization.id
@@ -88,6 +88,7 @@ class OrganizationsPage extends Component {
           onChooseDefaultRole={this.handleChooseDefaultRole}
           authConfig={authConfig}
           onChangeAuthConfig={this.handleUpdateAuthConfig}
+          me={me}
         />
       : <div className="page-spinner" />
   }
@@ -127,16 +128,27 @@ OrganizationsPage.propTypes = {
   authConfig: shape({
     superAdminNewUsers: bool,
   }),
+  me: shape({
+    organizations: arrayOf(
+      shape({
+        id: string.isRequired,
+        name: string.isRequired,
+        defaultRole: string.isRequired,
+      })
+    ),
+  }),
 }
 
 const mapStateToProps = ({
   links,
   adminChronograf: {organizations},
   config: {auth: authConfig},
+  auth: {me},
 }) => ({
   links,
   organizations,
   authConfig,
+  me,
 })
 
 const mapDispatchToProps = dispatch => ({

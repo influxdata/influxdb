@@ -10,6 +10,26 @@ import (
 
 //go:generate protoc --gogo_out=. internal.proto
 
+// MarshalBuild encodes a build to binary protobuf format.
+func MarshalBuild(b chronograf.BuildInfo) ([]byte, error) {
+	return proto.Marshal(&BuildInfo{
+		Version: b.Version,
+		Commit:  b.Commit,
+	})
+}
+
+// UnmarshalBuild decodes a build from binary protobuf data.
+func UnmarshalBuild(data []byte, b *chronograf.BuildInfo) error {
+	var pb BuildInfo
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	b.Version = pb.Version
+	b.Commit = pb.Commit
+	return nil
+}
+
 // MarshalSource encodes a source to binary protobuf format.
 func MarshalSource(s chronograf.Source) ([]byte, error) {
 	return proto.Marshal(&Source{

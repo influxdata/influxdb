@@ -33,9 +33,6 @@ func TestConfig_Get(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
 
 		s := client.ConfigStore
@@ -84,9 +81,6 @@ func TestConfig_Update(t *testing.T) {
 	for _, tt := range tests {
 		client, err := NewTestClient()
 		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()

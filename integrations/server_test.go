@@ -10,12 +10,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
+	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/roles"
 	"github.com/influxdata/chronograf/server"
@@ -405,6 +407,156 @@ func TestServer(t *testing.T) {
 }`,
 			},
 		},
+		{
+			name:    "PUT /me",
+			subName: "Change SuperAdmins current organization to org they dont belong to",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          1,
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "0",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PUT",
+				path:   "/chronograf/v1/me",
+				payload: map[string]string{
+					"organization": "1",
+				},
+				principal: oauth2.Principal{
+					Organization: "0",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "id": "1",
+  "name": "billibob",
+  "roles": [
+    {
+      "name": "admin",
+      "organization": "0"
+    },
+    {
+      "name": "admin",
+      "organization": "1"
+    }
+  ],
+  "provider": "github",
+  "scheme": "oauth2",
+  "superAdmin": true,
+  "links": {
+    "self": "/chronograf/v1/users/1"
+  },
+  "organizations": [
+    {
+      "id": "0",
+      "name": "Default",
+      "defaultRole": "member",
+      "public": true
+    },
+    {
+      "id": "1",
+      "name": "Sweet",
+      "defaultRole": "viewer",
+      "public": false
+    }
+  ],
+  "currentOrganization": {
+    "id": "1",
+    "name": "Sweet",
+    "defaultRole": "viewer",
+    "public": false
+  }
+}`,
+			},
+		},
+		{
+			name:    "PUT /me",
+			subName: "Change Admin current organization to org they dont belong to",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          1,
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "0",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PUT",
+				path:   "/chronograf/v1/me",
+				payload: map[string]string{
+					"organization": "1",
+				},
+				principal: oauth2.Principal{
+					Organization: "0",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 403,
+				body: `
+				{
+  "code": 403,
+  "message": "user not found"
+}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -425,7 +577,13 @@ func TestServer(t *testing.T) {
 			// Prepopulate BoltDB Database for Server
 			boltdb := bolt.NewClient()
 			boltdb.Path = boltFile
-			_ = boltdb.Open(ctx)
+
+			logger := log.New(log.ParseLevel("debug"))
+			build := chronograf.BuildInfo{
+				Version: "pre-1.4.0.0",
+				Commit:  "",
+			}
+			_ = boltdb.Open(ctx, logger, build)
 
 			if tt.fields.Config != nil {
 				if err := boltdb.ConfigStore.Update(ctx, tt.fields.Config); err != nil {

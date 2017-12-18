@@ -632,3 +632,15 @@ type ConfigStore interface {
 	// Update updates the whole Config in the ConfigStore
 	Update(context.Context, *Config) error
 }
+
+// BuildInfo is sent to the usage client to track versions and commits
+type BuildInfo struct {
+	Version string
+	Commit  string
+}
+
+// BuildStore is the storage and retrieval of Chronograf build information
+type BuildStore interface {
+	Get(context.Context) (BuildInfo, error)
+	Update(context.Context, BuildInfo) error
+}
