@@ -7,44 +7,28 @@ import {
 } from 'src/auth/Authorized'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
-import OrganizationsPage from 'src/admin/containers/OrganizationsPage'
-import UsersTable from 'src/admin/components/chronograf/UsersTable'
+import OrganizationsPage from 'src/admin/containers/chronograf/OrganizationsPage'
+import UsersPage from 'src/admin/containers/chronograf/UsersPage'
 
 const ORGANIZATIONS_TAB_NAME = 'Organizations'
 const USERS_TAB_NAME = 'Users'
 
 const AdminTabs = ({
-  meRole,
-  // UsersTable
-  users,
-  organization,
-  onCreateUser,
-  onUpdateUserRole,
-  onUpdateUserSuperAdmin,
-  onDeleteUser,
-  meID,
-  notify,
+  me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
 }) => {
   const tabs = [
     {
       requiredRole: SUPERADMIN_ROLE,
       type: ORGANIZATIONS_TAB_NAME,
-      component: <OrganizationsPage currentOrganization={organization} />,
+      component: (
+        <OrganizationsPage meCurrentOrganization={meCurrentOrganization} />
+      ),
     },
     {
       requiredRole: ADMIN_ROLE,
       type: USERS_TAB_NAME,
       component: (
-        <UsersTable
-          users={users}
-          organization={organization}
-          onCreateUser={onCreateUser}
-          onUpdateUserRole={onUpdateUserRole}
-          onUpdateUserSuperAdmin={onUpdateUserSuperAdmin}
-          onDeleteUser={onDeleteUser}
-          meID={meID}
-          notify={notify}
-        />
+        <UsersPage meID={meID} meCurrentOrganization={meCurrentOrganization} />
       ),
     },
   ].filter(t => isUserAuthorized(meRole, t.requiredRole))
@@ -69,46 +53,17 @@ const AdminTabs = ({
   )
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
-
-AdminTabs.defaultProps = {
-  organization: {
-    name: '',
-    id: '0',
-  },
-}
+const {shape, string} = PropTypes
 
 AdminTabs.propTypes = {
-  meRole: string.isRequired,
-  meID: string.isRequired,
-  // UsersTable
-  users: arrayOf(
-    shape({
-      id: string,
-      links: shape({
-        self: string.isRequired,
-      }),
-      name: string.isRequired,
-      provider: string.isRequired,
-      roles: arrayOf(
-        shape({
-          name: string.isRequired,
-          organization: string.isRequired,
-        })
-      ),
-      scheme: string.isRequired,
-      superAdmin: bool,
-    })
-  ).isRequired,
-  organization: shape({
-    name: string.isRequired,
+  me: shape({
     id: string.isRequired,
+    role: string.isRequired,
+    currentOrganization: shape({
+      name: string.isRequired,
+      id: string.isRequired,
+    }),
   }).isRequired,
-  onCreateUser: func.isRequired,
-  onUpdateUserRole: func.isRequired,
-  onUpdateUserSuperAdmin: func.isRequired,
-  onDeleteUser: func.isRequired,
-  notify: func.isRequired,
 }
 
 export default AdminTabs
