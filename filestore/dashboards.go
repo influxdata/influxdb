@@ -197,7 +197,7 @@ func (d *Dashboards) idToFile(id chronograf.DashboardID) (chronograf.Dashboard, 
 		}
 		file := path.Join(d.Dir, f.Name())
 		var dashboard chronograf.Dashboard
-		if err := d.Load(file, dashboard); err != nil {
+		if err := d.Load(file, &dashboard); err != nil {
 			return chronograf.Dashboard{}, "", err
 		}
 		if dashboard.ID == id {
