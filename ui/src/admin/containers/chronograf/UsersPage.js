@@ -5,6 +5,7 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
+import EmptyUsersTable from 'src/admin/components/chronograf/EmptyUsersTable'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 
 class UsersPage extends Component {
@@ -66,7 +67,7 @@ class UsersPage extends Component {
     const {isLoading} = this.state
 
     if (isLoading || !(organizations.length && users.length)) {
-      return <div className="generic-empty-state">Loading...</div>
+      return <EmptyUsersTable />
     }
 
     const organization = organizations.find(
