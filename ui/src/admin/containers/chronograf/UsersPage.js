@@ -16,24 +16,6 @@ class UsersPage extends Component {
     }
   }
 
-  // // TODO: revisit this, possibly don't call setState if both are deep equal
-  // componentWillReceiveProps(nextProps) {
-  //   const {meCurrentOrganization} = nextProps
-  //
-  //   const hasChangedCurrentOrganization =
-  //     meCurrentOrganization.id !== this.props.meCurrentOrganization.id
-  //
-  //   if (hasChangedCurrentOrganization) {
-  //     this.setState({isLoading: true})
-  //     this.loadUsers()
-  //   }
-  // }
-
-  // loadUsers = () => {
-  //   // this.setState({isLoading: true})
-  //   return loadUsersAsync(links.users)
-  // }
-
   handleCreateUser = user => {
     const {links, actions: {createUserAsync}} = this.props
     createUserAsync(links.users, user)
