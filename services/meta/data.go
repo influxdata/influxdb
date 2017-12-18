@@ -881,8 +881,6 @@ func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPN
 		}
 	}
 
-	data.Databases = append(data.Databases, *dbImport)
-
 	return restoreDBName, nil
 }
 

@@ -59,7 +59,7 @@ func (c *Client) UpdateMeta(req *Request, upStream io.Reader) (map[uint64]uint64
 	if len(resp) < 16 {
 		return nil, fmt.Errorf("response too short to be a metadata update response: %d", len(resp))
 	}
-	header, npairs, err := c.decodeUintPair(resp[:16])
+	header, npairs, err := decodeUintPair(resp[:16])
 	if err != nil {
 		return nil, err
 	}
