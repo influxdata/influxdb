@@ -61,6 +61,7 @@ func (s *Service) Influx(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("\n\n%#+v\n\n", req)
 	response, err := ts.Query(ctx, req)
 	if err != nil {
 		if err == chronograf.ErrUpstreamTimeout {
