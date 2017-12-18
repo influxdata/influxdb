@@ -1516,7 +1516,7 @@ func NewStore() *Store {
 
 	if runtime.GOARCH == "386" {
 		// Set the mmap size to something addressable in the process.
-		s.SeriesFileMaxSize = 200000000 // 100M bytes
+		s.SeriesFileMaxSize = 1 << 27 // 128MB
 	}
 
 	return s
@@ -1546,7 +1546,7 @@ func (s *Store) Reopen() error {
 	s.Store = tsdb.NewStore(s.Path())
 	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
 	s.SeriesFileMaxSize = seriesMapSize
-	return s.Open()
+	return s.Store.Open()
 }
 
 // Close closes the store and removes the underlying data.

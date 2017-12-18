@@ -757,11 +757,15 @@ func (i *Index) SeriesKeys() []string {
 
 // SetFieldSet sets a shared field set from the engine.
 func (i *Index) SetFieldSet(fieldset *tsdb.MeasurementFieldSet) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	i.fieldset = fieldset
 }
 
 // FieldSet returns the assigned fieldset.
 func (i *Index) FieldSet() *tsdb.MeasurementFieldSet {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
 	return i.fieldset
 }
 
