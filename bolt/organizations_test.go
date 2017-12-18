@@ -99,7 +99,7 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				org: &chronograf.Organization{
-					ID: 1234,
+					ID: "1234",
 				},
 			},
 			wantErr: true,
@@ -181,11 +181,6 @@ func TestOrganizationsStore_All(t *testing.T) {
 			},
 			want: []chronograf.Organization{
 				{
-					Name:        bolt.DefaultOrganizationName,
-					DefaultRole: bolt.DefaultOrganizationRole,
-					Public:      bolt.DefaultOrganizationPublic,
-				},
-				{
 					Name:        "EE - Evil Empire",
 					DefaultRole: roles.MemberRoleName,
 					Public:      true,
@@ -194,6 +189,11 @@ func TestOrganizationsStore_All(t *testing.T) {
 					Name:        "The Good Place",
 					DefaultRole: roles.EditorRoleName,
 					Public:      true,
+				},
+				{
+					Name:        bolt.DefaultOrganizationName,
+					DefaultRole: bolt.DefaultOrganizationRole,
+					Public:      bolt.DefaultOrganizationPublic,
 				},
 			},
 			addFirst: true,
@@ -253,7 +253,7 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				initial: &chronograf.Organization{
-					ID:   1234,
+					ID:   "1234",
 					Name: "The Okay Place",
 				},
 				updates: &chronograf.Organization{},
@@ -448,7 +448,7 @@ func TestOrganizationStore_Delete(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				org: &chronograf.Organization{
-					ID: 10,
+					ID: "10",
 				},
 			},
 			wantErr: true,
@@ -615,7 +615,7 @@ func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &chronograf.Organization{
-				ID:          bolt.DefaultOrganizationID,
+				ID:          string(bolt.DefaultOrganizationID),
 				Name:        bolt.DefaultOrganizationName,
 				DefaultRole: bolt.DefaultOrganizationRole,
 				Public:      bolt.DefaultOrganizationPublic,

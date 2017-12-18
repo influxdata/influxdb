@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -237,7 +238,7 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 		OrganizationsStore chronograf.OrganizationsStore
 	}
 	type args struct {
-		orgID         uint64
+		orgID         string
 		serverContext bool
 		organization  string
 		user          *chronograf.User
@@ -259,7 +260,7 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          21,
+							ID:          "21",
 							Name:        "my sweet name",
 							DefaultRole: "viewer",
 						}, nil
@@ -268,11 +269,11 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 			},
 			args: args{
 				serverContext: true,
-				orgID:         21,
+				orgID:         "21",
 			},
 			wants: wants{
 				organization: &chronograf.Organization{
-					ID:          21,
+					ID:          "21",
 					Name:        "my sweet name",
 					DefaultRole: "viewer",
 				},
@@ -284,7 +285,7 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          21,
+							ID:          "21",
 							Name:        "my sweet name",
 							DefaultRole: "viewer",
 						}, nil
@@ -299,11 +300,11 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 					Scheme:     "oauth2",
 					SuperAdmin: true,
 				},
-				orgID: 21,
+				orgID: "21",
 			},
 			wants: wants{
 				organization: &chronograf.Organization{
-					ID:          21,
+					ID:          "21",
 					Name:        "my sweet name",
 					DefaultRole: "viewer",
 				},
@@ -315,7 +316,7 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          21,
+							ID:          "21",
 							Name:        "my sweet name",
 							DefaultRole: "viewer",
 						}, nil
@@ -329,7 +330,7 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 					Provider: "github",
 					Scheme:   "oauth2",
 				},
-				orgID: 21,
+				orgID: "21",
 			},
 			wants: wants{
 				err: true,
@@ -340,8 +341,9 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 			fields: fields{
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						fmt.Println(*q.ID)
 						return &chronograf.Organization{
-							ID:          21,
+							ID:          "22",
 							Name:        "my sweet name",
 							DefaultRole: "viewer",
 						}, nil
@@ -355,12 +357,12 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 					Provider: "github",
 					Scheme:   "oauth2",
 				},
-				organization: "21",
-				orgID:        21,
+				organization: "22",
+				orgID:        "22",
 			},
 			wants: wants{
 				organization: &chronograf.Organization{
-					ID:          21,
+					ID:          "22",
 					Name:        "my sweet name",
 					DefaultRole: "viewer",
 				},
@@ -372,7 +374,7 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          22,
+							ID:          "22",
 							Name:        "my sweet name",
 							DefaultRole: "viewer",
 						}, nil
@@ -387,7 +389,7 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 					Scheme:   "oauth2",
 				},
 				organization: "21",
-				orgID:        21,
+				orgID:        "21",
 			},
 			wants: wants{
 				err: true,

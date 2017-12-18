@@ -5,17 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/organizations"
 	"github.com/influxdata/chronograf/roles"
 )
-
-func parseOrganizationID(id string) (uint64, error) {
-	return strconv.ParseUint(id, 10, 64)
-}
 
 type organizationRequest struct {
 	Name        string `json:"name"`
@@ -68,7 +63,7 @@ func newOrganizationResponse(o *chronograf.Organization) *organizationResponse {
 	return &organizationResponse{
 		Organization: *o,
 		Links: selfLinks{
-			Self: fmt.Sprintf("/chronograf/v1/organizations/%d", o.ID),
+			Self: fmt.Sprintf("/chronograf/v1/organizations/%s", o.ID),
 		},
 	}
 }
@@ -144,15 +139,14 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgID := fmt.Sprintf("%d", res.ID)
 	user.Roles = []chronograf.Role{
 		{
-			Organization: orgID,
+			Organization: res.ID,
 			Name:         roles.AdminRoleName,
 		},
 	}
 
-	orgCtx := context.WithValue(ctx, organizations.ContextKey, orgID)
+	orgCtx := context.WithValue(ctx, organizations.ContextKey, res.ID)
 	_, err = s.Store.Users(orgCtx).Add(orgCtx, user)
 	if err != nil {
 		// Best attempt at cleanup the organization if there were any errors adding user to org
@@ -171,12 +165,7 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 func (s *Service) OrganizationID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := httprouter.GetParamFromContext(ctx, "id")
-	id, err := parseOrganizationID(idStr)
-	if err != nil {
-		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid organization id: %s", err.Error()), s.Logger)
-		return
-	}
+	id := httprouter.GetParamFromContext(ctx, "id")
 
 	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {
@@ -202,12 +191,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	idStr := httprouter.GetParamFromContext(ctx, "id")
-	id, err := parseOrganizationID(idStr)
-	if err != nil {
-		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid organization id: %s", err.Error()), s.Logger)
-		return
-	}
+	id := httprouter.GetParamFromContext(ctx, "id")
 
 	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {
@@ -242,12 +226,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 // RemoveOrganization removes an organization in the organizations store
 func (s *Service) RemoveOrganization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	idStr := httprouter.GetParamFromContext(ctx, "id")
-	id, err := parseOrganizationID(idStr)
-	if err != nil {
-		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid organization id: %s", err.Error()), s.Logger)
-		return
-	}
+	id := httprouter.GetParamFromContext(ctx, "id")
 
 	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {

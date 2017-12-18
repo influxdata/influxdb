@@ -54,9 +54,6 @@ func (r *userRequest) ValidRoles() error {
 			if r.Organization == "" {
 				return fmt.Errorf("no organization was provided")
 			}
-			if _, err := parseOrganizationID(r.Organization); err != nil {
-				return fmt.Errorf("failed to parse organization ID: %v", err)
-			}
 			if _, ok := orgs[r.Organization]; ok {
 				return fmt.Errorf("duplicate organization %q in roles", r.Organization)
 			}

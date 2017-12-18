@@ -91,7 +91,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "0",
+								Organization: "Default",
 							},
 						},
 					},
@@ -105,7 +105,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "Default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},

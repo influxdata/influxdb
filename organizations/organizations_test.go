@@ -44,7 +44,7 @@ func TestOrganizations_All(t *testing.T) {
 					},
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   0,
+							ID:   "0",
 							Name: "Default",
 						}, nil
 					},
@@ -58,7 +58,7 @@ func TestOrganizations_All(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   0,
+							ID:   "0",
 							Name: "Default",
 						}, nil
 					},
@@ -66,11 +66,11 @@ func TestOrganizations_All(t *testing.T) {
 						return []chronograf.Organization{
 							{
 								Name: "howdy",
-								ID:   1337,
+								ID:   "1337",
 							},
 							{
 								Name: "doody",
-								ID:   1447,
+								ID:   "1447",
 							},
 						}, nil
 					},
@@ -83,11 +83,11 @@ func TestOrganizations_All(t *testing.T) {
 			want: []chronograf.Organization{
 				{
 					Name: "howdy",
-					ID:   1337,
+					ID:   "1337",
 				},
 				{
 					Name: "Default",
-					ID:   0,
+					ID:   "0",
 				},
 			},
 		},
@@ -133,7 +133,7 @@ func TestOrganizations_Add(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   1229,
+							ID:   "1229",
 							Name: "howdy",
 						}, nil
 					},
@@ -193,7 +193,7 @@ func TestOrganizations_Delete(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   1229,
+							ID:   "1229",
 							Name: "howdy",
 						}, nil
 					},
@@ -203,7 +203,7 @@ func TestOrganizations_Delete(t *testing.T) {
 				organizationID: "1229",
 				ctx:            context.Background(),
 				organization: &chronograf.Organization{
-					ID:   1229,
+					ID:   "1229",
 					Name: "howdy",
 				},
 			},
@@ -244,7 +244,7 @@ func TestOrganizations_Get(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "howdy",
 						}, nil
 					},
@@ -254,12 +254,12 @@ func TestOrganizations_Get(t *testing.T) {
 				organizationID: "1337",
 				ctx:            context.Background(),
 				organization: &chronograf.Organization{
-					ID:   1337,
+					ID:   "1337",
 					Name: "howdy",
 				},
 			},
 			want: &chronograf.Organization{
-				ID:   1337,
+				ID:   "1337",
 				Name: "howdy",
 			},
 		},
@@ -305,7 +305,7 @@ func TestOrganizations_Update(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   1229,
+							ID:   "1229",
 							Name: "doody",
 						}, nil
 					},
@@ -315,7 +315,7 @@ func TestOrganizations_Update(t *testing.T) {
 				organizationID: "1229",
 				ctx:            context.Background(),
 				organization: &chronograf.Organization{
-					ID:   1229,
+					ID:   "1229",
 					Name: "howdy",
 				},
 				name: "doody",

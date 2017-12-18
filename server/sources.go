@@ -78,7 +78,7 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidSourceRequest(&src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+	if err := ValidSourceRequest(&src, defaultOrg.ID); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -271,7 +271,7 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidSourceRequest(&src, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+	if err := ValidSourceRequest(&src, defaultOrg.ID); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -346,7 +346,7 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 	}
 
 	for _, sk := range srcsKaps {
-		if err := ValidSourceRequest(&sk.Source, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+		if err := ValidSourceRequest(&sk.Source, defaultOrg.ID); err != nil {
 			return err
 		}
 		// Add any new sources and kapacitors as specified via server flag
