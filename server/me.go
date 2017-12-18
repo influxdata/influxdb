@@ -163,8 +163,7 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 				unknownErrorWithMessage(w, err, s.Logger)
 				return
 			}
-		}
-		if err != chronograf.ErrUserNotFound && err != nil {
+		} else if err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
 		}

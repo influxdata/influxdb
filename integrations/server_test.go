@@ -416,7 +416,7 @@ func TestServer(t *testing.T) {
 				},
 				Organizations: []chronograf.Organization{
 					{
-						ID:          1, // This is artificial, but should be reflective of the users actual ID
+						ID:          1
 						Name:        "Sweet",
 						DefaultRole: roles.ViewerRoleName,
 					},
@@ -509,7 +509,7 @@ func TestServer(t *testing.T) {
 				},
 				Organizations: []chronograf.Organization{
 					{
-						ID:          1, // This is artificial, but should be reflective of the users actual ID
+						ID:          1,
 						Name:        "Sweet",
 						DefaultRole: roles.ViewerRoleName,
 					},
