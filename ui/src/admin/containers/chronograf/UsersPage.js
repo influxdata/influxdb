@@ -50,8 +50,10 @@ class UsersPage extends Component {
 
     this.setState({isLoading: true})
 
-    loadOrganizationsAsync(links.organizations)
-    await loadUsersAsync(links.users)
+    await Promise.all([
+      loadOrganizationsAsync(links.organizations),
+      loadUsersAsync(links.users),
+    ])
 
     this.setState({isLoading: false})
   }
@@ -66,7 +68,7 @@ class UsersPage extends Component {
     } = this.props
     const {isLoading} = this.state
 
-    if (isLoading || !(organizations.length && users.length)) {
+    if (isLoading) {
       return <EmptyUsersTable />
     }
 
