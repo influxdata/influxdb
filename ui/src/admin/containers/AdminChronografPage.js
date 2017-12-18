@@ -74,9 +74,9 @@ class AdminChronografPage extends Component {
       users,
       meRole,
       meID,
+      meCurrentOrganization,
       notify,
       organizations,
-      meCurrentOrganization,
     } = this.props
 
     const organization = organizations.find(
@@ -155,11 +155,11 @@ const mapStateToProps = ({
 }) => ({
   me,
   meID,
+  meRole,
+  meCurrentOrganization,
   links,
   users,
-  meRole,
   organizations,
-  meCurrentOrganization,
 })
 
 const mapDispatchToProps = dispatch => ({
