@@ -90,7 +90,7 @@ class Purgatory extends Component {
                 </div>
               : <p>You are a Lost Soul</p>}
             <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
-              Logout
+              Log out
             </a>
           </div>
         </SplashPage>
