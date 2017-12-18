@@ -37,11 +37,12 @@ const (
 )
 
 type EnterprisePacker struct {
-	Data []byte
+	Data      []byte
+	MaxNodeID uint64
 }
 
 func (ep EnterprisePacker) MarshalBinary() ([]byte, error) {
-	ed := internal.EnterpriseData{Data: ep.Data}
+	ed := internal.EnterpriseData{Data: ep.Data, MaxNodeID: &ep.MaxNodeID}
 	return proto.Marshal(&ed)
 }
 
@@ -52,6 +53,7 @@ func (ep *EnterprisePacker) UnmarshalBinary(data []byte) error {
 	}
 
 	ep.Data = pb.GetData()
+	ep.MaxNodeID = pb.GetMaxNodeID()
 	return nil
 }
 

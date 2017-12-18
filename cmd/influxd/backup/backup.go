@@ -408,7 +408,12 @@ func (cmd *Command) backupMetastore() error {
 			return err
 		}
 		filename := cmd.enterpriseFileBase + ".meta"
-		if err := ioutil.WriteFile(filepath.Join(cmd.path, filename), metaBytes, 0644); err != nil {
+		ep := backup_util.EnterprisePacker{Data: metaBytes, MaxNodeID: 0}
+		protoBytes, err := ep.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(cmd.path, filename), protoBytes, 0644); err != nil {
 			fmt.Fprintln(cmd.Stdout, "Error.")
 			return err
 		}

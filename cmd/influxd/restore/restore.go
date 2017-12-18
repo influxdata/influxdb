@@ -322,16 +322,12 @@ func (cmd *Command) updateMetaEnterprise() error {
 	if err != nil {
 		return err
 	}
-	if cmd.manifest.Platform == "OSS" {
-		metaBytes = fileBytes
-	} else if cmd.manifest.Platform == "ENT" || cmd.manifest.Platform == "" {
-		var ep backup_util.EnterprisePacker
-		ep.UnmarshalBinary(fileBytes)
 
-		metaBytes = ep.Data
-	} else {
-		return fmt.Errorf("Unrecognized backup platform: %s", cmd.manifest.Platform)
-	}
+	var ep backup_util.EnterprisePacker
+	ep.UnmarshalBinary(fileBytes)
+
+	metaBytes = ep.Data
+
 	req := &snapshotter.Request{
 		Type:                   snapshotter.RequestMetaStoreUpdate,
 		BackupDatabase:         cmd.sourceDatabase,
