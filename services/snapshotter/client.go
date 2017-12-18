@@ -108,12 +108,9 @@ func (c *Client) UploadShard(shardID, newShardID uint64, destinationDatabase, re
 		return err
 	}
 
-	if _, err := conn.Write([]byte{byte(RequestShardUpdate)}); err != nil {
-		return err
-	}
-
-	var shardBytes [8]byte
-	binary.BigEndian.PutUint64(shardBytes[:], newShardID)
+	var shardBytes [9]byte
+	shardBytes[0] = byte(RequestShardUpdate)
+	binary.BigEndian.PutUint64(shardBytes[1:], newShardID)
 	if _, err := conn.Write(shardBytes[:]); err != nil {
 		return err
 	}
