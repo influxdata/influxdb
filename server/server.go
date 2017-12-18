@@ -94,7 +94,7 @@ type Server struct {
 	Basepath          string `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
 	PrefixRoutes      bool   `long:"prefix-routes" description:"Force chronograf server to require that all requests to it are prefixed with the value set in --basepath" env:"PREFIX_ROUTES"`
 	ShowVersion       bool   `short:"v" long:"version" description:"Show Chronograf version info"`
-	BuildInfo         BuildInfo
+	BuildInfo         chronograf.BuildInfo
 	Listener          net.Listener
 	handler           http.Handler
 }
@@ -230,12 +230,6 @@ func (s *Server) genericRedirectURL() string {
 	return publicURL.String()
 }
 
-// BuildInfo is sent to the usage client to track versions and commits
-type BuildInfo struct {
-	Version string
-	Commit  string
-}
-
 func (s *Server) useAuth() bool {
 	return s.UseGithub() || s.UseGoogle() || s.UseHeroku() || s.UseGenericOAuth2() || s.UseAuth0()
 }
@@ -301,7 +295,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			Error(err)
 		return err
 	}
-	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
+	service := openService(ctx, s, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger)
 	if err := service.HandleNewSources(ctx, s.NewSources); err != nil {
 		logger.
 			WithField("component", "server").
@@ -396,13 +390,14 @@ func (s *Server) Serve(ctx context.Context) error {
 	return nil
 }
 
-func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, sBuilder SourcesBuilder, kapBuilder KapacitorBuilder, logger chronograf.Logger, useAuth bool) Service {
+func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilder SourcesBuilder, kapBuilder KapacitorBuilder, logger chronograf.Logger) Service {
 	db := bolt.NewClient()
-	db.Path = boltPath
-	if err := db.Open(ctx); err != nil {
+	db.Path = s.BoltPath
+
+	if err := db.Open(ctx, logger, s.BuildInfo, bolt.WithBackup()); err != nil {
 		logger.
 			WithField("component", "boltstore").
-			Error("Unable to open boltdb; is there a chronograf already running?  ", err)
+			Error(err)
 		os.Exit(1)
 	}
 
@@ -442,13 +437,13 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 			ConfigStore:        db.ConfigStore,
 		},
 		Logger:    logger,
-		UseAuth:   useAuth,
+		UseAuth:   s.useAuth(),
 		Databases: &influx.Client{Logger: logger},
 	}
 }
 
 // reportUsageStats starts periodic server reporting.
-func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
+func reportUsageStats(bi chronograf.BuildInfo, logger chronograf.Logger) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	serverID := strconv.FormatUint(uint64(rand.Int63()), 10)
 	reporter := client.New("")

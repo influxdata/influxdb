@@ -172,6 +172,11 @@ message AuthConfig {
 	bool SuperAdminNewUsers   = 1; // SuperAdminNewUsers configuration option that specifies which users will auto become super admin
 }
 
+message BuildInfo {
+	string Version			= 1; // Version is a descriptive git SHA identifier
+	string Commit			= 2; // Commit is an abbreviated SHA
+}
+
 // The following is a vim modeline, it autoconfigures vim to have the
 // appropriate tabbing and whitespace management to edit this file
 //
