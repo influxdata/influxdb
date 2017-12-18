@@ -416,7 +416,7 @@ func TestServer(t *testing.T) {
 				},
 				Organizations: []chronograf.Organization{
 					{
-						ID:          1
+						ID:          1,
 						Name:        "Sweet",
 						DefaultRole: roles.ViewerRoleName,
 					},
