@@ -29,22 +29,8 @@ func TestConfig_Get(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		build := chronograf.BuildInfo{
-			Version: "version",
-			Commit:  "commit",
-		}
-
 		client, err := NewTestClient()
 		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Initialize(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Migrate(context.TODO(), build); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()
@@ -97,14 +83,7 @@ func TestConfig_Update(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
-
-		if err := client.Initialize(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 
 		s := client.ConfigStore
 		err = s.Update(context.Background(), tt.args.config)

@@ -10,12 +10,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
+	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/roles"
 	"github.com/influxdata/chronograf/server"
@@ -425,8 +427,13 @@ func TestServer(t *testing.T) {
 			// Prepopulate BoltDB Database for Server
 			boltdb := bolt.NewClient()
 			boltdb.Path = boltFile
-			_ = boltdb.Open(ctx)
-			_ = boltdb.Initialize(ctx)
+
+			logger := log.New(log.ParseLevel("debug"))
+			build := chronograf.BuildInfo{
+				Version: "pre-1.4.0.0",
+				Commit:  "",
+			}
+			_ = boltdb.Open(ctx, logger, build)
 
 			if tt.fields.Config != nil {
 				if err := boltdb.ConfigStore.Update(ctx, tt.fields.Config); err != nil {

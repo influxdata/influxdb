@@ -57,15 +57,7 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			if err := client.Open(context.TODO()); err != nil {
-				t.Fatal(err)
-			}
 			defer client.Close()
-
-			if err := client.Initialize(context.TODO()); err != nil {
-				t.Fatal(err)
-			}
 
 			s := client.OrganizationsStore
 			if tt.addFirst {
@@ -133,15 +125,7 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			if err := client.Open(context.TODO()); err != nil {
-				t.Fatal(err)
-			}
 			defer client.Close()
-
-			if err := client.Initialize(context.TODO()); err != nil {
-				t.Fatal(err)
-			}
 
 			s := client.OrganizationsStore
 			if tt.addFirst {
@@ -218,22 +202,8 @@ func TestOrganizationsStore_All(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			build := chronograf.BuildInfo{
-				Version: "version",
-				Commit:  "commit",
-			}
-
 			client, err := NewTestClient()
 			if err != nil {
-				t.Fatal(err)
-			}
-			if err := client.Open(context.TODO()); err != nil {
-				t.Fatal(err)
-			}
-			if err := client.Initialize(context.TODO()); err != nil {
-				t.Fatal(err)
-			}
-			if err := client.Migrate(context.TODO(), build); err != nil {
 				t.Fatal(err)
 			}
 			defer client.Close()
@@ -417,14 +387,7 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
-
-		if err := client.Initialize(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 
 		s := client.OrganizationsStore
 
@@ -506,14 +469,7 @@ func TestOrganizationStore_Delete(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
-
-		if err := client.Initialize(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 
 		s := client.OrganizationsStore
 
@@ -548,14 +504,7 @@ func TestOrganizationStore_DeleteDefaultOrg(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
-
-		if err := client.Initialize(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 
 		s := client.OrganizationsStore
 
@@ -607,14 +556,7 @@ func TestOrganizationsStore_Add(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
-
-		if err := client.Initialize(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 
 		s := client.OrganizationsStore
 
@@ -682,22 +624,8 @@ func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		build := chronograf.BuildInfo{
-			Version: "version",
-			Commit:  "commit",
-		}
-
 		client, err := NewTestClient()
 		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Initialize(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Migrate(context.TODO(), build); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()

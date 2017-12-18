@@ -394,31 +394,10 @@ func openService(ctx context.Context, s *Server, lBuilder LayoutBuilder, sBuilde
 	db := bolt.NewClient()
 	db.Path = s.BoltPath
 
-	if err := db.Open(ctx); err != nil {
+	if err := db.Open(ctx, logger, s.BuildInfo, bolt.WithBackup()); err != nil {
 		logger.
 			WithField("component", "boltstore").
-			Error("Unable to open boltdb; is there a chronograf already running?  ", err)
-		os.Exit(1)
-	}
-
-	if err := db.Backup(ctx, s.BuildInfo); err != nil {
-		logger.
-			WithField("component", "boltstore").
-			Error("Unable to backup your database prior to migrations:  ", err)
-		os.Exit(1)
-	}
-
-	if err := db.Initialize(ctx); err != nil {
-		logger.
-			WithField("component", "boltstore").
-			Error("Unable to boot boltdb:  ", err)
-		os.Exit(1)
-	}
-
-	if err := db.Migrate(ctx, s.BuildInfo); err != nil {
-		logger.
-			WithField("component", "boltstore").
-			Error("Unable to migrate data in boltdb:  ", err)
+			Error(err)
 		os.Exit(1)
 	}
 
