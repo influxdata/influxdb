@@ -71,21 +71,25 @@ class OrganizationsPage extends Component {
   }
 
   render() {
-    const {organizations, currentOrganization, authConfig} = this.props
+    const {meCurrentOrganization, organizations, authConfig} = this.props
 
-    return (
-      <OrganizationsTable
-        organizations={organizations}
-        currentOrganization={currentOrganization}
-        onCreateOrg={this.handleCreateOrganization}
-        onDeleteOrg={this.handleDeleteOrganization}
-        onRenameOrg={this.handleRenameOrganization}
-        onTogglePublic={this.handleTogglePublic}
-        onChooseDefaultRole={this.handleChooseDefaultRole}
-        authConfig={authConfig}
-        onChangeAuthConfig={this.handleUpdateAuthConfig}
-      />
+    const organization = organizations.find(
+      o => o.id === meCurrentOrganization.id
     )
+
+    return organizations.length
+      ? <OrganizationsTable
+          organizations={organizations}
+          currentOrganization={organization}
+          onCreateOrg={this.handleCreateOrganization}
+          onDeleteOrg={this.handleDeleteOrganization}
+          onRenameOrg={this.handleRenameOrganization}
+          onTogglePublic={this.handleTogglePublic}
+          onChooseDefaultRole={this.handleChooseDefaultRole}
+          authConfig={authConfig}
+          onChangeAuthConfig={this.handleUpdateAuthConfig}
+        />
+      : <div className="page-spinner" />
   }
 }
 
@@ -116,7 +120,7 @@ OrganizationsPage.propTypes = {
     updateAuthConfigAsync: func.isRequired,
   }),
   getMe: func.isRequired,
-  currentOrganization: shape({
+  meCurrentOrganization: shape({
     name: string.isRequired,
     id: string.isRequired,
   }),
