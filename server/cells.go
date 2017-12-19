@@ -26,45 +26,49 @@ type dashboardCellResponse struct {
 	Links dashboardCellLinks `json:"links"`
 }
 
-func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardCell) []dashboardCellResponse {
+func newCellResponse(dID chronograf.DashboardID, cell chronograf.DashboardCell) dashboardCellResponse {
 	base := "/chronograf/v1/dashboards"
+	newCell := chronograf.DashboardCell{}
+	newCell.Queries = make([]chronograf.DashboardQuery, len(cell.Queries))
+	copy(newCell.Queries, cell.Queries)
+
+	newCell.CellColors = make([]chronograf.CellColor, len(cell.CellColors))
+	copy(newCell.CellColors, cell.CellColors)
+
+	// ensure x, y, and y2 axes always returned
+	labels := []string{"x", "y", "y2"}
+	newCell.Axes = make(map[string]chronograf.Axis, len(labels))
+
+	newCell.X = cell.X
+	newCell.Y = cell.Y
+	newCell.W = cell.W
+	newCell.H = cell.H
+	newCell.Name = cell.Name
+	newCell.ID = cell.ID
+	newCell.Type = cell.Type
+
+	for _, lbl := range labels {
+		if axis, found := cell.Axes[lbl]; !found {
+			newCell.Axes[lbl] = chronograf.Axis{
+				Bounds: []string{},
+			}
+		} else {
+			newCell.Axes[lbl] = axis
+		}
+	}
+
+	return dashboardCellResponse{
+		DashboardCell: newCell,
+		Links: dashboardCellLinks{
+			Self: fmt.Sprintf("%s/%d/cells/%s", base, dID, cell.ID),
+		},
+	}
+}
+
+func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardCell) []dashboardCellResponse {
 	cells := make([]dashboardCellResponse, len(dcells))
 	for i, cell := range dcells {
-		newCell := chronograf.DashboardCell{}
-		newCell.Queries = make([]chronograf.DashboardQuery, len(cell.Queries))
-		copy(newCell.Queries, cell.Queries)
-
-		newCell.CellColors = make([]chronograf.CellColor, len(cell.CellColors))
-		copy(newCell.CellColors, cell.CellColors)
-
-		// ensure x, y, and y2 axes always returned
-		labels := []string{"x", "y", "y2"}
-		newCell.Axes = make(map[string]chronograf.Axis, len(labels))
-
-		newCell.X = cell.X
-		newCell.Y = cell.Y
-		newCell.W = cell.W
-		newCell.H = cell.H
-		newCell.Name = cell.Name
-		newCell.ID = cell.ID
-		newCell.Type = cell.Type
-
-		for _, lbl := range labels {
-			if axis, found := cell.Axes[lbl]; !found {
-				newCell.Axes[lbl] = chronograf.Axis{
-					Bounds: []string{},
-				}
-			} else {
-				newCell.Axes[lbl] = axis
-			}
-		}
-
-		cells[i] = dashboardCellResponse{
-			DashboardCell: newCell,
-			Links: dashboardCellLinks{
-				Self: fmt.Sprintf("%s/%d/cells/%s", base, dID, cell.ID),
-			},
-		}
+		cells[i] = newCellResponse(dID, cell)
 	}
 	return cells
 }
@@ -322,7 +326,7 @@ func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if cellid == -1 {
-		notFound(w, id, s.Logger)
+		notFound(w, cid, s.Logger)
 		return
 	}
 
@@ -345,11 +349,6 @@ func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boards := newDashboardResponse(dash)
-	for _, cell := range boards.Cells {
-		if cell.ID == cid {
-			encodeJSON(w, http.StatusOK, cell, s.Logger)
-			return
-		}
-	}
+	res := newCellResponse(dash.ID, cell)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }

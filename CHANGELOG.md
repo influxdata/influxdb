@@ -5,6 +5,7 @@
 ### Bug Fixes
 1. [#2528](https://github.com/influxdata/chronograf/pull/2528): Fix template rendering to ignore template if not in query 
 1. [#2563](https://github.com/influxdata/chronograf/pull/2563): Fix graph inversion if user input y-axis min greater than max
+1. [#2616](https://github.com/influxdata/chronograf/pull/2616): Fix cell editing so query data choices are kept when updating a cell
 
 ## v1.4.0.0-beta1 [2017-12-07]
 ### Features

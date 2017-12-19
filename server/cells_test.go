@@ -1,11 +1,14 @@
-package server_test
+package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,7 +16,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/mocks"
-	"github.com/influxdata/chronograf/server"
 )
 
 func Test_Cells_CorrectAxis(t *testing.T) {
@@ -126,7 +128,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 
 	for _, test := range axisTests {
 		t.Run(test.name, func(tt *testing.T) {
-			if err := server.HasCorrectAxes(test.cell); err != nil && !test.shouldFail {
+			if err := HasCorrectAxes(test.cell); err != nil && !test.shouldFail {
 				t.Errorf("%q: Unexpected error: err: %s", test.name, err)
 			} else if err == nil && test.shouldFail {
 				t.Errorf("%q: Expected error and received none", test.name)
@@ -226,7 +228,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 
 			// setup mock DashboardCells store and logger
 			tlog := &mocks.TestLogger{}
-			svc := &server.Service{
+			svc := &Service{
 				Store: &mocks.Store{
 					DashboardsStore: &mocks.DashboardsStore{
 						GetF: func(ctx context.Context, id chronograf.DashboardID) (chronograf.Dashboard, error) {
@@ -343,8 +345,489 @@ func TestHasCorrectColors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := server.HasCorrectColors(tt.c); (err != nil) != tt.wantErr {
+			if err := HasCorrectColors(tt.c); (err != nil) != tt.wantErr {
 				t.Errorf("HasCorrectColors() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestService_ReplaceDashboardCell(t *testing.T) {
+	tests := []struct {
+		name            string
+		DashboardsStore chronograf.DashboardsStore
+		ID              string
+		CID             string
+		w               *httptest.ResponseRecorder
+		r               *http.Request
+		want            string
+	}{
+		{
+			name: "update cell retains query config",
+			ID:   "1",
+			CID:  "3c5c4102-fa40-4585-a8f9-917c77e37192",
+			DashboardsStore: &mocks.DashboardsStore{
+				UpdateF: func(ctx context.Context, target chronograf.Dashboard) error {
+					return nil
+				},
+				GetF: func(ctx context.Context, ID chronograf.DashboardID) (chronograf.Dashboard, error) {
+					return chronograf.Dashboard{
+						ID: ID,
+						Cells: []chronograf.DashboardCell{
+							{
+								ID:   "3c5c4102-fa40-4585-a8f9-917c77e37192",
+								W:    4,
+								H:    4,
+								Name: "Untitled Cell",
+								Queries: []chronograf.DashboardQuery{
+									{
+										Command: "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)",
+										QueryConfig: chronograf.QueryConfig{
+											ID:              "3cd3eaa4-a4b8-44b3-b69e-0c7bf6b91d9e",
+											Database:        "telegraf",
+											Measurement:     "cpu",
+											RetentionPolicy: "autogen",
+											Fields: []chronograf.Field{
+												{
+													Value: "mean",
+													Type:  "func",
+													Alias: "mean_usage_user",
+													Args: []chronograf.Field{
+														{
+															Value: "usage_user",
+															Type:  "field",
+														},
+													},
+												},
+											},
+											Tags: map[string][]string{
+												"cpu": {
+													"ChristohersMBP2.lan",
+												},
+											},
+											GroupBy: chronograf.GroupBy{
+												Time: "2s",
+												Tags: []string{},
+											},
+											AreTagsAccepted: true,
+											Fill:            "null",
+											RawText:         strPtr("SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)"),
+											Range: &chronograf.DurationRange{
+												Lower: "now() - 15m"},
+											Shifts: []chronograf.TimeShift{},
+										},
+									},
+								},
+								Axes: map[string]chronograf.Axis{
+									"x": {
+										Bounds: []string{},
+									},
+									"y": {
+										Bounds: []string{},
+									},
+									"y2": {
+										Bounds: []string{},
+									},
+								},
+								Type: "line",
+								CellColors: []chronograf.CellColor{
+									{
+										ID:    "0",
+										Type:  "min",
+										Hex:   "#00C9FF",
+										Name:  "laser",
+										Value: "0",
+									},
+									{
+										ID:    "1",
+										Type:  "max",
+										Hex:   "#9394FF",
+										Name:  "comet",
+										Value: "100",
+									},
+								},
+							},
+						},
+					}, nil
+				},
+			},
+			w: httptest.NewRecorder(),
+			r: httptest.NewRequest("POST", "/queries", bytes.NewReader([]byte(`
+				{
+					"i": "3c5c4102-fa40-4585-a8f9-917c77e37192",
+					"x": 0,
+					"y": 0,
+					"w": 4,
+					"h": 4,
+					"name": "Untitled Cell",
+					"queries": [
+					  {
+						"queryConfig": {
+						  "id": "3cd3eaa4-a4b8-44b3-b69e-0c7bf6b91d9e",
+						  "database": "telegraf",
+						  "measurement": "cpu",
+						  "retentionPolicy": "autogen",
+						  "fields": [
+							{
+							  "value": "mean",
+							  "type": "func",
+							  "alias": "mean_usage_user",
+							  "args": [{"value": "usage_user", "type": "field", "alias": ""}]
+							}
+						  ],
+						  "tags": {"cpu": ["ChristohersMBP2.lan"]},
+						  "groupBy": {"time": "2s", "tags": []},
+						  "areTagsAccepted": true,
+						  "fill": "null",
+						  "rawText":
+							"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)",
+						  "range": {"upper": "", "lower": "now() - 15m"},
+						  "shifts": []
+						},
+						"query":
+						  "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)",
+						"source": null
+					  }
+					],
+					"axes": {
+					  "x": {
+						"bounds": [],
+						"label": "",
+						"prefix": "",
+						"suffix": "",
+						"base": "",
+						"scale": ""
+					  },
+					  "y": {
+						"bounds": [],
+						"label": "",
+						"prefix": "",
+						"suffix": "",
+						"base": "",
+						"scale": ""
+					  },
+					  "y2": {
+						"bounds": [],
+						"label": "",
+						"prefix": "",
+						"suffix": "",
+						"base": "",
+						"scale": ""
+					  }
+					},
+					"type": "line",
+					"colors": [
+					  {"type": "min", "hex": "#00C9FF", "id": "0", "name": "laser", "value": "0"},
+					  {
+						"type": "max",
+						"hex": "#9394FF",
+						"id": "1",
+						"name": "comet",
+						"value": "100"
+					  }
+					],
+					"links": {
+					  "self":
+						"/chronograf/v1/dashboards/6/cells/3c5c4102-fa40-4585-a8f9-917c77e37192"
+					}
+				  }
+				  `))),
+			want: `{"i":"3c5c4102-fa40-4585-a8f9-917c77e37192","x":0,"y":0,"w":4,"h":4,"name":"Untitled Cell","queries":[{"query":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","queryConfig":{"id":"3cd3eaa4-a4b8-44b3-b69e-0c7bf6b91d9e","database":"telegraf","measurement":"cpu","retentionPolicy":"autogen","fields":[{"value":"mean","type":"func","alias":"mean_usage_user","args":[{"value":"usage_user","type":"field","alias":""}]}],"tags":{"cpu":["ChristohersMBP2.lan"]},"groupBy":{"time":"2s","tags":[]},"areTagsAccepted":true,"fill":"null","rawText":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","range":{"upper":"","lower":"now() - 15m"},"shifts":[]},"source":""}],"axes":{"x":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y2":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""}},"type":"line","colors":[{"id":"0","type":"min","hex":"#00C9FF","name":"laser","value":"0"},{"id":"1","type":"max","hex":"#9394FF","name":"comet","value":"100"}],"links":{"self":"/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192"}}
+`,
+		},
+		{
+			name: "dashboard doesn't exist",
+			ID:   "1",
+			DashboardsStore: &mocks.DashboardsStore{
+				GetF: func(ctx context.Context, ID chronograf.DashboardID) (chronograf.Dashboard, error) {
+					return chronograf.Dashboard{}, fmt.Errorf("doesn't exist")
+				},
+			},
+			w:    httptest.NewRecorder(),
+			r:    httptest.NewRequest("PUT", "/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192", nil),
+			want: `{"code":404,"message":"ID 1 not found"}`,
+		},
+		{
+			name: "cell doesn't exist",
+			ID:   "1",
+			CID:  "3c5c4102-fa40-4585-a8f9-917c77e37192",
+			DashboardsStore: &mocks.DashboardsStore{
+				GetF: func(ctx context.Context, ID chronograf.DashboardID) (chronograf.Dashboard, error) {
+					return chronograf.Dashboard{}, nil
+				},
+			},
+			w:    httptest.NewRecorder(),
+			r:    httptest.NewRequest("PUT", "/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192", nil),
+			want: `{"code":404,"message":"ID 3c5c4102-fa40-4585-a8f9-917c77e37192 not found"}`,
+		},
+		{
+			name: "invalid query config",
+			ID:   "1",
+			CID:  "3c5c4102-fa40-4585-a8f9-917c77e37192",
+			DashboardsStore: &mocks.DashboardsStore{
+				GetF: func(ctx context.Context, ID chronograf.DashboardID) (chronograf.Dashboard, error) {
+					return chronograf.Dashboard{
+						ID: ID,
+						Cells: []chronograf.DashboardCell{
+							{
+								ID: "3c5c4102-fa40-4585-a8f9-917c77e37192",
+							},
+						},
+					}, nil
+				},
+			},
+			w: httptest.NewRecorder(),
+			r: httptest.NewRequest("PUT", "/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192", bytes.NewReader([]byte(`{
+					"i": "3c5c4102-fa40-4585-a8f9-917c77e37192",
+					"x": 0,
+					"y": 0,
+					"w": 4,
+					"h": 4,
+					"name": "Untitled Cell",
+					"queries": [
+					  {
+						"queryConfig": {
+						  "fields": [
+							{
+							  "value": "invalid",
+							  "type": "invalidType"
+							}
+						  ]
+						}
+					  }
+					]
+				  }`))),
+			want: `{"code":422,"message":"invalid field type \"invalidType\" ; expect func, field, integer, number, regex, wildcard"}`,
+		},
+		{
+			name: "JSON is not parsable",
+			ID:   "1",
+			CID:  "3c5c4102-fa40-4585-a8f9-917c77e37192",
+			DashboardsStore: &mocks.DashboardsStore{
+				GetF: func(ctx context.Context, ID chronograf.DashboardID) (chronograf.Dashboard, error) {
+					return chronograf.Dashboard{
+						ID: ID,
+						Cells: []chronograf.DashboardCell{
+							{
+								ID: "3c5c4102-fa40-4585-a8f9-917c77e37192",
+							},
+						},
+					}, nil
+				},
+			},
+			w:    httptest.NewRecorder(),
+			r:    httptest.NewRequest("PUT", "/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192", nil),
+			want: `{"code":400,"message":"Unparsable JSON"}`,
+		},
+		{
+			name: "not able to update store returns error message",
+			ID:   "1",
+			CID:  "3c5c4102-fa40-4585-a8f9-917c77e37192",
+			DashboardsStore: &mocks.DashboardsStore{
+				UpdateF: func(ctx context.Context, target chronograf.Dashboard) error {
+					return fmt.Errorf("error")
+				},
+				GetF: func(ctx context.Context, ID chronograf.DashboardID) (chronograf.Dashboard, error) {
+					return chronograf.Dashboard{
+						ID: ID,
+						Cells: []chronograf.DashboardCell{
+							{
+								ID: "3c5c4102-fa40-4585-a8f9-917c77e37192",
+							},
+						},
+					}, nil
+				},
+			},
+			w: httptest.NewRecorder(),
+			r: httptest.NewRequest("PUT", "/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192", bytes.NewReader([]byte(`{
+					"i": "3c5c4102-fa40-4585-a8f9-917c77e37192",
+					"x": 0,
+					"y": 0,
+					"w": 4,
+					"h": 4,
+					"name": "Untitled Cell",
+					"queries": [
+					  {
+						"queryConfig": {
+						  "fields": [
+							{
+							  "value": "usage_user",
+							  "type": "field"
+							}
+						  ]
+						}
+					  }
+					]
+				  }`))),
+			want: `{"code":500,"message":"Error updating cell 3c5c4102-fa40-4585-a8f9-917c77e37192 in dashboard 1: error"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					DashboardsStore: tt.DashboardsStore,
+				},
+				Logger: &mocks.TestLogger{},
+			}
+			tt.r = WithContext(tt.r.Context(), tt.r, map[string]string{
+				"id":  tt.ID,
+				"cid": tt.CID,
+			})
+			s.ReplaceDashboardCell(tt.w, tt.r)
+			got := tt.w.Body.String()
+			if got != tt.want {
+				t.Errorf("ReplaceDashboardCell() = got/want\n%s\n%s\n", got, tt.want)
+			}
+		})
+	}
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func Test_newCellResponses(t *testing.T) {
+	tests := []struct {
+		name   string
+		dID    chronograf.DashboardID
+		dcells []chronograf.DashboardCell
+		want   []dashboardCellResponse
+	}{
+		{
+			name: "foo",
+			dID:  chronograf.DashboardID(1),
+			dcells: []chronograf.DashboardCell{
+				chronograf.DashboardCell{
+					ID:   "445f8dc0-4d73-4168-8477-f628690d18a3",
+					X:    0,
+					Y:    0,
+					W:    4,
+					H:    4,
+					Name: "Untitled Cell",
+					Queries: []chronograf.DashboardQuery{
+						{
+							Command: "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)",
+							Label:   "",
+							QueryConfig: chronograf.QueryConfig{
+								ID:              "8d5ec6da-13a5-423e-9026-7bc45649766c",
+								Database:        "telegraf",
+								Measurement:     "cpu",
+								RetentionPolicy: "autogen",
+								Fields: []chronograf.Field{
+									{
+										Value: "mean",
+										Type:  "func",
+										Alias: "mean_usage_user",
+										Args: []chronograf.Field{
+											{
+												Value: "usage_user",
+												Type:  "field",
+												Alias: "",
+											},
+										},
+									},
+								},
+								Tags: map[string][]string{"cpu": []string{"ChristohersMBP2.lan"}},
+								GroupBy: chronograf.GroupBy{
+									Time: "2s",
+								},
+								AreTagsAccepted: true,
+								Fill:            "null",
+								RawText:         strPtr("SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)"),
+								Range: &chronograf.DurationRange{
+									Lower: "now() - 15m",
+								},
+							},
+							Source: "",
+						},
+					},
+					Axes: map[string]chronograf.Axis{
+						"x":  chronograf.Axis{},
+						"y":  chronograf.Axis{},
+						"y2": chronograf.Axis{},
+					},
+					Type: "line",
+					CellColors: []chronograf.CellColor{
+						chronograf.CellColor{ID: "0", Type: "min", Hex: "#00C9FF", Name: "laser", Value: "0"},
+						chronograf.CellColor{ID: "1", Type: "max", Hex: "#9394FF", Name: "comet", Value: "100"},
+					},
+				},
+			},
+			want: []dashboardCellResponse{
+				{
+					DashboardCell: chronograf.DashboardCell{
+						ID:   "445f8dc0-4d73-4168-8477-f628690d18a3",
+						W:    4,
+						H:    4,
+						Name: "Untitled Cell",
+						Queries: []chronograf.DashboardQuery{
+							{
+								Command: "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)",
+								QueryConfig: chronograf.QueryConfig{
+									ID:              "8d5ec6da-13a5-423e-9026-7bc45649766c",
+									Database:        "telegraf",
+									Measurement:     "cpu",
+									RetentionPolicy: "autogen",
+									Fields: []chronograf.Field{
+										{
+											Value: "mean",
+											Type:  "func",
+											Alias: "mean_usage_user",
+											Args: []chronograf.Field{
+												{
+													Value: "usage_user",
+													Type:  "field",
+												},
+											},
+										},
+									},
+									Tags: map[string][]string{"cpu": {"ChristohersMBP2.lan"}},
+									GroupBy: chronograf.GroupBy{
+										Time: "2s",
+									},
+									AreTagsAccepted: true,
+									Fill:            "null",
+									RawText:         strPtr("SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time > :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)"),
+									Range: &chronograf.DurationRange{
+										Lower: "now() - 15m",
+									},
+								},
+							},
+						},
+						Axes: map[string]chronograf.Axis{
+							"x":  {},
+							"y":  {},
+							"y2": {},
+						},
+						Type: "line",
+						CellColors: []chronograf.CellColor{
+							{
+								ID:    "0",
+								Type:  "min",
+								Hex:   "#00C9FF",
+								Name:  "laser",
+								Value: "0",
+							},
+							{
+								ID:    "1",
+								Type:  "max",
+								Hex:   "#9394FF",
+								Name:  "comet",
+								Value: "100",
+							},
+						},
+					},
+					Links: dashboardCellLinks{
+						Self: "/chronograf/v1/dashboards/1/cells/445f8dc0-4d73-4168-8477-f628690d18a3"},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := newCellResponses(tt.dID, tt.dcells); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("newCellResponses() = got-/want+ %s", cmp.Diff(got, tt.want))
 			}
 		})
 	}
