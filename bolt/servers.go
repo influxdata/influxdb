@@ -2,7 +2,6 @@ package bolt
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
@@ -32,11 +31,9 @@ func (s *ServersStore) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
-
 	for _, server := range servers {
 		if server.Organization == "" {
-			server.Organization = defaultOrgID
+			server.Organization = defaultOrg.ID
 			if err := s.Update(ctx, server); err != nil {
 				return nil
 			}

@@ -2,7 +2,6 @@ package bolt
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
@@ -32,11 +31,9 @@ func (s *SourcesStore) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
-
 	for _, source := range sources {
 		if source.Organization == "" {
-			source.Organization = defaultOrgID
+			source.Organization = defaultOrg.ID
 		}
 		if source.Role == "" {
 			source.Role = roles.ViewerRoleName

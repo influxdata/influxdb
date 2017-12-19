@@ -1,4 +1,4 @@
-package layouts
+package multistore
 
 import (
 	"context"
@@ -6,15 +6,15 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-// MultiLayoutsStore is a LayoutsStore that contains multiple LayoutsStores
+// Layouts is a LayoutsStore that contains multiple LayoutsStores
 // The All method will return the set of all Layouts.
 // Each method will be tried against the Stores slice serially.
-type MultiLayoutsStore struct {
+type Layouts struct {
 	Stores []chronograf.LayoutsStore
 }
 
 // All returns the set of all layouts
-func (s *MultiLayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) {
+func (s *Layouts) All(ctx context.Context) ([]chronograf.Layout, error) {
 	all := []chronograf.Layout{}
 	layoutSet := map[string]chronograf.Layout{}
 	ok := false
@@ -43,7 +43,7 @@ func (s *MultiLayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error
 }
 
 // Add creates a new dashboard in the LayoutsStore.  Tries each store sequentially until success.
-func (s *MultiLayoutsStore) Add(ctx context.Context, layout chronograf.Layout) (chronograf.Layout, error) {
+func (s *Layouts) Add(ctx context.Context, layout chronograf.Layout) (chronograf.Layout, error) {
 	var err error
 	for _, store := range s.Stores {
 		var l chronograf.Layout
@@ -57,7 +57,7 @@ func (s *MultiLayoutsStore) Add(ctx context.Context, layout chronograf.Layout) (
 
 // Delete the dashboard from the store.  Searches through all stores to find Layout and
 // then deletes from that store.
-func (s *MultiLayoutsStore) Delete(ctx context.Context, layout chronograf.Layout) error {
+func (s *Layouts) Delete(ctx context.Context, layout chronograf.Layout) error {
 	var err error
 	for _, store := range s.Stores {
 		err = store.Delete(ctx, layout)
@@ -69,7 +69,7 @@ func (s *MultiLayoutsStore) Delete(ctx context.Context, layout chronograf.Layout
 }
 
 // Get retrieves Layout if `ID` exists.  Searches through each store sequentially until success.
-func (s *MultiLayoutsStore) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
+func (s *Layouts) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
 	var err error
 	for _, store := range s.Stores {
 		var l chronograf.Layout
@@ -82,7 +82,7 @@ func (s *MultiLayoutsStore) Get(ctx context.Context, ID string) (chronograf.Layo
 }
 
 // Update the dashboard in the store.  Searches through each store sequentially until success.
-func (s *MultiLayoutsStore) Update(ctx context.Context, layout chronograf.Layout) error {
+func (s *Layouts) Update(ctx context.Context, layout chronograf.Layout) error {
 	var err error
 	for _, store := range s.Stores {
 		err = store.Update(ctx, layout)

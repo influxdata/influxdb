@@ -7,7 +7,7 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/uuid"
+	idgen "github.com/influxdata/chronograf/id"
 )
 
 const (
@@ -214,7 +214,7 @@ func (s *Service) NewDashboardCell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ids := uuid.V4{}
+	ids := &idgen.UUID{}
 	cid, err := ids.Generate()
 	if err != nil {
 		msg := fmt.Sprintf("Error creating cell ID of dashboard %d: %v", id, err)

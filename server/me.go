@@ -96,12 +96,7 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 		}
 
 		// validate that the organization exists
-		orgID, err := parseOrganizationID(req.Organization)
-		if err != nil {
-			Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
-			return
-		}
-		_, err = s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
+		_, err = s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &req.Organization})
 		if err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
@@ -121,7 +116,7 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 				unknownErrorWithMessage(w, err, s.Logger)
 				return
 			}
-			p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
+			p.Organization = defaultOrg.ID
 		}
 		scheme, err := getScheme(ctx)
 		if err != nil {
@@ -212,7 +207,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
-		p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
+		p.Organization = defaultOrg.ID
 	}
 
 	usr, err := s.Store.Users(serverCtx).Get(serverCtx, chronograf.UserQuery{
@@ -236,7 +231,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		if defaultOrg.Public || usr.SuperAdmin == true {
 			// If the default organization is public, or the user is a super admin
 			// they will always have a role in the default organization
-			defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+			defaultOrgID := defaultOrg.ID
 			if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
 				usr.Roles = append(usr.Roles, chronograf.Role{
 					Organization: defaultOrgID,
@@ -254,12 +249,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 			return
 		}
-		orgID, err := parseOrganizationID(p.Organization)
-		if err != nil {
-			unknownErrorWithMessage(w, err, s.Logger)
-			return
-		}
-		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
+		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 		if err == chronograf.ErrOrganizationNotFound {
 			// The intent is to force a the user to go through another auth flow
 			Error(w, http.StatusForbidden, "user's current organization was not found", s.Logger)
@@ -301,7 +291,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			{
 				Name: defaultOrg.DefaultRole,
 				// This is the ID of the default organization
-				Organization: fmt.Sprintf("%d", defaultOrg.ID),
+				Organization: defaultOrg.ID,
 			},
 		},
 		// TODO(desa): this needs a better name
@@ -320,12 +310,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
-	orgID, err := parseOrganizationID(p.Organization)
-	if err != nil {
-		unknownErrorWithMessage(w, err, s.Logger)
-		return
-	}
-	currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
+	currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 	if err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
@@ -376,8 +361,7 @@ func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([
 
 	orgs := []chronograf.Organization{}
 	for orgID, _ := range orgIDs {
-		id, err := parseOrganizationID(orgID)
-		org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
+		org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
 		if err != nil {
 			return nil, err
 		}

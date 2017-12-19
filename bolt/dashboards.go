@@ -2,7 +2,6 @@ package bolt
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/boltdb/bolt"
@@ -64,11 +63,9 @@ func (d *DashboardsStore) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
-
 	for _, board := range boards {
 		if board.Organization == "" {
-			board.Organization = defaultOrgID
+			board.Organization = defaultOrg.ID
 			if err := d.Update(ctx, board); err != nil {
 				return nil
 			}

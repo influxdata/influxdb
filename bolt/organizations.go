@@ -13,12 +13,14 @@ import (
 // Ensure OrganizationsStore implements chronograf.OrganizationsStore.
 var _ chronograf.OrganizationsStore = &OrganizationsStore{}
 
-// OrganizationsBucket is the bucket where organizations are stored.
-var OrganizationsBucket = []byte("OrganizationsV1")
+var (
+	// OrganizationsBucket is the bucket where organizations are stored.
+	OrganizationsBucket = []byte("OrganizationsV1")
+	// DefaultOrganizationID is the ID of the default organization.
+	DefaultOrganizationID = []byte("default")
+)
 
 const (
-	// DefaultOrganizationID is the ID of the default organization.
-	DefaultOrganizationID uint64 = 0
 	// DefaultOrganizationName is the Name of the default organization
 	DefaultOrganizationName string = "Default"
 	// DefaultOrganizationRole is the DefaultRole for the Default organization
@@ -40,20 +42,20 @@ func (s *OrganizationsStore) Migrate(ctx context.Context) error {
 // CreateDefault does a findOrCreate on the default organization
 func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 	o := chronograf.Organization{
-		ID:          DefaultOrganizationID,
+		ID:          string(DefaultOrganizationID),
 		Name:        DefaultOrganizationName,
 		DefaultRole: DefaultOrganizationRole,
 		Public:      DefaultOrganizationPublic,
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
-		v := b.Get(u64tob(o.ID))
+		v := b.Get(DefaultOrganizationID)
 		if v != nil {
 			return nil
 		}
 		if v, err := internal.MarshalOrganization(&o); err != nil {
 			return err
-		} else if err := b.Put(u64tob(o.ID), v); err != nil {
+		} else if err := b.Put(DefaultOrganizationID, v); err != nil {
 			return err
 		}
 
@@ -75,7 +77,7 @@ func (s *OrganizationsStore) nameIsUnique(ctx context.Context, name string) bool
 func (s *OrganizationsStore) DefaultOrganization(ctx context.Context) (*chronograf.Organization, error) {
 	var org chronograf.Organization
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
-		v := tx.Bucket(OrganizationsBucket).Get(u64tob(DefaultOrganizationID))
+		v := tx.Bucket(OrganizationsBucket).Get(DefaultOrganizationID)
 		return internal.UnmarshalOrganization(v, &org)
 	}); err != nil {
 		return nil, err
@@ -89,25 +91,23 @@ func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization
 	if !s.nameIsUnique(ctx, o.Name) {
 		return nil, chronograf.ErrOrganizationAlreadyExists
 	}
-	if err := s.client.db.Update(func(tx *bolt.Tx) error {
+	err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
 		seq, err := b.NextSequence()
 		if err != nil {
 			return err
 		}
-		o.ID = seq
-		if v, err := internal.MarshalOrganization(o); err != nil {
-			return err
-		} else if err := b.Put(u64tob(seq), v); err != nil {
+		o.ID = fmt.Sprintf("%d", seq)
+
+		v, err := internal.MarshalOrganization(o)
+		if err != nil {
 			return err
 		}
 
-		return nil
-	}); err != nil {
-		return nil, err
-	}
+		return b.Put([]byte(o.ID), v)
+	})
 
-	return o, nil
+	return o, err
 }
 
 // All returns all known organizations
@@ -126,7 +126,7 @@ func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization
 
 // Delete the organization from OrganizationsStore
 func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organization) error {
-	if o.ID == DefaultOrganizationID {
+	if o.ID == string(DefaultOrganizationID) {
 		return chronograf.ErrCannotDeleteDefaultOrganization
 	}
 	_, err := s.get(ctx, o.ID)
@@ -134,19 +134,18 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 		return err
 	}
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(OrganizationsBucket).Delete(u64tob(o.ID))
+		return tx.Bucket(OrganizationsBucket).Delete([]byte(o.ID))
 	}); err != nil {
 		return err
 	}
 
 	// Dependent Delete of all resources
 
-	org := fmt.Sprintf("%d", o.ID)
 	// Each of the associated organization stores expects organization to be
 	// set on the context.
-	ctx = context.WithValue(ctx, organizations.ContextKey, org)
+	ctx = context.WithValue(ctx, organizations.ContextKey, o.ID)
 
-	sourcesStore := organizations.NewSourcesStore(s.client.SourcesStore, org)
+	sourcesStore := organizations.NewSourcesStore(s.client.SourcesStore, o.ID)
 	sources, err := sourcesStore.All(ctx)
 	if err != nil {
 		return err
@@ -157,7 +156,7 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 		}
 	}
 
-	serversStore := organizations.NewServersStore(s.client.ServersStore, org)
+	serversStore := organizations.NewServersStore(s.client.ServersStore, o.ID)
 	servers, err := serversStore.All(ctx)
 	if err != nil {
 		return err
@@ -168,7 +167,7 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 		}
 	}
 
-	dashboardsStore := organizations.NewDashboardsStore(s.client.DashboardsStore, org)
+	dashboardsStore := organizations.NewDashboardsStore(s.client.DashboardsStore, o.ID)
 	dashboards, err := dashboardsStore.All(ctx)
 	if err != nil {
 		return err
@@ -179,7 +178,7 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 		}
 	}
 
-	usersStore := organizations.NewUsersStore(s.client.UsersStore, org)
+	usersStore := organizations.NewUsersStore(s.client.UsersStore, o.ID)
 	users, err := usersStore.All(ctx)
 	if err != nil {
 		return err
@@ -193,10 +192,10 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 	return nil
 }
 
-func (s *OrganizationsStore) get(ctx context.Context, id uint64) (*chronograf.Organization, error) {
+func (s *OrganizationsStore) get(ctx context.Context, id string) (*chronograf.Organization, error) {
 	var o chronograf.Organization
 	err := s.client.db.View(func(tx *bolt.Tx) error {
-		v := tx.Bucket(OrganizationsBucket).Get(u64tob(id))
+		v := tx.Bucket(OrganizationsBucket).Get([]byte(id))
 		if v == nil {
 			return chronograf.ErrOrganizationNotFound
 		}
@@ -221,7 +220,6 @@ func (s *OrganizationsStore) each(ctx context.Context, fn func(*chronograf.Organ
 			return nil
 		})
 	})
-	return nil
 }
 
 // Get returns a Organization if the id exists.
@@ -270,7 +268,7 @@ func (s *OrganizationsStore) Update(ctx context.Context, o *chronograf.Organizat
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		if v, err := internal.MarshalOrganization(o); err != nil {
 			return err
-		} else if err := tx.Bucket(OrganizationsBucket).Put(u64tob(o.ID), v); err != nil {
+		} else if err := tx.Bucket(OrganizationsBucket).Put([]byte(o.ID), v); err != nil {
 			return err
 		}
 		return nil

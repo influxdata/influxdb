@@ -2,7 +2,6 @@ package bolt_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -301,9 +300,7 @@ func TestUsersStore_Delete(t *testing.T) {
 		s := client.UsersStore
 
 		if tt.addFirst {
-			var err error
-			tt.args.user, err = s.Add(tt.args.ctx, tt.args.user)
-			fmt.Println(err)
+			tt.args.user, _ = s.Add(tt.args.ctx, tt.args.user)
 		}
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)

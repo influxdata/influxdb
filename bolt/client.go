@@ -10,7 +10,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/uuid"
+	"github.com/influxdata/chronograf/id"
 )
 
 const (
@@ -51,11 +51,11 @@ func NewClient() *Client {
 	c.ServersStore = &ServersStore{client: c}
 	c.LayoutsStore = &LayoutsStore{
 		client: c,
-		IDs:    &uuid.V4{},
+		IDs:    &id.UUID{},
 	}
 	c.DashboardsStore = &DashboardsStore{
 		client: c,
-		IDs:    &uuid.V4{},
+		IDs:    &id.UUID{},
 	}
 	c.UsersStore = &UsersStore{client: c}
 	c.OrganizationsStore = &OrganizationsStore{client: c}
