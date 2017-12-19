@@ -1,8 +1,6 @@
 package server
 
 import (
-	"context"
-
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/canned"
 	"github.com/influxdata/chronograf/filestore"
@@ -94,7 +92,6 @@ type MultiSourceBuilder struct {
 func (fs *MultiSourceBuilder) Build(db chronograf.SourcesStore) (*multistore.SourcesStore, error) {
 	// These dashboards are those handled from a directory
 	files := filestore.NewSources(fs.Path, fs.ID, fs.Logger)
-	xs, err := files.All(context.Background())
 
 	stores := []chronograf.SourcesStore{db, files}
 
