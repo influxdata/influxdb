@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -341,7 +340,6 @@ func TestStore_OrganizationsAdd(t *testing.T) {
 			fields: fields{
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
-						fmt.Println(*q.ID)
 						return &chronograf.Organization{
 							ID:          "22",
 							Name:        "my sweet name",
