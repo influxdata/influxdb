@@ -816,9 +816,10 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 		return nil
 	}
 
-	var reason string
-	var dropped int
-	var droppedKeys map[string]struct{}
+	var (
+		reason      string
+		droppedKeys [][]byte
+	)
 
 	// Ensure that no tags go over the maximum cardinality.
 	if maxValuesPerTag := idx.opt.Config.MaxValuesPerTag; maxValuesPerTag > 0 {
@@ -839,19 +840,19 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 					continue
 				}
 
-				dropped++
-				reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-					n, maxValuesPerTag, name, string(tag.Key), string(tag.Value))
-
-				if droppedKeys == nil {
-					droppedKeys = make(map[string]struct{})
+				if reason == "" {
+					reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
+						n, maxValuesPerTag, name, string(tag.Key), string(tag.Value))
 				}
-				droppedKeys[string(keys[i])] = struct{}{}
+
+				droppedKeys = append(droppedKeys, keys[i])
 				continue outer
 			}
 
 			// Increment success count if all checks complete.
-			keys[n], names[n], tagsSlice[n] = keys[i], names[i], tagsSlice[i]
+			if n != i {
+				keys[n], names[n], tagsSlice[n] = keys[i], names[i], tagsSlice[i]
+			}
 			n++
 		}
 
@@ -862,12 +863,11 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 	// Write
 	for i := range keys {
 		if err := idx.CreateSeriesIfNotExists(keys[i], names[i], tagsSlice[i]); err == errMaxSeriesPerDatabaseExceeded {
-			dropped++
-			reason = fmt.Sprintf("max-series-per-database limit exceeded: (%d)", idx.opt.Config.MaxSeriesPerDatabase)
-			if droppedKeys == nil {
-				droppedKeys = make(map[string]struct{})
+			if reason == "" {
+				reason = fmt.Sprintf("max-series-per-database limit exceeded: (%d)", idx.opt.Config.MaxSeriesPerDatabase)
 			}
-			droppedKeys[string(keys[i])] = struct{}{}
+
+			droppedKeys = append(droppedKeys, keys[i])
 			continue
 		} else if err != nil {
 			return err
@@ -875,7 +875,9 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 	}
 
 	// Report partial writes back to shard.
-	if dropped > 0 {
+	if len(droppedKeys) > 0 {
+		dropped := len(droppedKeys) // number dropped before deduping
+		bytesutil.SortDedup(droppedKeys)
 		return &tsdb.PartialWriteError{
 			Reason:      reason,
 			Dropped:     dropped,

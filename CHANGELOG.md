@@ -1,3 +1,9 @@
+## v1.3.9 [unreleased]
+
+### Bugfixes
+
+- [#9242](https://github.com/influxdata/influxdb/pull/9242): Improve performance when writes exceed `max-values-per-tag` or `max-series`.
+
 ## v1.3.8 [2017-12-04]
 
 ### Bugfixes
