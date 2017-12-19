@@ -32,7 +32,7 @@ func TestSeriesFile_Series(t *testing.T) {
 
 	// Verify all series exist.
 	for i, s := range series {
-		if offset := sfile.Offset(s.Name, s.Tags, nil); offset == 0 {
+		if seriesID := sfile.SeriesID(s.Name, s.Tags, nil); seriesID == 0 {
 			t.Fatalf("series does not exist: i=%d", i)
 		}
 	}

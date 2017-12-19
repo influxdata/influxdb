@@ -539,7 +539,7 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 		name, tags := models.ParseKey(key)
 
 		mname := []byte(name)
-		seriesID := i.sfile.Offset(mname, tags, nil)
+		seriesID := i.sfile.SeriesID(mname, tags, nil)
 
 		if err := i.sfile.DeleteSeriesID(seriesID); err != nil {
 			return err
