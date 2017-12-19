@@ -54,6 +54,586 @@ func TestServer(t *testing.T) {
 		wants   wants
 	}{
 		{
+			name:    "GET /organizations",
+			subName: "Get all organizations; including Canned organization",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "Default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/organizations",
+				principal: oauth2.Principal{
+					Organization: "Default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/organizations"
+  },
+  "organizations": [
+    {
+      "links": {
+        "self": "/chronograf/v1/organizations/Default"
+      },
+      "id": "Default",
+      "name": "Default",
+      "defaultRole": "member",
+      "public": true
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/organizations/howdy"
+      },
+      "id": "howdy",
+      "name": "An Organization",
+      "defaultRole": "viewer",
+      "public": false
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:    "GET /organizations/howdy",
+			subName: "Get specific organizations; Canned organization",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "Default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/organizations/howdy",
+				principal: oauth2.Principal{
+					Organization: "Default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/organizations/howdy"
+  },
+  "id": "howdy",
+  "name": "An Organization",
+  "defaultRole": "viewer",
+  "public": false
+}`,
+			},
+		},
+		{
+			name:    "GET /dashboards/1000",
+			subName: "Get specific in the default organization; Using Canned testdata",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "Default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/dashboards/1000",
+				principal: oauth2.Principal{
+					Organization: "Default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "id": 1000,
+  "cells": [
+    {
+      "i": "8f61c619-dd9b-4761-8aa8-577f27247093",
+      "x": 0,
+      "y": 0,
+      "w": 11,
+      "h": 5,
+      "name": "Untitled Cell",
+      "queries": [
+        {
+          "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time > :dashboardTime: GROUP BY :interval: FILL(null)",
+          "queryConfig": {
+            "database": "telegraf",
+            "measurement": "cpg",
+            "retentionPolicy": "autogen",
+            "fields": [
+              {
+                "value": "mean",
+                "type": "func",
+                "alias": "mean_value",
+                "args": [
+                  {
+                    "value": "value",
+                    "type": "field",
+                    "alias": ""
+                  }
+                ]
+              }
+            ],
+            "tags": {},
+            "groupBy": {
+              "time": "auto",
+              "tags": []
+            },
+            "areTagsAccepted": false,
+            "fill": "null",
+            "rawText": null,
+            "range": null,
+            "shifts": null
+          },
+          "source": "/chronograf/v1/sources/2"
+        }
+      ],
+      "axes": {
+        "x": {
+          "bounds": [],
+          "label": "",
+          "prefix": "",
+          "suffix": "",
+          "base": "10",
+          "scale": "linear"
+        },
+        "y": {
+          "bounds": [],
+          "label": "",
+          "prefix": "",
+          "suffix": "",
+          "base": "10",
+          "scale": "linear"
+        },
+        "y2": {
+          "bounds": [],
+          "label": "",
+          "prefix": "",
+          "suffix": "",
+          "base": "10",
+          "scale": "linear"
+        }
+      },
+      "type": "line",
+      "colors": [
+        {
+          "id": "0",
+          "type": "min",
+          "hex": "#00C9FF",
+          "name": "laser",
+          "value": "0"
+        },
+        {
+          "id": "1",
+          "type": "max",
+          "hex": "#9394FF",
+          "name": "comet",
+          "value": "100"
+        }
+      ],
+      "links": {
+        "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
+      }
+    }
+  ],
+  "templates": [
+    {
+      "tempVar": ":dbs:",
+      "values": [
+        {
+          "value": "_internal",
+          "type": "database",
+          "selected": true
+        },
+        {
+          "value": "telegraf",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "tensorflowdb",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "pushgateway",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "node_exporter",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "mydb",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "tiny",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "blah",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "test",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "chronograf",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "db_name",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "demo",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "eeg",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "solaredge",
+          "type": "database",
+          "selected": false
+        },
+        {
+          "value": "zipkin",
+          "type": "database",
+          "selected": false
+        }
+      ],
+      "id": "e7e498bf-5869-4874-9071-24628a2cda63",
+      "type": "databases",
+      "label": "",
+      "query": {
+        "influxql": "SHOW DATABASES",
+        "measurement": "",
+        "tagKey": "",
+        "fieldKey": ""
+      },
+      "links": {
+        "self": "/chronograf/v1/dashboards/1000/templates/e7e498bf-5869-4874-9071-24628a2cda63"
+      }
+    }
+  ],
+  "name": "Name This Dashboard",
+  "organization": "Default",
+  "links": {
+    "self": "/chronograf/v1/dashboards/1000",
+    "cells": "/chronograf/v1/dashboards/1000/cells",
+    "templates": "/chronograf/v1/dashboards/1000/templates"
+  }
+}`,
+			},
+		},
+		{
+			name:    "GET /dashboards",
+			subName: "Get all dashboards in the default organization; Using Canned testdata",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "Default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/dashboards",
+				principal: oauth2.Principal{
+					Organization: "Default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "dashboards": [
+    {
+      "id": 1000,
+      "cells": [
+        {
+          "i": "8f61c619-dd9b-4761-8aa8-577f27247093",
+          "x": 0,
+          "y": 0,
+          "w": 11,
+          "h": 5,
+          "name": "Untitled Cell",
+          "queries": [
+            {
+              "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time > :dashboardTime: GROUP BY :interval: FILL(null)",
+              "queryConfig": {
+                "database": "telegraf",
+                "measurement": "cpg",
+                "retentionPolicy": "autogen",
+                "fields": [
+                  {
+                    "value": "mean",
+                    "type": "func",
+                    "alias": "mean_value",
+                    "args": [
+                      {
+                        "value": "value",
+                        "type": "field",
+                        "alias": ""
+                      }
+                    ]
+                  }
+                ],
+                "tags": {},
+                "groupBy": {
+                  "time": "auto",
+                  "tags": []
+                },
+                "areTagsAccepted": false,
+                "fill": "null",
+                "rawText": null,
+                "range": null,
+                "shifts": null
+              },
+              "source": "/chronograf/v1/sources/2"
+            }
+          ],
+          "axes": {
+            "x": {
+              "bounds": [],
+              "label": "",
+              "prefix": "",
+              "suffix": "",
+              "base": "10",
+              "scale": "linear"
+            },
+            "y": {
+              "bounds": [],
+              "label": "",
+              "prefix": "",
+              "suffix": "",
+              "base": "10",
+              "scale": "linear"
+            },
+            "y2": {
+              "bounds": [],
+              "label": "",
+              "prefix": "",
+              "suffix": "",
+              "base": "10",
+              "scale": "linear"
+            }
+          },
+          "type": "line",
+          "colors": [
+            {
+              "id": "0",
+              "type": "min",
+              "hex": "#00C9FF",
+              "name": "laser",
+              "value": "0"
+            },
+            {
+              "id": "1",
+              "type": "max",
+              "hex": "#9394FF",
+              "name": "comet",
+              "value": "100"
+            }
+          ],
+          "links": {
+            "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
+          }
+        }
+      ],
+      "templates": [
+        {
+          "tempVar": ":dbs:",
+          "values": [
+            {
+              "value": "_internal",
+              "type": "database",
+              "selected": true
+            },
+            {
+              "value": "telegraf",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "tensorflowdb",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "pushgateway",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "node_exporter",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "mydb",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "tiny",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "blah",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "test",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "chronograf",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "db_name",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "demo",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "eeg",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "solaredge",
+              "type": "database",
+              "selected": false
+            },
+            {
+              "value": "zipkin",
+              "type": "database",
+              "selected": false
+            }
+          ],
+          "id": "e7e498bf-5869-4874-9071-24628a2cda63",
+          "type": "databases",
+          "label": "",
+          "query": {
+            "influxql": "SHOW DATABASES",
+            "measurement": "",
+            "tagKey": "",
+            "fieldKey": ""
+          },
+          "links": {
+            "self": "/chronograf/v1/dashboards/1000/templates/e7e498bf-5869-4874-9071-24628a2cda63"
+          }
+        }
+      ],
+      "name": "Name This Dashboard",
+      "organization": "Default",
+      "links": {
+        "self": "/chronograf/v1/dashboards/1000",
+        "cells": "/chronograf/v1/dashboards/1000/cells",
+        "templates": "/chronograf/v1/dashboards/1000/templates"
+      }
+    }
+  ]
+}`,
+			},
+		},
+		{
 			name:    "GET /users",
 			subName: "User Not Found in the Default Organization",
 			fields: fields{
@@ -67,7 +647,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "Default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -567,6 +1147,9 @@ func TestServer(t *testing.T) {
 			host, port := hostAndPort()
 			tt.args.server.Host = host
 			tt.args.server.Port = port
+
+			// Use testdata directory for the canned data
+			tt.args.server.CannedPath = "testdata"
 
 			// This is so that we can use staticly generate jwts
 			tt.args.server.TokenSecret = "secret"
