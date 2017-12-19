@@ -10,7 +10,7 @@ import {
   editUser,
   editRole,
   editDatabase,
-  editRetentionPolicy,
+  editRetentionPolicyRequested,
   loadRoles,
   loadPermissions,
   deleteRole,
@@ -203,7 +203,10 @@ describe('Admin.InfluxDB.Reducers', () => {
 
     it('can edit a retention policy', () => {
       const updates = {name: 'rpOne', duration: '100y', replication: '42'}
-      const actual = reducer(state, editRetentionPolicy(db1, rp1, updates))
+      const actual = reducer(
+        state,
+        editRetentionPolicyRequested(db1, rp1, updates)
+      )
       const expected = [{...db1, retentionPolicies: [{...rp1, ...updates}]}]
 
       expect(actual.databases).to.deep.equal(expected)
