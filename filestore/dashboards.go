@@ -47,10 +47,11 @@ func dashboardFile(dir string, dashboard chronograf.Dashboard) string {
 }
 
 func load(name string, resource interface{}) error {
-	octets, err := ioutil.ReadFile(name)
+	octets, err := templatedFromEnv(name)
 	if err != nil {
 		return fmt.Errorf("resource %s not found", name)
 	}
+
 	return json.Unmarshal(octets, resource)
 }
 
