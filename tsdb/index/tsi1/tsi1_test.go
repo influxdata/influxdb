@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -295,7 +296,13 @@ func NewSeriesFile() *SeriesFile {
 	}
 	file.Close()
 
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+	s := &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
+	// can address is in memory.
+	if runtime.GOARCH == "386" {
+		s.SeriesFile.MaxSize = 1 << 27 // 128MB
+	}
+	return s
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.

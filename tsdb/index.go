@@ -1368,9 +1368,12 @@ func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byt
 		return true
 	}
 
-	// TODO(edd) there isn't a need to return an error when instantiating the iterator.
-	sitr, _ := is.MeasurementSeriesIDIterator(name)
+	sitr, err := is.MeasurementSeriesIDIterator(name)
+	if err != nil || sitr == nil {
+		return false
+	}
 	defer sitr.Close()
+
 	for {
 		series, err := sitr.Next()
 		if err != nil {
@@ -1504,7 +1507,7 @@ func (is IndexSet) MeasurementSeriesIDIterator(name []byte) (SeriesIDIterator, e
 			a = append(a, itr)
 		}
 	}
-	return MergeSeriesIDIterators(a...), nil
+	return FilterUndeletedSeriesIDIterator(is.SeriesFile, MergeSeriesIDIterators(a...)), nil
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement and applies
@@ -1559,7 +1562,7 @@ func (is IndexSet) TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, e
 			a = append(a, itr)
 		}
 	}
-	return MergeSeriesIDIterators(a...), nil
+	return FilterUndeletedSeriesIDIterator(is.SeriesFile, MergeSeriesIDIterators(a...)), nil
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
@@ -1574,7 +1577,7 @@ func (is IndexSet) TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIt
 			a = append(a, itr)
 		}
 	}
-	return MergeSeriesIDIterators(a...), nil
+	return FilterUndeletedSeriesIDIterator(is.SeriesFile, MergeSeriesIDIterators(a...)), nil
 }
 
 // MeasurementSeriesByExprIterator returns a series iterator for a measurement
@@ -1586,7 +1589,12 @@ func (is IndexSet) MeasurementSeriesByExprIterator(name []byte, expr influxql.Ex
 		return is.MeasurementSeriesIDIterator(name)
 	}
 	fieldset := is.FieldSet()
-	return is.seriesByExprIterator(name, expr, fieldset.CreateFieldsIfNotExists(name))
+
+	itr, err := is.seriesByExprIterator(name, expr, fieldset.CreateFieldsIfNotExists(name))
+	if err != nil {
+		return nil, err
+	}
+	return FilterUndeletedSeriesIDIterator(is.SeriesFile, itr), nil
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
@@ -1997,6 +2005,7 @@ func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 	} else if itr == nil {
 		return nil, nil
 	}
+	itr = FilterUndeletedSeriesIDIterator(is.SeriesFile, itr)
 	defer itr.Close()
 
 	keyIdxs := make(map[string]int, len(keys))

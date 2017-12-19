@@ -188,7 +188,10 @@ func TestIndex_DropMeasurement(t *testing.T) {
 		}
 
 		// Obtain file set to perform lower level checks.
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		// Verify tags & values are gone.
@@ -288,9 +291,9 @@ func TestIndex_Manifest(t *testing.T) {
 
 func TestIndex_DiskSizeBytes(t *testing.T) {
 	sfile := MustOpenSeriesFile()
-	// defer sfile.Close()
+	defer sfile.Close()
 	idx := MustOpenIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
-	// defer idx.Close()
+	defer idx.Close()
 
 	// Add series to index.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
@@ -301,9 +304,14 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(idx.Path())
+
 	// Verify on disk size is the same in each stage.
-	expSize := int64(520) // 419 bytes for MANIFEST and 101 bytes for index file
+	// There are four series, and each series id is 8 bytes plus one byte for the tombstone header
+	expSize := int64(4 * 9)
+
+	// Each MANIFEST file is 419 bytes and there are tsi1.DefaultPartitionN of them
+	expSize += int64(tsi1.DefaultPartitionN * 419)
+
 	idx.Run(t, func(t *testing.T) {
 		if got, exp := idx.DiskSizeBytes(), expSize; got != exp {
 			t.Fatalf("got %d bytes, expected %d", got, exp)

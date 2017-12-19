@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -561,7 +562,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	for _, name := range mnames {
-		if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
+		if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil, true); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -769,7 +770,7 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 
 // Creates a large number of series in multiple shards, which will force
 // compactions to occur.
-func testStoreCardinalityCompactions(t *testing.T, store *Store) {
+func testStoreCardinalityCompactions(store *Store) error {
 
 	// Generate point data to write to the shards.
 	series := genTestSeries(300, 5, 5) // 937,500 series
@@ -784,44 +785,43 @@ func testStoreCardinalityCompactions(t *testing.T, store *Store) {
 	// shards such that we never write the same series to multiple shards.
 	for shardID := 0; shardID < 2; shardID++ {
 		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
-			t.Fatalf("create shard: %s", err)
+			return fmt.Errorf("create shard: %s", err)
 		}
 		if err := store.BatchWrite(shardID, points[shardID*468750:(shardID+1)*468750]); err != nil {
-			t.Fatalf("batch write: %s", err)
+			return fmt.Errorf("batch write: %s", err)
 		}
 	}
 
 	// Estimate the series cardinality...
 	cardinality, err := store.Store.SeriesCardinality("db")
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	// Estimated cardinality should be well within 1.5% of the actual cardinality.
 	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
-		t.Errorf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
+		return fmt.Errorf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
 	}
 
 	// Estimate the measurement cardinality...
 	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	// Estimated cardinality should be well within 2 of the actual cardinality. (Arbitrary...)
 	expCardinality = 300
 	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
-		t.Errorf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
+		return fmt.Errorf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
 	}
+	return nil
 }
 
 func TestStore_Cardinality_Compactions(t *testing.T) {
-	t.Parallel()
-
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
-	test := func(index string) {
+	test := func(index string) error {
 		store := NewStore()
 		store.EngineOptions.Config.Index = "inmem"
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
@@ -829,11 +829,15 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 			panic(err)
 		}
 		defer store.Close()
-		testStoreCardinalityCompactions(t, store)
+		return testStoreCardinalityCompactions(store)
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -1010,6 +1014,36 @@ func TestStore_Measurements_Auth(t *testing.T) {
 		if gotNames != expNames {
 			return fmt.Errorf("got %d measurements, but expected %d", gotNames, expNames)
 		}
+
+		// Now delete all of the cpu series.
+		cond, err := influxql.ParseExpr("host = 'serverA' OR region = 'west'")
+		if err != nil {
+			return err
+		}
+
+		if err := s.DeleteSeries("db0", nil, cond, true); err != nil {
+			return err
+		}
+
+		if names, err = s.MeasurementNames(authorizer, "db0", nil); err != nil {
+			return err
+		}
+
+		// names should not contain any measurements where none of the associated
+		// series are authorised for reads.
+		expNames = 1
+		gotNames = 0
+		for _, name := range names {
+			if string(name) == "mem" || string(name) == "cpu" {
+				return fmt.Errorf("after delete got measurement %q but it should be filtered.", name)
+			}
+			gotNames++
+		}
+
+		if gotNames != expNames {
+			return fmt.Errorf("after delete got %d measurements, but expected %d", gotNames, expNames)
+		}
+
 		return nil
 	}
 
@@ -1020,6 +1054,7 @@ func TestStore_Measurements_Auth(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestStore_TagKeys_Auth(t *testing.T) {
@@ -1072,6 +1107,41 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 		if gotKeys != expKeys {
 			return fmt.Errorf("got %d keys, but expected %d", gotKeys, expKeys)
 		}
+
+		// Delete the series with region = west
+		cond, err := influxql.ParseExpr("region = 'west'")
+		if err != nil {
+			return err
+		}
+		if err := s.DeleteSeries("db0", nil, cond, true); err != nil {
+			return err
+		}
+
+		if keys, err = s.TagKeys(authorizer, []uint64{0}, nil); err != nil {
+			return err
+		}
+
+		// keys should not contain any tag keys associated with a series containing
+		// a secret tag or the deleted series
+		expKeys = 2
+		gotKeys = 0
+		for _, tk := range keys {
+			if got, exp := tk.Measurement, "cpu"; got != exp {
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
+			}
+
+			for _, key := range tk.Keys {
+				if key == "secret" || key == "machine" || key == "region" {
+					return fmt.Errorf("got tag key %q but it should be filtered.", key)
+				}
+				gotKeys++
+			}
+		}
+
+		if gotKeys != expKeys {
+			return fmt.Errorf("got %d keys, but expected %d", gotKeys, expKeys)
+		}
+
 		return nil
 	}
 
@@ -1082,6 +1152,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestStore_TagValues_Auth(t *testing.T) {
@@ -1130,6 +1201,48 @@ func TestStore_TagValues_Auth(t *testing.T) {
 
 			for _, v := range tv.Values {
 				if got, exp := v.Value, "serverD"; got == exp {
+					return fmt.Errorf("got tag value %q but it should be filtered.", got)
+				}
+				gotValues++
+			}
+		}
+
+		if gotValues != expValues {
+			return fmt.Errorf("got %d tags, but expected %d", gotValues, expValues)
+		}
+
+		// Delete the series with values serverA
+		cond, err := influxql.ParseExpr("host = 'serverA'")
+		if err != nil {
+			return err
+		}
+		if err := s.DeleteSeries("db0", nil, cond, true); err != nil {
+			return err
+		}
+
+		values, err = s.TagValues(authorizer, []uint64{0}, &influxql.BinaryExpr{
+			Op:  influxql.EQ,
+			LHS: &influxql.VarRef{Val: "_tagKey"},
+			RHS: &influxql.StringLiteral{Val: "host"},
+		})
+
+		if err != nil {
+			return err
+		}
+
+		// values should not contain any tag values associated with a series containing
+		// a secret tag.
+		expValues = 1
+		gotValues = 0
+		for _, tv := range values {
+			if got, exp := tv.Measurement, "cpu"; got != exp {
+				return fmt.Errorf("got measurement %q, expected %q", got, exp)
+			}
+
+			for _, v := range tv.Values {
+				if got, exp := v.Value, "serverD"; got == exp {
+					return fmt.Errorf("got tag value %q but it should be filtered.", got)
+				} else if got, exp := v.Value, "serverA"; got == exp {
 					return fmt.Errorf("got tag value %q but it should be filtered.", got)
 				}
 				gotValues++
@@ -1400,6 +1513,12 @@ func NewStore() *Store {
 	if testing.Verbose() {
 		s.WithLogger(logger.New(os.Stdout))
 	}
+
+	if runtime.GOARCH == "386" {
+		// Set the mmap size to something addressable in the process.
+		s.SeriesFileMaxSize = 1 << 27 // 128MB
+	}
+
 	return s
 }
 
@@ -1408,6 +1527,7 @@ func NewStore() *Store {
 func MustOpenStore(index string) *Store {
 	s := NewStore()
 	s.EngineOptions.IndexVersion = index
+
 	if err := s.Open(); err != nil {
 		panic(err)
 	}
@@ -1419,9 +1539,14 @@ func (s *Store) Reopen() error {
 	if err := s.Store.Close(); err != nil {
 		return err
 	}
+
+	// Keep old max series file size.
+	seriesMapSize := s.Store.SeriesFileMaxSize
+
 	s.Store = tsdb.NewStore(s.Path())
 	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
-	return s.Open()
+	s.SeriesFileMaxSize = seriesMapSize
+	return s.Store.Open()
 }
 
 // Close closes the store and removes the underlying data.

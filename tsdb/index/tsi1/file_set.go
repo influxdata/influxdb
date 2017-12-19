@@ -472,7 +472,7 @@ func (itr *fileSetSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 
 func (itr *fileSetSeriesIDIterator) Close() error {
 	itr.once.Do(func() { itr.fs.Release() })
-	return nil
+	return itr.itr.Close()
 }
 
 // fileSetMeasurementIterator attaches a fileset to an iterator that is released on close.
@@ -492,7 +492,7 @@ func (itr *fileSetMeasurementIterator) Next() ([]byte, error) {
 
 func (itr *fileSetMeasurementIterator) Close() error {
 	itr.once.Do(func() { itr.fs.Release() })
-	return nil
+	return itr.itr.Close()
 }
 
 // fileSetTagKeyIterator attaches a fileset to an iterator that is released on close.
@@ -512,7 +512,7 @@ func (itr *fileSetTagKeyIterator) Next() ([]byte, error) {
 
 func (itr *fileSetTagKeyIterator) Close() error {
 	itr.once.Do(func() { itr.fs.Release() })
-	return nil
+	return itr.itr.Close()
 }
 
 // fileSetTagValueIterator attaches a fileset to an iterator that is released on close.
@@ -532,5 +532,5 @@ func (itr *fileSetTagValueIterator) Next() ([]byte, error) {
 
 func (itr *fileSetTagValueIterator) Close() error {
 	itr.once.Do(func() { itr.fs.Release() })
-	return nil
+	return itr.itr.Close()
 }

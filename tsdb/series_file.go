@@ -31,9 +31,12 @@ const (
 	SeriesFileTombstoneFlag = 0x01
 )
 
+// MaxSeriesFileHashSize is the maximum number of series in a single hash map.
+const MaxSeriesFileHashSize = (1 << 20 * SeriesMapLoadFactor) / 100 // (1MB * 90) / 100 == ~943K
+
 // SeriesMapThreshold is the number of series IDs to hold in the in-memory
 // series map before compacting and rebuilding the on-disk representation.
-const SeriesMapThreshold = 1 << 22 // ~4M ids * 8 bytes per id == ~32MB
+const SeriesMapThreshold = 1 << 25 // ~33M ids * 8 bytes per id == 256MB
 
 const (
 	// DefaultMaxSeriesFileSize is the maximum series file size. Assuming that each

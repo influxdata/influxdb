@@ -41,12 +41,12 @@ const SeriesFileName = "series"
 
 // Store manages shards and indexes for databases.
 type Store struct {
-	mu        sync.RWMutex
-	shards    map[uint64]*Shard
-	databases map[string]struct{}
-	sfiles    map[string]*SeriesFile
-
-	path string
+	mu                sync.RWMutex
+	shards            map[uint64]*Shard
+	databases         map[string]struct{}
+	sfiles            map[string]*SeriesFile
+	SeriesFileMaxSize int64 // Determines size of series file mmap. Can be altered in tests.
+	path              string
 
 	// shared per-database indexes, only if using "inmem".
 	indexes map[string]interface{}
@@ -188,6 +188,13 @@ func (s *Store) loadShards() error {
 
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
+	// Env var to disable throughput limiter.  This will be moved to a config option in 1.5.
+	if os.Getenv("INFLUXDB_DATA_COMPACTION_THROUGHPUT") == "" {
+		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(48*1024*1024, 48*1024*1024)
+	} else {
+		s.Logger.Info("Compaction throughput limit disabled")
+	}
+
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 	resC := make(chan *res)
 	var n int
@@ -325,22 +332,48 @@ func (s *Store) Close() error {
 	}
 
 	s.mu.Lock()
+	for _, sfile := range s.sfiles {
+		// Close out the series files.
+		if err := sfile.Close(); err != nil {
+			return err
+		}
+	}
+
 	s.shards = nil
+	s.sfiles = map[string]*SeriesFile{}
 	s.opened = false // Store may now be opened again.
 	s.mu.Unlock()
 	return nil
 }
 
+// openSeriesFile either returns or creates a series file for the provided
+// database. It must be called under a full lock.
 func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 	if sfile := s.sfiles[database]; sfile != nil {
 		return sfile, nil
 	}
 
 	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileName))
+	// Set a custom mmap size if one has been specified, otherwise the default
+	// will be used.
+	if s.SeriesFileMaxSize > 0 {
+		sfile.MaxSize = s.SeriesFileMaxSize
+	}
+
 	if err := sfile.Open(); err != nil {
 		return nil, err
 	}
 	s.sfiles[database] = sfile
+	return sfile, nil
+}
+
+func (s *Store) seriesFile(database string) (*SeriesFile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sfile, ok := s.sfiles[database]
+	if !ok {
+		return nil, fmt.Errorf("no series file present for database %q", database)
+	}
 	return sfile, nil
 }
 
@@ -402,6 +435,16 @@ func (s *Store) ShardN() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.shards)
+}
+
+// ShardDigest returns a digest of the shard with the specified ID.
+func (s *Store) ShardDigest(id uint64) (io.ReadCloser, error) {
+	sh := s.Shard(id)
+	if sh == nil {
+		return nil, ErrShardNotFound
+	}
+
+	return sh.Digest()
 }
 
 // CreateShard creates a shard with the given id and retention policy on a database.
@@ -799,7 +842,12 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 	// TODO(benbjohnson): Series file will be shared by the DB.
 	var max int64
 	for _, shard := range shards {
-		if n := shard.Index().SeriesN(); n > max {
+		index, err := shard.Index()
+		if err != nil {
+			return 0, err
+		}
+
+		if n := index.SeriesN(); n > max {
 			max = n
 		}
 	}
@@ -893,7 +941,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
-func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
+func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, removeIndex bool) error {
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
 	if err != nil {
@@ -925,6 +973,9 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	defer s.mu.RUnlock()
 
 	sfile := s.sfiles[database]
+	if sfile == nil {
+		return fmt.Errorf("unable to locate series file for database: %q", database)
+	}
 	shards := s.filterShards(byDatabase(database))
 
 	// Limit to 1 delete for each shard since expanding the measurement into the list
@@ -952,7 +1003,12 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		limit.Take()
 		defer limit.Release()
 
-		indexSet := IndexSet{Indexes: []Index{sh.index}, SeriesFile: sfile}
+		index, err := sh.Index()
+		if err != nil {
+			return err
+		}
+
+		indexSet := IndexSet{Indexes: []Index{index}, SeriesFile: sfile}
 		// Find matching series keys for each measurement.
 		for _, name := range names {
 			itr, err := indexSet.MeasurementSeriesByExprIterator([]byte(name), condition)
@@ -962,8 +1018,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				continue
 			}
 			defer itr.Close()
-
-			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max); err != nil {
+			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max, removeIndex); err != nil {
 				return err
 			}
 
@@ -1018,12 +1073,19 @@ func (s *Store) MeasurementNames(auth query.Authorizer, database string, cond in
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	sfile, err := s.seriesFile(database)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build indexset.
-	is := IndexSet{Indexes: make([]Index, 0, len(shards)), SeriesFile: s.sfiles[database]}
+	is := IndexSet{Indexes: make([]Index, 0, len(shards)), SeriesFile: sfile}
 	for _, sh := range shards {
-		if sh.index != nil {
-			is.Indexes = append(is.Indexes, sh.index)
+		index, err := sh.Index()
+		if err != nil {
+			return nil, err
 		}
+		is.Indexes = append(is.Indexes, index)
 	}
 	is = is.DedupeInmemIndexes()
 	return is.MeasurementNamesByExpr(auth, cond)
@@ -1539,16 +1601,31 @@ func (s *Store) monitorShards() {
 				databases[db] = struct{}{}
 				dbLock.Unlock()
 
+				sfile, err := s.seriesFile(sh.database)
+				if err != nil {
+					return err
+				}
+
+				firstShardIndex, err := sh.Index()
+				if err != nil {
+					return err
+				}
+
+				index, err := sh.Index()
+				if err != nil {
+					return err
+				}
+
 				// inmem shards share the same index instance so just use the first one to avoid
 				// allocating the same measurements repeatedly
-				indexSet := IndexSet{Indexes: []Index{shards[0].index}, SeriesFile: s.sfiles[db]}
+				indexSet := IndexSet{Indexes: []Index{firstShardIndex}, SeriesFile: sfile}
 				names, err := indexSet.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
 					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
 					return nil
 				}
 
-				indexSet.Indexes = []Index{sh.Index()}
+				indexSet.Indexes = []Index{index}
 				for _, name := range names {
 					indexSet.ForEachMeasurementTagKey(name, func(k []byte) error {
 						n := sh.TagKeyCardinality(name, k)

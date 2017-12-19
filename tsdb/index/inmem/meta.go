@@ -55,12 +55,8 @@ func NewMeasurement(database, name string) *Measurement {
 
 // Authorized determines if this Measurement is authorized to be read, according
 // to the provided Authorizer. A measurement is authorized to be read if at
-// least one series from the measurement is authorized to be read.
+// least one undeleted series from the measurement is authorized to be read.
 func (m *Measurement) Authorized(auth query.Authorizer) bool {
-	if auth == nil {
-		return true
-	}
-
 	// Note(edd): the cost of this check scales linearly with the number of series
 	// belonging to a measurement, which means it may become expensive when there
 	// are large numbers of series on a measurement.
@@ -68,7 +64,11 @@ func (m *Measurement) Authorized(auth query.Authorizer) bool {
 	// In the future we might want to push the set of series down into the
 	// authorizer, but that will require an API change.
 	for _, s := range m.SeriesByIDMap() {
-		if auth.AuthorizeSeriesRead(m.database, m.name, s.tags) {
+		if s != nil && s.Deleted() {
+			continue
+		}
+
+		if auth == nil || auth.AuthorizeSeriesRead(m.database, m.name, s.tags) {
 			return true
 		}
 	}

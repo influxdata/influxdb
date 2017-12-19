@@ -45,7 +45,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 
 			// Remove series.
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
 				t.Fatalf("failed to delete series: %s", err.Error())
 			}
 
@@ -63,6 +63,145 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Ensure that the engine can write & read shard digest files.
+func TestEngine_Digest(t *testing.T) {
+	e := MustOpenEngine(inmem.IndexName)
+	defer e.Close()
+
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+
+	// Create a few points.
+	points := []models.Point{
+		MustParsePointString("cpu,host=A value=1.1 1000000000"),
+		MustParsePointString("cpu,host=B value=1.2 2000000000"),
+	}
+
+	if err := e.WritePoints(points); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// Force a compaction.
+	e.ScheduleFullCompaction()
+
+	digest := func() ([]span, error) {
+		// Get a reader for the shard's digest.
+		r, err := e.Digest()
+		if err != nil {
+			return nil, err
+		}
+
+		// Make sure the digest can be read.
+		dr, err := tsm1.NewDigestReader(r)
+		if err != nil {
+			r.Close()
+			return nil, err
+		}
+		defer dr.Close()
+
+		got := []span{}
+
+		for {
+			k, s, err := dr.ReadTimeSpan()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+
+			got = append(got, span{
+				key:   k,
+				tspan: s,
+			})
+		}
+
+		return got, nil
+	}
+
+	exp := []span{
+		span{
+			key: "cpu,host=A#!~#value",
+			tspan: &tsm1.DigestTimeSpan{
+				Ranges: []tsm1.DigestTimeRange{
+					tsm1.DigestTimeRange{
+						Min: 1000000000,
+						Max: 1000000000,
+						N:   1,
+						CRC: 1048747083,
+					},
+				},
+			},
+		},
+		span{
+			key: "cpu,host=B#!~#value",
+			tspan: &tsm1.DigestTimeSpan{
+				Ranges: []tsm1.DigestTimeRange{
+					tsm1.DigestTimeRange{
+						Min: 2000000000,
+						Max: 2000000000,
+						N:   1,
+						CRC: 734984746,
+					},
+				},
+			},
+		},
+	}
+
+	for n := 0; n < 2; n++ {
+		got, err := digest()
+		if err != nil {
+			t.Fatalf("n = %d: %s", n, err)
+		}
+
+		// Make sure the data in the digest was valid.
+		if !reflect.DeepEqual(exp, got) {
+			t.Fatalf("n = %d\nexp = %v\ngot = %v\n", n, exp, got)
+		}
+	}
+
+	// Test that writing more points causes the digest to be updated.
+	points = []models.Point{
+		MustParsePointString("cpu,host=C value=1.1 3000000000"),
+	}
+
+	if err := e.WritePoints(points); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// Force a compaction.
+	e.ScheduleFullCompaction()
+
+	// Get new digest.
+	got, err := digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exp = append(exp, span{
+		key: "cpu,host=C#!~#value",
+		tspan: &tsm1.DigestTimeSpan{
+			Ranges: []tsm1.DigestTimeRange{
+				tsm1.DigestTimeRange{
+					Min: 3000000000,
+					Max: 3000000000,
+					N:   1,
+					CRC: 2553233514,
+				},
+			},
+		},
+	})
+
+	if !reflect.DeepEqual(exp, got) {
+		t.Fatalf("\nexp = %v\ngot = %v\n", exp, got)
+	}
+}
+
+type span struct {
+	key   string
+	tspan *tsm1.DigestTimeSpan
 }
 
 // Ensure that the engine will backup any TSM files created since the passed in time
@@ -788,7 +927,7 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 }
 
 // Ensures that deleting series from TSM files with multiple fields removes all the
-/// series
+// series from the TSM files but leaves the series in the index intact.
 func TestEngine_DeleteSeries(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
@@ -797,11 +936,23 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
+
+			for _, p := range []models.Point{p1, p2, p3} {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+					t.Fatalf("create series index error: %v", err)
+				}
+			}
 
 			if err := e.WritePoints([]models.Point{p1, p2, p3}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
@@ -816,7 +967,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -829,27 +980,68 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			if _, ok := keys[exp]; !ok {
 				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
 			}
+
+			// Deleting all the TSM values for a single series should still leave
+			// the series in the index intact.
+			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			if err != nil {
+				t.Fatalf("iterator error: %v", err)
+			} else if iter == nil {
+				t.Fatal("nil iterator")
+			}
+			defer iter.Close()
+
+			var gotKeys []string
+			expKeys := []string{"cpu,host=A", "cpu,host=B"}
+
+			for {
+				elem, err := iter.Next()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if elem.SeriesID == 0 {
+					break
+				}
+
+				// Lookup series.
+				name, tags := e.sfile.Series(elem.SeriesID)
+				gotKeys = append(gotKeys, string(models.MakeKey(name, tags)))
+			}
+
+			if !reflect.DeepEqual(gotKeys, expKeys) {
+				t.Fatalf("got keys %v, expected %v", gotKeys, expKeys)
+			}
 		})
 	}
 }
 
+// Ensures that deleting series from TSM files over a range of time deleted the
+// series from the TSM files but leaves the series in the index.
 func TestEngine_DeleteSeriesRange(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 			// Create a few points.
-			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000") // Should not be deleted
+			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000")
 			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A value=1.3 3000000000")
-			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000") // Should not be deleted
-			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000") // Should not be deleted
+			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
+			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000")
 			p6 := MustParsePointString("cpu,host=C value=1.3 1000000000")
-			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")  // Should not be deleted
-			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
+			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
+			p8 := MustParsePointString("disk,host=C value=1.3 1000000000")
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
 
 			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
 				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
@@ -870,7 +1062,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
+			if err := e.DeleteSeriesRange(itr, 0, 3000000000, false); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -884,46 +1076,36 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
 			}
 
-			// Check that the series still exists in the index
-			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+			// Deleting all the TSM values for a single series should still leave
+			// the series in the index intact.
+			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
+			} else if iter == nil {
+				t.Fatal("nil iterator")
 			}
 			defer iter.Close()
 
-			elem, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID == 0 {
-				t.Fatalf("series index mismatch: EOF, exp 2 series")
+			var gotKeys []string
+			expKeys := []string{"cpu,host=0", "cpu,host=A", "cpu,host=B", "cpu,host=C"}
+
+			for {
+				elem, err := iter.Next()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if elem.SeriesID == 0 {
+					break
+				}
+
+				// Lookup series.
+				name, tags := e.sfile.Series(elem.SeriesID)
+				gotKeys = append(gotKeys, string(models.MakeKey(name, tags)))
 			}
 
-			// Lookup series.
-			name, tags := e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
-
-			if got, exp := tags, models.NewTags(map[string]string{"host": "0"}); !got.Equal(exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
-
-			if elem, err = iter.Next(); err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID == 0 {
-				t.Fatalf("series index mismatch: EOF, exp 2 series")
-			}
-
-			// Lookup series.
-			name, tags = e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
-
-			if got, exp := tags, models.NewTags(map[string]string{"host": "B"}); !got.Equal(exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			if !reflect.DeepEqual(gotKeys, expKeys) {
+				t.Fatalf("got keys %v, expected %v", gotKeys, expKeys)
 			}
 
 		})
@@ -936,10 +1118,17 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			// Create a few points.
 			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000") // Should not be deleted
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
 
 			for _, p := range []models.Point{p1} {
 				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
@@ -960,7 +1149,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
+			if err := e.DeleteSeriesRange(itr, 0, 0, false); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1010,12 +1199,18 @@ func TestEngine_LastModified(t *testing.T) {
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e := MustOpenEngine(index)
-			defer e.Close()
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
 			e.SetEnabled(false)
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
 
 			if err := e.WritePoints([]models.Point{p1, p2, p3}); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
@@ -1038,7 +1233,7 @@ func TestEngine_LastModified(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1494,8 +1689,14 @@ func NewEngine(index string) (*Engine, error) {
 		return nil, err
 	}
 	f.Close()
-
 	sfile := tsdb.NewSeriesFile(f.Name())
+
+	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
+	// can address is in memory.
+	if runtime.GOARCH == "386" {
+		sfile.MaxSize = 1 << 27 // 128MB
+	}
+
 	if err = sfile.Open(); err != nil {
 		return nil, err
 	}
@@ -1534,7 +1735,13 @@ func NewSeriesFile() *SeriesFile {
 	}
 	file.Close()
 
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+	s := &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
+	// can address is in memory.
+	if runtime.GOARCH == "386" {
+		s.SeriesFile.MaxSize = 1 << 27 // 128MB
+	}
+	return s
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.

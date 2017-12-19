@@ -25,7 +25,10 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.SeriesFile().SeriesIDIterator()
@@ -66,7 +69,10 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.SeriesFile().SeriesIDIterator()
@@ -128,7 +134,10 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.MeasurementSeriesIDIterator([]byte("cpu"))
@@ -163,7 +172,10 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.MeasurementSeriesIDIterator([]byte("cpu"))
@@ -212,7 +224,10 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.MeasurementIterator()
@@ -239,7 +254,10 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.MeasurementIterator()
@@ -278,7 +296,10 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.TagKeyIterator([]byte("cpu"))
@@ -305,7 +326,10 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.TagKeyIterator([]byte("cpu"))
@@ -324,66 +348,3 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 		}
 	})
 }
-
-/*
-var (
-	byteSliceResult [][]byte
-	tagsSliceResult []models.Tags
-)
-
-func BenchmarkFileset_FilterNamesTags(b *testing.B) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	idx := MustOpenIndex(sfile.SeriesFile, 1)
-	defer idx.Close()
-
-	allNames := make([][]byte, 0, 2000*1000)
-	allTags := make([]models.Tags, 0, 2000*1000)
-
-	for i := 0; i < 2000; i++ {
-		for j := 0; j < 1000; j++ {
-			name := []byte(fmt.Sprintf("measurement-%d", i))
-			tags := models.NewTags(map[string]string{"host": fmt.Sprintf("server-%d", j)})
-			allNames = append(allNames, name)
-			allTags = append(allTags, tags)
-		}
-	}
-
-	if err := idx.CreateSeriesListIfNotExists(nil, allNames, allTags); err != nil {
-		b.Fatal(err)
-	}
-	// idx.CheckFastCompaction()
-
-	fs := idx.PartitionAt(0).RetainFileSet()
-	defer fs.Release()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		names := [][]byte{
-			[]byte("foo"),
-			[]byte("measurement-222"), // filtered
-			[]byte("measurement-222"), // kept (tags won't match)
-			[]byte("measurements-1"),
-			[]byte("measurement-900"), // filtered
-			[]byte("measurement-44444"),
-			[]byte("bar"),
-		}
-
-		tags := []models.Tags{
-			nil,
-			models.NewTags(map[string]string{"host": "server-297"}), // filtered
-			models.NewTags(map[string]string{"host": "wrong"}),
-			nil,
-			models.NewTags(map[string]string{"host": "server-1026"}), // filtered
-			models.NewTags(map[string]string{"host": "server-23"}),   // kept (measurement won't match)
-			models.NewTags(map[string]string{"host": "zoo"}),
-		}
-		b.StartTimer()
-		byteSliceResult, tagsSliceResult = fs.FilterNamesTags(names, tags)
-	}
-}
-*/
