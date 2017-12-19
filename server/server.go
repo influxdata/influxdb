@@ -294,11 +294,17 @@ func (s *Server) newBuilders(logger chronograf.Logger) builders {
 			InfluxDBURL:      s.InfluxDBURL,
 			InfluxDBUsername: s.InfluxDBUsername,
 			InfluxDBPassword: s.InfluxDBPassword,
+			Logger:           logger,
+			ID:               idgen.NewTime(),
+			Path:             s.CannedPath,
 		},
 		Kapacitors: &MultiKapacitorBuilder{
 			KapacitorURL:      s.KapacitorURL,
 			KapacitorUsername: s.KapacitorUsername,
 			KapacitorPassword: s.KapacitorPassword,
+			Logger:            logger,
+			ID:                idgen.NewTime(),
+			Path:              s.CannedPath,
 		},
 		Organizations: &MultiOrganizationBuilder{
 			Logger: logger,

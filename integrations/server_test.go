@@ -54,6 +54,256 @@ func TestServer(t *testing.T) {
 		wants   wants
 	}{
 		{
+			name:    "GET /sources/5000",
+			subName: "Get specific source; including Canned source",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "viewer",
+								Organization: "howdy", // from canned testdata
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/sources/5000",
+				principal: oauth2.Principal{
+					Organization: "howdy",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "id": "5000",
+  "name": "Influx 1",
+  "type": "influx-enterprise",
+  "username": "user1",
+  "url": "http://localhost:8086",
+  "metaUrl": "http://metaurl.com",
+  "default": true,
+  "telegraf": "telegraf",
+  "organization": "howdy",
+  "links": {
+    "self": "/chronograf/v1/sources/5000",
+    "kapacitors": "/chronograf/v1/sources/5000/kapacitors",
+    "proxy": "/chronograf/v1/sources/5000/proxy",
+    "queries": "/chronograf/v1/sources/5000/queries",
+    "write": "/chronograf/v1/sources/5000/write",
+    "permissions": "/chronograf/v1/sources/5000/permissions",
+    "users": "/chronograf/v1/sources/5000/users",
+    "roles": "/chronograf/v1/sources/5000/roles",
+    "databases": "/chronograf/v1/sources/5000/dbs"
+  }
+}
+`,
+			},
+		},
+		{
+			name:    "GET /sources/5000/kapacitors/5000",
+			subName: "Get specific kapacitors; including Canned kapacitors",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "viewer",
+								Organization: "howdy", // from canned testdata
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/sources/5000/kapacitors/5000",
+				principal: oauth2.Principal{
+					Organization: "howdy",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "id": "5000",
+  "name": "Kapa 1",
+  "url": "http://localhost:9092",
+  "active": true,
+  "links": {
+    "proxy": "/chronograf/v1/sources/5000/kapacitors/5000/proxy",
+    "self": "/chronograf/v1/sources/5000/kapacitors/5000",
+    "rules": "/chronograf/v1/sources/5000/kapacitors/5000/rules",
+    "tasks": "/chronograf/v1/sources/5000/kapacitors/5000/proxy?path=/kapacitor/v1/tasks",
+    "ping": "/chronograf/v1/sources/5000/kapacitors/5000/proxy?path=/kapacitor/v1/ping"
+  }
+}
+`,
+			},
+		},
+		{
+			name:    "GET /sources/5000/kapacitors",
+			subName: "Get all kapacitors; including Canned kapacitors",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "viewer",
+								Organization: "howdy", // from canned testdata
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/sources/5000/kapacitors",
+				principal: oauth2.Principal{
+					Organization: "howdy",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "kapacitors": [
+    {
+      "id": "5000",
+      "name": "Kapa 1",
+      "url": "http://localhost:9092",
+      "active": true,
+      "links": {
+        "proxy": "/chronograf/v1/sources/5000/kapacitors/5000/proxy",
+        "self": "/chronograf/v1/sources/5000/kapacitors/5000",
+        "rules": "/chronograf/v1/sources/5000/kapacitors/5000/rules",
+        "tasks": "/chronograf/v1/sources/5000/kapacitors/5000/proxy?path=/kapacitor/v1/tasks",
+        "ping": "/chronograf/v1/sources/5000/kapacitors/5000/proxy?path=/kapacitor/v1/ping"
+      }
+    }
+  ]
+}
+`,
+			},
+		},
+		{
+			name:    "GET /sources",
+			subName: "Get all sources; including Canned sources",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "viewer",
+								Organization: "howdy", // from canned testdata
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/sources",
+				principal: oauth2.Principal{
+					Organization: "howdy",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "sources": [
+    {
+      "id": "5000",
+      "name": "Influx 1",
+      "type": "influx-enterprise",
+      "username": "user1",
+      "url": "http://localhost:8086",
+      "metaUrl": "http://metaurl.com",
+      "default": true,
+      "telegraf": "telegraf",
+      "organization": "howdy",
+      "links": {
+        "self": "/chronograf/v1/sources/5000",
+        "kapacitors": "/chronograf/v1/sources/5000/kapacitors",
+        "proxy": "/chronograf/v1/sources/5000/proxy",
+        "queries": "/chronograf/v1/sources/5000/queries",
+        "write": "/chronograf/v1/sources/5000/write",
+        "permissions": "/chronograf/v1/sources/5000/permissions",
+        "users": "/chronograf/v1/sources/5000/users",
+        "roles": "/chronograf/v1/sources/5000/roles",
+        "databases": "/chronograf/v1/sources/5000/dbs"
+      }
+    }
+  ]
+}
+`,
+			},
+		},
+		{
 			name:    "GET /organizations",
 			subName: "Get all organizations; including Canned organization",
 			fields: fields{
@@ -165,7 +415,7 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:    "GET /dashboards/1000",
-			subName: "Get specific in the default organization; Using Canned testdata",
+			subName: "Get specific in the howdy organization; Using Canned testdata",
 			fields: fields{
 				Users: []chronograf.User{
 					{
@@ -177,7 +427,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "default",
+								Organization: "howdy",
 							},
 						},
 					},
@@ -191,7 +441,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/dashboards/1000",
 				principal: oauth2.Principal{
-					Organization: "default",
+					Organization: "howdy",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -387,7 +637,7 @@ func TestServer(t *testing.T) {
     }
   ],
   "name": "Name This Dashboard",
-  "organization": "default",
+  "organization": "howdy",
   "links": {
     "self": "/chronograf/v1/dashboards/1000",
     "cells": "/chronograf/v1/dashboards/1000/cells",
@@ -398,7 +648,7 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:    "GET /dashboards",
-			subName: "Get all dashboards in the default organization; Using Canned testdata",
+			subName: "Get all dashboards in the howdy organization; Using Canned testdata",
 			fields: fields{
 				Users: []chronograf.User{
 					{
@@ -412,6 +662,10 @@ func TestServer(t *testing.T) {
 								Name:         "admin",
 								Organization: "default",
 							},
+							{
+								Name:         "admin",
+								Organization: "howdy",
+							},
 						},
 					},
 				},
@@ -424,7 +678,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/dashboards",
 				principal: oauth2.Principal{
-					Organization: "default",
+					Organization: "howdy",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -622,7 +876,7 @@ func TestServer(t *testing.T) {
         }
       ],
       "name": "Name This Dashboard",
-      "organization": "default",
+      "organization": "howdy",
       "links": {
         "self": "/chronograf/v1/dashboards/1000",
         "cells": "/chronograf/v1/dashboards/1000/cells",

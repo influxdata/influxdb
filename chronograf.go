@@ -17,6 +17,8 @@ const (
 	ErrUserNotFound                    = Error("user not found")
 	ErrLayoutInvalid                   = Error("layout is invalid")
 	ErrDashboardInvalid                = Error("dashboard is invalid")
+	ErrSourceInvalid                   = Error("source is invalid")
+	ErrServerInvalid                   = Error("server is invalid")
 	ErrAlertNotFound                   = Error("alert not found")
 	ErrAuthentication                  = Error("user not authenticated")
 	ErrUninitialized                   = Error("client uninitialized. Call Open() method")

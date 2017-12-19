@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/canned"
 	"github.com/influxdata/chronograf/filestore"
@@ -82,11 +84,19 @@ type MultiSourceBuilder struct {
 	InfluxDBURL      string
 	InfluxDBUsername string
 	InfluxDBPassword string
+
+	Logger chronograf.Logger
+	ID     chronograf.ID
+	Path   string
 }
 
 // Build will return a MultiSourceStore
 func (fs *MultiSourceBuilder) Build(db chronograf.SourcesStore) (*multistore.SourcesStore, error) {
-	stores := []chronograf.SourcesStore{db}
+	// These dashboards are those handled from a directory
+	files := filestore.NewSources(fs.Path, fs.ID, fs.Logger)
+	xs, err := files.All(context.Background())
+
+	stores := []chronograf.SourcesStore{db, files}
 
 	if fs.InfluxDBURL != "" {
 		influxStore := &memdb.SourcesStore{
@@ -118,11 +128,19 @@ type MultiKapacitorBuilder struct {
 	KapacitorURL      string
 	KapacitorUsername string
 	KapacitorPassword string
+
+	Logger chronograf.Logger
+	ID     chronograf.ID
+	Path   string
 }
 
 // Build will return a multistore facade KapacitorStore over memdb and bolt
 func (builder *MultiKapacitorBuilder) Build(db chronograf.ServersStore) (*multistore.KapacitorStore, error) {
-	stores := []chronograf.ServersStore{db}
+	// These dashboards are those handled from a directory
+	files := filestore.NewKapacitors(builder.Path, builder.ID, builder.Logger)
+
+	stores := []chronograf.ServersStore{db, files}
+
 	if builder.KapacitorURL != "" {
 		memStore := &memdb.KapacitorStore{
 			Kapacitor: &chronograf.Server{
