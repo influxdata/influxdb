@@ -164,7 +164,7 @@ const adminInfluxDB = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'INFLUXDB_EDIT_RETENTION_POLICY': {
+    case 'INFLUXDB_EDIT_RETENTION_POLICY_REQUESTED': {
       const {database, retentionPolicy, updates} = action.payload
 
       const newState = {
@@ -177,6 +177,29 @@ const adminInfluxDB = (state = initialState, action) => {
                     rp =>
                       rp.links.self === retentionPolicy.links.self
                         ? {...rp, ...updates}
+                        : rp
+                  ),
+                }
+              : db
+        ),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'INFLUXDB_EDIT_RETENTION_POLICY_FAILED': {
+      const {database, retentionPolicy} = action.payload
+
+      const newState = {
+        databases: state.databases.map(
+          db =>
+            db.links.self === database.links.self
+              ? {
+                  ...db,
+                  retentionPolicies: db.retentionPolicies.map(
+                    rp =>
+                      rp.links.self === retentionPolicy.links.self
+                        ? {...rp, ...retentionPolicy}
                         : rp
                   ),
                 }

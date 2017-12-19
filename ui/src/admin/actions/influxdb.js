@@ -208,8 +208,27 @@ export const removeDatabaseDeleteCode = database => ({
   },
 })
 
-export const editRetentionPolicy = (database, retentionPolicy, updates) => ({
-  type: 'INFLUXDB_EDIT_RETENTION_POLICY',
+export const editRetentionPolicyRequested = (
+  database,
+  retentionPolicy,
+  updates
+) => ({
+  type: 'INFLUXDB_EDIT_RETENTION_POLICY_REQUESTED',
+  payload: {
+    database,
+    retentionPolicy,
+    updates,
+  },
+})
+
+export const editRetentionPolicyCompleted = syncRetentionPolicy
+
+export const editRetentionPolicyFailed = (
+  database,
+  retentionPolicy,
+  updates
+) => ({
+  type: 'INFLUXDB_EDIT_RETENTION_POLICY_FAILED',
   payload: {
     database,
     retentionPolicy,
@@ -334,23 +353,21 @@ export const createRetentionPolicyAsync = (
 
 export const updateRetentionPolicyAsync = (
   database,
-  retentionPolicy,
-  updates
+  oldRP,
+  newRP
 ) => async dispatch => {
   try {
-    dispatch(editRetentionPolicy(database, retentionPolicy, updates))
-    const {data} = await updateRetentionPolicyAJAX(
-      retentionPolicy.links.self,
-      updates
-    )
+    dispatch(editRetentionPolicyRequested(database, oldRP, newRP))
+    const {data} = await updateRetentionPolicyAJAX(oldRP.links.self, newRP)
+    dispatch(editRetentionPolicyCompleted(database, oldRP, data))
     dispatch(
       publishAutoDismissingNotification(
         'success',
         'Retention policy updated successfully'
       )
     )
-    dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
+    dispatch(editRetentionPolicyFailed(database, oldRP))
     dispatch(
       errorThrown(
         error,
