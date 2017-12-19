@@ -271,10 +271,11 @@ func (s *Server) NewListener() (net.Listener, error) {
 }
 
 type builders struct {
-	Layouts    LayoutBuilder
-	Sources    SourcesBuilder
-	Kapacitors KapacitorBuilder
-	Dashboards DashboardBuilder
+	Layouts       LayoutBuilder
+	Sources       SourcesBuilder
+	Kapacitors    KapacitorBuilder
+	Dashboards    DashboardBuilder
+	Organizations OrganizationBuilder
 }
 
 func (s *Server) newBuilders(logger chronograf.Logger) builders {
@@ -298,6 +299,10 @@ func (s *Server) newBuilders(logger chronograf.Logger) builders {
 			KapacitorURL:      s.KapacitorURL,
 			KapacitorUsername: s.KapacitorUsername,
 			KapacitorPassword: s.KapacitorPassword,
+		},
+		Organizations: &MultiOrganizationBuilder{
+			Logger: logger,
+			Path:   s.CannedPath,
 		},
 	}
 }
@@ -450,6 +455,14 @@ func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath s
 		os.Exit(1)
 	}
 
+	organizations, err := builder.Organizations.Build(db.OrganizationsStore)
+	if err != nil {
+		logger.
+			WithField("component", "OrganizationsStore").
+			Error("Unable to construct a MultiOrganizationStore", err)
+		os.Exit(1)
+	}
+
 	return Service{
 		TimeSeriesClient: &InfluxClient{},
 		Store: &Store{
@@ -457,8 +470,8 @@ func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath s
 			DashboardsStore:    dashboards,
 			SourcesStore:       sources,
 			ServersStore:       kapacitors,
+			OrganizationsStore: organizations,
 			UsersStore:         db.UsersStore,
-			OrganizationsStore: db.OrganizationsStore,
 			ConfigStore:        db.ConfigStore,
 		},
 		Logger:    logger,

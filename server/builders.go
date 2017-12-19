@@ -141,3 +141,31 @@ func (builder *MultiKapacitorBuilder) Build(db chronograf.ServersStore) (*multis
 	}
 	return kapacitors, nil
 }
+
+// OrganizationBuilder is responsible for building dashboards
+type OrganizationBuilder interface {
+	Build(chronograf.OrganizationsStore) (*multistore.OrganizationsStore, error)
+}
+
+// MultiOrganizationBuilder builds a OrganizationsStore backed by bolt and the filesystem
+type MultiOrganizationBuilder struct {
+	Logger chronograf.Logger
+	Path   string
+}
+
+// Build will construct a Organization store of filesystem and db-backed dashboards
+func (builder *MultiOrganizationBuilder) Build(db chronograf.OrganizationsStore) (*multistore.OrganizationsStore, error) {
+	// These organization are those handled from a directory
+	files := filestore.NewOrganizations(builder.Path, builder.Logger)
+	// Acts as a front-end to both the bolt org and filesystem orgs.
+	// The idea here is that these stores form a hierarchy in which each is tried sequentially until
+	// the operation has success.  So, the database is preferred over filesystem
+	orgs := &multistore.OrganizationsStore{
+		Stores: []chronograf.OrganizationsStore{
+			db,
+			files,
+		},
+	}
+
+	return orgs, nil
+}
