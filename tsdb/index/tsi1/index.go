@@ -276,8 +276,22 @@ func (i *Index) FieldSet() *tsdb.MeasurementFieldSet {
 // ForEachMeasurementName does not call fn on each partition concurrently so the
 // call may provide a non-goroutine safe fn.
 func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
-	for _, p := range i.partitions {
-		if err := p.ForEachMeasurementName(fn); err != nil {
+	itr, err := i.MeasurementIterator()
+	if err != nil {
+		return err
+	} else if itr == nil {
+		return nil
+	}
+	defer itr.Close()
+
+	// Iterate over all measurements.
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return err
+		}
+
+		if err := fn(e); err != nil {
 			return err
 		}
 	}
