@@ -5,14 +5,22 @@
     "description": "API endpoints for Chronograf",
     "version": "1.4.0.0"
   },
-  "schemes": ["http"],
+  "schemes": [
+    "http"
+  ],
   "basePath": "/chronograf/v1",
-  "consumes": ["application/json"],
-  "produces": ["application/json"],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
   "paths": {
     "/": {
       "get": {
-        "tags": ["routes"],
+        "tags": [
+          "routes"
+        ],
         "summary": "Lists all the endpoints",
         "description": "List of the endpoints.",
         "responses": {
@@ -23,7 +31,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -33,7 +41,9 @@
     },
     "/sources": {
       "get": {
-        "tags": ["sources"],
+        "tags": [
+          "sources"
+        ],
         "summary": "Configured data sources",
         "description": "These data sources store time series data.",
         "responses": {
@@ -44,7 +54,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -52,7 +62,9 @@
         }
       },
       "post": {
-        "tags": ["sources"],
+        "tags": [
+          "sources"
+        ],
         "summary": "Create new data source",
         "parameters": [
           {
@@ -71,8 +83,7 @@
               "Location": {
                 "type": "string",
                 "format": "url",
-                "description":
-                  "Location of the newly created data source resource."
+                "description": "Location of the newly created data source resource."
               }
             },
             "schema": {
@@ -90,7 +101,9 @@
     },
     "/sources/{id}": {
       "get": {
-        "tags": ["sources"],
+        "tags": [
+          "sources"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -104,8 +117,7 @@
         "description": "These data sources store time series data.",
         "responses": {
           "200": {
-            "description":
-              "Data source used to supply time series information.",
+            "description": "Data source used to supply time series information.",
             "schema": {
               "$ref": "#/definitions/Source"
             }
@@ -117,7 +129,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -125,7 +137,9 @@
         }
       },
       "patch": {
-        "tags": ["sources"],
+        "tags": [
+          "sources"
+        ],
         "summary": "Update data source configuration",
         "parameters": [
           {
@@ -153,8 +167,7 @@
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent data source.",
+            "description": "Happens when trying to access a non-existent data source.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -168,7 +181,9 @@
         }
       },
       "delete": {
-        "tags": ["sources"],
+        "tags": [
+          "sources"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -178,8 +193,7 @@
             "required": true
           }
         ],
-        "summary":
-          "This specific data source will be removed from the data store.  All associated kapacitor resources and kapacitor rules resources are also removed.",
+        "summary": "This specific data source will be removed from the data store.  All associated kapacitor resources and kapacitor rules resources are also removed.",
         "responses": {
           "204": {
             "description": "data source has been removed"
@@ -191,7 +205,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -201,7 +215,10 @@
     },
     "/sources/{id}/queries": {
       "post": {
-        "tags": ["sources", "queries"],
+        "tags": [
+          "sources",
+          "queries"
+        ],
         "description": "Used to analyze queries for structure`",
         "parameters": [
           {
@@ -235,7 +252,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -245,9 +262,11 @@
     },
     "/sources/{id}/proxy": {
       "post": {
-        "tags": ["sources", "proxy"],
-        "description":
-          "Query the backend time series data source and return the response according to `format`",
+        "tags": [
+          "sources",
+          "proxy"
+        ],
+        "description": "Query the backend time series data source and return the response according to `format`",
         "parameters": [
           {
             "name": "id",
@@ -268,15 +287,13 @@
         ],
         "responses": {
           "200": {
-            "description":
-              "Result of the query from the backend time series data source.",
+            "description": "Result of the query from the backend time series data source.",
             "schema": {
               "$ref": "#/definitions/ProxyResponse"
             }
           },
           "400": {
-            "description":
-              "Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body",
+            "description": "Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -294,7 +311,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -304,7 +321,10 @@
     },
     "/sources/{id}/write": {
       "post": {
-        "tags": ["sources", "write"],
+        "tags": [
+          "sources",
+          "write"
+        ],
         "description": "Write points to the backend time series data source",
         "parameters": [
           {
@@ -334,25 +354,34 @@
           {
             "name": "rp",
             "in": "query",
-            "description":
-              "Sets the target retention policy for the write. InfluxDB writes to the DEFAULT retention policy if you do not specify a retention policy.",
+            "description": "Sets the target retention policy for the write. InfluxDB writes to the DEFAULT retention policy if you do not specify a retention policy.",
             "type": "string"
           },
           {
             "name": "precision",
             "in": "query",
-            "description":
-              "Sets the precision for the supplied Unix time values. InfluxDB assumes that timestamps are in nanoseconds if you do not specify precision.",
+            "description": "Sets the precision for the supplied Unix time values. InfluxDB assumes that timestamps are in nanoseconds if you do not specify precision.",
             "type": "string",
-            "enum": ["ns", "u", "ms", "s", "m", "h"]
+            "enum": [
+              "ns",
+              "u",
+              "ms",
+              "s",
+              "m",
+              "h"
+            ]
           },
           {
             "name": "consistency",
             "in": "query",
-            "description":
-              "Sets the write consistency for the point. InfluxDB assumes that the write consistency is one if you do not specify consistency. See the InfluxEnterprise documentation for detailed descriptions of each consistency option.",
+            "description": "Sets the write consistency for the point. InfluxDB assumes that the write consistency is one if you do not specify consistency. See the InfluxEnterprise documentation for detailed descriptions of each consistency option.",
             "type": "string",
-            "enum": ["any", "one", "quorum", "all"]
+            "enum": [
+              "any",
+              "one",
+              "quorum",
+              "all"
+            ]
           }
         ],
         "responses": {
@@ -360,8 +389,7 @@
             "description": "Points written successfuly to database."
           },
           "400": {
-            "description":
-              "Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body",
+            "description": "Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -379,7 +407,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -389,7 +417,10 @@
     },
     "/sources/{id}/permissions": {
       "get": {
-        "tags": ["sources", "users"],
+        "tags": [
+          "sources",
+          "users"
+        ],
         "summary": "Retrieve possible permissions for this data source",
         "parameters": [
           {
@@ -424,7 +455,10 @@
     },
     "/sources/{id}/users": {
       "get": {
-        "tags": ["sources", "users"],
+        "tags": [
+          "sources",
+          "users"
+        ],
         "summary": "Retrieve all data sources users",
         "parameters": [
           {
@@ -457,7 +491,10 @@
         }
       },
       "post": {
-        "tags": ["sources", "users"],
+        "tags": [
+          "sources",
+          "users"
+        ],
         "summary": "Create new user for this data source",
         "parameters": [
           {
@@ -507,7 +544,10 @@
     },
     "/sources/{id}/users/{user_id}": {
       "get": {
-        "tags": ["sources", "users"],
+        "tags": [
+          "sources",
+          "users"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -540,7 +580,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -548,7 +588,10 @@
         }
       },
       "patch": {
-        "tags": ["sources", "users"],
+        "tags": [
+          "sources",
+          "users"
+        ],
         "summary": "Update user configuration",
         "description": "Update one parameter at a time (one of password, permissions or roles)",
         "parameters": [
@@ -584,8 +627,7 @@
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent user or source.",
+            "description": "Happens when trying to access a non-existent user or source.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -599,7 +641,10 @@
         }
       },
       "delete": {
-        "tags": ["sources", "users"],
+        "tags": [
+          "sources",
+          "users"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -628,7 +673,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -638,9 +683,12 @@
     },
     "/sources/{id}/roles": {
       "get": {
-        "tags": ["sources", "users", "roles"],
-        "summary":
-          "Retrieve all data sources roles.  Available only in Influx Enterprise",
+        "tags": [
+          "sources",
+          "users",
+          "roles"
+        ],
+        "summary": "Retrieve all data sources roles.  Available only in Influx Enterprise",
         "parameters": [
           {
             "name": "id",
@@ -672,7 +720,11 @@
         }
       },
       "post": {
-        "tags": ["sources", "users", "roles"],
+        "tags": [
+          "sources",
+          "users",
+          "roles"
+        ],
         "summary": "Create new role for this data source",
         "parameters": [
           {
@@ -722,7 +774,11 @@
     },
     "/sources/{id}/roles/{role_id}": {
       "get": {
-        "tags": ["sources", "users", "roles"],
+        "tags": [
+          "sources",
+          "users",
+          "roles"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -755,7 +811,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -763,7 +819,11 @@
         }
       },
       "patch": {
-        "tags": ["sources", "users", "roles"],
+        "tags": [
+          "sources",
+          "users",
+          "roles"
+        ],
         "summary": "Update role configuration",
         "parameters": [
           {
@@ -798,8 +858,7 @@
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent role or source.",
+            "description": "Happens when trying to access a non-existent role or source.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -813,7 +872,11 @@
         }
       },
       "delete": {
-        "tags": ["sources", "users", "roles"],
+        "tags": [
+          "sources",
+          "users",
+          "roles"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -842,7 +905,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -852,7 +915,9 @@
     },
     "/sources/{id}/dbs/": {
       "get": {
-        "tags": ["databases"],
+        "tags": [
+          "databases"
+        ],
         "summary": "Retrieve all databases for a source",
         "parameters": [
           {
@@ -885,7 +950,9 @@
         }
       },
       "post": {
-        "tags": ["databases"],
+        "tags": [
+          "databases"
+        ],
         "summary": "Create new database for a source",
         "parameters": [
           {
@@ -929,7 +996,9 @@
     },
     "/sources/{id}/dbs/{db_id}": {
       "delete": {
-        "tags": ["databases"],
+        "tags": [
+          "databases"
+        ],
         "summary": "Delete database for a source",
         "parameters": [
           {
@@ -968,7 +1037,9 @@
     },
     "/sources/{id}/dbs/{db_id}/rps": {
       "get": {
-        "tags": ["retention policies"],
+        "tags": [
+          "retention policies"
+        ],
         "summary": "Retrieve all retention policies for a database",
         "parameters": [
           {
@@ -1008,7 +1079,9 @@
         }
       },
       "post": {
-        "tags": ["retention policies"],
+        "tags": [
+          "retention policies"
+        ],
         "summary": "Create new retention policy for a database",
         "parameters": [
           {
@@ -1059,7 +1132,9 @@
     },
     "/sources/{id}/dbs/{db_id}/rps/{rp_id}": {
       "patch": {
-        "tags": ["retention policies"],
+        "tags": [
+          "retention policies"
+        ],
         "summary": "Alter retention policy for a database",
         "parameters": [
           {
@@ -1115,7 +1190,9 @@
         }
       },
       "delete": {
-        "tags": ["retention policies"],
+        "tags": [
+          "retention policies"
+        ],
         "summary": "Delete retention policy for a database",
         "parameters": [
           {
@@ -1161,7 +1238,10 @@
     },
     "/sources/{id}/kapacitors": {
       "get": {
-        "tags": ["sources", "kapacitors"],
+        "tags": [
+          "sources",
+          "kapacitors"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1180,7 +1260,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1188,7 +1268,10 @@
         }
       },
       "post": {
-        "tags": ["sources", "kapacitors"],
+        "tags": [
+          "sources",
+          "kapacitors"
+        ],
         "summary": "Create new kapacitor backend",
         "parameters": [
           {
@@ -1214,8 +1297,7 @@
               "Location": {
                 "type": "string",
                 "format": "url",
-                "description":
-                  "Location of the newly created kapacitor resource."
+                "description": "Location of the newly created kapacitor resource."
               }
             },
             "schema": {
@@ -1233,7 +1315,10 @@
     },
     "/sources/{id}/kapacitors/{kapa_id}": {
       "get": {
-        "tags": ["sources", "kapacitors"],
+        "tags": [
+          "sources",
+          "kapacitors"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1266,7 +1351,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1274,7 +1359,10 @@
         }
       },
       "patch": {
-        "tags": ["sources", "kapacitors"],
+        "tags": [
+          "sources",
+          "kapacitors"
+        ],
         "summary": "Update kapacitor configuration",
         "parameters": [
           {
@@ -1309,8 +1397,7 @@
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent data source or kapacitor.",
+            "description": "Happens when trying to access a non-existent data source or kapacitor.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1324,7 +1411,10 @@
         }
       },
       "delete": {
-        "tags": ["sources", "kapacitors"],
+        "tags": [
+          "sources",
+          "kapacitors"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1342,8 +1432,7 @@
           }
         ],
         "summary": "Remove Kapacitor backend",
-        "description":
-          "This specific kapacitor will be removed. All associated rule resources will also be removed from the store.",
+        "description": "This specific kapacitor will be removed. All associated rule resources will also be removed from the store.",
         "responses": {
           "204": {
             "description": "kapacitor has been removed."
@@ -1355,7 +1444,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1365,7 +1454,11 @@
     },
     "/sources/{id}/kapacitors/{kapa_id}/rules": {
       "get": {
-        "tags": ["sources", "kapacitors", "rules"],
+        "tags": [
+          "sources",
+          "kapacitors",
+          "rules"
+        ],
         "description": "Get all defined alert rules.",
         "parameters": [
           {
@@ -1385,8 +1478,7 @@
         ],
         "responses": {
           "200": {
-            "description":
-              "All alert rules for this specific kapacitor are returned",
+            "description": "All alert rules for this specific kapacitor are returned",
             "schema": {
               "$ref": "#/definitions/Rules"
             }
@@ -1406,7 +1498,11 @@
         }
       },
       "post": {
-        "tags": ["sources", "kapacitors", "rules"],
+        "tags": [
+          "sources",
+          "kapacitors",
+          "rules"
+        ],
         "description": "Create kapacitor alert rule",
         "parameters": [
           {
@@ -1440,8 +1536,7 @@
               "Location": {
                 "type": "string",
                 "format": "url",
-                "description":
-                  "Location of the newly created kapacitor rule resource."
+                "description": "Location of the newly created kapacitor rule resource."
               }
             },
             "schema": {
@@ -1455,15 +1550,13 @@
             }
           },
           "422": {
-            "description":
-              "Source ID , Kapacitor ID or alert are unprocessable",
+            "description": "Source ID , Kapacitor ID or alert are unprocessable",
             "schema": {
               "$ref": "#/definitions/Error"
             }
           },
           "default": {
-            "description":
-              "Internal server error; generally a problem creating alert in kapacitor",
+            "description": "Internal server error; generally a problem creating alert in kapacitor",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1473,7 +1566,11 @@
     },
     "/sources/{id}/kapacitors/{kapa_id}/rules/{rule_id}": {
       "get": {
-        "tags": ["sources", "kapacitors", "rules"],
+        "tags": [
+          "sources",
+          "kapacitors",
+          "rules"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1513,7 +1610,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1521,7 +1618,11 @@
         }
       },
       "put": {
-        "tags": ["sources", "kapacitors", "rules"],
+        "tags": [
+          "sources",
+          "kapacitors",
+          "rules"
+        ],
         "summary": "Update rule alert rule configuration",
         "parameters": [
           {
@@ -1563,8 +1664,7 @@
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent data source, kapacitor, or rule.",
+            "description": "Happens when trying to access a non-existent data source, kapacitor, or rule.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1578,7 +1678,11 @@
         }
       },
       "delete": {
-        "tags": ["sources", "kapacitors", "rules"],
+        "tags": [
+          "sources",
+          "kapacitors",
+          "rules"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1614,7 +1718,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1624,9 +1728,12 @@
     },
     "/sources/{id}/kapacitors/{kapa_id}/proxy": {
       "get": {
-        "tags": ["sources", "kapacitors", "proxy"],
-        "description":
-          "GET to `path` of kapacitor.  The response and status code from kapacitor is directly returned.",
+        "tags": [
+          "sources",
+          "kapacitors",
+          "proxy"
+        ],
+        "description": "GET to `path` of kapacitor.  The response and status code from kapacitor is directly returned.",
         "parameters": [
           {
             "name": "id",
@@ -1646,8 +1753,7 @@
             "name": "path",
             "in": "query",
             "type": "string",
-            "description":
-              "The kapacitor API path to use in the proxy redirect",
+            "description": "The kapacitor API path to use in the proxy redirect",
             "required": true
           }
         ],
@@ -1670,9 +1776,12 @@
         }
       },
       "delete": {
-        "tags": ["sources", "kapacitors", "proxy"],
-        "description":
-          "DELETE to `path` of kapacitor. The response and status code from kapacitor is directly returned.",
+        "tags": [
+          "sources",
+          "kapacitors",
+          "proxy"
+        ],
+        "description": "DELETE to `path` of kapacitor. The response and status code from kapacitor is directly returned.",
         "parameters": [
           {
             "name": "id",
@@ -1692,8 +1801,7 @@
             "name": "path",
             "in": "query",
             "type": "string",
-            "description":
-              "The kapacitor API path to use in the proxy redirect",
+            "description": "The kapacitor API path to use in the proxy redirect",
             "required": true
           }
         ],
@@ -1716,9 +1824,12 @@
         }
       },
       "patch": {
-        "tags": ["sources", "kapacitors", "proxy"],
-        "description":
-          "PATCH body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
+        "tags": [
+          "sources",
+          "kapacitors",
+          "proxy"
+        ],
+        "description": "PATCH body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
         "parameters": [
           {
             "name": "id",
@@ -1738,8 +1849,7 @@
             "name": "path",
             "in": "query",
             "type": "string",
-            "description":
-              "The kapacitor API path to use in the proxy redirect",
+            "description": "The kapacitor API path to use in the proxy redirect",
             "required": true
           },
           {
@@ -1771,9 +1881,12 @@
         }
       },
       "post": {
-        "tags": ["sources", "kapacitors", "proxy"],
-        "description":
-          "POST body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
+        "tags": [
+          "sources",
+          "kapacitors",
+          "proxy"
+        ],
+        "description": "POST body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
         "parameters": [
           {
             "name": "id",
@@ -1793,8 +1906,7 @@
             "name": "path",
             "in": "query",
             "type": "string",
-            "description":
-              "The kapacitor API path to use in the proxy redirect",
+            "description": "The kapacitor API path to use in the proxy redirect",
             "required": true
           },
           {
@@ -1828,10 +1940,12 @@
     },
     "/mappings": {
       "get": {
-        "tags": ["layouts", "mappings"],
+        "tags": [
+          "layouts",
+          "mappings"
+        ],
         "summary": "Mappings between app names and measurements",
-        "description":
-          "Mappings provide a means to alias measurement names found within a telegraf database and application layouts found within Chronograf\n",
+        "description": "Mappings provide a means to alias measurement names found within a telegraf database and application layouts found within Chronograf\n",
         "responses": {
           "200": {
             "description": "An array of mappings",
@@ -1840,7 +1954,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1850,7 +1964,9 @@
     },
     "/layouts": {
       "get": {
-        "tags": ["layouts"],
+        "tags": [
+          "layouts"
+        ],
         "summary": "Pre-configured layouts",
         "parameters": [
           {
@@ -1876,8 +1992,7 @@
             "collectionFormat": "multi"
           }
         ],
-        "description":
-          "Layouts are a collection of `Cells` that visualize time-series data.\n",
+        "description": "Layouts are a collection of `Cells` that visualize time-series data.\n",
         "responses": {
           "200": {
             "description": "An array of layouts",
@@ -1886,7 +2001,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1894,14 +2009,15 @@
         }
       },
       "post": {
-        "tags": ["layouts"],
+        "tags": [
+          "layouts"
+        ],
         "summary": "Create new layout",
         "parameters": [
           {
             "name": "layout",
             "in": "body",
-            "description":
-              "Defines the layout and queries of the cells within the layout.",
+            "description": "Defines the layout and queries of the cells within the layout.",
             "schema": {
               "$ref": "#/definitions/Layout"
             }
@@ -1932,7 +2048,9 @@
     },
     "/layouts/{id}": {
       "get": {
-        "tags": ["layouts"],
+        "tags": [
+          "layouts"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1942,10 +2060,8 @@
             "required": true
           }
         ],
-        "summary":
-          "Specific pre-configured layout containing cells and queries.",
-        "description":
-          "layouts will hold information about how to layout the page of graphs.\n",
+        "summary": "Specific pre-configured layout containing cells and queries.",
+        "description": "layouts will hold information about how to layout the page of graphs.\n",
         "responses": {
           "200": {
             "description": "Returns the specified layout containing `cells`.",
@@ -1960,7 +2076,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1968,7 +2084,9 @@
         }
       },
       "delete": {
-        "tags": ["layouts"],
+        "tags": [
+          "layouts"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1990,7 +2108,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1998,7 +2116,9 @@
         }
       },
       "put": {
-        "tags": ["layouts"],
+        "tags": [
+          "layouts"
+        ],
         "summary": "Replace layout configuration.",
         "parameters": [
           {
@@ -2020,15 +2140,13 @@
         ],
         "responses": {
           "200": {
-            "description":
-              "Layout has been replaced and the new layout is returned.",
+            "description": "Layout has been replaced and the new layout is returned.",
             "schema": {
               "$ref": "#/definitions/Layout"
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent layout.",
+            "description": "Happens when trying to access a non-existent layout.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2044,7 +2162,9 @@
     },
     "/dashboards": {
       "get": {
-        "tags": ["dashboards"],
+        "tags": [
+          "dashboards"
+        ],
         "summary": "List of all dashboards",
         "responses": {
           "200": {
@@ -2054,7 +2174,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2062,7 +2182,9 @@
         }
       },
       "post": {
-        "tags": ["dashboards"],
+        "tags": [
+          "dashboards"
+        ],
         "summary": "Create new dashboard",
         "parameters": [
           {
@@ -2081,8 +2203,7 @@
               "Location": {
                 "type": "string",
                 "format": "url",
-                "description":
-                  "Location of the newly created dashboard resource."
+                "description": "Location of the newly created dashboard resource."
               }
             },
             "schema": {
@@ -2100,7 +2221,9 @@
     },
     "/dashboards/{id}": {
       "get": {
-        "tags": ["dashboards"],
+        "tags": [
+          "dashboards"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -2111,12 +2234,10 @@
           }
         ],
         "summary": "Specific dashboard",
-        "description":
-          "Dashboards contain visual display information as well as links to queries",
+        "description": "Dashboards contain visual display information as well as links to queries",
         "responses": {
           "200": {
-            "description":
-              "Returns the specified dashboard with links to queries.",
+            "description": "Returns the specified dashboard with links to queries.",
             "schema": {
               "$ref": "#/definitions/Dashboard"
             }
@@ -2128,7 +2249,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2136,7 +2257,9 @@
         }
       },
       "delete": {
-        "tags": ["dashboards"],
+        "tags": [
+          "dashboards"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -2158,7 +2281,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2166,7 +2289,9 @@
         }
       },
       "put": {
-        "tags": ["dashboards"],
+        "tags": [
+          "dashboards"
+        ],
         "summary": "Replace dashboard information.",
         "parameters": [
           {
@@ -2188,15 +2313,13 @@
         ],
         "responses": {
           "200": {
-            "description":
-              "Dashboard has been replaced and the new dashboard is returned.",
+            "description": "Dashboard has been replaced and the new dashboard is returned.",
             "schema": {
               "$ref": "#/definitions/Dashboard"
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent dashboard.",
+            "description": "Happens when trying to access a non-existent dashboard.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2210,10 +2333,11 @@
         }
       },
       "patch": {
-        "tags": ["layouts"],
+        "tags": [
+          "layouts"
+        ],
         "summary": "Update dashboard information.",
-        "description":
-          "Update either the dashboard name or the dashboard cells",
+        "description": "Update either the dashboard name or the dashboard cells",
         "parameters": [
           {
             "name": "id",
@@ -2225,8 +2349,7 @@
           {
             "name": "config",
             "in": "body",
-            "description":
-              "dashboard configuration update parameters. Must be either name or cells",
+            "description": "dashboard configuration update parameters. Must be either name or cells",
             "schema": {
               "$ref": "#/definitions/Dashboard"
             },
@@ -2235,15 +2358,13 @@
         ],
         "responses": {
           "200": {
-            "description":
-              "Dashboard has been updated and the new dashboard is returned.",
+            "description": "Dashboard has been updated and the new dashboard is returned.",
             "schema": {
               "$ref": "#/definitions/Dashboard"
             }
           },
           "404": {
-            "description":
-              "Happens when trying to access a non-existent dashboard.",
+            "description": "Happens when trying to access a non-existent dashboard.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2261,7 +2382,9 @@
   "definitions": {
     "Databases": {
       "type": "object",
-      "required": ["databases"],
+      "required": [
+        "databases"
+      ],
       "properties": {
         "databases": {
           "type": "array",
@@ -2273,7 +2396,9 @@
     },
     "Database": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "example": {
         "name": "NOAA_water_database",
         "duration": "3d",
@@ -2287,8 +2412,7 @@
             "shardDuration": "7d",
             "default": true,
             "links": {
-              "self":
-                "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
+              "self": "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
             }
           }
         ],
@@ -2340,7 +2464,9 @@
     },
     "Kapacitors": {
       "type": "object",
-      "required": ["kapacitors"],
+      "required": [
+        "kapacitors"
+      ],
       "properties": {
         "kapacitors": {
           "type": "array",
@@ -2352,7 +2478,10 @@
     },
     "Kapacitor": {
       "type": "object",
-      "required": ["name", "url"],
+      "required": [
+        "name",
+        "url"
+      ],
       "example": {
         "id": "4",
         "name": "kapa",
@@ -2386,18 +2515,15 @@
         "url": {
           "type": "string",
           "format": "url",
-          "description":
-            "URL for the kapacitor backend (e.g. http://localhost:9092)"
+          "description": "URL for the kapacitor backend (e.g. http://localhost:9092)"
         },
         "insecureSkipVerify": {
           "type": "boolean",
-          "description":
-            "True means any certificate presented by the kapacitor is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
+          "description": "True means any certificate presented by the kapacitor is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
         },
         "active": {
           "type": "boolean",
-          "description":
-            "Indicates whether the kapacitor is the current kapacitor being used for a source"
+          "description": "Indicates whether the kapacitor is the current kapacitor being used for a source"
         },
         "links": {
           "type": "object",
@@ -2409,14 +2535,12 @@
             },
             "proxy": {
               "type": "string",
-              "description":
-                "URL location of proxy endpoint for this kapacitor",
+              "description": "URL location of proxy endpoint for this kapacitor",
               "format": "url"
             },
             "rules": {
               "type": "string",
-              "description":
-                "URL location of rules endpoint for this kapacitor",
+              "description": "URL location of rules endpoint for this kapacitor",
               "format": "url"
             }
           }
@@ -2424,8 +2548,7 @@
       }
     },
     "KapacitorProxy": {
-      "description":
-        "Entirely used as the body for the request to the kapacitor backend.",
+      "description": "Entirely used as the body for the request to the kapacitor backend.",
       "type": "object"
     },
     "KapacitorProxyResponse": {
@@ -2434,7 +2557,9 @@
     },
     "Rules": {
       "type": "object",
-      "required": ["rules"],
+      "required": [
+        "rules"
+      ],
       "properties": {
         "rules": {
           "type": "array",
@@ -2451,8 +2576,7 @@
           "type": "string",
           "description": "InfluxQL statement to be analyzed",
           "example": {
-            "query":
-              "select max(usage_system) from telegraf.autogen.cpu group by time(10m)"
+            "query": "select max(usage_system) from telegraf.autogen.cpu group by time(10m)"
           }
         }
       }
@@ -2463,8 +2587,7 @@
         "query": {
           "type": "string",
           "example": {
-            "query":
-              "select max(usage_system) from telegraf.autogen.cpu group by time(10m)"
+            "query": "select max(usage_system) from telegraf.autogen.cpu group by time(10m)"
           },
           "description": "InfluxQL statement to be analyzed"
         },
@@ -2560,7 +2683,10 @@
               }
             }
           },
-          "required": ["time", "tags"]
+          "required": [
+            "time",
+            "tags"
+          ]
         },
         "fields": {
           "type": "array",
@@ -2578,7 +2704,10 @@
               "type": "string"
             }
           },
-          "required": ["lower", "upper"]
+          "required": [
+            "lower",
+            "upper"
+          ]
         }
       },
       "required": [
@@ -2594,7 +2723,9 @@
     "KapacitorNode": {
       "type": "object",
       "description": "Represents a node in the kapacitor TICKscript graph",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -2618,23 +2749,30 @@
     },
     "Field": {
       "type": "object",
-      "required": ["type", "value"],
+      "required": [
+        "type",
+        "value"
+      ],
       "description": "Represents a field to be returned from an InfluxQL query",
       "properties": {
         "value": {
-          "description":
-            "value is the value of the field.  Meaning of the value is implied by the `type` key",
+          "description": "value is the value of the field.  Meaning of the value is implied by the `type` key",
           "type": "string"
         },
         "type": {
-          "description":
-            "type describes the field type. func is a function; field is a field reference",
+          "description": "type describes the field type. func is a function; field is a field reference",
           "type": "string",
-          "enum": ["func", "field", "integer", "number", "regex", "wildcard"]
+          "enum": [
+            "func",
+            "field",
+            "integer",
+            "number",
+            "regex",
+            "wildcard"
+          ]
         },
         "alias": {
-          "description":
-            "Alias overrides the field name in the returned response.  Applies only if type is `func`",
+          "description": "Alias overrides the field name in the returned response.  Applies only if type is `func`",
           "type": "string"
         },
         "args": {
@@ -2648,14 +2786,14 @@
     },
     "KapacitorProperty": {
       "type": "object",
-      "description":
-        "Represents a property attached to a node in the kapacitor TICKscript graph",
-      "required": ["name"],
+      "description": "Represents a property attached to a node in the kapacitor TICKscript graph",
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string",
-          "description":
-            "Name of the kapacitor property e.g. channel for a slack ndoe"
+          "description": "Name of the kapacitor property e.g. channel for a slack ndoe"
         },
         "args": {
           "type": "array",
@@ -2668,7 +2806,9 @@
     },
     "RetentionPolicies": {
       "type": "object",
-      "required": ["retentionPolicies"],
+      "required": [
+        "retentionPolicies"
+      ],
       "properties": {
         "retentionPolicies": {
           "type": "array",
@@ -2680,7 +2820,11 @@
     },
     "RetentionPolicy": {
       "type": "object",
-      "required": ["name", "duration", "replication"],
+      "required": [
+        "name",
+        "duration",
+        "replication"
+      ],
       "example": {
         "name": "weekly",
         "duration": "7d",
@@ -2711,8 +2855,7 @@
         },
         "default": {
           "type": "boolean",
-          "description":
-            "Indicates whether this retention policy should be the default"
+          "description": "Indicates whether this retention policy should be the default"
         },
         "links": {
           "type": "object",
@@ -2755,7 +2898,9 @@
           "areTagsAccepted": true
         },
         "every": "30s",
-        "alerts": ["alerta"],
+        "alerts": [
+          "alerta"
+        ],
         "alertNodes": [
           {
             "name": "alerta",
@@ -2771,8 +2916,7 @@
           "value": "10"
         },
         "name": "Untitled Rule",
-        "tickscript":
-          "var db = 'telegraf'\n\nvar rp = 'autogen'\n\nvar measurement = 'cpu'\n\nvar groupBy = []\n\nvar whereFilter = lambda: TRUE\n\nvar period = 10m\n\nvar every = 30s\n\nvar name = 'Untitled Rule'\n\nvar idVar = name + ':{{.Group}}'\n\nvar message = 'too much spam'\n\nvar idTag = 'alertID'\n\nvar levelTag = 'level'\n\nvar messageField = 'message'\n\nvar durationField = 'duration'\n\nvar outputDB = 'chronograf'\n\nvar outputRP = 'autogen'\n\nvar outputMeasurement = 'alerts'\n\nvar triggerType = 'threshold'\n\nvar details = 'muh body'\n\nvar crit = 10\n\nvar data = stream\n    |from()\n        .database(db)\n        .retentionPolicy(rp)\n        .measurement(measurement)\n        .groupBy(groupBy)\n        .where(whereFilter)\n    |window()\n        .period(period)\n        .every(every)\n        .align()\n    |max('usage_system')\n        .as('value')\n\nvar trigger = data\n    |alert()\n        .crit(lambda: \"value\" > crit)\n        .stateChangesOnly()\n        .message(message)\n        .id(idVar)\n        .idTag(idTag)\n        .levelTag(levelTag)\n        .messageField(messageField)\n        .durationField(durationField)\n        .details(details)\n        .alerta()\n\ntrigger\n    |influxDBOut()\n        .create()\n        .database(outputDB)\n        .retentionPolicy(outputRP)\n        .measurement(outputMeasurement)\n        .tag('alertName', name)\n        .tag('triggerType', triggerType)\n\ntrigger\n    |httpOut('output')\n",
+        "tickscript": "var db = 'telegraf'\n\nvar rp = 'autogen'\n\nvar measurement = 'cpu'\n\nvar groupBy = []\n\nvar whereFilter = lambda: TRUE\n\nvar period = 10m\n\nvar every = 30s\n\nvar name = 'Untitled Rule'\n\nvar idVar = name + ':{{.Group}}'\n\nvar message = 'too much spam'\n\nvar idTag = 'alertID'\n\nvar levelTag = 'level'\n\nvar messageField = 'message'\n\nvar durationField = 'duration'\n\nvar outputDB = 'chronograf'\n\nvar outputRP = 'autogen'\n\nvar outputMeasurement = 'alerts'\n\nvar triggerType = 'threshold'\n\nvar details = 'muh body'\n\nvar crit = 10\n\nvar data = stream\n    |from()\n        .database(db)\n        .retentionPolicy(rp)\n        .measurement(measurement)\n        .groupBy(groupBy)\n        .where(whereFilter)\n    |window()\n        .period(period)\n        .every(every)\n        .align()\n    |max('usage_system')\n        .as('value')\n\nvar trigger = data\n    |alert()\n        .crit(lambda: \"value\" > crit)\n        .stateChangesOnly()\n        .message(message)\n        .id(idVar)\n        .idTag(idTag)\n        .levelTag(levelTag)\n        .messageField(messageField)\n        .durationField(durationField)\n        .details(details)\n        .alerta()\n\ntrigger\n    |influxDBOut()\n        .create()\n        .database(outputDB)\n        .retentionPolicy(outputRP)\n        .measurement(outputMeasurement)\n        .tag('alertName', name)\n        .tag('triggerType', triggerType)\n\ntrigger\n    |httpOut('output')\n",
         "type": "stream",
         "dbrps": [
           {
@@ -2787,15 +2931,16 @@
         "modified": "2017-05-23T15:57:42.625909746-05:00",
         "last-enabled": "2017-05-05T16:16:25.890210217-05:00",
         "links": {
-          "self":
-            "/chronograf/v1/sources/5/kapacitors/5/rules/chronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
-          "kapacitor":
-            "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
-          "output":
-            "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38%2Foutput"
+          "self": "/chronograf/v1/sources/5/kapacitors/5/rules/chronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+          "kapacitor": "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+          "output": "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38%2Foutput"
         }
       },
-      "required": ["query", "every", "trigger"],
+      "required": [
+        "query",
+        "every",
+        "trigger"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -2810,13 +2955,11 @@
         },
         "every": {
           "type": "string",
-          "description":
-            "Golang duration string specifying how often the alert condition is checked"
+          "description": "Golang duration string specifying how often the alert condition is checked"
         },
         "alerts": {
           "type": "array",
-          "description":
-            "Array of alerting services to warn if the alert is triggered",
+          "description": "Array of alerting services to warn if the alert is triggered",
           "items": {
             "type": "string",
             "enum": [
@@ -2853,14 +2996,16 @@
         },
         "details": {
           "type": "string",
-          "description":
-            "Template for constructing a detailed HTML message for the alert. (Currently, only used for email/smtp"
+          "description": "Template for constructing a detailed HTML message for the alert. (Currently, only used for email/smtp"
         },
         "trigger": {
           "type": "string",
-          "description":
-            "Trigger defines the alerting structure; deadman alert if no data are received for the specified time range; relative alert if the data change relative to the data in a different time range; threshold alert if the data cross a boundary",
-          "enum": ["deadman", "relative", "threshold"]
+          "description": "Trigger defines the alerting structure; deadman alert if no data are received for the specified time range; relative alert if the data change relative to the data in a different time range; threshold alert if the data cross a boundary",
+          "enum": [
+            "deadman",
+            "relative",
+            "threshold"
+          ]
         },
         "values": {
           "type": "object",
@@ -2869,16 +3014,17 @@
             "change": {
               "description": "Specifies if the change is percent or absolute",
               "type": "string",
-              "enum": ["% change", "change"]
+              "enum": [
+                "% change",
+                "change"
+              ]
             },
             "period": {
-              "description":
-                "Length of time before deadman is alerted (golang duration)",
+              "description": "Length of time before deadman is alerted (golang duration)",
               "type": "string"
             },
             "shift": {
-              "description":
-                "Amount of time to look into the past to compare to the present (golang duration)",
+              "description": "Amount of time to look into the past to compare to the present (golang duration)",
               "type": "string"
             },
             "operator": {
@@ -2896,8 +3042,7 @@
               ]
             },
             "value": {
-              "description":
-                "Value is the boundary value when alert goes critical",
+              "description": "Value is the boundary value when alert goes critical",
               "type": "string"
             },
             "rangeValue": {
@@ -2908,8 +3053,7 @@
         },
         "dbrps": {
           "type": "array",
-          "description":
-            "List of database retention policy pairs the task is allowed to access.",
+          "description": "List of database retention policy pairs the task is allowed to access.",
           "items": {
             "$ref": "#/definitions/DBRP"
           }
@@ -2920,9 +3064,11 @@
         },
         "status": {
           "type": "string",
-          "description":
-            "Represents if this rule is enabled or disabled in kapacitor",
-          "enum": ["enabled", "disabled"]
+          "description": "Represents if this rule is enabled or disabled in kapacitor",
+          "enum": [
+            "enabled",
+            "disabled"
+          ]
         },
         "executing": {
           "type": "boolean",
@@ -2931,14 +3077,15 @@
         },
         "type": {
           "type": "string",
-          "description":
-            "Represents the task type where stream is data streamed to kapacitor and batch is queried by kapacitor.",
-          "enum": ["stream", "batch"]
+          "description": "Represents the task type where stream is data streamed to kapacitor and batch is queried by kapacitor.",
+          "enum": [
+            "stream",
+            "batch"
+          ]
         },
         "error": {
           "type": "string",
-          "description":
-            "Any error encountered when kapacitor executes the task.",
+          "description": "Any error encountered when kapacitor executes the task.",
           "readOnly": true
         },
         "created": {
@@ -2956,10 +3103,12 @@
           "description": "Date the task was last set to status enabled",
           "readOnly": true
         },
-
         "links": {
           "type": "object",
-          "required": ["self", "kapacitor"],
+          "required": [
+            "self",
+            "kapacitor"
+          ],
           "properties": {
             "self": {
               "description": "Self link pointing to this rule resource",
@@ -2967,14 +3116,12 @@
               "format": "uri"
             },
             "kapacitor": {
-              "description":
-                "Link pointing to the kapacitor proxy for this rule including the path query parameter.",
+              "description": "Link pointing to the kapacitor proxy for this rule including the path query parameter.",
               "type": "string",
               "format": "uri"
             },
             "output": {
-              "description":
-                "Link pointing to the kapacitor httpOut node of the tickscript; includes the path query argument",
+              "description": "Link pointing to the kapacitor httpOut node of the tickscript; includes the path query argument",
               "type": "string",
               "format": "uri"
             }
@@ -2995,7 +3142,10 @@
           "type": "string"
         }
       },
-      "required": ["db", "rp"]
+      "required": [
+        "db",
+        "rp"
+      ]
     },
     "Sources": {
       "type": "array",
@@ -3022,12 +3172,13 @@
           "roles": "/chronograf/v1/sources/4/roles"
         }
       },
-      "required": ["url"],
+      "required": [
+        "url"
+      ],
       "properties": {
         "id": {
           "type": "string",
-          "description":
-            "Unique identifier representing a specific data source.",
+          "description": "Unique identifier representing a specific data source.",
           "readOnly": true
         },
         "name": {
@@ -3038,7 +3189,11 @@
           "type": "string",
           "description": "Format of the data source",
           "readOnly": true,
-          "enum": ["influx", "influx-enterprise", "influx-relay"]
+          "enum": [
+            "influx",
+            "influx-enterprise",
+            "influx-relay"
+          ]
         },
         "username": {
           "type": "string",
@@ -3050,14 +3205,12 @@
         },
         "sharedSecret": {
           "type": "string",
-          "description":
-            "JWT signing secret for optional Authorization: Bearer to InfluxDB"
+          "description": "JWT signing secret for optional Authorization: Bearer to InfluxDB"
         },
         "url": {
           "type": "string",
           "format": "url",
-          "description":
-            "URL for the time series data source backend (e.g. http://localhost:8086)"
+          "description": "URL for the time series data source backend (e.g. http://localhost:8086)"
         },
         "metaUrl": {
           "type": "string",
@@ -3066,8 +3219,7 @@
         },
         "insecureSkipVerify": {
           "type": "boolean",
-          "description":
-            "True means any certificate presented by the source is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
+          "description": "True means any certificate presented by the source is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
         },
         "default": {
           "type": "boolean",
@@ -3075,8 +3227,7 @@
         },
         "telegraf": {
           "type": "string",
-          "description":
-            "Database where telegraf information is stored for this source",
+          "description": "Database where telegraf information is stored for this source",
           "default": "telegraf"
         },
         "links": {
@@ -3099,32 +3250,27 @@
             },
             "queries": {
               "type": "string",
-              "description":
-                "URL location of the queries endpoint for this source",
+              "description": "URL location of the queries endpoint for this source",
               "format": "url"
             },
             "kapacitors": {
               "type": "string",
-              "description":
-                "URL location of the kapacitors endpoint for this source",
+              "description": "URL location of the kapacitors endpoint for this source",
               "format": "url"
             },
             "users": {
               "type": "string",
-              "description":
-                "URL location of the users endpoint for this source",
+              "description": "URL location of the users endpoint for this source",
               "format": "url"
             },
             "permissions": {
               "type": "string",
-              "description":
-                "URL location of the permissions endpoint for this source",
+              "description": "URL location of the permissions endpoint for this source",
               "format": "url"
             },
             "roles": {
               "type": "string",
-              "description":
-                "Optional path to the roles endpoint IFF it is supported on this source",
+              "description": "Optional path to the roles endpoint IFF it is supported on this source",
               "format": "url"
             }
           }
@@ -3149,7 +3295,9 @@
           }
         ]
       },
-      "required": ["query"],
+      "required": [
+        "query"
+      ],
       "properties": {
         "query": {
           "type": "string"
@@ -3162,8 +3310,7 @@
         },
         "tempVars": {
           "type": "array",
-          "description":
-            "Template variables to replace within an InfluxQL query",
+          "description": "Template variables to replace within an InfluxQL query",
           "items": {
             "$ref": "#/definitions/TemplateVariable"
           }
@@ -3172,8 +3319,7 @@
     },
     "TemplateVariable": {
       "type": "object",
-      "description":
-        "Named variable within an InfluxQL query to be replaced with values",
+      "description": "Named variable within an InfluxQL query to be replaced with values",
       "properties": {
         "tempVar": {
           "type": "string",
@@ -3190,8 +3336,7 @@
     },
     "TemplateValue": {
       "type": "object",
-      "description":
-        "Value use to replace a template in an InfluxQL query.  The type governs the output format",
+      "description": "Value use to replace a template in an InfluxQL query.  The type governs the output format",
       "properties": {
         "value": {
           "type": "string",
@@ -3199,9 +3344,14 @@
         },
         "type": {
           "type": "string",
-          "enum": ["csv", "tagKey", "tagValue", "fieldKey", "timeStamp"],
-          "description":
-            "The type will change the format of the output value. tagKey/fieldKey are double quoted; tagValue are single quoted; csv and timeStamp are not quoted."
+          "enum": [
+            "csv",
+            "tagKey",
+            "tagValue",
+            "fieldKey",
+            "timeStamp"
+          ],
+          "description": "The type will change the format of the output value. tagKey/fieldKey are double quoted; tagValue are single quoted; csv and timeStamp are not quoted."
         }
       }
     },
@@ -3279,7 +3429,10 @@
               {
                 "scope": "database",
                 "name": "telegraf",
-                "allowed": ["ReadData", "WriteData"]
+                "allowed": [
+                  "ReadData",
+                  "WriteData"
+                ]
               }
             ],
             "links": {
@@ -3291,7 +3444,9 @@
     },
     "Role": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -3331,7 +3486,10 @@
           {
             "scope": "database",
             "name": "telegraf",
-            "allowed": ["ReadData", "WriteData"]
+            "allowed": [
+              "ReadData",
+              "WriteData"
+            ]
           }
         ],
         "links": {
@@ -3381,7 +3539,10 @@
                   {
                     "scope": "database",
                     "name": "telegraf",
-                    "allowed": ["ReadData", "WriteData"]
+                    "allowed": [
+                      "ReadData",
+                      "WriteData"
+                    ]
                   }
                 ],
                 "links": {
@@ -3456,7 +3617,10 @@
               {
                 "scope": "database",
                 "name": "telegraf",
-                "allowed": ["ReadData", "WriteData"]
+                "allowed": [
+                  "ReadData",
+                  "WriteData"
+                ]
               }
             ],
             "links": {
@@ -3470,29 +3634,31 @@
       }
     },
     "Permissions": {
-      "description":
-        "Permissions represent the entire set of permissions a User or Role may have",
+      "description": "Permissions represent the entire set of permissions a User or Role may have",
       "type": "array",
       "items": {
         "$ref": "#/definitions/Permission"
       }
     },
     "Permission": {
-      "description":
-        "Permission is a specific allowance for User or Role bound to a scope of the data source",
+      "description": "Permission is a specific allowance for User or Role bound to a scope of the data source",
       "type": "object",
-      "required": ["scope", "allowed"],
+      "required": [
+        "scope",
+        "allowed"
+      ],
       "properties": {
         "scope": {
           "type": "string",
-          "description":
-            "Describes if the permission is for all databases or restricted to one database",
-          "enum": ["all", "database"]
+          "description": "Describes if the permission is for all databases or restricted to one database",
+          "enum": [
+            "all",
+            "database"
+          ]
         },
         "name": {
           "type": "string",
-          "description":
-            "If the scope is database this identifies the name of the database"
+          "description": "If the scope is database this identifies the name of the database"
         },
         "allowed": {
           "$ref": "#/definitions/Allowances"
@@ -3501,12 +3667,14 @@
       "example": {
         "scope": "database",
         "name": "telegraf",
-        "allowed": ["READ", "WRITE"]
+        "allowed": [
+          "READ",
+          "WRITE"
+        ]
       }
     },
     "AllPermissions": {
-      "description":
-        "All possible permissions for this particular datasource.  Used as a static list",
+      "description": "All possible permissions for this particular datasource.  Used as a static list",
       "type": "object",
       "properties": {
         "permissions": {
@@ -3530,13 +3698,11 @@
       }
     },
     "Allowances": {
-      "description":
-        "Allowances defines what actions a user can have on a scoped permission",
+      "description": "Allowances defines what actions a user can have on a scoped permission",
       "type": "array",
       "items": {
         "type": "string",
-        "description":
-          "OSS InfluxDB is READ and WRITE.  Enterprise is all others",
+        "description": "OSS InfluxDB is READ and WRITE.  Enterprise is all others",
         "enum": [
           "READ",
           "WRITE",
@@ -3563,7 +3729,9 @@
       }
     },
     "Layouts": {
-      "required": ["layouts"],
+      "required": [
+        "layouts"
+      ],
       "type": "object",
       "properties": {
         "layouts": {
@@ -3576,12 +3744,15 @@
     },
     "Layout": {
       "type": "object",
-      "required": ["cells", "app", "measurement"],
+      "required": [
+        "cells",
+        "app",
+        "measurement"
+      ],
       "properties": {
         "id": {
           "type": "string",
-          "description":
-            "ID is an opaque string that uniquely identifies this layout."
+          "description": "ID is an opaque string that uniquely identifies this layout."
         },
         "app": {
           "type": "string",
@@ -3589,8 +3760,7 @@
         },
         "measurement": {
           "type": "string",
-          "description":
-            "Measurement is the descriptive name of the time series data."
+          "description": "Measurement is the descriptive name of the time series data."
         },
         "cells": {
           "type": "array",
@@ -3618,14 +3788,16 @@
             "name": "Docker - Container Network",
             "queries": [
               {
-                "query":
-                  "SELECT derivative(mean(\"tx_bytes\"), 10s) AS \"net_tx_bytes\" FROM \"docker_container_net\"",
-                "groupbys": ["\"container_name\""]
+                "query": "SELECT derivative(mean(\"tx_bytes\"), 10s) AS \"net_tx_bytes\" FROM \"docker_container_net\"",
+                "groupbys": [
+                  "\"container_name\""
+                ]
               },
               {
-                "query":
-                  "SELECT derivative(mean(\"rx_bytes\"), 10s) AS \"net_rx_bytes\" FROM \"docker_container_net\"",
-                "groupbys": ["\"container_name\""]
+                "query": "SELECT derivative(mean(\"rx_bytes\"), 10s) AS \"net_rx_bytes\" FROM \"docker_container_net\"",
+                "groupbys": [
+                  "\"container_name\""
+                ]
               }
             ],
             "type": ""
@@ -3639,7 +3811,9 @@
     },
     "Mappings": {
       "type": "object",
-      "required": ["mappings"],
+      "required": [
+        "mappings"
+      ],
       "properties": {
         "mappings": {
           "type": "array",
@@ -3651,15 +3825,17 @@
     },
     "Mapping": {
       "type": "object",
-      "required": ["measurement", "name"],
+      "required": [
+        "measurement",
+        "name"
+      ],
       "properties": {
         "measurement": {
           "description": "The measurement where data for this mapping is found",
           "type": "string"
         },
         "name": {
-          "description":
-            "The application name which will be assigned to the corresponding measurement",
+          "description": "The application name which will be assigned to the corresponding measurement",
           "type": "string"
         }
       },
@@ -3670,7 +3846,13 @@
     },
     "Cell": {
       "type": "object",
-      "required": ["i", "x", "y", "w", "h"],
+      "required": [
+        "i",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
       "properties": {
         "i": {
           "description": "Unique ID of Cell",
@@ -3721,8 +3903,7 @@
         "name": "usage_user",
         "queries": [
           {
-            "query":
-              "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+            "query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
             "label": "%"
           }
         ],
@@ -3731,7 +3912,9 @@
     },
     "LayoutQuery": {
       "type": "object",
-      "required": ["query"],
+      "required": [
+        "query"
+      ],
       "properties": {
         "label": {
           "description": "Optional Y-axis user-facing label for this query",
@@ -3740,7 +3923,10 @@
         "range": {
           "description": "Optional default range of the Y-axis",
           "type": "object",
-          "required": ["upper", "lower"],
+          "required": [
+            "upper",
+            "lower"
+          ],
           "properties": {
             "upper": {
               "description": "Upper bound of the display range of the Y-axis",
@@ -3774,15 +3960,20 @@
       },
       "example": {
         "label": "# warnings",
-        "query":
-          "SELECT count(\"check_id\") as \"Number Warning\" FROM consul_health_checks",
-        "wheres": ["\"status\" = 'warning'"],
-        "groupbys": ["\"service_name\""]
+        "query": "SELECT count(\"check_id\") as \"Number Warning\" FROM consul_health_checks",
+        "wheres": [
+          "\"status\" = 'warning'"
+        ],
+        "groupbys": [
+          "\"service_name\""
+        ]
       }
     },
     "DashboardQuery": {
       "type": "object",
-      "required": ["query"],
+      "required": [
+        "query"
+      ],
       "properties": {
         "label": {
           "description": "Optional Y-axis user-facing label for this query",
@@ -3791,7 +3982,10 @@
         "range": {
           "description": "Optional default range of the Y-axis",
           "type": "object",
-          "required": ["upper", "lower"],
+          "required": [
+            "upper",
+            "lower"
+          ],
           "properties": {
             "upper": {
               "description": "Upper bound of the display range of the Y-axis",
@@ -3828,8 +4022,7 @@
             "name": "",
             "queries": [
               {
-                "query":
-                  "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"cpu\"",
+                "query": "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"cpu\"",
                 "label": "%",
                 "queryConfig": {
                   "database": "",
@@ -3957,8 +4150,7 @@
                 "default": "line"
               },
               "colors": {
-                "description":
-                  "Colors define encoding data into a visualization",
+                "description": "Colors define encoding data into a visualization",
                 "type": "array",
                 "items": {
                   "$ref": "#/definitions/DashboardColor"
@@ -4003,8 +4195,7 @@
             "name": "usage_user",
             "queries": [
               {
-                "query":
-                  "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+                "query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
                 "db": "telegraf",
                 "label": "%"
               }
@@ -4019,8 +4210,7 @@
             "name": "usage_system",
             "queries": [
               {
-                "query":
-                  "SELECT mean(\"usage_system\") AS \"usage_system\" FROM \"cpu\"",
+                "query": "SELECT mean(\"usage_system\") AS \"usage_system\" FROM \"cpu\"",
                 "db": "telegraf",
                 "label": "%"
               }
@@ -4036,8 +4226,7 @@
     },
     "DashboardColor": {
       "type": "object",
-      "description":
-        "Color defines an encoding of a data value into color space",
+      "description": "Color defines an encoding of a data value into color space",
       "properties": {
         "id": {
           "description": "ID is the unique id of the cell color",
@@ -4046,7 +4235,11 @@
         "type": {
           "description": "Type is how the color is used.",
           "type": "string",
-          "enum": ["min", "max", "threshold"]
+          "enum": [
+            "min",
+            "max",
+            "threshold"
+          ]
         },
         "hex": {
           "description": "Hex is the hex number of the color",
@@ -4072,8 +4265,7 @@
           "type": "array",
           "minItems": 0,
           "maxItems": 2,
-          "description":
-            "The extents of an axis in the form [lower, upper]. Clients determine whether bounds are to be inclusive or exclusive of their limits",
+          "description": "The extents of an axis in the form [lower, upper]. Clients determine whether bounds are to be inclusive or exclusive of their limits",
           "items": {
             "type": "integer",
             "format": "int64"
@@ -4084,23 +4276,19 @@
           "type": "string"
         },
         "prefix": {
-          "description":
-            "Prefix represents a label prefix for formatting axis values.",
+          "description": "Prefix represents a label prefix for formatting axis values.",
           "type": "string"
         },
         "suffix": {
-          "description":
-            "Suffix represents a label suffix for formatting axis values.",
+          "description": "Suffix represents a label suffix for formatting axis values.",
           "type": "string"
         },
         "base": {
-          "description":
-            "Base represents the radix for formatting axis values.",
+          "description": "Base represents the radix for formatting axis values.",
           "type": "string"
         },
         "scale": {
-          "description":
-            "Scale is the axis formatting scale. Supported: \"log\", \"linear\"",
+          "description": "Scale is the axis formatting scale. Supported: \"log\", \"linear\"",
           "type": "string"
         }
       }
@@ -4134,19 +4322,16 @@
           "format": "url"
         },
         "external": {
-          "description":
-            "external links provided to client, ex. status feed URL",
+          "description": "external links provided to client, ex. status feed URL",
           "type": "object",
           "properties": {
             "statusFeed": {
-              "description":
-                "link to a JSON Feed for the News Feed on client's Status Page",
+              "description": "link to a JSON Feed for the News Feed on client's Status Page",
               "type": "string",
               "format": "url"
             },
             "custom": {
-              "description":
-                "a collection of custom links set by the user to be rendered in the client User menu",
+              "description": "a collection of custom links set by the user to be rendered in the client User menu",
               "type": "array",
               "items": {
                 "type": "object",
@@ -4183,7 +4368,10 @@
     },
     "Link": {
       "type": "object",
-      "required": ["rel", "href"],
+      "required": [
+        "rel",
+        "href"
+      ],
       "readOnly": true,
       "description": "URI of resource.",
       "properties": {
