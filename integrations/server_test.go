@@ -67,7 +67,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "Default",
+								Organization: "default",
 							},
 						},
 					},
@@ -81,7 +81,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/organizations",
 				principal: oauth2.Principal{
-					Organization: "Default",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -96,9 +96,9 @@ func TestServer(t *testing.T) {
   "organizations": [
     {
       "links": {
-        "self": "/chronograf/v1/organizations/Default"
+        "self": "/chronograf/v1/organizations/default"
       },
-      "id": "Default",
+      "id": "default",
       "name": "Default",
       "defaultRole": "member",
       "public": true
@@ -130,7 +130,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "Default",
+								Organization: "default",
 							},
 						},
 					},
@@ -144,7 +144,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/organizations/howdy",
 				principal: oauth2.Principal{
-					Organization: "Default",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -177,7 +177,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "Default",
+								Organization: "default",
 							},
 						},
 					},
@@ -191,7 +191,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/dashboards/1000",
 				principal: oauth2.Principal{
-					Organization: "Default",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -387,7 +387,7 @@ func TestServer(t *testing.T) {
     }
   ],
   "name": "Name This Dashboard",
-  "organization": "Default",
+  "organization": "default",
   "links": {
     "self": "/chronograf/v1/dashboards/1000",
     "cells": "/chronograf/v1/dashboards/1000/cells",
@@ -410,7 +410,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "Default",
+								Organization: "default",
 							},
 						},
 					},
@@ -424,7 +424,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/dashboards",
 				principal: oauth2.Principal{
-					Organization: "Default",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -622,7 +622,7 @@ func TestServer(t *testing.T) {
         }
       ],
       "name": "Name This Dashboard",
-      "organization": "Default",
+      "organization": "default",
       "links": {
         "self": "/chronograf/v1/dashboards/1000",
         "cells": "/chronograf/v1/dashboards/1000/cells",
@@ -647,7 +647,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
-					Organization: "Default",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -671,7 +671,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "Default",
+								Organization: "default",
 							},
 						},
 					},
@@ -685,7 +685,7 @@ func TestServer(t *testing.T) {
 				method: "GET",
 				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
-					Organization: "Default",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -710,7 +710,7 @@ func TestServer(t *testing.T) {
       "roles": [
         {
           "name": "admin",
-          "organization": "0"
+          "organization": "default"
         }
       ]
     }
@@ -737,7 +737,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "0",
+								Organization: "default",
 							},
 						},
 					},
@@ -757,12 +757,12 @@ func TestServer(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.EditorRoleName,
-							Organization: "0",
+							Organization: "default",
 						},
 					},
 				},
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -782,7 +782,7 @@ func TestServer(t *testing.T) {
   "roles": [
     {
       "name": "editor",
-      "organization": "0"
+      "organization": "default"
     }
   ]
 }`,
@@ -807,7 +807,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "0",
+								Organization: "default",
 							},
 						},
 					},
@@ -827,12 +827,12 @@ func TestServer(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.EditorRoleName,
-							Organization: "0",
+							Organization: "default",
 						},
 					},
 				},
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -852,7 +852,7 @@ func TestServer(t *testing.T) {
   "roles": [
     {
       "name": "editor",
-      "organization": "0"
+      "organization": "default"
     }
   ]
 }`,
@@ -877,7 +877,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "0",
+								Organization: "default",
 							},
 						},
 					},
@@ -897,12 +897,12 @@ func TestServer(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.EditorRoleName,
-							Organization: "0",
+							Organization: "default",
 						},
 					},
 				},
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -922,7 +922,7 @@ func TestServer(t *testing.T) {
   "roles": [
     {
       "name": "editor",
-      "organization": "0"
+      "organization": "default"
     }
   ]
 }`,
@@ -947,7 +947,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "0",
+								Organization: "default",
 							},
 						},
 					},
@@ -968,12 +968,12 @@ func TestServer(t *testing.T) {
 					Roles: []chronograf.Role{
 						{
 							Name:         roles.EditorRoleName,
-							Organization: "0",
+							Organization: "default",
 						},
 					},
 				},
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -998,7 +998,7 @@ func TestServer(t *testing.T) {
 				},
 				Organizations: []chronograf.Organization{
 					{
-						ID:          1,
+						ID:          "1",
 						Name:        "Sweet",
 						DefaultRole: roles.ViewerRoleName,
 					},
@@ -1013,7 +1013,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "0",
+								Organization: "default",
 							},
 						},
 					},
@@ -1030,7 +1030,7 @@ func TestServer(t *testing.T) {
 					"organization": "1",
 				},
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},
@@ -1044,7 +1044,7 @@ func TestServer(t *testing.T) {
   "roles": [
     {
       "name": "admin",
-      "organization": "0"
+      "organization": "default"
     },
     {
       "name": "admin",
@@ -1059,16 +1059,16 @@ func TestServer(t *testing.T) {
   },
   "organizations": [
     {
-      "id": "0",
-      "name": "Default",
-      "defaultRole": "member",
-      "public": true
-    },
-    {
       "id": "1",
       "name": "Sweet",
       "defaultRole": "viewer",
       "public": false
+    },
+    {
+      "id": "default",
+      "name": "Default",
+      "defaultRole": "member",
+      "public": true
     }
   ],
   "currentOrganization": {
@@ -1091,7 +1091,7 @@ func TestServer(t *testing.T) {
 				},
 				Organizations: []chronograf.Organization{
 					{
-						ID:          1,
+						ID:          "1",
 						Name:        "Sweet",
 						DefaultRole: roles.ViewerRoleName,
 					},
@@ -1106,7 +1106,7 @@ func TestServer(t *testing.T) {
 						Roles: []chronograf.Role{
 							{
 								Name:         "admin",
-								Organization: "0",
+								Organization: "default",
 							},
 						},
 					},
@@ -1123,7 +1123,7 @@ func TestServer(t *testing.T) {
 					"organization": "1",
 				},
 				principal: oauth2.Principal{
-					Organization: "0",
+					Organization: "default",
 					Subject:      "billibob",
 					Issuer:       "github",
 				},

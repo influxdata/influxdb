@@ -181,5 +181,5 @@
             }
         ],
         "name": "Name This Dashboard",
-        "organization": "Default"
+        "organization": "default"
     }

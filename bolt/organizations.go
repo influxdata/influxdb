@@ -17,7 +17,7 @@ var (
 	// OrganizationsBucket is the bucket where organizations are stored.
 	OrganizationsBucket = []byte("OrganizationsV1")
 	// DefaultOrganizationID is the ID of the default organization.
-	DefaultOrganizationID = []byte("Default")
+	DefaultOrganizationID = []byte("default")
 )
 
 const (
