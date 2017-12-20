@@ -289,6 +289,8 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 		e, err := itr.Next()
 		if err != nil {
 			return err
+		} else if e == nil {
+			break
 		}
 
 		if err := fn(e); err != nil {
