@@ -1,14 +1,27 @@
-## v1.4.0.0-beta2 [unreleased]
+## v1.4.0.0 [unreleased]
+### Features
+### UI Improvements
+### Bug Fixes
+
+## v1.4.0.0-rc1 [2017-12-19]
 ### Features
 1. [#2593](https://github.com/influxdata/chronograf/pull/2593): Add option to use files for dashboards, organizations, data sources, and kapacitors
+1. [#2604](https://github.com/influxdata/chronograf/pull/2604): After chronograf version upgrade, backup database is created in ./backups
 
 ### UI Improvements
-1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
+1. [#2492](https://github.com/influxdata/chronograf/pull/2492): Cleanup style on login page with multiple OAuth2 providers
 
+### Bug Fixes
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix stale source data after updating or creating
+1. [#2616](https://github.com/influxdata/chronograf/pull/2616): Fix cell editing so query data choices are kept when updating a cell
+1. [#2612](https://github.com/influxdata/chronograf/pull/2612): Allow days as a valid duration value
+
+## v1.4.0.0-beta2 [2017-12-14]
+### UI Improvements
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
 ### Bug Fixes
 1. [#2528](https://github.com/influxdata/chronograf/pull/2528): Fix template rendering to ignore template if not in query
 1. [#2563](https://github.com/influxdata/chronograf/pull/2563): Fix graph inversion if user input y-axis min greater than max
-1. [#2616](https://github.com/influxdata/chronograf/pull/2616): Fix cell editing so query data choices are kept when updating a cell
 
 ## v1.4.0.0-beta1 [2017-12-07]
 ### Features
