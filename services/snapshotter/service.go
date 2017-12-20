@@ -41,7 +41,6 @@ type Service struct {
 
 	TSDBStore interface {
 		BackupShard(id uint64, since time.Time, w io.Writer) error
-		BackupSeriesFile(database string, w io.Writer) error
 		ExportShard(id uint64, ExportStart time.Time, ExportEnd time.Time, w io.Writer) error
 		Shard(id uint64) *tsdb.Shard
 		ShardRelativePath(id uint64) (string, error)
@@ -136,10 +135,6 @@ func (s *Service) handleConn(conn net.Conn) error {
 		}
 	case RequestMetastoreBackup:
 		if err := s.writeMetaStore(conn); err != nil {
-			return err
-		}
-	case RequestSeriesFileBackup:
-		if err := s.TSDBStore.BackupSeriesFile(r.BackupDatabase, conn); err != nil {
 			return err
 		}
 	case RequestDatabaseInfo:

@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/snapshotter"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Command represents the program execution for "influxd restore".
@@ -55,10 +54,6 @@ func (cmd *Command) Run(args ...string) error {
 		if err := cmd.unpackMeta(); err != nil {
 			return err
 		}
-	}
-
-	if err := cmd.unpackSeriesFile(); err != nil {
-		return err
 	}
 
 	if cmd.shard != "" {
@@ -112,42 +107,6 @@ func (cmd *Command) parseFlags(args []string) error {
 		}
 	} else if cmd.retention != "" && cmd.database == "" {
 		return fmt.Errorf("-database is required to restore retention policy")
-	}
-
-	return nil
-}
-
-// unpackSeriesFile reads the series file and restores it.
-func (cmd *Command) unpackSeriesFile() error {
-	files, err := filepath.Glob(filepath.Join(cmd.backupFilesPath, tsdb.SeriesFileName+".*"))
-	if err != nil {
-		return err
-	} else if len(files) == 0 {
-		return fmt.Errorf("no series file backups in %s", cmd.backupFilesPath)
-	}
-	latest := files[len(files)-1]
-
-	dstname := filepath.Join(cmd.datadir, cmd.database, tsdb.SeriesFileName)
-	if err := os.MkdirAll(filepath.Dir(dstname), 0777); err != nil {
-		return fmt.Errorf("error making restore dir: %s", err.Error())
-	}
-
-	// Open backup file.
-	src, err := os.Open(latest)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	// Open destination file.
-	dst, err := os.Create(dstname)
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, src); err != nil {
-		return fmt.Errorf("copy series file: %s", err)
 	}
 
 	return nil

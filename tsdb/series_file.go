@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/cespare/xxhash"
@@ -28,21 +29,13 @@ const SeriesFileVersion = 1
 // Series flag constants.
 const (
 	SeriesFileFlagSize      = 1
+	SeriesFileInsertFlag    = 0x00
 	SeriesFileTombstoneFlag = 0x01
 )
-
-// MaxSeriesFileHashSize is the maximum number of series in a single hash map.
-const MaxSeriesFileHashSize = (1 << 20 * SeriesMapLoadFactor) / 100 // (1MB * 90) / 100 == ~943K
 
 // SeriesMapThreshold is the number of series IDs to hold in the in-memory
 // series map before compacting and rebuilding the on-disk representation.
 const SeriesMapThreshold = 1 << 25 // ~33M ids * 8 bytes per id == 256MB
-
-const (
-	// DefaultMaxSeriesFileSize is the maximum series file size. Assuming that each
-	// series key takes, for example, 150 bytes, the limit would support ~229M series.
-	DefaultMaxSeriesFileSize = 32 * (1 << 30) // 32GB
-)
 
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
@@ -58,6 +51,7 @@ type SeriesFile struct {
 	log         []byte
 	keyIDMap    *seriesKeyIDMap
 	idOffsetMap *seriesIDOffsetMap
+	walOffset   int64
 	tombstones  map[uint64]struct{}
 
 	// MaxSize is the maximum size of the file.
@@ -118,6 +112,26 @@ func (f *SeriesFile) Open() error {
 		f.log = f.data[hdr.Log.Offset : hdr.Log.Offset+hdr.Log.Size]
 		f.keyIDMap = newSeriesKeyIDMap(f.data, f.data[hdr.KeyIDMap.Offset:hdr.KeyIDMap.Offset+hdr.KeyIDMap.Size])
 		f.idOffsetMap = newSeriesIDOffsetMap(f.data, f.data[hdr.IDOffsetMap.Offset:hdr.IDOffsetMap.Offset+hdr.IDOffsetMap.Size])
+		f.walOffset = hdr.WAL.Offset
+
+		// Replay post-compaction log.
+		for off := f.walOffset; off < f.size; {
+			flag, id, key, sz := ReadSeriesFileLogEntry(f.data[off:])
+
+			switch flag {
+			case SeriesFileInsertFlag:
+				f.keyIDMap.insert(key, id)
+				f.idOffsetMap.insert(id, off+SeriesFileLogInsertEntryHeader)
+
+			case SeriesFileTombstoneFlag:
+				f.tombstones[id] = struct{}{}
+
+			default:
+				return fmt.Errorf("tsdb.SeriesFile.Open(): unknown log entry flag: %d", flag)
+			}
+
+			off += sz
+		}
 
 		return nil
 	}(); err != nil {
@@ -196,6 +210,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 		// Append new key to be added to hash map after flush.
 		ids[i] = id
+		newIDs[string(buf)] = id
 		newKeyRanges = append(newKeyRanges, keyRange{id, offset, f.size - offset})
 	}
 
@@ -206,7 +221,8 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 	// Add keys to hash map(s).
 	for _, keyRange := range newKeyRanges {
-		f.keyIDMap.insert(f.data[keyRange.offset:keyRange.offset+keyRange.size], keyRange.id)
+		key := f.data[keyRange.offset : keyRange.offset+keyRange.size]
+		f.keyIDMap.insert(key, keyRange.id)
 		f.idOffsetMap.insert(keyRange.id, keyRange.offset)
 	}
 
@@ -318,16 +334,25 @@ func (f *SeriesFile) SeriesCount() uint64 {
 
 // SeriesIterator returns an iterator over all the series.
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
-	return &seriesFileIterator{
-		offset: 1,
-		data:   f.data[1:f.size],
-	}
+	var ids []uint64
+	ids = append(ids, ReadSeriesFileLogIDs(f.log)...)
+	ids = append(ids, ReadSeriesFileLogIDs(f.data[f.walOffset:f.size])...)
+
+	sort.Slice(ids, func(i, j int) bool {
+		keyi := f.SeriesKey(ids[i])
+		keyj := f.SeriesKey(ids[j])
+		return CompareSeriesKeys(keyi, keyj) == -1
+	})
+
+	return NewSeriesIDSliceIterator(ids)
 }
 
 func (f *SeriesFile) insert(key []byte) (id uint64, offset int64, err error) {
+	id = f.seq + 1
+
 	var buf bytes.Buffer
-	buf.WriteByte(0)                              // flag
-	binary.Write(&buf, binary.BigEndian, f.seq+1) // new id
+	buf.WriteByte(SeriesFileInsertFlag)      // flag
+	binary.Write(&buf, binary.BigEndian, id) // new id
 
 	// Save offset position.
 	offset = f.size + int64(buf.Len())
@@ -349,14 +374,44 @@ func (f *SeriesFile) seriesKeyByOffset(offset int64) []byte {
 	if offset == 0 || f.data == nil {
 		return nil
 	}
-	buf := f.data[offset:]
-	sz, _ := ReadSeriesKeyLen(buf)
-	return buf[:sz]
+	key, _ := ReadSeriesKey(f.data[offset:])
+	return key
+}
+
+const SeriesFileLogInsertEntryHeader = 1 + 8 // flag + id
+
+func ReadSeriesFileLogEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) {
+	flag, data = uint8(data[1]), data[1:]
+	id, data = binary.BigEndian.Uint64(data), data[8:]
+	switch flag {
+	case SeriesFileInsertFlag:
+		key, _ = ReadSeriesKey(data)
+	}
+	return flag, id, key, int64(SeriesFileLogInsertEntryHeader + len(key))
+}
+
+func ReadSeriesFileLogIDs(data []byte) []uint64 {
+	var ids []uint64
+	for len(data) > 0 {
+		flag, id, _, sz := ReadSeriesFileLogEntry(data)
+		if flag == SeriesFileInsertFlag {
+			ids = append(ids, id)
+		}
+		data = data[sz:]
+	}
+	return ids
 }
 
 const SeriesFileMagic = uint32(0x49465346) // "IFSF"
 
 var ErrInvalidSeriesFile = errors.New("invalid series file")
+
+const SeriesFileHeaderSize = 0 +
+	4 + 1 + // magic + version
+	8 + 8 + // log
+	8 + 8 + // key/id map
+	8 + 8 + // id/offset map
+	8 // wall offset
 
 // SeriesFileHeader represents the version & position information of a series file.
 type SeriesFileHeader struct {
@@ -376,18 +431,27 @@ type SeriesFileHeader struct {
 		Offset int64
 		Size   int64
 	}
+
+	WAL struct {
+		Offset int64
+	}
 }
 
 // NewSeriesFileHeader returns a new instance of SeriesFileHeader.
-func NewSeriesFileHeader() *SeriesFileHeader {
-	return &SeriesFileHeader{Version: SeriesFileVersion}
+func NewSeriesFileHeader() SeriesFileHeader {
+	hdr := SeriesFileHeader{Version: SeriesFileVersion}
+	hdr.Log.Offset = SeriesFileHeaderSize
+	hdr.KeyIDMap.Offset = SeriesFileHeaderSize
+	hdr.IDOffsetMap.Offset = SeriesFileHeaderSize
+	hdr.WAL.Offset = SeriesFileHeaderSize
+	return hdr
 }
 
 // ReadSeriesFileHeader returns the header from data.
 func ReadSeriesFileHeader(data []byte) (hdr SeriesFileHeader, err error) {
 	r := bytes.NewReader(data)
 	if len(data) == 0 {
-		return SeriesFileHeader{Version: SeriesFileVersion}, nil
+		return NewSeriesFileHeader(), nil
 	}
 
 	// Read magic number & version.
@@ -422,6 +486,11 @@ func ReadSeriesFileHeader(data []byte) (hdr SeriesFileHeader, err error) {
 		return hdr, err
 	}
 
+	// Read WAL offset.
+	if err := binary.Read(r, binary.BigEndian, &hdr.WAL.Offset); err != nil {
+		return hdr, err
+	}
+
 	return hdr, nil
 }
 
@@ -436,43 +505,9 @@ func (hdr *SeriesFileHeader) WriteTo(w io.Writer) (n int64, err error) {
 	binary.Write(&buf, binary.BigEndian, hdr.KeyIDMap.Size)
 	binary.Write(&buf, binary.BigEndian, hdr.IDOffsetMap.Offset)
 	binary.Write(&buf, binary.BigEndian, hdr.IDOffsetMap.Size)
+	binary.Write(&buf, binary.BigEndian, hdr.WAL.Offset)
 	return buf.WriteTo(w)
 }
-
-// seriesFileIterator is an iterator over a series ids in a series list.
-type seriesFileIterator struct {
-	data   []byte
-	offset uint64
-}
-
-// Next returns the next series element.
-func (itr *seriesFileIterator) Next() (SeriesIDElem, error) {
-	for {
-		if len(itr.data) == 0 {
-			return SeriesIDElem{}, nil
-		}
-
-		// Read flag.
-		flag := itr.data[0]
-		itr.data = itr.data[1:]
-		itr.offset++
-
-		switch flag {
-		case SeriesFileTombstoneFlag:
-			itr.data = itr.data[8:] // skip
-			itr.offset += 8
-		default:
-			var key []byte
-			key, itr.data = ReadSeriesKey(itr.data)
-
-			elem := SeriesIDElem{SeriesID: itr.offset}
-			itr.offset += uint64(len(key))
-			return elem, nil
-		}
-	}
-}
-
-func (itr *seriesFileIterator) Close() error { return nil }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
 // The total length is prepended as a uvarint.

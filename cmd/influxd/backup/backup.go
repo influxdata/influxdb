@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/tcp"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (
@@ -301,21 +300,6 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 
 }
 
-// backupSeriesFile will write a tar archive of the series file for the database.
-func (cmd *Command) backupSeriesFile() error {
-	seriesFileArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, tsdb.SeriesFileName))
-	if err != nil {
-		return err
-	}
-
-	cmd.StdoutLogger.Printf("backing up series file to %s", seriesFileArchivePath)
-	req := &snapshotter.Request{
-		Type:           snapshotter.RequestSeriesFileBackup,
-		BackupDatabase: cmd.database,
-	}
-	return cmd.downloadAndVerify(req, seriesFileArchivePath, nil)
-}
-
 // backupDatabase will request the database information from the server and then backup
 // every shard in every retention policy in the database. Each shard will be written to a separate file.
 func (cmd *Command) backupDatabase() error {
@@ -368,10 +352,6 @@ func (cmd *Command) backupResponsePaths(response *snapshotter.Response) error {
 		if err != nil {
 			return err
 		}
-	}
-
-	if err := cmd.backupSeriesFile(); err != nil {
-		return err
 	}
 
 	return nil

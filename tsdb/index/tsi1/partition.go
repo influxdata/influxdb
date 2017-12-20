@@ -724,39 +724,6 @@ func (i *Partition) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
-// SnapshotTo creates hard links to the file set into path.
-func (i *Partition) SnapshotTo(path string) error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	fs := i.retainFileSet()
-	defer fs.Release()
-
-	// Flush active log file, if any.
-	if err := i.activeLogFile.Flush(); err != nil {
-		return err
-	}
-
-	newRoot := filepath.Join(path, "index", i.id)
-	if err := os.Mkdir(newRoot, 0777); err != nil {
-		return err
-	}
-
-	// Link manifest.
-	if err := os.Link(i.ManifestPath(), filepath.Join(newRoot, filepath.Base(i.ManifestPath()))); err != nil {
-		return fmt.Errorf("error creating tsi manifest hard link: %q", err)
-	}
-
-	// Link files in directory.
-	for _, f := range fs.files {
-		if err := os.Link(f.Path(), filepath.Join(newRoot, filepath.Base(f.Path()))); err != nil {
-			return fmt.Errorf("error creating tsi hard link: %q", err)
-		}
-	}
-
-	return nil
-}
-
 func (i *Partition) SetFieldName(measurement []byte, name string) {}
 func (i *Partition) RemoveShard(shardID uint64)                   {}
 func (i *Partition) AssignShard(k string, shardID uint64)         {}

@@ -768,30 +768,6 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
-// SnapshotTo creates hard links to the file set into path.
-func (i *Index) SnapshotTo(path string) error {
-	newRoot := filepath.Join(path, "index")
-	if err := os.Mkdir(newRoot, 0777); err != nil {
-		return err
-	}
-
-	// Store results.
-	errC := make(chan error, len(i.partitions))
-	for _, p := range i.partitions {
-		go func(p *Partition) {
-			errC <- p.SnapshotTo(path)
-		}(p)
-	}
-
-	// Check for error
-	for i := 0; i < cap(errC); i++ {
-		if err := <-errC; err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // RetainFileSet returns the set of all files across all partitions.
 // This is only needed when all files need to be retained for an operation.
 func (i *Index) RetainFileSet() (*FileSet, error) {

@@ -805,9 +805,6 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
-	if err := e.index.SnapshotTo(path); err != nil {
-		return err
-	}
 
 	tw := tar.NewWriter(w)
 	defer tw.Close()
@@ -1585,7 +1582,7 @@ func (e *Engine) CreateSnapshot() (string, error) {
 	}
 
 	// Generate a snapshot of the index.
-	return path, e.index.SnapshotTo(path)
+	return path, nil
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.

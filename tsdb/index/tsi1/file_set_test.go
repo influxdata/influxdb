@@ -85,10 +85,10 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 			tagset string
 		}{
 			{`cpu`, `[{region east}]`},
-			{`cpu`, `[{region west}]`},
-			{`mem`, `[{region east}]`},
-			{`disk`, `[]`},
 			{`cpu`, `[{region north}]`},
+			{`cpu`, `[{region west}]`},
+			{`disk`, `[]`},
+			{`mem`, `[{region east}]`},
 		}
 
 		for _, expected := range allexpected {

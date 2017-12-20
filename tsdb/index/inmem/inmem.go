@@ -944,9 +944,6 @@ func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterat
 	}, nil
 }
 
-// SnapshotTo is a no-op since this is an in-memory index.
-func (i *Index) SnapshotTo(path string) error { return nil }
-
 // DiskSizeBytes always returns zero bytes, since this is an in-memory index.
 func (i *Index) DiskSizeBytes() int64 { return 0 }
 

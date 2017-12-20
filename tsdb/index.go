@@ -9,6 +9,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -54,9 +55,6 @@ type Index interface {
 	// Sets a shared fieldset from the engine.
 	FieldSet() *MeasurementFieldSet
 	SetFieldSet(fs *MeasurementFieldSet)
-
-	// Creates hard links inside path for snapshotting.
-	SnapshotTo(path string) error
 
 	// Size of the index on disk, if applicable.
 	DiskSizeBytes() int64
@@ -2315,3 +2313,6 @@ type byTagKey []*query.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+
+// TEMP
+func dump(v interface{}) { spew.Dump(v) }
