@@ -87,7 +87,7 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := req.Valid(fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+	if err := req.Valid(defaultOrg.ID); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}

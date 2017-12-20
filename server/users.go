@@ -54,9 +54,6 @@ func (r *userRequest) ValidRoles() error {
 			if r.Organization == "" {
 				return fmt.Errorf("no organization was provided")
 			}
-			if _, err := parseOrganizationID(r.Organization); err != nil {
-				return fmt.Errorf("failed to parse organization ID: %v", err)
-			}
 			if _, ok := orgs[r.Organization]; ok {
 				return fmt.Errorf("duplicate organization %q in roles", r.Organization)
 			}
@@ -158,7 +155,8 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	cfg, err := s.Store.Config(ctx).Get(ctx)
+	serverCtx := serverContext(ctx)
+	cfg, err := s.Store.Config(serverCtx).Get(serverCtx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 		return
@@ -323,7 +321,7 @@ func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) 
 	} else if !isSuperAdmin && (user.SuperAdmin != req.SuperAdmin) {
 		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
 		// context, return error
-		return fmt.Errorf("User does not have authorization required to set SuperAdmin status")
+		return fmt.Errorf("User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information.")
 	}
 
 	return nil

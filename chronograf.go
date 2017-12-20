@@ -16,6 +16,9 @@ const (
 	ErrDashboardNotFound               = Error("dashboard not found")
 	ErrUserNotFound                    = Error("user not found")
 	ErrLayoutInvalid                   = Error("layout is invalid")
+	ErrDashboardInvalid                = Error("dashboard is invalid")
+	ErrSourceInvalid                   = Error("source is invalid")
+	ErrServerInvalid                   = Error("server is invalid")
 	ErrAlertNotFound                   = Error("alert not found")
 	ErrAuthentication                  = Error("user not authenticated")
 	ErrUninitialized                   = Error("client uninitialized. Call Open() method")
@@ -562,7 +565,7 @@ type LayoutsStore interface {
 
 // Organization is a group of resources under a common name
 type Organization struct {
-	ID   uint64 `json:"id,string"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 	// DefaultRole is the name of the role that is the default for any users added to the organization
 	DefaultRole string `json:"defaultRole,omitempty"`
@@ -576,7 +579,7 @@ type Organization struct {
 // It is expected that only one of ID or Name will be specified, but will prefer ID over Name if both are specified.
 type OrganizationQuery struct {
 	// If an ID is provided in the query, the lookup time for an organization will be O(1).
-	ID *uint64
+	ID *string
 	// If Name is provided, the lookup time will be O(n).
 	Name *string
 }
@@ -631,4 +634,16 @@ type ConfigStore interface {
 	Get(context.Context) (*Config, error)
 	// Update updates the whole Config in the ConfigStore
 	Update(context.Context, *Config) error
+}
+
+// BuildInfo is sent to the usage client to track versions and commits
+type BuildInfo struct {
+	Version string
+	Commit  string
+}
+
+// BuildStore is the storage and retrieval of Chronograf build information
+type BuildStore interface {
+	Get(context.Context) (BuildInfo, error)
+	Update(context.Context, BuildInfo) error
 }

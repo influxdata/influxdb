@@ -101,7 +101,7 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidDashboardRequest(&dashboard, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+	if err := ValidDashboardRequest(&dashboard, defaultOrg.ID); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -168,7 +168,7 @@ func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidDashboardRequest(&req, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+	if err := ValidDashboardRequest(&req, defaultOrg.ID); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -215,7 +215,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
-		if err := ValidDashboardRequest(&req, fmt.Sprintf("%d", defaultOrg.ID)); err != nil {
+		if err := ValidDashboardRequest(&req, defaultOrg.ID); err != nil {
 			invalidData(w, err, s.Logger)
 			return
 		}

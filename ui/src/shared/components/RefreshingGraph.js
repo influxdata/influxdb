@@ -41,7 +41,6 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
-        colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
         templates={templates}

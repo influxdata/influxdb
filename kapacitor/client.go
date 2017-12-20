@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/uuid"
+	"github.com/influxdata/chronograf/id"
 	client "github.com/influxdata/kapacitor/client/v1"
 )
 
@@ -44,7 +44,7 @@ func NewClient(url, username, password string, insecureSkipVerify bool) *Client 
 		Username:           username,
 		Password:           password,
 		InsecureSkipVerify: insecureSkipVerify,
-		ID:                 &uuid.V4{},
+		ID:                 &id.UUID{},
 		Ticker:             &Alert{},
 		kapaClient:         NewKapaClient,
 	}

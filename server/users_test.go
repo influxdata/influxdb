@@ -334,7 +334,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information."}`,
 		},
 		{
 			name: "Create a new SuperAdmin User - as superadmin",
@@ -900,7 +900,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information."}`,
 		},
 		{
 			name: "Update a Chronograf user to super admin - with super admin context",
@@ -1157,25 +1157,6 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 			err:     nil,
 		},
 		{
-			name: "Invalid - bad organization",
-			args: args{
-				u: &userRequest{
-					ID:       1337,
-					Name:     "billietta",
-					Provider: "auth0",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Name:         roles.EditorRoleName,
-							Organization: "l", // this is the character L not integer One
-						},
-					},
-				},
-			},
-			wantErr: true,
-			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
-		},
-		{
 			name: "Invalid – Name missing",
 			args: args{
 				u: &userRequest{
@@ -1318,25 +1299,6 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			},
 			wantErr: true,
 			err:     fmt.Errorf("No Roles to update"),
-		},
-		{
-			name: "Invalid - bad organization",
-			args: args{
-				u: &userRequest{
-					ID:       1337,
-					Name:     "billietta",
-					Provider: "auth0",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Name:         roles.EditorRoleName,
-							Organization: "l", // this is the character L not integer One
-						},
-					},
-				},
-			},
-			wantErr: true,
-			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
 		},
 		{
 			name: "Invalid - bad role name",

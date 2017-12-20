@@ -10,10 +10,6 @@ const Login = ({authData: {auth}}) => {
     return <div className="page-spinner" />
   }
 
-  const iconClass = name => {
-    return name === 'auth0' ? 'icon authzero' : `icon ${name}`
-  }
-
   return (
     <div>
       <Notifications />
@@ -25,8 +21,8 @@ const Login = ({authData: {auth}}) => {
         {auth.links &&
           auth.links.map(({name, login, label}) =>
             <a key={name} className="btn btn-primary" href={login}>
-              <span className={iconClass(name)} />
-              Login with {label}
+              <span className={`icon ${name}`} />
+              Log in with {label}
             </a>
           )}
       </SplashPage>

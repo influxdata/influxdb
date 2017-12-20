@@ -1,4 +1,7 @@
-download a binary here https://github.com/google/protobuf/releases/tag/v3.1.0
+Download the protobuf binary by either:
+- `brew install protobuf`
+- Download from protobuf [github release](https://github.com/google/protobuf/releases/tag/v3.1.0) and place in your $PATH
+
 
 run the following 4 commands listed here https://github.com/gogo/protobuf
 ```sh

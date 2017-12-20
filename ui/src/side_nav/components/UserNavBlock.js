@@ -94,7 +94,7 @@ class UserNavBlock extends Component {
             className="sidebar-menu--item sidebar-menu--item__logout"
             href={logoutLink}
           >
-            Logout
+            Log out
           </a>
           <div className="sidebar-menu--heading sidebar--no-hover">
             {me.name}

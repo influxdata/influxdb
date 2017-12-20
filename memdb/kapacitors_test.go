@@ -9,7 +9,6 @@ import (
 
 func TestInterfaceImplementation(t *testing.T) {
 	var _ chronograf.ServersStore = &KapacitorStore{}
-	var _ chronograf.ServersStore = &MultiKapacitorStore{}
 }
 
 func TestKapacitorStoreAll(t *testing.T) {

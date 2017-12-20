@@ -59,7 +59,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      false,
@@ -67,16 +67,16 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
-						case 0:
+						case "0":
 							return &chronograf.Organization{
-								ID:          0,
+								ID:          "0",
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      false,
 							}, nil
-						case 1:
+						case "1":
 							return &chronograf.Organization{
-								ID:     1,
+								ID:     "1",
 								Name:   "The Bad Place",
 								Public: false,
 							}, nil
@@ -124,7 +124,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      false,
@@ -132,16 +132,16 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
-						case 0:
+						case "0":
 							return &chronograf.Organization{
-								ID:          0,
+								ID:          "0",
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
 							}, nil
-						case 1:
+						case "1":
 							return &chronograf.Organization{
-								ID:     1,
+								ID:     "1",
 								Name:   "The Bad Place",
 								Public: true,
 							}, nil
@@ -190,7 +190,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      false,
@@ -198,16 +198,16 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
-						case 0:
+						case "0":
 							return &chronograf.Organization{
-								ID:          0,
+								ID:          "0",
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
 							}, nil
-						case 1:
+						case "1":
 							return &chronograf.Organization{
-								ID:     1,
+								ID:     "1",
 								Name:   "The Bad Place",
 								Public: true,
 							}, nil
@@ -255,7 +255,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -263,16 +263,16 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
-						case 0:
+						case "0":
 							return &chronograf.Organization{
-								ID:          0,
+								ID:          "0",
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
 							}, nil
-						case 1:
+						case "1":
 							return &chronograf.Organization{
-								ID:     1,
+								ID:     "1",
 								Name:   "The Bad Place",
 								Public: true,
 							}, nil
@@ -320,7 +320,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -328,9 +328,9 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
-						case 0:
+						case "0":
 							return &chronograf.Organization{
-								ID:          0,
+								ID:          "0",
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
@@ -383,7 +383,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -391,7 +391,7 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -445,7 +445,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -453,7 +453,7 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -507,7 +507,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -515,7 +515,7 @@ func TestService_Me(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
@@ -568,13 +568,13 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:     0,
+							ID:     "0",
 							Public: true,
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:     0,
+							ID:     "0",
 							Name:   "The Bad Place",
 							Public: true,
 						}, nil
@@ -662,7 +662,7 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "The Bad Place",
 							DefaultRole: roles.MemberRoleName,
 							Public:      false,
@@ -789,7 +789,7 @@ func TestService_UpdateMe(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "Default",
 							DefaultRole: roles.AdminRoleName,
 							Public:      true,
@@ -800,16 +800,16 @@ func TestService_UpdateMe(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						switch *q.ID {
-						case 0:
+						case "0":
 							return &chronograf.Organization{
-								ID:          0,
+								ID:          "0",
 								Name:        "Default",
 								DefaultRole: roles.AdminRoleName,
 								Public:      true,
 							}, nil
-						case 1337:
+						case "1337":
 							return &chronograf.Organization{
-								ID:     1337,
+								ID:     "1337",
 								Name:   "The ShillBillThrilliettas",
 								Public: true,
 							}, nil
@@ -863,7 +863,7 @@ func TestService_UpdateMe(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:          0,
+							ID:          "0",
 							Name:        "Default",
 							DefaultRole: roles.EditorRoleName,
 							Public:      true,
@@ -874,15 +874,15 @@ func TestService_UpdateMe(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						switch *q.ID {
-						case 1337:
+						case "1337":
 							return &chronograf.Organization{
-								ID:     1337,
+								ID:     "1337",
 								Name:   "The ThrillShilliettos",
 								Public: false,
 							}, nil
-						case 0:
+						case "0":
 							return &chronograf.Organization{
-								ID:          0,
+								ID:          "0",
 								Name:        "Default",
 								DefaultRole: roles.EditorRoleName,
 								Public:      true,
@@ -938,7 +938,7 @@ func TestService_UpdateMe(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -946,7 +946,7 @@ func TestService_UpdateMe(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:     1337,
+							ID:     "1337",
 							Name:   "The ShillBillThrilliettas",
 							Public: true,
 						}, nil
@@ -999,7 +999,7 @@ func TestService_UpdateMe(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {

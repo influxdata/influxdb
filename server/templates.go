@@ -7,7 +7,7 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/uuid"
+	idgen "github.com/influxdata/chronograf/id"
 )
 
 // ValidTemplateRequest checks if the request sent to the server is the correct format.
@@ -111,7 +111,7 @@ func (s *Service) NewTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ids := uuid.V4{}
+	ids := idgen.UUID{}
 	tid, err := ids.Generate()
 	if err != nil {
 		msg := fmt.Sprintf("Error creating template ID for dashboard %d: %v", id, err)
