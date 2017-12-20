@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/organizations"
-	"github.com/influxdata/chronograf/roles"
 )
 
 type meLinks struct {
@@ -96,7 +95,7 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 		}
 
 		// validate that the organization exists
-		_, err = s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &req.Organization})
+		org, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &req.Organization})
 		if err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
@@ -151,8 +150,8 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 			// If the user is a super admin give them an admin role in the
 			// requested organization.
 			u.Roles = append(u.Roles, chronograf.Role{
-				Organization: req.Organization,
-				Name:         roles.AdminRoleName,
+				Organization: org.ID,
+				Name:         org.DefaultRole,
 			})
 			if err := s.Store.Users(serverCtx).Update(serverCtx, u); err != nil {
 				unknownErrorWithMessage(w, err, s.Logger)

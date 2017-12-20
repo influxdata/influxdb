@@ -1301,7 +1301,7 @@ func TestServer(t *testing.T) {
       "organization": "default"
     },
     {
-      "name": "admin",
+      "name": "viewer",
       "organization": "1"
     }
   ],
