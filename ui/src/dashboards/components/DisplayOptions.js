@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
+import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
@@ -32,14 +33,13 @@ class DisplayOptions extends Component {
       : axes
   }
 
-  render() {
+  renderOptions = () => {
     const {
       colors,
       onSetBase,
       onSetScale,
       onSetLabel,
       selectedGraphType,
-      onSelectGraphType,
       onSetPrefixSuffix,
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
@@ -51,7 +51,47 @@ class DisplayOptions extends Component {
     } = this.props
     const {axes} = this.state
 
-    const isGauge = selectedGraphType === 'gauge'
+    switch (selectedGraphType) {
+      case 'gauge':
+        return (
+          <GaugeOptions
+            colors={colors}
+            onChooseColor={onChooseColor}
+            onValidateColorValue={onValidateColorValue}
+            onUpdateColorValue={onUpdateColorValue}
+            onAddThreshold={onAddThreshold}
+            onDeleteThreshold={onDeleteThreshold}
+          />
+        )
+      case 'single-stat':
+        return (
+          <SingleStatOptions
+            colors={colors}
+            onChooseColor={onChooseColor}
+            onValidateColorValue={onValidateColorValue}
+            onUpdateColorValue={onUpdateColorValue}
+            onAddThreshold={onAddThreshold}
+            onDeleteThreshold={onDeleteThreshold}
+          />
+        )
+      default:
+        return (
+          <AxesOptions
+            selectedGraphType={selectedGraphType}
+            axes={axes}
+            onSetBase={onSetBase}
+            onSetLabel={onSetLabel}
+            onSetScale={onSetScale}
+            onSetPrefixSuffix={onSetPrefixSuffix}
+            onSetYAxisBoundMin={onSetYAxisBoundMin}
+            onSetYAxisBoundMax={onSetYAxisBoundMax}
+          />
+        )
+    }
+  }
+
+  render() {
+    const {selectedGraphType, onSelectGraphType} = this.props
 
     return (
       <div className="display-options">
@@ -59,25 +99,7 @@ class DisplayOptions extends Component {
           selectedGraphType={selectedGraphType}
           onSelectGraphType={onSelectGraphType}
         />
-        {isGauge
-          ? <GaugeOptions
-              colors={colors}
-              onChooseColor={onChooseColor}
-              onValidateColorValue={onValidateColorValue}
-              onUpdateColorValue={onUpdateColorValue}
-              onAddThreshold={onAddThreshold}
-              onDeleteThreshold={onDeleteThreshold}
-            />
-          : <AxesOptions
-              selectedGraphType={selectedGraphType}
-              axes={axes}
-              onSetBase={onSetBase}
-              onSetLabel={onSetLabel}
-              onSetScale={onSetScale}
-              onSetPrefixSuffix={onSetPrefixSuffix}
-              onSetYAxisBoundMin={onSetYAxisBoundMin}
-              onSetYAxisBoundMax={onSetYAxisBoundMax}
-            />}
+        {this.renderOptions()}
       </div>
     )
   }
