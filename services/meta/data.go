@@ -855,7 +855,7 @@ func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPN
 		}
 
 	} else { // import all RP's without renaming
-
+		dbImport.DefaultRetentionPolicy = dbPtr.DefaultRetentionPolicy
 		if dbPtr.RetentionPolicies != nil {
 			dbImport.RetentionPolicies = make([]RetentionPolicyInfo, len(dbPtr.RetentionPolicies))
 			for i := range dbPtr.RetentionPolicies {
