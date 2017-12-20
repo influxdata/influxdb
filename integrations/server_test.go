@@ -1424,7 +1424,7 @@ func TestServer(t *testing.T) {
 
 			if tt.fields.Config != nil {
 				if err := boltdb.ConfigStore.Update(ctx, tt.fields.Config); err != nil {
-					t.Fatalf("failed to update global application config", err)
+					t.Fatalf("failed to update global application config %v", err)
 					return
 				}
 			}
@@ -1495,7 +1495,7 @@ func TestServer(t *testing.T) {
 			serverURL := fmt.Sprintf("http://%v:%v%v", host, port, tt.args.path)
 
 			// Wait for the server to come online
-			timeout := time.Now().Add(100 * time.Millisecond)
+			timeout := time.Now().Add(5 * time.Second)
 			for {
 				_, err := http.Get(serverURL + "/swagger.json")
 				if err == nil {
