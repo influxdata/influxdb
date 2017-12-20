@@ -273,6 +273,21 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Don't allow SuperAdmins to modify their own SuperAdmin status.
+	// Allowing them to do so could result in an application where there
+	// are no super admins.
+	ctxUser, ok := hasUserContext(ctx)
+	if !ok {
+		Error(w, http.StatusInternalServerError, "failed to retrieve user from context", s.Logger)
+		return
+	}
+	// If the user being updated is the user making the request and they are
+	// changing their SuperAdmin status, return an unauthorized error
+	if ctxUser.ID == u.ID && req.SuperAdmin != u.SuperAdmin {
+		Error(w, http.StatusUnauthorized, "user cannot modify their own SuperAdmin status", s.Logger)
+		return
+	}
+
 	if err := setSuperAdmin(ctx, req, u); err != nil {
 		Error(w, http.StatusUnauthorized, err.Error(), s.Logger)
 		return
