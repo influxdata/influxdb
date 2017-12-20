@@ -2,11 +2,12 @@ import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import Threshold from 'src/dashboards/components/Threshold'
+import GaugeThreshold from 'src/dashboards/components/GaugeThreshold'
 
 import {
   MAX_THRESHOLDS,
   MIN_THRESHOLDS,
+  DEFAULT_COLORS,
 } from 'src/dashboards/constants/gaugeColors'
 
 const GaugeOptions = ({
@@ -18,7 +19,9 @@ const GaugeOptions = ({
   onUpdateColorValue,
 }) => {
   const disableMaxColor = colors.length > MIN_THRESHOLDS
+
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
+
   const sortedColors = _.sortBy(colors, color => Number(color.value))
 
   return (
@@ -29,20 +32,8 @@ const GaugeOptions = ({
       <div className="display-options--cell-wrapper">
         <h5 className="display-options--header">Gauge Controls</h5>
         <div className="gauge-controls">
-          <button
-            className="btn btn-sm btn-primary gauge-controls--add-threshold"
-            onClick={onAddThreshold}
-            disabled={disableAddThreshold}
-          >
-            <span className="icon plus" /> Add Threshold
-          </button>
           {sortedColors.map(color =>
-            <Threshold
-              isMin={color.value === sortedColors[0].value}
-              isMax={
-                color.value === sortedColors[sortedColors.length - 1].value
-              }
-              visualizationType="gauge"
+            <GaugeThreshold
               threshold={color}
               key={color.id}
               disableMaxColor={disableMaxColor}
@@ -52,6 +43,13 @@ const GaugeOptions = ({
               onDeleteThreshold={onDeleteThreshold}
             />
           )}
+          <button
+            className="btn btn-sm btn-primary gauge-controls--add-threshold"
+            onClick={onAddThreshold}
+            disabled={disableAddThreshold}
+          >
+            <span className="icon plus" /> Add Threshold
+          </button>
         </div>
       </div>
     </FancyScrollbar>
@@ -59,6 +57,10 @@ const GaugeOptions = ({
 }
 
 const {arrayOf, func, shape, string} = PropTypes
+
+GaugeOptions.defaultProps = {
+  colors: DEFAULT_COLORS,
+}
 
 GaugeOptions.propTypes = {
   colors: arrayOf(

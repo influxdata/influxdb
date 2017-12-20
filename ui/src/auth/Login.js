@@ -10,10 +10,6 @@ const Login = ({authData: {auth}}) => {
     return <div className="page-spinner" />
   }
 
-  const iconClass = name => {
-    return name === 'auth0' ? 'icon authzero' : `icon ${name}`
-  }
-
   return (
     <div>
       <Notifications />

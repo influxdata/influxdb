@@ -2,9 +2,13 @@ import React, {Component, PropTypes} from 'react'
 
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {GAUGE_COLORS} from 'src/dashboards/constants/gaugeColors'
+import {
+  COLOR_TYPE_MIN,
+  COLOR_TYPE_MAX,
+  GAUGE_COLORS,
+} from 'src/dashboards/constants/gaugeColors'
 
-class Threshold extends Component {
+class GaugeThreshold extends Component {
   constructor(props) {
     super(props)
 
@@ -32,34 +36,27 @@ class Threshold extends Component {
 
   render() {
     const {
-      visualizationType,
       threshold,
-      threshold: {hex, name},
+      threshold: {type, hex, name},
       disableMaxColor,
       onChooseColor,
       onDeleteThreshold,
-      isMin,
-      isMax,
     } = this.props
     const {workingValue, valid} = this.state
     const selectedColor = {hex, name}
 
+    const labelClass =
+      type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX
+        ? 'gauge-controls--label'
+        : 'gauge-controls--label-editable'
+
+    const canBeDeleted = !(type === COLOR_TYPE_MIN || type === COLOR_TYPE_MAX)
+
     let label = 'Threshold'
-    let labelClass = 'gauge-controls--label-editable'
-    let canBeDeleted = true
-
-    if (visualizationType === 'gauge') {
-      labelClass =
-        isMin || isMax
-          ? 'gauge-controls--label'
-          : 'gauge-controls--label-editable'
-      canBeDeleted = !(isMin || isMax)
-    }
-
-    if (isMin && visualizationType === 'gauge') {
+    if (type === COLOR_TYPE_MIN) {
       label = 'Minimum'
     }
-    if (isMax && visualizationType === 'gauge') {
+    if (type === COLOR_TYPE_MAX) {
       label = 'Maximum'
     }
 
@@ -86,12 +83,13 @@ class Threshold extends Component {
           type="number"
           onChange={this.handleChangeWorkingValue}
           onBlur={this.handleBlur}
+          min={0}
         />
         <ColorDropdown
           colors={GAUGE_COLORS}
           selected={selectedColor}
           onChoose={onChooseColor(threshold)}
-          disabled={isMax && disableMaxColor}
+          disabled={type === COLOR_TYPE_MAX && disableMaxColor}
         />
       </div>
     )
@@ -100,8 +98,7 @@ class Threshold extends Component {
 
 const {bool, func, shape, string} = PropTypes
 
-Threshold.propTypes = {
-  visualizationType: string.isRequired,
+GaugeThreshold.propTypes = {
   threshold: shape({
     type: string.isRequired,
     hex: string.isRequired,
@@ -114,8 +111,6 @@ Threshold.propTypes = {
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
   onDeleteThreshold: func.isRequired,
-  isMin: bool,
-  isMax: bool,
 }
 
-export default Threshold
+export default GaugeThreshold
