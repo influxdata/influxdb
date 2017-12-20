@@ -36,7 +36,9 @@ class DataExplorer extends Component {
     const {queryConfigs} = this.props
 
     if (queryConfigs.length === 0) {
-      queryConfigs.push(defaultQueryConfig())
+      const qc = defaultQueryConfig()
+      this.props.queryConfigActions.addQuery(qc.id)
+      queryConfigs.push(qc)
     }
 
     return queryConfigs[0]
