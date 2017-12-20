@@ -2377,9 +2377,169 @@
           }
         }
       }
+    },
+    "/organizations": {
+      "get": {
+        "tags": [
+          "organizations",
+          "multitenancy"
+        ],
+        "summary": "All organizations within Chronograf",
+        "description": "Organizations allow for groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
+        "responses": {
+          "200": {
+            "description": "An object with links and an array of organizations",
+            "schema": {
+              "$ref": "#/definitions/Organizations"
+            }
+          },
+          "400": {
+            "description": "Failed to load organizations from store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "User cannot access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "organizations",
+          "multitenancy"
+        ],
+        "summary": "Create new organization",
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "body",
+            "description": "Organization to create",
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successfully create organization",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "format": "url",
+                "description": "Location of the newly created organization resource"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          },
+          "400": {
+            "description": "Invalid JSON; or failed to add organization to store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "User cannot access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description": "Invalid data schema for organization",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
+    "Organization": {
+      "type": "object",
+      "description": "A group of users with various role-based access-control.",
+      "properties": {
+        "defaultRole": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "description": "Unique identifier representing an organization resource. The Default organization will have the id 'default', and any further will start at '1' and increment.",
+          "readOnly": true
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          }
+        },
+        "name": {
+          "type": "string",
+          "description": "User-facing name of the organization resource."
+        },
+        "public": {
+          "type": "boolean",
+          "description": "If the Default organization is public, any successfully authenticated user becomes a user in the Default organization. This property can be set but is negligible on any organization other than Default."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "example": {
+        "defaultRole": "viewer",
+        "id": 1,
+        "links": {
+          "self": "/chronograf/v1/organizations/1"
+        },
+        "name": "Chronogiraffes",
+        "public": false
+      }
+    },
+    "Organizations": {
+      "type": "object",
+      "required": [
+        "organizations"
+      ],
+      "properties": {
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          }
+        },
+        "organizations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Organization"
+          }
+        }
+      }
+    },
     "Databases": {
       "type": "object",
       "required": [
