@@ -1,20 +1,23 @@
-npm-debug.log
-*_gen.go
-canned/apps_gen.go
-server/swagger_gen.go
-.pull-request
-node_modules
-/chronograf
-node_modules/
+# Directories
+ui/reports/
 build/
-chronograf.db
-chronograf-v1.db
-npm-debug.log
-.vscode
+backup/
+.vscode/
+
+# Binaries
+/chronograf
+
+# Dotfiles
+.pull-request
 .DS_Store
 .godep
 .jsdep
 .jssrc
 .dev-jssrc
 .bindata
-ui/reports
+
+# Files
+chronograf*.db
+*_gen.go
+canned/apps_gen.go
+npm-debug.log

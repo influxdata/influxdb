@@ -16,10 +16,10 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
+	idgen "github.com/influxdata/chronograf/id"
 	"github.com/influxdata/chronograf/influx"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
-	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
@@ -54,7 +54,7 @@ type Server struct {
 
 	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
-	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
+	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned dashboards and application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
 	TokenSecret  string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	AuthDuration time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 
@@ -94,7 +94,7 @@ type Server struct {
 	Basepath          string `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
 	PrefixRoutes      bool   `long:"prefix-routes" description:"Force chronograf server to require that all requests to it are prefixed with the value set in --basepath" env:"PREFIX_ROUTES"`
 	ShowVersion       bool   `short:"v" long:"version" description:"Show Chronograf version info"`
-	BuildInfo         BuildInfo
+	BuildInfo         chronograf.BuildInfo
 	Listener          net.Listener
 	handler           http.Handler
 }
@@ -122,6 +122,7 @@ func (s *Server) UseHeroku() bool {
 	return s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
 }
 
+// UseAuth0 validates the CLI parameters to enable Auth0 oauth support
 func (s *Server) UseAuth0() bool {
 	return s.Auth0ClientID != "" && s.Auth0ClientSecret != ""
 }
@@ -230,12 +231,6 @@ func (s *Server) genericRedirectURL() string {
 	return publicURL.String()
 }
 
-// BuildInfo is sent to the usage client to track versions and commits
-type BuildInfo struct {
-	Version string
-	Commit  string
-}
-
 func (s *Server) useAuth() bool {
 	return s.UseGithub() || s.UseGoogle() || s.UseHeroku() || s.UseGenericOAuth2() || s.UseAuth0()
 }
@@ -275,24 +270,52 @@ func (s *Server) NewListener() (net.Listener, error) {
 	return listener, nil
 }
 
+type builders struct {
+	Layouts       LayoutBuilder
+	Sources       SourcesBuilder
+	Kapacitors    KapacitorBuilder
+	Dashboards    DashboardBuilder
+	Organizations OrganizationBuilder
+}
+
+func (s *Server) newBuilders(logger chronograf.Logger) builders {
+	return builders{
+		Layouts: &MultiLayoutBuilder{
+			Logger:     logger,
+			UUID:       &idgen.UUID{},
+			CannedPath: s.CannedPath,
+		},
+		Dashboards: &MultiDashboardBuilder{
+			Logger: logger,
+			ID:     idgen.NewTime(),
+			Path:   s.CannedPath,
+		},
+		Sources: &MultiSourceBuilder{
+			InfluxDBURL:      s.InfluxDBURL,
+			InfluxDBUsername: s.InfluxDBUsername,
+			InfluxDBPassword: s.InfluxDBPassword,
+			Logger:           logger,
+			ID:               idgen.NewTime(),
+			Path:             s.CannedPath,
+		},
+		Kapacitors: &MultiKapacitorBuilder{
+			KapacitorURL:      s.KapacitorURL,
+			KapacitorUsername: s.KapacitorUsername,
+			KapacitorPassword: s.KapacitorPassword,
+			Logger:            logger,
+			ID:                idgen.NewTime(),
+			Path:              s.CannedPath,
+		},
+		Organizations: &MultiOrganizationBuilder{
+			Logger: logger,
+			Path:   s.CannedPath,
+		},
+	}
+}
+
 // Serve starts and runs the chronograf server
 func (s *Server) Serve(ctx context.Context) error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
-	layoutBuilder := &MultiLayoutBuilder{
-		Logger:     logger,
-		UUID:       &uuid.V4{},
-		CannedPath: s.CannedPath,
-	}
-	sourcesBuilder := &MultiSourceBuilder{
-		InfluxDBURL:      s.InfluxDBURL,
-		InfluxDBUsername: s.InfluxDBUsername,
-		InfluxDBPassword: s.InfluxDBPassword,
-	}
-	kapacitorBuilder := &MultiKapacitorBuilder{
-		KapacitorURL:      s.KapacitorURL,
-		KapacitorUsername: s.KapacitorUsername,
-		KapacitorPassword: s.KapacitorPassword,
-	}
 	_, err := NewCustomLinks(s.CustomLinks)
 	if err != nil {
 		logger.
@@ -301,7 +324,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			Error(err)
 		return err
 	}
-	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
+	service := openService(ctx, s.BuildInfo, s.BoltPath, s.newBuilders(logger), logger, s.useAuth())
 	if err := service.HandleNewSources(ctx, s.NewSources); err != nil {
 		logger.
 			WithField("component", "server").
@@ -396,17 +419,18 @@ func (s *Server) Serve(ctx context.Context) error {
 	return nil
 }
 
-func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, sBuilder SourcesBuilder, kapBuilder KapacitorBuilder, logger chronograf.Logger, useAuth bool) Service {
+func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath string, builder builders, logger chronograf.Logger, useAuth bool) Service {
 	db := bolt.NewClient()
 	db.Path = boltPath
-	if err := db.Open(ctx); err != nil {
+
+	if err := db.Open(ctx, logger, buildInfo, bolt.WithBackup()); err != nil {
 		logger.
 			WithField("component", "boltstore").
-			Error("Unable to open boltdb; is there a chronograf already running?  ", err)
+			Error(err)
 		os.Exit(1)
 	}
 
-	layouts, err := lBuilder.Build(db.LayoutsStore)
+	layouts, err := builder.Layouts.Build(db.LayoutsStore)
 	if err != nil {
 		logger.
 			WithField("component", "LayoutsStore").
@@ -414,7 +438,14 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	sources, err := sBuilder.Build(db.SourcesStore)
+	dashboards, err := builder.Dashboards.Build(db.DashboardsStore)
+	if err != nil {
+		logger.
+			WithField("component", "DashboardsStore").
+			Error("Unable to construct a MultiDashboardsStore", err)
+		os.Exit(1)
+	}
+	sources, err := builder.Sources.Build(db.SourcesStore)
 	if err != nil {
 		logger.
 			WithField("component", "SourcesStore").
@@ -422,7 +453,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
-	kapacitors, err := kapBuilder.Build(db.ServersStore)
+	kapacitors, err := builder.Kapacitors.Build(db.ServersStore)
 	if err != nil {
 		logger.
 			WithField("component", "KapacitorStore").
@@ -430,15 +461,23 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		os.Exit(1)
 	}
 
+	organizations, err := builder.Organizations.Build(db.OrganizationsStore)
+	if err != nil {
+		logger.
+			WithField("component", "OrganizationsStore").
+			Error("Unable to construct a MultiOrganizationStore", err)
+		os.Exit(1)
+	}
+
 	return Service{
 		TimeSeriesClient: &InfluxClient{},
 		Store: &Store{
+			LayoutsStore:       layouts,
+			DashboardsStore:    dashboards,
 			SourcesStore:       sources,
 			ServersStore:       kapacitors,
+			OrganizationsStore: organizations,
 			UsersStore:         db.UsersStore,
-			OrganizationsStore: db.OrganizationsStore,
-			LayoutsStore:       layouts,
-			DashboardsStore:    db.DashboardsStore,
 			ConfigStore:        db.ConfigStore,
 		},
 		Logger:    logger,
@@ -448,7 +487,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 }
 
 // reportUsageStats starts periodic server reporting.
-func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
+func reportUsageStats(bi chronograf.BuildInfo, logger chronograf.Logger) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	serverID := strconv.FormatUint(uint64(rand.Int63()), 10)
 	reporter := client.New("")

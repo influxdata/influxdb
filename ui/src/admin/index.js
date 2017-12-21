@@ -1,5 +1,4 @@
 import AdminInfluxDBPage from './containers/AdminInfluxDBPage'
-import AdminChronografPage from './containers/AdminChronografPage'
-import OrganizationsPage from './containers/OrganizationsPage'
+import AdminChronografPage from './containers/chronograf/AdminChronografPage'
 
-export {AdminChronografPage, AdminInfluxDBPage, OrganizationsPage}
+export {AdminChronografPage, AdminInfluxDBPage}

@@ -1,0 +1,14 @@
+{
+  "id": "5000",
+  "name": "Influx 1",
+  "username": "user1",
+  "password": "pass1",
+  "url": "http://localhost:8086",
+  "metaUrl": "http://metaurl.com",
+  "type": "influx-enterprise",
+  "insecureSkipVerify": false,
+  "default": true,
+  "telegraf": "telegraf",
+  "sharedSecret": "cubeapples",
+  "organization": "howdy"
+}

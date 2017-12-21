@@ -39,9 +39,19 @@ class OrganizationsTableRow extends Component {
   }
 
   handleChangeCurrentOrganization = async () => {
-    const {router, links, meChangeOrganization, organization} = this.props
+    const {
+      router,
+      links,
+      meChangeOrganization,
+      organization,
+      userHasRoleInOrg,
+    } = this.props
 
-    await meChangeOrganization(links.me, {organization: organization.id})
+    await meChangeOrganization(
+      links.me,
+      {organization: organization.id},
+      {userHasRoleInOrg}
+    )
     router.push('')
   }
 
@@ -194,7 +204,7 @@ class OrganizationsTableRow extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 OrganizationsTableRow.propTypes = {
   organization: shape({
@@ -225,6 +235,7 @@ OrganizationsTableRow.propTypes = {
     }),
   }),
   meChangeOrganization: func.isRequired,
+  userHasRoleInOrg: bool.isRequired,
 }
 
 OrganizationsTableRowDeleteButton.propTypes = {

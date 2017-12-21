@@ -22,7 +22,7 @@ const Login = ({authData: {auth}}) => {
           auth.links.map(({name, login, label}) =>
             <a key={name} className="btn btn-primary" href={login}>
               <span className={`icon ${name}`} />
-              Login with {label}
+              Log in with {label}
             </a>
           )}
       </SplashPage>

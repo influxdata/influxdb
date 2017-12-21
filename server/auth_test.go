@@ -93,7 +93,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 				},
@@ -133,7 +133,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -141,7 +141,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -189,7 +189,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -197,7 +197,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -245,7 +245,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -253,7 +253,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -301,7 +301,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -309,7 +309,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -353,7 +353,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -361,7 +361,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -409,7 +409,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -417,7 +417,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -465,7 +465,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -473,7 +473,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -517,7 +517,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -525,7 +525,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -569,7 +569,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -577,7 +577,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -620,7 +620,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -628,7 +628,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -667,7 +667,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -675,7 +675,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -714,7 +714,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -722,7 +722,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -765,7 +765,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -773,7 +773,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -819,7 +819,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -862,7 +862,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -870,7 +870,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -914,7 +914,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -922,7 +922,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -966,7 +966,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -974,7 +974,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1018,7 +1018,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1026,7 +1026,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1071,7 +1071,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1079,7 +1079,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1128,7 +1128,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1136,7 +1136,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1185,7 +1185,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1193,7 +1193,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1242,7 +1242,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1250,7 +1250,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1298,7 +1298,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1306,7 +1306,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1346,7 +1346,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1354,7 +1354,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1397,7 +1397,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1405,7 +1405,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},
@@ -1449,7 +1449,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1457,9 +1457,9 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						switch *q.ID {
-						case 1338:
+						case "1338":
 							return &chronograf.Organization{
-								ID:   1338,
+								ID:   "1338",
 								Name: "The ShillBillThrilliettas",
 							}, nil
 						default:
@@ -1511,7 +1511,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: 0,
+							ID: "0",
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -1519,7 +1519,7 @@ func TestAuthorizedUser(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:   1337,
+							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
 						}, nil
 					},

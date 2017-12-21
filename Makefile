@@ -93,10 +93,10 @@ internal.pb.go: bolt/internal/internal.proto
 test: jstest gotest gotestrace
 
 gotest:
-	go test `go list ./... | grep -v /vendor/`
+	go test ./...
 
 gotestrace:
-	go test -race `go list ./... | grep -v /vendor/`
+	go test -race ./...
 
 jstest:
 	cd ui && yarn test

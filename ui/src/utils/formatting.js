@@ -136,13 +136,26 @@ export const formatRPDuration = duration => {
   }
 
   let adjustedTime = duration
-  const [_, hours, minutes, seconds] = duration.match(/(\d*)h(\d*)m(\d*)s/) // eslint-disable-line no-unused-vars
+  const durationMatcher = /(?:(\d*)d)?(?:(\d*)h)?(?:(\d*)m)?(?:(\d*)s)?/
+  const [
+    _match, // eslint-disable-line no-unused-vars
+    days = 0,
+    hours = 0,
+    minutes = 0,
+    seconds = 0,
+  ] = duration.match(durationMatcher)
+
   const hoursInDay = 24
-  if (hours > hoursInDay) {
-    const remainder = hours % hoursInDay
-    const days = (hours - remainder) / hoursInDay
+  if (days) {
     adjustedTime = `${days}d`
-    adjustedTime += +remainder === 0 ? '' : `${remainder}h`
+    adjustedTime += +hours === 0 ? '' : `${hours}h`
+    adjustedTime += +minutes === 0 ? '' : `${minutes}m`
+    adjustedTime += +seconds === 0 ? '' : `${seconds}s`
+  } else if (hours > hoursInDay) {
+    const hoursRemainder = hours % hoursInDay
+    const daysQuotient = (hours - hoursRemainder) / hoursInDay
+    adjustedTime = `${daysQuotient}d`
+    adjustedTime += +hoursRemainder === 0 ? '' : `${hoursRemainder}h`
     adjustedTime += +minutes === 0 ? '' : `${minutes}m`
     adjustedTime += +seconds === 0 ? '' : `${seconds}s`
   } else {

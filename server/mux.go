@@ -363,8 +363,8 @@ func unknownErrorWithMessage(w http.ResponseWriter, err error, logger chronograf
 	Error(w, http.StatusInternalServerError, fmt.Sprintf("Unknown error: %v", err), logger)
 }
 
-func notFound(w http.ResponseWriter, id int, logger chronograf.Logger) {
-	Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id), logger)
+func notFound(w http.ResponseWriter, id interface{}, logger chronograf.Logger) {
+	Error(w, http.StatusNotFound, fmt.Sprintf("ID %v not found", id), logger)
 }
 
 func paramID(key string, r *http.Request) (int, error) {

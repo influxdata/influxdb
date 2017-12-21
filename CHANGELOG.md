@@ -1,5 +1,26 @@
-## v1.4.0.0-beta2 [unreleased]
+## v1.4.0.0 [unreleased]
 ### Features
+### UI Improvements
+### Bug Fixes
+
+## v1.4.0.0-rc2 [unreleased]
+### Bug Fixes
+1. [#2639](https://github.com/influxdata/chronograf/pull/2639): Prevent SuperAdmin from modifying their own status
+
+## v1.4.0.0-rc1 [2017-12-19]
+### Features
+1. [#2593](https://github.com/influxdata/chronograf/pull/2593): Add option to use files for dashboards, organizations, data sources, and kapacitors
+1. [#2604](https://github.com/influxdata/chronograf/pull/2604): After chronograf version upgrade, backup database is created in ./backups
+
+### UI Improvements
+1. [#2492](https://github.com/influxdata/chronograf/pull/2492): Cleanup style on login page with multiple OAuth2 providers
+
+### Bug Fixes
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix stale source data after updating or creating
+1. [#2616](https://github.com/influxdata/chronograf/pull/2616): Fix cell editing so query data choices are kept when updating a cell
+1. [#2612](https://github.com/influxdata/chronograf/pull/2612): Allow days as a valid duration value
+
+## v1.4.0.0-beta2 [2017-12-14]
 ### UI Improvements
 1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
 1. [#2598](https://github.com/influxdata/chronograf/pull/2598): Allow appendage of a suffix to single stat visualizations
@@ -51,7 +72,6 @@
 1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Fix hoverline intermittently not rendering
 1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
-1. [#2545](https://github.com/influxdata/chronograf/pull/2545): Allow configurable thresholds and colors of Single-Stat visualizations in dashboards
 
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes
