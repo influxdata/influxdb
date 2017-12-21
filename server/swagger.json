@@ -78,7 +78,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully create data source",
+            "description": "Data source successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -515,7 +515,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new user",
+            "description": "User successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -745,7 +745,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new role",
+            "description": "Role successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -1292,7 +1292,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created kapacitor source",
+            "description": "Kapacitor source successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -1531,7 +1531,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new kapacitor alert rule",
+            "description": "Kapacitor alert rule successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -2025,7 +2025,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new layout",
+            "description": "Layout successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -2198,7 +2198,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new dashboard",
+            "description": "Dashboard successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -2431,7 +2431,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully create organization",
+            "description": "Organization successfully created",
             "headers": {
               "Location": {
                 "type": "string",
