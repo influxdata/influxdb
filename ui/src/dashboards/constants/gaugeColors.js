@@ -106,7 +106,7 @@ export const validateColors = (colors, type, colorSingleStatText) => {
     const colorType = colorSingleStatText ? SINGLE_STAT_TEXT : SINGLE_STAT_BG
     return colors ? colors.map(color => ({...color, type: colorType})) : null
   }
-  if (!colors) {
+  if (!colors || colors.length === 0) {
     return DEFAULT_COLORS
   }
   if (type === 'gauge') {
@@ -122,5 +122,5 @@ export const validateColors = (colors, type, colorSingleStatText) => {
     return formatttedColors
   }
 
-  return colors.length >= MIN_THRESHOLDS ? DEFAULT_COLORS : colors
+  return colors.length >= MIN_THRESHOLDS ? colors : DEFAULT_COLORS
 }
