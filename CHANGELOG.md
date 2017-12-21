@@ -3,7 +3,7 @@
 ### UI Improvements
 ### Bug Fixes
 
-## v1.4.0.0-rc2 [unreleased]
+## v1.4.0.0-rc2 [2017-12-21]
 ### UI Improvements
 1. [#2632](https://github.com/influxdata/chronograf/pull/2632): Tell user which organization they switched into and what role they have whenever they switch, including on Source Page
 
