@@ -2469,6 +2469,160 @@
           }
         }
       }
+    },
+    "/organizations/{id}": {
+      "get": {
+        "tags": [
+          "organizations",
+          "multitenancy"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the organization",
+            "required": true
+          }
+        ],
+        "summary": "Retrieve a specific organization",
+        "description": "Organizations allow for groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
+        "responses": {
+          "200": {
+            "description": "An Organization object",
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          },
+          "400": {
+            "description": "Failed to load organization from store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "User cannot access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "organizations",
+          "multitenancy"
+        ],
+        "summary": "Update existing organization",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the organization",
+            "required": true
+          },
+          {
+            "name": "organization",
+            "in": "body",
+            "description": "Updated organization",
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Organization successfully updated",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "format": "url",
+                "description": "Location of the updated organization resource"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          },
+          "400": {
+            "description": "Invalid JSON; or failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "User cannot access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description": "Invalid data schema for organization",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "organizations",
+          "multitenancy"
+        ],
+        "summary": "Delete organization",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the organization",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Organization successfully deleted",
+          },
+          "400": {
+            "description": "Failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "User cannot access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Organization not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
