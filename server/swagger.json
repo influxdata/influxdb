@@ -2600,7 +2600,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Organization successfully deleted",
+            "description": "Organization successfully deleted"
           },
           "400": {
             "description": "Failed to perform operation in data store",
