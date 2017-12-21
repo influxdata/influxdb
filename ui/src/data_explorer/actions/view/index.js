@@ -4,10 +4,10 @@ import {getQueryConfig} from 'shared/apis'
 
 import {errorThrown} from 'shared/actions/errors'
 
-export const addQuery = () => ({
+export const addQuery = (queryID = uuid.v4()) => ({
   type: 'DE_ADD_QUERY',
   payload: {
-    queryID: uuid.v4(),
+    queryID,
   },
 })
 
