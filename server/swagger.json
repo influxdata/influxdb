@@ -2384,7 +2384,7 @@
           "organizations",
           "multitenancy"
         ],
-        "summary": "All organizations within Chronograf",
+        "summary": "Retrieve all organizations",
         "description": "Organizations allow for groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
         "responses": {
           "200": {
@@ -2444,7 +2444,7 @@
             }
           },
           "400": {
-            "description": "Invalid JSON; or failed to add organization to store",
+            "description": "Invalid JSON; or failed to perform operation in data store",
             "schema": {
               "$ref": "#/definitions/Error"
             }
