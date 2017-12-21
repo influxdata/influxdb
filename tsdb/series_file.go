@@ -157,6 +157,19 @@ func (f *SeriesFile) Close() error {
 		f.file = nil
 	}
 	f.w = nil
+
+	if f.keyIDMap != nil {
+		f.keyIDMap.Close()
+		f.keyIDMap = nil
+	}
+	if f.idOffsetMap != nil {
+		f.idOffsetMap.Close()
+		f.idOffsetMap = nil
+	}
+
+	f.log = nil
+	f.tombstones = nil
+
 	return nil
 }
 
@@ -688,6 +701,11 @@ type seriesKeyIDMap struct {
 	inmem *rhh.HashMap // offset-to-id
 }
 
+func (m *seriesKeyIDMap) Close() error {
+	m.inmem = nil
+	return nil
+}
+
 func newSeriesKeyIDMap(src, data []byte) *seriesKeyIDMap {
 	return &seriesKeyIDMap{
 		src:   src,
@@ -759,6 +777,11 @@ func newSeriesIDOffsetMap(src, data []byte) *seriesIDOffsetMap {
 		data:  data,
 		inmem: make(map[uint64]int64),
 	}
+}
+
+func (m *seriesIDOffsetMap) Close() error {
+	m.inmem = nil
+	return nil
 }
 
 func (m *seriesIDOffsetMap) count() uint64 {
