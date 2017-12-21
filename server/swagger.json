@@ -2382,7 +2382,8 @@
       "get": {
         "tags": [
           "organizations",
-          "multitenancy"
+          "multiorganization",
+          "multiuser"
         ],
         "summary": "Retrieve all organizations",
         "description": "Organizations allow for groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
@@ -2416,7 +2417,8 @@
       "post": {
         "tags": [
           "organizations",
-          "multitenancy"
+          "multiorganization",
+          "multiuser"
         ],
         "summary": "Create new organization",
         "parameters": [
@@ -2474,7 +2476,8 @@
       "get": {
         "tags": [
           "organizations",
-          "multitenancy"
+          "multiorganization",
+          "multiuser"
         ],
         "parameters": [
           {
@@ -2517,7 +2520,8 @@
       "patch": {
         "tags": [
           "organizations",
-          "multitenancy"
+          "multiorganization",
+          "multiuser"
         ],
         "summary": "Update existing organization",
         "parameters": [
@@ -2581,7 +2585,8 @@
       "delete": {
         "tags": [
           "organizations",
-          "multitenancy"
+          "multiorganization",
+          "multiuser"
         ],
         "summary": "Delete organization",
         "parameters": [
