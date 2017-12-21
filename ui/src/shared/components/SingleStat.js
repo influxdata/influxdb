@@ -85,7 +85,7 @@ SingleStat.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
-  suffix: string.isRequired,
+  suffix: string,
 }
 
 export default SingleStat
