@@ -5837,13 +5837,15 @@ func TestServer_Query_Wildcards(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
+
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}

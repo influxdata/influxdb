@@ -101,6 +101,7 @@ func (f *SeriesFile) Open() error {
 		if f.data, err = mmap.Map(f.path, f.MaxSize); err != nil {
 			return err
 		}
+		f.data = f.data[:f.size]
 
 		// Read header.
 		hdr, err := ReadSeriesFileHeader(f.data)
@@ -273,6 +274,7 @@ func (f *SeriesFile) DeleteSeriesID(id uint64) error {
 		return err
 	}
 	f.size += int64(bufN)
+	f.data = f.data[:f.size]
 
 	// Mark tombstone in memory.
 	f.tombstones[id] = struct{}{}
@@ -336,7 +338,7 @@ func (f *SeriesFile) SeriesCount() uint64 {
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	var ids []uint64
 	ids = append(ids, ReadSeriesFileLogIDs(f.log)...)
-	ids = append(ids, ReadSeriesFileLogIDs(f.data[f.walOffset:f.size])...)
+	ids = append(ids, ReadSeriesFileLogIDs(f.data[f.walOffset:])...)
 
 	sort.Slice(ids, func(i, j int) bool {
 		keyi := f.SeriesKey(ids[i])
@@ -367,6 +369,7 @@ func (f *SeriesFile) insert(key []byte) (id uint64, offset int64, err error) {
 	}
 	f.seq++
 	f.size += int64(bufN)
+	f.data = f.data[:f.size]
 	return id, offset, nil
 }
 

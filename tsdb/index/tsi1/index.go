@@ -326,10 +326,10 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 				}
 
 				b, err := i.partitions[idx].MeasurementExists(name)
-				errC <- err
 				if b {
 					atomic.StoreUint32(&found, 1)
 				}
+				errC <- err
 			}
 		}()
 	}
@@ -605,10 +605,10 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 				}
 
 				b, err := i.partitions[idx].HasTagKey(name, key)
-				errC <- err
 				if b {
 					atomic.StoreUint32(&found, 1)
 				}
+				errC <- err
 			}
 		}()
 	}
@@ -650,10 +650,10 @@ func (i *Index) HasTagValue(name, key, value []byte) (bool, error) {
 				}
 
 				b, err := i.partitions[idx].HasTagValue(name, key, value)
-				errC <- err
 				if b {
 					atomic.StoreUint32(&found, 1)
 				}
+				errC <- err
 			}
 		}()
 	}
