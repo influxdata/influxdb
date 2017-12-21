@@ -29,12 +29,30 @@
   }
 }
 
+/* Active State */
 .slide-toggle.active .slide-toggle--knob {
   background-color: $c-rainforest;
   transform: translate(100%,-50%);
 }
 .slide-toggle.active:hover .slide-toggle--knob {
   background-color: $c-honeydew;
+}
+
+/* Disabled State */
+.slide-toggle.disabled {
+  &,
+  &:hover,
+  &.active,
+  &.active:hover {
+    background-color: $g6-smoke;
+    cursor: not-allowed;
+  }
+  .slide-toggle--knob,
+  &:hover .slide-toggle--knob,
+  &.active .slide-toggle--knob,
+  &.active:hover .slide-toggle--knob {
+    background-color: $g3-castle;
+  }
 }
 
 /* Size Modifiers */

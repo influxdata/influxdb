@@ -59,6 +59,7 @@ const UsersTableRow = ({
             active={user.superAdmin}
             onToggle={onChangeSuperAdmin(user)}
             size="xs"
+            disabled={userIsMe}
           />
         </td>
       </Authorized>

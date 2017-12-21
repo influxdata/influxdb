@@ -1242,6 +1242,59 @@ func TestServer(t *testing.T) {
 			},
 		},
 		{
+			name:    "PATCH /users/1",
+			subName: "SuperAdmin modifying their own status",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PATCH",
+				path:   "/chronograf/v1/users/1",
+				payload: map[string]interface{}{
+					"id":         "1",
+					"superAdmin": false,
+					"roles": []interface{}{
+						map[string]interface{}{
+							"name":         "admin",
+							"organization": "default",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusUnauthorized,
+				body: `
+{
+  "code": 401,
+  "message": "user cannot modify their own SuperAdmin status"
+}
+`,
+			},
+		},
+		{
 			name:    "PUT /me",
 			subName: "Change SuperAdmins current organization to org they dont belong to",
 			fields: fields{
