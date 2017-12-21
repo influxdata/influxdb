@@ -2386,7 +2386,7 @@
           "multiuser"
         ],
         "summary": "Retrieve all organizations",
-        "description": "Organizations allow for groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
+        "description": "Organizations are groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
         "responses": {
           "200": {
             "description": "An object with links and an array of organizations",
@@ -2489,7 +2489,7 @@
           }
         ],
         "summary": "Retrieve a specific organization",
-        "description": "Organizations allow for groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
+        "description": "Organizations are groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
         "responses": {
           "200": {
             "description": "An Organization object",
