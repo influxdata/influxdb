@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -7637,7 +7638,10 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 func TestServer_Query_ShowMeasurementCardinalityEstimation(t *testing.T) {
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
+	} else if runtime.GOARCH == "386" {
+		t.Skip("Skipping test in for 386.")
 	}
+	println("dbg/GOARCH", runtime.GOARCH)
 
 	t.Parallel()
 	s := OpenServer(NewConfig())
