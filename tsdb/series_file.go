@@ -683,21 +683,21 @@ const (
 
 // seriesKeyIDMap represents a fixed hash map of key-to-id.
 type seriesKeyIDMap struct {
-	src   []byte            // series key data
-	data  []byte            // rhh map data
-	inmem map[string]uint64 // offset-to-id
+	src   []byte       // series key data
+	data  []byte       // rhh map data
+	inmem *rhh.HashMap // offset-to-id
 }
 
 func newSeriesKeyIDMap(src, data []byte) *seriesKeyIDMap {
 	return &seriesKeyIDMap{
 		src:   src,
 		data:  data,
-		inmem: make(map[string]uint64),
+		inmem: rhh.NewHashMap(rhh.DefaultOptions),
 	}
 }
 
 func (m *seriesKeyIDMap) count() uint64 {
-	n := uint64(len(m.inmem))
+	n := uint64(m.inmem.Len())
 	if len(m.data) > 0 {
 		n += binary.BigEndian.Uint64(m.data[:8])
 	}
@@ -705,13 +705,16 @@ func (m *seriesKeyIDMap) count() uint64 {
 }
 
 func (m *seriesKeyIDMap) insert(key []byte, id uint64) {
-	m.inmem[string(key)] = id
+	m.inmem.Put(key, id)
 }
 
 func (m *seriesKeyIDMap) get(key []byte) uint64 {
-	if id := m.inmem[string(key)]; id != 0 {
-		return id
-	} else if len(m.data) == 0 {
+	if v := m.inmem.Get(key); v != nil {
+		if id, _ := v.(uint64); id != 0 {
+			return id
+		}
+	}
+	if len(m.data) == 0 {
 		return 0
 	}
 
