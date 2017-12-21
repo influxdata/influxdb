@@ -3,6 +3,14 @@
 ### UI Improvements
 ### Bug Fixes
 
+## v1.4.0.0-rc2 [unreleased]
+### UI Improvements
+1. [#2632](https://github.com/influxdata/chronograf/pull/2632): Tell user which organization they switched into and what role they have whenever they switch, including on Source Page
+
+### Bug Fixes
+1. [#2639](https://github.com/influxdata/chronograf/pull/2639): Prevent SuperAdmin from modifying their own status
+1. [#2632](https://github.com/influxdata/chronograf/pull/2632): Give SuperAdmin DefaultRole when switching to organization where they have no role
+
 ## v1.4.0.0-rc1 [2017-12-19]
 ### Features
 1. [#2593](https://github.com/influxdata/chronograf/pull/2593): Add option to use files for dashboards, organizations, data sources, and kapacitors
