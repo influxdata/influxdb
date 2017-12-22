@@ -4,21 +4,22 @@ import _ from 'lodash'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
 
-import {
-  MAX_THRESHOLDS,
-  MIN_THRESHOLDS,
-} from 'src/dashboards/constants/gaugeColors'
+import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 
-const GaugeOptions = ({
+const SingleStatOptions = ({
+  suffix,
+  onSetSuffix,
   colors,
   onAddThreshold,
   onDeleteThreshold,
   onChooseColor,
   onValidateColorValue,
   onUpdateColorValue,
+  colorSingleStatText,
+  onToggleSingleStatText,
 }) => {
-  const disableMaxColor = colors.length > MIN_THRESHOLDS
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
+
   const sortedColors = _.sortBy(colors, color => Number(color.value))
 
   return (
@@ -27,7 +28,7 @@ const GaugeOptions = ({
       autoHide={false}
     >
       <div className="display-options--cell-wrapper">
-        <h5 className="display-options--header">Gauge Controls</h5>
+        <h5 className="display-options--header">Single Stat Controls</h5>
         <div className="gauge-controls">
           <button
             className="btn btn-sm btn-primary gauge-controls--add-threshold"
@@ -38,14 +39,9 @@ const GaugeOptions = ({
           </button>
           {sortedColors.map(color =>
             <Threshold
-              isMin={color.value === sortedColors[0].value}
-              isMax={
-                color.value === sortedColors[sortedColors.length - 1].value
-              }
-              visualizationType="gauge"
+              visualizationType="single-stat"
               threshold={color}
               key={color.id}
-              disableMaxColor={disableMaxColor}
               onChooseColor={onChooseColor}
               onValidateColorValue={onValidateColorValue}
               onUpdateColorValue={onUpdateColorValue}
@@ -53,14 +49,47 @@ const GaugeOptions = ({
             />
           )}
         </div>
+        <div className="single-stat-controls">
+          <div className="form-group col-xs-6">
+            <label>Coloring</label>
+            <ul className="nav nav-tablist nav-tablist-sm">
+              <li
+                className={colorSingleStatText ? null : 'active'}
+                onClick={onToggleSingleStatText}
+              >
+                Background
+              </li>
+              <li
+                className={colorSingleStatText ? 'active' : null}
+                onClick={onToggleSingleStatText}
+              >
+                Text
+              </li>
+            </ul>
+          </div>
+          <div className="form-group col-xs-6">
+            <label>Suffix</label>
+            <input
+              className="form-control input-sm"
+              placeholder="%, MPH, etc."
+              defaultValue={suffix}
+              onChange={onSetSuffix}
+              maxLength="5"
+            />
+          </div>
+        </div>
       </div>
     </FancyScrollbar>
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
-GaugeOptions.propTypes = {
+SingleStatOptions.defaultProps = {
+  colors: [],
+}
+
+SingleStatOptions.propTypes = {
   colors: arrayOf(
     shape({
       type: string.isRequired,
@@ -75,6 +104,10 @@ GaugeOptions.propTypes = {
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
+  colorSingleStatText: bool.isRequired,
+  onToggleSingleStatText: func.isRequired,
+  onSetSuffix: func.isRequired,
+  suffix: string.isRequired,
 }
 
-export default GaugeOptions
+export default SingleStatOptions

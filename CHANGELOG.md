@@ -28,6 +28,9 @@
 ## v1.4.0.0-beta2 [2017-12-14]
 ### UI Improvements
 1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
+1. [#2598](https://github.com/influxdata/chronograf/pull/2598): Allow appendage of a suffix to single stat visualizations
+1. [#2598](https://github.com/influxdata/chronograf/pull/2598): Allow optional colorization of text instead of background on single stat visualizations
+
 ### Bug Fixes
 1. [#2528](https://github.com/influxdata/chronograf/pull/2528): Fix template rendering to ignore template if not in query
 1. [#2563](https://github.com/influxdata/chronograf/pull/2563): Fix graph inversion if user input y-axis min greater than max

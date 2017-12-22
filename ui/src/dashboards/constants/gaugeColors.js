@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 export const MAX_THRESHOLDS = 5
 export const MIN_THRESHOLDS = 2
 
@@ -6,6 +8,9 @@ export const DEFAULT_VALUE_MIN = '0'
 export const COLOR_TYPE_MAX = 'max'
 export const DEFAULT_VALUE_MAX = '100'
 export const COLOR_TYPE_THRESHOLD = 'threshold'
+
+export const SINGLE_STAT_TEXT = 'text'
+export const SINGLE_STAT_BG = 'background'
 
 export const GAUGE_COLORS = [
   {
@@ -95,12 +100,27 @@ export const DEFAULT_COLORS = [
   },
 ]
 
-export const validateColors = colors => {
-  if (!colors) {
-    return false
+export const validateColors = (colors, type, colorSingleStatText) => {
+  if (type === 'single-stat') {
+    // Single stat colors should all have type of 'text' or 'background'
+    const colorType = colorSingleStatText ? SINGLE_STAT_TEXT : SINGLE_STAT_BG
+    return colors ? colors.map(color => ({...color, type: colorType})) : null
   }
-  const hasMin = colors.some(color => color.type === COLOR_TYPE_MIN)
-  const hasMax = colors.some(color => color.type === COLOR_TYPE_MAX)
+  if (!colors || colors.length === 0) {
+    return DEFAULT_COLORS
+  }
+  if (type === 'gauge') {
+    // Gauge colors should have a type of min, any number of thresholds, and a max
+    const formatttedColors = _.sortBy(colors, color =>
+      Number(color.value)
+    ).map(c => ({
+      ...c,
+      type: COLOR_TYPE_THRESHOLD,
+    }))
+    formatttedColors[0].type = COLOR_TYPE_MIN
+    formatttedColors[formatttedColors.length - 1].type = COLOR_TYPE_MAX
+    return formatttedColors
+  }
 
-  return hasMin && hasMax
+  return colors.length >= MIN_THRESHOLDS ? colors : DEFAULT_COLORS
 }
