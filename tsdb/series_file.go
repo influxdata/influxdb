@@ -42,7 +42,8 @@ type SeriesFile struct {
 	mu   sync.RWMutex
 	path string
 
-	data []byte        // entire mmapped file
+	mmap []byte        // entire mmapped file
+	data []byte        // active part of mmap file
 	file *os.File      // write file handle
 	w    *bufio.Writer // bufferred file handle
 	size int64         // current file size
@@ -98,10 +99,10 @@ func (f *SeriesFile) Open() error {
 		f.w = bufio.NewWriter(f.file)
 
 		// Memory map file data.
-		if f.data, err = mmap.Map(f.path, f.MaxSize); err != nil {
+		if f.mmap, err = mmap.Map(f.path, f.MaxSize); err != nil {
 			return err
 		}
-		f.data = f.data[:f.size]
+		f.data = f.mmap[:f.size]
 
 		// Read header.
 		hdr, err := ReadSeriesFileHeader(f.data)
@@ -148,8 +149,9 @@ func (f *SeriesFile) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.data != nil {
-		mmap.Unmap(f.data)
+	if f.mmap != nil {
+		mmap.Unmap(f.mmap)
+		f.mmap = nil
 		f.data = nil
 	}
 	if f.file != nil {
