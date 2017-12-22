@@ -2,6 +2,7 @@
 package dumptsi
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -20,7 +22,8 @@ type Command struct {
 	Stderr io.Writer
 	Stdout io.Writer
 
-	paths []string
+	seriesFilePath string
+	paths          []string
 
 	showSeries         bool
 	showMeasurements   bool
@@ -45,6 +48,7 @@ func NewCommand() *Command {
 func (cmd *Command) Run(args ...string) error {
 	var measurementFilter, tagKeyFilter, tagValueFilter string
 	fs := flag.NewFlagSet("dumptsi", flag.ExitOnError)
+	fs.StringVar(&cmd.seriesFilePath, "series-file", "", "Path to series file")
 	fs.BoolVar(&cmd.showSeries, "series", false, "Show raw series data")
 	fs.BoolVar(&cmd.showMeasurements, "measurements", false, "Show raw measurement data")
 	fs.BoolVar(&cmd.showTagKeys, "tag-keys", false, "Show raw tag key data")
@@ -82,6 +86,11 @@ func (cmd *Command) Run(args ...string) error {
 		cmd.tagValueFilter = re
 	}
 
+	// Validate series file path.
+	if cmd.seriesFilePath == "" {
+		return errors.New("series file path required")
+	}
+
 	cmd.paths = fs.Args()
 	if len(cmd.paths) == 0 {
 		fmt.Printf("at least one path required\n\n")
@@ -104,22 +113,46 @@ func (cmd *Command) Run(args ...string) error {
 }
 
 func (cmd *Command) run() error {
+	sfile := tsdb.NewSeriesFile(cmd.seriesFilePath)
+	if err := sfile.Open(); err != nil {
+		return err
+	}
+	defer sfile.Close()
+
 	// Build a file set from the paths on the command line.
-	idx, fs, err := cmd.readFileSet()
+	idx, fs, err := cmd.readFileSet(sfile)
 	if err != nil {
 		return err
 	}
 
-	if idx != nil {
-		defer idx.Close()
-	} else {
+	// If this is an ad-hoc fileset then process it and close afterward.
+	if fs != nil {
+		defer fs.Release()
 		defer fs.Close()
+		return cmd.printFileSet(sfile, fs)
 	}
-	defer fs.Release()
 
+	// Otherwise iterate over each partition in the index.
+	defer idx.Close()
+	for i := 0; i < int(idx.PartitionN); i++ {
+		if err := func() error {
+			fs, err := idx.PartitionAt(i).RetainFileSet()
+			if err != nil {
+				return err
+			}
+			defer fs.Release()
+			return cmd.printFileSet(sfile, fs)
+		}(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cmd *Command) printFileSet(sfile *tsdb.SeriesFile, fs *tsi1.FileSet) error {
 	// Show either raw data or summary stats.
 	if cmd.showSeries || cmd.showMeasurements {
-		if err := cmd.printMerged(fs); err != nil {
+		if err := cmd.printMerged(sfile, fs); err != nil {
 			return err
 		}
 	} else {
@@ -131,20 +164,21 @@ func (cmd *Command) run() error {
 	return nil
 }
 
-func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
+func (cmd *Command) readFileSet(sfile *tsdb.SeriesFile) (*tsi1.Index, *tsi1.FileSet, error) {
 	// If only one path exists and it's a directory then open as an index.
 	if len(cmd.paths) == 1 {
 		fi, err := os.Stat(cmd.paths[0])
 		if err != nil {
 			return nil, nil, err
 		} else if fi.IsDir() {
-			idx := tsi1.NewIndex()
-			idx.Path = cmd.paths[0]
-			idx.CompactionEnabled = false
+			idx := tsi1.NewIndex(sfile,
+				tsi1.WithPath(cmd.paths[0]),
+				tsi1.DisableCompactions(),
+			)
 			if err := idx.Open(); err != nil {
 				return nil, nil, err
 			}
-			return idx, idx.RetainFileSet(), nil
+			return idx, nil, nil
 		}
 	}
 
@@ -153,14 +187,14 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 	for _, path := range cmd.paths {
 		switch ext := filepath.Ext(path); ext {
 		case tsi1.LogFileExt:
-			f := tsi1.NewLogFile(path)
+			f := tsi1.NewLogFile(sfile, path)
 			if err := f.Open(); err != nil {
 				return nil, nil, err
 			}
 			files = append(files, f)
 
 		case tsi1.IndexFileExt:
-			f := tsi1.NewIndexFile()
+			f := tsi1.NewIndexFile(sfile)
 			f.SetPath(path)
 			if err := f.Open(); err != nil {
 				return nil, nil, err
@@ -172,7 +206,7 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 		}
 	}
 
-	fs, err := tsi1.NewFileSet("", nil, files)
+	fs, err := tsi1.NewFileSet("", nil, sfile, files)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -181,16 +215,16 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 	return nil, fs, nil
 }
 
-func (cmd *Command) printMerged(fs *tsi1.FileSet) error {
-	if err := cmd.printSeries(fs); err != nil {
+func (cmd *Command) printMerged(sfile *tsdb.SeriesFile, fs *tsi1.FileSet) error {
+	if err := cmd.printSeries(sfile); err != nil {
 		return err
-	} else if err := cmd.printMeasurements(fs); err != nil {
+	} else if err := cmd.printMeasurements(sfile, fs); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (cmd *Command) printSeries(fs *tsi1.FileSet) error {
+func (cmd *Command) printSeries(sfile *tsdb.SeriesFile) error {
 	if !cmd.showSeries {
 		return nil
 	}
@@ -200,15 +234,23 @@ func (cmd *Command) printSeries(fs *tsi1.FileSet) error {
 	fmt.Fprintln(tw, "Series\t")
 
 	// Iterate over each series.
-	itr := fs.SeriesIterator()
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		name, tags := e.Name(), e.Tags()
+	itr := sfile.SeriesIDIterator()
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return err
+		} else if e.SeriesID == 0 {
+			break
+		}
+		name, tags := tsdb.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
 
-		if !cmd.matchSeries(e.Name(), e.Tags()) {
+		if !cmd.matchSeries(name, tags) {
 			continue
 		}
 
-		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(e.Deleted()))
+		deleted := sfile.IsDeleted(e.SeriesID)
+
+		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(deleted))
 	}
 
 	// Flush & write footer spacing.
@@ -220,7 +262,7 @@ func (cmd *Command) printSeries(fs *tsi1.FileSet) error {
 	return nil
 }
 
-func (cmd *Command) printMeasurements(fs *tsi1.FileSet) error {
+func (cmd *Command) printMeasurements(sfile *tsdb.SeriesFile, fs *tsi1.FileSet) error {
 	if !cmd.showMeasurements {
 		return nil
 	}
@@ -240,7 +282,7 @@ func (cmd *Command) printMeasurements(fs *tsi1.FileSet) error {
 				return err
 			}
 
-			if err := cmd.printTagKeys(fs, e.Name()); err != nil {
+			if err := cmd.printTagKeys(sfile, fs, e.Name()); err != nil {
 				return err
 			}
 		}
@@ -251,7 +293,7 @@ func (cmd *Command) printMeasurements(fs *tsi1.FileSet) error {
 	return nil
 }
 
-func (cmd *Command) printTagKeys(fs *tsi1.FileSet, name []byte) error {
+func (cmd *Command) printTagKeys(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name []byte) error {
 	if !cmd.showTagKeys {
 		return nil
 	}
@@ -269,7 +311,7 @@ func (cmd *Command) printTagKeys(fs *tsi1.FileSet, name []byte) error {
 			return err
 		}
 
-		if err := cmd.printTagValues(fs, name, e.Key()); err != nil {
+		if err := cmd.printTagValues(sfile, fs, name, e.Key()); err != nil {
 			return err
 		}
 	}
@@ -278,7 +320,7 @@ func (cmd *Command) printTagKeys(fs *tsi1.FileSet, name []byte) error {
 	return nil
 }
 
-func (cmd *Command) printTagValues(fs *tsi1.FileSet, name, key []byte) error {
+func (cmd *Command) printTagValues(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name, key []byte) error {
 	if !cmd.showTagValues {
 		return nil
 	}
@@ -296,7 +338,7 @@ func (cmd *Command) printTagValues(fs *tsi1.FileSet, name, key []byte) error {
 			return err
 		}
 
-		if err := cmd.printTagValueSeries(fs, name, key, e.Value()); err != nil {
+		if err := cmd.printTagValueSeries(sfile, fs, name, key, e.Value()); err != nil {
 			return err
 		}
 	}
@@ -305,20 +347,29 @@ func (cmd *Command) printTagValues(fs *tsi1.FileSet, name, key []byte) error {
 	return nil
 }
 
-func (cmd *Command) printTagValueSeries(fs *tsi1.FileSet, name, key, value []byte) error {
+func (cmd *Command) printTagValueSeries(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name, key, value []byte) error {
 	if !cmd.showTagValueSeries {
 		return nil
 	}
 
 	// Iterate over each series.
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
-	itr := fs.TagValueSeriesIterator(name, key, value)
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		if !cmd.matchSeries(e.Name(), e.Tags()) {
+	itr := fs.TagValueSeriesIDIterator(name, key, value)
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return err
+		} else if e.SeriesID == 0 {
+			break
+		}
+
+		name, tags := tsdb.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
+
+		if !cmd.matchSeries(name, tags) {
 			continue
 		}
 
-		fmt.Fprintf(tw, "            %s%s\n", e.Name(), e.Tags().HashKey())
+		fmt.Fprintf(tw, "            %s%s\n", name, tags.HashKey())
 		if err := tw.Flush(); err != nil {
 			return err
 		}
@@ -361,7 +412,6 @@ func (cmd *Command) printIndexFileSummary(f *tsi1.IndexFile) error {
 	fmt.Fprintf(cmd.Stdout, "[INDEX FILE] %s\n", filepath.Base(f.Path()))
 
 	// Calculate summary stats.
-	seriesN := f.SeriesN()
 	var measurementN, measurementSeriesN, measurementSeriesSize uint64
 	var keyN uint64
 	var valueN, valueSeriesN, valueSeriesSize uint64
@@ -386,7 +436,6 @@ func (cmd *Command) printIndexFileSummary(f *tsi1.IndexFile) error {
 
 	// Write stats.
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
-	fmt.Fprintf(tw, "Series:\t%d\n", seriesN)
 	fmt.Fprintf(tw, "Measurements:\t%d\n", measurementN)
 	fmt.Fprintf(tw, "  Series data size:\t%d (%s)\n", measurementSeriesSize, formatSize(measurementSeriesSize))
 	fmt.Fprintf(tw, "  Bytes per series:\t%.01fb\n", float64(measurementSeriesSize)/float64(measurementSeriesN))
@@ -395,7 +444,6 @@ func (cmd *Command) printIndexFileSummary(f *tsi1.IndexFile) error {
 	fmt.Fprintf(tw, "  Series:\t%d\n", valueSeriesN)
 	fmt.Fprintf(tw, "  Series data size:\t%d (%s)\n", valueSeriesSize, formatSize(valueSeriesSize))
 	fmt.Fprintf(tw, "  Bytes per series:\t%.01fb\n", float64(valueSeriesSize)/float64(valueSeriesN))
-	fmt.Fprintf(tw, "Avg tags per series:\t%.01f\n", float64(valueSeriesN)/float64(seriesN))
 	if err := tw.Flush(); err != nil {
 		return err
 	}

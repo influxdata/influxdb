@@ -2,16 +2,12 @@ package tsi1
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"regexp"
+	"sync"
 
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/bloom"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
@@ -19,24 +15,20 @@ import (
 // FileSet represents a collection of files.
 type FileSet struct {
 	levels       []CompactionLevel
+	sfile        *tsdb.SeriesFile
 	files        []File
-	filters      []*bloom.Filter // per-level filters
 	database     string
 	manifestSize int64 // Size of the manifest file in bytes.
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(database string, levels []CompactionLevel, files []File) (*FileSet, error) {
-	fs := &FileSet{
+func NewFileSet(database string, levels []CompactionLevel, sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
+	return &FileSet{
 		levels:   levels,
+		sfile:    sfile,
 		files:    files,
-		filters:  make([]*bloom.Filter, len(levels)),
 		database: database,
-	}
-	if err := fs.buildFilters(); err != nil {
-		return nil, err
-	}
-	return fs, nil
+	}, nil
 }
 
 // Close closes all the files in the file set.
@@ -64,14 +56,17 @@ func (fs *FileSet) Release() {
 	}
 }
 
+// SeriesFile returns the attached series file.
+func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
+
 // PrependLogFile returns a new file set with f added at the beginning.
 // Filters do not need to be rebuilt because log files have no bloom filter.
 func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 	return &FileSet{
 		database: fs.database,
 		levels:   fs.levels,
+		sfile:    fs.sfile,
 		files:    append([]File{f}, fs.files...),
-		filters:  fs.filters,
 	}
 }
 
@@ -112,27 +107,12 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 	other[i] = newFile
 	copy(other[i+1:], fs.files[i+len(oldFiles):])
 
-	// Copy existing bloom filters.
-	filters := make([]*bloom.Filter, len(fs.filters))
-	// copy(filters, fs.filters)
-
-	// Clear filters at replaced file levels.
-	filters[newFile.Level()] = nil
-	for _, f := range oldFiles {
-		filters[f.Level()] = nil
-	}
-
 	// Build new fileset and rebuild changed filters.
-	newFS := &FileSet{
+	return &FileSet{
 		levels:   fs.levels,
 		files:    other,
-		filters:  filters,
 		database: fs.database,
 	}
-	if err := newFS.buildFilters(); err != nil {
-		panic("cannot build file set: " + err.Error())
-	}
-	return newFS
 }
 
 // MaxID returns the highest file identifier.
@@ -196,11 +176,12 @@ func (fs *FileSet) LastContiguousIndexFilesByLevel(level int) []*IndexFile {
 	return a
 }
 
-// SeriesIterator returns an iterator over all series in the index.
-func (fs *FileSet) SeriesIterator() tsdb.SeriesIterator {
-	a := make([]tsdb.SeriesIterator, 0, len(fs.files))
+/*
+// SeriesIDIterator returns an iterator over all series in the index.
+func (fs *FileSet) SeriesIDIterator() tsdb.SeriesIDIterator {
+	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
 	for _, f := range fs.files {
-		itr := f.SeriesIterator()
+		itr := f.SeriesIDIterator()
 		if itr == nil {
 			continue
 		}
@@ -208,6 +189,7 @@ func (fs *FileSet) SeriesIterator() tsdb.SeriesIterator {
 	}
 	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
 }
+*/
 
 // Measurement returns a measurement by name.
 func (fs *FileSet) Measurement(name []byte) MeasurementElem {
@@ -232,20 +214,7 @@ func (fs *FileSet) MeasurementIterator() MeasurementIterator {
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedMeasurementIterator(MergeMeasurementIterators(a...))
-}
-
-// MeasurementSeriesIterator returns an iterator over all non-tombstoned series
-// in the index for the provided measurement.
-func (fs *FileSet) MeasurementSeriesIterator(name []byte) tsdb.SeriesIterator {
-	a := make([]tsdb.SeriesIterator, 0, len(fs.files))
-	for _, f := range fs.files {
-		itr := f.MeasurementSeriesIterator(name)
-		if itr != nil {
-			a = append(a, itr)
-		}
-	}
-	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
+	return MergeMeasurementIterators(a...)
 }
 
 // TagKeyIterator returns an iterator over all tag keys for a measurement.
@@ -258,6 +227,18 @@ func (fs *FileSet) TagKeyIterator(name []byte) TagKeyIterator {
 		}
 	}
 	return MergeTagKeyIterators(a...)
+}
+
+// MeasurementSeriesIDIterator returns a series iterator for a measurement.
+func (fs *FileSet) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator {
+	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
+	for _, f := range fs.files {
+		itr := f.MeasurementSeriesIDIterator(name)
+		if itr != nil {
+			a = append(a, itr)
+		}
+	}
+	return tsdb.MergeSeriesIDIterators(a...)
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
@@ -331,88 +312,43 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 	return nil, fmt.Errorf("%#v", expr)
 }
 
-// tagValuesByKeyAndExpr retrieves tag values for the provided tag keys.
-//
-// tagValuesByKeyAndExpr returns sets of values for each key, indexable by the
-// position of the tag key in the keys argument.
-//
-// N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
-// lexicographic order.
-func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
-	itr, err := fs.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
-	if err != nil {
-		return nil, err
-	} else if itr == nil {
-		return nil, nil
-	}
-
-	keyIdxs := make(map[string]int, len(keys))
-	for ki, key := range keys {
-		keyIdxs[key] = ki
-
-		// Check that keys are in order.
-		if ki > 0 && key < keys[ki-1] {
-			return nil, fmt.Errorf("keys %v are not in ascending order", keys)
-		}
-	}
-
-	resultSet := make([]map[string]struct{}, len(keys))
-	for i := 0; i < len(resultSet); i++ {
-		resultSet[i] = make(map[string]struct{})
-	}
-
-	// Iterate all series to collect tag values.
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		if auth != nil && !auth.AuthorizeSeriesRead(fs.database, e.Name(), e.Tags()) {
-			continue
-		}
-		for _, t := range e.Tags() {
-			if idx, ok := keyIdxs[string(t.Key)]; ok {
-				resultSet[idx][string(t.Value)] = struct{}{}
-			} else if string(t.Key) > keys[len(keys)-1] {
-				// The tag key is > the largest key we're interested in.
-				break
-			}
-		}
-	}
-	return resultSet, nil
-}
-
 // tagKeysByFilter will filter the tag keys for the measurement.
 func (fs *FileSet) tagKeysByFilter(name []byte, op influxql.Token, val []byte, regex *regexp.Regexp) map[string]struct{} {
 	ss := make(map[string]struct{})
 	itr := fs.TagKeyIterator(name)
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		var matched bool
-		switch op {
-		case influxql.EQ:
-			matched = bytes.Equal(e.Key(), val)
-		case influxql.NEQ:
-			matched = !bytes.Equal(e.Key(), val)
-		case influxql.EQREGEX:
-			matched = regex.Match(e.Key())
-		case influxql.NEQREGEX:
-			matched = !regex.Match(e.Key())
-		}
+	if itr != nil {
+		for e := itr.Next(); e != nil; e = itr.Next() {
+			var matched bool
+			switch op {
+			case influxql.EQ:
+				matched = bytes.Equal(e.Key(), val)
+			case influxql.NEQ:
+				matched = !bytes.Equal(e.Key(), val)
+			case influxql.EQREGEX:
+				matched = regex.Match(e.Key())
+			case influxql.NEQREGEX:
+				matched = !regex.Match(e.Key())
+			}
 
-		if !matched {
-			continue
+			if !matched {
+				continue
+			}
+			ss[string(e.Key())] = struct{}{}
 		}
-		ss[string(e.Key())] = struct{}{}
 	}
 	return ss
 }
 
-// TagKeySeriesIterator returns a series iterator for all values across a single key.
-func (fs *FileSet) TagKeySeriesIterator(name, key []byte) tsdb.SeriesIterator {
-	a := make([]tsdb.SeriesIterator, 0, len(fs.files))
+// TagKeySeriesIDIterator returns a series iterator for all values across a single key.
+func (fs *FileSet) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
+	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
 	for _, f := range fs.files {
-		itr := f.TagKeySeriesIterator(name, key)
+		itr := f.TagKeySeriesIDIterator(name, key)
 		if itr != nil {
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
+	return tsdb.MergeSeriesIDIterators(a...)
 }
 
 // HasTagKey returns true if the tag key exists.
@@ -447,394 +383,16 @@ func (fs *FileSet) TagValueIterator(name, key []byte) TagValueIterator {
 	return MergeTagValueIterators(a...)
 }
 
-// TagValueSeriesIterator returns a series iterator for a single tag value.
-func (fs *FileSet) TagValueSeriesIterator(name, key, value []byte) tsdb.SeriesIterator {
-	a := make([]tsdb.SeriesIterator, 0, len(fs.files))
+// TagValueSeriesIDIterator returns a series iterator for a single tag value.
+func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
+	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
 	for _, f := range fs.files {
-		itr := f.TagValueSeriesIterator(name, key, value)
+		itr := f.TagValueSeriesIDIterator(name, key, value)
 		if itr != nil {
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
-}
-
-// MatchTagValueSeriesIterator returns a series iterator for tags which match value.
-// If matches is false, returns iterators which do not match value.
-func (fs *FileSet) MatchTagValueSeriesIterator(name, key []byte, value *regexp.Regexp, matches bool) tsdb.SeriesIterator {
-	matchEmpty := value.MatchString("")
-
-	if matches {
-		if matchEmpty {
-			return FilterUndeletedSeriesIterator(fs.matchTagValueEqualEmptySeriesIterator(name, key, value))
-		}
-		return FilterUndeletedSeriesIterator(fs.matchTagValueEqualNotEmptySeriesIterator(name, key, value))
-	}
-
-	if matchEmpty {
-		return FilterUndeletedSeriesIterator(fs.matchTagValueNotEqualEmptySeriesIterator(name, key, value))
-	}
-	return FilterUndeletedSeriesIterator(fs.matchTagValueNotEqualNotEmptySeriesIterator(name, key, value))
-}
-
-func (fs *FileSet) matchTagValueEqualEmptySeriesIterator(name, key []byte, value *regexp.Regexp) tsdb.SeriesIterator {
-	vitr := fs.TagValueIterator(name, key)
-	if vitr == nil {
-		return fs.MeasurementSeriesIterator(name)
-	}
-
-	var itrs []tsdb.SeriesIterator
-	for e := vitr.Next(); e != nil; e = vitr.Next() {
-		if !value.Match(e.Value()) {
-			itrs = append(itrs, fs.TagValueSeriesIterator(name, key, e.Value()))
-		}
-	}
-
-	return DifferenceSeriesIterators(
-		fs.MeasurementSeriesIterator(name),
-		MergeSeriesIterators(itrs...),
-	)
-}
-
-func (fs *FileSet) matchTagValueEqualNotEmptySeriesIterator(name, key []byte, value *regexp.Regexp) tsdb.SeriesIterator {
-	vitr := fs.TagValueIterator(name, key)
-	if vitr == nil {
-		return nil
-	}
-
-	var itrs []tsdb.SeriesIterator
-	for e := vitr.Next(); e != nil; e = vitr.Next() {
-		if value.Match(e.Value()) {
-			itrs = append(itrs, fs.TagValueSeriesIterator(name, key, e.Value()))
-		}
-	}
-	return MergeSeriesIterators(itrs...)
-}
-
-func (fs *FileSet) matchTagValueNotEqualEmptySeriesIterator(name, key []byte, value *regexp.Regexp) tsdb.SeriesIterator {
-	vitr := fs.TagValueIterator(name, key)
-	if vitr == nil {
-		return nil
-	}
-
-	var itrs []tsdb.SeriesIterator
-	for e := vitr.Next(); e != nil; e = vitr.Next() {
-		if !value.Match(e.Value()) {
-			itrs = append(itrs, fs.TagValueSeriesIterator(name, key, e.Value()))
-		}
-	}
-	return MergeSeriesIterators(itrs...)
-}
-
-func (fs *FileSet) matchTagValueNotEqualNotEmptySeriesIterator(name, key []byte, value *regexp.Regexp) tsdb.SeriesIterator {
-	vitr := fs.TagValueIterator(name, key)
-	if vitr == nil {
-		return fs.MeasurementSeriesIterator(name)
-	}
-
-	var itrs []tsdb.SeriesIterator
-	for e := vitr.Next(); e != nil; e = vitr.Next() {
-		if value.Match(e.Value()) {
-			itrs = append(itrs, fs.TagValueSeriesIterator(name, key, e.Value()))
-		}
-	}
-
-	return DifferenceSeriesIterators(
-		fs.MeasurementSeriesIterator(name),
-		MergeSeriesIterators(itrs...),
-	)
-}
-
-func (fs *FileSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
-	// Return filtered list if expression exists.
-	if expr != nil {
-		return fs.measurementNamesByExpr(auth, expr)
-	}
-
-	itr := fs.MeasurementIterator()
-	if itr == nil {
-		return nil, nil
-	}
-
-	// Iterate over all measurements if no condition exists.
-	var names [][]byte
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		if fs.measurementAuthorizedSeries(auth, e.Name()) {
-			names = append(names, e.Name())
-		}
-	}
-	return names, nil
-}
-
-func (fs *FileSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
-	if expr == nil {
-		return nil, nil
-	}
-
-	switch e := expr.(type) {
-	case *influxql.BinaryExpr:
-		switch e.Op {
-		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-			tag, ok := e.LHS.(*influxql.VarRef)
-			if !ok {
-				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
-			}
-
-			// Retrieve value or regex expression from RHS.
-			var value string
-			var regex *regexp.Regexp
-			if influxql.IsRegexOp(e.Op) {
-				re, ok := e.RHS.(*influxql.RegexLiteral)
-				if !ok {
-					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
-				}
-				regex = re.Val
-			} else {
-				s, ok := e.RHS.(*influxql.StringLiteral)
-				if !ok {
-					return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
-				}
-				value = s.Val
-			}
-
-			// Match on name, if specified.
-			if tag.Val == "_name" {
-				return fs.measurementNamesByNameFilter(auth, e.Op, value, regex), nil
-			} else if influxql.IsSystemName(tag.Val) {
-				return nil, nil
-			}
-			return fs.measurementNamesByTagFilter(auth, e.Op, tag.Val, value, regex), nil
-
-		case influxql.OR, influxql.AND:
-			lhs, err := fs.measurementNamesByExpr(auth, e.LHS)
-			if err != nil {
-				return nil, err
-			}
-
-			rhs, err := fs.measurementNamesByExpr(auth, e.RHS)
-			if err != nil {
-				return nil, err
-			}
-
-			if e.Op == influxql.OR {
-				return bytesutil.Union(lhs, rhs), nil
-			}
-			return bytesutil.Intersect(lhs, rhs), nil
-
-		default:
-			return nil, fmt.Errorf("invalid tag comparison operator")
-		}
-
-	case *influxql.ParenExpr:
-		return fs.measurementNamesByExpr(auth, e.Expr)
-	default:
-		return nil, fmt.Errorf("%#v", expr)
-	}
-}
-
-// measurementNamesByNameFilter returns matching measurement names in sorted order.
-func (fs *FileSet) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
-	itr := fs.MeasurementIterator()
-	if itr == nil {
-		return nil
-	}
-
-	var names [][]byte
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		var matched bool
-		switch op {
-		case influxql.EQ:
-			matched = string(e.Name()) == val
-		case influxql.NEQ:
-			matched = string(e.Name()) != val
-		case influxql.EQREGEX:
-			matched = regex.Match(e.Name())
-		case influxql.NEQREGEX:
-			matched = !regex.Match(e.Name())
-		}
-
-		if matched && fs.measurementAuthorizedSeries(auth, e.Name()) {
-			names = append(names, e.Name())
-		}
-	}
-	bytesutil.Sort(names)
-	return names
-}
-
-func (fs *FileSet) measurementNamesByTagFilter(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) [][]byte {
-	var names [][]byte
-
-	mitr := fs.MeasurementIterator()
-	if mitr == nil {
-		return nil
-	}
-
-	// valEqual determines if the provided []byte] is equal to the tag value
-	// to be filtered on.
-	valEqual := regex.Match
-	if op == influxql.EQ || op == influxql.NEQ {
-		vb := []byte(val)
-		valEqual = func(b []byte) bool { return bytes.Equal(vb, b) }
-	}
-
-	var tagMatch bool
-	var authorized bool
-	for me := mitr.Next(); me != nil; me = mitr.Next() {
-		// If the measurement doesn't have the tag key, then it won't be considered.
-		if !fs.HasTagKey(me.Name(), []byte(key)) {
-			continue
-		}
-
-		tagMatch = false
-		// Authorization must be explicitly granted when an authorizer is present.
-		authorized = auth == nil
-
-		vitr := fs.TagValueIterator(me.Name(), []byte(key))
-		if vitr != nil {
-			for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
-				if !valEqual(ve.Value()) {
-					continue
-				}
-
-				tagMatch = true
-				if auth == nil {
-					break
-				}
-
-				// When an authorizer is present, the measurement should be
-				// included only if one of it's series is authorized.
-				sitr := fs.TagValueSeriesIterator(me.Name(), []byte(key), ve.Value())
-				if sitr == nil {
-					continue
-				}
-				// Locate a series with this matching tag value that's authorized.
-				for se := sitr.Next(); se != nil; se = sitr.Next() {
-					if auth.AuthorizeSeriesRead(fs.database, me.Name(), se.Tags()) {
-						authorized = true
-						break
-					}
-				}
-
-				if tagMatch && authorized {
-					// The measurement can definitely be included or rejected.
-					break
-				}
-			}
-		}
-
-		// For negation operators, to determine if the measurement is authorized,
-		// an authorized series belonging to the measurement must be located.
-		// Then, the measurement can be added iff !tagMatch && authorized.
-		if op == influxql.NEQ || op == influxql.NEQREGEX && !tagMatch {
-			authorized = fs.measurementAuthorizedSeries(auth, me.Name())
-		}
-
-		// tags match | operation is EQ | measurement matches
-		// --------------------------------------------------
-		//     True   |       True      |      True
-		//     True   |       False     |      False
-		//     False  |       True      |      False
-		//     False  |       False     |      True
-		if tagMatch == (op == influxql.EQ || op == influxql.EQREGEX) && authorized {
-			names = append(names, me.Name())
-		}
-	}
-
-	bytesutil.Sort(names)
-	return names
-}
-
-// measurementAuthorizedSeries determines if the measurement contains a series
-// that is authorized to be read.
-func (fs *FileSet) measurementAuthorizedSeries(auth query.Authorizer, name []byte) bool {
-	if auth == nil {
-		return true
-	}
-
-	sitr := fs.MeasurementSeriesIterator(name)
-	for series := sitr.Next(); series != nil; series = sitr.Next() {
-		if auth.AuthorizeSeriesRead(fs.database, name, series.Tags()) {
-			return true
-		}
-	}
-	return false
-}
-
-// HasSeries returns true if the series exists and is not tombstoned.
-func (fs *FileSet) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
-	for _, f := range fs.files {
-		if exists, tombstoned := f.HasSeries(name, tags, buf); exists {
-			return !tombstoned
-		}
-	}
-	return false
-}
-
-// FilterNamesTags filters out any series which already exist. It modifies the
-// provided slices of names and tags.
-func (fs *FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
-	buf := make([]byte, 4096)
-
-	// Filter across all log files.
-	// Log files obtain a read lock and should be done in bulk for performance.
-	for _, f := range fs.LogFiles() {
-		names, tagsSlice = f.FilterNamesTags(names, tagsSlice)
-	}
-
-	// Filter across remaining index files.
-	indexFiles := fs.IndexFiles()
-	newNames, newTagsSlice := names[:0], tagsSlice[:0]
-	for i := range names {
-		name, tags := names[i], tagsSlice[i]
-		currentLevel, skipLevel := -1, false
-
-		var exists, tombstoned bool
-		for j := 0; j < len(indexFiles); j++ {
-			f := indexFiles[j]
-
-			// Check for existence on the level when it changes.
-			if level := f.Level(); currentLevel != level {
-				currentLevel, skipLevel = level, false
-
-				if filter := fs.filters[level]; filter != nil {
-					if !filter.Contains(AppendSeriesKey(buf[:0], name, tags)) {
-						skipLevel = true
-					}
-				}
-			}
-
-			// Skip file if in level where it doesn't exist.
-			if skipLevel {
-				continue
-			}
-
-			// Stop once we find the series in a file.
-			if exists, tombstoned = f.HasSeries(name, tags, buf); exists {
-				break
-			}
-		}
-
-		// If the series doesn't exist or it has been tombstoned then add it.
-		if !exists || tombstoned {
-			newNames = append(newNames, name)
-			newTagsSlice = append(newTagsSlice, tags)
-		}
-	}
-
-	return newNames, newTagsSlice
-}
-
-// SeriesSketches returns the merged series sketches for the FileSet.
-func (fs *FileSet) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
-	// Iterate over all the files and merge the sketches into the result.
-	for _, f := range fs.files {
-		if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
-			return nil, nil, err
-		}
-	}
-	return sketch, tsketch, nil
+	return tsdb.MergeSeriesIDIterators(a...)
 }
 
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
@@ -850,228 +408,6 @@ func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, e
 	return sketch, tsketch, nil
 }
 
-// MeasurementSeriesByExprIterator returns a series iterator for a measurement
-// that is filtered by expr. If expr only contains time expressions then this
-// call is equivalent to MeasurementSeriesIterator().
-func (fs *FileSet) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) (tsdb.SeriesIterator, error) {
-	// Return all series for the measurement if there are no tag expressions.
-	if expr == nil {
-		return fs.MeasurementSeriesIterator(name), nil
-	}
-	return fs.seriesByExprIterator(name, expr, fieldset.CreateFieldsIfNotExists(name))
-}
-
-// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
-func (fs *FileSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([][]byte, error) {
-	// Create iterator for all matching series.
-	itr, err := fs.MeasurementSeriesByExprIterator(name, expr, fieldset)
-	if err != nil {
-		return nil, err
-	} else if itr == nil {
-		return nil, nil
-	}
-
-	// Iterate over all series and generate keys.
-	var keys [][]byte
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		// Check for unsupported field filters.
-		// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
-		if e.Expr() != nil {
-			if v, ok := e.Expr().(*influxql.BooleanLiteral); !ok || !v.Val {
-				return nil, errors.New("fields not supported in WHERE clause during deletion")
-			}
-		}
-
-		keys = append(keys, models.MakeKey(e.Name(), e.Tags()))
-	}
-	return keys, nil
-}
-
-func (fs *FileSet) seriesByExprIterator(name []byte, expr influxql.Expr, mf *tsdb.MeasurementFields) (tsdb.SeriesIterator, error) {
-	switch expr := expr.(type) {
-	case *influxql.BinaryExpr:
-		switch expr.Op {
-		case influxql.AND, influxql.OR:
-			// Get the series IDs and filter expressions for the LHS.
-			litr, err := fs.seriesByExprIterator(name, expr.LHS, mf)
-			if err != nil {
-				return nil, err
-			}
-
-			// Get the series IDs and filter expressions for the RHS.
-			ritr, err := fs.seriesByExprIterator(name, expr.RHS, mf)
-			if err != nil {
-				return nil, err
-			}
-
-			// Intersect iterators if expression is "AND".
-			if expr.Op == influxql.AND {
-				return IntersectSeriesIterators(litr, ritr), nil
-			}
-
-			// Union iterators if expression is "OR".
-			return UnionSeriesIterators(litr, ritr), nil
-
-		default:
-			return fs.seriesByBinaryExprIterator(name, expr, mf)
-		}
-
-	case *influxql.ParenExpr:
-		return fs.seriesByExprIterator(name, expr.Expr, mf)
-
-	default:
-		return nil, nil
-	}
-}
-
-// seriesByBinaryExprIterator returns a series iterator and a filtering expression.
-func (fs *FileSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExpr, mf *tsdb.MeasurementFields) (tsdb.SeriesIterator, error) {
-	// If this binary expression has another binary expression, then this
-	// is some expression math and we should just pass it to the underlying query.
-	if _, ok := n.LHS.(*influxql.BinaryExpr); ok {
-		return newSeriesExprIterator(fs.MeasurementSeriesIterator(name), n), nil
-	} else if _, ok := n.RHS.(*influxql.BinaryExpr); ok {
-		return newSeriesExprIterator(fs.MeasurementSeriesIterator(name), n), nil
-	}
-
-	// Retrieve the variable reference from the correct side of the expression.
-	key, ok := n.LHS.(*influxql.VarRef)
-	value := n.RHS
-	if !ok {
-		key, ok = n.RHS.(*influxql.VarRef)
-		if !ok {
-			return nil, fmt.Errorf("invalid expression: %s", n.String())
-		}
-		value = n.LHS
-	}
-
-	// For fields, return all series from this measurement.
-	if key.Val != "_name" && ((key.Type == influxql.Unknown && mf.HasField(key.Val)) || key.Type == influxql.AnyField || (key.Type != influxql.Tag && key.Type != influxql.Unknown)) {
-		return newSeriesExprIterator(fs.MeasurementSeriesIterator(name), n), nil
-	} else if value, ok := value.(*influxql.VarRef); ok {
-		// Check if the RHS is a variable and if it is a field.
-		if value.Val != "_name" && ((value.Type == influxql.Unknown && mf.HasField(value.Val)) || key.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
-			return newSeriesExprIterator(fs.MeasurementSeriesIterator(name), n), nil
-		}
-	}
-
-	// Create iterator based on value type.
-	switch value := value.(type) {
-	case *influxql.StringLiteral:
-		return fs.seriesByBinaryExprStringIterator(name, []byte(key.Val), []byte(value.Val), n.Op)
-	case *influxql.RegexLiteral:
-		return fs.seriesByBinaryExprRegexIterator(name, []byte(key.Val), value.Val, n.Op)
-	case *influxql.VarRef:
-		return fs.seriesByBinaryExprVarRefIterator(name, []byte(key.Val), value, n.Op)
-	default:
-		if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
-			return fs.MeasurementSeriesIterator(name), nil
-		}
-		return nil, nil
-	}
-}
-
-func (fs *FileSet) seriesByBinaryExprStringIterator(name, key, value []byte, op influxql.Token) (tsdb.SeriesIterator, error) {
-	// Special handling for "_name" to match measurement name.
-	if bytes.Equal(key, []byte("_name")) {
-		if (op == influxql.EQ && bytes.Equal(value, name)) || (op == influxql.NEQ && !bytes.Equal(value, name)) {
-			return fs.MeasurementSeriesIterator(name), nil
-		}
-		return nil, nil
-	}
-
-	if op == influxql.EQ {
-		// Match a specific value.
-		if len(value) != 0 {
-			return fs.TagValueSeriesIterator(name, key, value), nil
-		}
-
-		// Return all measurement series that have no values from this tag key.
-		return DifferenceSeriesIterators(
-			fs.MeasurementSeriesIterator(name),
-			fs.TagKeySeriesIterator(name, key),
-		), nil
-	}
-
-	// Return all measurement series without this tag value.
-	if len(value) != 0 {
-		return DifferenceSeriesIterators(
-			fs.MeasurementSeriesIterator(name),
-			fs.TagValueSeriesIterator(name, key, value),
-		), nil
-	}
-
-	// Return all series across all values of this tag key.
-	return fs.TagKeySeriesIterator(name, key), nil
-}
-
-func (fs *FileSet) seriesByBinaryExprRegexIterator(name, key []byte, value *regexp.Regexp, op influxql.Token) (tsdb.SeriesIterator, error) {
-	// Special handling for "_name" to match measurement name.
-	if bytes.Equal(key, []byte("_name")) {
-		match := value.Match(name)
-		if (op == influxql.EQREGEX && match) || (op == influxql.NEQREGEX && !match) {
-			return newSeriesExprIterator(fs.MeasurementSeriesIterator(name), &influxql.BooleanLiteral{Val: true}), nil
-		}
-		return nil, nil
-	}
-	return fs.MatchTagValueSeriesIterator(name, key, value, op == influxql.EQREGEX), nil
-}
-
-func (fs *FileSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *influxql.VarRef, op influxql.Token) (tsdb.SeriesIterator, error) {
-	if op == influxql.EQ {
-		return IntersectSeriesIterators(
-			fs.TagKeySeriesIterator(name, key),
-			fs.TagKeySeriesIterator(name, []byte(value.Val)),
-		), nil
-	}
-
-	return DifferenceSeriesIterators(
-		fs.TagKeySeriesIterator(name, key),
-		fs.TagKeySeriesIterator(name, []byte(value.Val)),
-	), nil
-}
-
-// buildFilters builds a series existence filter for each compaction level.
-func (fs *FileSet) buildFilters() error {
-	if len(fs.levels) == 0 {
-		return nil
-	}
-
-	// Move past log files (level=0).
-	files := fs.files
-	for len(files) > 0 && files[0].Level() == 0 {
-		files = files[1:]
-	}
-
-	// Build filters for each level where the filter is non-existent.
-	for level := range fs.levels {
-		// Clear filter if no files remain or next file is at a higher level.
-		if len(files) == 0 || files[0].Level() > level {
-			fs.filters[level] = nil
-			continue
-		}
-
-		// Skip files at this level if filter already exists.
-		if fs.filters[level] != nil {
-			for len(files) > 0 && files[0].Level() == level {
-				files = files[1:]
-			}
-			continue
-		}
-
-		// Build new filter from files at this level.
-		fs.filters[level] = bloom.NewFilter(fs.levels[level].M, fs.levels[level].K)
-		for len(files) > 0 && files[0].Level() == level {
-			if err := fs.filters[level].Merge(files[0].Filter()); err != nil {
-				return err
-			}
-			files = files[1:]
-		}
-	}
-
-	return nil
-}
-
 // File represents a log or index file.
 type File interface {
 	Close() error
@@ -1082,9 +418,6 @@ type File interface {
 
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
-	HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
-	Series(name []byte, tags models.Tags) tsdb.SeriesElem
-	SeriesN() uint64
 
 	TagKey(name, key []byte) TagKeyElem
 	TagKeyIterator(name []byte) TagKeyIterator
@@ -1093,17 +426,12 @@ type File interface {
 	TagValueIterator(name, key []byte) TagValueIterator
 
 	// Series iteration.
-	SeriesIterator() tsdb.SeriesIterator
-	MeasurementSeriesIterator(name []byte) tsdb.SeriesIterator
-	TagKeySeriesIterator(name, key []byte) tsdb.SeriesIterator
-	TagValueSeriesIterator(name, key, value []byte) tsdb.SeriesIterator
+	MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator
+	TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
+	TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator
 
 	// Sketches for cardinality estimation
-	MergeSeriesSketches(s, t estimator.Sketch) error
 	MergeMeasurementsSketches(s, t estimator.Sketch) error
-
-	// Series existence bloom filter.
-	Filter() *bloom.Filter
 
 	// Reference counting.
 	Retain()
@@ -1121,4 +449,88 @@ func (a Files) IDs() []int {
 		ids[i] = a[i].ID()
 	}
 	return ids
+}
+
+// fileSetSeriesIDIterator attaches a fileset to an iterator that is released on close.
+type fileSetSeriesIDIterator struct {
+	once sync.Once
+	fs   *FileSet
+	itr  tsdb.SeriesIDIterator
+}
+
+func newFileSetSeriesIDIterator(fs *FileSet, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
+	return &fileSetSeriesIDIterator{fs: fs, itr: itr}
+}
+
+func (itr *fileSetSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
+	return itr.itr.Next()
+}
+
+func (itr *fileSetSeriesIDIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return itr.itr.Close()
+}
+
+// fileSetMeasurementIterator attaches a fileset to an iterator that is released on close.
+type fileSetMeasurementIterator struct {
+	once sync.Once
+	fs   *FileSet
+	itr  tsdb.MeasurementIterator
+}
+
+func newFileSetMeasurementIterator(fs *FileSet, itr tsdb.MeasurementIterator) *fileSetMeasurementIterator {
+	return &fileSetMeasurementIterator{fs: fs, itr: itr}
+}
+
+func (itr *fileSetMeasurementIterator) Next() ([]byte, error) {
+	return itr.itr.Next()
+}
+
+func (itr *fileSetMeasurementIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return itr.itr.Close()
+}
+
+// fileSetTagKeyIterator attaches a fileset to an iterator that is released on close.
+type fileSetTagKeyIterator struct {
+	once sync.Once
+	fs   *FileSet
+	itr  tsdb.TagKeyIterator
+}
+
+func newFileSetTagKeyIterator(fs *FileSet, itr tsdb.TagKeyIterator) *fileSetTagKeyIterator {
+	return &fileSetTagKeyIterator{fs: fs, itr: itr}
+}
+
+func (itr *fileSetTagKeyIterator) Next() ([]byte, error) {
+	return itr.itr.Next()
+}
+
+func (itr *fileSetTagKeyIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return itr.itr.Close()
+}
+
+// fileSetTagValueIterator attaches a fileset to an iterator that is released on close.
+type fileSetTagValueIterator struct {
+	once sync.Once
+	fs   *FileSet
+	itr  tsdb.TagValueIterator
+}
+
+func newFileSetTagValueIterator(fs *FileSet, itr tsdb.TagValueIterator) *fileSetTagValueIterator {
+	return &fileSetTagValueIterator{fs: fs, itr: itr}
+}
+
+func (itr *fileSetTagValueIterator) Next() ([]byte, error) {
+	return itr.itr.Next()
+}
+
+func (itr *fileSetTagValueIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return itr.itr.Close()
 }

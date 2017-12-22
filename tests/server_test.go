@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -5836,13 +5837,15 @@ func TestServer_Query_Wildcards(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
+
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}
@@ -6355,13 +6358,14 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}
@@ -7241,13 +7245,14 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}
@@ -7644,9 +7649,8 @@ func TestServer_Query_ShowMeasurementCardinalityEstimation(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.writes = make(Writes, 0, 10)
-	// Add 1,000,000 series.
 	for j := 0; j < cap(test.writes); j++ {
-		writes := make([]string, 0, 50000)
+		writes := make([]string, 0, 10000)
 		for i := 0; i < cap(writes); i++ {
 			writes = append(writes, fmt.Sprintf(`cpu-%d-s%d v=1 %d`, j, i, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:01Z").UnixNano()))
 		}
@@ -7696,7 +7700,7 @@ func TestServer_Query_ShowMeasurementCardinalityEstimation(t *testing.T) {
 			}
 
 			cardinality := got.Results[0].Series[0].Values[0][0]
-			if cardinality < 450000 || cardinality > 550000 {
+			if cardinality < 50000 || cardinality > 150000 {
 				t.Errorf("got cardinality %d, which is 10%% or more away from expected estimation of 500,000", cardinality)
 			}
 		})
@@ -8095,13 +8099,14 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}

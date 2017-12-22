@@ -35,10 +35,10 @@ import (
 const IndexName = "inmem"
 
 func init() {
-	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(name), nil }
+	tsdb.NewInmemIndex = func(name string, sfile *tsdb.SeriesFile) (interface{}, error) { return NewIndex(name, sfile), nil }
 
-	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
-		return NewShardIndex(id, database, path, opt)
+	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
+		return NewShardIndex(id, database, path, sfile, opt)
 	})
 }
 
@@ -49,11 +49,12 @@ type Index struct {
 	mu sync.RWMutex
 
 	database string
+	sfile    *tsdb.SeriesFile
+	fieldset *tsdb.MeasurementFieldSet
 
 	// In-memory metadata index, built on load and updated when new series come in
 	measurements map[string]*Measurement // measurement name to object and index
 	series       map[string]*Series      // map series key to the Series object
-	lastID       uint64                  // last used series ID. They're in memory only for this shard
 
 	seriesSketch, seriesTSSketch             *hll.Plus
 	measurementsSketch, measurementsTSSketch *hll.Plus
@@ -63,9 +64,10 @@ type Index struct {
 }
 
 // NewIndex returns a new initialized Index.
-func NewIndex(database string) *Index {
+func NewIndex(database string, sfile *tsdb.SeriesFile) *Index {
 	index := &Index{
 		database:     database,
+		sfile:        sfile,
 		measurements: make(map[string]*Measurement),
 		series:       make(map[string]*Series),
 	}
@@ -83,6 +85,11 @@ func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
 
 func (i *Index) WithLogger(*zap.Logger) {}
+
+// Database returns the name of the database the index was initialized with.
+func (i *Index) Database() string {
+	return i.database
+}
 
 // Series returns a series by key.
 func (i *Index) Series(key []byte) (*Series, error) {
@@ -144,9 +151,25 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*Measurement, error) {
 	return a, nil
 }
 
+// MeasurementIterator returns an iterator over all measurements in the index.
+// MeasurementIterator does not support authorization.
+func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
+	names, err := i.MeasurementNamesByExpr(nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return tsdb.NewMeasurementSliceIterator(names), nil
+}
+
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
 func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
+	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}, nil)
+	if err != nil {
+		return err
+	}
+	seriesID := seriesIDs[0]
+
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
@@ -180,8 +203,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	// set the in memory ID for query processing on this shard
 	// The series key and tags are clone to prevent a memory leak
 	series := NewSeries([]byte(string(key)), tags.Clone())
-	series.ID = i.lastID + 1
-	i.lastID++
+	series.ID = seriesID
 
 	series.SetMeasurement(m)
 	i.series[string(key)] = series
@@ -239,15 +261,15 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 }
 
 // HasTagValue returns true if tag value exists.
-func (i *Index) HasTagValue(name, key, value []byte) bool {
+func (i *Index) HasTagValue(name, key, value []byte) (bool, error) {
 	i.mu.RLock()
 	mm := i.measurements[string(name)]
 	i.mu.RUnlock()
 
 	if mm == nil {
-		return false
+		return false, nil
 	}
-	return mm.HasTagKeyValue(key, value)
+	return mm.HasTagKeyValue(key, value), nil
 }
 
 // TagValueN returns the cardinality of a tag value.
@@ -435,6 +457,9 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a
 // list of matching measurement names.
+//
+// TODO(edd): Remove authorisation from these methods. There shouldn't need to
+// be any auth passed down into the index.
 func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -581,7 +606,14 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 			// Is there a series with this matching tag value that is
 			// authorized to be read?
 			for _, sid := range seriesIDs {
-				if s := m.SeriesByID(sid); s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+				s := m.SeriesByID(sid)
+
+				// If the series is deleted then it can't be used to authorise against.
+				if s != nil && s.Deleted() {
+					continue
+				}
+
+				if s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
 					// The Range call can return early as a matching
 					// tag value with an authorized series has been found.
 					authorized = true
@@ -683,7 +715,6 @@ func (i *Index) DropSeries(key []byte, ts int64) error {
 
 	// Remove the measurement's reference.
 	series.Measurement().DropSeries(series)
-
 	// Mark the series as deleted.
 	series.Delete(ts)
 
@@ -721,10 +752,22 @@ func (i *Index) SeriesKeys() []string {
 	}
 	i.mu.RUnlock()
 	return s
+
 }
 
 // SetFieldSet sets a shared field set from the engine.
-func (i *Index) SetFieldSet(*tsdb.MeasurementFieldSet) {}
+func (i *Index) SetFieldSet(fieldset *tsdb.MeasurementFieldSet) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.fieldset = fieldset
+}
+
+// FieldSet returns the assigned fieldset.
+func (i *Index) FieldSet() *tsdb.MeasurementFieldSet {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.fieldset
+}
 
 // SetFieldName adds a field name to a measurement.
 func (i *Index) SetFieldName(measurement []byte, name string) {
@@ -750,12 +793,103 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
-func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIterator, error) {
-	keys, err := i.MeasurementSeriesKeysByExpr(name, condition)
+func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator, error) {
+	return i.MeasurementSeriesKeysByExprIterator(name, nil)
+}
+
+func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDsByTagKey(key))), nil
+}
+
+func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDsByTagValue(key, value))), nil
+}
+
+func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	keys := m.TagKeys()
+	sort.Strings(keys)
+
+	a := make([][]byte, len(keys))
+	for i := range a {
+		a[i] = []byte(keys[i])
+	}
+	return tsdb.NewTagKeySliceIterator(a), nil
+}
+
+// TagValueIterator provides an iterator over all the tag values belonging to
+// series with the provided measurement name and tag key.
+//
+// TagValueIterator does not currently support authorization.
+func (i *Index) TagValueIterator(name, key []byte) (tsdb.TagValueIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+	values := m.TagValues(nil, string(key))
+	sort.Strings(values)
+
+	a := make([][]byte, len(values))
+	for i := range a {
+		a[i] = []byte(values[i])
+	}
+	return tsdb.NewTagValueSliceIterator(a), nil
+}
+
+func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influxql.Expr) (tsdb.SeriesIDIterator, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+
+	// Return all series if no condition specified.
+	if condition == nil {
+		return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDs())), nil
+	}
+
+	// Get series IDs that match the WHERE clause.
+	ids, filters, err := m.WalkWhereForSeriesIds(condition)
 	if err != nil {
 		return nil, err
 	}
-	return &seriesIterator{keys: keys}, err
+
+	// Delete boolean literal true filter expressions.
+	// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
+	filters.DeleteBoolLiteralTrues()
+
+	// Check for unsupported field filters.
+	// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
+	if filters.Len() > 0 {
+		return nil, errors.New("fields not supported in WHERE clause during deletion")
+	}
+
+	return tsdb.NewSeriesIDSliceIterator([]uint64(ids)), nil
 }
 
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {
@@ -791,8 +925,8 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr
 	return m.SeriesKeysByID(ids), nil
 }
 
-// SeriesPointIterator returns an influxql iterator over all series.
-func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
+// SeriesIDIterator returns an influxql iterator over matching series ids.
+func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterator, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -803,18 +937,12 @@ func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, 
 	}
 	sort.Sort(mms)
 
-	return &seriesPointIterator{
+	return &seriesIDIterator{
 		database: i.database,
 		mms:      mms,
-		point: query.FloatPoint{
-			Aux: make([]interface{}, len(opt.Aux)),
-		},
-		opt: opt,
+		opt:      opt,
 	}, nil
 }
-
-// SnapshotTo is a no-op since this is an in-memory index.
-func (i *Index) SnapshotTo(path string) error { return nil }
 
 // DiskSizeBytes always returns zero bytes, since this is an in-memory index.
 func (i *Index) DiskSizeBytes() int64 { return 0 }
@@ -934,7 +1062,7 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 			tags := tagsSlice[i]
 			for _, tag := range tags {
 				// Skip if the tag value already exists.
-				if idx.HasTagValue(name, tag.Key, tag.Value) {
+				if ok, _ := idx.HasTagValue(name, tag.Key, tag.Value); ok {
 					continue
 				}
 
@@ -1007,7 +1135,7 @@ func (i *ShardIndex) TagSets(name []byte, opt query.IteratorOptions) ([]*query.T
 }
 
 // NewShardIndex returns a new index for a shard.
-func NewShardIndex(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
+func NewShardIndex(id uint64, database, path string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
 	return &ShardIndex{
 		Index: opt.InmemIndex.(*Index),
 		id:    id,
@@ -1015,35 +1143,33 @@ func NewShardIndex(id uint64, database, path string, opt tsdb.EngineOptions) tsd
 	}
 }
 
-// seriesPointIterator emits series as influxql points.
-type seriesPointIterator struct {
+// seriesIDIterator emits series ids.
+type seriesIDIterator struct {
 	database string
 	mms      Measurements
 	keys     struct {
 		buf []*Series
 		i   int
 	}
-
-	point query.FloatPoint // reusable point
-	opt   query.IteratorOptions
+	opt query.IteratorOptions
 }
 
 // Stats returns stats about the points processed.
-func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
+func (itr *seriesIDIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
 
 // Close closes the iterator.
-func (itr *seriesPointIterator) Close() error { return nil }
+func (itr *seriesIDIterator) Close() error { return nil }
 
 // Next emits the next point in the iterator.
-func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
+func (itr *seriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 	for {
 		// Load next measurement's keys if there are no more remaining.
 		if itr.keys.i >= len(itr.keys.buf) {
 			if err := itr.nextKeys(); err != nil {
-				return nil, err
+				return tsdb.SeriesIDElem{}, err
 			}
 			if len(itr.keys.buf) == 0 {
-				return nil, nil
+				return tsdb.SeriesIDElem{}, nil
 			}
 		}
 
@@ -1055,19 +1181,12 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 			continue
 		}
 
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = series.Key
-			}
-		}
-		return &itr.point, nil
+		return tsdb.SeriesIDElem{SeriesID: series.ID}, nil
 	}
 }
 
 // nextKeys reads all keys for the next measurement.
-func (itr *seriesPointIterator) nextKeys() error {
+func (itr *seriesIDIterator) nextKeys() error {
 	for {
 		// Ensure previous keys are cleared out.
 		itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]

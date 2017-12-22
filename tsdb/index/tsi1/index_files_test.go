@@ -10,8 +10,11 @@ import (
 
 // Ensure multiple index files can be compacted together.
 func TestIndexFiles_WriteTo(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
 	// Write first file.
-	f0, err := CreateIndexFile([]Series{
+	f0, err := CreateIndexFile(sfile.SeriesFile, []Series{
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
@@ -21,7 +24,7 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 	}
 
 	// Write second file.
-	f1, err := CreateIndexFile([]Series{
+	f1, err := CreateIndexFile(sfile.SeriesFile, []Series{
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
 		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	})
@@ -32,7 +35,7 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 	// Compact the two together and write out to a buffer.
 	var buf bytes.Buffer
 	a := tsi1.IndexFiles{f0, f1}
-	if n, err := a.CompactTo(&buf, M, K); err != nil {
+	if n, err := a.CompactTo(&buf, sfile.SeriesFile, M, K); err != nil {
 		t.Fatal(err)
 	} else if n == 0 {
 		t.Fatal("expected data written")

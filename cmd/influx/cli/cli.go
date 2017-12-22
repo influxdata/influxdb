@@ -1020,8 +1020,7 @@ func (c *CommandLine) help() {
         show field keys       show field key information
 
         A full list of influxql commands can be found at:
-        https://docs.influxdata.com/influxdb/latest/query_language/spec/
-`)
+        https://docs.influxdata.com/influxdb/latest/query_language/spec/`)
 }
 
 func (c *CommandLine) history() {
@@ -1091,9 +1090,7 @@ func (c *CommandLine) gopher() {
                                          o:   -h///++////-.
                                         /:   .o/
                                        //+  'y
-                                       ./sooy.
-
-`)
+                                       ./sooy.`)
 }
 
 // Version prints the CLI version.

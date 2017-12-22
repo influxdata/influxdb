@@ -292,6 +292,9 @@ const (
 	// RequestMetastoreBackup represents a request to back up the metastore.
 	RequestMetastoreBackup
 
+	// RequestSeriesFileBackup represents a request to back up the database series file.
+	RequestSeriesFileBackup
+
 	// RequestDatabaseInfo represents a request for database info.
 	RequestDatabaseInfo
 

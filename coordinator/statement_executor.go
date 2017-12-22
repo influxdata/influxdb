@@ -330,8 +330,8 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(stmt *influxql.DeleteSe
 	// Convert "now()" to current time.
 	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
-	// Locally delete the series.
-	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition)
+	// Locally delete the series. The series will not be removed from the index.
+	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition, false)
 }
 
 func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement) error {
@@ -375,7 +375,7 @@ func (e *StatementExecutor) executeDropSeriesStatement(stmt *influxql.DropSeries
 	}
 
 	// Locally drop the series.
-	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition)
+	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition, true)
 }
 
 func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardStatement) error {
@@ -1375,7 +1375,7 @@ type TSDBStore interface {
 	DeleteDatabase(name string) error
 	DeleteMeasurement(database, name string) error
 	DeleteRetentionPolicy(database, name string) error
-	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, removeIndex bool) error
 	DeleteShard(id uint64) error
 
 	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)

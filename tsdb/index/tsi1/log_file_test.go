@@ -15,20 +15,28 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 // Ensure log file can append series.
-func TestLogFile_AddSeries(t *testing.T) {
-	f := MustOpenLogFile()
+func TestLogFile_AddSeriesList(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
 	defer f.Close()
 
 	// Add test data.
-	if err := f.AddSeries([]byte("mem"), models.Tags{{Key: []byte("host"), Value: []byte("serverA")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}); err != nil {
+	if err := f.AddSeriesList([][]byte{
+		[]byte("mem"),
+		[]byte("cpu"),
+		[]byte("cpu"),
+	}, []models.Tags{
+		{{Key: []byte("host"), Value: []byte("serverA")}},
+		{{Key: []byte("region"), Value: []byte("us-east")}},
+		{{Key: []byte("region"), Value: []byte("us-west")}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -59,7 +67,10 @@ func TestLogFile_AddSeries(t *testing.T) {
 }
 
 func TestLogFile_SeriesStoredInOrder(t *testing.T) {
-	f := MustOpenLogFile()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
 	defer f.Close()
 
 	// Generate and add test data
@@ -69,11 +80,13 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 		tv := fmt.Sprintf("server-%d", rand.Intn(50)) // Encourage adding duplicate series.
 		tvm[tv] = struct{}{}
 
-		if err := f.AddSeries([]byte("mem"), models.Tags{models.NewTag([]byte("host"), []byte(tv))}); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := f.AddSeries([]byte("cpu"), models.Tags{models.NewTag([]byte("host"), []byte(tv))}); err != nil {
+		if err := f.AddSeriesList([][]byte{
+			[]byte("mem"),
+			[]byte("cpu"),
+		}, []models.Tags{
+			{models.NewTag([]byte("host"), []byte(tv))},
+			{models.NewTag([]byte("host"), []byte(tv))},
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -89,45 +102,43 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 	tvs = append(tvs, tvs...)
 
 	// When we pull the series out via an iterator they should be in order.
-	itr := f.SeriesIterator()
+	itr := f.SeriesIDIterator()
 	if itr == nil {
 		t.Fatal("nil iterator")
 	}
 
-	mname := []string{"cpu", "mem"}
-	var j int
+	var prevSeriesID uint64
 	for i := 0; i < len(tvs); i++ {
-		serie := itr.Next()
-		if serie == nil {
+		elem, err := itr.Next()
+		if err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID == 0 {
 			t.Fatal("got nil series")
+		} else if elem.SeriesID < prevSeriesID {
+			t.Fatalf("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)
 		}
-
-		if got, exp := string(serie.Name()), mname[j]; got != exp {
-			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
-		}
-
-		if got, exp := string(serie.Tags()[0].Value), tvs[i]; got != exp {
-			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
-		}
-
-		if i == (len(tvs)/2)-1 {
-			// Next measurement
-			j++
-		}
+		prevSeriesID = elem.SeriesID
 	}
 }
 
 // Ensure log file can delete an existing measurement.
 func TestLogFile_DeleteMeasurement(t *testing.T) {
-	f := MustOpenLogFile()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
 	defer f.Close()
 
 	// Add test data.
-	if err := f.AddSeries([]byte("mem"), models.Tags{{Key: []byte("host"), Value: []byte("serverA")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}); err != nil {
+	if err := f.AddSeriesList([][]byte{
+		[]byte("mem"),
+		[]byte("cpu"),
+		[]byte("cpu"),
+	}, []models.Tags{
+		{{Key: []byte("host"), Value: []byte("serverA")}},
+		{{Key: []byte("region"), Value: []byte("us-east")}},
+		{{Key: []byte("region"), Value: []byte("us-west")}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,19 +164,19 @@ type LogFile struct {
 }
 
 // NewLogFile returns a new instance of LogFile with a temporary file path.
-func NewLogFile() *LogFile {
+func NewLogFile(sfile *tsdb.SeriesFile) *LogFile {
 	file, err := ioutil.TempFile("", "tsi1-log-file-")
 	if err != nil {
 		panic(err)
 	}
 	file.Close()
 
-	return &LogFile{LogFile: tsi1.NewLogFile(file.Name())}
+	return &LogFile{LogFile: tsi1.NewLogFile(sfile, file.Name())}
 }
 
 // MustOpenLogFile returns a new, open instance of LogFile. Panic on error.
-func MustOpenLogFile() *LogFile {
-	f := NewLogFile()
+func MustOpenLogFile(sfile *tsdb.SeriesFile) *LogFile {
+	f := NewLogFile(sfile)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}
@@ -190,10 +201,10 @@ func (f *LogFile) Reopen() error {
 }
 
 // CreateLogFile creates a new temporary log file and adds a list of series.
-func CreateLogFile(series []Series) (*LogFile, error) {
-	f := MustOpenLogFile()
+func CreateLogFile(sfile *tsdb.SeriesFile, series []Series) (*LogFile, error) {
+	f := MustOpenLogFile(sfile)
 	for _, serie := range series {
-		if err := f.AddSeries(serie.Name, serie.Tags); err != nil {
+		if err := f.AddSeriesList([][]byte{serie.Name}, []models.Tags{serie.Tags}); err != nil {
 			return nil, err
 		}
 	}
@@ -202,10 +213,10 @@ func CreateLogFile(series []Series) (*LogFile, error) {
 
 // GenerateLogFile generates a log file from a set of series based on the count arguments.
 // Total series returned will equal measurementN * tagN * valueN.
-func GenerateLogFile(measurementN, tagN, valueN int) (*LogFile, error) {
+func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*LogFile, error) {
 	tagValueN := pow(valueN, tagN)
 
-	f := MustOpenLogFile()
+	f := MustOpenLogFile(sfile)
 	for i := 0; i < measurementN; i++ {
 		name := []byte(fmt.Sprintf("measurement%d", i))
 
@@ -217,7 +228,7 @@ func GenerateLogFile(measurementN, tagN, valueN int) (*LogFile, error) {
 				value := []byte(fmt.Sprintf("value%d", (j / pow(valueN, k) % valueN)))
 				tags = append(tags, models.NewTag(key, value))
 			}
-			if err := f.AddSeries(name, tags); err != nil {
+			if err := f.AddSeriesList([][]byte{name}, []models.Tags{tags}); err != nil {
 				return nil, err
 			}
 		}
@@ -225,8 +236,8 @@ func GenerateLogFile(measurementN, tagN, valueN int) (*LogFile, error) {
 	return f, nil
 }
 
-func MustGenerateLogFile(measurementN, tagN, valueN int) *LogFile {
-	f, err := GenerateLogFile(measurementN, tagN, valueN)
+func MustGenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) *LogFile {
+	f, err := GenerateLogFile(sfile, measurementN, tagN, valueN)
 	if err != nil {
 		panic(err)
 	}
@@ -234,8 +245,11 @@ func MustGenerateLogFile(measurementN, tagN, valueN int) *LogFile {
 }
 
 func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesValueN int) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
 	b.StopTimer()
-	f := MustOpenLogFile()
+	f := MustOpenLogFile(sfile.SeriesFile)
 
 	type Datum struct {
 		Name []byte
@@ -268,7 +282,7 @@ func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesVa
 
 	for i := 0; i < b.N; i++ {
 		for _, d := range data {
-			if err := f.AddSeries(d.Name, d.Tags); err != nil {
+			if err := f.AddSeriesList([][]byte{d.Name}, []models.Tags{d.Tags}); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -288,7 +302,10 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 	for _, seriesN := range []int{1000, 10000, 100000, 1000000} {
 		name := fmt.Sprintf("series=%d", seriesN)
 		b.Run(name, func(b *testing.B) {
-			f := MustOpenLogFile()
+			sfile := MustOpenSeriesFile()
+			defer sfile.Close()
+
+			f := MustOpenLogFile(sfile.SeriesFile)
 			defer f.Close()
 
 			// Estimate bloom filter size.
@@ -296,12 +313,12 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 
 			// Initialize log file with series data.
 			for i := 0; i < seriesN; i++ {
-				if err := f.AddSeries(
-					[]byte("cpu"),
-					models.Tags{
+				if err := f.AddSeriesList(
+					[][]byte{[]byte("cpu")},
+					[]models.Tags{{
 						{Key: []byte("host"), Value: []byte(fmt.Sprintf("server-%d", i))},
 						{Key: []byte("location"), Value: []byte("us-west")},
-					},
+					}},
 				); err != nil {
 					b.Fatal(err)
 				}

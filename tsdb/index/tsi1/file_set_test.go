@@ -1,15 +1,17 @@
 package tsi1_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
 )
 
 // Ensure fileset can return an iterator over all series in the index.
-func TestFileSet_SeriesIterator(t *testing.T) {
-	idx := MustOpenIndex()
+func TestFileSet_SeriesIDIterator(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -23,22 +25,36 @@ func TestFileSet_SeriesIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
-		itr := fs.SeriesIterator()
+		itr := fs.SeriesFile().SeriesIDIterator()
 		if itr == nil {
 			t.Fatal("expected iterator")
 		}
 
-		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `mem` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `mem` || tags.String() != `[{region east}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %d", elem.SeriesID)
 		}
 	})
 
@@ -53,33 +69,58 @@ func TestFileSet_SeriesIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
-		itr := fs.SeriesIterator()
+		itr := fs.SeriesFile().SeriesIDIterator()
 		if itr == nil {
 			t.Fatal("expected iterator")
 		}
 
-		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region north}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `disk` || len(e.Tags()) != 0 {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `mem` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
+		allexpected := []struct {
+			name   string
+			tagset string
+		}{
+			{`cpu`, `[{region east}]`},
+			{`cpu`, `[{region north}]`},
+			{`cpu`, `[{region west}]`},
+			{`disk`, `[]`},
+			{`mem`, `[{region east}]`},
+		}
+
+		for _, expected := range allexpected {
+			e, err := itr.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if name, tags := fs.SeriesFile().Series(e.SeriesID); string(name) != expected.name || tags.String() != expected.tagset {
+				t.Fatalf("unexpected series: %s/%s", name, tags.String())
+			}
+		}
+
+		// Check for end of iterator...
+		e, err := itr.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if e.SeriesID != 0 {
+			name, tags := fs.SeriesFile().Series(e.SeriesID)
+			t.Fatalf("got: %s/%s, but expected EOF", name, tags.String())
 		}
 	})
 }
 
 // Ensure fileset can return an iterator over all series for one measurement.
-func TestFileSet_MeasurementSeriesIterator(t *testing.T) {
-	idx := MustOpenIndex()
+func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -93,20 +134,31 @@ func TestFileSet_MeasurementSeriesIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
-		itr := fs.MeasurementSeriesIterator([]byte("cpu"))
+		itr := fs.MeasurementSeriesIDIterator([]byte("cpu"))
 		if itr == nil {
 			t.Fatal("expected iterator")
 		}
 
-		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %d", elem.SeriesID)
 		}
 	})
 
@@ -120,29 +172,46 @@ func TestFileSet_MeasurementSeriesIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
-		itr := fs.MeasurementSeriesIterator([]byte("cpu"))
+		itr := fs.MeasurementSeriesIDIterator([]byte("cpu"))
 		if itr == nil {
 			t.Fatalf("expected iterator")
 		}
 
-		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region north}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
-		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := fs.SeriesFile().Series(elem.SeriesID); string(name) != `cpu` || tags.String() != `[{region north}]` {
+			t.Fatalf("unexpected series: %s/%s", name, tags.String())
+		}
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %d", elem.SeriesID)
 		}
 	})
 }
 
 // Ensure fileset can return an iterator over all measurements for the index.
 func TestFileSet_MeasurementIterator(t *testing.T) {
-	idx := MustOpenIndex()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -155,7 +224,10 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.MeasurementIterator()
@@ -182,7 +254,10 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.MeasurementIterator()
@@ -204,7 +279,10 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 // Ensure fileset can return an iterator over all keys for one measurement.
 func TestFileSet_TagKeyIterator(t *testing.T) {
-	idx := MustOpenIndex()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	idx := MustOpenIndex(sfile.SeriesFile, 1)
 	defer idx.Close()
 
 	// Create initial set of series.
@@ -218,7 +296,10 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.TagKeyIterator([]byte("cpu"))
@@ -245,7 +326,10 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs := idx.RetainFileSet()
+		fs, err := idx.PartitionAt(0).RetainFileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer fs.Release()
 
 		itr := fs.TagKeyIterator([]byte("cpu"))
@@ -263,62 +347,4 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 			t.Fatalf("expected nil key: %s", e.Key())
 		}
 	})
-}
-
-var (
-	byteSliceResult [][]byte
-	tagsSliceResult []models.Tags
-)
-
-func BenchmarkFileset_FilterNamesTags(b *testing.B) {
-	idx := MustOpenIndex()
-	defer idx.Close()
-
-	allNames := make([][]byte, 0, 2000*1000)
-	allTags := make([]models.Tags, 0, 2000*1000)
-
-	for i := 0; i < 2000; i++ {
-		for j := 0; j < 1000; j++ {
-			name := []byte(fmt.Sprintf("measurement-%d", i))
-			tags := models.NewTags(map[string]string{"host": fmt.Sprintf("server-%d", j)})
-			allNames = append(allNames, name)
-			allTags = append(allTags, tags)
-		}
-	}
-
-	if err := idx.CreateSeriesListIfNotExists(nil, allNames, allTags); err != nil {
-		b.Fatal(err)
-	}
-	// idx.CheckFastCompaction()
-
-	fs := idx.RetainFileSet()
-	defer fs.Release()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		names := [][]byte{
-			[]byte("foo"),
-			[]byte("measurement-222"), // filtered
-			[]byte("measurement-222"), // kept (tags won't match)
-			[]byte("measurements-1"),
-			[]byte("measurement-900"), // filtered
-			[]byte("measurement-44444"),
-			[]byte("bar"),
-		}
-
-		tags := []models.Tags{
-			nil,
-			models.NewTags(map[string]string{"host": "server-297"}), // filtered
-			models.NewTags(map[string]string{"host": "wrong"}),
-			nil,
-			models.NewTags(map[string]string{"host": "server-1026"}), // filtered
-			models.NewTags(map[string]string{"host": "server-23"}),   // kept (measurement won't match)
-			models.NewTags(map[string]string{"host": "zoo"}),
-		}
-		b.StartTimer()
-		byteSliceResult, tagsSliceResult = fs.FilterNamesTags(names, tags)
-	}
 }

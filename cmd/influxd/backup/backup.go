@@ -2,23 +2,35 @@
 package backup
 
 import (
+	"compress/gzip"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"compress/gzip"
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/tcp"
-	"io/ioutil"
+)
+
+const (
+	// Suffix is a suffix added to the backup while it's in-process.
+	Suffix = ".pending"
+
+	// Metafile is the base name given to the metastore backups.
+	Metafile = "meta"
+
+	// BackupFilePattern is the beginning of the pattern for a backup
+	// file. They follow the scheme <database>.<retention>.<shardID>.<increment>
+	BackupFilePattern = "%s.%s.%05d"
 )
 
 // Command represents the program execution for "influxd backup".

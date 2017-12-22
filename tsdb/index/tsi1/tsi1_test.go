@@ -3,13 +3,15 @@ package tsi1_test
 import (
 	"bytes"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
-	"github.com/influxdata/influxql"
 )
 
 // Ensure iterator can operate over an in-memory list of elements.
@@ -151,51 +153,18 @@ func TestMergeTagValueIterators(t *testing.T) {
 }
 
 // Ensure iterator can operate over an in-memory list of series.
-func TestSeriesIterator(t *testing.T) {
-	elems := []SeriesElem{
-		{name: []byte("cpu"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, deleted: true},
-		{name: []byte("mem")},
+func TestSeriesIDIterator(t *testing.T) {
+	elems := []tsdb.SeriesIDElem{
+		{SeriesID: 1},
+		{SeriesID: 2},
 	}
 
-	itr := SeriesIterator{Elems: elems}
-	if e := itr.Next(); !reflect.DeepEqual(&elems[0], e) {
+	itr := SeriesIDIterator{Elems: elems}
+	if e := itr.Next(); !reflect.DeepEqual(elems[0], e) {
 		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(&elems[1], e) {
+	} else if e := itr.Next(); !reflect.DeepEqual(elems[1], e) {
 		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); e != nil {
-		t.Fatalf("expected nil elem: %#v", e)
-	}
-}
-
-// Ensure iterator can merge multiple iterators together.
-func TestMergeSeriesIterators(t *testing.T) {
-	itr := tsi1.MergeSeriesIterators(
-		&SeriesIterator{Elems: []SeriesElem{
-			{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, deleted: true},
-			{name: []byte("bbb"), deleted: true},
-			{name: []byte("ccc")},
-		}},
-		&SeriesIterator{},
-		&SeriesIterator{Elems: []SeriesElem{
-			{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}},
-			{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}},
-			{name: []byte("bbb")},
-			{name: []byte("ccc"), deleted: true},
-			{name: []byte("ddd")},
-		}},
-	)
-
-	if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, deleted: true}) {
-		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}}) {
-		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("bbb"), deleted: true}) {
-		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("ccc")}) {
-		t.Fatalf("unexpected elem(3): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("ddd")}) {
-		t.Fatalf("unexpected elem(4): %#v", e)
-	} else if e := itr.Next(); e != nil {
+	} else if e := itr.Next(); e.SeriesID != 0 {
 		t.Fatalf("expected nil elem: %#v", e)
 	}
 }
@@ -257,9 +226,8 @@ type TagValueElem struct {
 	deleted bool
 }
 
-func (e *TagValueElem) Value() []byte                       { return e.value }
-func (e *TagValueElem) Deleted() bool                       { return e.deleted }
-func (e *TagValueElem) SeriesIterator() tsdb.SeriesIterator { return nil }
+func (e *TagValueElem) Value() []byte { return e.value }
+func (e *TagValueElem) Deleted() bool { return e.deleted }
 
 // TagValueIterator represents an iterator over a slice of tag values.
 type TagValueIterator struct {
@@ -275,31 +243,18 @@ func (itr *TagValueIterator) Next() (e tsi1.TagValueElem) {
 	return e
 }
 
-// SeriesElem represents a test implementation of tsi1.SeriesElem.
-type SeriesElem struct {
-	name    []byte
-	tags    models.Tags
-	deleted bool
-	expr    influxql.Expr
-}
-
-func (e *SeriesElem) Name() []byte        { return e.name }
-func (e *SeriesElem) Tags() models.Tags   { return e.tags }
-func (e *SeriesElem) Deleted() bool       { return e.deleted }
-func (e *SeriesElem) Expr() influxql.Expr { return e.expr }
-
-// SeriesIterator represents an iterator over a slice of tag values.
-type SeriesIterator struct {
-	Elems []SeriesElem
+// SeriesIDIterator represents an iterator over a slice of series id elems.
+type SeriesIDIterator struct {
+	Elems []tsdb.SeriesIDElem
 }
 
 // Next returns the next element in the iterator.
-func (itr *SeriesIterator) Next() (e tsdb.SeriesElem) {
+func (itr *SeriesIDIterator) Next() (elem tsdb.SeriesIDElem) {
 	if len(itr.Elems) == 0 {
-		return nil
+		return tsdb.SeriesIDElem{}
 	}
-	e, itr.Elems = &itr.Elems[0], itr.Elems[1:]
-	return e
+	elem, itr.Elems = itr.Elems[0], itr.Elems[1:]
+	return elem
 }
 
 // MustTempDir returns a temporary directory. Panic on error.
@@ -309,4 +264,58 @@ func MustTempDir() string {
 		panic(err)
 	}
 	return path
+}
+
+// MustTempDir returns a temporary directory for a partition. Panic on error.
+func MustTempPartitionDir() string {
+	path := MustTempDir()
+	path = filepath.Join(path, "0")
+	if err := os.Mkdir(path, 0777); err != nil {
+		panic(err)
+	}
+	return path
+}
+
+// Series represents name/tagset pairs that are used in testing.
+type Series struct {
+	Name    []byte
+	Tags    models.Tags
+	Deleted bool
+}
+
+// SeriesFile is a test wrapper for tsdb.SeriesFile.
+type SeriesFile struct {
+	*tsdb.SeriesFile
+}
+
+// NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
+func NewSeriesFile() *SeriesFile {
+	file, err := ioutil.TempFile("", "tsdb-series-file-")
+	if err != nil {
+		panic(err)
+	}
+	file.Close()
+
+	s := &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
+	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
+	// can address is in memory.
+	if runtime.GOARCH == "386" {
+		s.SeriesFile.MaxSize = 1 << 27 // 128MB
+	}
+	return s
+}
+
+// MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
+func MustOpenSeriesFile() *SeriesFile {
+	f := NewSeriesFile()
+	if err := f.Open(); err != nil {
+		panic(err)
+	}
+	return f
+}
+
+// Close closes the log file and removes it from disk.
+func (f *SeriesFile) Close() error {
+	defer os.Remove(f.Path())
+	return f.SeriesFile.Close()
 }

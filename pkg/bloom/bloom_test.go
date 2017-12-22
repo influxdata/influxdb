@@ -3,6 +3,7 @@ package bloom_test
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/influxdata/influxdb/pkg/bloom"
@@ -10,6 +11,10 @@ import (
 
 // Ensure filter can insert values and verify they exist.
 func TestFilter_InsertContains(t *testing.T) {
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
 	// Short, less comprehensive test.
 	testShortFilter_InsertContains(t)
 

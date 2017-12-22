@@ -104,8 +104,7 @@ Examples:
     $ influx -database 'metrics' -execute 'select * from cpu' -format 'json' -pretty
 
     # Connect to a specific database on startup and set database context:
-    $ influx -database 'metrics' -host 'localhost' -port '8086'
-`)
+    $ influx -database 'metrics' -host 'localhost' -port '8086'`)
 	}
 	fs.Parse(os.Args[1:])
 

@@ -14,6 +14,7 @@ import (
 // TSDBStoreMock is a mockable implementation of tsdb.Store.
 type TSDBStoreMock struct {
 	BackupShardFn             func(id uint64, since time.Time, w io.Writer) error
+	BackupSeriesFileFn        func(database string, w io.Writer) error
 	ExportShardFn             func(id uint64, ExportStart time.Time, ExportEnd time.Time, w io.Writer) error
 	CloseFn                   func() error
 	CreateShardFn             func(database, policy string, shardID uint64, enabled bool) error
@@ -22,7 +23,7 @@ type TSDBStoreMock struct {
 	DeleteDatabaseFn          func(name string) error
 	DeleteMeasurementFn       func(database, name string) error
 	DeleteRetentionPolicyFn   func(database, name string) error
-	DeleteSeriesFn            func(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteSeriesFn            func(database string, sources []influxql.Source, condition influxql.Expr, removeIndex bool) error
 	DeleteShardFn             func(id uint64) error
 	DiskSizeFn                func() (int64, error)
 	ExpandSourcesFn           func(sources influxql.Sources) (influxql.Sources, error)
@@ -51,6 +52,9 @@ type TSDBStoreMock struct {
 func (s *TSDBStoreMock) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	return s.BackupShardFn(id, since, w)
 }
+func (s *TSDBStoreMock) BackupSeriesFile(database string, w io.Writer) error {
+	return s.BackupSeriesFileFn(database, w)
+}
 func (s *TSDBStoreMock) ExportShard(id uint64, ExportStart time.Time, ExportEnd time.Time, w io.Writer) error {
 	return s.ExportShardFn(id, ExportStart, ExportEnd, w)
 }
@@ -73,8 +77,8 @@ func (s *TSDBStoreMock) DeleteMeasurement(database string, name string) error {
 func (s *TSDBStoreMock) DeleteRetentionPolicy(database string, name string) error {
 	return s.DeleteRetentionPolicyFn(database, name)
 }
-func (s *TSDBStoreMock) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
-	return s.DeleteSeriesFn(database, sources, condition)
+func (s *TSDBStoreMock) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, removeIndex bool) error {
+	return s.DeleteSeriesFn(database, sources, condition, removeIndex)
 }
 func (s *TSDBStoreMock) DeleteShard(shardID uint64) error {
 	return s.DeleteShardFn(shardID)
