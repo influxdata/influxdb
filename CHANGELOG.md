@@ -1,7 +1,11 @@
 ## v1.4.0.0 [unreleased]
 ### Features
+
 ### UI Improvements
+1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Add page header with instructional copy when adding initial source for consistency and clearer UX
+
 ### Bug Fixes
+1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Make page render successfully when attempting to edit a source
 
 ## v1.4.0.0-rc2 [2017-12-21]
 ### UI Improvements
