@@ -203,22 +203,22 @@ class SourcePage extends Component {
     return (
       <div className={`${isInitialSource ? '' : 'page'}`}>
         <Notifications />
-        {isInitialSource
-          ? null
-          : <div className="page-header">
-              <div className="page-header__container page-header__source-page">
-                <div className="page-header__col-md-8">
-                  <div className="page-header__left">
-                    <h1 className="page-header__title">
-                      {editMode ? 'Edit Source' : 'Add a New Source'}
-                    </h1>
-                  </div>
-                  <div className="page-header__right">
-                    <SourceIndicator />
-                  </div>
-                </div>
+        <div className="page-header">
+          <div className="page-header__container page-header__source-page">
+            <div className="page-header__col-md-8">
+              <div className="page-header__left">
+                <h1 className="page-header__title">
+                  {editMode ? 'Edit Source' : 'Add a New Source'}
+                </h1>
               </div>
-            </div>}
+              {isInitialSource
+                ? null
+                : <div className="page-header__right">
+                    <SourceIndicator />
+                  </div>}
+            </div>
+          </div>
+        </div>
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
