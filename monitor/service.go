@@ -128,8 +128,10 @@ func (m *Monitor) Open() error {
 	return nil
 }
 
+// Enabled enables a monitor
 func (m *Monitor) Enabled() bool { return m.storeEnabled }
 
+// WritePoints saves the points for a monitor
 func (m *Monitor) WritePoints(p models.Points) error {
 	if !m.storeEnabled {
 		return nil

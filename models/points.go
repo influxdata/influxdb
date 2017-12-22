@@ -281,10 +281,12 @@ func ParseKeyBytes(buf []byte) ([]byte, Tags) {
 	return buf[:i], tags
 }
 
+// ParseTags parses the Tags in a buffer
 func ParseTags(buf []byte) (Tags, error) {
 	return parseTags(buf), nil
 }
 
+// ParseName parses a buffer
 func ParseName(buf []byte) ([]byte, error) {
 	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
 	// when just parsing a key
@@ -1198,6 +1200,7 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 	return i, buf[start:i]
 }
 
+// EscapeMeasurement measures escape codes
 func EscapeMeasurement(in []byte) []byte {
 	for b, esc := range measurementEscapeCodes {
 		in = bytes.Replace(in, []byte{b}, esc, -1)
@@ -1689,10 +1692,8 @@ func (p *point) UnmarshalBinary(b []byte) error {
 	p.fields, b = b[:n], b[n:]
 
 	// Read timestamp.
-	if err := p.time.UnmarshalBinary(b); err != nil {
-		return err
-	}
-	return nil
+	err := p.time.UnmarshalBinary(b)
+	return err
 }
 
 // PrecisionString returns a string representation of the point. If there

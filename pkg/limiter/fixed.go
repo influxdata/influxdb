@@ -6,6 +6,7 @@ package limiter
 // in the channel.  If all are in-use, the caller blocks until one is freed.
 type Fixed chan struct{}
 
+// NewFixed creates a new limiter
 func NewFixed(limit int) Fixed {
 	return make(Fixed, limit)
 }

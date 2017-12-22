@@ -31,7 +31,7 @@ type Diagnostics struct {
 	Rows    [][]interface{}
 }
 
-// NewDiagnostic initialises a new Diagnostics with the specified columns.
+// NewDiagnostics initialises a new Diagnostics with the specified columns.
 func NewDiagnostics(columns []string) *Diagnostics {
 	return &Diagnostics{
 		Columns: columns,
