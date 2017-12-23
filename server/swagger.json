@@ -2651,7 +2651,8 @@
               "description": "Self link mapping to this resource",
               "format": "url"
             }
-          }
+          },
+          "readOnly": true
         },
         "name": {
           "type": "string",
@@ -2667,7 +2668,7 @@
       ],
       "example": {
         "defaultRole": "viewer",
-        "id": 1,
+        "id": "1",
         "links": {
           "self": "/chronograf/v1/organizations/1"
         },
@@ -2689,7 +2690,8 @@
               "description": "Self link mapping to this resource",
               "format": "url"
             }
-          }
+          },
+          "readOnly": true
         },
         "organizations": {
           "type": "array",
