@@ -2701,6 +2701,111 @@
         }
       }
     },
+    "User-Chronograf": {
+      "type": "object",
+      "description": "A Chronograf user with role-based access-control to an organization's resources.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier representing a user resource",
+          "readOnly": true
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          },
+          "readOnly": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Username (as taken from principal given by auth provider)",
+          "readOnly": true
+        },
+        "provider": {
+          "type": "string",
+          "description": "OAuth provider used to authenticate",
+          "readOnly": true
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Role-Chronograf"
+          }
+        },
+        "scheme": {
+          "type": "string",
+          "description": "Scheme used to authenticate (only OAuth2 currently supported)",
+          "readOnly": true
+        },
+        "superAdmin": {
+          "type": "boolean",
+          "description": "If user has the ability to perform CRUD operations on Organization and User resources"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "provider",
+        "roles",
+        "scheme"
+      ],
+      "example": {
+        "id": "1",
+        "links": {
+          "self": "/chronograf/v1/users/1"
+        },
+        "name": "pineapple@cubeoctohedron.flux",
+        "provider": "github",
+        "roles": {
+          "name": "editor",
+          "organization": "SpaceTeam"
+        },
+        "scheme": "oauth2",
+        "superAdmin": false
+      }
+    },
+    "Users-Chronograf": {
+      "type": "object",
+      "required": [
+        "users"
+      ],
+      "properties": {
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          }
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/User-Chronograf"
+          }
+        }
+      }
+    },
+    "Role-Chronograf": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of role (e.g. 'member', 'viewer', 'editor', or 'admin')"
+        },
+        "organization": {
+          "type": "string",
+          "description": "Name of organization user belongs to"
+        }
+      }
+    },
     "Databases": {
       "type": "object",
       "required": [
