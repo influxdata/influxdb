@@ -2401,7 +2401,7 @@
             }
           },
           "403": {
-            "description": "User cannot access this route",
+            "description": "Forbidden to access this route",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2452,7 +2452,7 @@
             }
           },
           "403": {
-            "description": "User cannot access this route",
+            "description": "Forbidden to access this route",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2504,7 +2504,7 @@
             }
           },
           "403": {
-            "description": "User cannot access this route",
+            "description": "Forbidden to access this route",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2563,7 +2563,7 @@
             }
           },
           "403": {
-            "description": "User cannot access this route",
+            "description": "Forbidden to access this route",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2609,7 +2609,7 @@
             }
           },
           "403": {
-            "description": "User cannot access this route",
+            "description": "Forbidden to access this route",
             "schema": {
               "$ref": "#/definitions/Error"
             }
