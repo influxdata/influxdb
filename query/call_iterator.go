@@ -1325,6 +1325,32 @@ func newTripleExponentialMovingAverageIterator(input Iterator, n int, nHold int,
 	}
 }
 
+// newRelativeStrengthIndexIterator returns an iterator for operating on a triple_exponential_moving_average() call.
+func newRelativeStrengthIndexIterator(input Iterator, n int, nHold int, warmupType string, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewRelativeStrengthIndexReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewRelativeStrengthIndexReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewRelativeStrengthIndexReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported relative strength index iterator type: %T", input)
+	}
+}
+
 // newCumulativeSumIterator returns an iterator for operating on a cumulative_sum() call.
 func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {

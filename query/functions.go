@@ -798,6 +798,58 @@ func (r *TripleExponentialMovingAverageReducer) Emit() []FloatPoint {
 	}
 }
 
+type RelativeStrengthIndexReducer struct {
+	rsi        gota.RSI
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewRelativeStrengthIndexReducer(period int, holdPeriod int, warmupType string) *RelativeStrengthIndexReducer {
+	var wt gota.WarmupType
+	if warmupType == "average" {
+		wt = gota.WarmSMA
+	} else {
+		wt = gota.WarmEMA
+	}
+	rsi := gota.NewRSI(period, wt)
+	if holdPeriod == -1 {
+		holdPeriod = rsi.WarmCount()
+	}
+	return &RelativeStrengthIndexReducer{
+		rsi:        *rsi,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *RelativeStrengthIndexReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *RelativeStrengthIndexReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *RelativeStrengthIndexReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *RelativeStrengthIndexReducer) aggregate(v float64, t int64) {
+	r.v = r.rsi.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *RelativeStrengthIndexReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
 // FloatCumulativeSumReducer cumulates the values from each point.
 type FloatCumulativeSumReducer struct {
 	curr FloatPoint

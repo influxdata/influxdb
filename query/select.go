@@ -252,7 +252,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 		opt.Interval = Interval{}
 
 		return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
-	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "elapsed":
+	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "elapsed":
 		if !opt.Interval.IsZero() {
 			if opt.Ascending {
 				opt.StartTime -= int64(opt.Interval.Duration)
@@ -288,7 +288,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				}
 			}
 			return newMovingAverageIterator(input, int(n.Val), opt)
-		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average":
+		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index":
 			n := expr.Args[1].(*influxql.IntegerLiteral)
 			if n.Val > 1 && !opt.Interval.IsZero() {
 				if opt.Ascending {
@@ -316,6 +316,8 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				return newDoubleExponentialMovingAverageIterator(input, int(n.Val), nHold, warmupType, opt)
 			case "triple_exponential_moving_average":
 				return newTripleExponentialMovingAverageIterator(input, int(n.Val), nHold, warmupType, opt)
+			case "relative_strength_index":
+				return newRelativeStrengthIndexIterator(input, int(n.Val), nHold, warmupType, opt)
 			}
 		}
 		panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
