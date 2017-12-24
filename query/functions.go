@@ -850,6 +850,61 @@ func (r *RelativeStrengthIndexReducer) Emit() []FloatPoint {
 	}
 }
 
+type TripleExponentialAverageReducer struct {
+	trix       gota.TRIX
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewTripleExponentialAverageReducer(period int, holdPeriod int, warmupType string) *TripleExponentialAverageReducer {
+	var wt gota.WarmupType
+	if warmupType == "average" {
+		wt = gota.WarmSMA
+	} else {
+		wt = gota.WarmEMA
+	}
+	trix := gota.NewTRIX(period, wt)
+	if holdPeriod == -1 {
+		holdPeriod = trix.WarmCount()
+	}
+	return &TripleExponentialAverageReducer{
+		trix:       *trix,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *TripleExponentialAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *TripleExponentialAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.trix.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *TripleExponentialAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+	if math.IsInf(r.v, 0) {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
 // FloatCumulativeSumReducer cumulates the values from each point.
 type FloatCumulativeSumReducer struct {
 	curr FloatPoint
