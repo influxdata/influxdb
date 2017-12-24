@@ -905,6 +905,104 @@ func (r *TripleExponentialAverageReducer) Emit() []FloatPoint {
 	}
 }
 
+type KaufmansEfficiencyRatioReducer struct {
+	ker        gota.KER
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewKaufmansEfficiencyRatioReducer(period int, holdPeriod int) *KaufmansEfficiencyRatioReducer {
+	ker := gota.NewKER(period)
+	if holdPeriod == -1 {
+		holdPeriod = ker.WarmCount()
+	}
+	return &KaufmansEfficiencyRatioReducer{
+		ker:        *ker,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *KaufmansEfficiencyRatioReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *KaufmansEfficiencyRatioReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansEfficiencyRatioReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansEfficiencyRatioReducer) aggregate(v float64, t int64) {
+	r.v = r.ker.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *KaufmansEfficiencyRatioReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+	if math.IsInf(r.v, 0) {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type KaufmansAdaptiveMovingAverageReducer struct {
+	kama       gota.KAMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewKaufmansAdaptiveMovingAverageReducer(period int, holdPeriod int) *KaufmansAdaptiveMovingAverageReducer {
+	kama := gota.NewKAMA(period)
+	if holdPeriod == -1 {
+		holdPeriod = kama.WarmCount()
+	}
+	return &KaufmansAdaptiveMovingAverageReducer{
+		kama:       *kama,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.kama.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+	if math.IsInf(r.v, 0) {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
 // FloatCumulativeSumReducer cumulates the values from each point.
 type FloatCumulativeSumReducer struct {
 	curr FloatPoint

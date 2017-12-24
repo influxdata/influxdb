@@ -277,6 +277,8 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileMovingAverage(expr.Args)
 		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_average":
 			return c.compileExponentialMovingAverage(expr.Name, expr.Args)
+		case "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average":
+			return c.compileKaufmans(expr.Name, expr.Args)
 		case "elapsed":
 			return c.compileElapsed(expr.Args)
 		case "integral":
@@ -591,6 +593,47 @@ func (c *compiledField) compileExponentialMovingAverage(name string, args []infl
 			}
 		default:
 			return fmt.Errorf("%s warmup type must be a string", name)
+		}
+	}
+
+	c.global.OnlySelectors = false
+
+	switch arg0 := args[0].(type) {
+	case *influxql.Call:
+		if c.global.Interval.IsZero() {
+			return fmt.Errorf("%s aggregate requires a GROUP BY interval", name)
+		}
+		return c.compileExpr(arg0)
+	default:
+		if !c.global.Interval.IsZero() {
+			return fmt.Errorf("aggregate function required inside the call to %s", name)
+		}
+		return c.compileSymbol(name, arg0)
+	}
+}
+
+func (c *compiledField) compileKaufmans(name string, args []influxql.Expr) error {
+	if got := len(args) - 1; got < 1 || got > 2 {
+		return fmt.Errorf("invalid number of arguments for %s, expected at least 1 but no more than 2, got %d", name, got)
+	}
+
+	switch arg1 := args[1].(type) {
+	case *influxql.IntegerLiteral:
+		if arg1.Val < 1 {
+			return fmt.Errorf("%s period must be greater than or equal to 1", name)
+		}
+	default:
+		return fmt.Errorf("%s period must be an integer", name)
+	}
+
+	if len(args) >= 3 {
+		switch arg2 := args[2].(type) {
+		case *influxql.IntegerLiteral:
+			if arg2.Val < 0 && arg2.Val != -1 {
+				return fmt.Errorf("%s hold period must be greater than or equal to 0", name)
+			}
+		default:
+			return fmt.Errorf("%s hold period must be an integer", name)
 		}
 	}
 
