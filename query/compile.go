@@ -275,7 +275,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileCumulativeSum(expr.Args)
 		case "moving_average":
 			return c.compileMovingAverage(expr.Args)
-		case "exponential_moving_average", "double_exponential_moving_average":
+		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average":
 			return c.compileExponentialMovingAverage(expr.Name, expr.Args)
 		case "elapsed":
 			return c.compileElapsed(expr.Args)

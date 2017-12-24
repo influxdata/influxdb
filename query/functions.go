@@ -745,6 +745,59 @@ func (r *DoubleExponentialMovingAverageReducer) Emit() []FloatPoint {
 	}
 }
 
+type TripleExponentialMovingAverageReducer struct {
+	tema       gota.TEMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewTripleExponentialMovingAverageReducer(period int, holdPeriod int, warmupType string) *TripleExponentialMovingAverageReducer {
+	var wt gota.WarmupType
+	if warmupType == "average" {
+		wt = gota.WarmSMA
+	} else {
+		wt = gota.WarmEMA
+	}
+	tema := gota.NewTEMA(period, wt)
+	if holdPeriod == -1 {
+		holdPeriod = tema.WarmCount()
+	}
+	return &TripleExponentialMovingAverageReducer{
+		tema:       *tema,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+
+func (r *TripleExponentialMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *TripleExponentialMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.tema.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *TripleExponentialMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
 // FloatCumulativeSumReducer cumulates the values from each point.
 type FloatCumulativeSumReducer struct {
 	curr FloatPoint
