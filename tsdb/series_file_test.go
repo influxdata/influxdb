@@ -1,6 +1,7 @@
 package tsdb_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
@@ -41,6 +42,50 @@ func TestSeriesFile_Series(t *testing.T) {
 	// Verify non-existent series doesn't exist.
 	if sfile.HasSeries([]byte("foo"), models.NewTags(map[string]string{"region": "north"}), nil) {
 		t.Fatal("series should not exist")
+	}
+}
+
+// Ensure series file can be compacted.
+func TestSeriesFileCompactor(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	var names [][]byte
+	var tagsSlice []models.Tags
+	for i := 0; i < 10000; i++ {
+		names = append(names, []byte(fmt.Sprintf("m%d", i)))
+		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"foo": "bar"}))
+	}
+	if _, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify total number of series is correct.
+	if n := sfile.SeriesCount(); n != uint64(len(names)) {
+		t.Fatalf("unexpected series count: %d", n)
+	}
+
+	// Compact to new file.
+	compactionPath := sfile.Path() + ".compacting"
+	defer os.Remove(compactionPath)
+
+	compactor := tsdb.NewSeriesFileCompactor(sfile.SeriesFile)
+	if err := compactor.CompactTo(compactionPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Open new series file.
+	other := tsdb.NewSeriesFile(compactionPath)
+	if err := other.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+
+	// Verify all series exist.
+	for i := range names {
+		if seriesID := other.SeriesID(names[i], tagsSlice[i], nil); seriesID == 0 {
+			t.Fatalf("series does not exist: %s,%s", names[i], tagsSlice[i].String())
+		}
 	}
 }
 
