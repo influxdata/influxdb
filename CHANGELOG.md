@@ -27,6 +27,7 @@
 - [#9208](https://github.com/influxdata/influxdb/pull/9208): Updated client 4xx error message when response body length is zero.
 - [#9230](https://github.com/influxdata/influxdb/pull/9230): Remove extraneous newlines from the log.
 - [#9226](https://github.com/influxdata/influxdb/issues/9226): Allow lone boolean literals in a condition expression.
+- [#9235](https://github.com/influxdata/influxdb/pull/9235): Improve performance when writes exceed `max-values-per-tag` or `max-series`.
 
 ## v1.4.3 [unreleased]
 
