@@ -7,7 +7,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -222,12 +221,6 @@ func NewTempShard(index string) *TempShard {
 
 	// Create series file.
 	sfile := NewSeriesFile(filepath.Join(dir, "db0", SeriesFileName))
-	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
-	// can address is in memory.
-	if runtime.GOARCH == "386" {
-		sfile.MaxSize = 1 << 27 // 128MB
-	}
-
 	if err := sfile.Open(); err != nil {
 		panic(err)
 	}

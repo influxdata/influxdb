@@ -354,12 +354,6 @@ func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 	}
 
 	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileName))
-	// Set a custom mmap size if one has been specified, otherwise the default
-	// will be used.
-	if s.SeriesFileMaxSize > 0 {
-		sfile.MaxSize = s.SeriesFileMaxSize
-	}
-
 	if err := sfile.Open(); err != nil {
 		return nil, err
 	}

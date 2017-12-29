@@ -1,38 +1,23 @@
 package tsdb
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
 )
 
-// ErrSeriesOverflow is returned when too many series are added to a series writer.
-var ErrSeriesOverflow = errors.New("series overflow")
-
 // SeriesIDSize is the size in bytes of a series key ID.
 const SeriesIDSize = 8
-
-const SeriesFileVersion = 1
-
-// Series flag constants.
-const (
-	SeriesFileFlagSize      = 1
-	SeriesFileInsertFlag    = 0x00
-	SeriesFileTombstoneFlag = 0x01
-)
 
 // SeriesMapThreshold is the number of series IDs to hold in the in-memory
 // series map before compacting and rebuilding the on-disk representation.
@@ -43,98 +28,42 @@ type SeriesFile struct {
 	mu   sync.RWMutex
 	path string
 
-	mmap []byte        // entire mmapped file
-	data []byte        // active part of mmap file
-	file *os.File      // write file handle
-	w    *bufio.Writer // bufferred file handle
-	size int64         // current file size
-	seq  uint64        // series id sequence
-
-	log         []byte
-	keyIDMap    *seriesKeyIDMap
-	idOffsetMap *seriesIDOffsetMap
-	walOffset   int64
-	tombstones  map[uint64]struct{}
-
-	// MaxSize is the maximum size of the file.
-	MaxSize int64
+	segments []*SeriesSegment
+	index    *SeriesIndex
+	seq      uint64 // series id sequence
 }
 
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path:       path,
-		tombstones: make(map[uint64]struct{}),
-
-		MaxSize: DefaultMaxSeriesFileSize,
+		path: path,
 	}
 }
 
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
-	// Create the parent directories if they don't exist.
-	if err := os.MkdirAll(filepath.Join(filepath.Dir(f.path)), 0777); err != nil {
+	// Create path if it doesn't exist.
+	if err := os.MkdirAll(filepath.Join(f.path), 0777); err != nil {
 		return err
 	}
 
 	// Open components.
 	if err := func() (err error) {
-		// Open file handler for appending.
-		if f.file, err = os.OpenFile(f.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666); err != nil {
+		if err := f.openSegments(); err != nil {
 			return err
 		}
 
-		// Read file size.
-		// If file is empty then write an empty header.
-		fi, err := f.file.Stat()
-		if err != nil {
-			return err
-		} else if fi.Size() > 0 {
-			f.size = fi.Size()
-		} else {
-			hdr := NewSeriesFileHeader()
-			if f.size, err = hdr.WriteTo(f.file); err != nil {
-				return err
-			}
-		}
-		f.w = bufio.NewWriter(f.file)
-
-		// Memory map file data.
-		if f.mmap, err = mmap.Map(f.path, f.MaxSize); err != nil {
-			return err
-		}
-		f.data = f.mmap[:f.size]
-
-		// Read header.
-		hdr, err := ReadSeriesFileHeader(f.data)
-		if err != nil {
+		// Init last segment for writes.
+		if err := f.activeSegment().InitForWrite(); err != nil {
 			return err
 		}
 
-		// Subslice log & maps.
-		f.log = f.data[hdr.Log.Offset : hdr.Log.Offset+hdr.Log.Size]
-		f.keyIDMap = newSeriesKeyIDMap(f.data, f.data[hdr.KeyIDMap.Offset:hdr.KeyIDMap.Offset+hdr.KeyIDMap.Size])
-		f.idOffsetMap = newSeriesIDOffsetMap(f.data, f.data[hdr.IDOffsetMap.Offset:hdr.IDOffsetMap.Offset+hdr.IDOffsetMap.Size])
-		f.walOffset = hdr.WAL.Offset
-
-		// Replay post-compaction log.
-		for off := f.walOffset; off < f.size; {
-			flag, id, key, sz := ReadSeriesFileLogEntry(f.data[off:])
-
-			switch flag {
-			case SeriesFileInsertFlag:
-				f.keyIDMap.insert(key, id)
-				f.idOffsetMap.insert(id, off+SeriesFileLogInsertEntryHeader)
-
-			case SeriesFileTombstoneFlag:
-				f.tombstones[id] = struct{}{}
-
-			default:
-				return fmt.Errorf("tsdb.SeriesFile.Open(): unknown log entry flag: %d", flag)
-			}
-
-			off += sz
+		f.index = NewSeriesIndex(f.IndexPath())
+		if err := f.index.Open(); err != nil {
+			return err
 		}
+
+		// TODO: Replay new entries since index was built.
 
 		return nil
 	}(); err != nil {
@@ -145,44 +74,75 @@ func (f *SeriesFile) Open() error {
 	return nil
 }
 
+func (f *SeriesFile) openSegments() error {
+	fis, err := ioutil.ReadDir(f.path)
+	if err != nil {
+		return err
+	}
+
+	for _, fi := range fis {
+		if !IsValidSeriesSegmentFilename(fi.Name()) {
+			continue
+		}
+
+		segment := NewSeriesSegment(ParseSeriesSegmentFilename(fi.Name()), filepath.Join(f.path, fi.Name()))
+		if err := segment.Open(); err != nil {
+			return err
+		}
+		f.segments = append(f.segments, segment)
+	}
+
+	// Find max series id by searching segments in reverse order.
+	for i := len(f.segments) - 1; i >= 0; i-- {
+		if f.seq = f.segments[i].MaxSeriesID(); f.seq > 0 {
+			break
+		}
+	}
+
+	// Create initial segment if none exist.
+	if len(f.segments) == 0 {
+		segment, err := CreateSeriesSegment(0, filepath.Join(f.path, "0000"))
+		if err != nil {
+			return err
+		}
+		f.segments = append(f.segments, segment)
+	}
+
+	return nil
+}
+
 // Close unmaps the data file.
-func (f *SeriesFile) Close() error {
+func (f *SeriesFile) Close() (err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.mmap != nil {
-		mmap.Unmap(f.mmap)
-		f.mmap = nil
-		f.data = nil
+	for _, s := range f.segments {
+		if e := s.Close(); e != nil && err == nil {
+			err = e
+		}
 	}
-	if f.file != nil {
-		f.file.Close()
-		f.file = nil
-	}
-	f.w = nil
+	f.segments = nil
 
-	if f.keyIDMap != nil {
-		f.keyIDMap.Close()
-		f.keyIDMap = nil
+	if f.index != nil {
+		if e := f.index.Close(); e != nil && err == nil {
+			err = e
+		}
 	}
-	if f.idOffsetMap != nil {
-		f.idOffsetMap.Close()
-		f.idOffsetMap = nil
-	}
+	f.index = nil
 
-	f.log = nil
-	f.tombstones = nil
-
-	return nil
+	return err
 }
 
 // Path returns the path to the file.
 func (f *SeriesFile) Path() string { return f.path }
 
+// Path returns the path to the series index.
+func (f *SeriesFile) IndexPath() string { return filepath.Join(f.path, "index") }
+
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. Returns the offset of the series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []uint64, err error) {
 	f.mu.RLock()
-	ids, ok := f.findIDListByNameTags(names, tagsSlice, buf)
+	ids, ok := f.index.FindIDListByNameTags(f.segments, names, tagsSlice, buf)
 	if ok {
 		f.mu.RUnlock()
 		return ids, nil
@@ -192,7 +152,6 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	type keyRange struct {
 		id     uint64
 		offset int64
-		size   int64
 	}
 	newKeyRanges := make([]keyRange, 0, len(names))
 
@@ -215,7 +174,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		// Re-attempt lookup under write lock.
 		if ids[i] = newIDs[string(buf)]; ids[i] != 0 {
 			continue
-		} else if ids[i] = f.findIDByNameTags(names[i], tagsSlice[i], buf); ids[i] != 0 {
+		} else if ids[i] = f.index.FindIDByNameTags(f.segments, names[i], tagsSlice[i], buf); ids[i] != 0 {
 			continue
 		}
 
@@ -228,43 +187,22 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		// Append new key to be added to hash map after flush.
 		ids[i] = id
 		newIDs[string(buf)] = id
-		newKeyRanges = append(newKeyRanges, keyRange{id, offset, f.size - offset})
+		newKeyRanges = append(newKeyRanges, keyRange{id, offset})
 	}
 
-	// Flush log writes so we can access data in mmap.
-	if err := f.w.Flush(); err != nil {
-		return nil, err
+	// Flush active segment writes so we can access data in mmap.
+	if segment := f.activeSegment(); segment != nil {
+		if err := segment.Flush(); err != nil {
+			return nil, err
+		}
 	}
 
 	// Add keys to hash map(s).
 	for _, keyRange := range newKeyRanges {
-		key := f.data[keyRange.offset : keyRange.offset+keyRange.size]
-		f.keyIDMap.insert(key, keyRange.id)
-		f.idOffsetMap.insert(keyRange.id, keyRange.offset)
+		f.index.Insert(f.seriesKeyByOffset(keyRange.offset), keyRange.id, keyRange.offset)
 	}
 
 	return ids, nil
-}
-
-func (f *SeriesFile) findIDByNameTags(name []byte, tags models.Tags, buf []byte) uint64 {
-	id := f.keyIDMap.get(AppendSeriesKey(buf[:0], name, tags))
-	if _, ok := f.tombstones[id]; ok {
-		return 0
-	}
-	return id
-}
-
-func (f *SeriesFile) findIDListByNameTags(names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []uint64, ok bool) {
-	ids, ok = make([]uint64, len(names)), true
-	for i := range names {
-		id := f.findIDByNameTags(names[i], tagsSlice[i], buf)
-		if id == 0 {
-			ok = false
-			continue
-		}
-		ids[i] = id
-	}
-	return ids, ok
 }
 
 // DeleteSeriesID flags a series as permanently deleted.
@@ -274,22 +212,18 @@ func (f *SeriesFile) DeleteSeriesID(id uint64) error {
 	defer f.mu.Unlock()
 
 	// Already tombstoned, ignore.
-	if _, ok := f.tombstones[id]; ok {
+	if f.index.IsDeleted(id) {
 		return nil
 	}
 
 	// Write tombstone entry.
-	buf := AppendSeriesFileLogEntry(nil, SeriesFileTombstoneFlag, id, nil)
-	if _, err := f.w.Write(buf); err != nil {
-		return err
-	} else if err := f.w.Flush(); err != nil {
+	_, err := f.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryTombstoneFlag, id, nil))
+	if err != nil {
 		return err
 	}
-	f.size += int64(len(buf))
-	f.data = f.data[:f.size]
 
 	// Mark tombstone in memory.
-	f.tombstones[id] = struct{}{}
+	f.index.Delete(id)
 
 	return nil
 }
@@ -297,7 +231,7 @@ func (f *SeriesFile) DeleteSeriesID(id uint64) error {
 // IsDeleted returns true if the ID has been deleted before.
 func (f *SeriesFile) IsDeleted(id uint64) bool {
 	f.mu.RLock()
-	_, v := f.tombstones[id]
+	v := f.index.IsDeleted(id)
 	f.mu.RUnlock()
 	return v
 }
@@ -308,7 +242,7 @@ func (f *SeriesFile) SeriesKey(id uint64) []byte {
 		return nil
 	}
 	f.mu.RLock()
-	key := f.seriesKeyByOffset(f.idOffsetMap.get(id))
+	key := f.seriesKeyByOffset(f.index.FindOffsetByID(id))
 	f.mu.RUnlock()
 	return key
 }
@@ -325,214 +259,112 @@ func (f *SeriesFile) Series(id uint64) ([]byte, models.Tags) {
 // SeriesID return the series id for the series.
 func (f *SeriesFile) SeriesID(name []byte, tags models.Tags, buf []byte) uint64 {
 	f.mu.RLock()
-	id := f.keyIDMap.get(AppendSeriesKey(buf[:0], name, tags))
+	id := f.index.FindIDBySeriesKey(f.segments, AppendSeriesKey(buf[:0], name, tags))
 	f.mu.RUnlock()
 	return id
 }
 
 // HasSeries return true if the series exists.
 func (f *SeriesFile) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
-	f.mu.RLock()
-	v := f.keyIDMap.get(AppendSeriesKey(buf[:0], name, tags)) > 0
-	f.mu.RUnlock()
-	return v
+	return f.SeriesID(name, tags, buf) > 0
 }
 
 // SeriesCount returns the number of series.
 func (f *SeriesFile) SeriesCount() uint64 {
 	f.mu.RLock()
-	n := f.seriesCount()
+	n := f.index.Count()
 	f.mu.RUnlock()
 	return n
-}
-
-func (f *SeriesFile) seriesCount() uint64 {
-	return f.idOffsetMap.count()
 }
 
 // SeriesIterator returns an iterator over all the series.
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	var ids []uint64
-	ids = append(ids, ReadSeriesFileLogIDs(f.log)...)
-	ids = append(ids, ReadSeriesFileLogIDs(f.data[f.walOffset:])...)
-
-	sort.Slice(ids, func(i, j int) bool {
-		keyi := f.SeriesKey(ids[i])
-		keyj := f.SeriesKey(ids[j])
-		return CompareSeriesKeys(keyi, keyj) == -1
-	})
-
+	for _, segment := range f.segments {
+		ids = segment.AppendSeriesIDs(ids)
+	}
 	return NewSeriesIDSliceIterator(ids)
+}
+
+// activeSegment returns the last segment.
+func (f *SeriesFile) activeSegment() *SeriesSegment {
+	if len(f.segments) == 0 {
+		return nil
+	}
+	return f.segments[len(f.segments)-1]
 }
 
 func (f *SeriesFile) insert(key []byte) (id uint64, offset int64, err error) {
 	id = f.seq + 1
-	offset = f.size + SeriesFileLogInsertEntryHeader
 
-	buf := AppendSeriesFileLogEntry(nil, SeriesFileInsertFlag, id, key)
-	if _, err := f.w.Write(buf); err != nil {
+	offset, err = f.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryInsertFlag, id, key))
+	if err != nil {
 		return 0, 0, err
 	}
+
 	f.seq++
-	f.size += int64(len(buf))
-	f.data = f.data[:f.size]
 	return id, offset, nil
 }
 
+// writeLogEntry appends an entry to the end of the active segment.
+// If there is no more room in the segment then a new segment is added.
+func (f *SeriesFile) writeLogEntry(data []byte) (offset int64, err error) {
+	segment := f.activeSegment()
+	if segment == nil || !segment.CanWrite(data) {
+		if segment, err = f.createSegment(); err != nil {
+			return 0, err
+		}
+	}
+	return segment.WriteLogEntry(data)
+}
+
+// createSegment appends a new segment
+func (f *SeriesFile) createSegment() (*SeriesSegment, error) {
+	// Close writer for active segment, if one exists.
+	if segment := f.activeSegment(); segment != nil {
+		if err := segment.CloseForWrite(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Generate a new sequential segment identifier.
+	var id uint16
+	if len(f.segments) > 0 {
+		id = f.segments[len(f.segments)-1].ID() + 1
+	}
+	filename := fmt.Sprintf("%04x", id)
+
+	// Generate new empty segment.
+	segment, err := CreateSeriesSegment(id, filepath.Join(f.path, filename))
+	if err != nil {
+		return nil, err
+	}
+	f.segments = append(f.segments, segment)
+
+	// Allow segment to write.
+	if err := segment.InitForWrite(); err != nil {
+		return nil, err
+	}
+
+	return segment, nil
+}
+
 func (f *SeriesFile) seriesKeyByOffset(offset int64) []byte {
-	if offset == 0 || f.data == nil {
+	if offset == 0 {
 		return nil
 	}
-	key, _ := ReadSeriesKey(f.data[offset:])
-	return key
-}
 
-const SeriesFileLogInsertEntryHeader = 1 + 8 // flag + id
-
-func ReadSeriesFileLogEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) {
-	flag, data = uint8(data[1]), data[1:]
-	id, data = binary.BigEndian.Uint64(data), data[8:]
-	switch flag {
-	case SeriesFileInsertFlag:
-		key, _ = ReadSeriesKey(data)
-	}
-	return flag, id, key, int64(SeriesFileLogInsertEntryHeader + len(key))
-}
-
-func AppendSeriesFileLogEntry(dst []byte, flag uint8, id uint64, key []byte) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, id)
-
-	dst = append(dst, flag)
-	dst = append(dst, buf...)
-
-	switch flag {
-	case SeriesFileInsertFlag:
-		dst = append(dst, key...)
-	case SeriesFileTombstoneFlag:
-	default:
-		panic(fmt.Sprintf("unreachable: invalid flag: %d", flag))
-	}
-	return dst
-}
-
-func ReadSeriesFileLogIDs(data []byte) []uint64 {
-	var ids []uint64
-	for len(data) > 0 {
-		flag, id, _, sz := ReadSeriesFileLogEntry(data)
-		if flag == SeriesFileInsertFlag {
-			ids = append(ids, id)
+	segmentID, pos := SplitSeriesOffset(offset)
+	for _, segment := range f.segments {
+		if segment.ID() != segmentID {
+			continue
 		}
-		data = data[sz:]
-	}
-	return ids
-}
 
-const SeriesFileMagic = uint32(0x49465346) // "IFSF"
-
-var ErrInvalidSeriesFile = errors.New("invalid series file")
-
-const SeriesFileHeaderSize = 0 +
-	4 + 1 + // magic + version
-	8 + 8 + // log
-	8 + 8 + // key/id map
-	8 + 8 + // id/offset map
-	8 // wall offset
-
-// SeriesFileHeader represents the version & position information of a series file.
-type SeriesFileHeader struct {
-	Version uint8
-
-	Log struct {
-		Offset int64
-		Size   int64
+		key, _ := ReadSeriesKey(segment.Slice(pos + SeriesEntryHeaderSize))
+		return key
 	}
 
-	KeyIDMap struct {
-		Offset int64
-		Size   int64
-	}
-
-	IDOffsetMap struct {
-		Offset int64
-		Size   int64
-	}
-
-	WAL struct {
-		Offset int64
-	}
-}
-
-// NewSeriesFileHeader returns a new instance of SeriesFileHeader.
-func NewSeriesFileHeader() SeriesFileHeader {
-	hdr := SeriesFileHeader{Version: SeriesFileVersion}
-	hdr.Log.Offset = SeriesFileHeaderSize
-	hdr.KeyIDMap.Offset = SeriesFileHeaderSize
-	hdr.IDOffsetMap.Offset = SeriesFileHeaderSize
-	hdr.WAL.Offset = SeriesFileHeaderSize
-	return hdr
-}
-
-// ReadSeriesFileHeader returns the header from data.
-func ReadSeriesFileHeader(data []byte) (hdr SeriesFileHeader, err error) {
-	r := bytes.NewReader(data)
-	if len(data) == 0 {
-		return NewSeriesFileHeader(), nil
-	}
-
-	// Read magic number & version.
-	var magic uint32
-	if err := binary.Read(r, binary.BigEndian, &magic); err != nil {
-		return hdr, err
-	} else if magic != SeriesFileMagic {
-		return hdr, ErrInvalidSeriesFile
-	}
-	if err := binary.Read(r, binary.BigEndian, &hdr.Version); err != nil {
-		return hdr, err
-	}
-
-	// Read log position.
-	if err := binary.Read(r, binary.BigEndian, &hdr.Log.Offset); err != nil {
-		return hdr, err
-	} else if err := binary.Read(r, binary.BigEndian, &hdr.Log.Size); err != nil {
-		return hdr, err
-	}
-
-	// Read key/id map position.
-	if err := binary.Read(r, binary.BigEndian, &hdr.KeyIDMap.Offset); err != nil {
-		return hdr, err
-	} else if err := binary.Read(r, binary.BigEndian, &hdr.KeyIDMap.Size); err != nil {
-		return hdr, err
-	}
-
-	// Read offset/id map position.
-	if err := binary.Read(r, binary.BigEndian, &hdr.IDOffsetMap.Offset); err != nil {
-		return hdr, err
-	} else if err := binary.Read(r, binary.BigEndian, &hdr.IDOffsetMap.Size); err != nil {
-		return hdr, err
-	}
-
-	// Read WAL offset.
-	if err := binary.Read(r, binary.BigEndian, &hdr.WAL.Offset); err != nil {
-		return hdr, err
-	}
-
-	return hdr, nil
-}
-
-// WriteTo writes the trailer to w.
-func (hdr *SeriesFileHeader) WriteTo(w io.Writer) (n int64, err error) {
-	var buf bytes.Buffer
-	binary.Write(&buf, binary.BigEndian, SeriesFileMagic)
-	binary.Write(&buf, binary.BigEndian, hdr.Version)
-	binary.Write(&buf, binary.BigEndian, hdr.Log.Offset)
-	binary.Write(&buf, binary.BigEndian, hdr.Log.Size)
-	binary.Write(&buf, binary.BigEndian, hdr.KeyIDMap.Offset)
-	binary.Write(&buf, binary.BigEndian, hdr.KeyIDMap.Size)
-	binary.Write(&buf, binary.BigEndian, hdr.IDOffsetMap.Offset)
-	binary.Write(&buf, binary.BigEndian, hdr.IDOffsetMap.Size)
-	binary.Write(&buf, binary.BigEndian, hdr.WAL.Offset)
-	return buf.WriteTo(w)
+	return nil
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
@@ -698,168 +530,92 @@ func (a seriesKeys) Less(i, j int) bool {
 	return CompareSeriesKeys(a[i], a[j]) == -1
 }
 
-const (
-	seriesKeyIDMapHeaderSize = 16 // count + capacity
-	seriesKeyIDMapElemSize   = 16 // offset + id
-	seriesKeyIDMapLoadFactor = 90
-)
-
-// seriesKeyIDMap represents a fixed hash map of key-to-id.
-type seriesKeyIDMap struct {
-	src   []byte       // series key data
-	data  []byte       // rhh map data
-	inmem *rhh.HashMap // offset-to-id
-}
-
-func (m *seriesKeyIDMap) Close() error {
-	m.inmem = nil
-	return nil
-}
-
-func newSeriesKeyIDMap(src, data []byte) *seriesKeyIDMap {
-	return &seriesKeyIDMap{
-		src:   src,
-		data:  data,
-		inmem: rhh.NewHashMap(rhh.DefaultOptions),
-	}
-}
-
-func (m *seriesKeyIDMap) count() uint64 {
-	n := uint64(m.inmem.Len())
-	if len(m.data) > 0 {
-		n += binary.BigEndian.Uint64(m.data[:8])
-	}
-	return n
-}
-
-func (m *seriesKeyIDMap) insert(key []byte, id uint64) {
-	m.inmem.Put(key, id)
-}
-
-func (m *seriesKeyIDMap) get(key []byte) uint64 {
-	if v := m.inmem.Get(key); v != nil {
-		if id, _ := v.(uint64); id != 0 {
-			return id
-		}
-	}
-	if len(m.data) == 0 {
-		return 0
-	}
-
-	capacity := int64(binary.BigEndian.Uint64(m.data[8:]))
-	mask := capacity - 1
-
-	hash := rhh.HashKey(key)
-	for d, pos := int64(0), hash&mask; ; d, pos = d+1, (pos+1)&mask {
-		elem := m.data[seriesKeyIDMapHeaderSize+(pos*seriesKeyIDMapElemSize):]
-		elemOffset := binary.BigEndian.Uint64(elem[:8])
-
-		if elemOffset == 0 {
-			return 0
-		}
-
-		elemKey, _ := ReadSeriesKey(m.src[elemOffset:])
-		elemHash := rhh.HashKey(elemKey)
-		if d > rhh.Dist(elemHash, pos, capacity) {
-			return 0
-		} else if elemHash == hash && bytes.Equal(elemKey, key) {
-			return binary.BigEndian.Uint64(elem[8:])
-		}
-	}
-}
-
-const (
-	seriesIDOffsetMapHeaderSize = 16 // count + capacity
-	seriesIDOffsetMapElemSize   = 16 // id + offset
-	seriesIDOffsetMapLoadFactor = 90
-)
-
-// seriesIDOffsetMap represents a fixed hash map of id-to-offset.
-type seriesIDOffsetMap struct {
-	src   []byte           // series key data
-	data  []byte           // rhh map data
-	inmem map[uint64]int64 // id-to-offset
-}
-
-func newSeriesIDOffsetMap(src, data []byte) *seriesIDOffsetMap {
-	return &seriesIDOffsetMap{
-		src:   src,
-		data:  data,
-		inmem: make(map[uint64]int64),
-	}
-}
-
-func (m *seriesIDOffsetMap) Close() error {
-	m.inmem = nil
-	return nil
-}
-
-func (m *seriesIDOffsetMap) count() uint64 {
-	n := uint64(len(m.inmem))
-	if len(m.data) > 0 {
-		n += binary.BigEndian.Uint64(m.data[:8])
-	}
-	return n
-}
-
-func (m *seriesIDOffsetMap) insert(id uint64, offset int64) {
-	m.inmem[id] = offset
-}
-
-func (m *seriesIDOffsetMap) get(id uint64) int64 {
-	if offset := m.inmem[id]; offset != 0 {
-		return offset
-	} else if len(m.data) == 0 {
-		return 0
-	}
-
-	capacity := int64(binary.BigEndian.Uint64(m.data[8:]))
-	mask := capacity - 1
-
-	hash := rhh.HashUint64(id)
-	for d, pos := int64(0), hash&mask; ; d, pos = d+1, (pos+1)&mask {
-		elem := m.data[seriesIDOffsetMapHeaderSize+(pos*seriesIDOffsetMapElemSize):]
-		elemID := binary.BigEndian.Uint64(elem[:8])
-
-		if elemID == id {
-			return int64(binary.BigEndian.Uint64(elem[8:]))
-		} else if elemID == 0 || d > rhh.Dist(rhh.HashUint64(elemID), pos, capacity) {
-			return 0
-		}
-	}
-}
-
-// SeriesFileCompactor represents an object that compacts and reindexes a series file.
-type SeriesFileCompactor struct {
-	src        *SeriesFile
-	seriesN    uint64
-	wal        []byte
-	tombstones map[uint64]struct{}
-}
+// SeriesFileCompactor represents an object reindexes a series file and optionally compacts segments.
+type SeriesFileCompactor struct{}
 
 // NewSeriesFileCompactor returns a new instance of SeriesFileCompactor.
-func NewSeriesFileCompactor(src *SeriesFile) *SeriesFileCompactor {
-	src.mu.RLock()
-	defer src.mu.RUnlock()
-
-	// Snapshot tombstones.
-	tombstones := make(map[uint64]struct{}, len(src.tombstones))
-	for id := range src.tombstones {
-		tombstones[id] = struct{}{}
-	}
-
-	c := &SeriesFileCompactor{
-		src:        src,
-		seriesN:    src.seriesCount(),
-		wal:        src.data[src.walOffset:src.size],
-		tombstones: tombstones,
-	}
-
-	return c
+func NewSeriesFileCompactor() *SeriesFileCompactor {
+	return &SeriesFileCompactor{}
 }
 
-// Compact rewrites src to path as a reindexed series file.
-func (c *SeriesFileCompactor) CompactTo(path string) error {
+// Compact rebuilds the series file index.
+func (c *SeriesFileCompactor) Compact(f *SeriesFile) error {
+	// Snapshot the partitions and index so we can check tombstones and replay at the end under lock.
+	f.mu.RLock()
+	segments := CloneSeriesSegments(f.segments)
+	index := f.index.Clone()
+	seriesN := f.index.Count()
+	f.mu.RUnlock()
+
+	// Compact index to a temporary location.
+	indexPath := index.path + ".compacting"
+	if err := c.compactIndexTo(index, seriesN, segments, indexPath); err != nil {
+		return err
+	}
+
+	// Swap compacted index under lock & replay since compaction.
+	if err := func() error {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		// Reopen index with new file.
+		if err := index.Close(); err != nil {
+			return err
+		} else if err := os.Rename(indexPath, index.path); err != nil {
+			return err
+		} else if err := index.Open(); err != nil {
+			return err
+		}
+
+		// Replay new entries.
+		if err := index.Recover(f.segments); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *SeriesFileCompactor) compactIndexTo(index *SeriesIndex, seriesN uint64, segments []*SeriesSegment, path string) error {
+	hdr := NewSeriesIndexHeader()
+	hdr.Count = seriesN
+	hdr.Capacity = pow2((int64(hdr.Count) * 100) / SeriesIndexLoadFactor)
+
+	// Allocate space for maps.
+	keyIDMap := make([]byte, (hdr.Capacity * SeriesIndexElemSize))
+	idOffsetMap := make([]byte, (hdr.Capacity * SeriesIndexElemSize))
+
+	// Reindex all partitions.
+	for _, segment := range segments {
+		if err := segment.ForEachEntry(func(flag uint8, id uint64, offset int64, key []byte) error {
+			// Only process insert entries.
+			switch flag {
+			case SeriesEntryInsertFlag: // fallthrough
+			case SeriesEntryTombstoneFlag:
+				return nil
+			default:
+				return fmt.Errorf("unexpected series file log entry flag: %d", flag)
+			}
+
+			// Ignore entry if tombstoned.
+			if index.IsDeleted(id) {
+				return nil
+			}
+
+			// Save highest id/offset to header.
+			hdr.MaxSeriesID, hdr.MaxOffset = id, offset
+
+			// Insert into maps.
+			c.insertIDOffsetMap(idOffsetMap, hdr.Capacity, id, offset)
+			return c.insertKeyIDMap(keyIDMap, hdr.Capacity, segments, key, offset, id)
+		}); err != nil {
+			return err
+		}
+	}
+
 	// Open file handler.
 	f, err := os.Create(path)
 	if err != nil {
@@ -867,58 +623,23 @@ func (c *SeriesFileCompactor) CompactTo(path string) error {
 	}
 	defer f.Close()
 
-	// Open read handler for looking up keys for existing hashmap entries.
-	r, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+	// Calculate map positions.
+	hdr.KeyIDMap.Offset, hdr.KeyIDMap.Size = SeriesIndexHeaderSize, int64(len(keyIDMap))
+	hdr.IDOffsetMap.Offset, hdr.IDOffsetMap.Size = hdr.KeyIDMap.Offset+hdr.KeyIDMap.Size, int64(len(idOffsetMap))
 
-	// Write empty header.
-	hdr := NewSeriesFileHeader()
+	// Write header.
 	if _, err := hdr.WriteTo(f); err != nil {
 		return err
 	}
 
-	// Allocate space for maps.
-	keyIDMap := c.allocKeyIDMap()
-	idOffsetMap := c.allocIDOffsetMap()
-
-	// Iterate over compacted log & WAL.
-	n := int64(SeriesFileHeaderSize)
-	if err := c.compactLogEntries(f, r, c.src.log, keyIDMap, idOffsetMap, &n); err != nil {
-		return fmt.Errorf("series file log compaction error: %s", err)
-	} else if err := c.compactLogEntries(f, r, c.wal, keyIDMap, idOffsetMap, &n); err != nil {
-		return fmt.Errorf("series file wal compaction error: %s", err)
-	}
-	hdr.Log.Offset = SeriesFileHeaderSize
-	hdr.Log.Size = n - SeriesFileHeaderSize
-
-	// Write key/id map.
-	hdr.KeyIDMap.Offset = n
+	// Write maps.
 	if _, err := f.Write(keyIDMap); err != nil {
-		return fmt.Errorf("series file key/id map write error: %s", err)
-	}
-	hdr.KeyIDMap.Size, n = int64(len(keyIDMap)), n+int64(len(keyIDMap))
-
-	// Write id/offset map.
-	hdr.IDOffsetMap.Offset = n
-	if _, err := f.Write(idOffsetMap); err != nil {
-		return fmt.Errorf("series file id/offset map write error: %s", err)
-	}
-	hdr.IDOffsetMap.Size, n = int64(len(idOffsetMap)), n+int64(len(idOffsetMap))
-
-	// WAL starts at the end of the file.
-	hdr.WAL.Offset = n
-
-	// Overwrite header.
-	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
 		return err
-	} else if _, err := hdr.WriteTo(f); err != nil {
+	} else if _, err := f.Write(idOffsetMap); err != nil {
 		return err
 	}
 
-	// Flush & close file.
+	// Sync & close.
 	if err := f.Sync(); err != nil {
 		return err
 	} else if err := f.Close(); err != nil {
@@ -928,71 +649,13 @@ func (c *SeriesFileCompactor) CompactTo(path string) error {
 	return nil
 }
 
-func (c *SeriesFileCompactor) compactLogEntries(w io.Writer, r *os.File, data []byte, keyIDMap, idOffsetmap []byte, n *int64) error {
-	for len(data) > 0 {
-		flag, id, key, sz := ReadSeriesFileLogEntry(data)
-		data = data[sz:]
-
-		// Only process insert entries.
-		switch flag {
-		case SeriesFileInsertFlag:
-			// fallthrough
-		case SeriesFileTombstoneFlag:
-			continue
-		default:
-			return fmt.Errorf("unexpected series file log entry flag: %d", flag)
-		}
-
-		// Ignore entry if tombstoned.
-		if _, ok := c.tombstones[id]; ok {
-			continue
-		}
-
-		// Write entry.
-		offset := *n + SeriesFileLogInsertEntryHeader
-		buf := AppendSeriesFileLogEntry(nil, SeriesFileInsertFlag, id, key)
-		if _, err := w.Write(buf); err != nil {
-			return err
-		}
-		*n += int64(len(buf))
-
-		// Insert into maps.
-		if err := c.insertKeyIDMap(keyIDMap, r, key, offset, id); err != nil {
-			return err
-		}
-		c.insertIDOffsetMap(idOffsetmap, id, offset)
-	}
-	return nil
-}
-
-func (c *SeriesFileCompactor) allocKeyIDMap() []byte {
-	capacity := (int64(c.seriesN) * 100) / seriesKeyIDMapLoadFactor
-	capacity = pow2(capacity)
-
-	data := make([]byte, seriesKeyIDMapHeaderSize+(capacity*seriesKeyIDMapElemSize))
-	binary.BigEndian.PutUint64(data[0:8], c.seriesN)
-	binary.BigEndian.PutUint64(data[8:16], uint64(capacity))
-	return data
-}
-
-func (c *SeriesFileCompactor) allocIDOffsetMap() []byte {
-	capacity := (int64(c.seriesN) * 100) / seriesIDOffsetMapLoadFactor
-	capacity = pow2(capacity)
-
-	data := make([]byte, seriesIDOffsetMapHeaderSize+(capacity*seriesIDOffsetMapElemSize))
-	binary.BigEndian.PutUint64(data[0:8], c.seriesN)
-	binary.BigEndian.PutUint64(data[8:16], uint64(capacity))
-	return data
-}
-
-func (c *SeriesFileCompactor) insertKeyIDMap(dst []byte, r *os.File, key []byte, offset int64, id uint64) error {
-	capacity := int64(binary.BigEndian.Uint64(dst[8:16]))
+func (c *SeriesFileCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id uint64) error {
 	mask := capacity - 1
 	hash := rhh.HashKey(key)
 
 	// Continue searching until we find an empty slot or lower probe distance.
 	for dist, pos := int64(0), hash&mask; ; dist, pos = dist+1, (pos+1)&mask {
-		elem := dst[seriesKeyIDMapHeaderSize+(pos*seriesKeyIDMapElemSize):]
+		elem := dst[(pos * SeriesIndexElemSize):]
 
 		// If empty slot found or matching offset, insert and exit.
 		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
@@ -1003,24 +666,8 @@ func (c *SeriesFileCompactor) insertKeyIDMap(dst []byte, r *os.File, key []byte,
 			return nil
 		}
 
-		// Read key at position.
-		_, err := r.Seek(elemOffset, os.SEEK_SET)
-		if err != nil {
-			return err
-		}
-		br := bufio.NewReader(r)
-		elemKeyLen, err := binary.ReadUvarint(br)
-		if err != nil {
-			return err
-		}
-		elemKey := make([]byte, binary.MaxVarintLen64+elemKeyLen)
-		sz := binary.PutUvarint(elemKey, elemKeyLen)
-		elemKey = elemKey[:uint64(sz)+elemKeyLen]
-		if _, err := io.ReadFull(br, elemKey[sz:]); err != nil {
-			return err
-		}
-
-		// Hash element key.
+		// Read key at position & hash.
+		elemKey := ReadSeriesKeyFromSegments(segments, elemOffset)
 		elemHash := rhh.HashKey(elemKey)
 
 		// If the existing elem has probed less than us, then swap places with
@@ -1040,14 +687,13 @@ func (c *SeriesFileCompactor) insertKeyIDMap(dst []byte, r *os.File, key []byte,
 	}
 }
 
-func (c *SeriesFileCompactor) insertIDOffsetMap(dst []byte, id uint64, offset int64) {
-	capacity := int64(binary.BigEndian.Uint64(dst[8:16]))
+func (c *SeriesFileCompactor) insertIDOffsetMap(dst []byte, capacity int64, id uint64, offset int64) {
 	mask := capacity - 1
 	hash := rhh.HashUint64(id)
 
 	// Continue searching until we find an empty slot or lower probe distance.
-	for dist, pos := int64(0), hash&mask; ; dist, pos = dist+1, (pos+1)&mask {
-		elem := dst[seriesIDOffsetMapHeaderSize+(pos*seriesIDOffsetMapElemSize):]
+	for i, dist, pos := int64(0), int64(0), hash&mask; ; i, dist, pos = i+1, dist+1, (pos+1)&mask {
+		elem := dst[(pos * SeriesIndexElemSize):]
 
 		// If empty slot found or matching id, insert and exit.
 		elemID := binary.BigEndian.Uint64(elem[:8])
@@ -1073,6 +719,10 @@ func (c *SeriesFileCompactor) insertIDOffsetMap(dst []byte, id uint64, offset in
 
 			// Update current distance.
 			dist = d
+		}
+
+		if i > capacity {
+			panic("rhh map full")
 		}
 	}
 }

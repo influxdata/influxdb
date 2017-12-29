@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -65,25 +64,15 @@ func TestSeriesFileCompactor(t *testing.T) {
 		t.Fatalf("unexpected series count: %d", n)
 	}
 
-	// Compact to new file.
-	compactionPath := sfile.Path() + ".compacting"
-	defer os.Remove(compactionPath)
-
-	compactor := tsdb.NewSeriesFileCompactor(sfile.SeriesFile)
-	if err := compactor.CompactTo(compactionPath); err != nil {
+	// Compact in-place.
+	compactor := tsdb.NewSeriesFileCompactor()
+	if err := compactor.Compact(sfile.SeriesFile); err != nil {
 		t.Fatal(err)
 	}
-
-	// Open new series file.
-	other := tsdb.NewSeriesFile(compactionPath)
-	if err := other.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer other.Close()
 
 	// Verify all series exist.
 	for i := range names {
-		if seriesID := other.SeriesID(names[i], tagsSlice[i], nil); seriesID == 0 {
+		if seriesID := sfile.SeriesID(names[i], tagsSlice[i], nil); seriesID == 0 {
 			t.Fatalf("series does not exist: %s,%s", names[i], tagsSlice[i].String())
 		}
 	}
@@ -103,19 +92,11 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
 func NewSeriesFile() *SeriesFile {
-	file, err := ioutil.TempFile("", "tsdb-series-file-")
+	dir, err := ioutil.TempDir("", "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}
-	file.Close()
-
-	s := &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
-	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
-	// can address is in memory.
-	if runtime.GOARCH == "386" {
-		s.SeriesFile.MaxSize = 1 << 27 // 128MB
-	}
-	return s
+	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
@@ -129,6 +110,6 @@ func MustOpenSeriesFile() *SeriesFile {
 
 // Close closes the log file and removes it from disk.
 func (f *SeriesFile) Close() error {
-	defer os.Remove(f.Path())
+	defer os.RemoveAll(f.Path())
 	return f.SeriesFile.Close()
 }

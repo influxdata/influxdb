@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"testing"
 
 	"github.com/influxdata/influxdb/internal"
@@ -147,19 +146,12 @@ func MustNewIndex(index string) *Index {
 		panic(err)
 	}
 
-	file, err := ioutil.TempFile(rootPath, "series")
+	seriesPath, err := ioutil.TempDir(rootPath, "series")
 	if err != nil {
 		panic(err)
 	}
-	file.Close()
 
-	sfile := tsdb.NewSeriesFile(file.Name())
-	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
-	// can address is in memory.
-	if runtime.GOARCH == "386" {
-		sfile.MaxSize = 1 << 27 // 128MB
-	}
-
+	sfile := tsdb.NewSeriesFile(seriesPath)
 	if err := sfile.Open(); err != nil {
 		panic(err)
 	}
