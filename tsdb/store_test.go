@@ -540,7 +540,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 
 	points := make([]models.Point, 0, len(series))
 	for _, s := range series {
-		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+		points = append(points, models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
 	}
 
 	// Create requested number of shards in the store & write points across
@@ -623,7 +623,7 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 
 	points := make([]models.Point, 0, len(series))
 	for _, s := range series {
-		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+		points = append(points, models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
 	}
 
 	// Create requested number of shards in the store & write points across
@@ -694,7 +694,7 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 
 	points := make([]models.Point, 0, len(series))
 	for _, s := range series {
-		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+		points = append(points, models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
 	}
 
 	// Create requested number of shards in the store & write points.
@@ -778,7 +778,7 @@ func testStoreCardinalityCompactions(store *Store) error {
 
 	points := make([]models.Point, 0, len(series))
 	for _, s := range series {
-		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+		points = append(points, models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
 	}
 
 	// Create requested number of shards in the store & write points across
@@ -1331,7 +1331,7 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 		points := []models.Point{}
 		for _, s := range series {
 			for val := 0.0; val < float64(pntCnt); val++ {
-				p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
+				p := models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": val}, time.Now())
 				points = append(points, p)
 			}
 		}

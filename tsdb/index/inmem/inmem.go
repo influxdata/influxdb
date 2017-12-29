@@ -53,8 +53,8 @@ type Index struct {
 	fieldset *tsdb.MeasurementFieldSet
 
 	// In-memory metadata index, built on load and updated when new series come in
-	measurements map[string]*Measurement // measurement name to object and index
-	series       map[string]*Series      // map series key to the Series object
+	measurements map[string]*measurement // measurement name to object and index
+	series       map[string]*series      // map series key to the Series object
 
 	seriesSketch, seriesTSSketch             *hll.Plus
 	measurementsSketch, measurementsTSSketch *hll.Plus
@@ -68,8 +68,8 @@ func NewIndex(database string, sfile *tsdb.SeriesFile) *Index {
 	index := &Index{
 		database:     database,
 		sfile:        sfile,
-		measurements: make(map[string]*Measurement),
-		series:       make(map[string]*Series),
+		measurements: make(map[string]*measurement),
+		series:       make(map[string]*series),
 	}
 
 	index.seriesSketch = hll.NewDefaultPlus()
@@ -92,7 +92,7 @@ func (i *Index) Database() string {
 }
 
 // Series returns a series by key.
-func (i *Index) Series(key []byte) (*Series, error) {
+func (i *Index) Series(key []byte) (*series, error) {
 	i.mu.RLock()
 	s := i.series[string(key)]
 	i.mu.RUnlock()
@@ -117,7 +117,7 @@ func (i *Index) SeriesN() int64 {
 }
 
 // Measurement returns the measurement object from the index by the name
-func (i *Index) Measurement(name []byte) (*Measurement, error) {
+func (i *Index) Measurement(name []byte) (*measurement, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 	return i.measurements[string(name)], nil
@@ -138,11 +138,11 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 }
 
 // MeasurementsByName returns a list of measurements.
-func (i *Index) MeasurementsByName(names [][]byte) ([]*Measurement, error) {
+func (i *Index) MeasurementsByName(names [][]byte) ([]*measurement, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	a := make([]*Measurement, 0, len(names))
+	a := make([]*measurement, 0, len(names))
 	for _, name := range names {
 		if m := i.measurements[string(name)]; m != nil {
 			a = append(a, m)
@@ -202,14 +202,12 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 
 	// set the in memory ID for query processing on this shard
 	// The series key and tags are clone to prevent a memory leak
-	series := NewSeries([]byte(string(key)), tags.Clone())
-	series.ID = seriesID
+	skey := string(key)
+	ss = newSeries(seriesID, m, skey, tags.Clone())
+	i.series[skey] = ss
 
-	series.SetMeasurement(m)
-	i.series[string(key)] = series
-
-	m.AddSeries(series)
-	series.AssignShard(shardID, time.Now().UnixNano())
+	m.AddSeries(ss)
+	ss.AssignShard(shardID, time.Now().UnixNano())
 
 	// Add the series to the series sketch.
 	i.seriesSketch.Add(key)
@@ -219,7 +217,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index
 // object for the measurement
-func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) *Measurement {
+func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) *measurement {
 	name = escape.Unescape(name)
 
 	// See if the measurement exists using a read-lock
@@ -239,7 +237,7 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) *Measurement {
 	// and acquire the write lock
 	m = i.measurements[string(name)]
 	if m == nil {
-		m = NewMeasurement(i.database, string(name))
+		m = newMeasurement(i.database, string(name))
 		i.measurements[string(name)] = m
 
 		// Add the measurement to the measurements sketch.
@@ -313,19 +311,19 @@ func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, ke
 	// possible to get the set of unique series IDs for a given measurement name
 	// and tag key.
 	var authorized bool
-	mm.SeriesByTagKeyValue(key).Range(func(_ string, seriesIDs SeriesIDs) bool {
+	mm.SeriesByTagKeyValue(key).Range(func(_ string, sIDs seriesIDs) bool {
 		if auth == nil || auth == query.OpenAuthorizer {
 			authorized = true
 			return false
 		}
 
-		for _, id := range seriesIDs {
+		for _, id := range sIDs {
 			s := mm.SeriesByID(id)
 			if s == nil {
 				continue
 			}
 
-			if auth.AuthorizeSeriesRead(i.database, mm.name, s.Tags()) {
+			if auth.AuthorizeSeriesRead(i.database, mm.NameBytes, s.Tags) {
 				authorized = true
 				return false
 			}
@@ -388,13 +386,13 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 		if s == nil {
 			continue
 		}
-		if auth != nil && !auth.AuthorizeSeriesRead(i.database, s.Measurement().name, s.Tags()) {
+		if auth != nil && !auth.AuthorizeSeriesRead(i.database, s.Measurement.NameBytes, s.Tags) {
 			continue
 		}
 
 		// Iterate the tag keys we're interested in and collect values
 		// from this series, if they exist.
-		for _, t := range s.Tags() {
+		for _, t := range s.Tags {
 			if idx, ok := keyIdxs[string(t.Key)]; ok {
 				resultSet[idx].add(string(t.Value))
 			} else if string(t.Key) > keys[len(keys)-1] {
@@ -452,7 +450,7 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 	if ss == nil {
 		return nil, nil
 	}
-	return ss.Tags(), nil
+	return ss.Tags, nil
 }
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a
@@ -469,7 +467,7 @@ func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr
 		a := make([][]byte, 0, len(i.measurements))
 		for _, m := range i.measurements {
 			if m.Authorized(auth) {
-				a = append(a, m.name)
+				a = append(a, m.NameBytes)
 			}
 		}
 		bytesutil.Sort(a)
@@ -561,7 +559,7 @@ func (i *Index) measurementNamesByNameFilter(auth query.Authorizer, op influxql.
 		}
 
 		if matched && m.Authorized(auth) {
-			names = append(names, m.name)
+			names = append(names, m.NameBytes)
 		}
 	}
 	bytesutil.Sort(names)
@@ -593,7 +591,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 
 		// Check the tag values belonging to the tag key for equivalence to the
 		// tag value being filtered on.
-		tagVals.Range(func(tv string, seriesIDs SeriesIDs) bool {
+		tagVals.Range(func(tv string, seriesIDs seriesIDs) bool {
 			if !valEqual(tv) {
 				return true // No match. Keep checking.
 			}
@@ -613,7 +611,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 					continue
 				}
 
-				if s != nil && auth.AuthorizeSeriesRead(i.database, m.name, s.Tags()) {
+				if s != nil && auth.AuthorizeSeriesRead(i.database, m.NameBytes, s.Tags) {
 					// The Range call can return early as a matching
 					// tag value with an authorized series has been found.
 					authorized = true
@@ -640,7 +638,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 		//     False  |       True      |      False
 		//     False  |       False     |      True
 		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) && authorized {
-			names = append(names, []byte(m.Name))
+			names = append(names, m.NameBytes)
 		}
 	}
 
@@ -656,7 +654,7 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	var matches [][]byte
 	for _, m := range i.measurements {
 		if re.MatchString(m.Name) {
-			matches = append(matches, []byte(m.Name))
+			matches = append(matches, m.NameBytes)
 		}
 	}
 	return matches, nil
@@ -714,13 +712,13 @@ func (i *Index) DropSeries(key []byte, ts int64) error {
 	delete(i.series, k)
 
 	// Remove the measurement's reference.
-	series.Measurement().DropSeries(series)
+	series.Measurement.DropSeries(series)
 	// Mark the series as deleted.
 	series.Delete(ts)
 
 	// If the measurement no longer has any series, remove it as well.
-	if !series.Measurement().HasSeries() {
-		i.dropMeasurement(series.Measurement().Name)
+	if !series.Measurement.HasSeries() {
+		i.dropMeasurement(series.Measurement.Name)
 	}
 
 	return nil
@@ -778,7 +776,7 @@ func (i *Index) SetFieldName(measurement []byte, name string) {
 // ForEachMeasurementName iterates over each measurement name.
 func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	i.mu.RLock()
-	mms := make(Measurements, 0, len(i.measurements))
+	mms := make(measurements, 0, len(i.measurements))
 	for _, m := range i.measurements {
 		mms = append(mms, m)
 	}
@@ -786,7 +784,7 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	i.mu.RUnlock()
 
 	for _, m := range mms {
-		if err := fn([]byte(m.Name)); err != nil {
+		if err := fn(m.NameBytes); err != nil {
 			return err
 		}
 	}
@@ -931,7 +929,7 @@ func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterat
 	defer i.mu.RUnlock()
 
 	// Read and sort all measurements.
-	mms := make(Measurements, 0, len(i.measurements))
+	mms := make(measurements, 0, len(i.measurements))
 	for _, mm := range i.measurements {
 		mms = append(mms, mm)
 	}
@@ -1148,9 +1146,9 @@ func NewShardIndex(id uint64, database, path string, sfile *tsdb.SeriesFile, opt
 // seriesIDIterator emits series ids.
 type seriesIDIterator struct {
 	database string
-	mms      Measurements
+	mms      measurements
 	keys     struct {
-		buf []*Series
+		buf []*series
 		i   int
 	}
 	opt query.IteratorOptions
@@ -1179,7 +1177,7 @@ func (itr *seriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 		series := itr.keys.buf[itr.keys.i]
 		itr.keys.i++
 
-		if !itr.opt.Authorizer.AuthorizeSeriesRead(itr.database, series.measurement.name, series.tags) {
+		if !itr.opt.Authorizer.AuthorizeSeriesRead(itr.database, series.Measurement.NameBytes, series.Tags) {
 			continue
 		}
 
@@ -1224,20 +1222,20 @@ var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceed
 
 type seriesIterator struct {
 	keys [][]byte
-	elem series
+	elem seriesElement
 }
 
-type series struct {
+type seriesElement struct {
 	tsdb.SeriesElem
 	name    []byte
 	tags    models.Tags
 	deleted bool
 }
 
-func (s series) Name() []byte        { return s.name }
-func (s series) Tags() models.Tags   { return s.tags }
-func (s series) Deleted() bool       { return s.deleted }
-func (s series) Expr() influxql.Expr { return nil }
+func (s seriesElement) Name() []byte        { return s.name }
+func (s seriesElement) Tags() models.Tags   { return s.tags }
+func (s seriesElement) Deleted() bool       { return s.deleted }
+func (s seriesElement) Expr() influxql.Expr { return nil }
 
 func (itr *seriesIterator) Next() tsdb.SeriesElem {
 	if len(itr.keys) == 0 {

@@ -1391,6 +1391,27 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 	}
 }
 
+func makeBlockTypeSlice(n int) []byte {
+	r := make([]byte, n)
+	b := tsm1.BlockFloat64
+	m := tsm1.BlockUnsigned + 1
+	for i := 0; i < len(r); i++ {
+		r[i] = b % m
+	}
+	return r
+}
+
+var blockType = influxql.Unknown
+
+func BenchmarkBlockTypeToInfluxQLDataType(b *testing.B) {
+	t := makeBlockTypeSlice(100)
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < len(t); j++ {
+			blockType = tsm1.BlockTypeToInfluxQLDataType(t[j])
+		}
+	}
+}
+
 // This test ensures that "sync: WaitGroup is reused before previous Wait has returned" is
 // is not raised.
 func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
