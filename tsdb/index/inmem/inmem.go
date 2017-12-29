@@ -1121,45 +1121,8 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 
 // InitializeSeries is called during start-up.
 // This works the same as CreateSeriesIfNotExists except it ignore limit errors.
-func (i *ShardIndex) InitializeSeries(key, name []byte) {
-	i.mu.RLock()
-	// if there is a series for this id, it's already been added
-	ss := i.series[string(key)]
-	i.mu.RUnlock()
-
-	if ss != nil {
-		ss.InitializeShard(i.id)
-		return
-	}
-
-	// get or create the measurement index
-	m := i.CreateMeasurementIndexIfNotExists(name)
-
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	// Check for the series again under a write lock
-	ss = i.series[string(key)]
-	if ss != nil {
-		ss.InitializeShard(i.id)
-		return
-	}
-
-	tags := models.ParseTags(key)
-
-	// set the in memory ID for query processing on this shard
-	// The series key and tags are clone to prevent a memory leak
-	skey := string(key)
-	i.lastID++
-	ss = newSeries(i.lastID, m, skey, tags.Clone())
-
-	i.series[skey] = ss
-
-	m.AddSeries(ss)
-	ss.InitializeShard(i.id)
-
-	// Add the series to the series sketch.
-	i.seriesSketch.Add(key)
+func (i *ShardIndex) InitializeSeries(key, name []byte, tags models.Tags) error {
+	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt, true)
 }
 
 func (i *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {

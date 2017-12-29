@@ -1122,7 +1122,9 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType) erro
 
 	// Build in-memory index, if necessary.
 	if e.index.Type() == inmem.IndexName {
-		e.index.InitializeSeries(seriesKey, name)
+		if err := e.index.InitializeSeries(seriesKey, name, models.ParseTags(seriesKey)); err != nil {
+			return err
+		}
 	}
 
 	return nil

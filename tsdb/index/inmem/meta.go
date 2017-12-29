@@ -594,14 +594,14 @@ func unionSeriesFilters(lids, rids seriesIDs, lfilters, rfilters FilterExprs) (s
 }
 
 // SeriesIDsByTagKey returns a list of all series for a tag key.
-func (m *Measurement) SeriesIDsByTagKey(key []byte) SeriesIDs {
+func (m *measurement) SeriesIDsByTagKey(key []byte) seriesIDs {
 	tagVals := m.seriesByTagKeyValue[string(key)]
 	if tagVals == nil {
 		return nil
 	}
 
-	var ids SeriesIDs
-	tagVals.RangeAll(func(_ string, a SeriesIDs) {
+	var ids seriesIDs
+	tagVals.RangeAll(func(_ string, a seriesIDs) {
 		ids = append(ids, a...)
 	})
 	sort.Sort(ids)
@@ -609,7 +609,7 @@ func (m *Measurement) SeriesIDsByTagKey(key []byte) SeriesIDs {
 }
 
 // SeriesIDsByTagValue returns a list of all series for a tag value.
-func (m *Measurement) SeriesIDsByTagValue(key, value []byte) SeriesIDs {
+func (m *measurement) SeriesIDsByTagValue(key, value []byte) seriesIDs {
 	tagVals := m.seriesByTagKeyValue[string(key)]
 	if tagVals == nil {
 		return nil
@@ -1228,12 +1228,6 @@ func newSeries(id uint64, m *measurement, key string, tags models.Tags) *series 
 		shardIDs:     make(map[uint64]struct{}),
 		lastModified: time.Now().UTC().UnixNano(),
 	}
-}
-
-func (s *series) InitializeShard(shardID uint64) {
-	s.mu.Lock()
-	s.shardIDs[shardID] = struct{}{}
-	s.mu.Unlock()
 }
 
 func (s *series) AssignShard(shardID uint64, ts int64) {
