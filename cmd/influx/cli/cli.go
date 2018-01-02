@@ -50,6 +50,7 @@ type CommandLine struct {
 	Import          bool
 	Chunked         bool
 	ChunkSize       int
+	NodeID          int
 	Quit            chan struct{}
 	IgnoreSignals   bool // Ignore signals normally caught by this process (used primarily for testing)
 	ForceTTY        bool // Force the CLI to act as if it were connected to a TTY
@@ -284,6 +285,8 @@ func (c *CommandLine) ParseCommand(cmd string) error {
 			}
 		case "use":
 			c.use(cmd)
+		case "node":
+			c.node(cmd)
 		case "insert":
 			return c.Insert(cmd)
 		case "clear":
@@ -513,6 +516,26 @@ func (c *CommandLine) retentionPolicyExists(db, rp string) bool {
 	return true
 }
 
+func (c *CommandLine) node(cmd string) {
+	args := strings.Split(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), " ")
+	if len(args) != 2 {
+		fmt.Println("Improper number of arguments for 'node' command, requires exactly one.")
+		return
+	}
+
+	if args[1] == "clear" {
+		c.NodeID = 0
+		return
+	}
+
+	id, err := strconv.Atoi(args[1])
+	if err != nil {
+		fmt.Printf("Unable to parse node id from %s. Must be an integer or 'clear'.\n", args[1])
+		return
+	}
+	c.NodeID = id
+}
+
 // SetChunkSize sets the chunk size
 // 0 sets it back to the default
 func (c *CommandLine) SetChunkSize(cmd string) {
@@ -711,6 +734,7 @@ func (c *CommandLine) query(query string) client.Query {
 		Database:  c.Database,
 		Chunked:   c.Chunked,
 		ChunkSize: c.ChunkSize,
+		NodeID:    c.NodeID,
 	}
 }
 

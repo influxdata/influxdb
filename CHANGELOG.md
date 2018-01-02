@@ -15,6 +15,7 @@
 - [#9181](https://github.com/influxdata/influxdb/pull/9181): Schedule a full compaction after a successful import
 - [#9218](https://github.com/influxdata/influxdb/pull/9218): Add Prometheus `/metrics` endpoint.
 - [#9213](https://github.com/influxdata/influxdb/pull/9213): Add ability to generate shard digests.
+- [#9184](https://github.com/influxdata/influxdb/pull/9184): Allow setting the node id in the influx cli program.
 
 ### Bugfixes
 

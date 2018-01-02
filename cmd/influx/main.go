@@ -51,6 +51,7 @@ func main() {
 	fs.StringVar(&c.ClientConfig.Precision, "precision", defaultPrecision, "Precision specifies the format of the timestamp:  rfc3339,h,m,s,ms,u or ns.")
 	fs.StringVar(&c.ClientConfig.WriteConsistency, "consistency", "all", "Set write consistency level: any, one, quorum, or all.")
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
+	fs.IntVar(&c.NodeID, "node", 0, "Specify the node that data should be retrieved from (enterprise only).")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
 	fs.BoolVar(&c.Import, "import", false, "Import a previous database.")
