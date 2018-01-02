@@ -1,5 +1,9 @@
 package tsm1
 
+import (
+       "sort"
+)
+
 {{range .}}
 
 // merge combines the next set of blocks into merged blocks.
@@ -8,6 +12,8 @@ func (k *tsmKeyIterator) merge{{.Name}}() {
 	if len(k.blocks) == 0 && len(k.merged) == 0 && len(k.merged{{.Name}}Values) == 0 {
 		return
 	}
+
+	sort.Stable(k.blocks)
 
 	dedup := len(k.merged{{.Name}}Values) != 0
 	if len(k.blocks) > 0 && !dedup {
