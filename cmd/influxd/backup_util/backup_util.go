@@ -30,10 +30,6 @@ const (
 	BackupFilePattern = "%s.%s.%05d"
 
 	EnterpriseFileNamePattern = "20060102T150405Z"
-
-	OSSManifest = "OSS"
-
-	ENTManifest = "ENT"
 )
 
 type EnterprisePacker struct {
@@ -90,10 +86,9 @@ func GetMetaBytes(fname string) ([]byte, error) {
 // If Limited is false, the manifest contains a full backup, otherwise
 // it is a partial backup.
 type Manifest struct {
-	Platform string    `json:"platform"`
-	Meta     MetaEntry `json:"meta"`
-	Limited  bool      `json:"limited"`
-	Files    []Entry   `json:"files"`
+	Meta    MetaEntry `json:"meta"`
+	Limited bool      `json:"limited"`
+	Files   []Entry   `json:"files"`
 
 	// If limited is true, then one (or all) of the following fields will be set
 

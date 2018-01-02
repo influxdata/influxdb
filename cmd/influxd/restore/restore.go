@@ -555,7 +555,7 @@ Options:
             Optional. If set the metastore will be recovered to the given path.
     -datadir <path>
             Optional. If set the restore process will recover the specified
-            destinationDatabase, retention policy or shard to the given directory.
+            database, retention policy or shard to the given directory.
     -database <name>
             Optional. Required if no metadir given. Will restore a single database's data.
     -retention <name>

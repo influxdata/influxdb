@@ -92,7 +92,6 @@ func (s *Service) serve() {
 	for {
 		// Wait for next connection.
 		conn, err := s.Listener.Accept()
-
 		if err != nil && strings.Contains(err.Error(), "connection closed") {
 			s.Logger.Info("snapshot listener closed")
 			return
@@ -259,7 +258,6 @@ func (s *Service) respondIDMap(conn net.Conn, IDMap map[uint64]uint64) error {
 func (s *Service) writeMetaStore(conn net.Conn) error {
 	// Retrieve and serialize the current meta data.
 	metaBlob, err := s.MetaClient.MarshalBinary()
-
 	if err != nil {
 		return fmt.Errorf("marshal meta: %s", err)
 	}

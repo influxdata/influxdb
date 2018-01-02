@@ -117,7 +117,6 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if cmd.enterprise {
-		cmd.manifest.Platform = "OSS"
 		filename := cmd.enterpriseFileBase + ".manifest"
 		if err := cmd.manifest.Save(filepath.Join(cmd.path, filename)); err != nil {
 			cmd.StderrLogger.Printf("manifest save failed: %v", err)
