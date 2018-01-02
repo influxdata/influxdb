@@ -7,6 +7,7 @@
 ### Features
 
 - [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
+- [#3019](https://github.com/influxdata/influxdb/issues/3019): Backup utility prints a list of backup files. 
 - [#9146](https://github.com/influxdata/influxdb/issues/9146): Backup/Restore can produce/consume data in the same format as the enterprise backup/restore tool. 
 - [#8880](https://github.com/influxdata/influxdb/issues/8879): Restore runs in online mode, does not delete existing databases
 - [#8879](https://github.com/influxdata/influxdb/issues/8879): Export functionality using start/end to filter exported data by timestamp
