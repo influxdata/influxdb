@@ -22,7 +22,7 @@ const HandlerInput = ({
       <div className={redacted ? 'form-control-static redacted-handler' : null}>
         <input
           name={fieldName}
-          id={fieldName}
+          id={selectedHandler.alias + fieldName}
           className="form-control input-sm form-malachite"
           type={redacted ? 'hidden' : 'text'}
           placeholder={placeholder}
@@ -35,7 +35,7 @@ const HandlerInput = ({
           value={
             parseToArray
               ? _.join(selectedHandler[fieldName], ' ')
-              : selectedHandler[fieldName]
+              : selectedHandler[fieldName] || ''
           }
           autoComplete="off"
           spellCheck="false"
