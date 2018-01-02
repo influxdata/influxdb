@@ -15,8 +15,6 @@ import (
 func TestServer_BackupAndRestore(t *testing.T) {
 	config := NewConfig()
 	config.Data.Engine = "tsm1"
-	config.Data.Dir, _ = ioutil.TempDir("", "data_backup")
-	config.Meta.Dir, _ = ioutil.TempDir("", "meta_backup")
 	config.BindAddress = freePort()
 
 	backupDir, _ := ioutil.TempDir("", "backup")
