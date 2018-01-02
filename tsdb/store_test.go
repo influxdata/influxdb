@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -1514,11 +1513,6 @@ func NewStore() *Store {
 		s.WithLogger(logger.New(os.Stdout))
 	}
 
-	if runtime.GOARCH == "386" {
-		// Set the mmap size to something addressable in the process.
-		s.SeriesFileMaxSize = 1 << 27 // 128MB
-	}
-
 	return s
 }
 
@@ -1540,12 +1534,8 @@ func (s *Store) Reopen() error {
 		return err
 	}
 
-	// Keep old max series file size.
-	seriesMapSize := s.Store.SeriesFileMaxSize
-
 	s.Store = tsdb.NewStore(s.Path())
 	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
-	s.SeriesFileMaxSize = seriesMapSize
 	return s.Store.Open()
 }
 

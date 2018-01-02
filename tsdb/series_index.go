@@ -135,8 +135,14 @@ func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 
 // Count returns the number of series in the index.
 func (idx *SeriesIndex) Count() uint64 {
-	return idx.count + uint64(len(idx.idOffsetMap))
+	return idx.OnDiskCount() + idx.InMemCount()
 }
+
+// OnDiskCount returns the number of series in the on-disk index.
+func (idx *SeriesIndex) OnDiskCount() uint64 { return idx.count }
+
+// InMemCount returns the number of series in the in-memory index.
+func (idx *SeriesIndex) InMemCount() uint64 { return uint64(len(idx.idOffsetMap)) }
 
 func (idx *SeriesIndex) Insert(key []byte, id uint64, offset int64) {
 	idx.execEntry(SeriesEntryInsertFlag, id, offset, key)

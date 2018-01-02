@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -59,7 +58,7 @@ func NewSeriesSegment(id uint16, path string) *SeriesSegment {
 // CreateSeriesSegment generates an empty segment at path.
 func CreateSeriesSegment(id uint16, path string) (*SeriesSegment, error) {
 	// Generate segment in temp location.
-	f, err := ioutil.TempFile("", "series-segment-")
+	f, err := os.Create(path + ".initializing")
 	if err != nil {
 		return nil, err
 	}

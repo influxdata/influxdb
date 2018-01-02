@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -55,6 +54,7 @@ func (cmd *Command) Run(args ...string) error {
 
 func (cmd *Command) run(seriesFilePath, dataDir, walDir string) error {
 	sfile := tsdb.NewSeriesFile(seriesFilePath)
+	sfile.Logger = cmd.Logger
 	if err := sfile.Open(); err != nil {
 		return err
 	}

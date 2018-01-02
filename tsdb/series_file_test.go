@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -47,6 +48,7 @@ func TestSeriesFile_Series(t *testing.T) {
 // Ensure series file can be compacted.
 func TestSeriesFileCompactor(t *testing.T) {
 	sfile := MustOpenSeriesFile()
+	sfile.CompactThreshold = 0
 	defer sfile.Close()
 
 	var names [][]byte
@@ -102,6 +104,7 @@ func NewSeriesFile() *SeriesFile {
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
 func MustOpenSeriesFile() *SeriesFile {
 	f := NewSeriesFile()
+	f.Logger = logger.New(os.Stdout)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}

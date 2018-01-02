@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 )
@@ -221,6 +222,7 @@ func NewTempShard(index string) *TempShard {
 
 	// Create series file.
 	sfile := NewSeriesFile(filepath.Join(dir, "db0", SeriesFileName))
+	sfile.Logger = logger.New(os.Stdout)
 	if err := sfile.Open(); err != nil {
 		panic(err)
 	}

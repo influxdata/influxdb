@@ -10,33 +10,44 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"go.uber.org/zap"
 )
 
 // SeriesIDSize is the size in bytes of a series key ID.
 const SeriesIDSize = 8
 
-// SeriesMapThreshold is the number of series IDs to hold in the in-memory
+// DefaultSeriesFileCompactThreshold is the number of series IDs to hold in the in-memory
 // series map before compacting and rebuilding the on-disk representation.
-const SeriesMapThreshold = 1 << 25 // ~33M ids * 8 bytes per id == 256MB
+const DefaultSeriesFileCompactThreshold = 1 << 20 // 1M
 
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
 	mu   sync.RWMutex
+	wg   sync.WaitGroup
 	path string
 
 	segments []*SeriesSegment
 	index    *SeriesIndex
 	seq      uint64 // series id sequence
+
+	compacting bool
+
+	CompactThreshold int
+
+	Logger *zap.Logger
 }
 
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path: path,
+		path:             path,
+		CompactThreshold: DefaultSeriesFileCompactThreshold,
+		Logger:           zap.NewNop(),
 	}
 }
 
@@ -61,9 +72,9 @@ func (f *SeriesFile) Open() error {
 		f.index = NewSeriesIndex(f.IndexPath())
 		if err := f.index.Open(); err != nil {
 			return err
+		} else if f.index.Recover(f.segments); err != nil {
+			return err
 		}
-
-		// TODO: Replay new entries since index was built.
 
 		return nil
 	}(); err != nil {
@@ -113,6 +124,8 @@ func (f *SeriesFile) openSegments() error {
 
 // Close unmaps the data file.
 func (f *SeriesFile) Close() (err error) {
+	f.wg.Wait()
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -200,6 +213,30 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	// Add keys to hash map(s).
 	for _, keyRange := range newKeyRanges {
 		f.index.Insert(f.seriesKeyByOffset(keyRange.offset), keyRange.id, keyRange.offset)
+	}
+
+	// Check if we've crossed the compaction threshold.
+	if !f.compacting && f.CompactThreshold != 0 && f.index.InMemCount() >= uint64(f.CompactThreshold) {
+		f.compacting = true
+		logger := f.Logger.With(zap.String("path", f.path))
+		logger.Info("beginning series file compaction")
+
+		startTime := time.Now()
+		f.wg.Add(1)
+		go func() {
+			defer f.wg.Done()
+
+			if err := NewSeriesFileCompactor().Compact(f); err != nil {
+				logger.With(zap.Error(err)).Error("series file compaction failed")
+			}
+
+			logger.With(zap.Duration("elapsed", time.Since(startTime))).Info("completed series file compaction")
+
+			// Clear compaction flag.
+			f.mu.Lock()
+			f.compacting = false
+			f.mu.Unlock()
+		}()
 	}
 
 	return ids, nil
