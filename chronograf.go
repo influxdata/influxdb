@@ -571,7 +571,32 @@ type Organization struct {
 	DefaultRole string `json:"defaultRole,omitempty"`
 	// Public specifies whether users must be explicitly added to the organization.
 	// It is currently only used by the default organization, but that may change in the future.
-	Public bool `json:"public"`
+	Public   bool      `json:"public"`
+	Mappings []Mapping `json:"mappings"`
+}
+
+// MappingWildcard is the wildcard value for mappings
+const MappingWildcard string = "*"
+
+// A Mapping is the structure that is used to determine a users
+// role within an organization. The high level idea is to grant
+// certain roles to certain users without them having to be given
+// explicit role within the organization.
+//
+// One can think of a mapping like so:
+//     Provider:Scheme:Group -> GrantedRole
+//     github:oauth2:influxdata -> Viewer
+//     beyondcorp:ldap:influxdata -> Admin
+//
+// Any of Provider, Scheme, or Group may be provided as a wildcard *
+//     github:oauth2:* -> Editor
+//     *:*:* -> Member
+type Mapping struct {
+	Provider string `json:"provider"`
+	Scheme   string `json:"scheme"`
+	Group    string `json:"group"`
+
+	GrantedRole string `json:"grantedRole"`
 }
 
 // OrganizationQuery represents the attributes that a organization may be retrieved by.

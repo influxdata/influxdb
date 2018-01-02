@@ -42,10 +42,26 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 				ctx: context.Background(),
 				org: &chronograf.Organization{
 					Name: "EE - Evil Empire",
+					Mappings: []chronograf.Mapping{
+						chronograf.Mapping{
+							Provider:    chronograf.MappingWildcard,
+							Scheme:      chronograf.MappingWildcard,
+							Group:       chronograf.MappingWildcard,
+							GrantedRole: roles.ViewerRoleName,
+						},
+					},
 				},
 			},
 			want: &chronograf.Organization{
 				Name: "EE - Evil Empire",
+				Mappings: []chronograf.Mapping{
+					chronograf.Mapping{
+						Provider:    chronograf.MappingWildcard,
+						Scheme:      chronograf.MappingWildcard,
+						Group:       chronograf.MappingWildcard,
+						GrantedRole: roles.ViewerRoleName,
+					},
+				},
 			},
 			addFirst: true,
 		},
@@ -171,6 +187,9 @@ func TestOrganizationsStore_All(t *testing.T) {
 						Name:        "EE - Evil Empire",
 						DefaultRole: roles.MemberRoleName,
 						Public:      true,
+						Mappings: []chronograf.Mapping{
+							bolt.DefaultOrganizationMapping,
+						},
 					},
 					{
 						Name:        "The Good Place",
@@ -184,6 +203,9 @@ func TestOrganizationsStore_All(t *testing.T) {
 					Name:        "EE - Evil Empire",
 					DefaultRole: roles.MemberRoleName,
 					Public:      true,
+					Mappings: []chronograf.Mapping{
+						bolt.DefaultOrganizationMapping,
+					},
 				},
 				{
 					Name:        "The Good Place",
@@ -194,6 +216,9 @@ func TestOrganizationsStore_All(t *testing.T) {
 					Name:        bolt.DefaultOrganizationName,
 					DefaultRole: bolt.DefaultOrganizationRole,
 					Public:      bolt.DefaultOrganizationPublic,
+					Mappings: []chronograf.Mapping{
+						bolt.DefaultOrganizationMapping,
+					},
 				},
 			},
 			addFirst: true,
@@ -235,9 +260,10 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		orgs []chronograf.Organization
 	}
 	type args struct {
-		ctx     context.Context
-		initial *chronograf.Organization
-		updates *chronograf.Organization
+		ctx      context.Context
+		initial  *chronograf.Organization
+		updates  *chronograf.Organization
+		mappings []chronograf.Mapping
 	}
 	tests := []struct {
 		name     string
@@ -361,7 +387,41 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			addFirst: true,
 		},
 		{
-			name: "Update organization name - organization already exists",
+			name:   "Update organization name and mappings",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				initial: &chronograf.Organization{
+					Name:   "The Good Place",
+					Public: false,
+				},
+				updates: &chronograf.Organization{
+					Name: "The Bad Place",
+					Mappings: []chronograf.Mapping{
+						chronograf.Mapping{
+							Provider:    chronograf.MappingWildcard,
+							Scheme:      chronograf.MappingWildcard,
+							Group:       chronograf.MappingWildcard,
+							GrantedRole: roles.ViewerRoleName,
+						},
+					},
+				},
+			},
+			want: &chronograf.Organization{
+				Name: "The Bad Place",
+				Mappings: []chronograf.Mapping{
+					chronograf.Mapping{
+						Provider:    chronograf.MappingWildcard,
+						Scheme:      chronograf.MappingWildcard,
+						Group:       chronograf.MappingWildcard,
+						GrantedRole: roles.ViewerRoleName,
+					},
+				},
+			},
+			addFirst: true,
+		},
+		{
+			name: "Update organization name - name already taken",
 			fields: fields{
 				orgs: []chronograf.Organization{
 					{
@@ -407,6 +467,9 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		}
 		if tt.args.updates.DefaultRole != "" {
 			tt.args.initial.DefaultRole = tt.args.updates.DefaultRole
+		}
+		if tt.args.updates.Mappings != nil {
+			tt.args.initial.Mappings = tt.args.updates.Mappings
 		}
 
 		if tt.args.updates.Public != tt.args.initial.Public {
@@ -619,6 +682,9 @@ func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
 				Name:        bolt.DefaultOrganizationName,
 				DefaultRole: bolt.DefaultOrganizationRole,
 				Public:      bolt.DefaultOrganizationPublic,
+				Mappings: []chronograf.Mapping{
+					bolt.DefaultOrganizationMapping,
+				},
 			},
 			wantErr: false,
 		},

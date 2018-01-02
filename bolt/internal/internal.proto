@@ -153,15 +153,23 @@ message User {
 }
 
 message Role {
-	string Organization   = 1; // Organization is the ID of the organization that this user has a role in
-	string Name           = 2; // Name is the name of the role of this user in the respective organization
+	string Organization     = 1; // Organization is the ID of the organization that this user has a role in
+	string Name             = 2; // Name is the name of the role of this user in the respective organization
+}
+
+message Mapping {
+	string Provider         = 1; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
+	string Scheme           = 2; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
+	string Group            = 3; // Group is the group or organizations that you are a part of in an auth provider
+	string GrantedRole      = 4; // GrantedRole is the name of the role that you will be granted if you match the mapping
 }
 
 message Organization {
-	string ID               = 1; // ID is the unique ID of the organization
-	string Name             = 2; // Name is the organization's name
-	string DefaultRole      = 3; // DefaultRole is the name of the role that is the default for any users added to the organization
-	bool Public             = 4; // Public specifies that users must be explicitly added to the organization
+	string ID                  = 1; // ID is the unique ID of the organization
+	string Name                = 2; // Name is the organization's name
+	string DefaultRole         = 3; // DefaultRole is the name of the role that is the default for any users added to the organization
+	bool Public                = 4; // Public specifies that users must be explicitly added to the organization
+	repeated Mapping Mappings  = 5; // Mappings is set of mappings a organization has
 }
 
 message Config {
@@ -173,8 +181,8 @@ message AuthConfig {
 }
 
 message BuildInfo {
-	string Version			= 1; // Version is a descriptive git SHA identifier
-	string Commit			= 2; // Commit is an abbreviated SHA
+	string Version          = 1; // Version is a descriptive git SHA identifier
+	string Commit           = 2; // Commit is an abbreviated SHA
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

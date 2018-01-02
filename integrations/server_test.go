@@ -351,7 +351,15 @@ func TestServer(t *testing.T) {
       "id": "default",
       "name": "Default",
       "defaultRole": "member",
-      "public": true
+      "public": true,
+      "mappings": [
+        {
+          "provider": "*",
+          "scheme": "*",
+          "group": "*",
+          "grantedRole": "member"
+        }
+      ]
     },
     {
       "links": {
@@ -360,7 +368,9 @@ func TestServer(t *testing.T) {
       "id": "howdy",
       "name": "An Organization",
       "defaultRole": "viewer",
-      "public": false
+      "public": false,
+      "mappings": [
+      ]
     }
   ]
 }`,
@@ -409,7 +419,9 @@ func TestServer(t *testing.T) {
   "id": "howdy",
   "name": "An Organization",
   "defaultRole": "viewer",
-  "public": false
+  "public": false,
+  "mappings": [
+  ]
 }`,
 			},
 		},
@@ -1364,25 +1376,49 @@ func TestServer(t *testing.T) {
   "links": {
     "self": "/chronograf/v1/users/1"
   },
-  "organizations": [
-    {
-      "id": "1",
-      "name": "Sweet",
-      "defaultRole": "viewer",
-      "public": false
+  "organizations": {
+    "links": {
+      "self": "/chronograf/v1/organizations"
     },
-    {
-      "id": "default",
-      "name": "Default",
-      "defaultRole": "member",
-      "public": true
-    }
-  ],
+    "organizations": [
+      {
+        "links": {
+          "self": "/chronograf/v1/organizations/1"
+        },
+        "id": "1",
+        "name": "Sweet",
+        "defaultRole": "viewer",
+        "public": false,
+        "mappings": []
+      },
+      {
+        "links": {
+          "self": "/chronograf/v1/organizations/default"
+        },
+        "id": "default",
+        "name": "Default",
+        "defaultRole": "member",
+        "public": true,
+        "mappings": [
+          {
+            "provider": "*",
+            "scheme": "*",
+            "group": "*",
+            "grantedRole": "member"
+          }
+        ]
+      }
+    ]
+  },
   "currentOrganization": {
+    "links": {
+      "self": "/chronograf/v1/organizations/1"
+    },
     "id": "1",
     "name": "Sweet",
     "defaultRole": "viewer",
-    "public": false
+    "public": false,
+    "mappings": []
   }
 }`,
 			},

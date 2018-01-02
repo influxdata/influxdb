@@ -19,9 +19,9 @@ type meLinks struct {
 
 type meResponse struct {
 	*chronograf.User
-	Links               meLinks                   `json:"links"`
-	Organizations       []chronograf.Organization `json:"organizations,omitempty"`
-	CurrentOrganization *chronograf.Organization  `json:"currentOrganization,omitempty"`
+	Links               meLinks                `json:"links"`
+	Organizations       *organizationsResponse `json:"organizations,omitempty"`
+	CurrentOrganization *organizationResponse  `json:"currentOrganization,omitempty"`
 }
 
 // If new user response is nil, return an empty meResponse because it
@@ -224,7 +224,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
-
 	if usr != nil {
 
 		if defaultOrg.Public || usr.SuperAdmin == true {
@@ -265,8 +264,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		res := newMeResponse(usr)
-		res.Organizations = orgs
-		res.CurrentOrganization = currentOrg
+		res.Organizations = newOrganizationsResponse(orgs)
+		res.CurrentOrganization = newOrganizationResponse(currentOrg)
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
@@ -277,7 +276,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
 	}
-
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
 		Name:     p.Subject,
@@ -315,8 +313,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res := newMeResponse(newUser)
-	res.Organizations = orgs
-	res.CurrentOrganization = currentOrg
+	res.Organizations = newOrganizationsResponse(orgs)
+	res.CurrentOrganization = newOrganizationResponse(currentOrg)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 

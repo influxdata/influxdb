@@ -176,7 +176,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Existing user - private default org",
@@ -306,7 +306,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Existing user - organization doesn't exist",
@@ -423,8 +423,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}}
-`,
+			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "New user - New users not super admin, not first user",
@@ -485,8 +484,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
-`,
+			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "New user - New users not super admin, first user",
@@ -547,8 +545,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
-`,
+			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Error adding user",
@@ -824,7 +821,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"admin","public":true},{"id":"1337","name":"The ShillBillThrilliettas","public":true}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"admin","public":true,"mappings":[]},{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ShillBillThrilliettas","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ShillBillThrilliettas","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -899,7 +896,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"editor","public":true},{"id":"1337","name":"The ThrillShilliettos","public":false}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"editor","public":true,"mappings":[]},{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ThrillShilliettos","public":false,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ThrillShilliettos","public":false,"mappings":[]}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
