@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
@@ -141,6 +142,64 @@ func (manifest *Manifest) Save(filename string) error {
 	}
 
 	return ioutil.WriteFile(filename, b, 0600)
+}
+
+// LoadIncremental loads multiple manifest files from a given directory.
+func LoadIncremental(dir string) (*MetaEntry, map[uint64]*Entry, error) {
+	manifests, err := filepath.Glob(filepath.Join(dir, "*.manifest"))
+	if err != nil {
+		return nil, nil, err
+	}
+	shards := make(map[uint64]*Entry)
+
+	if len(manifests) == 0 {
+		return nil, shards, nil
+	}
+
+	sort.Sort(sort.Reverse(sort.StringSlice(manifests)))
+	var metaEntry MetaEntry
+
+	for _, fileName := range manifests {
+		fi, err := os.Stat(fileName)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if fi.IsDir() {
+			continue
+		}
+
+		f, err := os.Open(fileName)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var manifest Manifest
+		err = json.NewDecoder(f).Decode(&manifest)
+		f.Close()
+		if err != nil {
+			return nil, nil, fmt.Errorf("read manifest: %v", err)
+		}
+
+		// sorted (descending) above, so first manifest is most recent
+		if metaEntry.FileName == "" {
+			metaEntry = manifest.Meta
+		}
+
+		for i := range manifest.Files {
+			sh := manifest.Files[i]
+			if _, err := os.Stat(filepath.Join(dir, sh.FileName)); err != nil {
+				continue
+			}
+
+			e := shards[sh.ShardID]
+			if e == nil || sh.LastModified > e.LastModified {
+				shards[sh.ShardID] = &sh
+			}
+		}
+	}
+
+	return &metaEntry, shards, nil
 }
 
 type CountingWriter struct {

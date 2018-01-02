@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	"compress/gzip"
-	"encoding/json"
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	tarstream "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/services/meta"
@@ -48,7 +47,8 @@ type Command struct {
 	shard               uint64
 	enterprise          bool
 	online              bool
-	manifest            backup_util.Manifest
+	manifestMeta        *backup_util.MetaEntry
+	manifestFiles       map[uint64]*backup_util.Entry
 
 	// TODO: when the new meta stuff is done this should not be exported or be gone
 	MetaConfig *meta.Config
@@ -159,6 +159,11 @@ func (cmd *Command) parseFlags(args []string) error {
 		return fmt.Errorf("path with backup files required")
 	}
 
+	fi, err := os.Stat(cmd.backupFilesPath)
+	if err != nil || !fi.IsDir() {
+		return fmt.Errorf("backup path should be a valid directory: %s", cmd.backupFilesPath)
+	}
+
 	if cmd.enterprise || cmd.online {
 		// validate the arguments
 
@@ -175,19 +180,11 @@ func (cmd *Command) parseFlags(args []string) error {
 		}
 
 		if cmd.enterprise {
-			if filepath.Ext(cmd.backupFilesPath) != ".manifest" {
-				return fmt.Errorf("when using -enterprise, must provide path to a manifest file")
-			}
-			f, err := os.Open(cmd.backupFilesPath)
+			var err error
+			cmd.manifestMeta, cmd.manifestFiles, err = backup_util.LoadIncremental(cmd.backupFilesPath)
 			if err != nil {
-				return err
+				return fmt.Errorf("restore failed while processing manifest files: %s", err.Error())
 			}
-
-			if err := json.NewDecoder(f).Decode(&cmd.manifest); err != nil {
-				return fmt.Errorf("read manifest: %v", err)
-			}
-			f.Close()
-			cmd.backupFilesPath = filepath.Dir(cmd.backupFilesPath)
 		}
 	} else {
 		// validate the arguments
@@ -316,7 +313,7 @@ func (cmd *Command) unpackMeta() error {
 
 func (cmd *Command) updateMetaEnterprise() error {
 	var metaBytes []byte
-	fileName := filepath.Join(cmd.backupFilesPath, cmd.manifest.Meta.FileName)
+	fileName := filepath.Join(cmd.backupFilesPath, cmd.manifestMeta.FileName)
 
 	fileBytes, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -398,7 +395,7 @@ func (cmd *Command) unpackShard(shard uint64) error {
 }
 
 func (cmd *Command) uploadShardsEnterprise() error {
-	for _, file := range cmd.manifest.Files {
+	for _, file := range cmd.manifestFiles {
 		if cmd.sourceDatabase == "" || cmd.sourceDatabase == file.Database {
 			if cmd.backupRetention == "" || cmd.backupRetention == file.Policy {
 				if cmd.shard == 0 || cmd.shard == file.ShardID {
@@ -568,8 +565,7 @@ Options:
 	        Optional. If given, the restore will be done using the new process, detailed below.  All other arguments
 	        above should be omitted.
 
-The -enterprise restore mode consumes files in an improved format that includes a file manifest.  PATH should indicate
-the manifest file.
+The -enterprise restore mode consumes files in an improved format that includes a file manifest.
 
 Options:
 	-host  <host:port>
