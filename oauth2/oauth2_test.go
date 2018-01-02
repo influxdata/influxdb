@@ -16,6 +16,7 @@ var _ Provider = &MockProvider{}
 
 type MockProvider struct {
 	Email string
+	Orgs  string
 
 	ProviderURL string
 }
@@ -42,6 +43,10 @@ func (mp *MockProvider) Name() string {
 
 func (mp *MockProvider) PrincipalID(provider *http.Client) (string, error) {
 	return mp.Email, nil
+}
+
+func (mp *MockProvider) Group(provider *http.Client) (string, error) {
+	return mp.Orgs, nil
 }
 
 func (mp *MockProvider) Scopes() []string {

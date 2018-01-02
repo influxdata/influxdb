@@ -27,7 +27,11 @@ func setupMuxTest(selector func(*AuthMux) http.Handler) (*http.Client, *httptest
 	now := func() time.Time {
 		return testTime
 	}
-	mp := &MockProvider{"biff@example.com", provider.URL}
+	mp := &MockProvider{
+		Email:       "biff@example.com",
+		ProviderURL: provider.URL,
+		Orgs:        "",
+	}
 	mt := &YesManTokenizer{}
 	auth := &cookie{
 		Name:       DefaultCookieName,
