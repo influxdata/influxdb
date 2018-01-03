@@ -66,11 +66,6 @@ class SlackConfig extends Component {
             Update Slack Config
           </button>
         </div>
-        <br />
-        <br />
-        <div className="col-xs-12 text-center" onClick={this.props.onTest}>
-          ❤️❤️❤️❤️Test Slack Config❤️❤️❤️❤️
-        </div>
       </form>
     )
   }
@@ -86,7 +81,6 @@ SlackConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
-  onTest: func,
 }
 
 export default SlackConfig
