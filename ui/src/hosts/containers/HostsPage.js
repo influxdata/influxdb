@@ -5,6 +5,7 @@ import HostsTable from 'src/hosts/components/HostsTable'
 import SourceIndicator from 'shared/components/SourceIndicator'
 
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
+import {getEnv} from 'src/shared/apis/env'
 
 class HostsPage extends Component {
   constructor(props) {
@@ -17,10 +18,13 @@ class HostsPage extends Component {
     }
   }
 
-  componentDidMount() {
-    const {source, addFlashMessage} = this.props
+  async componentDidMount() {
+    const {source: {links, telegraf}, addFlashMessage} = this.props
+
+    const {data: {telegrafSystemInterval}} = await getEnv(links.env)
+
     Promise.all([
-      getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
+      getCpuAndLoadForHosts(links.proxy, telegraf, telegrafSystemInterval),
       getLayouts(),
       new Promise(resolve => {
         this.setState({hostsLoading: true})
@@ -32,7 +36,7 @@ class HostsPage extends Component {
           hosts,
           hostsLoading: false,
         })
-        getAppsForHosts(source.links.proxy, hosts, layouts, source.telegraf)
+        getAppsForHosts(links.proxy, hosts, layouts, telegraf)
           .then(newHosts => {
             this.setState({
               hosts: newHosts,
@@ -57,7 +61,7 @@ class HostsPage extends Component {
         })
         // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
         // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
-        console.error(reason) // eslint-disable-line no-console
+        console.error(reason)
       })
   }
 

@@ -2,15 +2,19 @@ import {proxy} from 'utils/queryUrlGenerator'
 import AJAX from 'utils/ajax'
 import _ from 'lodash'
 
-export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
+export function getCpuAndLoadForHosts(
+  proxyLink,
+  telegrafDB,
+  uptimeInverval = '1m'
+) {
   return proxy({
     source: proxyLink,
     query: `SELECT mean("usage_user") FROM cpu WHERE "cpu" = 'cpu-total' AND time > now() - 10m GROUP BY host;
       SELECT mean("load1") FROM "system" WHERE time > now() - 10m GROUP BY host;
-      SELECT non_negative_derivative(mean(uptime)) AS deltaUptime FROM "system" WHERE time > now() - 10m GROUP BY host, time(1m) fill(0);
+      SELECT non_negative_derivative(mean(uptime)) AS deltaUptime FROM "system" WHERE time > now() - 10m GROUP BY host, time(${uptimeInverval}) fill(0);
       SELECT mean("Percent_Processor_Time") FROM win_cpu WHERE time > now() - 10m GROUP BY host;
       SELECT mean("Processor_Queue_Length") FROM win_system WHERE time > now() - 10s GROUP BY host;
-      SELECT non_negative_derivative(mean("System_Up_Time")) AS winDeltaUptime FROM win_system WHERE time > now() - 10m GROUP BY host, time(1m) fill(0);
+      SELECT non_negative_derivative(mean("System_Up_Time")) AS winDeltaUptime FROM win_system WHERE time > now() - 10m GROUP BY host, time(${uptimeInverval}) fill(0);
       SHOW TAG VALUES WITH KEY = "host";`,
     db: telegrafDB,
   }).then(resp => {
