@@ -159,12 +159,7 @@ export function testAlertOutput(kapacitor, outputName, properties) {
     '/kapacitor/v1/service-tests'
   ).then(({data: {services}}) => {
     const service = services.find(s => s.name === outputName)
-    return kapacitorProxy(
-      kapacitor,
-      'POST',
-      service.link.href,
-      Object.assign({}, service.options, properties)
-    )
+    return kapacitorProxy(kapacitor, 'POST', service.link.href, {})
   })
 }
 

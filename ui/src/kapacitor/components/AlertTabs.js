@@ -2,7 +2,11 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
-import {getKapacitorConfig, updateKapacitorConfigSection} from 'shared/apis'
+import {
+  getKapacitorConfig,
+  updateKapacitorConfigSection,
+  testAlertOutput,
+} from 'shared/apis'
 
 import {
   AlertaConfig,
@@ -88,6 +92,22 @@ class AlertTabs extends Component {
     }
   }
 
+  handleTestConfig = section => () => {
+    testAlertOutput(this.props.kapacitor, section, {})
+      .then(() => {
+        this.props.addFlashMessage({
+          type: 'success',
+          text: `Successfully relayed an alert to ${section}.`,
+        })
+      })
+      .catch(() => {
+        this.props.addFlashMessage({
+          type: 'error',
+          text: `There was an error relaying an alert to ${section}.`,
+        })
+      })
+  }
+
   sanitizeProperties = (section, properties) => {
     const cleanProps = {...properties, enabled: true}
     const {redacted} = this.getSection(this.state.configSections, section)
@@ -116,6 +136,7 @@ class AlertTabs extends Component {
           <AlertaConfig
             onSave={this.handleSaveConfig('alerta')}
             config={this.getSection(configSections, 'alerta')}
+            onTest={this.handleTestConfig('alerta')}
           />,
       },
       hipchat: {
@@ -125,6 +146,7 @@ class AlertTabs extends Component {
           <HipChatConfig
             onSave={this.handleSaveConfig('hipchat')}
             config={this.getSection(configSections, 'hipchat')}
+            onTest={this.handleTestConfig('hipchat')}
           />,
       },
       opsgenie: {
@@ -134,6 +156,7 @@ class AlertTabs extends Component {
           <OpsGenieConfig
             onSave={this.handleSaveConfig('opsgenie')}
             config={this.getSection(configSections, 'opsgenie')}
+            onTest={this.handleTestConfig('opsgenie')}
           />,
       },
       pagerduty: {
@@ -143,6 +166,7 @@ class AlertTabs extends Component {
           <PagerDutyConfig
             onSave={this.handleSaveConfig('pagerduty')}
             config={this.getSection(configSections, 'pagerduty')}
+            onTest={this.handleTestConfig('pagerduty')}
           />,
       },
       pushover: {
@@ -152,6 +176,7 @@ class AlertTabs extends Component {
           <PushoverConfig
             onSave={this.handleSaveConfig('pushover')}
             config={this.getSection(configSections, 'pushover')}
+            onTest={this.handleTestConfig('pushover')}
           />,
       },
       sensu: {
@@ -161,6 +186,7 @@ class AlertTabs extends Component {
           <SensuConfig
             onSave={this.handleSaveConfig('sensu')}
             config={this.getSection(configSections, 'sensu')}
+            onTest={this.handleTestConfig('sensu')}
           />,
       },
       slack: {
@@ -170,6 +196,7 @@ class AlertTabs extends Component {
           <SlackConfig
             onSave={this.handleSaveConfig('slack')}
             config={this.getSection(configSections, 'slack')}
+            onTest={this.handleTestConfig('slack')}
           />,
       },
       smtp: {
@@ -179,6 +206,7 @@ class AlertTabs extends Component {
           <SMTPConfig
             onSave={this.handleSaveConfig('smtp')}
             config={this.getSection(configSections, 'smtp')}
+            onTest={this.handleTestConfig('smtp')}
           />,
       },
       talk: {
@@ -188,6 +216,7 @@ class AlertTabs extends Component {
           <TalkConfig
             onSave={this.handleSaveConfig('talk')}
             config={this.getSection(configSections, 'talk')}
+            onTest={this.handleTestConfig('talk')}
           />,
       },
       telegram: {
@@ -197,6 +226,7 @@ class AlertTabs extends Component {
           <TelegramConfig
             onSave={this.handleSaveConfig('telegram')}
             config={this.getSection(configSections, 'telegram')}
+            onTest={this.handleTestConfig('telegram')}
           />,
       },
       victorops: {
@@ -206,6 +236,7 @@ class AlertTabs extends Component {
           <VictorOpsConfig
             onSave={this.handleSaveConfig('victorops')}
             config={this.getSection(configSections, 'victorops')}
+            onTest={this.handleTestConfig('victorops')}
           />,
       },
     }
