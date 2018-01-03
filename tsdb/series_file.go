@@ -595,16 +595,16 @@ func (c *SeriesFileCompactor) Compact(f *SeriesFile) error {
 		defer f.mu.Unlock()
 
 		// Reopen index with new file.
-		if err := index.Close(); err != nil {
+		if err := f.index.Close(); err != nil {
 			return err
 		} else if err := os.Rename(indexPath, index.path); err != nil {
 			return err
-		} else if err := index.Open(); err != nil {
+		} else if err := f.index.Open(); err != nil {
 			return err
 		}
 
 		// Replay new entries.
-		if err := index.Recover(f.segments); err != nil {
+		if err := f.index.Recover(f.segments); err != nil {
 			return err
 		}
 		return nil
