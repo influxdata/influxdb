@@ -3,16 +3,13 @@ package tsdb
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/rhh"
 	"go.uber.org/zap"
@@ -92,11 +89,12 @@ func (f *SeriesFile) openSegments() error {
 	}
 
 	for _, fi := range fis {
-		if !IsValidSeriesSegmentFilename(fi.Name()) {
+		segmentID, err := ParseSeriesSegmentFilename(fi.Name())
+		if err != nil {
 			continue
 		}
 
-		segment := NewSeriesSegment(ParseSeriesSegmentFilename(fi.Name()), filepath.Join(f.path, fi.Name()))
+		segment := NewSeriesSegment(segmentID, filepath.Join(f.path, fi.Name()))
 		if err := segment.Open(); err != nil {
 			return err
 		}
@@ -774,14 +772,3 @@ func pow2(v int64) int64 {
 	}
 	panic("unreachable")
 }
-
-// hashReader generates an xxhash from the contents of r.
-func hashReader(r io.Reader) ([]byte, error) {
-	h := xxhash.New()
-	if _, err := io.Copy(h, r); err != nil {
-		return nil, err
-	}
-	return h.Sum(nil), nil
-}
-
-func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }

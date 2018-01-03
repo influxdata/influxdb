@@ -127,7 +127,7 @@ func (s *SeriesSegment) InitForWrite() (err error) {
 	// Open file handler for writing & seek to end of data.
 	if s.file, err = os.OpenFile(s.path, os.O_WRONLY|os.O_CREATE, 0666); err != nil {
 		return err
-	} else if _, err := s.file.Seek(int64(s.size), os.SEEK_SET); err != nil {
+	} else if _, err := s.file.Seek(int64(s.size), io.SeekStart); err != nil {
 		return err
 	}
 	s.w = bufio.NewWriter(s.file)
@@ -304,9 +304,9 @@ func IsValidSeriesSegmentFilename(filename string) bool {
 }
 
 // ParseSeriesSegmentFilename returns the id represented by the hexidecimal filename.
-func ParseSeriesSegmentFilename(filename string) uint16 {
-	i, _ := strconv.ParseUint(filename, 16, 32)
-	return uint16(i)
+func ParseSeriesSegmentFilename(filename string) (uint16, error) {
+	i, err := strconv.ParseUint(filename, 16, 32)
+	return uint16(i), err
 }
 
 var seriesSegmentFilenameRegex = regexp.MustCompile(`^[0-9a-f]{4}$`)

@@ -163,12 +163,18 @@ func TestIsValidSeriesSegmentFilename(t *testing.T) {
 }
 
 func TestParseSeriesSegmentFilename(t *testing.T) {
-	if v := tsdb.ParseSeriesSegmentFilename("a90b"); v != 0xA90B {
+	if v, err := tsdb.ParseSeriesSegmentFilename("a90b"); err != nil {
+		t.Fatal(err)
+	} else if v != 0xA90B {
 		t.Fatalf("unexpected value: %x", v)
-	} else if v := tsdb.ParseSeriesSegmentFilename("0001"); v != 1 {
+	}
+	if v, err := tsdb.ParseSeriesSegmentFilename("0001"); err != nil {
+		t.Fatal(err)
+	} else if v != 1 {
 		t.Fatalf("unexpected value: %x", v)
-	} else if v := tsdb.ParseSeriesSegmentFilename("invalid"); v != 0 {
-		t.Fatalf("unexpected value: %x", v)
+	}
+	if _, err := tsdb.ParseSeriesSegmentFilename("invalid"); err == nil {
+		t.Fatal("expected error")
 	}
 }
 

@@ -1742,7 +1742,7 @@ func MustOpenSeriesFile() *SeriesFile {
 
 // Close closes the log file and removes it from disk.
 func (f *SeriesFile) Close() {
-	defer os.Remove(f.Path())
+	defer os.RemoveAll(f.Path())
 	if err := f.SeriesFile.Close(); err != nil {
 		panic(err)
 	}
