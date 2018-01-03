@@ -146,7 +146,7 @@ func MustNewIndex(index string) *Index {
 		panic(err)
 	}
 
-	seriesPath, err := ioutil.TempDir(rootPath, "series")
+	seriesPath, err := ioutil.TempDir(rootPath, tsdb.SeriesFileDirectory)
 	if err != nil {
 		panic(err)
 	}

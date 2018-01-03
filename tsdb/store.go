@@ -36,8 +36,9 @@ const (
 	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
 )
 
-// SeriesFileName is the name of the series file.
-const SeriesFileName = "series"
+// SeriesFileDirectory is the name of the directory containing series files for
+// a database.
+const SeriesFileDirectory = ".series"
 
 // Store manages shards and indexes for databases.
 type Store struct {
@@ -353,7 +354,7 @@ func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 		return sfile, nil
 	}
 
-	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileName))
+	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileDirectory))
 	sfile.Logger = s.baseLogger
 	if err := sfile.Open(); err != nil {
 		return nil, err

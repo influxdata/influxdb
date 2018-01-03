@@ -1685,7 +1685,7 @@ func NewEngine(index string) (*Engine, error) {
 	}
 
 	// Setup series file.
-	seriesPath, err := ioutil.TempDir(dbPath, "series")
+	seriesPath, err := ioutil.TempDir(dbPath, tsdb.SeriesFileDirectory)
 	if err != nil {
 		return nil, err
 	}
