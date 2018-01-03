@@ -512,6 +512,8 @@ func (q *QueryTask) monitor(fn QueryMonitorFunc) {
 func (q *QueryTask) close() {
 	q.mu.Lock()
 	if q.status != KilledTask {
+		// Set the status to killed to prevent closing the channel twice.
+		q.status = KilledTask
 		close(q.closing)
 	}
 	q.mu.Unlock()
