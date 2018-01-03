@@ -1,4 +1,5 @@
 import React, {PropTypes, Component} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
@@ -19,12 +20,16 @@ class HostsPage extends Component {
   }
 
   async componentDidMount() {
-    const {source: {links, telegraf}, addFlashMessage} = this.props
+    const {source, links, addFlashMessage} = this.props
 
-    const {data: {telegrafSystemInterval}} = await getEnv(links.env)
+    const {telegrafSystemInterval} = await getEnv(links.environment)
 
     Promise.all([
-      getCpuAndLoadForHosts(links.proxy, telegraf, telegrafSystemInterval),
+      getCpuAndLoadForHosts(
+        source.links.proxy,
+        source.telegraf,
+        telegrafSystemInterval
+      ),
       getLayouts(),
       new Promise(resolve => {
         this.setState({hostsLoading: true})
@@ -36,7 +41,7 @@ class HostsPage extends Component {
           hosts,
           hostsLoading: false,
         })
-        getAppsForHosts(links.proxy, hosts, layouts, telegraf)
+        getAppsForHosts(source.links.proxy, hosts, layouts, source.telegraf)
           .then(newHosts => {
             this.setState({
               hosts: newHosts,
@@ -101,6 +106,12 @@ class HostsPage extends Component {
 
 const {func, shape, string} = PropTypes
 
+const mapStateToProps = ({links}) => {
+  return {
+    links,
+  }
+}
+
 HostsPage.propTypes = {
   source: shape({
     id: string.isRequired,
@@ -111,7 +122,10 @@ HostsPage.propTypes = {
     }).isRequired,
     telegraf: string.isRequired,
   }),
+  links: shape({
+    environment: string.isRequired,
+  }),
   addFlashMessage: func,
 }
 
-export default HostsPage
+export default connect(mapStateToProps, null)(HostsPage)

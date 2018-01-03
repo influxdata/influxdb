@@ -18,7 +18,9 @@ const generateResponseWithLinks = (response, newLinks) => {
     organizations,
     me: meLink,
     config,
+    environment,
   } = newLinks
+
   return {
     ...response,
     auth: {links: auth},
@@ -28,6 +30,7 @@ const generateResponseWithLinks = (response, newLinks) => {
     organizations,
     meLink,
     config,
+    environment,
   }
 }
 
