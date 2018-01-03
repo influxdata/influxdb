@@ -429,7 +429,7 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
+func (f *LogFile) AddSeriesList(seriesSet *SeriesSet, names [][]byte, tagsSlice []models.Tags) error {
 	buf := make([]byte, 2048)
 
 	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice, buf[:0])
@@ -437,32 +437,41 @@ func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
 		return err
 	}
 
-	if seriesIDs == nil {
-		// All of these series IDs exist in the index.
-		return nil
-	}
-
-	entries := make([]LogEntry, len(names))
+	var writeRequired bool
+	entries := make([]LogEntry, 0, len(names))
+	seriesSet.RLock()
 	for i := range names {
-		if seriesIDs[i] == 0 {
+		if seriesSet.Contains(seriesIDs[i]) {
 			// We don't need to allocate anything for this series.
 			continue
 		}
-		entries[i] = LogEntry{SeriesID: seriesIDs[i]}
+		writeRequired = true
+		entries = append(entries, LogEntry{SeriesID: seriesIDs[i]})
+	}
+	seriesSet.RUnlock()
+
+	// Exit if all series already exist.
+	if !writeRequired {
+		return nil
 	}
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	seriesSet.Lock()
+	defer seriesSet.Unlock()
+
 	for i := range entries {
-		if seriesIDs[i] == 0 {
-			// We don't need to add this series.
+		entry := &entries[i]
+		if seriesSet.Contains(entry.SeriesID) {
+			// We don't need to allocate anything for this series.
 			continue
 		}
-		if err := f.appendEntry(&entries[i]); err != nil {
+		if err := f.appendEntry(entry); err != nil {
 			return err
 		}
-		f.execEntry(&entries[i])
+		f.execEntry(entry)
+		seriesSet.Add(entry.SeriesID)
 	}
 	return nil
 }

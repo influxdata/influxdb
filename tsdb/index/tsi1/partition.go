@@ -49,6 +49,9 @@ type Partition struct {
 	fileSet       *FileSet         // current file set
 	seq           int              // file id sequence
 
+	// Fast series lookup.
+	seriesSet *SeriesSet
+
 	// Compaction management
 	levels          []CompactionLevel // compaction levels
 	levelCompacting []bool            // level compaction status
@@ -87,9 +90,10 @@ type Partition struct {
 // NewPartition returns a new instance of Partition.
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return &Partition{
-		closing: make(chan struct{}),
-		path:    path,
-		sfile:   sfile,
+		closing:   make(chan struct{}),
+		path:      path,
+		sfile:     sfile,
+		seriesSet: NewSeriesSet(),
 
 		// Default compaction thresholds.
 		MaxLogFileSize: DefaultMaxLogFileSize,
@@ -195,6 +199,11 @@ func (i *Partition) Open() error {
 		}
 	}
 
+	// Build series existance set.
+	if err := i.buildSeriesSet(); err != nil {
+		return err
+	}
+
 	// Mark opened.
 	i.opened = true
 
@@ -249,6 +258,49 @@ func (i *Partition) deleteNonManifestFiles(m *Manifest) error {
 	}
 
 	return nil
+}
+
+func (i *Partition) buildSeriesSet() error {
+	fs := i.retainFileSet()
+	defer fs.Release()
+
+	i.seriesSet = NewSeriesSet()
+
+	mitr := fs.MeasurementIterator()
+	if mitr == nil {
+		return nil
+	}
+
+	// Iterate over each measurement.
+	for {
+		me := mitr.Next()
+		if me == nil {
+			return nil
+		}
+
+		// Iterate over each series id.
+		if err := func() error {
+			sitr := fs.MeasurementSeriesIDIterator(me.Name())
+			if sitr == nil {
+				return nil
+			}
+			defer sitr.Close()
+
+			for {
+				elem, err := sitr.Next()
+				if err != nil {
+					return err
+				} else if elem.SeriesID == 0 {
+					return nil
+				}
+
+				// Add id to series set.
+				i.seriesSet.Add(elem.SeriesID)
+			}
+		}(); err != nil {
+			return err
+		}
+	}
 }
 
 // Wait returns once outstanding compactions have finished.
@@ -558,7 +610,7 @@ func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	// Ensure fileset cannot change during insert.
 	i.mu.RLock()
 	// Insert series into log file.
-	if err := i.activeLogFile.AddSeriesList(names, tagsSlice); err != nil {
+	if err := i.activeLogFile.AddSeriesList(i.seriesSet, names, tagsSlice); err != nil {
 		i.mu.RUnlock()
 		return err
 	}

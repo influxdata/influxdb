@@ -164,11 +164,10 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
 func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
-	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}, nil)
-	if err != nil {
+	if _, err := i.sfile.CreateSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}, nil); err != nil {
 		return err
 	}
-	seriesID := seriesIDs[0]
+	seriesID := i.sfile.SeriesID(name, tags, nil)
 
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
