@@ -4,6 +4,7 @@
 
 ### Bug Fixes
 1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Make page render successfully when attempting to edit a source
+1. [#2664](https://github.com/influxdata/chronograf/pull/2664): Fix CustomTimeIndicator positioning
 
 ## v1.4.0.0-rc2 [2017-12-21]
 ### UI Improvements
