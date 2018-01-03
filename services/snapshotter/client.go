@@ -126,7 +126,11 @@ func (c *Client) UploadShard(shardID, newShardID uint64, destinationDatabase, re
 			return err
 		}
 
-		names := strings.Split(hdr.Name, string(filepath.Separator))
+		names := strings.Split(filepath.FromSlash(hdr.Name), string(filepath.Separator))
+
+		if len(names) < 4 {
+			return fmt.Errorf("error parsing file name from shard tarfile: %s", hdr.Name)
+		}
 
 		if destinationDatabase == "" {
 			destinationDatabase = names[0]
