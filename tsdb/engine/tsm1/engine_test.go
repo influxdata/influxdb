@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/query"
@@ -1705,19 +1706,13 @@ func NewEngine(index string) (*Engine, error) {
 	}
 
 	// Setup series file.
-	f, err := ioutil.TempFile(dbPath, "series")
+	seriesPath, err := ioutil.TempDir(dbPath, tsdb.SeriesFileDirectory)
 	if err != nil {
 		return nil, err
 	}
-	f.Close()
-	sfile := tsdb.NewSeriesFile(f.Name())
 
-	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
-	// can address is in memory.
-	if runtime.GOARCH == "386" {
-		sfile.MaxSize = 1 << 27 // 128MB
-	}
-
+	sfile := tsdb.NewSeriesFile(seriesPath)
+	sfile.Logger = logger.New(os.Stdout)
 	if err = sfile.Open(); err != nil {
 		return nil, err
 	}
@@ -1750,19 +1745,11 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
 func NewSeriesFile() *SeriesFile {
-	file, err := ioutil.TempFile("", "tsdb-series-file-")
+	dir, err := ioutil.TempDir("", "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}
-	file.Close()
-
-	s := &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
-	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
-	// can address is in memory.
-	if runtime.GOARCH == "386" {
-		s.SeriesFile.MaxSize = 1 << 27 // 128MB
-	}
-	return s
+	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
@@ -1776,7 +1763,7 @@ func MustOpenSeriesFile() *SeriesFile {
 
 // Close closes the log file and removes it from disk.
 func (f *SeriesFile) Close() {
-	defer os.Remove(f.Path())
+	defer os.RemoveAll(f.Path())
 	if err := f.SeriesFile.Close(); err != nil {
 		panic(err)
 	}

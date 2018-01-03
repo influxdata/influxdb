@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"text/tabwriter"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
@@ -114,6 +115,7 @@ func (cmd *Command) Run(args ...string) error {
 
 func (cmd *Command) run() error {
 	sfile := tsdb.NewSeriesFile(cmd.seriesFilePath)
+	sfile.Logger = logger.New(os.Stderr)
 	if err := sfile.Open(); err != nil {
 		return err
 	}

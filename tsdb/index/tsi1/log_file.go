@@ -533,7 +533,7 @@ func (f *LogFile) appendEntry(e *LogEntry) error {
 		// Log should be reopened if seeking cannot be completed.
 		if n > 0 {
 			f.w.Reset(f.file)
-			if _, err := f.file.Seek(int64(-n), os.SEEK_CUR); err != nil {
+			if _, err := f.file.Seek(int64(-n), io.SeekCurrent); err != nil {
 				f.Close()
 			}
 		}

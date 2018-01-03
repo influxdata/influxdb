@@ -7,7 +7,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 )
@@ -221,13 +221,8 @@ func NewTempShard(index string) *TempShard {
 	}
 
 	// Create series file.
-	sfile := NewSeriesFile(filepath.Join(dir, "db0", SeriesFileName))
-	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
-	// can address is in memory.
-	if runtime.GOARCH == "386" {
-		sfile.MaxSize = 1 << 27 // 128MB
-	}
-
+	sfile := NewSeriesFile(filepath.Join(dir, "db0", SeriesFileDirectory))
+	sfile.Logger = logger.New(os.Stdout)
 	if err := sfile.Open(); err != nil {
 		panic(err)
 	}

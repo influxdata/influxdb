@@ -1,11 +1,12 @@
 package tsdb_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"testing"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -44,6 +45,41 @@ func TestSeriesFile_Series(t *testing.T) {
 	}
 }
 
+// Ensure series file can be compacted.
+func TestSeriesFileCompactor(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	sfile.CompactThreshold = 0
+	defer sfile.Close()
+
+	var names [][]byte
+	var tagsSlice []models.Tags
+	for i := 0; i < 10000; i++ {
+		names = append(names, []byte(fmt.Sprintf("m%d", i)))
+		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"foo": "bar"}))
+	}
+	if _, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify total number of series is correct.
+	if n := sfile.SeriesCount(); n != uint64(len(names)) {
+		t.Fatalf("unexpected series count: %d", n)
+	}
+
+	// Compact in-place.
+	compactor := tsdb.NewSeriesFileCompactor()
+	if err := compactor.Compact(sfile.SeriesFile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify all series exist.
+	for i := range names {
+		if seriesID := sfile.SeriesID(names[i], tagsSlice[i], nil); seriesID == 0 {
+			t.Fatalf("series does not exist: %s,%s", names[i], tagsSlice[i].String())
+		}
+	}
+}
+
 // Series represents name/tagset pairs that are used in testing.
 type Series struct {
 	Name    []byte
@@ -58,24 +94,17 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
 func NewSeriesFile() *SeriesFile {
-	file, err := ioutil.TempFile("", "tsdb-series-file-")
+	dir, err := ioutil.TempDir("", "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}
-	file.Close()
-
-	s := &SeriesFile{SeriesFile: tsdb.NewSeriesFile(file.Name())}
-	// If we're running on a 32-bit system then reduce the SeriesFile size, so we
-	// can address is in memory.
-	if runtime.GOARCH == "386" {
-		s.SeriesFile.MaxSize = 1 << 27 // 128MB
-	}
-	return s
+	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
 func MustOpenSeriesFile() *SeriesFile {
 	f := NewSeriesFile()
+	f.Logger = logger.New(os.Stdout)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}
@@ -84,6 +113,6 @@ func MustOpenSeriesFile() *SeriesFile {
 
 // Close closes the log file and removes it from disk.
 func (f *SeriesFile) Close() error {
-	defer os.Remove(f.Path())
+	defer os.RemoveAll(f.Path())
 	return f.SeriesFile.Close()
 }
