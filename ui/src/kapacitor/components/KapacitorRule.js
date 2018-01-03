@@ -66,10 +66,10 @@ class KapacitorRule extends Component {
           text: `${rule.name} successfully saved!`,
         })
       })
-      .catch(() => {
+      .catch(e => {
         addFlashMessage({
           type: 'error',
-          text: `There was a problem saving ${rule.name}`,
+          text: `There was a problem saving ${rule.name}: ${e.data.message}`,
         })
       })
   }
@@ -117,10 +117,10 @@ class KapacitorRule extends Component {
             text: `${rule.name} successfully saved!`,
           })
         })
-        .catch(() => {
+        .catch(e => {
           addFlashMessage({
             type: 'error',
-            text: `There was a problem saving ${rule.name}`,
+            text: `There was a problem saving ${rule.name}: ${e.data.message}`,
           })
         })
     }
