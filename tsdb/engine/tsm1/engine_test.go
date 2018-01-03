@@ -47,7 +47,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 
 			// Remove series.
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %s", err.Error())
 			}
 
@@ -1024,7 +1024,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 }
 
 // Ensures that deleting series from TSM files with multiple fields removes all the
-// series from the TSM files but leaves the series in the index intact.
+/// series
 func TestEngine_DeleteSeries(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
@@ -1058,7 +1058,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1071,56 +1071,22 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			if _, ok := keys[exp]; !ok {
 				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
 			}
-
-			// Deleting all the TSM values for a single series should still leave
-			// the series in the index intact.
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			} else if iter == nil {
-				t.Fatal("nil iterator")
-			}
-			defer iter.Close()
-
-			var gotKeys []string
-			expKeys := []string{"cpu,host=A", "cpu,host=B"}
-
-			for {
-				elem, err := iter.Next()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if elem.SeriesID == 0 {
-					break
-				}
-
-				// Lookup series.
-				name, tags := e.sfile.Series(elem.SeriesID)
-				gotKeys = append(gotKeys, string(models.MakeKey(name, tags)))
-			}
-
-			if !reflect.DeepEqual(gotKeys, expKeys) {
-				t.Fatalf("got keys %v, expected %v", gotKeys, expKeys)
-			}
 		})
 	}
 }
 
-// Ensures that deleting series from TSM files over a range of time deleted the
-// series from the TSM files but leaves the series in the index.
 func TestEngine_DeleteSeriesRange(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 			// Create a few points.
-			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000")
+			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000") // Should not be deleted
 			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A value=1.3 3000000000")
-			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
-			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000")
+			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000") // Should not be deleted
+			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000") // Should not be deleted
 			p6 := MustParsePointString("cpu,host=C value=1.3 1000000000")
-			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
-			p8 := MustParsePointString("disk,host=C value=1.3 1000000000")
+			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")  // Should not be deleted
+			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
 			e, err := NewEngine(index)
 			if err != nil {
@@ -1153,7 +1119,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 3000000000, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1167,39 +1133,73 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
 			}
 
-			// Deleting all the TSM values for a single series should still leave
-			// the series in the index intact.
+			// Check that the series still exists in the index
 			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
-			} else if iter == nil {
-				t.Fatal("nil iterator")
 			}
 			defer iter.Close()
 
-			var gotKeys []string
-			expKeys := []string{"cpu,host=0", "cpu,host=A", "cpu,host=B", "cpu,host=C"}
+			elem, err := iter.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if elem.SeriesID == 0 {
+				t.Fatalf("series index mismatch: EOF, exp 2 series")
+			}
 
-			for {
-				elem, err := iter.Next()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if elem.SeriesID == 0 {
-					break
-				}
+			// Lookup series.
+			name, tags := e.sfile.Series(elem.SeriesID)
+			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
 
-				// Lookup series.
-				name, tags := e.sfile.Series(elem.SeriesID)
-				gotKeys = append(gotKeys, string(models.MakeKey(name, tags)))
+			if got, exp := tags, models.NewTags(map[string]string{"host": "0"}); !got.Equal(exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			if elem, err = iter.Next(); err != nil {
+				t.Fatal(err)
+			}
+			if elem.SeriesID == 0 {
+				t.Fatalf("series index mismatch: EOF, exp 2 series")
+			}
+
+			// Lookup series.
+			name, tags = e.sfile.Series(elem.SeriesID)
+			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			if got, exp := tags, models.NewTags(map[string]string{"host": "B"}); !got.Equal(exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
 			}
 			sort.Strings(gotKeys)
 
-			if !reflect.DeepEqual(gotKeys, expKeys) {
-				t.Fatalf("got keys %v, expected %v", gotKeys, expKeys)
+			iter.Close()
+
+			// Deleting remaining series should remove them from the series.
+			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
+			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+				t.Fatalf("failed to delete series: %v", err)
 			}
 
+			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+				t.Fatalf("iterator error: %v", err)
+			}
+			if iter == nil {
+				return
+			}
+
+			defer iter.Close()
+			if elem, err = iter.Next(); err != nil {
+				t.Fatal(err)
+			}
+			if elem.SeriesID != 0 {
+				t.Fatalf("got an undeleted series id, but series should be dropped from index")
+			}
 		})
 	}
 }
@@ -1241,7 +1241,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, 0, 0, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1325,7 +1325,7 @@ func TestEngine_LastModified(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 

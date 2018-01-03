@@ -579,7 +579,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	for _, name := range mnames {
-		if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil, true); err != nil {
+		if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1038,7 +1038,7 @@ func TestStore_Measurements_Auth(t *testing.T) {
 			return err
 		}
 
-		if err := s.DeleteSeries("db0", nil, cond, true); err != nil {
+		if err := s.DeleteSeries("db0", nil, cond); err != nil {
 			return err
 		}
 
@@ -1130,7 +1130,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err := s.DeleteSeries("db0", nil, cond, true); err != nil {
+		if err := s.DeleteSeries("db0", nil, cond); err != nil {
 			return err
 		}
 
@@ -1233,7 +1233,7 @@ func TestStore_TagValues_Auth(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err := s.DeleteSeries("db0", nil, cond, true); err != nil {
+		if err := s.DeleteSeries("db0", nil, cond); err != nil {
 			return err
 		}
 
