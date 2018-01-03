@@ -647,3 +647,9 @@ type BuildStore interface {
 	Get(context.Context) (BuildInfo, error)
 	Update(context.Context, BuildInfo) error
 }
+
+// Environement is the set of front-end exposed environment variables
+// that were set on the server
+type Environment struct {
+	TelegrafSystemInterval time.Duration `json:"telegrafSystemInterval"`
+}

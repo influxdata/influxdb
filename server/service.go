@@ -15,6 +15,7 @@ type Service struct {
 	TimeSeriesClient TimeSeriesClient
 	Logger           chronograf.Logger
 	UseAuth          bool
+	Env              chronograf.Environment
 	Databases        chronograf.Databases
 }
 
