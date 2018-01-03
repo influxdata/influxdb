@@ -27,6 +27,7 @@ github.com/prometheus/client_model 99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c
 github.com/prometheus/common 2e54d0b93cba2fd133edc32211dcc32c06ef72ca
 github.com/prometheus/procfs a6e9df898b1336106c743392c48ee0b71f5c4efa
 github.com/retailnext/hllpp 38a7bb71b483e855d35010808143beaf05b67f9d
+github.com/RoaringBitmap/roaring cefad6e4f79d4fa5d1d758ff937dde300641ccfa
 github.com/spaolacci/murmur3 0d12bf811670bf6a1a63828dfbd003eded177fce
 github.com/tinylib/msgp ad0ff2e232ad2e37faf67087fb24bf8d04a8ce20
 github.com/xlab/treeprint 06dfc6fa17cdde904617990a0c2d89e3e332dbb3

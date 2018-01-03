@@ -150,7 +150,8 @@ func (f *SeriesFile) Path() string { return f.path }
 // Path returns the path to the series index.
 func (f *SeriesFile) IndexPath() string { return filepath.Join(f.path, "index") }
 
-// CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. Returns the offset of the series.
+// CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
+// The returned ids list returns values for new series and zero for existing series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []uint64, err error) {
 	f.mu.RLock()
 	ids, ok := f.index.FindIDListByNameTags(f.segments, names, tagsSlice, buf)
@@ -175,7 +176,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 	for i := range names {
 		// Skip series that have already been created.
-		if id := ids[i]; id != 0 {
+		if ids[i] != 0 {
 			continue
 		}
 
