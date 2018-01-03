@@ -18,7 +18,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-	// "sync/atomic"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"

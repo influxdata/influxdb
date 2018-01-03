@@ -806,6 +806,9 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 func (i *Index) RemoveShard(shardID uint64)                   {}
 func (i *Index) AssignShard(k string, shardID uint64)         {}
 
+// UnassignShard removes the provided series key from the index. The naming of
+// this method stems from a legacy index logic that used to track which shards
+// owned which series.
 func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
 	return i.DropSeries([]byte(k), ts)
