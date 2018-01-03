@@ -20,6 +20,7 @@ The default value for `cache-snapshot-memory-size` has been changed from `25m` t
 - [#9216](https://github.com/influxdata/influxdb/issues/9216): Prevent a panic when a query simultaneously finishes and is killed at the same time.
 - [#9290](https://github.com/influxdata/influxdb/issues/9290): Fix regression to allow binary operations on literals.
 - [#9353](https://github.com/influxdata/influxdb/pull/9353): Fix panic in msgpack httpd WriteResponse error handler.
+- [#9134](https://github.com/influxdata/influxdb/issues/9134): Fix panic during Prometheus regex parsing.
 
 ## v1.4.2 [2017-11-15]
 
