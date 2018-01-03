@@ -24,50 +24,67 @@ class HostsPage extends Component {
 
     const {telegrafSystemInterval} = await getEnv(links.environment)
 
-    Promise.all([
-      getCpuAndLoadForHosts(
+    const hostsError = 'Unable to get apps for hosts'
+    let hosts, layouts
+
+    try {
+      const [h, {data}] = await Promise.all([
+        getCpuAndLoadForHosts(
+          source.links.proxy,
+          source.telegraf,
+          telegrafSystemInterval
+        ),
+        getLayouts(),
+        new Promise(resolve => {
+          this.setState({hostsLoading: true})
+          resolve()
+        }),
+      ])
+
+      hosts = h
+      layouts = data.layouts
+
+      this.setState({
+        hosts,
+        hostsLoading: false,
+      })
+    } catch (error) {
+      this.setState({
+        hostsError: error.toString(),
+        hostsLoading: false,
+      })
+
+      console.error(error)
+    }
+
+    if (!hosts || !layouts) {
+      addFlashMessage({type: 'error', text: hostsError})
+      return this.setState({
+        hostsError,
+        hostsLoading: false,
+      })
+    }
+
+    try {
+      const newHosts = await getAppsForHosts(
         source.links.proxy,
-        source.telegraf,
-        telegrafSystemInterval
-      ),
-      getLayouts(),
-      new Promise(resolve => {
-        this.setState({hostsLoading: true})
-        resolve()
-      }),
-    ])
-      .then(([hosts, {data: {layouts}}]) => {
-        this.setState({
-          hosts,
-          hostsLoading: false,
-        })
-        getAppsForHosts(source.links.proxy, hosts, layouts, source.telegraf)
-          .then(newHosts => {
-            this.setState({
-              hosts: newHosts,
-              hostsError: '',
-              hostsLoading: false,
-            })
-          })
-          .catch(error => {
-            console.error(error)
-            const reason = 'Unable to get apps for hosts'
-            addFlashMessage({type: 'error', text: reason})
-            this.setState({
-              hostsError: reason,
-              hostsLoading: false,
-            })
-          })
+        hosts,
+        layouts,
+        source.telegraf
+      )
+      this.setState({
+        hosts: newHosts,
+        hostsError: '',
+        hostsLoading: false,
       })
-      .catch(reason => {
-        this.setState({
-          hostsError: reason.toString(),
-          hostsLoading: false,
-        })
-        // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
-        // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
-        console.error(reason)
+    } catch (error) {
+      console.error(error)
+      addFlashMessage({type: 'error', text: hostsError})
+      this.setState({
+        hostsError,
+        hostsLoading: false,
       })
+    }
   }
 
   render() {

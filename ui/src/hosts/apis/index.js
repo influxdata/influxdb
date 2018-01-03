@@ -120,7 +120,7 @@ export const getLayouts = () =>
     resource: 'layouts',
   })
 
-export function getAppsForHosts(proxyLink, hosts, appLayouts, telegrafDB) {
+export const getAppsForHosts = (proxyLink, hosts, appLayouts, telegrafDB) => {
   const measurements = appLayouts.map(m => `^${m.measurement}$`).join('|')
   const measurementsToApps = _.zipObject(
     appLayouts.map(m => m.measurement),
