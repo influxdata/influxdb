@@ -10,6 +10,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {createRule, editRule} from 'src/kapacitor/apis'
 import buildInfluxQLQuery from 'utils/influxql'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 
 class KapacitorRule extends Component {
   constructor(props) {
@@ -88,7 +89,7 @@ class KapacitorRule extends Component {
     })
     if (this.validationError()) {
       router.push(configLink)
-    } else if (rule.id === 'new') {
+    } else if (rule.id === DEFAULT_RULE_ID) {
       const newRule = Object.assign({}, rule, {
         query: queryConfigs[rule.queryID],
       })
