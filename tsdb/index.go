@@ -1625,7 +1625,7 @@ func (is IndexSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) 
 		}
 
 		seriesKey := is.SeriesFile.SeriesKey(e.SeriesID)
-		assert(seriesKey != nil, "series key not found")
+		assert(seriesKey != nil, fmt.Sprintf("series key for ID: %d not found", e.SeriesID))
 
 		name, tags := ParseSeriesKey(seriesKey)
 		keys = append(keys, models.MakeKey(name, tags))
