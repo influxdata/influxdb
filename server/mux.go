@@ -242,6 +242,8 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/config/:section", EnsureSuperAdmin(service.ConfigSection))
 	router.PUT("/chronograf/v1/config/:section", EnsureSuperAdmin(service.ReplaceConfigSection))
 
+	router.GET("/chronograf/v1/env", EnsureViewer(service.Environment))
+
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,
 		StatusFeed:  opts.StatusFeedURL,
