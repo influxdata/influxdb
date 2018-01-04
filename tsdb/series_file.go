@@ -703,7 +703,7 @@ func (c *SeriesFileCompactor) insertKeyIDMap(dst []byte, capacity int64, segment
 		}
 
 		// Read key at position & hash.
-		elemKey := ReadSeriesKeyFromSegments(segments, elemOffset)
+		elemKey := ReadSeriesKeyFromSegments(segments, elemOffset+SeriesEntryHeaderSize)
 		elemHash := rhh.HashKey(elemKey)
 
 		// If the existing elem has probed less than us, then swap places with
