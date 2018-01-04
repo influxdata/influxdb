@@ -424,7 +424,7 @@ func (k *tsmKeyIterator) mergeUnsigned() {
 		// we need to dedup as there may be duplicate points now
 		for i := 1; !dedup && i < len(k.blocks); i++ {
 			dedup = k.blocks[i].partiallyRead() ||
-				k.blocks[i].minTime <= k.blocks[i-1].maxTime ||
+				k.blocks[i].overlapsTimeRange(k.blocks[i-1].minTime, k.blocks[i-1].maxTime) ||
 				len(k.blocks[i].tombstones) > 0
 		}
 
