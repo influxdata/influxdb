@@ -6,12 +6,16 @@
 
 package tsm1
 
+import "sort"
+
 // merge combines the next set of blocks into merged blocks.
 func (k *tsmKeyIterator) mergeFloat() {
 	// No blocks left, or pending merged values, we're done
 	if len(k.blocks) == 0 && len(k.merged) == 0 && len(k.mergedFloatValues) == 0 {
 		return
 	}
+
+	sort.Stable(k.blocks)
 
 	dedup := len(k.mergedFloatValues) != 0
 	if len(k.blocks) > 0 && !dedup {
@@ -210,6 +214,8 @@ func (k *tsmKeyIterator) mergeInteger() {
 		return
 	}
 
+	sort.Stable(k.blocks)
+
 	dedup := len(k.mergedIntegerValues) != 0
 	if len(k.blocks) > 0 && !dedup {
 		// If we have more than one block or any partially tombstoned blocks, we many need to dedup
@@ -406,6 +412,8 @@ func (k *tsmKeyIterator) mergeUnsigned() {
 	if len(k.blocks) == 0 && len(k.merged) == 0 && len(k.mergedUnsignedValues) == 0 {
 		return
 	}
+
+	sort.Stable(k.blocks)
 
 	dedup := len(k.mergedUnsignedValues) != 0
 	if len(k.blocks) > 0 && !dedup {
@@ -604,6 +612,8 @@ func (k *tsmKeyIterator) mergeString() {
 		return
 	}
 
+	sort.Stable(k.blocks)
+
 	dedup := len(k.mergedStringValues) != 0
 	if len(k.blocks) > 0 && !dedup {
 		// If we have more than one block or any partially tombstoned blocks, we many need to dedup
@@ -800,6 +810,8 @@ func (k *tsmKeyIterator) mergeBoolean() {
 	if len(k.blocks) == 0 && len(k.merged) == 0 && len(k.mergedBooleanValues) == 0 {
 		return
 	}
+
+	sort.Stable(k.blocks)
 
 	dedup := len(k.mergedBooleanValues) != 0
 	if len(k.blocks) > 0 && !dedup {

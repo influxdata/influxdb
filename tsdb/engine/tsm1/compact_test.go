@@ -416,6 +416,81 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 	}
 }
 
+func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// write 3 TSM files where two blocks are overlapping and with unsorted order
+	a1 := tsm1.NewValue(1, 1.1)
+	a2 := tsm1.NewValue(2, 1.1)
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a1, a2},
+	}
+	f1 := MustWriteTSM(dir, 1, writes)
+
+	b1 := tsm1.NewValue(3, 1.2)
+	b2 := tsm1.NewValue(4, 1.2)
+
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{b1, b2},
+	}
+	f2 := MustWriteTSM(dir, 2, writes)
+
+	c1 := tsm1.NewValue(1, 1.1)
+	c2 := tsm1.NewValue(2, 1.1)
+
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{c1, c2},
+	}
+	f3 := MustWriteTSM(dir, 3, writes)
+
+	compactor := &tsm1.Compactor{
+		Dir:       dir,
+		FileStore: &fakeFileStore{},
+		Size:      2,
+	}
+
+	compactor.Open()
+
+	files, err := compactor.CompactFast([]string{f1, f2, f3})
+	if err != nil {
+		t.Fatalf("unexpected error writing snapshot: %v", err)
+	}
+
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	r := MustOpenTSMReader(files[0])
+
+	if got, exp := r.KeyCount(), 1; got != exp {
+		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
+	}
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{a1, a2, b1, b2}},
+	}
+
+	for _, p := range data {
+		values, err := r.ReadAll([]byte(p.key))
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch %s: got %v, exp %v", p.key, got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+}
+
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	dir := MustTempDir()
