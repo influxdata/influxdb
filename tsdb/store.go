@@ -236,6 +236,11 @@ func (s *Store) loadShards() error {
 				continue
 			}
 
+			// The .series directory is not a retention policy.
+			if rp.Name() == SeriesFileDirectory {
+				continue
+			}
+
 			shardDirs, err := ioutil.ReadDir(filepath.Join(s.path, db.Name(), rp.Name()))
 			if err != nil {
 				return err

@@ -603,7 +603,7 @@ func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
 
 func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	seriesKey := f.sfile.SeriesKey(e.SeriesID)
-	assert(seriesKey != nil, "series key not found")
+	assert(seriesKey != nil, fmt.Sprintf("series key for ID: %d not found", e.SeriesID))
 
 	// Read key size.
 	_, remainder := tsdb.ReadSeriesKeyLen(seriesKey)
