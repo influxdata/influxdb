@@ -1270,7 +1270,7 @@ func (a blocks) Len() int { return len(a) }
 func (a blocks) Less(i, j int) bool {
 	cmp := bytes.Compare(a[i].key, a[j].key)
 	if cmp == 0 {
-		return a[i].minTime < a[j].minTime
+		return a[i].minTime < a[j].minTime && a[i].maxTime < a[j].minTime
 	}
 	return cmp < 0
 }

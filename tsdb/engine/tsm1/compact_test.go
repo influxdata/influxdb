@@ -347,6 +347,75 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	}
 }
 
+func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// write 2 TSM files with different data and one new point
+	a1 := tsm1.NewValue(4, 1.1)
+	a2 := tsm1.NewValue(5, 1.1)
+	a3 := tsm1.NewValue(6, 1.1)
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a1, a2, a3},
+	}
+	f1 := MustWriteTSM(dir, 1, writes)
+
+	b1 := tsm1.NewValue(1, 1.2)
+	b2 := tsm1.NewValue(2, 1.2)
+	b3 := tsm1.NewValue(3, 1.2)
+
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{b1, b2, b3},
+	}
+	f2 := MustWriteTSM(dir, 2, writes)
+
+	compactor := &tsm1.Compactor{
+		Dir:       dir,
+		FileStore: &fakeFileStore{},
+		Size:      2,
+	}
+
+	compactor.Open()
+
+	files, err := compactor.CompactFast([]string{f1, f2})
+	if err != nil {
+		t.Fatalf("unexpected error writing snapshot: %v", err)
+	}
+
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	r := MustOpenTSMReader(files[0])
+
+	if got, exp := r.KeyCount(), 1; got != exp {
+		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
+	}
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{b1, b2, b3, a1, a2, a3}},
+	}
+
+	for _, p := range data {
+		values, err := r.ReadAll([]byte(p.key))
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch %s: got %v, exp %v", p.key, got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+}
+
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	dir := MustTempDir()
