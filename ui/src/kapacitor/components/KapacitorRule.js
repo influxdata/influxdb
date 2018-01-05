@@ -150,7 +150,6 @@ class KapacitorRule extends Component {
     const {
       rule,
       source,
-      ruleID,
       ruleActions,
       queryConfigs,
       handlersFromConfig,
@@ -158,12 +157,13 @@ class KapacitorRule extends Component {
     } = this.props
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
-
     return (
       <div className="page">
         <RuleHeader
           source={source}
-          onSave={ruleID === 'new' ? this.handleCreate : this.handleEdit}
+          onSave={
+            rule.id === DEFAULT_RULE_ID ? this.handleCreate : this.handleEdit
+          }
           validationError={this.validationError()}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
@@ -172,7 +172,7 @@ class KapacitorRule extends Component {
               <div className="col-xs-12">
                 <div className="rule-builder">
                   <NameSection
-                    ruleID={ruleID}
+                    rule={rule}
                     defaultName={rule.name}
                     onRuleRename={ruleActions.updateRuleName}
                   />

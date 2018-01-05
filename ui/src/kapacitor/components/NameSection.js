@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 
 class NameSection extends Component {
   constructor(props) {
@@ -10,9 +11,9 @@ class NameSection extends Component {
   }
 
   handleInputBlur = reset => e => {
-    const {defaultName, onRuleRename, ruleID} = this.props
+    const {defaultName, onRuleRename, rule} = this.props
 
-    onRuleRename(ruleID, reset ? defaultName : e.target.value)
+    onRuleRename(rule.id, reset ? defaultName : e.target.value)
     this.setState({reset: false})
   }
 
@@ -27,13 +28,13 @@ class NameSection extends Component {
   }
 
   render() {
-    const {ruleID, defaultName} = this.props
+    const {rule, defaultName} = this.props
     const {reset} = this.state
 
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">
-          {ruleID === 'new' ? 'Name this Alert Rule' : 'Name'}
+          {rule.id === DEFAULT_RULE_ID ? 'Name this Alert Rule' : 'Name'}
         </h3>
         <div className="rule-section--body">
           <div className="rule-section--row rule-section--row-first rule-section--row-last">
@@ -53,12 +54,12 @@ class NameSection extends Component {
   }
 }
 
-const {func, string} = PropTypes
+const {func, string, shape} = PropTypes
 
 NameSection.propTypes = {
   defaultName: string.isRequired,
   onRuleRename: func.isRequired,
-  ruleID: string.isRequired,
+  rule: shape({}).isRequired,
 }
 
 export default NameSection
