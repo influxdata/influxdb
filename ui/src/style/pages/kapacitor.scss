@@ -425,7 +425,11 @@ $rule-builder--radius-lg: 5px;
   margin-left: 4px;
 }
 .rule-message--add-endpoint .dropdown-menu {
-  max-height: 240px;
+  max-height: 235px;
+}
+
+.rule-message--add-endpoint .dropdown-menu.dropdown-malachite li.dropdown-divider {
+  background: linear-gradient(to right, #a8e1cf 0%, #23adf6 100%) !important;
 }
 
 .endpoint-tabs {

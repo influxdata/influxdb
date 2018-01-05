@@ -133,14 +133,18 @@ class RuleHandlers extends Component {
     } = this.props
     const {handlersOnThisAlert, selectedHandler} = this.state
 
-    const handlers = _.reverse(
-      _.sortBy(
-        _.map([...DEFAULT_HANDLERS, ...handlersFromConfig], h => {
-          return {...h, text: h.type}
-        }),
-        ['enabled']
-      )
+    const mappedhandlers = _.map(
+      [...DEFAULT_HANDLERS, ...handlersFromConfig],
+      h => {
+        return {...h, text: h.type}
+      }
     )
+
+    const handlers = _.flatten([
+      _.filter(mappedhandlers, ['enabled', true]),
+      {text: 'SEPARATOR'},
+      _.filter(mappedhandlers, ['enabled', false]),
+    ])
 
     const dropdownLabel = handlersOnThisAlert.length
       ? 'Add another Handler'
