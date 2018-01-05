@@ -1230,23 +1230,20 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 			return nil, err
 		}
 
-		finalKeySet := make(map[string]struct{})
-		for i := range keys {
-			if len(values[i]) == 0 {
-				continue
+		// Filter final tag keys using the matching values. If a key has one or
+		// more matching values then it will be included in the final set.
+		finalKeys := keys[:0] // Use same backing array as keys to save allocation.
+		for i, k := range keys {
+			if len(values[i]) > 0 {
+				// Tag key k has one or more matching tag values.
+				finalKeys = append(finalKeys, k)
 			}
-			finalKeySet[keys[i]] = struct{}{}
-		}
-
-		finalKeys := make([]string, 0, len(finalKeySet))
-		for k := range finalKeySet {
-			finalKeys = append(finalKeys, k)
 		}
 
 		// Add to resultset.
 		results = append(results, TagKeys{
 			Measurement: string(name),
-			Keys:        keys,
+			Keys:        finalKeys,
 		})
 	}
 	return results, nil
