@@ -232,7 +232,7 @@ func (s *SeriesSegment) MaxSeriesID() uint64 {
 
 // ForEachEntry executes fn for every entry in the segment.
 func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id uint64, offset int64, key []byte) error) error {
-	for pos := uint32(SeriesSegmentHeaderSize); pos < s.size; {
+	for pos := uint32(SeriesSegmentHeaderSize); pos < uint32(len(s.data)); {
 		flag, id, key, sz := ReadSeriesEntry(s.data[pos:])
 		if flag == 0 {
 			break
