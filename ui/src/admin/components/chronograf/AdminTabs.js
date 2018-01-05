@@ -11,7 +11,7 @@ import OrganizationsPage from 'src/admin/containers/chronograf/OrganizationsPage
 import UsersPage from 'src/admin/containers/chronograf/UsersPage'
 
 const ORGANIZATIONS_TAB_NAME = 'Organizations'
-const USERS_TAB_NAME = 'Users'
+const CURRENT_ORG_USERS_TAB_NAME = 'Current Org Users'
 
 const AdminTabs = ({
   me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
@@ -26,7 +26,7 @@ const AdminTabs = ({
     },
     {
       requiredRole: ADMIN_ROLE,
-      type: USERS_TAB_NAME,
+      type: CURRENT_ORG_USERS_TAB_NAME,
       component: (
         <UsersPage meID={meID} meCurrentOrganization={meCurrentOrganization} />
       ),
