@@ -244,15 +244,9 @@ func HashKey(key []byte) int64 {
 
 // HashUint64 computes a hash of an int64. Hash is always non-zero.
 func HashUint64(key uint64) int64 {
-	hash := xxhash.New()
-	binary.Write(hash, binary.BigEndian, key)
-	h := int64(hash.Sum64())
-	if h == 0 {
-		h = 1
-	} else if h < 0 {
-		h = 0 - h
-	}
-	return h
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, key)
+	return HashKey(buf)
 }
 
 // Dist returns the probe distance for a hash in a slot index.
