@@ -22,10 +22,10 @@ import (
 var benchServer Server
 
 func TestMain(m *testing.M) {
-	vv := flag.Bool("vv", false, "Turn on very verbose server logging.")
+	flag.BoolVar(&verboseServerLogs, "vv", false, "Turn on very verbose server logging.")
+	flag.BoolVar(&cleanupData, "clean", true, "Clean up test data on disk.")
 	flag.Parse()
 
-	verboseServerLogs = *vv
 	var r int
 	for _, indexType = range tsdb.RegisteredIndexes() {
 		// Setup benchmark server

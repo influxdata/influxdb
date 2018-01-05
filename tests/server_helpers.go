@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -25,6 +26,7 @@ import (
 
 var verboseServerLogs bool
 var indexType string
+var cleanupData bool
 
 // Server represents a test wrapper for run.Server.
 type Server interface {
@@ -163,7 +165,7 @@ func (s *RemoteServer) WritePoints(database, retentionPolicy string, consistency
 }
 
 // NewServer returns a new instance of Server.
-func NewServer(c *run.Config) Server {
+func NewServer(c *Config) Server {
 	buildInfo := &run.BuildInfo{
 		Version: "testServer",
 		Commit:  "testCommit",
@@ -187,7 +189,7 @@ func NewServer(c *run.Config) Server {
 	}
 
 	// Otherwise create a local server
-	srv, _ := run.NewServer(c, buildInfo)
+	srv, _ := run.NewServer(c.Config, buildInfo)
 	s := LocalServer{
 		client: &client{},
 		Server: srv,
@@ -198,7 +200,7 @@ func NewServer(c *run.Config) Server {
 }
 
 // OpenServer opens a test server.
-func OpenServer(c *run.Config) Server {
+func OpenServer(c *Config) Server {
 	s := NewServer(c)
 	configureLogging(s)
 	if err := s.Open(); err != nil {
@@ -208,8 +210,8 @@ func OpenServer(c *run.Config) Server {
 }
 
 // OpenServerWithVersion opens a test server with a specific version.
-func OpenServerWithVersion(c *run.Config, version string) Server {
-	// We can't change the versino of a remote server.  The test needs to
+func OpenServerWithVersion(c *Config, version string) Server {
+	// We can't change the version of a remote server.  The test needs to
 	// be skipped if using this func.
 	if RemoteEnabled() {
 		panic("OpenServerWithVersion not support with remote server")
@@ -220,7 +222,7 @@ func OpenServerWithVersion(c *run.Config, version string) Server {
 		Commit:  "",
 		Branch:  "",
 	}
-	srv, _ := run.NewServer(c, buildInfo)
+	srv, _ := run.NewServer(c.Config, buildInfo)
 	s := LocalServer{
 		client: &client{},
 		Server: srv,
@@ -237,7 +239,7 @@ func OpenServerWithVersion(c *run.Config, version string) Server {
 }
 
 // OpenDefaultServer opens a test server with a default database & retention policy.
-func OpenDefaultServer(c *run.Config) Server {
+func OpenDefaultServer(c *Config) Server {
 	s := OpenServer(c)
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		panic(err)
@@ -251,7 +253,7 @@ type LocalServer struct {
 	*run.Server
 
 	*client
-	Config *run.Config
+	Config *Config
 }
 
 // Open opens the server. If running this test on a 32-bit platform it reduces
@@ -271,12 +273,13 @@ func (s *LocalServer) Close() {
 	if err := s.Server.Close(); err != nil {
 		panic(err.Error())
 	}
-	if err := os.RemoveAll(s.Config.Meta.Dir); err != nil {
-		panic(err.Error())
+
+	if cleanupData {
+		if err := os.RemoveAll(s.Config.rootPath); err != nil {
+			panic(err.Error())
+		}
 	}
-	if err := os.RemoveAll(s.Config.Data.Dir); err != nil {
-		panic(err.Error())
-	}
+
 	// Nil the server so our deadlock detector goroutine can determine if we completed writes
 	// without timing out
 	s.Server = nil
@@ -487,17 +490,30 @@ func (s *client) MustWrite(db, rp, body string, params url.Values) string {
 	return results
 }
 
+// Config is a test wrapper around a run.Config. It also contains a root temp
+// directory, making cleanup easier.
+type Config struct {
+	rootPath string
+	*run.Config
+}
+
 // NewConfig returns the default config with temporary paths.
-func NewConfig() *run.Config {
-	c := run.NewConfig()
+func NewConfig() *Config {
+	root, err := ioutil.TempDir("", "tests-influxdb-")
+	if err != nil {
+		panic(err)
+	}
+
+	c := &Config{rootPath: root, Config: run.NewConfig()}
 	c.BindAddress = "127.0.0.1:0"
 	c.ReportingDisabled = true
 	c.Coordinator.WriteTimeout = toml.Duration(30 * time.Second)
-	c.Meta.Dir = MustTempFile()
+
+	c.Meta.Dir = filepath.Join(c.rootPath, "meta")
 	c.Meta.LoggingEnabled = verboseServerLogs
 
-	c.Data.Dir = MustTempFile()
-	c.Data.WALDir = MustTempFile()
+	c.Data.Dir = filepath.Join(c.rootPath, "data")
+	c.Data.WALDir = filepath.Join(c.rootPath, "wal")
 	c.Data.QueryLogEnabled = verboseServerLogs
 	c.Data.TraceLoggingEnabled = verboseServerLogs
 	c.Data.Index = indexType
@@ -555,17 +571,6 @@ func MustReadAll(r io.Reader) []byte {
 		panic(err)
 	}
 	return b
-}
-
-// MustTempFile returns a path to a temporary file.
-func MustTempFile() string {
-	f, err := ioutil.TempFile("", "influxd-")
-	if err != nil {
-		panic(err)
-	}
-	f.Close()
-	os.Remove(f.Name())
-	return f.Name()
 }
 
 func RemoteEnabled() bool {
