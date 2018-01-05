@@ -57,6 +57,7 @@ class LayoutCell extends Component {
         <Authorized requiredRole={EDITOR_ROLE}>
           <LayoutCellMenu
             cell={cell}
+            queries={queries}
             dataExists={!!celldata.length}
             isDeleting={isDeleting}
             isEditable={isEditable}
@@ -67,11 +68,7 @@ class LayoutCell extends Component {
             onCSVDownload={this.handleCSVDownload}
           />
         </Authorized>
-        <LayoutCellHeader
-          queries={queries}
-          cellName={cell.name}
-          isEditable={isEditable}
-        />
+        <LayoutCellHeader cellName={cell.name} isEditable={isEditable} />
         <div className="dash-graph--container">
           {queries.length
             ? children

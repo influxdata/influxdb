@@ -106,7 +106,7 @@ class LayoutRenderer extends Component {
             useCSSTransforms={false}
             onResize={this.handleCellResize}
             onLayoutChange={this.handleLayoutChange}
-            draggableHandle={'.dash-graph--name'}
+            draggableHandle={'.dash-graph--draggable'}
             isDraggable={isDashboard}
             isResizable={isDashboard}
           >
