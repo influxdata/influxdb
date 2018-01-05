@@ -38,7 +38,7 @@ const (
 
 // SeriesFileDirectory is the name of the directory containing series files for
 // a database.
-const SeriesFileDirectory = ".series"
+const SeriesFileDirectory = "_series"
 
 // Store manages shards and indexes for databases.
 type Store struct {
