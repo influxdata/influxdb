@@ -25,7 +25,7 @@ class KapacitorRule extends Component {
     this.setState({timeRange})
   }
 
-  handleCreate = () => {
+  handleCreate = link => {
     const {
       addFlashMessage,
       queryConfigs,
@@ -42,7 +42,7 @@ class KapacitorRule extends Component {
 
     createRule(kapacitor, newRule)
       .then(() => {
-        router.push(`/sources/${source.id}/alert-rules`)
+        router.push(link || `/sources/${source.id}/alert-rules`)
         addFlashMessage({type: 'success', text: 'Rule successfully created'})
       })
       .catch(() => {
@@ -53,7 +53,7 @@ class KapacitorRule extends Component {
       })
   }
 
-  handleEdit = () => {
+  handleEdit = link => {
     const {addFlashMessage, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -61,7 +61,7 @@ class KapacitorRule extends Component {
 
     editRule(updatedRule)
       .then(() => {
-        router.push(`/sources/${source.id}/alert-rules`)
+        router.push(link || `/sources/${source.id}/alert-rules`)
         addFlashMessage({
           type: 'success',
           text: `${rule.name} successfully saved!`,
@@ -76,54 +76,13 @@ class KapacitorRule extends Component {
   }
 
   handleSaveToConfig = () => {
-    const {
-      addFlashMessage,
-      queryConfigs,
-      rule,
-      router,
-      configLink,
-      kapacitor,
-    } = this.props
-    const updatedRule = Object.assign({}, rule, {
-      query: queryConfigs[rule.queryID],
-    })
+    const {rule, configLink, router} = this.props
     if (this.validationError()) {
       router.push(configLink)
     } else if (rule.id === DEFAULT_RULE_ID) {
-      const newRule = Object.assign({}, rule, {
-        query: queryConfigs[rule.queryID],
-      })
-      delete newRule.queryID
-
-      createRule(kapacitor, newRule)
-        .then(() => {
-          router.push(configLink)
-          addFlashMessage({
-            type: 'success',
-            text: 'Rule successfully created',
-          })
-        })
-        .catch(() => {
-          addFlashMessage({
-            type: 'error',
-            text: 'There was a problem creating the rule',
-          })
-        })
+      this.handleCreate(configLink)
     } else {
-      editRule(updatedRule)
-        .then(() => {
-          router.push(configLink)
-          addFlashMessage({
-            type: 'success',
-            text: `${rule.name} successfully saved!`,
-          })
-        })
-        .catch(e => {
-          addFlashMessage({
-            type: 'error',
-            text: `There was a problem saving ${rule.name}: ${e.data.message}`,
-          })
-        })
+      this.handleEdit(configLink)
     }
   }
 
