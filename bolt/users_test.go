@@ -2,7 +2,6 @@ package bolt_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -60,9 +59,6 @@ func TestUsersStore_GetWithID(t *testing.T) {
 	for _, tt := range tests {
 		client, err := NewTestClient()
 		if err != nil {
-			t.Fatal(err)
-		}
-		if err := client.Open(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()
@@ -134,9 +130,6 @@ func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
 
 		s := client.UsersStore
@@ -165,9 +158,6 @@ func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 func TestUsersStore_GetInvalid(t *testing.T) {
 	client, err := NewTestClient()
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := client.Open(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
 	defer client.Close()
@@ -242,10 +232,8 @@ func TestUsersStore_Add(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
+
 		s := client.UsersStore
 		if tt.args.addFirst {
 			_, _ = s.Add(tt.args.ctx, tt.args.u)
@@ -307,16 +295,12 @@ func TestUsersStore_Delete(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
+
 		s := client.UsersStore
 
 		if tt.addFirst {
-			var err error
-			tt.args.user, err = s.Add(tt.args.ctx, tt.args.user)
-			fmt.Println(err)
+			tt.args.user, _ = s.Add(tt.args.ctx, tt.args.user)
 		}
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -408,10 +392,8 @@ func TestUsersStore_Update(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
+
 		s := client.UsersStore
 
 		if tt.addFirst {
@@ -499,10 +481,8 @@ func TestUsersStore_All(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
+
 		s := client.UsersStore
 
 		if tt.addFirst {
@@ -567,10 +547,8 @@ func TestUsersStore_Num(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(context.TODO()); err != nil {
-			t.Fatal(err)
-		}
 		defer client.Close()
+
 		s := client.UsersStore
 
 		for _, u := range tt.users {

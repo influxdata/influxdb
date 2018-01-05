@@ -21,6 +21,7 @@ import {setAutoRefresh} from 'shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
 import {writeLineProtocolAsync} from 'src/data_explorer/actions/view/write'
 import {buildRawText} from 'src/utils/influxql'
+import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
 class DataExplorer extends Component {
   constructor(props) {
@@ -33,8 +34,11 @@ class DataExplorer extends Component {
 
   getActiveQuery = () => {
     const {queryConfigs} = this.props
+
     if (queryConfigs.length === 0) {
-      this.props.queryConfigActions.addQuery()
+      const qc = defaultQueryConfig()
+      this.props.queryConfigActions.addQuery(qc.id)
+      queryConfigs.push(qc)
     }
 
     return queryConfigs[0]

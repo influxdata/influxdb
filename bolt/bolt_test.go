@@ -1,12 +1,15 @@
 package bolt_test
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"os"
 	"time"
 
+	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
+	"github.com/influxdata/chronograf/mocks"
 )
 
 // TestNow is a set time for testing.
@@ -30,6 +33,13 @@ func NewTestClient() (*TestClient, error) {
 	}
 	c.Path = f.Name()
 	c.Now = func() time.Time { return TestNow }
+
+	build := chronograf.BuildInfo{
+		Version: "version",
+		Commit:  "commit",
+	}
+
+	c.Open(context.TODO(), mocks.NewLogger(), build)
 
 	return c, nil
 }

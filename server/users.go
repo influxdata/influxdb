@@ -54,9 +54,6 @@ func (r *userRequest) ValidRoles() error {
 			if r.Organization == "" {
 				return fmt.Errorf("no organization was provided")
 			}
-			if _, err := parseOrganizationID(r.Organization); err != nil {
-				return fmt.Errorf("failed to parse organization ID: %v", err)
-			}
 			if _, ok := orgs[r.Organization]; ok {
 				return fmt.Errorf("duplicate organization %q in roles", r.Organization)
 			}
@@ -157,11 +154,23 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
+	serverCtx := serverContext(ctx)
+	cfg, err := s.Store.Config(serverCtx).Get(serverCtx)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		return
+	}
+
 	user := &chronograf.User{
 		Name:     req.Name,
 		Provider: req.Provider,
 		Scheme:   req.Scheme,
 		Roles:    req.Roles,
+	}
+
+	if cfg.Auth.SuperAdminNewUsers {
+		req.SuperAdmin = true
 	}
 
 	if err := setSuperAdmin(ctx, req, user); err != nil {
@@ -264,6 +273,21 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Don't allow SuperAdmins to modify their own SuperAdmin status.
+	// Allowing them to do so could result in an application where there
+	// are no super admins.
+	ctxUser, ok := hasUserContext(ctx)
+	if !ok {
+		Error(w, http.StatusInternalServerError, "failed to retrieve user from context", s.Logger)
+		return
+	}
+	// If the user being updated is the user making the request and they are
+	// changing their SuperAdmin status, return an unauthorized error
+	if ctxUser.ID == u.ID && u.SuperAdmin == true && req.SuperAdmin == false {
+		Error(w, http.StatusUnauthorized, "user cannot modify their own SuperAdmin status", s.Logger)
+		return
+	}
+
 	if err := setSuperAdmin(ctx, req, u); err != nil {
 		Error(w, http.StatusUnauthorized, err.Error(), s.Logger)
 		return
@@ -312,7 +336,7 @@ func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) 
 	} else if !isSuperAdmin && (user.SuperAdmin != req.SuperAdmin) {
 		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
 		// context, return error
-		return fmt.Errorf("User does not have authorization required to set SuperAdmin status")
+		return fmt.Errorf("User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information.")
 	}
 
 	return nil

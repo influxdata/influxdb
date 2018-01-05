@@ -12,4 +12,4 @@ export const USER_ROLES = [
   {name: ADMIN_ROLE},
 ]
 
-export const DEFAULT_ORG_ID = '0'
+export const DEFAULT_ORG_ID = 'default'

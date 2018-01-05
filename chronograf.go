@@ -16,16 +16,20 @@ const (
 	ErrDashboardNotFound               = Error("dashboard not found")
 	ErrUserNotFound                    = Error("user not found")
 	ErrLayoutInvalid                   = Error("layout is invalid")
+	ErrDashboardInvalid                = Error("dashboard is invalid")
+	ErrSourceInvalid                   = Error("source is invalid")
+	ErrServerInvalid                   = Error("server is invalid")
 	ErrAlertNotFound                   = Error("alert not found")
 	ErrAuthentication                  = Error("user not authenticated")
 	ErrUninitialized                   = Error("client uninitialized. Call Open() method")
 	ErrInvalidAxis                     = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
-	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold'")
+	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold', 'text', and 'background'")
 	ErrInvalidColor                    = Error("Invalid color. Accepted color format is #RRGGBB")
 	ErrUserAlreadyExists               = Error("user already exists")
 	ErrOrganizationNotFound            = Error("organization not found")
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
+	ErrConfigNotFound                  = Error("cannot find configuration")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -561,7 +565,7 @@ type LayoutsStore interface {
 
 // Organization is a group of resources under a common name
 type Organization struct {
-	ID   uint64 `json:"id,string"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 	// DefaultRole is the name of the role that is the default for any users added to the organization
 	DefaultRole string `json:"defaultRole,omitempty"`
@@ -575,7 +579,7 @@ type Organization struct {
 // It is expected that only one of ID or Name will be specified, but will prefer ID over Name if both are specified.
 type OrganizationQuery struct {
 	// If an ID is provided in the query, the lookup time for an organization will be O(1).
-	ID *uint64
+	ID *string
 	// If Name is provided, the lookup time will be O(n).
 	Name *string
 }
@@ -603,4 +607,49 @@ type OrganizationsStore interface {
 	CreateDefault(ctx context.Context) error
 	// DefaultOrganization returns the DefaultOrganization
 	DefaultOrganization(ctx context.Context) (*Organization, error)
+}
+
+// AuthConfig is the global application config section for auth parameters
+
+type AuthConfig struct {
+	// SuperAdminNewUsers should be true by default to give a seamless upgrade to
+	// 1.4.0 for legacy users. It means that all new users will by default receive
+	// SuperAdmin status. If a SuperAdmin wants to change this behavior, they
+	// can toggle it off via the Chronograf UI, in which case newly authenticating
+	// users will simply receive whatever role they would otherwise receive.
+	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
+}
+
+// Config is the global application Config for parameters that can be set via
+// API, with different sections, such as Auth
+type Config struct {
+	Auth AuthConfig `json:"auth"`
+}
+
+// ConfigStore is the storage and retrieval of global application Config
+type ConfigStore interface {
+	// Initialize creates the initial configuration
+	Initialize(context.Context) error
+	// Get retrieves the whole Config from the ConfigStore
+	Get(context.Context) (*Config, error)
+	// Update updates the whole Config in the ConfigStore
+	Update(context.Context, *Config) error
+}
+
+// BuildInfo is sent to the usage client to track versions and commits
+type BuildInfo struct {
+	Version string
+	Commit  string
+}
+
+// BuildStore is the storage and retrieval of Chronograf build information
+type BuildStore interface {
+	Get(context.Context) (BuildInfo, error)
+	Update(context.Context, BuildInfo) error
+}
+
+// Environement is the set of front-end exposed environment variables
+// that were set on the server
+type Environment struct {
+	TelegrafSystemInterval time.Duration `json:"telegrafSystemInterval"`
 }

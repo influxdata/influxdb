@@ -387,6 +387,7 @@ export const PRESENTATION_MODE_ANIMATION_DELAY = 0 // In milliseconds.
 export const PRESENTATION_MODE_NOTIFICATION_DELAY = 2000 // In milliseconds.
 
 export const SHORT_NOTIFICATION_DISMISS_DELAY = 2000 // in milliseconds
+export const LONG_NOTIFICATION_DISMISS_DELAY = 4000 // in milliseconds
 
 export const REVERT_STATE_DELAY = 1500 // ms
 

@@ -8,87 +8,87 @@
   align-items: stretch;
   flex-wrap: nowrap;
 }
-.opt-in--left-label {
+.opt-in--container {
+  display: flex;
+  align-items: stretch;
   border: 2px solid $g5-pepper;
   border-left: 0;
-  background-color: $g2-kevlar;
+  border-radius: 0 4px 4px 0;
+}
+.opt-in--label {
+  user-select: none !important;
+  -moz-user-select: none !important;
+  -webkit-user-select: none !important;
+  -ms-user-select: none !important;
+  -o-user-select: none !important;
   color: $c-pool;
+  background-color: $g2-kevlar;
   font-family: $code-font;
   padding-right: 11px;
-  border-radius: 0 4px 4px 0;
   line-height: 24px;
   font-size: 13px;
   font-weight: 500;
-  cursor: default;
-  @include no-user-select();
   transition: background-color 0.25s ease, color 0.25s ease;
+
   &:hover {
     cursor: pointer;
   }
+  &:hover:active {
+    cursor: pointer;
+    color: $c-laser;
+  }
 }
-.opt-in--groove-knob-container {
-  display: flex;
-  align-items: center;
-  border: 2px solid $g5-pepper;
-  border-left: 0;
-  border-right: 0;
-  position: relative;
 
+.opt-in--groove-knob {
+  width: 48px;
+  position: relative;
+  background-color: $g2-kevlar;
+
+  &, &:hover {
+    cursor: pointer;
+  }
+
+  &:before,
+  &:after {
+    position: absolute;
+    top: 50%;
+    content: '';
+  }
   // Groove
-  > div.opt-in--groove-knob {
-    margin: 0 10px;
-    z-index: 3;
+  &:before {
+    z-index: 2;
     width: 28px;
     height: 8px;
     border-radius: 4px;
     background-color: $g6-smoke;
-    position: relative;
-
-    // Knob
-    &:after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background-color: $c-pool;
-      transition: background-color 0.25s ease, transform 0.25s ease;
-      transform: translate(0%, -50%);
-    }
+    transform: translate(-50%,-50%);
+    left: 50%;
   }
-
-  // Background Gradients
-  &:before,
+  // Knob
   &:after {
-    content: '';
-    display: block;
+    z-index: 3;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: $c-pool;
+    transition: background-color 0.25s ease, transform 0.25s ease;
+    transform: translate(0%, -50%);
+  }
+  // Gradient
+  .opt-in--gradient {
+    z-index: 1;
     position: absolute;
-    left: 0;
     width: 100%;
     height: 100%;
-    transition: opacity 0.25s ease;
-  }
-  // Left
-  &:before {
-    background-color: $g2-kevlar;
-    z-index: 2;
-    opacity: 1;
-  }
-  // Right
-  &:after {
+    top: 0;
+    left: 0;
     @include gradient-h($g2-kevlar,$g3-castle);
-    z-index: 1;
-  }
-
-  &:hover {
-    cursor: pointer;
-    > div:after {
-      background-color: $c-laser;
-    }
+    transition: opacity 0.25s ease;
+    opacity: 0;
   }
 }
+
 // Customize form input
 .opt-in > input.form-control {
   border-radius: 4px 0 0 4px;
@@ -101,13 +101,21 @@
     transform: translate(-100%, -50%);
   }
   // Fade out left, fade in right
-  .opt-in--groove-knob-container:before {
-    opacity: 0;
+  .opt-in--gradient {
+    opacity: 1;
   }
   // Make left label look disabled
-  .opt-in--left-label {
+  .opt-in--label {
     background-color: $g3-castle;
     color: $g8-storm;
     font-style: italic;
+
+    &:hover {
+      color: $c-pool;
+    }
+    &:hover:active {
+      font-style: normal;
+      color: $c-laser;
+    }
   }
 }

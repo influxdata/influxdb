@@ -1,0 +1,185 @@
+{
+        "id": 1000,
+        "cells": [
+            {
+                "i": "8f61c619-dd9b-4761-8aa8-577f27247093",
+                "x": 0,
+                "y": 0,
+                "w": 11,
+                "h": 5,
+                "name": "Untitled Cell",
+                "queries": [
+                    {
+                        "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time \u003e :dashboardTime: GROUP BY :interval: FILL(null)",
+                        "queryConfig": {
+                            "id": "b20baa61-bacb-4a17-b27d-b904a0d18114",
+                            "database": "telegraf",
+                            "measurement": "cpg",
+                            "retentionPolicy": "autogen",
+                            "fields": [
+                                {
+                                    "value": "mean",
+                                    "type": "func",
+                                    "alias": "mean_value",
+                                    "args": [
+                                        {
+                                            "value": "value",
+                                            "type": "field",
+                                            "alias": ""
+                                        }
+                                    ]
+                                }
+                            ],
+                            "tags": {},
+                            "groupBy": {
+                                "time": "auto",
+                                "tags": []
+                            },
+                            "areTagsAccepted": true,
+                            "fill": "null",
+                            "rawText": null,
+                            "range": null,
+                            "shifts": []
+                        },
+                        "source": "/chronograf/v1/sources/2"
+                    }
+                ],
+                "axes": {
+                    "x": {
+                        "bounds": [],
+                        "label": "",
+                        "prefix": "",
+                        "suffix": "",
+                        "base": "10",
+                        "scale": "linear"
+                    },
+                    "y": {
+                        "bounds": [],
+                        "label": "",
+                        "prefix": "",
+                        "suffix": "",
+                        "base": "10",
+                        "scale": "linear"
+                    },
+                    "y2": {
+                        "bounds": [],
+                        "label": "",
+                        "prefix": "",
+                        "suffix": "",
+                        "base": "10",
+                        "scale": "linear"
+                    }
+                },
+                "type": "line",
+                "colors": [
+                    {
+                        "id": "0",
+                        "type": "min",
+                        "hex": "#00C9FF",
+                        "name": "laser",
+                        "value": "0"
+                    },
+                    {
+                        "id": "1",
+                        "type": "max",
+                        "hex": "#9394FF",
+                        "name": "comet",
+                        "value": "100"
+                    }
+                ]
+            }
+        ],
+        "templates": [
+            {
+                "tempVar": ":dbs:",
+                "values": [
+                    {
+                        "value": "_internal",
+                        "type": "database",
+                        "selected": true
+                    },
+                    {
+                        "value": "telegraf",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "tensorflowdb",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "pushgateway",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "node_exporter",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "mydb",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "tiny",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "blah",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "test",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "chronograf",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "db_name",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "demo",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "eeg",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "solaredge",
+                        "type": "database",
+                        "selected": false
+                    },
+                    {
+                        "value": "zipkin",
+                        "type": "database",
+                        "selected": false
+                    }
+                ],
+                "id": "e7e498bf-5869-4874-9071-24628a2cda63",
+                "type": "databases",
+                "label": "",
+                "query": {
+                    "influxql": "SHOW DATABASES",
+                    "measurement": "",
+                    "tagKey": "",
+                    "fieldKey": ""
+                }
+            }
+        ],
+        "name": "Name This Dashboard",
+        "organization": "howdy"
+    }

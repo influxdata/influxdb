@@ -3,6 +3,9 @@ import {isSameUser} from 'shared/reducers/helpers/auth'
 const initialState = {
   users: [],
   organizations: [],
+  authConfig: {
+    superAdminNewUsers: true,
+  },
 }
 
 const adminChronograf = (state = initialState, action) => {

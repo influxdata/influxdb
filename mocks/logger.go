@@ -8,6 +8,11 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// NewLogger returns a mock logger that implements chronograf.Logger
+func NewLogger() chronograf.Logger {
+	return &TestLogger{}
+}
+
 type LogMessage struct {
 	Level string
 	Body  string

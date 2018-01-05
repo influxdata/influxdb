@@ -158,10 +158,23 @@ message Role {
 }
 
 message Organization {
-	uint64 ID               = 1; // ID is the unique ID of the organization
+	string ID               = 1; // ID is the unique ID of the organization
 	string Name             = 2; // Name is the organization's name
 	string DefaultRole      = 3; // DefaultRole is the name of the role that is the default for any users added to the organization
 	bool Public             = 4; // Public specifies that users must be explicitly added to the organization
+}
+
+message Config {
+	AuthConfig Auth         = 1; // Auth is the configuration for options that auth related
+}
+
+message AuthConfig {
+	bool SuperAdminNewUsers   = 1; // SuperAdminNewUsers configuration option that specifies which users will auto become super admin
+}
+
+message BuildInfo {
+	string Version			= 1; // Version is a descriptive git SHA identifier
+	string Commit			= 2; // Commit is an abbreviated SHA
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

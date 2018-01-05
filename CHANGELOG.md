@@ -1,7 +1,41 @@
-## v1.4.0.0-beta2 [unreleased]
-### Features
+## v1.4.0.0 [2017-12-22]
 ### UI Improvements
+1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Add page header with instructional copy when adding initial source for consistency and clearer UX
+
 ### Bug Fixes
+1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Make page render successfully when attempting to edit a source
+
+## v1.4.0.0-rc2 [2017-12-21]
+### UI Improvements
+1. [#2632](https://github.com/influxdata/chronograf/pull/2632): Tell user which organization they switched into and what role they have whenever they switch, including on Source Page
+
+### Bug Fixes
+1. [#2639](https://github.com/influxdata/chronograf/pull/2639): Prevent SuperAdmin from modifying their own status
+1. [#2632](https://github.com/influxdata/chronograf/pull/2632): Give SuperAdmin DefaultRole when switching to organization where they have no role
+1. [#2642](https://github.com/influxdata/chronograf/pull/2642): Fix DE query config on first run
+
+## v1.4.0.0-rc1 [2017-12-19]
+### Features
+1. [#2593](https://github.com/influxdata/chronograf/pull/2593): Add option to use files for dashboards, organizations, data sources, and kapacitors
+1. [#2604](https://github.com/influxdata/chronograf/pull/2604): After chronograf version upgrade, backup database is created in ./backups
+
+### UI Improvements
+1. [#2492](https://github.com/influxdata/chronograf/pull/2492): Cleanup style on login page with multiple OAuth2 providers
+
+### Bug Fixes
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix stale source data after updating or creating
+1. [#2616](https://github.com/influxdata/chronograf/pull/2616): Fix cell editing so query data choices are kept when updating a cell
+1. [#2612](https://github.com/influxdata/chronograf/pull/2612): Allow days as a valid duration value
+
+## v1.4.0.0-beta2 [2017-12-14]
+### UI Improvements
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
+1. [#2598](https://github.com/influxdata/chronograf/pull/2598): Allow appendage of a suffix to single stat visualizations
+1. [#2598](https://github.com/influxdata/chronograf/pull/2598): Allow optional colorization of text instead of background on single stat visualizations
+
+### Bug Fixes
+1. [#2528](https://github.com/influxdata/chronograf/pull/2528): Fix template rendering to ignore template if not in query
+1. [#2563](https://github.com/influxdata/chronograf/pull/2563): Fix graph inversion if user input y-axis min greater than max
 
 ## v1.4.0.0-beta1 [2017-12-07]
 ### Features

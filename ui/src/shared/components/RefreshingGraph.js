@@ -39,13 +39,16 @@ const RefreshingGraph = ({
   }
 
   if (type === 'single-stat') {
+    const suffix = axes.y.suffix || ''
     return (
       <RefreshingSingleStat
+        colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+        suffix={suffix}
       />
     )
   }

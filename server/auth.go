@@ -99,19 +99,13 @@ func AuthorizedUser(
 				Error(w, http.StatusForbidden, "User is not authorized", logger)
 				return
 			}
-			p.Organization = fmt.Sprintf("%d", defaultOrg.ID)
+			p.Organization = defaultOrg.ID
 		}
 
 		// validate that the organization exists
-		orgID, err := parseOrganizationID(p.Organization)
+		_, err = store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 		if err != nil {
-			log.Error("Failed to validate organization on context")
-			Error(w, http.StatusForbidden, "User is not authorized", logger)
-			return
-		}
-		_, err = store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &orgID})
-		if err != nil {
-			log.Error(fmt.Sprintf("Failed to retrieve organization %d from organizations store", orgID))
+			log.Error(fmt.Sprintf("Failed to retrieve organization %s from organizations store", p.Organization))
 			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
 		}

@@ -258,5 +258,12 @@ describe('Presenters', () => {
 
       expect(actual).to.equal('m1.derivative_mean_usage_system')
     })
+
+    it('returns a label of empty string if the query config is empty', () => {
+      const query = defaultQueryConfig({id: 1})
+      const actual = buildDefaultYLabel(query)
+
+      expect(actual).to.equal('')
+    })
   })
 })

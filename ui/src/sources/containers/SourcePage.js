@@ -10,6 +10,7 @@ import {
 import {publishNotification} from 'shared/actions/notifications'
 import {connect} from 'react-redux'
 
+import Notifications from 'shared/components/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -98,6 +99,11 @@ class SourcePage extends Component {
     const error = this._parseError(err)
     console.error('Error: ', error)
     notify('error', `${bannerText}: ${error}`)
+  }
+
+  gotoPurgatory = () => {
+    const {router} = this.props
+    router.push('/purgatory')
   }
 
   _normalizeSource({source}) {
@@ -196,22 +202,23 @@ class SourcePage extends Component {
 
     return (
       <div className={`${isInitialSource ? '' : 'page'}`}>
-        {isInitialSource
-          ? null
-          : <div className="page-header">
-              <div className="page-header__container page-header__source-page">
-                <div className="page-header__col-md-8">
-                  <div className="page-header__left">
-                    <h1 className="page-header__title">
-                      {editMode ? 'Edit Source' : 'Add a New Source'}
-                    </h1>
-                  </div>
-                  <div className="page-header__right">
-                    <SourceIndicator />
-                  </div>
-                </div>
+        <Notifications />
+        <div className="page-header">
+          <div className="page-header__container page-header__source-page">
+            <div className="page-header__col-md-8">
+              <div className="page-header__left">
+                <h1 className="page-header__title">
+                  {editMode ? 'Edit Source' : 'Add a New Source'}
+                </h1>
               </div>
-            </div>}
+              {isInitialSource
+                ? null
+                : <div className="page-header__right">
+                    <SourceIndicator />
+                  </div>}
+            </div>
+          </div>
+        </div>
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
@@ -224,6 +231,7 @@ class SourcePage extends Component {
                     onSubmit={this.handleSubmit}
                     onBlurSourceURL={this.handleBlurSourceURL}
                     isInitialSource={isInitialSource}
+                    gotoPurgatory={this.gotoPurgatory}
                   />
                 </div>
               </div>

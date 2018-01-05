@@ -5,6 +5,8 @@ import {linksReceived} from 'shared/actions/links'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
+import {LONG_NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
+
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',
   payload: {
@@ -59,12 +61,15 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
     const {
       data: me,
       auth,
-      logoutLink,
-      external,
       users,
-      organizations,
       meLink,
+      config,
+      external,
+      logoutLink,
+      organizations,
+      environment,
     } = await getMeAJAX()
+
     dispatch(
       meGetCompleted({
         me,
@@ -72,7 +77,17 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
         logoutLink,
       })
     )
-    dispatch(linksReceived({external, users, organizations, me: meLink})) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
+
+    dispatch(
+      linksReceived({
+        external,
+        users,
+        organizations,
+        me: meLink,
+        config,
+        environment,
+      })
+    ) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
   } catch (error) {
     dispatch(meGetFailed())
     dispatch(errorThrown(error))
@@ -86,10 +101,15 @@ export const meChangeOrganizationAsync = (
   dispatch(meChangeOrganizationRequested())
   try {
     const {data: me, auth, logoutLink} = await updateMeAJAX(url, organization)
+    const currentRole = me.roles.find(
+      r => r.organization === me.currentOrganization.id
+    )
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `Now signed into ${me.currentOrganization.name}`
+        `Now logged in to '${me.currentOrganization
+          .name}' as '${currentRole.name}'`,
+        LONG_NOTIFICATION_DISMISS_DELAY
       )
     )
     dispatch(meChangeOrganizationCompleted())

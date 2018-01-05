@@ -1,5 +1,4 @@
 import React, {Component, PropTypes} from 'react'
-import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
 
 class UsersTableHeader extends Component {
   constructor(props) {
@@ -21,16 +20,14 @@ class UsersTableHeader extends Component {
         <h2 className="panel-title">
           {panelTitle} in <em>{organization.name}</em>
         </h2>
-        <Authorized requiredRole={ADMIN_ROLE}>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={onClickCreateUser}
-            disabled={isCreatingUser}
-          >
-            <span className="icon plus" />
-            Create User
-          </button>
-        </Authorized>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={onClickCreateUser}
+          disabled={isCreatingUser || !onClickCreateUser}
+        >
+          <span className="icon plus" />
+          Create User
+        </button>
       </div>
     )
   }
@@ -38,13 +35,20 @@ class UsersTableHeader extends Component {
 
 const {bool, func, shape, string, number} = PropTypes
 
+UsersTableHeader.defaultProps = {
+  numUsers: 0,
+  organization: {
+    name: '',
+  },
+  isCreatingUser: false,
+}
+
 UsersTableHeader.propTypes = {
   numUsers: number.isRequired,
-  onClickCreateUser: func.isRequired,
+  onClickCreateUser: func,
   isCreatingUser: bool.isRequired,
   organization: shape({
     name: string.isRequired,
-    id: string.isRequired,
   }),
 }
 

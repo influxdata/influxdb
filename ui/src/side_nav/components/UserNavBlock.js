@@ -30,8 +30,6 @@ class UserNavBlock extends Component {
 
     const isSuperAdmin = role === SUPERADMIN_ROLE
 
-    const isSmallViewport = window.visualViewport.height < 850
-
     return (
       <div className="sidebar--item">
         <div className="sidebar--square">
@@ -40,125 +38,69 @@ class UserNavBlock extends Component {
             ? <span className="sidebar--icon sidebar--icon__superadmin icon crown2" />
             : null}
         </div>
-        {isSmallViewport
-          ? <div className="sidebar-menu sidebar-menu--inverse">
-              {customLinks
-                ? <div className="sidebar-menu--section">Custom Links</div>
-                : null}
-              {customLinks
-                ? customLinks.map((link, i) =>
-                    <a
-                      key={i}
-                      className="sidebar-menu--item"
-                      href={link.url}
-                      target="_blank"
-                    >
-                      {link.name}
-                    </a>
-                  )
-                : null}
-              <div className="sidebar-menu--section">Switch Organizations</div>
-              <FancyScrollbar
-                className="sidebar-menu--scrollbar"
-                autoHeight={true}
-                maxHeight={isSmallViewport ? 105 : 300}
-                autoHide={false}
-              >
-                {roles.map((r, i) => {
-                  const isLinkCurrentOrg =
-                    currentOrganization.id === r.organization
-                  return (
-                    <span
-                      key={i}
-                      className={classnames({
-                        'sidebar-menu--item': true,
-                        active: isLinkCurrentOrg,
-                      })}
-                      onClick={this.handleChangeCurrentOrganization(
-                        r.organization
-                      )}
-                    >
-                      {
-                        organizations.find(o => o.id === r.organization).name
-                      }{' '}
-                      <strong>({r.name})</strong>
-                    </span>
-                  )
-                })}
-              </FancyScrollbar>
-              <div className="sidebar-menu--section">Account</div>
-              <div className="sidebar-menu--provider">
-                <div>
-                  {me.scheme} / {me.provider}
-                </div>
+        <div className="sidebar-menu sidebar-menu--user-nav">
+          {customLinks
+            ? <div className="sidebar-menu--section sidebar-menu--section__custom-links">
+                Custom Links
               </div>
-              <a className="sidebar-menu--item" href={logoutLink}>
-                Logout
-              </a>
-              <div className="sidebar-menu--heading sidebar--no-hover">
-                {me.name}
-              </div>
-              <div className="sidebar-menu--triangle" />
+            : null}
+          {customLinks
+            ? customLinks.map((link, i) =>
+                <a
+                  key={i}
+                  className="sidebar-menu--item sidebar-menu--item__link-name"
+                  href={link.url}
+                  target="_blank"
+                >
+                  {link.name}
+                </a>
+              )
+            : null}
+          <div className="sidebar-menu--section sidebar-menu--section__switch-orgs">
+            Switch Organizations
+          </div>
+          <FancyScrollbar
+            className="sidebar-menu--scrollbar"
+            autoHeight={true}
+            maxHeight={100}
+            autoHide={false}
+          >
+            {roles.map((r, i) => {
+              const isLinkCurrentOrg = currentOrganization.id === r.organization
+              return (
+                <span
+                  key={i}
+                  className={classnames({
+                    'sidebar-menu--item': true,
+                    active: isLinkCurrentOrg,
+                  })}
+                  onClick={this.handleChangeCurrentOrganization(r.organization)}
+                >
+                  {organizations.find(o => o.id === r.organization).name}{' '}
+                  <strong>({r.name})</strong>
+                </span>
+              )
+            })}
+          </FancyScrollbar>
+          <div className="sidebar-menu--section sidebar-menu--section__account">
+            Account
+          </div>
+          <div className="sidebar-menu--provider">
+            <div>
+              {me.scheme} / {me.provider}
             </div>
-          : <div className="sidebar-menu">
-              <div className="sidebar-menu--heading sidebar--no-hover">
-                {me.name}
-              </div>
-              <div className="sidebar-menu--section">Account</div>
-              <div className="sidebar-menu--provider">
-                <div>
-                  {me.scheme} / {me.provider}
-                </div>
-              </div>
-              <a className="sidebar-menu--item" href={logoutLink}>
-                Logout
-              </a>
-              <div className="sidebar-menu--section">Switch Organizations</div>
-              <FancyScrollbar
-                className="sidebar-menu--scrollbar"
-                autoHeight={true}
-                maxHeight={isSmallViewport ? 100 : 300}
-                autoHide={false}
-              >
-                {roles.map((r, i) => {
-                  const isLinkCurrentOrg =
-                    currentOrganization.id === r.organization
-                  return (
-                    <span
-                      key={i}
-                      className={classnames({
-                        'sidebar-menu--item': true,
-                        active: isLinkCurrentOrg,
-                      })}
-                      onClick={this.handleChangeCurrentOrganization(
-                        r.organization
-                      )}
-                    >
-                      {
-                        organizations.find(o => o.id === r.organization).name
-                      }{' '}
-                      <strong>({r.name})</strong>
-                    </span>
-                  )
-                })}
-              </FancyScrollbar>
-              {customLinks
-                ? <div className="sidebar-menu--section">Custom Links</div>
-                : null}
-              {customLinks
-                ? customLinks.map((link, i) =>
-                    <a
-                      key={i}
-                      className="sidebar-menu--item"
-                      href={link.url}
-                      target="_blank"
-                    >
-                      {link.name}
-                    </a>
-                  )
-                : null}
-              <div className="sidebar-menu--triangle" />
-            </div>}
+          </div>
+          <a
+            className="sidebar-menu--item sidebar-menu--item__logout"
+            href={logoutLink}
+          >
+            Log out
+          </a>
+          <div className="sidebar-menu--heading sidebar--no-hover">
+            {me.name}
+          </div>
+          <div className="sidebar-menu--triangle" />
+        </div>
       </div>
     )
   }

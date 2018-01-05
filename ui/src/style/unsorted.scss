@@ -180,6 +180,11 @@ br {
   border-left: 2px solid $g5-pepper;
   width: 278px;
 }
+.source-table--kapacitor__view-only {
+  @include no-user-select();
+  font-size: 14px;
+  font-weight: 600;
+}
 
 /*
   Styles for the Status Dashboard
