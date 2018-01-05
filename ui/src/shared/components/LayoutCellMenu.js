@@ -20,10 +20,10 @@ const LayoutCellMenu = OnClickOutside(
           ? 'dash-graph--custom-indicators dash-graph--draggable'
           : 'dash-graph--custom-indicators'}`}
       >
-        {queries && queries.length && <CustomTimeIndicator queries={queries} />}
+        {queries && <CustomTimeIndicator queries={queries} />}
       </div>
       {isEditable &&
-        <div clasnName="dash-graph--buttons">
+        <div className="dash-graph-context--buttons">
           <div className="dash-graph-context--button" onClick={onEdit(cell)}>
             <span className="icon pencil" />
           </div>
