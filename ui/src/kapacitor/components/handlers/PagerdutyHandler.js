@@ -15,7 +15,9 @@ const PagerdutyHandler = ({
             Parameters from Kapacitor Configuration
             <div className="btn btn-default btn-sm" onClick={onGoToConfig}>
               <span className="icon cog-thick" />
-              Edit Kapacitor Configuration
+              {validationError
+                ? 'Exit this Rule and Edit Configuration'
+                : 'Save this Rule and Edit Configuration'}
             </div>
           </h4>
           <HandlerInput
