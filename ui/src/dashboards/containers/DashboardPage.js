@@ -207,7 +207,7 @@ class DashboardPage extends Component {
     if (
       dashboard &&
       dygraphs.length === graphsToSync.length &&
-      dashboard.cells.length > 1
+      dygraphs.length > 1
     ) {
       Dygraph.synchronize(dygraphs, {
         selection: true,
