@@ -566,6 +566,7 @@ func (s *Store) DeleteDatabase(name string) error {
 		// no files locally, so nothing to do
 		return nil
 	}
+	sfile := s.sfiles[name]
 	shards := s.filterShards(func(sh *Shard) bool {
 		return sh.database == name
 	})
@@ -583,6 +584,16 @@ func (s *Store) DeleteDatabase(name string) error {
 
 	dbPath := filepath.Clean(filepath.Join(s.path, name))
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Close series file.
+	if sfile != nil {
+		if err := sfile.Close(); err != nil {
+			return err
+		}
+	}
+
 	// extra sanity check to make sure that even if someone named their database "../.."
 	// that we don't delete everything because of it, they'll just have extra files forever
 	if filepath.Clean(s.path) != filepath.Dir(dbPath) {
@@ -596,7 +607,6 @@ func (s *Store) DeleteDatabase(name string) error {
 		return err
 	}
 
-	s.mu.Lock()
 	for _, sh := range shards {
 		delete(s.shards, sh.id)
 	}
@@ -606,7 +616,6 @@ func (s *Store) DeleteDatabase(name string) error {
 
 	// Remove shared index for database if using inmem index.
 	delete(s.indexes, name)
-	s.mu.Unlock()
 
 	return nil
 }
