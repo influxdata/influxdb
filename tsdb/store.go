@@ -439,10 +439,10 @@ func (s *Store) ShardN() int {
 }
 
 // ShardDigest returns a digest of the shard with the specified ID.
-func (s *Store) ShardDigest(id uint64) (io.ReadCloser, error) {
+func (s *Store) ShardDigest(id uint64) (io.ReadCloser, int64, error) {
 	sh := s.Shard(id)
 	if sh == nil {
-		return nil, ErrShardNotFound
+		return nil, 0, ErrShardNotFound
 	}
 
 	return sh.Digest()

@@ -229,7 +229,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 }
 
 // Digest returns a reader for the shard's digest.
-func (e *Engine) Digest() (io.ReadCloser, error) {
+func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 	digestPath := filepath.Join(e.path, "digest.tsd")
 
 	// See if there's an existing digest file on disk.
@@ -239,16 +239,21 @@ func (e *Engine) Digest() (io.ReadCloser, error) {
 		fi, err := f.Stat()
 		if err != nil {
 			f.Close()
-			return nil, err
+			return nil, 0, err
 		}
 
 		if !e.LastModified().After(fi.ModTime()) {
 			// Existing digest is still fresh so return a reader for it.
-			return f, nil
+			fi, err := f.Stat()
+			if err != nil {
+				f.Close()
+				return nil, 0, err
+			}
+			return f, fi.Size(), nil
 		}
 
 		if err := f.Close(); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
 
@@ -258,23 +263,34 @@ func (e *Engine) Digest() (io.ReadCloser, error) {
 	// Create a tmp file to write the digest to.
 	tf, err := os.Create(digestPath + ".tmp")
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Write the new digest to the tmp file.
 	if err := Digest(e.path, tf); err != nil {
 		tf.Close()
 		os.Remove(tf.Name())
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Rename the temporary digest file to the actual digest file.
 	if err := renameFile(tf.Name(), digestPath); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Create and return a reader for the new digest file.
-	return os.Open(digestPath)
+	f, err = os.Open(digestPath)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	fi, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, 0, err
+	}
+
+	return f, fi.Size(), nil
 }
 
 // SetEnabled sets whether the engine is enabled.

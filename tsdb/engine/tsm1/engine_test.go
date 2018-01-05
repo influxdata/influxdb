@@ -90,9 +90,13 @@ func TestEngine_Digest(t *testing.T) {
 
 	digest := func() ([]span, error) {
 		// Get a reader for the shard's digest.
-		r, err := e.Digest()
+		r, sz, err := e.Digest()
 		if err != nil {
 			return nil, err
+		}
+
+		if sz <= 0 {
+			t.Fatalf("expected digest size > 0")
 		}
 
 		// Make sure the digest can be read.
