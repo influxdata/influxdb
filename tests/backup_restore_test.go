@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"fmt"
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 )
@@ -193,7 +194,13 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	cmd.Run("-host", hostAddress, "-enterprise", enterpriseBackupDir)
 
 	// wait for the import to finish, and unlock the shard engine.
-	time.Sleep(time.Second)
+	time.Sleep(3 * time.Second)
+
+	res, err = s.Query(`show shards`)
+	if err != nil {
+		t.Fatalf("error querying: %s", err.Error())
+	}
+	fmt.Println(res)
 
 	res, err = s.Query(`select * from "mydbbak"."forever"."myseries"`)
 	if err != nil {
