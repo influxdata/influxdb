@@ -1112,16 +1112,16 @@ func (s *Shard) TagKeyCardinality(name, key []byte) int {
 }
 
 // Digest returns a digest of the shard.
-func (s *Shard) Digest() (io.ReadCloser, error) {
+func (s *Shard) Digest() (io.ReadCloser, int64, error) {
 	engine, err := s.engine()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Make sure the shard is idle/cold. (No use creating a digest of a
 	// hot shard that is rapidly changing.)
 	if !engine.IsIdle() {
-		return nil, ErrShardNotIdle
+		return nil, 0, ErrShardNotIdle
 	}
 
 	return engine.Digest()
