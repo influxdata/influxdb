@@ -368,14 +368,10 @@ func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 	return sfile, nil
 }
 
-func (s *Store) seriesFile(database string) (*SeriesFile, error) {
+func (s *Store) seriesFile(database string) *SeriesFile {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	sfile, ok := s.sfiles[database]
-	if !ok {
-		return nil, fmt.Errorf("no series file present for database %q", database)
-	}
-	return sfile, nil
+	return s.sfiles[database]
 }
 
 // createIndexIfNotExists returns a shared index for a database, if the inmem
@@ -566,7 +562,10 @@ func (s *Store) DeleteDatabase(name string) error {
 		// no files locally, so nothing to do
 		return nil
 	}
+
 	sfile := s.sfiles[name]
+	delete(s.sfiles, name)
+
 	shards := s.filterShards(func(sh *Shard) bool {
 		return sh.database == name
 	})
@@ -1083,9 +1082,9 @@ func (s *Store) MeasurementNames(auth query.Authorizer, database string, cond in
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
-	sfile, err := s.seriesFile(database)
-	if err != nil {
-		return nil, err
+	sfile := s.seriesFile(database)
+	if sfile == nil {
+		return nil, nil
 	}
 
 	// Build indexset.
@@ -1608,9 +1607,9 @@ func (s *Store) monitorShards() {
 				databases[db] = struct{}{}
 				dbLock.Unlock()
 
-				sfile, err := s.seriesFile(sh.database)
-				if err != nil {
-					return err
+				sfile := s.seriesFile(sh.database)
+				if sfile == nil {
+					return nil
 				}
 
 				firstShardIndex, err := sh.Index()
