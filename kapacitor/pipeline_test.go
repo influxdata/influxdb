@@ -221,7 +221,7 @@ func TestPipelineJSONDeadman(t *testing.T) {
         |httpOut('output')
 `
 
-	want := `var from1 = stream
+	wantA := `var from1 = stream
     |from()
         .database('telegraf')
         .retentionPolicy('autogen')
@@ -270,6 +270,55 @@ alert5
         .tag('triggerType', 'deadman')
 `
 
+	wantB := `var from1 = stream
+    |from()
+        .database('telegraf')
+        .retentionPolicy('autogen')
+        .measurement('cpu')
+        .where(lambda: "cpu" == 'cpu_total' AND "host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+        .groupBy('host', 'cluster_id')
+
+var alert5 = from1
+    |stats(10m)
+        .align()
+    |derivative('emitted')
+        .as('emitted')
+        .unit(10m)
+        .nonNegative()
+    |alert()
+        .id('name:{{.Group}}')
+        .message('message')
+        .details('{{ json . }}')
+        .crit(lambda: "emitted" <= 0.0)
+        .history(21)
+        .levelTag('level')
+        .messageField('message')
+        .durationField('duration')
+        .idTag('alertID')
+        .stateChangesOnly()
+        .email()
+        .victorOps()
+        .slack()
+
+alert5
+    |eval(lambda: "emitted")
+        .as('value')
+        .tags()
+        .keep('value', 'message', 'duration')
+    |influxDBOut()
+        .database('chronograf')
+        .retentionPolicy('autogen')
+        .measurement('alerts')
+        .buffer(1000)
+        .flushInterval(10s)
+        .create()
+        .tag('alertName', 'name')
+        .tag('triggerType', 'deadman')
+
+alert5
+    |httpOut('output')
+`
+
 	octets, err := MarshalTICK(script)
 	if err != nil {
 		t.Fatalf("MarshalTICK unexpected error %v", err)
@@ -279,7 +328,8 @@ alert5
 		t.Fatalf("UnmarshalTICK unexpected error %v", err)
 	}
 
-	if got != want {
+	if got != wantA && got != wantB {
+		want := wantA
 		fmt.Println("got")
 		fmt.Println(got)
 		fmt.Println("want")
