@@ -429,7 +429,7 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *SeriesSet, names [][]byte, tagsSlice []models.Tags) error {
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) error {
 	buf := make([]byte, 2048)
 
 	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice, buf[:0])

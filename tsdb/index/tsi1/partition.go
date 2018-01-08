@@ -50,7 +50,7 @@ type Partition struct {
 	seq           int              // file id sequence
 
 	// Fast series lookup.
-	seriesSet *SeriesSet
+	seriesSet *tsdb.SeriesIDSet
 
 	// Compaction management
 	levels          []CompactionLevel // compaction levels
@@ -93,7 +93,7 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 		closing:   make(chan struct{}),
 		path:      path,
 		sfile:     sfile,
-		seriesSet: NewSeriesSet(),
+		seriesSet: tsdb.NewSeriesIDSet(),
 
 		// Default compaction thresholds.
 		MaxLogFileSize: DefaultMaxLogFileSize,
@@ -264,7 +264,7 @@ func (i *Partition) buildSeriesSet() error {
 	fs := i.retainFileSet()
 	defer fs.Release()
 
-	i.seriesSet = NewSeriesSet()
+	i.seriesSet = tsdb.NewSeriesIDSet()
 
 	mitr := fs.MeasurementIterator()
 	if mitr == nil {
