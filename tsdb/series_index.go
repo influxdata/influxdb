@@ -165,6 +165,13 @@ func (idx *SeriesIndex) execEntry(flag uint8, id uint64, offset int64, key []byt
 		idx.keyIDMap.Put(key, id)
 		idx.idOffsetMap[id] = offset
 
+		if id > idx.maxSeriesID {
+			idx.maxSeriesID = id
+		}
+		if offset > idx.maxOffset {
+			idx.maxOffset = offset
+		}
+
 	case SeriesEntryTombstoneFlag:
 		idx.tombstones[id] = struct{}{}
 
@@ -255,6 +262,8 @@ func (idx *SeriesIndex) Clone() *SeriesIndex {
 		count:        idx.count,
 		capacity:     idx.capacity,
 		mask:         idx.mask,
+		maxSeriesID:  idx.maxSeriesID,
+		maxOffset:    idx.maxOffset,
 		data:         idx.data,
 		keyIDData:    idx.keyIDData,
 		idOffsetData: idx.idOffsetData,
