@@ -3,6 +3,7 @@ package tsdb
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -15,6 +16,10 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	ErrSeriesFileClosed = errors.New("tsdb: series file closed")
+)
+
 // SeriesIDSize is the size in bytes of a series key ID.
 const SeriesIDSize = 8
 
@@ -24,9 +29,10 @@ const DefaultSeriesFileCompactThreshold = 1 << 20 // 1M
 
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
-	mu   sync.RWMutex
-	wg   sync.WaitGroup
-	path string
+	mu     sync.RWMutex
+	wg     sync.WaitGroup
+	path   string
+	closed bool
 
 	segments []*SeriesSegment
 	index    *SeriesIndex
@@ -50,6 +56,10 @@ func NewSeriesFile(path string) *SeriesFile {
 
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
+	if f.closed {
+		return errors.New("tsdb: cannot reopen series file")
+	}
+
 	// Create path if it doesn't exist.
 	if err := os.MkdirAll(filepath.Join(f.path), 0777); err != nil {
 		return err
@@ -127,6 +137,8 @@ func (f *SeriesFile) Close() (err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.closed = true
+
 	for _, s := range f.segments {
 		if e := s.Close(); e != nil && err == nil {
 			err = e
@@ -154,6 +166,10 @@ func (f *SeriesFile) IndexPath() string { return filepath.Join(f.path, "index") 
 // The returned ids list returns values for new series and zero for existing series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []uint64, err error) {
 	f.mu.RLock()
+	if f.closed {
+		f.mu.RUnlock()
+		return nil, ErrSeriesFileClosed
+	}
 	ids, ok := f.index.FindIDListByNameTags(f.segments, names, tagsSlice, buf)
 	if ok {
 		f.mu.RUnlock()
@@ -170,6 +186,10 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	// Obtain write lock to create new series.
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.closed {
+		return nil, ErrSeriesFileClosed
+	}
 
 	// Track offsets of duplicate series.
 	newIDs := make(map[string]uint64, len(ids))
@@ -247,6 +267,10 @@ func (f *SeriesFile) DeleteSeriesID(id uint64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.closed {
+		return ErrSeriesFileClosed
+	}
+
 	// Already tombstoned, ignore.
 	if f.index.IsDeleted(id) {
 		return nil
@@ -267,6 +291,10 @@ func (f *SeriesFile) DeleteSeriesID(id uint64) error {
 // IsDeleted returns true if the ID has been deleted before.
 func (f *SeriesFile) IsDeleted(id uint64) bool {
 	f.mu.RLock()
+	if f.closed {
+		f.mu.RUnlock()
+		return false
+	}
 	v := f.index.IsDeleted(id)
 	f.mu.RUnlock()
 	return v
@@ -278,6 +306,10 @@ func (f *SeriesFile) SeriesKey(id uint64) []byte {
 		return nil
 	}
 	f.mu.RLock()
+	if f.closed {
+		f.mu.RUnlock()
+		return nil
+	}
 	key := f.seriesKeyByOffset(f.index.FindOffsetByID(id))
 	f.mu.RUnlock()
 	return key
@@ -295,6 +327,10 @@ func (f *SeriesFile) Series(id uint64) ([]byte, models.Tags) {
 // SeriesID return the series id for the series.
 func (f *SeriesFile) SeriesID(name []byte, tags models.Tags, buf []byte) uint64 {
 	f.mu.RLock()
+	if f.closed {
+		f.mu.RUnlock()
+		return 0
+	}
 	id := f.index.FindIDBySeriesKey(f.segments, AppendSeriesKey(buf[:0], name, tags))
 	f.mu.RUnlock()
 	return id
@@ -308,6 +344,10 @@ func (f *SeriesFile) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 // SeriesCount returns the number of series.
 func (f *SeriesFile) SeriesCount() uint64 {
 	f.mu.RLock()
+	if f.closed {
+		f.mu.RUnlock()
+		return 0
+	}
 	n := f.index.Count()
 	f.mu.RUnlock()
 	return n
