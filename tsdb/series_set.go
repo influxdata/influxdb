@@ -21,10 +21,33 @@ func NewSeriesIDSet() *SeriesIDSet {
 
 // Add adds the series id to the set.
 func (s *SeriesIDSet) Add(id uint64) {
+	s.Lock()
+	defer s.Unlock()
+	s.AddNoLock(id)
+}
+
+// AddNoLock adds the series id to the set. Add is not safe for use from multiple
+// goroutines. Callers must manage synchronization.
+func (s *SeriesIDSet) AddNoLock(id uint64) {
 	s.bitmap.Add(uint32(id))
 }
 
 // Contains returns true if the id exists in the set.
 func (s *SeriesIDSet) Contains(id uint64) bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.ContainsNoLock(id)
+}
+
+// ContainsNoLock returns true if the id exists in the set. ContainsNoLock is
+// not safe for use from multiple goroutines. The caller must manage synchronization.
+func (s *SeriesIDSet) ContainsNoLock(id uint64) bool {
 	return s.bitmap.Contains(uint32(id))
+}
+
+// Remove removes the id from the set.
+func (s *SeriesIDSet) Remove(id uint64) {
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.Remove(uint32(id))
 }

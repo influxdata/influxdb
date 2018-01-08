@@ -1364,6 +1364,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64, removeIn
 	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
 	if len(seriesKeys) > 0 {
+		buf := make([]byte, 1024) // For use when accessing series file.
 		for _, k := range seriesKeys {
 			// This key was crossed out earlier, skip it
 			if k == nil {
@@ -1389,7 +1390,18 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64, removeIn
 			}
 
 			// Remove the series from the index.
-			if err := e.index.UnassignShard(string(k), e.id, ts); err != nil {
+			// TODO(edd): if a DROP MEASUREMENT, or even a DROP SERIES had been
+			// issued, we could have updated this bitmap much earlier when we had
+			// the series id, which will save the lookup from series key -> series id.
+			name, tags := models.ParseKey(k)
+			sid := e.sfile.SeriesID([]byte(name), tags, buf)
+			if sid == 0 {
+				return fmt.Errorf("unable to find id for series key %s during deletion", k)
+			}
+
+			// Remove the series from the index for this shard
+			id := (sid << 32) | e.id
+			if err := e.index.UnassignShard(string(k), id, ts); err != nil {
 				return err
 			}
 		}

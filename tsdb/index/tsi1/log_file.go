@@ -441,7 +441,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 	entries := make([]LogEntry, 0, len(names))
 	seriesSet.RLock()
 	for i := range names {
-		if seriesSet.Contains(seriesIDs[i]) {
+		if seriesSet.ContainsNoLock(seriesIDs[i]) {
 			// We don't need to allocate anything for this series.
 			continue
 		}
@@ -463,7 +463,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 
 	for i := range entries {
 		entry := &entries[i]
-		if seriesSet.Contains(entry.SeriesID) {
+		if seriesSet.ContainsNoLock(entry.SeriesID) {
 			// We don't need to allocate anything for this series.
 			continue
 		}
@@ -471,7 +471,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 			return err
 		}
 		f.execEntry(entry)
-		seriesSet.Add(entry.SeriesID)
+		seriesSet.AddNoLock(entry.SeriesID)
 	}
 	return nil
 }

@@ -34,7 +34,7 @@ func init() {
 		DefaultPartitionN = uint64(i)
 	}
 
-	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, sfile *tsdb.SeriesFile, _ tsdb.EngineOptions) tsdb.Index {
+	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, _ tsdb.EngineOptions) tsdb.Index {
 		idx := NewIndex(sfile, WithPath(path))
 		idx.database = db
 		return idx
