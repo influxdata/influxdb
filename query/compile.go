@@ -275,6 +275,8 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileCumulativeSum(expr.Args)
 		case "moving_average":
 			return c.compileMovingAverage(expr.Args)
+		case "exponential_moving_average":
+			return c.compileExponentialMovingAverage(expr.Args)
 		case "elapsed":
 			return c.compileElapsed(expr.Args)
 		case "integral":
@@ -547,6 +549,61 @@ func (c *compiledField) compileMovingAverage(args []influxql.Expr) error {
 			return fmt.Errorf("aggregate function required inside the call to moving_average")
 		}
 		return c.compileSymbol("moving_average", arg0)
+	}
+}
+
+func (c *compiledField) compileExponentialMovingAverage(args []influxql.Expr) error {
+	if got := len(args) - 1; got < 1 || got > 3 {
+		return fmt.Errorf("invalid number of arguments for exponential_moving_average, expected at least 1 but no more than 3, got %d", got)
+	}
+
+	switch arg1 := args[1].(type) {
+	case *influxql.IntegerLiteral:
+		if arg1.Val < 1 {
+			return fmt.Errorf("exponential_moving_average period must be greater than or equal to 1")
+		}
+	default:
+		return fmt.Errorf("exponential_moving_average period must be an integer")
+	}
+
+	if len(args) >= 3 {
+		switch arg2 := args[2].(type) {
+		case *influxql.IntegerLiteral:
+			if arg2.Val < 0 && arg2.Val != -1 {
+				return fmt.Errorf("exponential_moving_average hold period must be greater than or equal to 0")
+			}
+		default:
+			return fmt.Errorf("exponential_moving_average hold period must be an integer")
+		}
+	}
+
+	if len(args) >= 4 {
+		switch arg3 := args[3].(type) {
+		case *influxql.StringLiteral:
+			switch arg3.String() {
+			case "'exponential_moving_average'":
+			case "'average'":
+			default:
+				return fmt.Errorf("exponential_moving_average warmup type must be one of: 'exponential_moving_average' 'average'")
+			}
+		default:
+			return fmt.Errorf("exponential_moving_average warmup type must be a string")
+		}
+	}
+
+	c.global.OnlySelectors = false
+
+	switch arg0 := args[0].(type) {
+	case *influxql.Call:
+		if c.global.Interval.IsZero() {
+			return fmt.Errorf("exponential_moving_average aggregate requires a GROUP BY interval")
+		}
+		return c.compileExpr(arg0)
+	default:
+		if !c.global.Interval.IsZero() {
+			return fmt.Errorf("aggregate function required inside the call to exponential_moving_average")
+		}
+		return c.compileSymbol("exponential_moving_average", arg0)
 	}
 }
 

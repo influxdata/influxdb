@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/query/internal/gota"
 	"github.com/influxdata/influxdb/query/neldermead"
 	"github.com/influxdata/influxql"
 )
@@ -634,6 +635,59 @@ func (r *UnsignedMovingAverageReducer) Emit() []FloatPoint {
 			Value:      float64(r.sum) / float64(len(r.buf)),
 			Time:       r.time,
 			Aggregated: uint32(len(r.buf)),
+		},
+	}
+}
+
+type ExponentialMovingAverageReducer struct {
+	ema        gota.EMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewExponentialMovingAverageReducer(period int, holdPeriod int, warmupType string) *ExponentialMovingAverageReducer {
+	var wt gota.WarmupType
+	if warmupType == "average" {
+		wt = gota.WarmSMA
+	} else {
+		wt = gota.WarmEMA
+	}
+	ema := gota.NewEMA(period, wt)
+	if holdPeriod == -1 {
+		holdPeriod = ema.WarmCount()
+	}
+	return &ExponentialMovingAverageReducer{
+		ema:        *ema,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+
+func (r *ExponentialMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *ExponentialMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ExponentialMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ExponentialMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.ema.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *ExponentialMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
 		},
 	}
 }
