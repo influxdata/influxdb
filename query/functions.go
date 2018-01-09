@@ -1003,6 +1003,61 @@ func (r *KaufmansAdaptiveMovingAverageReducer) Emit() []FloatPoint {
 	}
 }
 
+type ChandeMomentumOscillatorReducer struct {
+	cmo        gota.AlgSimple
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewChandeMomentumOscillatorReducer(period int, holdPeriod int, warmupType string) *ChandeMomentumOscillatorReducer {
+	var cmo gota.AlgSimple
+	switch warmupType {
+	case "average":
+		cmo = gota.NewCMOS(period, gota.WarmSMA)
+	case "exponential_moving_average":
+		cmo = gota.NewCMOS(period, gota.WarmEMA)
+	default:
+		cmo = gota.NewCMO(period)
+	}
+
+	if holdPeriod == -1 {
+		holdPeriod = cmo.WarmCount()
+	}
+	return &ChandeMomentumOscillatorReducer{
+		cmo:        cmo,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *ChandeMomentumOscillatorReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *ChandeMomentumOscillatorReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ChandeMomentumOscillatorReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ChandeMomentumOscillatorReducer) aggregate(v float64, t int64) {
+	r.v = r.cmo.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *ChandeMomentumOscillatorReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
 // FloatCumulativeSumReducer cumulates the values from each point.
 type FloatCumulativeSumReducer struct {
 	curr FloatPoint
