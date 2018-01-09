@@ -105,6 +105,10 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		)
 	}
 
+	checkForRawQuery := func(next http.HandlerFunc) http.HandlerFunc {
+		return CheckForRawQuery(opts.Logger, next)
+	}
+
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
 	router.GET("/docs", Redoc("/swagger.json"))
@@ -194,12 +198,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PUT("/chronograf/v1/me", service.UpdateMe(opts.Auth))
 
 	// TODO(desa): what to do about admin's being able to set superadmin
-	router.GET("/chronograf/v1/users", EnsureAdmin(service.Users))
-	router.POST("/chronograf/v1/users", EnsureAdmin(service.NewUser))
+	router.GET("/chronograf/v1/users", EnsureAdmin(checkForRawQuery(service.Users)))
+	router.POST("/chronograf/v1/users", EnsureAdmin(checkForRawQuery(service.NewUser)))
 
-	router.GET("/chronograf/v1/users/:id", EnsureAdmin(service.UserID))
-	router.DELETE("/chronograf/v1/users/:id", EnsureAdmin(service.RemoveUser))
-	router.PATCH("/chronograf/v1/users/:id", EnsureAdmin(service.UpdateUser))
+	router.GET("/chronograf/v1/users/:id", EnsureAdmin(checkForRawQuery(service.UserID)))
+	router.DELETE("/chronograf/v1/users/:id", EnsureAdmin(checkForRawQuery(service.RemoveUser)))
+	router.PATCH("/chronograf/v1/users/:id", EnsureAdmin(checkForRawQuery(service.UpdateUser)))
 
 	// Dashboards
 	router.GET("/chronograf/v1/dashboards", EnsureViewer(service.Dashboards))

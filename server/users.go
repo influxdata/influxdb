@@ -79,12 +79,16 @@ type userResponse struct {
 	Roles      []chronograf.Role `json:"roles"`
 }
 
-func newUserResponse(u *chronograf.User) *userResponse {
+func newUserResponse(u *chronograf.User, raw bool) *userResponse {
 	// This ensures that any user response with no roles returns an empty array instead of
 	// null when marshaled into JSON. That way, JavaScript doesn't need any guard on the
 	// key existing and it can simply be iterated over.
 	if u.Roles == nil {
 		u.Roles = []chronograf.Role{}
+	}
+	selfLink := fmt.Sprintf("/chronograf/v1/users/%d", u.ID)
+	if raw {
+		selfLink = fmt.Sprintf("%s?raw=true", selfLink)
 	}
 	return &userResponse{
 		ID:         u.ID,
@@ -94,7 +98,7 @@ func newUserResponse(u *chronograf.User) *userResponse {
 		Roles:      u.Roles,
 		SuperAdmin: u.SuperAdmin,
 		Links: selfLinks{
-			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
+			Self: selfLink,
 		},
 	}
 }
@@ -104,18 +108,23 @@ type usersResponse struct {
 	Users []*userResponse `json:"users"`
 }
 
-func newUsersResponse(users []chronograf.User) *usersResponse {
+func newUsersResponse(users []chronograf.User, raw bool) *usersResponse {
 	usersResp := make([]*userResponse, len(users))
 	for i, user := range users {
-		usersResp[i] = newUserResponse(&user)
+		usersResp[i] = newUserResponse(&user, raw)
 	}
 	sort.Slice(usersResp, func(i, j int) bool {
 		return usersResp[i].ID < usersResp[j].ID
 	})
+
+	selfLink := "/chronograf/v1/users"
+	if raw {
+		selfLink = fmt.Sprintf("%s?raw=true", selfLink)
+	}
 	return &usersResponse{
 		Users: usersResp,
 		Links: selfLinks{
-			Self: "/chronograf/v1/users",
+			Self: selfLink,
 		},
 	}
 }
@@ -136,7 +145,7 @@ func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newUserResponse(user)
+	res := newUserResponse(user, hasServerContext(ctx))
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -184,7 +193,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newUserResponse(res)
+	cu := newUserResponse(res, hasServerContext(ctx))
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusCreated, cu, s.Logger)
 }
@@ -299,7 +308,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newUserResponse(u)
+	cu := newUserResponse(u, hasServerContext(ctx))
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusOK, cu, s.Logger)
 }
@@ -314,7 +323,7 @@ func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newUsersResponse(users)
+	res := newUsersResponse(users, hasServerContext(ctx))
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 

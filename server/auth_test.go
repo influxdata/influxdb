@@ -1606,3 +1606,155 @@ func TestAuthorizedUser(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckForRawQuery(t *testing.T) {
+	type fields struct {
+		Logger chronograf.Logger
+	}
+	type args struct {
+		principal     *oauth2.Principal
+		serverContext bool
+		user          *chronograf.User
+		raw           bool
+	}
+	type wants struct {
+		authorized       bool
+		hasServerContext bool
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "middleware already has server context with raw",
+			fields: fields{
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				serverContext: true,
+				raw:           true,
+			},
+			wants: wants{
+				authorized:       true,
+				hasServerContext: true,
+			},
+		},
+		{
+			name: "middleware already has server context without raw",
+			fields: fields{
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				serverContext: true,
+				raw:           false,
+			},
+			wants: wants{
+				authorized:       true,
+				hasServerContext: true,
+			},
+		},
+		{
+			name: "user on context is a SuperAdmin with raw",
+			fields: fields{
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				user: &chronograf.User{
+					SuperAdmin: true,
+				},
+				raw: true,
+			},
+			wants: wants{
+				authorized:       true,
+				hasServerContext: true,
+			},
+		},
+		{
+			name: "user on context is a not SuperAdmin with raw",
+			fields: fields{
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				user: &chronograf.User{
+					SuperAdmin: false,
+				},
+				raw: true,
+			},
+			wants: wants{
+				authorized:       false,
+				hasServerContext: false,
+			},
+		},
+		{
+			name: "user on context is a SuperAdmin without raw",
+			fields: fields{
+				Logger: clog.New(clog.DebugLevel),
+			},
+			args: args{
+				user: &chronograf.User{
+					SuperAdmin: true,
+				},
+				raw: false,
+			},
+			wants: wants{
+				authorized:       true,
+				hasServerContext: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var authorized bool
+			var hasServerCtx bool
+			next := func(w http.ResponseWriter, r *http.Request) {
+				ctx := r.Context()
+				hasServerCtx = hasServerContext(ctx)
+				authorized = true
+			}
+			fn := CheckForRawQuery(
+				tt.fields.Logger,
+				next,
+			)
+
+			w := httptest.NewRecorder()
+			url := "http://any.url"
+			if tt.args.raw {
+				url = fmt.Sprintf("%s?raw=true", url)
+			}
+			r := httptest.NewRequest(
+				"GET",
+				url,
+				nil,
+			)
+			if tt.args.principal == nil {
+				r = r.WithContext(context.WithValue(r.Context(), oauth2.PrincipalKey, nil))
+			} else {
+				r = r.WithContext(context.WithValue(r.Context(), oauth2.PrincipalKey, *tt.args.principal))
+			}
+
+			if tt.args.serverContext {
+				r = r.WithContext(serverContext(r.Context()))
+			}
+			if tt.args.user != nil {
+				r = r.WithContext(context.WithValue(r.Context(), UserContextKey, tt.args.user))
+			}
+			fn(w, r)
+
+			if authorized != tt.wants.authorized {
+				t.Errorf("%q. CheckForRawQuery() = %v, expected %v", tt.name, authorized, tt.wants.authorized)
+			}
+
+			if !authorized && w.Code != http.StatusForbidden {
+				t.Errorf("%q. CheckForRawQuery() Status Code = %v, expected %v", tt.name, w.Code, http.StatusForbidden)
+			}
+
+			if hasServerCtx != tt.wants.hasServerContext {
+				t.Errorf("%q. CheckForRawQuery().Context().Server = %v, expected %v", tt.name, hasServerCtx, tt.wants.hasServerContext)
+			}
+
+		})
+	}
+}

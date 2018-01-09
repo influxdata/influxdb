@@ -973,6 +973,232 @@ func TestServer(t *testing.T) {
 			},
 		},
 		{
+			name:    "GET /users",
+			subName: "Two users in two organizations; user making request is as SuperAdmin with out raw query param",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+					{
+						ID:         2, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billietta",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "cool",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/users",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/users/1"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "default"
+        }
+      ]
+    }
+  ]
+}
+`,
+			},
+		},
+		{
+			name:    "GET /users",
+			subName: "Two users in two organizations; user making request is as SuperAdmin with raw query param",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+					{
+						ID:         2, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billietta",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "cool",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/users?raw=true",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users?raw=true"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/users/1?raw=true"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "default"
+        }
+      ]
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/users/2?raw=true"
+      },
+      "id": "2",
+      "name": "billietta",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "cool"
+        }
+      ]
+    }
+  ]
+}
+`,
+			},
+		},
+		{
+			name:    "GET /users",
+			subName: "Two users in two organizations; user making request is as not SuperAdmin with raw query param",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+					{
+						ID:         2, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billietta",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "admin",
+								Organization: "cool",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/users?raw=true",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billieta",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 403,
+				body: `
+{
+  "code": 403,
+  "message": "User is not authorized"
+}
+`,
+			},
+		},
+		{
 			name:    "POST /users",
 			subName: "Create a New User with SuperAdmin status; SuperAdminNewUsers is true (the default case); User on Principal is a SuperAdmin",
 			fields: fields{
@@ -1238,6 +1464,84 @@ func TestServer(t *testing.T) {
 {
   "code": 401,
   "message": "User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information."
+}`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "Create a New User with in multiple organizations; User on Principal is a SuperAdmin with raw query param",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users?raw=true",
+				payload: &chronograf.User{
+					Name:     "user",
+					Provider: "provider",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "default",
+						},
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "cool",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/2?raw=true"
+  },
+  "id": "2",
+  "name": "user",
+  "provider": "provider",
+  "scheme": "oauth2",
+  "superAdmin": true,
+  "roles": [
+    {
+      "name": "editor",
+      "organization": "default"
+    },
+    {
+      "name": "editor",
+      "organization": "cool"
+    }
+  ]
 }`,
 			},
 		},
