@@ -1,11 +1,14 @@
 package server
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
@@ -111,8 +114,29 @@ func (s *Service) Write(w http.ResponseWriter, r *http.Request) {
 		auth := influx.DefaultAuthorization(&src)
 		auth.Set(req)
 	}
+
 	proxy := &httputil.ReverseProxy{
 		Director: director,
 	}
+
+	// The connection to influxdb is using a self-signed certificate.
+	// This modifies uses the same values as http.DefaultTransport but specifies
+	// InsecureSkipVerify
+	if src.InsecureSkipVerify {
+		proxy.Transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+
 	proxy.ServeHTTP(w, r)
 }
