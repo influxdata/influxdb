@@ -1,3 +1,10 @@
+## v1.4.1.0 [unreleased]
+### Features
+### UI Improvements
+### Bug Fixes
+1. [#2689](https://github.com/influxdata/chronograf/pull/2689): Allow insecure (self-signed) certificates for kapacitor and influxdb
+
+
 ## v1.4.0.0 [2017-12-22]
 ### UI Improvements
 1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Add page header with instructional copy when adding initial source for consistency and clearer UX
