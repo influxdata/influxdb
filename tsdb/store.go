@@ -844,23 +844,11 @@ func (s *Store) estimateCardinality(dbName string, getSketches func(*Shard) (est
 
 // SeriesCardinality returns the series cardinality for the provided database.
 func (s *Store) SeriesCardinality(database string) (int64, error) {
-	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
-	s.mu.RUnlock()
-
-	// TODO(benbjohnson): Series file will be shared by the DB.
-	var max int64
-	for _, shard := range shards {
-		index, err := shard.Index()
-		if err != nil {
-			return 0, err
-		}
-
-		if n := index.SeriesN(); n > max {
-			max = n
-		}
+	sfile := s.seriesFile(database)
+	if sfile == nil {
+		return 0, nil
 	}
-	return max, nil
+	return int64(sfile.SeriesCount()), nil
 }
 
 // MeasurementsCardinality returns the measurement cardinality for the provided

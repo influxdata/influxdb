@@ -5,42 +5,34 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
+	"sort"
 
+	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/influxdb/pkg/binaryutil"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
-	ErrSeriesFileClosed = errors.New("tsdb: series file closed")
+	ErrSeriesFileClosed         = errors.New("tsdb: series file closed")
+	ErrInvalidSeriesPartitionID = errors.New("tsdb: invalid series partition id")
 )
 
 // SeriesIDSize is the size in bytes of a series key ID.
 const SeriesIDSize = 8
 
-// DefaultSeriesFileCompactThreshold is the number of series IDs to hold in the in-memory
-// series map before compacting and rebuilding the on-disk representation.
-const DefaultSeriesFileCompactThreshold = 1 << 20 // 1M
+const (
+	// SeriesFilePartitionN is the number of partitions a series file is split into.
+	SeriesFilePartitionN = 8
+)
 
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
-	mu     sync.RWMutex
-	wg     sync.WaitGroup
-	path   string
-	closed bool
-
-	segments []*SeriesSegment
-	index    *SeriesIndex
-	seq      uint64 // series id sequence
-
-	compacting bool
-
-	CompactThreshold int
+	path       string
+	partitions []*SeriesPartition
 
 	Logger *zap.Logger
 }
@@ -48,83 +40,28 @@ type SeriesFile struct {
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path:             path,
-		CompactThreshold: DefaultSeriesFileCompactThreshold,
-		Logger:           zap.NewNop(),
+		path:   path,
+		Logger: zap.NewNop(),
 	}
 }
 
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
-	if f.closed {
-		return errors.New("tsdb: cannot reopen series file")
-	}
-
 	// Create path if it doesn't exist.
 	if err := os.MkdirAll(filepath.Join(f.path), 0777); err != nil {
 		return err
 	}
 
-	// Open components.
-	if err := func() (err error) {
-		if err := f.openSegments(); err != nil {
+	// Open partitions.
+	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
+	for i := 0; i < SeriesFilePartitionN; i++ {
+		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
+		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
+		if err := p.Open(); err != nil {
+			f.Close()
 			return err
 		}
-
-		// Init last segment for writes.
-		if err := f.activeSegment().InitForWrite(); err != nil {
-			return err
-		}
-
-		f.index = NewSeriesIndex(f.IndexPath())
-		if err := f.index.Open(); err != nil {
-			return err
-		} else if f.index.Recover(f.segments); err != nil {
-			return err
-		}
-
-		return nil
-	}(); err != nil {
-		f.Close()
-		return err
-	}
-
-	return nil
-}
-
-func (f *SeriesFile) openSegments() error {
-	fis, err := ioutil.ReadDir(f.path)
-	if err != nil {
-		return err
-	}
-
-	for _, fi := range fis {
-		segmentID, err := ParseSeriesSegmentFilename(fi.Name())
-		if err != nil {
-			continue
-		}
-
-		segment := NewSeriesSegment(segmentID, filepath.Join(f.path, fi.Name()))
-		if err := segment.Open(); err != nil {
-			return err
-		}
-		f.segments = append(f.segments, segment)
-	}
-
-	// Find max series id by searching segments in reverse order.
-	for i := len(f.segments) - 1; i >= 0; i-- {
-		if f.seq = f.segments[i].MaxSeriesID(); f.seq > 0 {
-			break
-		}
-	}
-
-	// Create initial segment if none exist.
-	if len(f.segments) == 0 {
-		segment, err := CreateSeriesSegment(0, filepath.Join(f.path, "0000"))
-		if err != nil {
-			return err
-		}
-		f.segments = append(f.segments, segment)
+		f.partitions = append(f.partitions, p)
 	}
 
 	return nil
@@ -132,172 +69,63 @@ func (f *SeriesFile) openSegments() error {
 
 // Close unmaps the data file.
 func (f *SeriesFile) Close() (err error) {
-	f.wg.Wait()
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.closed = true
-
-	for _, s := range f.segments {
-		if e := s.Close(); e != nil && err == nil {
+	for _, p := range f.partitions {
+		if e := p.Close(); e != nil && err == nil {
 			err = e
 		}
 	}
-	f.segments = nil
-
-	if f.index != nil {
-		if e := f.index.Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	f.index = nil
-
+	f.partitions = nil
 	return err
 }
 
 // Path returns the path to the file.
 func (f *SeriesFile) Path() string { return f.path }
 
-// Path returns the path to the series index.
-func (f *SeriesFile) IndexPath() string { return filepath.Join(f.path, "index") }
+// SeriesPartitionPath returns the path to a given partition.
+func (f *SeriesFile) SeriesPartitionPath(i int) string {
+	return filepath.Join(f.path, fmt.Sprintf("%02x", i))
+}
+
+// Partitions returns all partitions.
+func (f *SeriesFile) Partitions() []*SeriesPartition { return f.partitions }
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The returned ids list returns values for new series and zero for existing series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []uint64, err error) {
-	f.mu.RLock()
-	if f.closed {
-		f.mu.RUnlock()
-		return nil, ErrSeriesFileClosed
+	keys := GenerateSeriesKeys(names, tagsSlice)
+	keyPartitionIDs := f.SeriesKeysPartitionIDs(keys)
+	ids = make([]uint64, len(keys))
+
+	var g errgroup.Group
+	for i := range f.partitions {
+		p := f.partitions[i]
+		g.Go(func() error {
+			return p.CreateSeriesListIfNotExists(keys, keyPartitionIDs, ids)
+		})
 	}
-	ids, ok := f.index.FindIDListByNameTags(f.segments, names, tagsSlice, buf)
-	if ok {
-		f.mu.RUnlock()
-		return ids, nil
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
-	f.mu.RUnlock()
-
-	type keyRange struct {
-		id     uint64
-		offset int64
-	}
-	newKeyRanges := make([]keyRange, 0, len(names))
-
-	// Obtain write lock to create new series.
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.closed {
-		return nil, ErrSeriesFileClosed
-	}
-
-	// Track offsets of duplicate series.
-	newIDs := make(map[string]uint64, len(ids))
-
-	for i := range names {
-		// Skip series that have already been created.
-		if ids[i] != 0 {
-			continue
-		}
-
-		// Generate series key.
-		buf = AppendSeriesKey(buf[:0], names[i], tagsSlice[i])
-
-		// Re-attempt lookup under write lock.
-		if ids[i] = newIDs[string(buf)]; ids[i] != 0 {
-			continue
-		} else if ids[i] = f.index.FindIDByNameTags(f.segments, names[i], tagsSlice[i], buf); ids[i] != 0 {
-			continue
-		}
-
-		// Write to series log and save offset.
-		id, offset, err := f.insert(buf)
-		if err != nil {
-			return nil, err
-		}
-
-		// Append new key to be added to hash map after flush.
-		ids[i] = id
-		newIDs[string(buf)] = id
-		newKeyRanges = append(newKeyRanges, keyRange{id, offset})
-	}
-
-	// Flush active segment writes so we can access data in mmap.
-	if segment := f.activeSegment(); segment != nil {
-		if err := segment.Flush(); err != nil {
-			return nil, err
-		}
-	}
-
-	// Add keys to hash map(s).
-	for _, keyRange := range newKeyRanges {
-		f.index.Insert(f.seriesKeyByOffset(keyRange.offset), keyRange.id, keyRange.offset)
-	}
-
-	// Check if we've crossed the compaction threshold.
-	if !f.compacting && f.CompactThreshold != 0 && f.index.InMemCount() >= uint64(f.CompactThreshold) {
-		f.compacting = true
-		logger := f.Logger.With(zap.String("path", f.path))
-		logger.Info("beginning series file compaction")
-
-		startTime := time.Now()
-		f.wg.Add(1)
-		go func() {
-			defer f.wg.Done()
-
-			if err := NewSeriesFileCompactor().Compact(f); err != nil {
-				logger.With(zap.Error(err)).Error("series file compaction failed")
-			}
-
-			logger.With(zap.Duration("elapsed", time.Since(startTime))).Info("completed series file compaction")
-
-			// Clear compaction flag.
-			f.mu.Lock()
-			f.compacting = false
-			f.mu.Unlock()
-		}()
-	}
-
 	return ids, nil
 }
 
 // DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later then it must create a new id.
 func (f *SeriesFile) DeleteSeriesID(id uint64) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.closed {
-		return ErrSeriesFileClosed
+	p := f.SeriesIDPartition(id)
+	if p == nil {
+		return ErrInvalidSeriesPartitionID
 	}
-
-	// Already tombstoned, ignore.
-	if f.index.IsDeleted(id) {
-		return nil
-	}
-
-	// Write tombstone entry.
-	_, err := f.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryTombstoneFlag, id, nil))
-	if err != nil {
-		return err
-	}
-
-	// Mark tombstone in memory.
-	f.index.Delete(id)
-
-	return nil
+	return p.DeleteSeriesID(id)
 }
 
 // IsDeleted returns true if the ID has been deleted before.
 func (f *SeriesFile) IsDeleted(id uint64) bool {
-	f.mu.RLock()
-	if f.closed {
-		f.mu.RUnlock()
+	p := f.SeriesIDPartition(id)
+	if p == nil {
 		return false
 	}
-	v := f.index.IsDeleted(id)
-	f.mu.RUnlock()
-	return v
+	return p.IsDeleted(id)
 }
 
 // SeriesKey returns the series key for a given id.
@@ -305,14 +133,11 @@ func (f *SeriesFile) SeriesKey(id uint64) []byte {
 	if id == 0 {
 		return nil
 	}
-	f.mu.RLock()
-	if f.closed {
-		f.mu.RUnlock()
+	p := f.SeriesIDPartition(id)
+	if p == nil {
 		return nil
 	}
-	key := f.seriesKeyByOffset(f.index.FindOffsetByID(id))
-	f.mu.RUnlock()
-	return key
+	return p.SeriesKey(id)
 }
 
 // Series returns the parsed series name and tags for an offset.
@@ -326,14 +151,12 @@ func (f *SeriesFile) Series(id uint64) ([]byte, models.Tags) {
 
 // SeriesID return the series id for the series.
 func (f *SeriesFile) SeriesID(name []byte, tags models.Tags, buf []byte) uint64 {
-	f.mu.RLock()
-	if f.closed {
-		f.mu.RUnlock()
+	key := AppendSeriesKey(buf[:0], name, tags)
+	keyPartition := f.SeriesKeyPartition(key)
+	if keyPartition == nil {
 		return 0
 	}
-	id := f.index.FindIDBySeriesKey(f.segments, AppendSeriesKey(buf[:0], name, tags))
-	f.mu.RUnlock()
-	return id
+	return keyPartition.FindIDBySeriesKey(key)
 }
 
 // HasSeries return true if the series exists.
@@ -343,104 +166,53 @@ func (f *SeriesFile) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 
 // SeriesCount returns the number of series.
 func (f *SeriesFile) SeriesCount() uint64 {
-	f.mu.RLock()
-	if f.closed {
-		f.mu.RUnlock()
-		return 0
+	var n uint64
+	for _, p := range f.partitions {
+		n += p.SeriesCount()
 	}
-	n := f.index.Count()
-	f.mu.RUnlock()
 	return n
 }
 
 // SeriesIterator returns an iterator over all the series.
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	var ids []uint64
-	for _, segment := range f.segments {
-		ids = segment.AppendSeriesIDs(ids)
+	for _, p := range f.partitions {
+		ids = p.AppendSeriesIDs(ids)
 	}
+	sort.Sort(uint64Slice(ids))
 	return NewSeriesIDSliceIterator(ids)
 }
 
-// activeSegment returns the last segment.
-func (f *SeriesFile) activeSegment() *SeriesSegment {
-	if len(f.segments) == 0 {
+func (f *SeriesFile) SeriesIDPartitionID(id uint64) int {
+	return int(id & 0xFF)
+}
+
+func (f *SeriesFile) SeriesIDPartition(id uint64) *SeriesPartition {
+	partitionID := f.SeriesIDPartitionID(id)
+	if partitionID >= len(f.partitions) {
 		return nil
 	}
-	return f.segments[len(f.segments)-1]
+	return f.partitions[partitionID]
 }
 
-func (f *SeriesFile) insert(key []byte) (id uint64, offset int64, err error) {
-	id = f.seq + 1
-
-	offset, err = f.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryInsertFlag, id, key))
-	if err != nil {
-		return 0, 0, err
+func (f *SeriesFile) SeriesKeysPartitionIDs(keys [][]byte) []int {
+	partitionIDs := make([]int, len(keys))
+	for i := range keys {
+		partitionIDs[i] = f.SeriesKeyPartitionID(keys[i])
 	}
-
-	f.seq++
-	return id, offset, nil
+	return partitionIDs
 }
 
-// writeLogEntry appends an entry to the end of the active segment.
-// If there is no more room in the segment then a new segment is added.
-func (f *SeriesFile) writeLogEntry(data []byte) (offset int64, err error) {
-	segment := f.activeSegment()
-	if segment == nil || !segment.CanWrite(data) {
-		if segment, err = f.createSegment(); err != nil {
-			return 0, err
-		}
-	}
-	return segment.WriteLogEntry(data)
+func (f *SeriesFile) SeriesKeyPartitionID(key []byte) int {
+	return int(xxhash.Sum64(key) % SeriesFilePartitionN)
 }
 
-// createSegment appends a new segment
-func (f *SeriesFile) createSegment() (*SeriesSegment, error) {
-	// Close writer for active segment, if one exists.
-	if segment := f.activeSegment(); segment != nil {
-		if err := segment.CloseForWrite(); err != nil {
-			return nil, err
-		}
-	}
-
-	// Generate a new sequential segment identifier.
-	var id uint16
-	if len(f.segments) > 0 {
-		id = f.segments[len(f.segments)-1].ID() + 1
-	}
-	filename := fmt.Sprintf("%04x", id)
-
-	// Generate new empty segment.
-	segment, err := CreateSeriesSegment(id, filepath.Join(f.path, filename))
-	if err != nil {
-		return nil, err
-	}
-	f.segments = append(f.segments, segment)
-
-	// Allow segment to write.
-	if err := segment.InitForWrite(); err != nil {
-		return nil, err
-	}
-
-	return segment, nil
-}
-
-func (f *SeriesFile) seriesKeyByOffset(offset int64) []byte {
-	if offset == 0 {
+func (f *SeriesFile) SeriesKeyPartition(key []byte) *SeriesPartition {
+	partitionID := f.SeriesKeyPartitionID(key)
+	if partitionID >= len(f.partitions) {
 		return nil
 	}
-
-	segmentID, pos := SplitSeriesOffset(offset)
-	for _, segment := range f.segments {
-		if segment.ID() != segmentID {
-			continue
-		}
-
-		key, _ := ReadSeriesKey(segment.Slice(pos + SeriesEntryHeaderSize))
-		return key
-	}
-
-	return nil
+	return f.partitions[partitionID]
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
@@ -598,6 +370,41 @@ func CompareSeriesKeys(a, b []byte) int {
 	}
 }
 
+// GenerateSeriesKeys generates series keys for a list of names & tags using
+// a single large memory block.
+func GenerateSeriesKeys(names [][]byte, tagsSlice []models.Tags) [][]byte {
+	buf := make([]byte, 0, SeriesKeysSize(names, tagsSlice))
+	keys := make([][]byte, len(names))
+	for i := range names {
+		offset := len(buf)
+		buf = AppendSeriesKey(buf, names[i], tagsSlice[i])
+		keys[i] = buf[offset:]
+	}
+	return keys
+}
+
+// SeriesKeysSize returns the number of bytes required to encode a list of name/tags.
+func SeriesKeysSize(names [][]byte, tagsSlice []models.Tags) int {
+	var n int
+	for i := range names {
+		n += SeriesKeySize(names[i], tagsSlice[i])
+	}
+	return n
+}
+
+// SeriesKeySize returns the number of bytes required to encode a series key.
+func SeriesKeySize(name []byte, tags models.Tags) int {
+	var n int
+	n += 2 + len(name)
+	n += binaryutil.UvarintSize(uint64(len(tags)))
+	for _, tag := range tags {
+		n += 2 + len(tag.Key)
+		n += 2 + len(tag.Value)
+	}
+	n += binaryutil.UvarintSize(uint64(n))
+	return n
+}
+
 type seriesKeys [][]byte
 
 func (a seriesKeys) Len() int      { return len(a) }
@@ -606,216 +413,8 @@ func (a seriesKeys) Less(i, j int) bool {
 	return CompareSeriesKeys(a[i], a[j]) == -1
 }
 
-// SeriesFileCompactor represents an object reindexes a series file and optionally compacts segments.
-type SeriesFileCompactor struct{}
+type uint64Slice []uint64
 
-// NewSeriesFileCompactor returns a new instance of SeriesFileCompactor.
-func NewSeriesFileCompactor() *SeriesFileCompactor {
-	return &SeriesFileCompactor{}
-}
-
-// Compact rebuilds the series file index.
-func (c *SeriesFileCompactor) Compact(f *SeriesFile) error {
-	// Snapshot the partitions and index so we can check tombstones and replay at the end under lock.
-	f.mu.RLock()
-	segments := CloneSeriesSegments(f.segments)
-	index := f.index.Clone()
-	seriesN := f.index.Count()
-	f.mu.RUnlock()
-
-	// Compact index to a temporary location.
-	indexPath := index.path + ".compacting"
-	if err := c.compactIndexTo(index, seriesN, segments, indexPath); err != nil {
-		return err
-	}
-
-	// Swap compacted index under lock & replay since compaction.
-	if err := func() error {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-
-		// Reopen index with new file.
-		if err := f.index.Close(); err != nil {
-			return err
-		} else if err := os.Rename(indexPath, index.path); err != nil {
-			return err
-		} else if err := f.index.Open(); err != nil {
-			return err
-		}
-
-		// Replay new entries.
-		if err := f.index.Recover(f.segments); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *SeriesFileCompactor) compactIndexTo(index *SeriesIndex, seriesN uint64, segments []*SeriesSegment, path string) error {
-	hdr := NewSeriesIndexHeader()
-	hdr.Count = seriesN
-	hdr.Capacity = pow2((int64(hdr.Count) * 100) / SeriesIndexLoadFactor)
-
-	// Allocate space for maps.
-	keyIDMap := make([]byte, (hdr.Capacity * SeriesIndexElemSize))
-	idOffsetMap := make([]byte, (hdr.Capacity * SeriesIndexElemSize))
-
-	// Reindex all partitions.
-	for _, segment := range segments {
-		errDone := errors.New("done")
-
-		if err := segment.ForEachEntry(func(flag uint8, id uint64, offset int64, key []byte) error {
-			// Make sure we don't go past the offset where the compaction began.
-			if offset >= index.maxOffset {
-				return errDone
-			}
-
-			// Only process insert entries.
-			switch flag {
-			case SeriesEntryInsertFlag: // fallthrough
-			case SeriesEntryTombstoneFlag:
-				return nil
-			default:
-				return fmt.Errorf("unexpected series file log entry flag: %d", flag)
-			}
-
-			// Ignore entry if tombstoned.
-			if index.IsDeleted(id) {
-				return nil
-			}
-
-			// Save max series identifier processed.
-			hdr.MaxSeriesID, hdr.MaxOffset = id, offset
-
-			// Insert into maps.
-			c.insertIDOffsetMap(idOffsetMap, hdr.Capacity, id, offset)
-			return c.insertKeyIDMap(keyIDMap, hdr.Capacity, segments, key, offset, id)
-		}); err == errDone {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
-
-	// Open file handler.
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Calculate map positions.
-	hdr.KeyIDMap.Offset, hdr.KeyIDMap.Size = SeriesIndexHeaderSize, int64(len(keyIDMap))
-	hdr.IDOffsetMap.Offset, hdr.IDOffsetMap.Size = hdr.KeyIDMap.Offset+hdr.KeyIDMap.Size, int64(len(idOffsetMap))
-
-	// Write header.
-	if _, err := hdr.WriteTo(f); err != nil {
-		return err
-	}
-
-	// Write maps.
-	if _, err := f.Write(keyIDMap); err != nil {
-		return err
-	} else if _, err := f.Write(idOffsetMap); err != nil {
-		return err
-	}
-
-	// Sync & close.
-	if err := f.Sync(); err != nil {
-		return err
-	} else if err := f.Close(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *SeriesFileCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id uint64) error {
-	mask := capacity - 1
-	hash := rhh.HashKey(key)
-
-	// Continue searching until we find an empty slot or lower probe distance.
-	for i, dist, pos := int64(0), int64(0), hash&mask; ; i, dist, pos = i+1, dist+1, (pos+1)&mask {
-		assert(i <= capacity, "key/id map full")
-		elem := dst[(pos * SeriesIndexElemSize):]
-
-		// If empty slot found or matching offset, insert and exit.
-		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
-		elemID := binary.BigEndian.Uint64(elem[8:])
-		if elemOffset == 0 || elemOffset == offset {
-			binary.BigEndian.PutUint64(elem[:8], uint64(offset))
-			binary.BigEndian.PutUint64(elem[8:], id)
-			return nil
-		}
-
-		// Read key at position & hash.
-		elemKey := ReadSeriesKeyFromSegments(segments, elemOffset+SeriesEntryHeaderSize)
-		elemHash := rhh.HashKey(elemKey)
-
-		// If the existing elem has probed less than us, then swap places with
-		// existing elem, and keep going to find another slot for that elem.
-		if d := rhh.Dist(elemHash, pos, capacity); d < dist {
-			// Insert current values.
-			binary.BigEndian.PutUint64(elem[:8], uint64(offset))
-			binary.BigEndian.PutUint64(elem[8:], id)
-
-			// Swap with values in that position.
-			hash, key, offset, id = elemHash, elemKey, elemOffset, elemID
-
-			// Update current distance.
-			dist = d
-		}
-	}
-}
-
-func (c *SeriesFileCompactor) insertIDOffsetMap(dst []byte, capacity int64, id uint64, offset int64) {
-	mask := capacity - 1
-	hash := rhh.HashUint64(id)
-
-	// Continue searching until we find an empty slot or lower probe distance.
-	for i, dist, pos := int64(0), int64(0), hash&mask; ; i, dist, pos = i+1, dist+1, (pos+1)&mask {
-		assert(i <= capacity, "id/offset map full")
-		elem := dst[(pos * SeriesIndexElemSize):]
-
-		// If empty slot found or matching id, insert and exit.
-		elemID := binary.BigEndian.Uint64(elem[:8])
-		elemOffset := int64(binary.BigEndian.Uint64(elem[8:]))
-		if elemOffset == 0 || elemOffset == offset {
-			binary.BigEndian.PutUint64(elem[:8], id)
-			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
-			return
-		}
-
-		// Hash key.
-		elemHash := rhh.HashUint64(elemID)
-
-		// If the existing elem has probed less than us, then swap places with
-		// existing elem, and keep going to find another slot for that elem.
-		if d := rhh.Dist(elemHash, pos, capacity); d < dist {
-			// Insert current values.
-			binary.BigEndian.PutUint64(elem[:8], id)
-			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
-
-			// Swap with values in that position.
-			hash, id, offset = elemHash, elemID, elemOffset
-
-			// Update current distance.
-			dist = d
-		}
-	}
-}
-
-// pow2 returns the number that is the next highest power of 2.
-// Returns v if it is a power of 2.
-func pow2(v int64) int64 {
-	for i := int64(2); i < 1<<62; i *= 2 {
-		if i >= v {
-			return i
-		}
-	}
-	panic("unreachable")
-}
+func (a uint64Slice) Len() int           { return len(a) }
+func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
