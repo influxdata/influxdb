@@ -1457,6 +1457,7 @@ func TestServer(t *testing.T) {
 
 			// Use testdata directory for the canned data
 			tt.args.server.CannedPath = "testdata"
+			tt.args.server.ResourcesPath = "testdata"
 
 			// This is so that we can use staticly generate jwts
 			tt.args.server.TokenSecret = "secret"
