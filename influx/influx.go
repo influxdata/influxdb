@@ -261,3 +261,53 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 
 	return version, chronograf.InfluxDB, nil
 }
+
+/*
+func (c *Client) write(u *url.URL) error {
+	u.Path = "write"
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "")
+	params := req.URL.Query()
+	params.Set("db", q.DB)
+	params.Set("rp", q.RP)
+	params.Set("precision", bp.Precision())
+	params.Set("consistency", bp.WriteConsistency())
+	req.URL.RawQuery = params.Encode()
+
+	if c.Authorizer != nil {
+		if err := c.Authorizer.Set(req); err != nil {
+			logs.Error("Error setting authorization header ", err)
+			return nil, err
+		}
+	}
+
+	hc := &http.Client{}
+	if c.InsecureSkipVerify {
+		hc.Transport = skipVerifyTransport
+	} else {
+		hc.Transport = defaultTransport
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		err := fmt.Errorf("received status code %d from server: %s",
+			resp.StatusCode, string(body))
+		logs.
+			WithField("influx_status", resp.StatusCode).
+			Error(err)
+		return err
+	}
+}
+*/

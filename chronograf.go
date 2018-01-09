@@ -231,6 +231,7 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
+// DBRP represents a database and retention policy for a time series source
 type DBRP struct {
 	DB string `json:"db"`
 	RP string `json:"rp"`
@@ -467,6 +468,24 @@ type Databases interface {
 	DropRP(context.Context, string, string) error
 }
 
+// Annotation represents a time-based metadata associated with a source
+type Annotation struct {
+	Name     string `json:"name"`               // Name is the unique annotation group identifier
+	Type     string `json:"type"`               // Type describes the kind of annotation
+	Time     int64  `json:"time,string"`        // Time is the time in nanoseconds since epoch of the start of the annotation
+	Duration int64  `json:"duration_ns,string"` // Duration is the duration in nanoseconds of the annotation
+	Text     string `json:"text"`               // Text is the associated user-facing text describing the annotation
+}
+
+// AnnotationStore represents storage and retrieval of annotations
+type AnnotationStore interface {
+	All(context.Context) ([]Annotation, error)              // All lists all Annotations
+	Add(context.Context, Annotation) (Annotation, error)    // Add creates a new annotation in the store
+	Delete(context.Context, Annotation) error               // Delete removes the annotation from the store
+	Get(ctx context.Context, id string) (Annotation, error) // Get retrieves an annotation
+	Update(context.Context, Annotation) error               // Update replaces annotation
+}
+
 // DashboardID is the dashboard ID
 type DashboardID int
 
@@ -610,7 +629,6 @@ type OrganizationsStore interface {
 }
 
 // AuthConfig is the global application config section for auth parameters
-
 type AuthConfig struct {
 	// SuperAdminNewUsers should be true by default to give a seamless upgrade to
 	// 1.4.0 for legacy users. It means that all new users will by default receive
@@ -648,7 +666,7 @@ type BuildStore interface {
 	Update(context.Context, BuildInfo) error
 }
 
-// Environement is the set of front-end exposed environment variables
+// Environment is the set of front-end exposed environment variables
 // that were set on the server
 type Environment struct {
 	TelegrafSystemInterval time.Duration `json:"telegrafSystemInterval"`
