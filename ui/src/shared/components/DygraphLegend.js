@@ -29,8 +29,9 @@ const DygraphLegend = ({
   isFilterVisible,
   onToggleFilter,
 }) => {
+  const withValues = series.filter(s => s.y)
   const sorted = _.sortBy(
-    series,
+    withValues,
     ({y, label}) => (sortType === 'numeric' ? y : label)
   )
 
