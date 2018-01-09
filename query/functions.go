@@ -692,6 +692,59 @@ func (r *ExponentialMovingAverageReducer) Emit() []FloatPoint {
 	}
 }
 
+type DoubleExponentialMovingAverageReducer struct {
+	dema       gota.DEMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewDoubleExponentialMovingAverageReducer(period int, holdPeriod int, warmupType string) *DoubleExponentialMovingAverageReducer {
+	var wt gota.WarmupType
+	if warmupType == "average" {
+		wt = gota.WarmSMA
+	} else {
+		wt = gota.WarmEMA
+	}
+	dema := gota.NewDEMA(period, wt)
+	if holdPeriod == -1 {
+		holdPeriod = dema.WarmCount()
+	}
+	return &DoubleExponentialMovingAverageReducer{
+		dema:       *dema,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+
+func (r *DoubleExponentialMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *DoubleExponentialMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *DoubleExponentialMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *DoubleExponentialMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.dema.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *DoubleExponentialMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return []FloatPoint(nil)
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
 // FloatCumulativeSumReducer cumulates the values from each point.
 type FloatCumulativeSumReducer struct {
 	curr FloatPoint

@@ -275,8 +275,8 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileCumulativeSum(expr.Args)
 		case "moving_average":
 			return c.compileMovingAverage(expr.Args)
-		case "exponential_moving_average":
-			return c.compileExponentialMovingAverage(expr.Args)
+		case "exponential_moving_average", "double_exponential_moving_average":
+			return c.compileExponentialMovingAverage(expr.Name, expr.Args)
 		case "elapsed":
 			return c.compileElapsed(expr.Args)
 		case "integral":
@@ -552,28 +552,28 @@ func (c *compiledField) compileMovingAverage(args []influxql.Expr) error {
 	}
 }
 
-func (c *compiledField) compileExponentialMovingAverage(args []influxql.Expr) error {
+func (c *compiledField) compileExponentialMovingAverage(name string, args []influxql.Expr) error {
 	if got := len(args) - 1; got < 1 || got > 3 {
-		return fmt.Errorf("invalid number of arguments for exponential_moving_average, expected at least 1 but no more than 3, got %d", got)
+		return fmt.Errorf("invalid number of arguments for %s, expected at least 1 but no more than 3, got %d", name, got)
 	}
 
 	switch arg1 := args[1].(type) {
 	case *influxql.IntegerLiteral:
 		if arg1.Val < 1 {
-			return fmt.Errorf("exponential_moving_average period must be greater than or equal to 1")
+			return fmt.Errorf("%s period must be greater than or equal to 1", name)
 		}
 	default:
-		return fmt.Errorf("exponential_moving_average period must be an integer")
+		return fmt.Errorf("%s period must be an integer", name)
 	}
 
 	if len(args) >= 3 {
 		switch arg2 := args[2].(type) {
 		case *influxql.IntegerLiteral:
 			if arg2.Val < 0 && arg2.Val != -1 {
-				return fmt.Errorf("exponential_moving_average hold period must be greater than or equal to 0")
+				return fmt.Errorf("%s hold period must be greater than or equal to 0", name)
 			}
 		default:
-			return fmt.Errorf("exponential_moving_average hold period must be an integer")
+			return fmt.Errorf("%s hold period must be an integer", name)
 		}
 	}
 
@@ -584,10 +584,10 @@ func (c *compiledField) compileExponentialMovingAverage(args []influxql.Expr) er
 			case "'exponential_moving_average'":
 			case "'average'":
 			default:
-				return fmt.Errorf("exponential_moving_average warmup type must be one of: 'exponential_moving_average' 'average'")
+				return fmt.Errorf("%s warmup type must be one of: 'exponential_moving_average' 'average'", name)
 			}
 		default:
-			return fmt.Errorf("exponential_moving_average warmup type must be a string")
+			return fmt.Errorf("%s warmup type must be a string", name)
 		}
 	}
 
@@ -596,14 +596,14 @@ func (c *compiledField) compileExponentialMovingAverage(args []influxql.Expr) er
 	switch arg0 := args[0].(type) {
 	case *influxql.Call:
 		if c.global.Interval.IsZero() {
-			return fmt.Errorf("exponential_moving_average aggregate requires a GROUP BY interval")
+			return fmt.Errorf("%s aggregate requires a GROUP BY interval", name)
 		}
 		return c.compileExpr(arg0)
 	default:
 		if !c.global.Interval.IsZero() {
-			return fmt.Errorf("aggregate function required inside the call to exponential_moving_average")
+			return fmt.Errorf("aggregate function required inside the call to %s", name)
 		}
-		return c.compileSymbol("exponential_moving_average", arg0)
+		return c.compileSymbol(name, arg0)
 	}
 }
 
