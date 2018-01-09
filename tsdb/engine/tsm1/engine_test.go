@@ -943,6 +943,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 		engine.MustAddSeries("cpu", map[string]string{"host": "b"})
 		engine.MustAddSeries("gpu", nil)
 		engine.MustAddSeries("gpu", map[string]string{"host": "b"})
+		engine.MustAddSeries("mem", map[string]string{"host": "z"})
 
 		// Collect series IDs.
 		var ids []uint64
@@ -1780,6 +1781,7 @@ type Engine struct {
 	*tsm1.Engine
 	root        string
 	indexPath   string
+	indexType   string
 	index       tsdb.Index
 	seriesIDSet *tsdb.SeriesIDSet
 	sfile       *tsdb.SeriesFile
@@ -1822,6 +1824,7 @@ func NewEngine(index string) (*Engine, error) {
 		Engine:      tsm1Engine,
 		root:        root,
 		indexPath:   idxPath,
+		indexType:   index,
 		index:       idx,
 		seriesIDSet: seriesIDs,
 		sfile:       sfile,

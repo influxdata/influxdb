@@ -137,6 +137,18 @@ func (i *Index) Type() string { return IndexName }
 // SeriesFile returns the series file attached to the index.
 func (i *Index) SeriesFile() *tsdb.SeriesFile { return i.sfile }
 
+// SeriesIDSet returns the set of series ids associated with series in this
+// index. Any series IDs for series no longer present in the index are filtered out.
+func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
+	seriesIDSet := tsdb.NewSeriesIDSet()
+	others := make([]*tsdb.SeriesIDSet, 0, i.PartitionN)
+	for _, p := range i.partitions {
+		others = append(others, p.seriesSet)
+	}
+	seriesIDSet.Merge(others...)
+	return seriesIDSet
+}
+
 // Open opens the index.
 func (i *Index) Open() error {
 	i.mu.Lock()
@@ -809,7 +821,7 @@ func (i *Index) AssignShard(k string, shardID uint64)         {}
 // UnassignShard removes the provided series key from the index. The naming of
 // this method stems from a legacy index logic that used to track which shards
 // owned which series.
-func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
+func (i *Index) UnassignShard(k string, id uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
 	return i.DropSeries([]byte(k), ts)
 }

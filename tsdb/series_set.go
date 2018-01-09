@@ -49,5 +49,25 @@ func (s *SeriesIDSet) ContainsNoLock(id uint64) bool {
 func (s *SeriesIDSet) Remove(id uint64) {
 	s.Lock()
 	defer s.Unlock()
+	s.RemoveNoLock(id)
+}
+
+// RemoveNoLock removes the id from the set. RemoveNoLock is not safe for use
+// from multiple goroutines. The caller must manage synchronization.
+func (s *SeriesIDSet) RemoveNoLock(id uint64) {
 	s.bitmap.Remove(uint32(id))
+}
+
+// Merge merged the contents of others into s.
+func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
+	bms := make([]*roaring.Bitmap, 0, len(others))
+	for _, other := range others {
+		other.RLock()
+		bms = append(bms, other.bitmap)
+		other.RUnlock()
+	}
+
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap = roaring.FastOr(bms...)
 }

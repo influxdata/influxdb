@@ -49,7 +49,8 @@ type Partition struct {
 	fileSet       *FileSet         // current file set
 	seq           int              // file id sequence
 
-	// Fast series lookup.
+	// Fast series lookup of series IDs in the series file that have been present
+	// in this partition. This set tracks both insertions and deletions of a series.
 	seriesSet *tsdb.SeriesIDSet
 
 	// Compaction management
@@ -184,7 +185,7 @@ func (i *Partition) Open() error {
 	}
 	i.fileSet = fs
 
-	// Set initial sequnce number.
+	// Set initial sequence number.
 	i.seq = i.fileSet.MaxID()
 
 	// Delete any files not in the manifest.
@@ -518,7 +519,8 @@ func (i *Partition) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDItera
 	return newFileSetSeriesIDIterator(fs, fs.MeasurementSeriesIDIterator(name)), nil
 }
 
-// DropMeasurement deletes a measurement from the index.
+// DropMeasurement deletes a measurement from the index. DropMeasurement does
+// not remove any series from the index directly.
 func (i *Partition) DropMeasurement(name []byte) error {
 	fs, err := i.RetainFileSet()
 	if err != nil {
@@ -552,29 +554,6 @@ func (i *Partition) DropMeasurement(name []byte) error {
 							return err
 						}
 					}
-				}
-			}
-		}
-	}
-
-	// Delete all series in measurement.
-	if sitr := fs.MeasurementSeriesIDIterator(name); sitr != nil {
-		defer sitr.Close()
-
-		for {
-			s, err := sitr.Next()
-			if err != nil {
-				return err
-			} else if s.SeriesID == 0 {
-				break
-			}
-			if !fs.SeriesFile().IsDeleted(s.SeriesID) {
-				if err := func() error {
-					i.mu.RLock()
-					defer i.mu.RUnlock()
-					return i.sfile.DeleteSeriesID(s.SeriesID)
-				}(); err != nil {
-					return err
 				}
 			}
 		}
@@ -627,9 +606,14 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 		defer i.mu.RUnlock()
 
 		name, tags := models.ParseKey(key)
-
 		mname := []byte(name)
 		seriesID := i.sfile.SeriesID(mname, tags, nil)
+
+		// Remove from series id set.
+		i.seriesSet.Remove(seriesID)
+
+		// TODO(edd): this should only happen when there are no shards containing
+		// this series.
 		if err := i.sfile.DeleteSeriesID(seriesID); err != nil {
 			return err
 		}
