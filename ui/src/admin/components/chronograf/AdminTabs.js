@@ -12,6 +12,7 @@ import UsersPage from 'src/admin/containers/chronograf/UsersPage'
 
 const ORGANIZATIONS_TAB_NAME = 'Organizations'
 const CURRENT_ORG_USERS_TAB_NAME = 'Current Org Users'
+const ALL_USERS_TAB_NAME = 'All Users'
 
 const AdminTabs = ({
   me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
@@ -27,6 +28,13 @@ const AdminTabs = ({
     {
       requiredRole: ADMIN_ROLE,
       type: CURRENT_ORG_USERS_TAB_NAME,
+      component: (
+        <UsersPage meID={meID} meCurrentOrganization={meCurrentOrganization} />
+      ),
+    },
+    {
+      requiredRole: SUPERADMIN_ROLE,
+      type: ALL_USERS_TAB_NAME,
       component: (
         <UsersPage meID={meID} meCurrentOrganization={meCurrentOrganization} />
       ),
