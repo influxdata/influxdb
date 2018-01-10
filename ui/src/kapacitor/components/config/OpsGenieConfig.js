@@ -67,10 +67,6 @@ class OpsGenieConfig extends Component {
             id="api-key"
             refFunc={this.handleApiKeyRef}
           />
-          <label className="form-helper">
-            Note: a value of <code>true</code> indicates the OpsGenie API key
-            has been set
-          </label>
         </div>
 
         <TagInput

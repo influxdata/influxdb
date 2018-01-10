@@ -40,7 +40,10 @@ func benchmark_PaginatingKapaClient(taskCount int, b *testing.B) {
 		},
 	}
 
-	pkap := kapacitor.PaginatingKapaClient{mockClient, 50}
+	pkap := kapacitor.PaginatingKapaClient{
+		KapaClient: mockClient,
+		FetchRate:  50,
+	}
 
 	opts := &client.ListTasksOptions{}
 

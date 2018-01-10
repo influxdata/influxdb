@@ -328,7 +328,7 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, s.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 	// TODO: validate this data
@@ -341,7 +341,7 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 
 	task, err := c.Create(ctx, req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 	res := newAlertResponse(task, srv.SrcID, srv.ID)
@@ -371,26 +371,111 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 		},
 	}
 
-	if res.Alerts == nil {
-		res.Alerts = make([]string, 0)
+	if res.AlertNodes.Alerta == nil {
+		res.AlertNodes.Alerta = []*chronograf.Alerta{}
 	}
 
-	if res.AlertNodes == nil {
-		res.AlertNodes = make([]chronograf.KapacitorNode, 0)
+	for i, a := range res.AlertNodes.Alerta {
+		if a.Service == nil {
+			a.Service = []string{}
+			res.AlertNodes.Alerta[i] = a
+		}
 	}
 
-	for _, n := range res.AlertNodes {
-		if n.Args == nil {
-			n.Args = make([]string, 0)
+	if res.AlertNodes.Email == nil {
+		res.AlertNodes.Email = []*chronograf.Email{}
+	}
+
+	for i, a := range res.AlertNodes.Email {
+		if a.To == nil {
+			a.To = []string{}
+			res.AlertNodes.Email[i] = a
 		}
-		if n.Properties == nil {
-			n.Properties = make([]chronograf.KapacitorProperty, 0)
+	}
+
+	if res.AlertNodes.Exec == nil {
+		res.AlertNodes.Exec = []*chronograf.Exec{}
+	}
+
+	for i, a := range res.AlertNodes.Exec {
+		if a.Command == nil {
+			a.Command = []string{}
+			res.AlertNodes.Exec[i] = a
 		}
-		for _, p := range n.Properties {
-			if p.Args == nil {
-				p.Args = make([]string, 0)
-			}
+	}
+
+	if res.AlertNodes.HipChat == nil {
+		res.AlertNodes.HipChat = []*chronograf.HipChat{}
+	}
+
+	if res.AlertNodes.Log == nil {
+		res.AlertNodes.Log = []*chronograf.Log{}
+	}
+
+	if res.AlertNodes.OpsGenie == nil {
+		res.AlertNodes.OpsGenie = []*chronograf.OpsGenie{}
+	}
+
+	for i, a := range res.AlertNodes.OpsGenie {
+		if a.Teams == nil {
+			a.Teams = []string{}
+			res.AlertNodes.OpsGenie[i] = a
 		}
+
+		if a.Recipients == nil {
+			a.Recipients = []string{}
+			res.AlertNodes.OpsGenie[i] = a
+		}
+	}
+
+	if res.AlertNodes.PagerDuty == nil {
+		res.AlertNodes.PagerDuty = []*chronograf.PagerDuty{}
+	}
+
+	if res.AlertNodes.Posts == nil {
+		res.AlertNodes.Posts = []*chronograf.Post{}
+	}
+
+	for i, a := range res.AlertNodes.Posts {
+		if a.Headers == nil {
+			a.Headers = map[string]string{}
+			res.AlertNodes.Posts[i] = a
+		}
+	}
+
+	if res.AlertNodes.Pushover == nil {
+		res.AlertNodes.Pushover = []*chronograf.Pushover{}
+	}
+
+	if res.AlertNodes.Sensu == nil {
+		res.AlertNodes.Sensu = []*chronograf.Sensu{}
+	}
+
+	for i, a := range res.AlertNodes.Sensu {
+		if a.Handlers == nil {
+			a.Handlers = []string{}
+			res.AlertNodes.Sensu[i] = a
+		}
+	}
+
+	if res.AlertNodes.Slack == nil {
+		res.AlertNodes.Slack = []*chronograf.Slack{}
+	}
+
+	if res.AlertNodes.Talk == nil {
+		res.AlertNodes.Talk = []*chronograf.Talk{}
+	}
+
+	if res.AlertNodes.TCPs == nil {
+		res.AlertNodes.TCPs = []*chronograf.TCP{}
+	}
+
+	if res.AlertNodes.Telegram == nil {
+		res.AlertNodes.Telegram = []*chronograf.Telegram{}
+	}
+
+	if res.AlertNodes.VictorOps == nil {
+		res.AlertNodes.VictorOps = []*chronograf.VictorOps{}
 	}
 
 	if res.Query != nil {
@@ -457,7 +542,7 @@ func (s *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	c := kapa.NewClient(srv.URL, srv.Username, srv.Password, srv.InsecureSkipVerify)
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, s.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 	// TODO: validate this data
@@ -482,7 +567,7 @@ func (s *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	req.ID = tid
 	task, err := c.Update(ctx, c.Href(tid), req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 	res := newAlertResponse(task, srv.SrcID, srv.ID)

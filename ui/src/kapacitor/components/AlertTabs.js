@@ -23,7 +23,7 @@ class AlertTabs extends Component {
     super(props)
 
     this.state = {
-      selectedEndpoint: 'smtp',
+      selectedHandler: 'smtp',
       configSections: null,
     }
   }
@@ -54,6 +54,14 @@ class AlertTabs extends Component {
 
   getSection = (sections, section) => {
     return _.get(sections, [section, 'elements', '0'], null)
+  }
+
+  getEnabled = (sections, section) => {
+    return _.get(
+      sections,
+      [section, 'elements', '0', 'options', 'enabled'],
+      null
+    )
   }
 
   handleGetSection = (sections, section) => () => {
@@ -100,10 +108,10 @@ class AlertTabs extends Component {
     if (!configSections) {
       return null
     }
-
     const supportedConfigs = {
       alerta: {
         type: 'Alerta',
+        enabled: this.getEnabled(configSections, 'alerta'),
         renderComponent: () =>
           <AlertaConfig
             onSave={this.handleSaveConfig('alerta')}
@@ -112,6 +120,7 @@ class AlertTabs extends Component {
       },
       hipchat: {
         type: 'HipChat',
+        enabled: this.getEnabled(configSections, 'hipchat'),
         renderComponent: () =>
           <HipChatConfig
             onSave={this.handleSaveConfig('hipchat')}
@@ -120,6 +129,7 @@ class AlertTabs extends Component {
       },
       opsgenie: {
         type: 'OpsGenie',
+        enabled: this.getEnabled(configSections, 'opsgenie'),
         renderComponent: () =>
           <OpsGenieConfig
             onSave={this.handleSaveConfig('opsgenie')}
@@ -128,6 +138,7 @@ class AlertTabs extends Component {
       },
       pagerduty: {
         type: 'PagerDuty',
+        enabled: this.getEnabled(configSections, 'pagerduty'),
         renderComponent: () =>
           <PagerDutyConfig
             onSave={this.handleSaveConfig('pagerduty')}
@@ -136,6 +147,7 @@ class AlertTabs extends Component {
       },
       pushover: {
         type: 'Pushover',
+        enabled: this.getEnabled(configSections, 'pushover'),
         renderComponent: () =>
           <PushoverConfig
             onSave={this.handleSaveConfig('pushover')}
@@ -144,6 +156,7 @@ class AlertTabs extends Component {
       },
       sensu: {
         type: 'Sensu',
+        enabled: this.getEnabled(configSections, 'sensu'),
         renderComponent: () =>
           <SensuConfig
             onSave={this.handleSaveConfig('sensu')}
@@ -152,6 +165,7 @@ class AlertTabs extends Component {
       },
       slack: {
         type: 'Slack',
+        enabled: this.getEnabled(configSections, 'slack'),
         renderComponent: () =>
           <SlackConfig
             onSave={this.handleSaveConfig('slack')}
@@ -160,6 +174,7 @@ class AlertTabs extends Component {
       },
       smtp: {
         type: 'SMTP',
+        enabled: this.getEnabled(configSections, 'smtp'),
         renderComponent: () =>
           <SMTPConfig
             onSave={this.handleSaveConfig('smtp')}
@@ -168,6 +183,7 @@ class AlertTabs extends Component {
       },
       talk: {
         type: 'Talk',
+        enabled: this.getEnabled(configSections, 'talk'),
         renderComponent: () =>
           <TalkConfig
             onSave={this.handleSaveConfig('talk')}
@@ -176,6 +192,7 @@ class AlertTabs extends Component {
       },
       telegram: {
         type: 'Telegram',
+        enabled: this.getEnabled(configSections, 'telegram'),
         renderComponent: () =>
           <TelegramConfig
             onSave={this.handleSaveConfig('telegram')}
@@ -184,6 +201,7 @@ class AlertTabs extends Component {
       },
       victorops: {
         type: 'VictorOps',
+        enabled: this.getEnabled(configSections, 'victorops'),
         renderComponent: () =>
           <VictorOpsConfig
             onSave={this.handleSaveConfig('victorops')}
@@ -207,7 +225,10 @@ class AlertTabs extends Component {
               (acc, _cur, k) =>
                 supportedConfigs[k]
                   ? acc.concat(
-                      <Tab key={supportedConfigs[k].type}>
+                      <Tab
+                        key={supportedConfigs[k].type}
+                        isConfigured={supportedConfigs[k].enabled}
+                      >
                         {supportedConfigs[k].type}
                       </Tab>
                     )

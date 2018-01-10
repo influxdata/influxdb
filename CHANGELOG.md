@@ -92,6 +92,20 @@
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Fix hoverline intermittently not rendering
 1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
 
+### Features
+1. [#2188](https://github.com/influxdata/chronograf/pull/2188): Add Kapacitor logs to the TICKscript editor
+1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
+1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
+1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Add auto group by time to Data Explorer
+1. [#2456](https://github.com/influxdata/chronograf/pull/2456): Add boolean thresholds for kapacitor threshold alerts
+1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
+1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
+1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
+1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Add multiple event handlers to rules
+
+### UI Improvements
+
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes
 1. [#2095](https://github.com/influxdata/chronograf/pull/2095): Improve the copy in the retention policy edit page
