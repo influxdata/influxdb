@@ -23,7 +23,7 @@ const AllUsersTableHeader = ({
         disabled={isCreatingUser || !onClickCreateUser}
       >
         <span className="icon plus" />
-        Create User
+        Add User
       </button>
     </div>
   )
