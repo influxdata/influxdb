@@ -1389,10 +1389,14 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64, removeIn
 				continue
 			}
 
-			// Remove the series from the index.
-			// TODO(edd): if a DROP MEASUREMENT, or even a DROP SERIES had been
-			// issued, we could have updated this bitmap much earlier when we had
-			// the series id, which will save the lookup from series key -> series id.
+			// Remove the series from the series file and index.
+
+			// TODO(edd): we need to first check with all other shards if it's
+			// OK to tombstone the series in the series file.
+			//
+			// Further, in the case of the inmem index, we should only remove
+			// the series from the index if we also tombstone it in the series
+			// file.
 			name, tags := models.ParseKey(k)
 			sid := e.sfile.SeriesID([]byte(name), tags, buf)
 			if sid == 0 {
