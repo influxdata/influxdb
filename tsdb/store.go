@@ -562,10 +562,6 @@ func (s *Store) DeleteDatabase(name string) error {
 		// no files locally, so nothing to do
 		return nil
 	}
-
-	sfile := s.sfiles[name]
-	delete(s.sfiles, name)
-
 	shards := s.filterShards(func(sh *Shard) bool {
 		return sh.database == name
 	})
@@ -585,6 +581,9 @@ func (s *Store) DeleteDatabase(name string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	sfile := s.sfiles[name]
+	delete(s.sfiles, name)
 
 	// Close series file.
 	if sfile != nil {
