@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"fmt"
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
@@ -781,6 +782,106 @@ func (data *Data) hasAdminUser() bool {
 		}
 	}
 	return false
+}
+
+// ImportData imports selected data into the current metadata.
+// if non-empty, backupDBName, restoreDBName, backupRPName, restoreRPName can be used to select DB metadata from other,
+// and to assign a new name to the imported data.  Returns a map of shard ID's in the old metadata to new shard ID's
+// in the new metadata, along with a list of new databases created, both of which can assist in the import of existing
+// shard data during a database restore.
+func (data *Data) ImportData(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string) (map[uint64]uint64, []string, error) {
+	shardIDMap := make(map[uint64]uint64)
+	if backupDBName != "" {
+		dbName, err := data.importOneDB(other, backupDBName, restoreDBName, backupRPName, restoreRPName, shardIDMap)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return shardIDMap, []string{dbName}, nil
+	}
+
+	// if no backupDBName then we'll try to import all the DB's.  If one of them fails, we'll mark the whole
+	// operation a failure and return an error.
+	var newDBs []string
+	for _, dbi := range other.Databases {
+		if dbi.Name == "_internal" {
+			continue
+		}
+		dbName, err := data.importOneDB(other, dbi.Name, "", "", "", shardIDMap)
+		if err != nil {
+			return nil, nil, err
+		}
+		newDBs = append(newDBs, dbName)
+	}
+	return shardIDMap, newDBs, nil
+}
+
+// importOneDB imports a single database/rp from an external metadata object, renaming them if new names are provided.
+func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string, shardIDMap map[uint64]uint64) (string, error) {
+
+	dbPtr := other.Database(backupDBName)
+	if dbPtr == nil {
+		return "", fmt.Errorf("imported metadata does not have datbase named %s", backupDBName)
+	}
+
+	if restoreDBName == "" {
+		restoreDBName = backupDBName
+	}
+
+	if data.Database(restoreDBName) != nil {
+		return "", errors.New("database already exists")
+	}
+
+	// change the names if we want/need to
+	err := data.CreateDatabase(restoreDBName)
+	if err != nil {
+		return "", err
+	}
+	dbImport := data.Database(restoreDBName)
+
+	if backupRPName != "" {
+		rpPtr := dbPtr.RetentionPolicy(backupRPName)
+
+		if rpPtr != nil {
+			rpImport := rpPtr.clone()
+			if restoreRPName == "" {
+				restoreRPName = backupRPName
+			}
+			rpImport.Name = restoreRPName
+			dbImport.RetentionPolicies = []RetentionPolicyInfo{rpImport}
+			dbImport.DefaultRetentionPolicy = restoreRPName
+		} else {
+			return "", fmt.Errorf("retention Policy not found in meta backup: %s.%s", backupDBName, backupRPName)
+		}
+
+	} else { // import all RP's without renaming
+		dbImport.DefaultRetentionPolicy = dbPtr.DefaultRetentionPolicy
+		if dbPtr.RetentionPolicies != nil {
+			dbImport.RetentionPolicies = make([]RetentionPolicyInfo, len(dbPtr.RetentionPolicies))
+			for i := range dbPtr.RetentionPolicies {
+				dbImport.RetentionPolicies[i] = dbPtr.RetentionPolicies[i].clone()
+			}
+		}
+
+	}
+
+	// renumber the shard groups and shards for the new retention policy(ies)
+	for _, rpImport := range dbImport.RetentionPolicies {
+		for j, sgImport := range rpImport.ShardGroups {
+			data.MaxShardGroupID++
+			rpImport.ShardGroups[j].ID = data.MaxShardGroupID
+			for k, _ := range sgImport.Shards {
+				data.MaxShardID++
+				shardIDMap[sgImport.Shards[k].ID] = data.MaxShardID
+				sgImport.Shards[k].ID = data.MaxShardID
+				// OSS doesn't use Owners but if we are importing this from Enterprise, we'll want to clear it out
+				// to avoid any issues if they ever export this DB again to bring back to Enterprise.
+				sgImport.Shards[k].Owners = []ShardOwner{}
+			}
+		}
+	}
+
+	return restoreDBName, nil
 }
 
 // NodeInfo represents information about a single node in the cluster.

@@ -1,0 +1,12 @@
+package backup_util;
+
+//========================================================================
+//
+// Metadata
+//
+//========================================================================
+
+message EnterpriseData {
+    required bytes Data = 1;
+    required uint64 MaxNodeID = 2;
+}

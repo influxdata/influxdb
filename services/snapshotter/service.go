@@ -44,6 +44,9 @@ type Service struct {
 		ExportShard(id uint64, ExportStart time.Time, ExportEnd time.Time, w io.Writer) error
 		Shard(id uint64) *tsdb.Shard
 		ShardRelativePath(id uint64) (string, error)
+		SetShardEnabled(shardID uint64, enabled bool) error
+		RestoreShard(id uint64, r io.Reader) error
+		CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error
 	}
 
 	Listener net.Listener
@@ -89,7 +92,6 @@ func (s *Service) serve() {
 	for {
 		// Wait for next connection.
 		conn, err := s.Listener.Accept()
-
 		if err != nil && strings.Contains(err.Error(), "connection closed") {
 			s.Logger.Info("snapshot listener closed")
 			return
@@ -119,7 +121,11 @@ func (s *Service) handleConn(conn net.Conn) error {
 		return err
 	}
 
-	r, err := s.readRequest(conn)
+	if RequestType(typ[0]) == RequestShardUpdate {
+		return s.updateShardsLive(conn)
+	}
+
+	r, bytes, err := s.readRequest(conn)
 	if err != nil {
 		return fmt.Errorf("read request: %s", err)
 	}
@@ -141,6 +147,8 @@ func (s *Service) handleConn(conn net.Conn) error {
 		return s.writeDatabaseInfo(conn, r.BackupDatabase)
 	case RequestRetentionPolicyInfo:
 		return s.writeRetentionPolicyInfo(conn, r.BackupDatabase, r.BackupRetentionPolicy)
+	case RequestMetaStoreUpdate:
+		return s.updateMetaStore(conn, bytes, r.BackupDatabase, r.RestoreDatabase, r.BackupRetentionPolicy, r.RestoreRetentionPolicy)
 	default:
 		return fmt.Errorf("request type unknown: %v", r.Type)
 	}
@@ -148,10 +156,109 @@ func (s *Service) handleConn(conn net.Conn) error {
 	return nil
 }
 
+func (s *Service) updateShardsLive(conn net.Conn) error {
+	var sidBytes [8]byte
+	_, err := conn.Read(sidBytes[:])
+	if err != nil {
+		return err
+	}
+	sid := binary.BigEndian.Uint64(sidBytes[:])
+
+	if err := s.TSDBStore.SetShardEnabled(sid, false); err != nil {
+		return err
+	}
+	defer s.TSDBStore.SetShardEnabled(sid, true)
+
+	if err := s.TSDBStore.RestoreShard(sid, conn); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, restoreDBName, backupRPName, restoreRPName string) error {
+	md := meta.Data{}
+	err := md.UnmarshalBinary(bits)
+	if err != nil {
+		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
+			return err
+		}
+		return fmt.Errorf("failed to decode meta: %s", err)
+	}
+
+	data := s.MetaClient.(*meta.Client).Data()
+
+	IDMap, newDBs, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
+	if err != nil {
+		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
+			return err
+		}
+		return err
+	}
+
+	err = s.MetaClient.(*meta.Client).SetData(&data)
+	if err != nil {
+		return err
+	}
+
+	err = s.createNewDBShards(data, newDBs)
+	if err != nil {
+		return err
+	}
+
+	err = s.respondIDMap(conn, IDMap)
+	return err
+}
+
+// iterate over a list of newDB's that should have just been added to the metadata
+// If the db was not created in the metadata return an error.
+// None of the shards should exist on a new DB, and CreateShard protects against double-creation.
+func (s *Service) createNewDBShards(data meta.Data, newDBs []string) error {
+	for _, restoreDBName := range newDBs {
+		dbi := data.Database(restoreDBName)
+		if dbi == nil {
+			return fmt.Errorf("db %s not found when creating new db shards", restoreDBName)
+		}
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				for _, shard := range sgi.Shards {
+					err := s.TSDBStore.CreateShard(restoreDBName, rpi.Name, shard.ID, true)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// send the IDMapping based on the metadata from the source server vs the shard ID
+// metadata on this server.  Sends back [BackupMagicHeader,0] if there's no mapped
+// values, signaling that nothing should be imported.
+func (s *Service) respondIDMap(conn net.Conn, IDMap map[uint64]uint64) error {
+	npairs := len(IDMap)
+	// 2 information ints, then npairs of 8byte ints.
+	numBytes := make([]byte, (npairs+1)*16)
+
+	binary.BigEndian.PutUint64(numBytes[:8], BackupMagicHeader)
+	binary.BigEndian.PutUint64(numBytes[8:16], uint64(npairs))
+	next := 16
+	for k, v := range IDMap {
+		binary.BigEndian.PutUint64(numBytes[next:next+8], k)
+		binary.BigEndian.PutUint64(numBytes[next+8:next+16], v)
+		next += 16
+	}
+
+	if _, err := conn.Write(numBytes[:]); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Service) writeMetaStore(conn net.Conn) error {
 	// Retrieve and serialize the current meta data.
 	metaBlob, err := s.MetaClient.MarshalBinary()
-
 	if err != nil {
 		return fmt.Errorf("marshal meta: %s", err)
 	}
@@ -274,12 +381,39 @@ func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPol
 }
 
 // readRequest unmarshals a request object from the conn.
-func (s *Service) readRequest(conn net.Conn) (Request, error) {
+func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 	var r Request
-	if err := json.NewDecoder(conn).Decode(&r); err != nil {
-		return r, err
+	d := json.NewDecoder(conn)
+
+	if err := d.Decode(&r); err != nil {
+		return r, nil, err
 	}
-	return r, nil
+
+	bits := make([]byte, r.UploadSize+1)
+
+	if r.UploadSize > 0 {
+
+		remainder := d.Buffered()
+
+		n, err := remainder.Read(bits)
+		if err != nil && err != io.EOF {
+			return r, bits, err
+		}
+
+		// it is a bit random but sometimes the Json decoder will consume all the bytes and sometimes
+		// it will leave a few behind.
+		if err != io.EOF && n < int(r.UploadSize+1) {
+			n, err = conn.Read(bits[n:])
+		}
+
+		if err != nil && err != io.EOF {
+			return r, bits, err
+		}
+		// the JSON encoder on the client side seems to write an extra byte, so trim that off the front.
+		return r, bits[1:], nil
+	}
+
+	return r, bits, nil
 }
 
 // RequestType indicates the typeof snapshot request.
