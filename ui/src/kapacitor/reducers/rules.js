@@ -1,6 +1,9 @@
-import {defaultRuleConfigs, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {
+  defaultRuleConfigs,
+  DEFAULT_RULE_ID,
+  HANDLERS_TO_RULE,
+} from 'src/kapacitor/constants'
 import _ from 'lodash'
-import {parseAlerta} from 'shared/parsing/parseAlerta'
 
 export default function rules(state = {}, action) {
   switch (action.type) {
@@ -13,8 +16,7 @@ export default function rules(state = {}, action) {
           trigger: 'threshold',
           values: defaultRuleConfigs.threshold,
           message: '',
-          alerts: [],
-          alertNodes: [],
+          alertNodes: {},
           every: null,
           name: 'Untitled Rule',
         },
@@ -74,109 +76,38 @@ export default function rules(state = {}, action) {
       })
     }
 
-    case 'UPDATE_RULE_ALERTS': {
-      const {ruleID, alerts} = action.payload
-      return Object.assign({}, state, {
-        [ruleID]: Object.assign({}, state[ruleID], {
-          alerts,
-        }),
-      })
-    }
-
-    // TODO: refactor to allow multiple alert nodes, and change name + refactor
-    // functionality to clearly disambiguate creating an alert node, changing its
-    // type, adding other alert nodes to a single rule, and updating an alert node's
-    // properties vs args vs details vs message.
     case 'UPDATE_RULE_ALERT_NODES': {
-      const {ruleID, alertNodeName, alertNodesText} = action.payload
-
-      let alertNodesByType
-
-      switch (alertNodeName) {
-        case 'http':
-        case 'tcp':
-        case 'log':
-          alertNodesByType = [
-            {
-              name: alertNodeName,
-              args: [alertNodesText],
-              properties: [],
-            },
+      const {ruleID, alerts} = action.payload
+      const alertNodesByType = {}
+      _.forEach(alerts, h => {
+        if (h.enabled) {
+          if (h.type === 'post') {
+            if (h.url === '') {
+              return
+            }
+            h.headers = {[h.headerKey]: h.headerValue}
+          }
+          if (h.type === 'log' && h.filePath === '') {
+            return
+          }
+          if (h.type === 'tcp' && h.address === '') {
+            return
+          }
+          if (h.type === 'exec' && h.command.length === 0) {
+            return
+          }
+          const existing = _.get(alertNodesByType, h.type, [])
+          alertNodesByType[h.type] = [
+            ...existing,
+            _.pick(h, HANDLERS_TO_RULE[h.type]),
           ]
-          break
-        case 'exec':
-        case 'smtp':
-          alertNodesByType = [
-            {
-              name: alertNodeName,
-              args: alertNodesText.split(' '),
-              properties: [],
-            },
-          ]
-          break
-        case 'alerta':
-          alertNodesByType = [
-            {
-              name: alertNodeName,
-              args: [],
-              properties: parseAlerta(alertNodesText),
-            },
-          ]
-          break
-        case 'hipchat':
-        case 'opsgenie':
-        case 'pagerduty':
-        case 'slack':
-        case 'telegram':
-        case 'victorops':
-        case 'pushover':
-        default:
-          alertNodesByType = [
-            {
-              name: alertNodeName,
-              args: [],
-              properties: [],
-            },
-          ]
-      }
+        }
+      })
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
           alertNodes: alertNodesByType,
         }),
       })
-    }
-
-    case 'UPDATE_RULE_ALERT_PROPERTY': {
-      const {ruleID, alertNodeName, alertProperty} = action.payload
-      const newAlertNodes = state[ruleID].alertNodes.map(alertNode => {
-        if (alertNode.name !== alertNodeName) {
-          return alertNode
-        }
-        let matched = false
-
-        if (!alertNode.properties) {
-          alertNode.properties = []
-        }
-        alertNode.properties = alertNode.properties.map(property => {
-          if (property.name === alertProperty.name) {
-            matched = true
-            return alertProperty
-          }
-          return property
-        })
-        if (!matched) {
-          alertNode.properties.push(alertProperty)
-        }
-        return alertNode
-      })
-
-      return {
-        ...state,
-        [ruleID]: {
-          ...state[ruleID],
-          alertNodes: newAlertNodes,
-        },
-      }
     }
 
     case 'UPDATE_RULE_NAME': {

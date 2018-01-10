@@ -14,7 +14,11 @@ class SlideToggle extends Component {
   }
 
   handleClick = () => {
-    const {onToggle} = this.props
+    const {onToggle, disabled} = this.props
+
+    if (disabled) {
+      return
+    }
 
     this.setState({active: !this.state.active}, () => {
       onToggle(this.state.active)
@@ -22,15 +26,15 @@ class SlideToggle extends Component {
   }
 
   render() {
-    const {size} = this.props
+    const {size, disabled} = this.props
     const {active} = this.state
 
-    const classNames = active
-      ? `slide-toggle slide-toggle__${size} active`
-      : `slide-toggle slide-toggle__${size}`
+    const className = `slide-toggle slide-toggle__${size} ${active
+      ? 'active'
+      : null} ${disabled ? 'disabled' : null}`
 
     return (
-      <div className={classNames} onClick={this.handleClick}>
+      <div className={className} onClick={this.handleClick}>
         <div className="slide-toggle--knob" />
       </div>
     )
@@ -46,6 +50,7 @@ SlideToggle.propTypes = {
   active: bool,
   size: string,
   onToggle: func.isRequired,
+  disabled: bool,
 }
 
 export default SlideToggle

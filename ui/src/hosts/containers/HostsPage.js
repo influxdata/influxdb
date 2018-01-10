@@ -1,10 +1,12 @@
 import React, {PropTypes, Component} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
 import SourceIndicator from 'shared/components/SourceIndicator'
 
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
+import {getEnv} from 'src/shared/apis/env'
 
 class HostsPage extends Component {
   constructor(props) {
@@ -17,48 +19,72 @@ class HostsPage extends Component {
     }
   }
 
-  componentDidMount() {
-    const {source, addFlashMessage} = this.props
-    Promise.all([
-      getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
-      getLayouts(),
-      new Promise(resolve => {
-        this.setState({hostsLoading: true})
-        resolve()
-      }),
-    ])
-      .then(([hosts, {data: {layouts}}]) => {
-        this.setState({
-          hosts,
-          hostsLoading: false,
-        })
-        getAppsForHosts(source.links.proxy, hosts, layouts, source.telegraf)
-          .then(newHosts => {
-            this.setState({
-              hosts: newHosts,
-              hostsError: '',
-              hostsLoading: false,
-            })
-          })
-          .catch(error => {
-            console.error(error)
-            const reason = 'Unable to get apps for hosts'
-            addFlashMessage({type: 'error', text: reason})
-            this.setState({
-              hostsError: reason,
-              hostsLoading: false,
-            })
-          })
+  async componentDidMount() {
+    const {source, links, addFlashMessage} = this.props
+
+    const {telegrafSystemInterval} = await getEnv(links.environment)
+
+    const hostsError = 'Unable to get apps for hosts'
+    let hosts, layouts
+
+    try {
+      const [h, {data}] = await Promise.all([
+        getCpuAndLoadForHosts(
+          source.links.proxy,
+          source.telegraf,
+          telegrafSystemInterval
+        ),
+        getLayouts(),
+        new Promise(resolve => {
+          this.setState({hostsLoading: true})
+          resolve()
+        }),
+      ])
+
+      hosts = h
+      layouts = data.layouts
+
+      this.setState({
+        hosts,
+        hostsLoading: false,
       })
-      .catch(reason => {
-        this.setState({
-          hostsError: reason.toString(),
-          hostsLoading: false,
-        })
-        // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
-        // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
-        console.error(reason) // eslint-disable-line no-console
+    } catch (error) {
+      this.setState({
+        hostsError: error.toString(),
+        hostsLoading: false,
       })
+
+      console.error(error)
+    }
+
+    if (!hosts || !layouts) {
+      addFlashMessage({type: 'error', text: hostsError})
+      return this.setState({
+        hostsError,
+        hostsLoading: false,
+      })
+    }
+
+    try {
+      const newHosts = await getAppsForHosts(
+        source.links.proxy,
+        hosts,
+        layouts,
+        source.telegraf
+      )
+      this.setState({
+        hosts: newHosts,
+        hostsError: '',
+        hostsLoading: false,
+      })
+    } catch (error) {
+      console.error(error)
+      addFlashMessage({type: 'error', text: hostsError})
+      this.setState({
+        hostsError,
+        hostsLoading: false,
+      })
+    }
   }
 
   render() {
@@ -97,6 +123,12 @@ class HostsPage extends Component {
 
 const {func, shape, string} = PropTypes
 
+const mapStateToProps = ({links}) => {
+  return {
+    links,
+  }
+}
+
 HostsPage.propTypes = {
   source: shape({
     id: string.isRequired,
@@ -107,7 +139,10 @@ HostsPage.propTypes = {
     }).isRequired,
     telegraf: string.isRequired,
   }),
+  links: shape({
+    environment: string.isRequired,
+  }),
   addFlashMessage: func,
 }
 
-export default HostsPage
+export default connect(mapStateToProps, null)(HostsPage)

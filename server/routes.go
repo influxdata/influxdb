@@ -35,6 +35,7 @@ type getRoutesResponse struct {
 	Mappings      string                   `json:"mappings"`         // Location of the application mappings endpoint
 	Sources       string                   `json:"sources"`          // Location of the sources endpoint
 	Me            string                   `json:"me"`               // Location of the me endpoint
+	Environment   string                   `json:"environment"`      // Location of the environement endpoint
 	Dashboards    string                   `json:"dashboards"`       // Location of the dashboards endpoint
 	Config        getConfigLinksResponse   `json:"config"`           // Location of the config endpoint and its various sections
 	Auth          []AuthRoute              `json:"auth"`             // Location of all auth routes.
@@ -67,6 +68,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Users:         "/chronograf/v1/users",
 		Organizations: "/chronograf/v1/organizations",
 		Me:            "/chronograf/v1/me",
+		Environment:   "/chronograf/v1/env",
 		Mappings:      "/chronograf/v1/mappings",
 		Dashboards:    "/chronograf/v1/dashboards",
 		Config: getConfigLinksResponse{

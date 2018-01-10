@@ -66,13 +66,13 @@ func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization
 		return nil, err
 	}
 
-	defaultOrgID := fmt.Sprintf("%d", defaultOrg.ID)
+	defaultOrgID := defaultOrg.ID
 
 	// This filters organizations without allocating
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	organizations := ds[:0]
 	for _, d := range ds {
-		id := fmt.Sprintf("%d", d.ID)
+		id := d.ID
 		switch id {
 		case s.organization, defaultOrgID:
 			organizations = append(organizations, d)
@@ -117,7 +117,7 @@ func (s *OrganizationsStore) Get(ctx context.Context, q chronograf.OrganizationQ
 		return nil, err
 	}
 
-	if fmt.Sprintf("%d", d.ID) != s.organization {
+	if d.ID != s.organization {
 		return nil, chronograf.ErrOrganizationNotFound
 	}
 

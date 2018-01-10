@@ -3,6 +3,7 @@ package kapacitor
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -33,10 +34,19 @@ func formatTick(tickscript string) (chronograf.TICKScript, error) {
 }
 
 func validateTick(script chronograf.TICKScript) error {
+	_, err := newPipeline(script)
+	return err
+}
+
+func newPipeline(script chronograf.TICKScript) (*pipeline.Pipeline, error) {
+	edge := pipeline.StreamEdge
+	if strings.Contains(string(script), "batch") {
+		edge = pipeline.BatchEdge
+	}
+
 	scope := stateful.NewScope()
 	predefinedVars := map[string]tick.Var{}
-	_, err := pipeline.CreatePipeline(string(script), pipeline.StreamEdge, scope, &deadman{}, predefinedVars)
-	return err
+	return pipeline.CreatePipeline(string(script), edge, scope, &deadman{}, predefinedVars)
 }
 
 // deadman is an empty implementation of a kapacitor DeadmanService to allow CreatePipeline

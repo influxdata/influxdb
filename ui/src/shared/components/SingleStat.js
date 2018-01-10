@@ -4,6 +4,7 @@ import classnames from 'classnames'
 import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
+import {SINGLE_STAT_TEXT} from 'src/dashboards/constants/gaugeColors'
 import {isBackgroundLight} from 'shared/constants/colorOperations'
 
 const darkText = '#292933'
@@ -11,7 +12,7 @@ const lightText = '#ffffff'
 
 class SingleStat extends PureComponent {
   render() {
-    const {data, cellHeight, isFetchingInitially, colors} = this.props
+    const {data, cellHeight, isFetchingInitially, colors, suffix} = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -37,10 +38,18 @@ class SingleStat extends PureComponent {
         .filter(color => lastValue > color.value)
         .pop()
 
-      bgColor = nearestCrossedThreshold
-        ? nearestCrossedThreshold.hex
-        : '#292933'
-      textColor = isBackgroundLight(bgColor) ? darkText : lightText
+      const colorizeText = _.some(colors, {type: SINGLE_STAT_TEXT})
+
+      if (colorizeText) {
+        textColor = nearestCrossedThreshold
+          ? nearestCrossedThreshold.hex
+          : '#292933'
+      } else {
+        bgColor = nearestCrossedThreshold
+          ? nearestCrossedThreshold.hex
+          : '#292933'
+        textColor = isBackgroundLight(bgColor) ? darkText : lightText
+      }
     }
 
     return (
@@ -54,6 +63,7 @@ class SingleStat extends PureComponent {
           })}
         >
           {roundedValue}
+          {suffix}
         </span>
       </div>
     )
@@ -75,6 +85,7 @@ SingleStat.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  suffix: string,
 }
 
 export default SingleStat

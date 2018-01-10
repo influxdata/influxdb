@@ -28,6 +28,8 @@ import {
   DEFAULT_VALUE_MIN,
   DEFAULT_VALUE_MAX,
   GAUGE_COLORS,
+  SINGLE_STAT_TEXT,
+  SINGLE_STAT_BG,
   validateColors,
 } from 'src/dashboards/constants/gaugeColors'
 
@@ -47,6 +49,7 @@ class CellEditorOverlay extends Component {
         source,
       }))
     )
+    const colorsTypeContainsText = _.some(colors, {type: SINGLE_STAT_TEXT})
 
     this.state = {
       cellWorkingName: name,
@@ -55,7 +58,8 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
-      colors: validateColors(colors, type),
+      colorSingleStatText: colorsTypeContainsText,
+      colors: validateColors(colors, type, colorsTypeContainsText),
     }
   }
 
@@ -181,6 +185,33 @@ class CellEditorOverlay extends Component {
     return allowedToUpdate
   }
 
+  handleToggleSingleStatText = () => {
+    const {colors, colorSingleStatText} = this.state
+    const formattedColors = colors.map(color => ({
+      ...color,
+      type: colorSingleStatText ? SINGLE_STAT_BG : SINGLE_STAT_TEXT,
+    }))
+
+    this.setState({
+      colorSingleStatText: !colorSingleStatText,
+      colors: formattedColors,
+    })
+  }
+
+  handleSetSuffix = e => {
+    const {axes} = this.state
+
+    this.setState({
+      axes: {
+        ...axes,
+        y: {
+          ...axes.y,
+          suffix: e.target.value,
+        },
+      },
+    })
+  }
+
   queryStateReducer = queryModifier => (queryID, ...payload) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
@@ -290,8 +321,12 @@ class CellEditorOverlay extends Component {
   }
 
   handleSelectGraphType = graphType => () => {
-    const {colors} = this.state
-    const validatedColors = validateColors(colors, graphType)
+    const {colors, colorSingleStatText} = this.state
+    const validatedColors = validateColors(
+      colors,
+      graphType,
+      colorSingleStatText
+    )
     this.setState({cellWorkingType: graphType, colors: validatedColors})
   }
 
@@ -424,6 +459,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
+      colorSingleStatText,
     } = this.state
 
     const queryActions = {
@@ -477,12 +513,15 @@ class CellEditorOverlay extends Component {
                   onUpdateColorValue={this.handleUpdateColorValue}
                   onAddThreshold={this.handleAddThreshold}
                   onDeleteThreshold={this.handleDeleteThreshold}
+                  onToggleSingleStatText={this.handleToggleSingleStatText}
+                  colorSingleStatText={colorSingleStatText}
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
                   queryConfigs={queriesWorkingDraft}
                   selectedGraphType={cellWorkingType}
                   onSetPrefixSuffix={this.handleSetPrefixSuffix}
+                  onSetSuffix={this.handleSetSuffix}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}

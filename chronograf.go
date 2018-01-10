@@ -16,11 +16,14 @@ const (
 	ErrDashboardNotFound               = Error("dashboard not found")
 	ErrUserNotFound                    = Error("user not found")
 	ErrLayoutInvalid                   = Error("layout is invalid")
+	ErrDashboardInvalid                = Error("dashboard is invalid")
+	ErrSourceInvalid                   = Error("source is invalid")
+	ErrServerInvalid                   = Error("server is invalid")
 	ErrAlertNotFound                   = Error("alert not found")
 	ErrAuthentication                  = Error("user not authenticated")
 	ErrUninitialized                   = Error("client uninitialized. Call Open() method")
 	ErrInvalidAxis                     = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
-	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold'")
+	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold', 'text', and 'background'")
 	ErrInvalidColor                    = Error("Invalid color. Accepted color format is #RRGGBB")
 	ErrUserAlreadyExists               = Error("user already exists")
 	ErrOrganizationNotFound            = Error("organization not found")
@@ -228,6 +231,7 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
+// DBRP is a database and retention policy for a kapacitor task
 type DBRP struct {
 	DB string `json:"db"`
 	RP string `json:"rp"`
@@ -235,25 +239,24 @@ type DBRP struct {
 
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
-	ID            string          `json:"id,omitempty"`           // ID is the unique ID of the alert
-	TICKScript    TICKScript      `json:"tickscript"`             // TICKScript is the raw tickscript associated with this Alert
-	Query         *QueryConfig    `json:"query"`                  // Query is the filter of data for the alert.
-	Every         string          `json:"every"`                  // Every how often to check for the alerting criteria
-	Alerts        []string        `json:"alerts"`                 // Alerts name all the services to notify (e.g. pagerduty)
-	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"`   // AlertNodes define additional arguments to alerts
-	Message       string          `json:"message"`                // Message included with alert
-	Details       string          `json:"details"`                // Details is generally used for the Email alert.  If empty will not be added.
-	Trigger       string          `json:"trigger"`                // Trigger is a type that defines when to trigger the alert
-	TriggerValues TriggerValues   `json:"values"`                 // Defines the values that cause the alert to trigger
-	Name          string          `json:"name"`                   // Name is the user-defined name for the alert
-	Type          string          `json:"type"`                   // Represents the task type where stream is data streamed to kapacitor and batch is queried by kapacitor
-	DBRPs         []DBRP          `json:"dbrps"`                  // List of database retention policy pairs the task is allowed to access
-	Status        string          `json:"status"`                 // Represents if this rule is enabled or disabled in kapacitor
-	Executing     bool            `json:"executing"`              // Whether the task is currently executing
-	Error         string          `json:"error"`                  // Any error encountered when kapacitor executes the task
-	Created       time.Time       `json:"created"`                // Date the task was first created
-	Modified      time.Time       `json:"modified"`               // Date the task was last modified
-	LastEnabled   time.Time       `json:"last-enabled,omitempty"` // Date the task was last set to status enabled
+	ID            string        `json:"id,omitempty"`           // ID is the unique ID of the alert
+	TICKScript    TICKScript    `json:"tickscript"`             // TICKScript is the raw tickscript associated with this Alert
+	Query         *QueryConfig  `json:"query"`                  // Query is the filter of data for the alert.
+	Every         string        `json:"every"`                  // Every how often to check for the alerting criteria
+	AlertNodes    AlertNodes    `json:"alertNodes"`             // AlertNodes defines the destinations for the alert
+	Message       string        `json:"message"`                // Message included with alert
+	Details       string        `json:"details"`                // Details is generally used for the Email alert.  If empty will not be added.
+	Trigger       string        `json:"trigger"`                // Trigger is a type that defines when to trigger the alert
+	TriggerValues TriggerValues `json:"values"`                 // Defines the values that cause the alert to trigger
+	Name          string        `json:"name"`                   // Name is the user-defined name for the alert
+	Type          string        `json:"type"`                   // Represents the task type where stream is data streamed to kapacitor and batch is queried by kapacitor
+	DBRPs         []DBRP        `json:"dbrps"`                  // List of database retention policy pairs the task is allowed to access
+	Status        string        `json:"status"`                 // Represents if this rule is enabled or disabled in kapacitor
+	Executing     bool          `json:"executing"`              // Whether the task is currently executing
+	Error         string        `json:"error"`                  // Any error encountered when kapacitor executes the task
+	Created       time.Time     `json:"created"`                // Date the task was first created
+	Modified      time.Time     `json:"modified"`               // Date the task was last modified
+	LastEnabled   time.Time     `json:"last-enabled,omitempty"` // Date the task was last set to status enabled
 }
 
 // TICKScript task to be used by kapacitor
@@ -562,7 +565,7 @@ type LayoutsStore interface {
 
 // Organization is a group of resources under a common name
 type Organization struct {
-	ID   uint64 `json:"id,string"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 	// DefaultRole is the name of the role that is the default for any users added to the organization
 	DefaultRole string `json:"defaultRole,omitempty"`
@@ -576,7 +579,7 @@ type Organization struct {
 // It is expected that only one of ID or Name will be specified, but will prefer ID over Name if both are specified.
 type OrganizationQuery struct {
 	// If an ID is provided in the query, the lookup time for an organization will be O(1).
-	ID *uint64
+	ID *string
 	// If Name is provided, the lookup time will be O(n).
 	Name *string
 }
@@ -631,4 +634,22 @@ type ConfigStore interface {
 	Get(context.Context) (*Config, error)
 	// Update updates the whole Config in the ConfigStore
 	Update(context.Context, *Config) error
+}
+
+// BuildInfo is sent to the usage client to track versions and commits
+type BuildInfo struct {
+	Version string
+	Commit  string
+}
+
+// BuildStore is the storage and retrieval of Chronograf build information
+type BuildStore interface {
+	Get(context.Context) (BuildInfo, error)
+	Update(context.Context, BuildInfo) error
+}
+
+// Environement is the set of front-end exposed environment variables
+// that were set on the server
+type Environment struct {
+	TelegrafSystemInterval time.Duration `json:"telegrafSystemInterval"`
 }

@@ -1,10 +1,53 @@
-## v1.4.0.0-beta2 [unreleased]
+## v1.4.1.0 [unreleased]
 ### Features
 1. [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
 ### UI Improvements
-1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
 ### Bug Fixes
-1. [#2528](https://github.com/influxdata/chronograf/pull/2528): Fix template rendering to ignore template if not in query 
+1. [#2689](https://github.com/influxdata/chronograf/pull/2689): Allow insecure (self-signed) certificates for kapacitor and influxdb
+
+
+## v1.4.0.1 [unreleased]
+### UI Improvements
+1. [#2690](https://github.com/influxdata/chronograf/pull/2690): Add separate CLI flag for canned sources, kapacitors, dashboards, and organizations
+
+## v1.4.0.0 [2017-12-22]
+### UI Improvements
+1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Add page header with instructional copy when adding initial source for consistency and clearer UX
+
+### Bug Fixes
+1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Make page render successfully when attempting to edit a source
+1. [#2664](https://github.com/influxdata/chronograf/pull/2664): Fix CustomTimeIndicator positioning
+
+## v1.4.0.0-rc2 [2017-12-21]
+### UI Improvements
+1. [#2632](https://github.com/influxdata/chronograf/pull/2632): Tell user which organization they switched into and what role they have whenever they switch, including on Source Page
+
+### Bug Fixes
+1. [#2639](https://github.com/influxdata/chronograf/pull/2639): Prevent SuperAdmin from modifying their own status
+1. [#2632](https://github.com/influxdata/chronograf/pull/2632): Give SuperAdmin DefaultRole when switching to organization where they have no role
+1. [#2642](https://github.com/influxdata/chronograf/pull/2642): Fix DE query config on first run
+
+## v1.4.0.0-rc1 [2017-12-19]
+### Features
+1. [#2593](https://github.com/influxdata/chronograf/pull/2593): Add option to use files for dashboards, organizations, data sources, and kapacitors
+1. [#2604](https://github.com/influxdata/chronograf/pull/2604): After chronograf version upgrade, backup database is created in ./backups
+
+### UI Improvements
+1. [#2492](https://github.com/influxdata/chronograf/pull/2492): Cleanup style on login page with multiple OAuth2 providers
+
+### Bug Fixes
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix stale source data after updating or creating
+1. [#2616](https://github.com/influxdata/chronograf/pull/2616): Fix cell editing so query data choices are kept when updating a cell
+1. [#2612](https://github.com/influxdata/chronograf/pull/2612): Allow days as a valid duration value
+
+## v1.4.0.0-beta2 [2017-12-14]
+### UI Improvements
+1. [#2502](https://github.com/influxdata/chronograf/pull/2502): Fix cursor flashing between default and pointer
+1. [#2598](https://github.com/influxdata/chronograf/pull/2598): Allow appendage of a suffix to single stat visualizations
+1. [#2598](https://github.com/influxdata/chronograf/pull/2598): Allow optional colorization of text instead of background on single stat visualizations
+
+### Bug Fixes
+1. [#2528](https://github.com/influxdata/chronograf/pull/2528): Fix template rendering to ignore template if not in query
 1. [#2563](https://github.com/influxdata/chronograf/pull/2563): Fix graph inversion if user input y-axis min greater than max
 
 ## v1.4.0.0-beta1 [2017-12-07]
@@ -49,7 +92,20 @@
 1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Fix hoverline intermittently not rendering
 1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
-1. [#2545](https://github.com/influxdata/chronograf/pull/2545): Allow configurable thresholds and colors of Single-Stat visualizations in dashboards
+
+### Features
+1. [#2188](https://github.com/influxdata/chronograf/pull/2188): Add Kapacitor logs to the TICKscript editor
+1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
+1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
+1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Add auto group by time to Data Explorer
+1. [#2456](https://github.com/influxdata/chronograf/pull/2456): Add boolean thresholds for kapacitor threshold alerts
+1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
+1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
+1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
+1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Add multiple event handlers to rules
+
+### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes

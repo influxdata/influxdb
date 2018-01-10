@@ -322,7 +322,42 @@ $tick-script-overlay-margin: 30px;
 .dropdown .dropdown-menu li.dropdown-item {
   display: block;
 
-  > a {display: block;}
+  > a {
+    display: block;
+  }
+}
+
+/*  Deletable tabs in .nav-tablist
+  -----------------------------------------------------------------------------
+  TODO: Add this into the theme styles
+*/
+.nav-tab--delete {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  margin-left: 4px;
+  border-radius: 3px;
+  position: relative;
+  background-color: $g5-pepper;
+
+  // Psuedo elements used to form the X
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background-color: $g11-sidewalk;
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+  }
+  &:before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
 }
 
 /*
@@ -395,9 +430,7 @@ $dash-editable-header-padding: 7px;
     margin: 0;
     letter-spacing: 0;
     text-transform: none;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease,
+    transition: color 0.25s ease, background-color 0.25s ease,
       border-color 0.25s ease;
 
     &:after {
@@ -423,6 +456,82 @@ $dash-editable-header-padding: 7px;
         opacity: 1;
       }
     }
+  }
+}
+
+/*  Add borders between items in .nav-tablist
+    -----------------------------------------------------------------------------
+    TODO: Add these styles into the theme
+  */
+
+.nav.nav-tablist {
+  background-color: $g5-pepper;
+
+  > li {
+    margin-right: 2px;
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+}
+
+/*
+  Fake form padding without <form>
+
+*/
+
+div.faux-form {
+  .form-group.col-xs-1,
+  .form-group.col-xs-2,
+  .form-group.col-xs-3,
+  .form-group.col-xs-4,
+  .form-group.col-xs-5,
+  .form-group.col-xs-6,
+  .form-group.col-xs-7,
+  .form-group.col-xs-8,
+  .form-group.col-xs-9,
+  .form-group.col-xs-10,
+  .form-group.col-xs-11,
+  .form-group.col-xs-12,
+  .form-group.col-sm-1,
+  .form-group.col-sm-2,
+  .form-group.col-sm-3,
+  .form-group.col-sm-4,
+  .form-group.col-sm-5,
+  .form-group.col-sm-6,
+  .form-group.col-sm-7,
+  .form-group.col-sm-8,
+  .form-group.col-sm-9,
+  .form-group.col-sm-10,
+  .form-group.col-sm-11,
+  .form-group.col-sm-12,
+  .form-group.col-md-1,
+  .form-group.col-md-2,
+  .form-group.col-md-3,
+  .form-group.col-md-4,
+  .form-group.col-md-5,
+  .form-group.col-md-6,
+  .form-group.col-md-7,
+  .form-group.col-md-8,
+  .form-group.col-md-9,
+  .form-group.col-md-10,
+  .form-group.col-md-11,
+  .form-group.col-md-12,
+  .form-group.col-lg-1,
+  .form-group.col-lg-2,
+  .form-group.col-lg-3,
+  .form-group.col-lg-4,
+  .form-group.col-lg-5,
+  .form-group.col-lg-6,
+  .form-group.col-lg-7,
+  .form-group.col-lg-8,
+  .form-group.col-lg-9,
+  .form-group.col-lg-10,
+  .form-group.col-lg-11,
+  .form-group.col-lg-12 {
+    padding-left: 6px;
+    padding-right: 6px;
   }
 }
 

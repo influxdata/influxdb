@@ -242,6 +242,8 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/config/:section", EnsureSuperAdmin(service.ConfigSection))
 	router.PUT("/chronograf/v1/config/:section", EnsureSuperAdmin(service.ReplaceConfigSection))
 
+	router.GET("/chronograf/v1/env", EnsureViewer(service.Environment))
+
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,
 		StatusFeed:  opts.StatusFeedURL,
@@ -363,8 +365,8 @@ func unknownErrorWithMessage(w http.ResponseWriter, err error, logger chronograf
 	Error(w, http.StatusInternalServerError, fmt.Sprintf("Unknown error: %v", err), logger)
 }
 
-func notFound(w http.ResponseWriter, id int, logger chronograf.Logger) {
-	Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id), logger)
+func notFound(w http.ResponseWriter, id interface{}, logger chronograf.Logger) {
+	Error(w, http.StatusNotFound, fmt.Sprintf("ID %v not found", id), logger)
 }
 
 func paramID(key string, r *http.Request) (int, error) {

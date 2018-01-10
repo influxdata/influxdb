@@ -1,4 +1,4 @@
-package canned
+package filestore
 
 import (
 	"context"

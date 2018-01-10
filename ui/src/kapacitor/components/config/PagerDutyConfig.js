@@ -1,4 +1,5 @@
 import React, {PropTypes, Component} from 'react'
+import RedactedInput from './RedactedInput'
 
 class PagerDutyConfig extends Component {
   constructor(props) {
@@ -20,22 +21,16 @@ class PagerDutyConfig extends Component {
     const {options} = this.props.config
     const {url} = options
     const serviceKey = options['service-key']
-
+    const refFunc = r => (this.serviceKey = r)
     return (
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
           <label htmlFor="service-key">Service Key</label>
-          <input
-            className="form-control"
-            id="service-key"
-            type="text"
-            ref={r => (this.serviceKey = r)}
+          <RedactedInput
             defaultValue={serviceKey || ''}
+            id="service-key"
+            refFunc={refFunc}
           />
-          <label className="form-helper">
-            Note: a value of <code>true</code> indicates the PagerDuty service
-            key has been set
-          </label>
         </div>
 
         <div className="form-group col-xs-12">

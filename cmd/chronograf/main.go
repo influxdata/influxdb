@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/server"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -17,7 +18,7 @@ var (
 
 func main() {
 	srv := server.Server{
-		BuildInfo: server.BuildInfo{
+		BuildInfo: chronograf.BuildInfo{
 			Version: version,
 			Commit:  commit,
 		},

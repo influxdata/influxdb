@@ -62,7 +62,6 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 		invalidJSON(w, s.Logger)
 		return
 	}
-
 	res := QueriesResponse{
 		Queries: make([]QueryResponse, len(req.Queries)),
 	}

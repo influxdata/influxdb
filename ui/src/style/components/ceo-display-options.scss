@@ -1,6 +1,6 @@
 /*
   Cell Editor Overlay - Display Options
-  ------------------------------------------------------
+  ------------------------------------------------------------------------------
 */
 
 $graph-type--gutter: 4px;
@@ -200,7 +200,7 @@ $graph-type--gutter: 4px;
 
 /*
   Cell Editor Overlay - Gauge Controls
-  ------------------------------------------------------
+  ------------------------------------------------------------------------------
 */
 .gauge-controls {
   width: 100%;
@@ -243,4 +243,19 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
 .gauge-controls--input {
   flex: 1 0 0;
   margin: 0 4px;
+}
+
+/*
+  Cell Editor Overlay - Single-Stat Controls
+  ------------------------------------------------------------------------------
+*/
+.single-stat-controls {
+  display: inline-block;
+  width: calc(100% + 12px);
+  margin: 30px -6px 0 -6px;
+
+  > div.form-group {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
 }

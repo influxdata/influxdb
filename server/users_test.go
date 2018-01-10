@@ -334,7 +334,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information."}`,
 		},
 		{
 			name: "Create a new SuperAdmin User - as superadmin",
@@ -667,6 +667,13 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
 				user: &userRequest{
 					ID: 1336,
 					Roles: []chronograf.Role{
@@ -715,6 +722,13 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
 				user: &userRequest{
 					ID: 1336,
 					Roles: []chronograf.Role{
@@ -785,6 +799,119 @@ func TestService_UpdateUser(t *testing.T) {
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
 			wantBody:        `{"code":422,"message":"duplicate organization \"1\" in roles"}`,
+		},
+		{
+			name: "SuperAdmin modifying their own SuperAdmin Status - user missing from context",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:         1336,
+								Name:       "bobbetta",
+								Provider:   "github",
+								Scheme:     "oauth2",
+								SuperAdmin: true,
+								Roles: []chronograf.Role{
+									{
+										Name:         roles.EditorRoleName,
+										Organization: "1",
+									},
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: false,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+					},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusInternalServerError,
+			wantContentType: "application/json",
+			wantBody:        `{"code":500,"message":"failed to retrieve user from context"}`,
+		},
+		{
+			name: "SuperAdmin modifying their own SuperAdmin Status",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:         1336,
+								Name:       "bobbetta",
+								Provider:   "github",
+								Scheme:     "oauth2",
+								SuperAdmin: true,
+								Roles: []chronograf.Role{
+									{
+										Name:         roles.EditorRoleName,
+										Organization: "1",
+									},
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					ID:         1336,
+					SuperAdmin: false,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+					},
+				},
+				userKeyUser: &chronograf.User{
+					ID:         1336,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusUnauthorized,
+			wantContentType: "application/json",
+			wantBody:        `{"code":401,"message":"user cannot modify their own SuperAdmin status"}`,
 		},
 		{
 			name: "Update a SuperAdmin's Roles - without super admin context",
@@ -900,7 +1027,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status"}`,
+			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information."}`,
 		},
 		{
 			name: "Update a Chronograf user to super admin - with super admin context",
@@ -1157,25 +1284,6 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 			err:     nil,
 		},
 		{
-			name: "Invalid - bad organization",
-			args: args{
-				u: &userRequest{
-					ID:       1337,
-					Name:     "billietta",
-					Provider: "auth0",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Name:         roles.EditorRoleName,
-							Organization: "l", // this is the character L not integer One
-						},
-					},
-				},
-			},
-			wantErr: true,
-			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
-		},
-		{
 			name: "Invalid – Name missing",
 			args: args{
 				u: &userRequest{
@@ -1318,25 +1426,6 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			},
 			wantErr: true,
 			err:     fmt.Errorf("No Roles to update"),
-		},
-		{
-			name: "Invalid - bad organization",
-			args: args{
-				u: &userRequest{
-					ID:       1337,
-					Name:     "billietta",
-					Provider: "auth0",
-					Scheme:   "oauth2",
-					Roles: []chronograf.Role{
-						{
-							Name:         roles.EditorRoleName,
-							Organization: "l", // this is the character L not integer One
-						},
-					},
-				},
-			},
-			wantErr: true,
-			err:     fmt.Errorf("failed to parse organization ID: strconv.ParseUint: parsing \"l\": invalid syntax"),
 		},
 		{
 			name: "Invalid - bad role name",

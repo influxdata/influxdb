@@ -34,7 +34,10 @@ func Test_Kapacitor_PaginatingKapaClient(t *testing.T) {
 		},
 	}
 
-	pkap := kapacitor.PaginatingKapaClient{mockClient, 50}
+	pkap := kapacitor.PaginatingKapaClient{
+		KapaClient: mockClient,
+		FetchRate:  50,
+	}
 
 	opts := &client.ListTasksOptions{
 		Limit:  100,

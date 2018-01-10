@@ -65,13 +65,13 @@
 [[projects]]
   name = "github.com/influxdata/influxdb"
   packages = ["influxql","influxql/internal","influxql/neldermead","models","pkg/escape"]
-  revision = "af72d9b0e4ebe95be30e89b160f43eabaf0529ed"
+  revision = "cd9363b52cac452113b95554d98a6be51beda24e"
+  version = "v1.1.5"
 
 [[projects]]
   name = "github.com/influxdata/kapacitor"
-  packages = ["client/v1","pipeline","services/k8s/client","tick","tick/ast","tick/stateful","udf/agent"]
-  revision = "3b5512f7276483326577907803167e4bb213c613"
-  version = "v1.3.1"
+  packages = ["client/v1","pipeline","pipeline/tick","services/k8s/client","tick","tick/ast","tick/stateful","udf/agent"]
+  revision = "6de30070b39afde111fea5e041281126fe8aae31"
 
 [[projects]]
   name = "github.com/influxdata/usage-client"
@@ -140,6 +140,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "85a5451fc9e0596e486a676204eb2de0b12900522341ee0804cf9ec86fb2765e"
+  inputs-digest = "a5bd1aa82919723ff8ec5dd9d520329862de8181ca9dba75c6acb3a34df5f1a4"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -59,7 +59,7 @@ const KapacitorRules = ({
             className="btn btn-sm btn-primary"
             style={{marginRight: '4px'}}
           >
-            <span className="icon plus" /> Build Rule
+            <span className="icon plus" /> Build Alert Rule
           </Link>
         </div>
       </div>
@@ -80,9 +80,10 @@ const KapacitorRules = ({
               <div className="u-flex u-ai-center u-jc-space-between">
                 <Link
                   to={`/sources/${source.id}/tickscript/new`}
-                  className="btn btn-sm btn-info"
+                  className="btn btn-sm btn-primary"
+                  style={{marginRight: '4px'}}
                 >
-                  Write TICKscript
+                  <span className="icon plus" /> Write TICKscript
                 </Link>
               </div>
             </div>
