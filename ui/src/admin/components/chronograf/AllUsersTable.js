@@ -2,13 +2,13 @@ import React, {Component, PropTypes} from 'react'
 
 import uuid from 'node-uuid'
 
-import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
-import UsersTableRowNew from 'src/admin/components/chronograf/UsersTableRowNew'
-import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
+import AllUsersTableHeader from 'src/admin/components/chronograf/AllUsersTableHeader'
+import AllUsersTableRowNew from 'src/admin/components/chronograf/AllUsersTableRowNew'
+import AllUsersTableRow from 'src/admin/components/chronograf/AllUsersTableRow'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-class UsersTable extends Component {
+class AllUsersTable extends Component {
   constructor(props) {
     super(props)
 
@@ -19,6 +19,10 @@ class UsersTable extends Component {
 
   handleChangeUserRole = (user, currentRole) => newRole => {
     this.props.onUpdateUserRole(user, currentRole, newRole)
+  }
+
+  handleChangeSuperAdmin = user => newStatus => {
+    this.props.onUpdateUserSuperAdmin(user, newStatus)
   }
 
   handleDeleteUser = user => {
@@ -37,11 +41,17 @@ class UsersTable extends Component {
     const {organization, users, onCreateUser, meID, notify} = this.props
 
     const {isCreatingUser} = this.state
-    const {colRole, colProvider, colScheme, colActions} = USERS_TABLE
+    const {
+      colRole,
+      colSuperAdmin,
+      colProvider,
+      colScheme,
+      colActions,
+    } = USERS_TABLE
 
     return (
       <div className="panel panel-default">
-        <UsersTableHeader
+        <AllUsersTableHeader
           numUsers={users.length}
           onClickCreateUser={this.handleClickCreateUser}
           isCreatingUser={isCreatingUser}
@@ -55,6 +65,9 @@ class UsersTable extends Component {
                 <th style={{width: colRole}} className="align-with-col-text">
                   Role
                 </th>
+                <th style={{width: colSuperAdmin}} className="text-center">
+                  SuperAdmin
+                </th>
                 <th style={{width: colProvider}}>Provider</th>
                 <th style={{width: colScheme}}>Scheme</th>
                 <th className="text-right" style={{width: colActions}} />
@@ -62,7 +75,7 @@ class UsersTable extends Component {
             </thead>
             <tbody>
               {isCreatingUser
-                ? <UsersTableRowNew
+                ? <AllUsersTableRowNew
                     organization={organization}
                     onBlur={this.handleBlurCreateUserRow}
                     onCreateUser={onCreateUser}
@@ -71,17 +84,18 @@ class UsersTable extends Component {
                 : null}
               {users.length || !isCreatingUser
                 ? users.map(user =>
-                    <UsersTableRow
+                    <AllUsersTableRow
                       user={user}
                       key={uuid.v4()}
                       organization={organization}
                       onChangeUserRole={this.handleChangeUserRole}
+                      onChangeSuperAdmin={this.handleChangeSuperAdmin}
                       onDelete={this.handleDeleteUser}
                       meID={meID}
                     />
                   )
                 : <tr className="table-empty-state">
-                    <th colSpan="5">
+                    <th colSpan="6">
                       <p>No Users to display</p>
                     </th>
                   </tr>}
@@ -93,9 +107,9 @@ class UsersTable extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
-UsersTable.propTypes = {
+AllUsersTable.propTypes = {
   users: arrayOf(
     shape({
       id: string,
@@ -111,6 +125,7 @@ UsersTable.propTypes = {
         })
       ),
       scheme: string.isRequired,
+      superAdmin: bool,
     })
   ).isRequired,
   organization: shape({
@@ -119,9 +134,10 @@ UsersTable.propTypes = {
   }),
   onCreateUser: func.isRequired,
   onUpdateUserRole: func.isRequired,
+  onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
   meID: string.isRequired,
   notify: func.isRequired,
 }
 
-export default UsersTable
+export default AllUsersTable

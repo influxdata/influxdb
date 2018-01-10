@@ -23,12 +23,13 @@ class UsersTableRowNew extends Component {
 
   handleConfirmCreateUser = () => {
     const {onBlur, onCreateUser, organization} = this.props
-    const {name, provider, scheme, role} = this.state
+    const {name, provider, scheme, role, superAdmin} = this.state
 
     const newUser = {
       name,
       provider,
       scheme,
+      superAdmin,
       roles: [
         {
           name: role,
@@ -69,7 +70,13 @@ class UsersTableRowNew extends Component {
   }
 
   render() {
-    const {colRole, colProvider, colScheme, colActions} = USERS_TABLE
+    const {
+      colRole,
+      colProvider,
+      colScheme,
+      colSuperAdmin,
+      colActions,
+    } = USERS_TABLE
     const {onBlur} = this.props
     const {name, provider, scheme, role} = this.state
 
@@ -98,6 +105,9 @@ class UsersTableRowNew extends Component {
             buttonSize="btn-xs"
             className="dropdown-stretch"
           />
+        </td>
+        <td style={{width: colSuperAdmin}} className="text-center">
+          &mdash;
         </td>
         <td style={{width: colProvider}}>
           <input

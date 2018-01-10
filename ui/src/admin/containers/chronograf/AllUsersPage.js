@@ -5,10 +5,10 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import EmptyUsersTable from 'src/admin/components/chronograf/EmptyUsersTable'
-import UsersTable from 'src/admin/components/chronograf/UsersTable'
+import AllUsersTableEmpty from 'src/admin/components/chronograf/AllUsersTableEmpty'
+import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
 
-class UsersPage extends Component {
+class AllUsersPage extends Component {
   constructor(props) {
     super(props)
 
@@ -29,6 +29,12 @@ class UsersPage extends Component {
       r => (r.organization === currentRole.organization ? updatedRole : r)
     )
     updateUserAsync(user, {...user, roles: newRoles})
+  }
+
+  handleUpdateUserSuperAdmin = (user, superAdmin) => {
+    const {actions: {updateUserAsync}} = this.props
+    const updatedUser = {...user, superAdmin}
+    updateUserAsync(user, updatedUser)
   }
 
   handleDeleteUser = user => {
@@ -63,7 +69,7 @@ class UsersPage extends Component {
     const {isLoading} = this.state
 
     if (isLoading) {
-      return <EmptyUsersTable />
+      return <AllUsersTableEmpty />
     }
 
     const organization = organizations.find(
@@ -71,12 +77,13 @@ class UsersPage extends Component {
     )
 
     return (
-      <UsersTable
+      <AllUsersTable
         meID={meID}
         users={users}
         organization={organization}
         onCreateUser={this.handleCreateUser}
         onUpdateUserRole={this.handleUpdateUserRole}
+        onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
         onDeleteUser={this.handleDeleteUser}
         notify={notify}
       />
@@ -86,7 +93,7 @@ class UsersPage extends Component {
 
 const {arrayOf, func, shape, string} = PropTypes
 
-UsersPage.propTypes = {
+AllUsersPage.propTypes = {
   links: shape({
     users: string.isRequired,
   }),
@@ -118,4 +125,4 @@ const mapDispatchToProps = dispatch => ({
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(UsersPage)
+export default connect(mapStateToProps, mapDispatchToProps)(AllUsersPage)
