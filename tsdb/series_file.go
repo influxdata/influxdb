@@ -140,6 +140,15 @@ func (f *SeriesFile) SeriesKey(id uint64) []byte {
 	return p.SeriesKey(id)
 }
 
+// SeriesKeys returns a list of series keys from a list of ids.
+func (f *SeriesFile) SeriesKeys(ids []uint64) [][]byte {
+	keys := make([][]byte, len(ids))
+	for i := range ids {
+		keys[i] = f.SeriesKey(ids[i])
+	}
+	return keys
+}
+
 // Series returns the parsed series name and tags for an offset.
 func (f *SeriesFile) Series(id uint64) ([]byte, models.Tags) {
 	key := f.SeriesKey(id)

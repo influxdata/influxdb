@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -1108,6 +1109,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				name, tags := e.sfile.Series(elem.SeriesID)
 				gotKeys = append(gotKeys, string(models.MakeKey(name, tags)))
 			}
+			sort.Strings(gotKeys)
 
 			if !reflect.DeepEqual(gotKeys, expKeys) {
 				t.Fatalf("got keys %v, expected %v", gotKeys, expKeys)

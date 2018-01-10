@@ -151,6 +151,25 @@ type SeriesIDIterator interface {
 	Close() error
 }
 
+// ReadAllSeriesIDIterator returns all ids from the iterator.
+func ReadAllSeriesIDIterator(itr SeriesIDIterator) ([]uint64, error) {
+	if itr == nil {
+		return nil, nil
+	}
+
+	var a []uint64
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			return nil, err
+		} else if e.SeriesID == 0 {
+			break
+		}
+		a = append(a, e.SeriesID)
+	}
+	return a, nil
+}
+
 // NewSeriesIDSliceIterator returns a SeriesIDIterator that iterates over a slice.
 func NewSeriesIDSliceIterator(ids []uint64) *SeriesIDSliceIterator {
 	return &SeriesIDSliceIterator{ids: ids}
