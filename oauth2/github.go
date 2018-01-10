@@ -96,14 +96,6 @@ func (g *Github) Group(provider *http.Client) (string, error) {
 
 	groups := []string{}
 	for _, org := range orgs {
-		// Prefer the organization name over the login.
-		// It is common for organizations to not have a name
-		// In the case that they do not, use the org login
-		if org.Name != nil {
-			groups = append(groups, *org.Name)
-			continue
-		}
-
 		if org.Login != nil {
 			groups = append(groups, *org.Login)
 			continue
