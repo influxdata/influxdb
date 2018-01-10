@@ -63,6 +63,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      false,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -73,12 +74,14 @@ func TestService_Me(t *testing.T) {
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      false,
+								Mappings:    []chronograf.Mapping{},
 							}, nil
 						case "1":
 							return &chronograf.Organization{
-								ID:     "1",
-								Name:   "The Bad Place",
-								Public: false,
+								ID:       "1",
+								Name:     "The Bad Place",
+								Public:   false,
+								Mappings: []chronograf.Mapping{},
 							}, nil
 						}
 						return nil, nil
@@ -128,6 +131,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      false,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -138,12 +142,14 @@ func TestService_Me(t *testing.T) {
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
+								Mappings:    []chronograf.Mapping{},
 							}, nil
 						case "1":
 							return &chronograf.Organization{
-								ID:     "1",
-								Name:   "The Bad Place",
-								Public: true,
+								ID:       "1",
+								Name:     "The Bad Place",
+								Public:   true,
+								Mappings: []chronograf.Mapping{},
 							}, nil
 						}
 						return nil, nil
@@ -176,7 +182,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Existing user - private default org",
@@ -194,6 +200,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      false,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -204,12 +211,14 @@ func TestService_Me(t *testing.T) {
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
+								Mappings:    []chronograf.Mapping{},
 							}, nil
 						case "1":
 							return &chronograf.Organization{
-								ID:     "1",
-								Name:   "The Bad Place",
-								Public: true,
+								ID:       "1",
+								Name:     "The Bad Place",
+								Public:   true,
+								Mappings: []chronograf.Mapping{},
 							}, nil
 						}
 						return nil, nil
@@ -259,6 +268,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -269,12 +279,14 @@ func TestService_Me(t *testing.T) {
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
+								Mappings:    []chronograf.Mapping{},
 							}, nil
 						case "1":
 							return &chronograf.Organization{
-								ID:     "1",
-								Name:   "The Bad Place",
-								Public: true,
+								ID:       "1",
+								Name:     "The Bad Place",
+								Public:   true,
+								Mappings: []chronograf.Mapping{},
 							}, nil
 						}
 						return nil, nil
@@ -306,7 +318,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Existing user - organization doesn't exist",
@@ -324,6 +336,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -334,6 +347,7 @@ func TestService_Me(t *testing.T) {
 								Name:        "Default",
 								DefaultRole: roles.ViewerRoleName,
 								Public:      true,
+								Mappings:    []chronograf.Mapping{},
 							}, nil
 						}
 						return nil, chronograf.ErrOrganizationNotFound
@@ -387,6 +401,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -395,6 +410,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 				},
@@ -423,7 +439,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
+			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}],"currentOrganization":{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "New user - New users not super admin, not first user",
@@ -448,6 +464,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -456,6 +473,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 				},
@@ -484,7 +502,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
+			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}],"currentOrganization":{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "New user - New users not super admin, first user",
@@ -509,6 +527,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -517,6 +536,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 				},
@@ -545,7 +565,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
+			wantBody:        `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}],"currentOrganization":{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Error adding user",
@@ -565,15 +585,17 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:     "0",
-							Public: true,
+							ID:       "0",
+							Public:   true,
+							Mappings: []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:     "0",
-							Name:   "The Bad Place",
-							Public: true,
+							ID:       "0",
+							Name:     "The Bad Place",
+							Public:   true,
+							Mappings: []chronograf.Mapping{},
 						}, nil
 					},
 				},
@@ -663,6 +685,7 @@ func TestService_Me(t *testing.T) {
 							Name:        "The Bad Place",
 							DefaultRole: roles.MemberRoleName,
 							Public:      false,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 				},
@@ -790,6 +813,7 @@ func TestService_UpdateMe(t *testing.T) {
 							Name:        "Default",
 							DefaultRole: roles.AdminRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -803,12 +827,14 @@ func TestService_UpdateMe(t *testing.T) {
 								Name:        "Default",
 								DefaultRole: roles.AdminRoleName,
 								Public:      true,
+								Mappings:    []chronograf.Mapping{},
 							}, nil
 						case "1337":
 							return &chronograf.Organization{
-								ID:     "1337",
-								Name:   "The ShillBillThrilliettas",
-								Public: true,
+								ID:       "1337",
+								Name:     "The ShillBillThrilliettas",
+								Public:   true,
+								Mappings: []chronograf.Mapping{},
 							}, nil
 						}
 						return nil, nil
@@ -821,7 +847,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"admin","public":true,"mappings":[]},{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ShillBillThrilliettas","public":true,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ShillBillThrilliettas","public":true,"mappings":[]}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"admin","public":true,"mappings":[]},{"id":"1337","name":"The ShillBillThrilliettas","public":true,"mappings":[]}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true,"mappings":[]}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -864,6 +890,7 @@ func TestService_UpdateMe(t *testing.T) {
 							Name:        "Default",
 							DefaultRole: roles.EditorRoleName,
 							Public:      true,
+							Mappings:    []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -873,9 +900,10 @@ func TestService_UpdateMe(t *testing.T) {
 						switch *q.ID {
 						case "1337":
 							return &chronograf.Organization{
-								ID:     "1337",
-								Name:   "The ThrillShilliettos",
-								Public: false,
+								ID:       "1337",
+								Name:     "The ThrillShilliettos",
+								Public:   false,
+								Mappings: []chronograf.Mapping{},
 							}, nil
 						case "0":
 							return &chronograf.Organization{
@@ -883,6 +911,7 @@ func TestService_UpdateMe(t *testing.T) {
 								Name:        "Default",
 								DefaultRole: roles.EditorRoleName,
 								Public:      true,
+								Mappings:    []chronograf.Mapping{},
 							}, nil
 						}
 						return nil, nil
@@ -896,7 +925,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":{"links":{"self":"/chronograf/v1/organizations"},"organizations":[{"links":{"self":"/chronograf/v1/organizations/0"},"id":"0","name":"Default","defaultRole":"editor","public":true,"mappings":[]},{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ThrillShilliettos","public":false,"mappings":[]}]},"currentOrganization":{"links":{"self":"/chronograf/v1/organizations/1337"},"id":"1337","name":"The ThrillShilliettos","public":false,"mappings":[]}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"editor","public":true,"mappings":[]},{"id":"1337","name":"The ThrillShilliettos","public":false,"mappings":[]}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false,"mappings":[]}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
@@ -935,7 +964,8 @@ func TestService_UpdateMe(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: "0",
+							ID:       "0",
+							Mappings: []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
@@ -943,9 +973,10 @@ func TestService_UpdateMe(t *testing.T) {
 							return nil, fmt.Errorf("Invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
-							ID:     "1337",
-							Name:   "The ShillBillThrilliettas",
-							Public: true,
+							ID:       "1337",
+							Name:     "The ShillBillThrilliettas",
+							Public:   true,
+							Mappings: []chronograf.Mapping{},
 						}, nil
 					},
 				},
@@ -996,7 +1027,8 @@ func TestService_UpdateMe(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID: "0",
+							ID:       "0",
+							Mappings: []chronograf.Mapping{},
 						}, nil
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {

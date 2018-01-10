@@ -1376,25 +1376,16 @@ func TestServer(t *testing.T) {
   "links": {
     "self": "/chronograf/v1/users/1"
   },
-  "organizations": {
-    "links": {
-      "self": "/chronograf/v1/organizations"
-    },
-    "organizations": [
+  "organizations": [
       {
-        "links": {
-          "self": "/chronograf/v1/organizations/1"
-        },
         "id": "1",
         "name": "Sweet",
         "defaultRole": "viewer",
         "public": false,
-        "mappings": []
+        "mappings": [
+        ]
       },
       {
-        "links": {
-          "self": "/chronograf/v1/organizations/default"
-        },
         "id": "default",
         "name": "Default",
         "defaultRole": "member",
@@ -1408,17 +1399,14 @@ func TestServer(t *testing.T) {
           }
         ]
       }
-    ]
-  },
+  ],
   "currentOrganization": {
-    "links": {
-      "self": "/chronograf/v1/organizations/1"
-    },
     "id": "1",
     "name": "Sweet",
     "defaultRole": "viewer",
     "public": false,
-    "mappings": []
+    "mappings": [
+    ]
   }
 }`,
 			},

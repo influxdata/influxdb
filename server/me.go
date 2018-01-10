@@ -19,9 +19,9 @@ type meLinks struct {
 
 type meResponse struct {
 	*chronograf.User
-	Links               meLinks                `json:"links"`
-	Organizations       *organizationsResponse `json:"organizations,omitempty"`
-	CurrentOrganization *organizationResponse  `json:"currentOrganization,omitempty"`
+	Links               meLinks                   `json:"links"`
+	Organizations       []chronograf.Organization `json:"organizations,omitempty"`
+	CurrentOrganization *chronograf.Organization  `json:"currentOrganization,omitempty"`
 }
 
 // If new user response is nil, return an empty meResponse because it
@@ -264,8 +264,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		res := newMeResponse(usr)
-		res.Organizations = newOrganizationsResponse(orgs)
-		res.CurrentOrganization = newOrganizationResponse(currentOrg)
+		res.Organizations = orgs
+		res.CurrentOrganization = currentOrg
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
@@ -313,8 +313,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res := newMeResponse(newUser)
-	res.Organizations = newOrganizationsResponse(orgs)
-	res.CurrentOrganization = newOrganizationResponse(currentOrg)
+	res.Organizations = orgs
+	res.CurrentOrganization = currentOrg
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
