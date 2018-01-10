@@ -956,7 +956,7 @@ func BenchmarkEntry_add(b *testing.B) {
 				otherValues[i] = NewValue(1, float64(i))
 			}
 
-			entry, err := newEntryValues(values, 0) // Will use default allocation size.
+			entry, err := newEntryValues(values)
 			if err != nil {
 				b.Fatal(err)
 			}
