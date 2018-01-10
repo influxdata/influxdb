@@ -31,6 +31,7 @@ func (r *AuthRoutes) Lookup(provider string) (AuthRoute, bool) {
 type getRoutesResponse struct {
 	Layouts       string                   `json:"layouts"`          // Location of the layouts endpoint
 	Users         string                   `json:"users"`            // Location of the users endpoint
+	RawUsers      string                   `json:"rawUsers"`         // Location of the raw users endpoint
 	Organizations string                   `json:"organizations"`    // Location of the organizations endpoint
 	Mappings      string                   `json:"mappings"`         // Location of the application mappings endpoint
 	Sources       string                   `json:"sources"`          // Location of the sources endpoint
@@ -66,6 +67,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Sources:       "/chronograf/v1/sources",
 		Layouts:       "/chronograf/v1/layouts",
 		Users:         "/chronograf/v1/users",
+		RawUsers:      "/chronograf/v1/users?raw=true",
 		Organizations: "/chronograf/v1/organizations",
 		Me:            "/chronograf/v1/me",
 		Environment:   "/chronograf/v1/env",
