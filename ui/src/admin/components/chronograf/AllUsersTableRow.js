@@ -4,26 +4,22 @@ import Dropdown from 'shared/components/Dropdown'
 import SlideToggle from 'shared/components/SlideToggle'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
-import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const AllUsersTableRow = ({
+  organizations,
   user,
-  organization,
-  onChangeUserRole,
+  onAddUserToOrganization,
   onChangeSuperAdmin,
   onDelete,
   meID,
 }) => {
   const {colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
 
-  const dropdownRolesItems = USER_ROLES.map(r => ({
+  const dropdownOrganizationsItems = organizations.map(r => ({
     ...r,
     text: r.name,
   }))
-  const currentRole = user.roles.find(
-    role => role.organization === organization.id
-  )
 
   const userIsMe = user.id === meID
 
@@ -42,9 +38,9 @@ const AllUsersTableRow = ({
       <td style={{width: colRole}}>
         <span className="chronograf-user--role">
           <Dropdown
-            items={dropdownRolesItems}
-            selected={currentRole.name}
-            onChoose={onChangeUserRole(user, currentRole)}
+            items={dropdownOrganizationsItems}
+            selected={'Add to Organization'}
+            onChoose={onAddUserToOrganization(user)}
             buttonColor="btn-primary"
             buttonSize="btn-xs"
             className="dropdown-stretch"
@@ -76,7 +72,7 @@ const AllUsersTableRow = ({
   )
 }
 
-const {func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 AllUsersTableRow.propTypes = {
   user: shape(),
@@ -84,10 +80,16 @@ AllUsersTableRow.propTypes = {
     name: string.isRequired,
     id: string.isRequired,
   }),
-  onChangeUserRole: func.isRequired,
+  onAddUserToOrganization: func.isRequired,
   onChangeSuperAdmin: func.isRequired,
   onDelete: func.isRequired,
   meID: string.isRequired,
+  organizations: arrayOf(
+    shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    })
+  ),
 }
 
 export default AllUsersTableRow

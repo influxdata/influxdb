@@ -36,12 +36,7 @@ const AdminTabs = ({
     {
       requiredRole: SUPERADMIN_ROLE,
       type: ALL_USERS_TAB_NAME,
-      component: (
-        <AllUsersPage
-          meID={meID}
-          meCurrentOrganization={meCurrentOrganization}
-        />
-      ),
+      component: <AllUsersPage meID={meID} />,
     },
   ].filter(t => isUserAuthorized(meRole, t.requiredRole))
 

@@ -17,8 +17,10 @@ class AllUsersTable extends Component {
     }
   }
 
-  handleChangeUserRole = (user, currentRole) => newRole => {
-    this.props.onUpdateUserRole(user, currentRole, newRole)
+  handleAddUserToOrganization = user => newOrganization => {
+    console.log('handleAddUserToOrganization', user.name, newOrganization.id)
+    // const newOrganizationRole = newOrganization + newOrganizationDefaultRole -- need to get this fresh from server or have server determine it, which requires a change to ValidUpdate
+    // this.props.onUpdateUserRole(user, newOrganizationRole)
   }
 
   handleChangeSuperAdmin = user => newStatus => {
@@ -38,7 +40,7 @@ class AllUsersTable extends Component {
   }
 
   render() {
-    const {organization, users, onCreateUser, meID, notify} = this.props
+    const {users, organizations, onCreateUser, meID, notify} = this.props
 
     const {isCreatingUser} = this.state
     const {
@@ -53,9 +55,9 @@ class AllUsersTable extends Component {
       <div className="panel panel-default">
         <AllUsersTableHeader
           numUsers={users.length}
+          numOrganizations={organizations.length}
           onClickCreateUser={this.handleClickCreateUser}
           isCreatingUser={isCreatingUser}
-          organization={organization}
         />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">
@@ -76,7 +78,7 @@ class AllUsersTable extends Component {
             <tbody>
               {isCreatingUser
                 ? <AllUsersTableRowNew
-                    organization={organization}
+                    organizations={organizations}
                     onBlur={this.handleBlurCreateUserRow}
                     onCreateUser={onCreateUser}
                     notify={notify}
@@ -87,8 +89,8 @@ class AllUsersTable extends Component {
                     <AllUsersTableRow
                       user={user}
                       key={uuid.v4()}
-                      organization={organization}
-                      onChangeUserRole={this.handleChangeUserRole}
+                      organizations={organizations}
+                      onAddUserToOrganization={this.handleAddUserToOrganization}
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
                       onDelete={this.handleDeleteUser}
                       meID={meID}
@@ -128,10 +130,12 @@ AllUsersTable.propTypes = {
       superAdmin: bool,
     })
   ).isRequired,
-  organization: shape({
-    name: string.isRequired,
-    id: string.isRequired,
-  }),
+  organizations: arrayOf(
+    shape({
+      name: string.isRequired,
+      id: string.isRequired,
+    })
+  ),
   onCreateUser: func.isRequired,
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,

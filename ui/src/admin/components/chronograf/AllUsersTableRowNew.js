@@ -3,9 +3,10 @@ import React, {Component, PropTypes} from 'react'
 import Dropdown from 'shared/components/Dropdown'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
-import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 
-class UsersTableRowNew extends Component {
+const nullOrganization = {id: null, name: 'None'}
+
+class AllUsersTableRowNew extends Component {
   constructor(props) {
     super(props)
 
@@ -13,7 +14,11 @@ class UsersTableRowNew extends Component {
       name: '',
       provider: '',
       scheme: 'oauth2',
-      role: this.props.organization.defaultRole,
+      roles: [
+        {
+          ...nullOrganization,
+        },
+      ],
     }
   }
 
@@ -22,20 +27,15 @@ class UsersTableRowNew extends Component {
   }
 
   handleConfirmCreateUser = () => {
-    const {onBlur, onCreateUser, organization} = this.props
-    const {name, provider, scheme, role, superAdmin} = this.state
+    const {onBlur, onCreateUser} = this.props
+    const {name, provider, scheme, roles, superAdmin} = this.state
 
     const newUser = {
       name,
       provider,
       scheme,
       superAdmin,
-      roles: [
-        {
-          name: role,
-          organization: organization.id,
-        },
-      ],
+      roles: roles[0].id === null ? [] : roles,
     }
 
     onCreateUser(newUser)
@@ -46,8 +46,18 @@ class UsersTableRowNew extends Component {
     e.target.select()
   }
 
-  handleSelectRole = newRole => {
-    this.setState({role: newRole.text})
+  handleSelectOrganization = newOrganization => {
+    const newRoles = [
+      newOrganization.id === null
+        ? {
+            ...nullOrganization,
+          }
+        : {
+            id: newOrganization.id,
+            name: '*', // '*' causes the server to determine the current defaultRole of the selected organization
+          },
+    ]
+    this.setState({roles: newRoles})
   }
 
   handleKeyDown = e => {
@@ -70,6 +80,9 @@ class UsersTableRowNew extends Component {
   }
 
   render() {
+    const {organizations, onBlur} = this.props
+    const {name, provider, scheme, roles} = this.state
+
     const {
       colRole,
       colProvider,
@@ -77,10 +90,18 @@ class UsersTableRowNew extends Component {
       colSuperAdmin,
       colActions,
     } = USERS_TABLE
-    const {onBlur} = this.props
-    const {name, provider, scheme, role} = this.state
 
-    const dropdownRolesItems = USER_ROLES.map(r => ({...r, text: r.name}))
+    const dropdownOrganizationsItems = [
+      {...nullOrganization},
+      ...organizations,
+    ].map(o => ({
+      ...o,
+      text: o.name,
+    }))
+    const selectedRole = dropdownOrganizationsItems.find(
+      o => roles[0].id === o.id
+    )
+
     const preventCreate = !name || !provider
 
     return (
@@ -98,9 +119,9 @@ class UsersTableRowNew extends Component {
         </td>
         <td style={{width: colRole}}>
           <Dropdown
-            items={dropdownRolesItems}
-            selected={role}
-            onChoose={this.handleSelectRole}
+            items={dropdownOrganizationsItems}
+            selected={selectedRole.text}
+            onChoose={this.handleSelectOrganization}
             buttonColor="btn-primary"
             buttonSize="btn-xs"
             className="dropdown-stretch"
@@ -145,16 +166,18 @@ class UsersTableRowNew extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
-UsersTableRowNew.propTypes = {
-  organization: shape({
-    id: string.isRequired,
-    name: string.isRequired,
-  }),
+AllUsersTableRowNew.propTypes = {
+  organizations: arrayOf(
+    shape({
+      id: string.isRequired,
+      name: string.isRequired,
+    })
+  ),
   onBlur: func.isRequired,
   onCreateUser: func.isRequired,
   notify: func.isRequired,
 }
 
-export default UsersTableRowNew
+export default AllUsersTableRowNew

@@ -52,35 +52,25 @@ class AllUsersPage extends Component {
 
     await Promise.all([
       loadOrganizationsAsync(links.organizations),
-      loadUsersAsync(links.users),
+      loadUsersAsync(links.rawUsers),
     ])
 
     this.setState({isLoading: false})
   }
 
   render() {
-    const {
-      meCurrentOrganization,
-      organizations,
-      meID,
-      users,
-      notify,
-    } = this.props
+    const {organizations, meID, users, notify} = this.props
     const {isLoading} = this.state
 
     if (isLoading) {
       return <AllUsersTableEmpty />
     }
 
-    const organization = organizations.find(
-      o => o.id === meCurrentOrganization.id
-    )
-
     return (
       <AllUsersTable
         meID={meID}
         users={users}
-        organization={organization}
+        organizations={organizations}
         onCreateUser={this.handleCreateUser}
         onUpdateUserRole={this.handleUpdateUserRole}
         onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
@@ -98,10 +88,6 @@ AllUsersPage.propTypes = {
     users: string.isRequired,
   }),
   meID: string.isRequired,
-  meCurrentOrganization: shape({
-    id: string.isRequired,
-    name: string.isRequired,
-  }).isRequired,
   users: arrayOf(shape),
   organizations: arrayOf(shape),
   actions: shape({

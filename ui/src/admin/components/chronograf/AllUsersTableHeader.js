@@ -1,55 +1,47 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PropTypes} from 'react'
 
-class AllUsersTableHeader extends Component {
-  constructor(props) {
-    super(props)
-  }
+const AllUsersTableHeader = ({
+  numUsers,
+  numOrganizations,
+  onClickCreateUser,
+  isCreatingUser,
+}) => {
+  const numUsersString = `${numUsers} User${numUsers === 1 ? '' : 's'}`
+  const numOrganizationsString = `${numOrganizations} Org${numOrganizations ===
+  1
+    ? ''
+    : 's'}`
 
-  render() {
-    const {
-      onClickCreateUser,
-      numUsers,
-      isCreatingUser,
-      organization,
-    } = this.props
-
-    const panelTitle = numUsers === 1 ? `${numUsers} User` : `${numUsers} Users`
-
-    return (
-      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-        <h2 className="panel-title">
-          {panelTitle} in <em>{organization.name}</em>
-        </h2>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={onClickCreateUser}
-          disabled={isCreatingUser || !onClickCreateUser}
-        >
-          <span className="icon plus" />
-          Create User
-        </button>
-      </div>
-    )
-  }
+  return (
+    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <h2 className="panel-title">
+        {numUsersString} in {numOrganizationsString}
+      </h2>
+      <button
+        className="btn btn-primary btn-sm"
+        onClick={onClickCreateUser}
+        disabled={isCreatingUser || !onClickCreateUser}
+      >
+        <span className="icon plus" />
+        Create User
+      </button>
+    </div>
+  )
 }
 
-const {bool, func, shape, string, number} = PropTypes
+const {bool, func, number} = PropTypes
 
 AllUsersTableHeader.defaultProps = {
   numUsers: 0,
-  organization: {
-    name: '',
-  },
+  numOrganizations: 0,
   isCreatingUser: false,
 }
 
 AllUsersTableHeader.propTypes = {
   numUsers: number.isRequired,
+  numOrganizations: number.isRequired,
   onClickCreateUser: func,
   isCreatingUser: bool.isRequired,
-  organization: shape({
-    name: string.isRequired,
-  }),
 }
 
 export default AllUsersTableHeader

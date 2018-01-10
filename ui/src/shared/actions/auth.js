@@ -62,6 +62,7 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
       data: me,
       auth,
       users,
+      rawUsers,
       meLink,
       config,
       external,
@@ -82,6 +83,7 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
       linksReceived({
         external,
         users,
+        rawUsers,
         organizations,
         me: meLink,
         config,
