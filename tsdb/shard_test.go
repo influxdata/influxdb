@@ -365,6 +365,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir), sfile.SeriesFile)
+	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -452,6 +453,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir), sfile.SeriesFile)
+	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -1923,4 +1925,13 @@ func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 	s := series{name: name, tags: tags}
 	itr.keys = itr.keys[1:]
 	return s, nil
+}
+
+type seriesIDSets []*tsdb.SeriesIDSet
+
+func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
+	for _, v := range a {
+		f(v)
+	}
+	return nil
 }

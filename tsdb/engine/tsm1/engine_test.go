@@ -1817,15 +1817,16 @@ func NewEngine(index string) (*Engine, error) {
 	if err = sfile.Open(); err != nil {
 		return nil, err
 	}
+	seriesIDs := tsdb.NewSeriesIDSet()
 
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
 	if index == "inmem" {
 		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
+	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
 
 	idxPath := filepath.Join(dbPath, "index")
-	seriesIDs := tsdb.NewSeriesIDSet()
 	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
 
 	tsm1Engine := tsm1.NewEngine(1, idx, db, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
@@ -2052,4 +2053,13 @@ func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 	s := series{name: name, tags: tags}
 	itr.keys = itr.keys[1:]
 	return s, nil
+}
+
+type seriesIDSets []*tsdb.SeriesIDSet
+
+func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
+	for _, v := range a {
+		f(v)
+	}
+	return nil
 }

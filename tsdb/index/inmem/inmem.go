@@ -1050,6 +1050,7 @@ func (idx *ShardIndex) UnassignShard(key string, id uint64, ts int64) error {
 	// TODO(edd): temporarily munging series id and shard id into same value,
 	// to test prototype without having to change Index API.
 	sid, shardID := id>>32, id&0xFFFFFFFF
+
 	idx.seriesIDSet.Remove(sid)
 	return idx.Index.UnassignShard(key, shardID, ts)
 }

@@ -178,6 +178,9 @@ type Engine struct {
 	compactionLimiter limiter.Fixed
 
 	scheduler *scheduler
+
+	// provides access to the total set of series IDs
+	seriesIDSets tsdb.SeriesIDSets
 }
 
 // NewEngine returns a new instance of Engine.
@@ -219,6 +222,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		stats:             stats,
 		compactionLimiter: opt.CompactionLimiter,
 		scheduler:         newScheduler(stats, opt.CompactionLimiter.Capacity()),
+		seriesIDSets:      opt.SeriesIDSets,
 	}
 
 	if e.traceLogging {
@@ -1359,7 +1363,15 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// the series from the index.
 	if len(seriesKeys) > 0 {
 		buf := make([]byte, 1024) // For use when accessing series file.
+		ids := tsdb.NewSeriesIDSet()
 		for _, k := range seriesKeys {
+			name, tags := models.ParseKey(k)
+			sid := e.sfile.SeriesID([]byte(name), tags, buf)
+			if sid == 0 {
+				return fmt.Errorf("unable to find id for series key %s during deletion", k)
+			}
+			id := (sid << 32) | e.id
+
 			// This key was crossed out earlier, skip it
 			if k == nil {
 				continue
@@ -1379,30 +1391,38 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				i++
 			}
 
-			// Some cache values still exists, leave the series in the index.
 			if hasCacheValues {
 				continue
 			}
 
-			// Remove the series from the series file and index.
-
-			// TODO(edd): we need to first check with all other shards if it's
-			// OK to tombstone the series in the series file.
-			//
-			// Further, in the case of the inmem index, we should only remove
-			// the series from the index if we also tombstone it in the series
-			// file.
-			name, tags := models.ParseKey(k)
-			sid := e.sfile.SeriesID([]byte(name), tags, buf)
-			if sid == 0 {
-				return fmt.Errorf("unable to find id for series key %s during deletion", k)
-			}
-
 			// Remove the series from the index for this shard
-			id := (sid << 32) | e.id
 			if err := e.index.UnassignShard(string(k), id, ts); err != nil {
 				return err
 			}
+
+			// Add the id to the set of delete ids.
+			ids.Add(sid)
+
+		}
+
+		// Remove any series IDs for our set that still exist in other shards.
+		// We cannot remove these from the series file yet.
+		if err := e.seriesIDSets.ForEach(func(s *tsdb.SeriesIDSet) {
+			ids = ids.AndNot(s)
+		}); err != nil {
+			return err
+		}
+
+		// Remove the remaining ids from the series file as they no longer exist
+		// in any shard.
+		var err error
+		ids.ForEach(func(id uint64) {
+			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
+				err = err1
+			}
+		})
+		if err != nil {
+			return err
 		}
 	}
 

@@ -81,6 +81,11 @@ type Engine interface {
 	io.WriterTo
 }
 
+// SeriesIDSets provides access to the total set of series IDs
+type SeriesIDSets interface {
+	ForEach(f func(ids *SeriesIDSet)) error
+}
+
 // EngineFormat represents the format for an engine.
 type EngineFormat int
 
@@ -150,7 +155,8 @@ type EngineOptions struct {
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
 
-	Config Config
+	Config       Config
+	SeriesIDSets SeriesIDSets
 }
 
 // NewEngineOptions returns the default options.

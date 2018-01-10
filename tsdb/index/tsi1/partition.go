@@ -295,6 +295,10 @@ func (i *Partition) buildSeriesSet() error {
 					return nil
 				}
 
+				if i.sfile.IsDeleted(elem.SeriesID) {
+					continue
+				}
+
 				// Add id to series set.
 				i.seriesSet.Add(elem.SeriesID)
 			}
@@ -605,18 +609,11 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
 
-		name, tags := models.ParseKey(key)
-		mname := []byte(name)
-		seriesID := i.sfile.SeriesID(mname, tags, nil)
+		name, tags := models.ParseKeyBytes(key)
+		seriesID := i.sfile.SeriesID(name, tags, nil)
 
 		// Remove from series id set.
 		i.seriesSet.Remove(seriesID)
-
-		// TODO(edd): this should only happen when there are no shards containing
-		// this series.
-		if err := i.sfile.DeleteSeriesID(seriesID); err != nil {
-			return err
-		}
 
 		return nil
 	}(); err != nil {

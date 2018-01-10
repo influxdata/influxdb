@@ -71,3 +71,29 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	defer s.Unlock()
 	s.bitmap = roaring.FastOr(bms...)
 }
+
+// AndNot returns the set of elements that only exist in s.
+func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
+	s.RLock()
+	defer s.RUnlock()
+	other.RLock()
+	defer other.RUnlock()
+
+	return &SeriesIDSet{bitmap: roaring.AndNot(s.bitmap, other.bitmap)}
+}
+
+// ForEach calls f for each id in the set.
+func (s *SeriesIDSet) ForEach(f func(id uint64)) {
+	s.RLock()
+	defer s.RUnlock()
+	itr := s.bitmap.Iterator()
+	for itr.HasNext() {
+		f(uint64(itr.Next()))
+	}
+}
+
+func (s *SeriesIDSet) String() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.bitmap.String()
+}

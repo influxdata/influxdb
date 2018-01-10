@@ -528,17 +528,17 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 
 // DropSeries drops the provided series from the index.
 func (i *Index) DropSeries(key []byte, ts int64) error {
+	// Extract measurement name.
+	name, tags := models.ParseKeyBytes(key)
+	partitionKey := tsdb.AppendSeriesKey(nil, name, tags)
+
 	// Remove from partition.
-	if err := i.partition(key).DropSeries(key, ts); err != nil {
+	if err := i.partition(partitionKey).DropSeries(key, ts); err != nil {
 		return err
 	}
 
-	// Extract measurement name.
-	name, _ := models.ParseKey(key)
-	mname := []byte(name)
-
 	// Check if that was the last series for the measurement in the entire index.
-	itr, err := i.MeasurementSeriesIDIterator(mname)
+	itr, err := i.MeasurementSeriesIDIterator(name)
 	if err != nil {
 		return err
 	} else if itr == nil {
@@ -554,7 +554,7 @@ func (i *Index) DropSeries(key []byte, ts int64) error {
 	}
 
 	// If no more series exist in the measurement then delete the measurement.
-	if err := i.DropMeasurement(mname); err != nil {
+	if err := i.DropMeasurement(name); err != nil {
 		return err
 	}
 	return nil
