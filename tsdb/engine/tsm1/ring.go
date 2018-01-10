@@ -252,7 +252,7 @@ func (p *partition) write(key []byte, values Values) (bool, error) {
 	}
 
 	// Create a new entry using a preallocated size if we have a hint available.
-	e, err := newEntryValues(values, 32)
+	e, err := newEntryValues(values)
 	if err != nil {
 		return false, err
 	}
