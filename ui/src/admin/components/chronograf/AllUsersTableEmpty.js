@@ -6,7 +6,7 @@ import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-const EmptyUsersTable = () => {
+const AllUsersTableEmpty = () => {
   const {
     colRole,
     colSuperAdmin,
@@ -43,4 +43,4 @@ const EmptyUsersTable = () => {
   )
 }
 
-export default EmptyUsersTable
+export default AllUsersTableEmpty

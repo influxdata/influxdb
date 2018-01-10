@@ -4,7 +4,7 @@ import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
-const EmptyUsersTable = () => {
+const UsersTableEmpty = () => {
   const {colRole, colProvider, colScheme, colActions} = USERS_TABLE
 
   return (
@@ -30,4 +30,4 @@ const EmptyUsersTable = () => {
   )
 }
 
-export default EmptyUsersTable
+export default UsersTableEmpty
