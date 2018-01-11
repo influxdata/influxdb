@@ -105,16 +105,17 @@ const InfluxTable = ({
           <h2 className="panel-title">
             {isUsingAuth
               ? <span>
-                  InfluxDB Sources for <em>{me.currentOrganization.name}</em>
+                  InfluxDB Connections for{' '}
+                  <em>{me.currentOrganization.name}</em>
                 </span>
-              : <span>InfluxDB Sources</span>}
+              : <span>InfluxDB Connections</span>}
           </h2>
           <Authorized requiredRole={EDITOR_ROLE}>
             <Link
               to={`/sources/${source.id}/manage-sources/new`}
               className="btn btn-sm btn-primary"
             >
-              <span className="icon plus" /> Add Source
+              <span className="icon plus" /> Add Connection
             </Link>
           </Authorized>
         </div>
@@ -123,14 +124,14 @@ const InfluxTable = ({
             <thead>
               <tr>
                 <th className="source-table--connect-col" />
-                <th>Source Name & Host</th>
+                <th>Connection Name & Host</th>
                 <th className="text-right" />
                 <th>
                   Active Kapacitor{' '}
                   <QuestionMarkTooltip
                     tipID="kapacitor-node-helper"
                     tipContent={
-                      '<p>Kapacitor Configurations are<br/>scoped per InfluxDB Source.<br/>Only one can be active at a time.</p>'
+                      '<p>Kapacitor Configurations are<br/>scoped per InfluxDB Connection.<br/>Only one can be active at a time.</p>'
                     }
                   />
                 </th>
@@ -189,7 +190,7 @@ const InfluxTable = ({
                           href="#"
                           onClick={handleDeleteSource(s)}
                         >
-                          Delete Source
+                          Delete Connection
                         </a>
                       </Authorized>
                     </td>
