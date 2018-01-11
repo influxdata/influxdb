@@ -12,10 +12,6 @@ class SlackConfig extends Component {
 
   handleSubmit = e => {
     e.preventDefault()
-    if (this.state.testEnabled) {
-      this.props.onTest()
-      return
-    }
     const properties = {
       url: this.url.value,
       channel: this.channel.value,
@@ -68,7 +64,6 @@ class SlackConfig extends Component {
             className="btn btn-primary"
             type="submit"
             disabled={this.state.testEnabled}
-            onClick={this.enableTest}
           >
             <span className="icon checkmark" />
             Save Changes
@@ -76,7 +71,7 @@ class SlackConfig extends Component {
           <button
             className="btn btn-primary"
             disabled={!this.state.testEnabled}
-            onClick={this.enableTest}
+            onClick={this.props.onTest}
           >
             <span className="icon pulse-c" />
             Send Test Alert
@@ -99,7 +94,7 @@ SlackConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
-  onTest: func,
+  onTest: func.isRequired,
   enabled: bool.isRequired,
 }
 
