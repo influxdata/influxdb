@@ -136,6 +136,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('alerta')}
             config={this.getSection(configSections, 'alerta')}
             onTest={this.handleTestConfig('alerta')}
+            enabled={this.getEnabled(configSections, 'alerta')}
           />,
       },
       hipchat: {
@@ -146,6 +147,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('hipchat')}
             config={this.getSection(configSections, 'hipchat')}
             onTest={this.handleTestConfig('hipchat')}
+            enabled={this.getEnabled(configSections, 'hipchat')}
           />,
       },
       opsgenie: {
@@ -156,6 +158,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('opsgenie')}
             config={this.getSection(configSections, 'opsgenie')}
             onTest={this.handleTestConfig('opsgenie')}
+            enabled={this.getEnabled(configSections, 'opsgenie')}
           />,
       },
       pagerduty: {
@@ -166,6 +169,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('pagerduty')}
             config={this.getSection(configSections, 'pagerduty')}
             onTest={this.handleTestConfig('pagerduty')}
+            enabled={this.getEnabled(configSections, 'pagerduty')}
           />,
       },
       pushover: {
@@ -176,6 +180,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('pushover')}
             config={this.getSection(configSections, 'pushover')}
             onTest={this.handleTestConfig('pushover')}
+            enabled={this.getEnabled(configSections, 'pushover')}
           />,
       },
       sensu: {
@@ -186,6 +191,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('sensu')}
             config={this.getSection(configSections, 'sensu')}
             onTest={this.handleTestConfig('sensu')}
+            enabled={this.getEnabled(configSections, 'sensu')}
           />,
       },
       slack: {
@@ -207,6 +213,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('smtp')}
             config={this.getSection(configSections, 'smtp')}
             onTest={this.handleTestConfig('smtp')}
+            enabled={this.getEnabled(configSections, 'smtp')}
           />,
       },
       talk: {
@@ -217,6 +224,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('talk')}
             config={this.getSection(configSections, 'talk')}
             onTest={this.handleTestConfig('talk')}
+            enabled={this.getEnabled(configSections, 'talk')}
           />,
       },
       telegram: {
@@ -227,6 +235,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('telegram')}
             config={this.getSection(configSections, 'telegram')}
             onTest={this.handleTestConfig('telegram')}
+            enabled={this.getEnabled(configSections, 'telegram')}
           />,
       },
       victorops: {
@@ -237,6 +246,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('victorops')}
             config={this.getSection(configSections, 'victorops')}
             onTest={this.handleTestConfig('victorops')}
+            enabled={this.getEnabled(configSections, 'victorops')}
           />,
       },
     }

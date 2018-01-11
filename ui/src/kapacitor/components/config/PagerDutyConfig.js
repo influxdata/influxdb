@@ -4,9 +4,12 @@ import RedactedInput from './RedactedInput'
 class PagerDutyConfig extends Component {
   constructor(props) {
     super(props)
+    this.state = {
+      testEnabled: this.props.enabled,
+    }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = e => {
     e.preventDefault()
 
     const properties = {
@@ -15,6 +18,11 @@ class PagerDutyConfig extends Component {
     }
 
     this.props.onSave(properties)
+    this.setState({testEnabled: true})
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   render() {
@@ -23,13 +31,14 @@ class PagerDutyConfig extends Component {
     const serviceKey = options['service-key']
     const refFunc = r => (this.serviceKey = r)
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <label htmlFor="service-key">Service Key</label>
           <RedactedInput
             defaultValue={serviceKey || ''}
             id="service-key"
             refFunc={refFunc}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -41,12 +50,26 @@ class PagerDutyConfig extends Component {
             type="text"
             ref={r => (this.url = r)}
             defaultValue={url || ''}
+            onChange={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update PagerDuty Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -64,6 +87,8 @@ PagerDutyConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default PagerDutyConfig
