@@ -2,8 +2,6 @@ import React from 'react'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 
 const AllUsersTableEmpty = () => {
@@ -26,11 +24,9 @@ const AllUsersTableEmpty = () => {
               <th style={{width: colRole}} className="align-with-col-text">
                 Role
               </th>
-              <Authorized requiredRole={SUPERADMIN_ROLE}>
-                <th style={{width: colSuperAdmin}} className="text-center">
-                  SuperAdmin
-                </th>
-              </Authorized>
+              <th style={{width: colSuperAdmin}} className="text-center">
+                SuperAdmin
+              </th>
               <th style={{width: colProvider}}>Provider</th>
               <th style={{width: colScheme}}>Scheme</th>
               <th className="text-right" style={{width: colActions}} />
