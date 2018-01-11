@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -894,13 +895,12 @@ cpu,secret=foo value=100 0
 		}
 
 		// Delete series cpu,host=serverA,region=uswest
-		idx, err := sh.Index()
-		if err != nil {
-			return err
-		}
-
-		if err := idx.DropSeries([]byte("cpu,host=serverA,region=uswest"), time.Now().UnixNano()); err != nil {
-			return err
+		//
+		// We can't call directly on the index as we need to ensure the series
+		// file is updated appropriately.
+		sitr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=serverA,region=uswest")}}
+		if err := sh.DeleteSeriesRange(sitr, math.MinInt64, math.MaxInt64); err != nil {
+			t.Fatalf("failed to drop series: %s", err.Error())
 		}
 
 		if itr, err = sh.CreateIterator(context.Background(), v.m, query.IteratorOptions{
@@ -1851,6 +1851,10 @@ func NewShard(index string, sfile *tsdb.SeriesFile) *Shard {
 	if index == "inmem" {
 		opt.InmemIndex = inmem.NewIndex(path.Base(dir), sfile)
 	}
+	// Initialise series id sets. Need to do this as it's normally done at the
+	// store level.
+	seriesIDs := tsdb.NewSeriesIDSet()
+	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
 
 	return &Shard{
 		Shard: tsdb.NewShard(0,

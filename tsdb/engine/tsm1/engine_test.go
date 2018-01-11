@@ -1817,13 +1817,15 @@ func NewEngine(index string) (*Engine, error) {
 	if err = sfile.Open(); err != nil {
 		return nil, err
 	}
-	seriesIDs := tsdb.NewSeriesIDSet()
 
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
 	if index == "inmem" {
 		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
+	// Initialise series id sets. Need to do this as it's normally done at the
+	// store level.
+	seriesIDs := tsdb.NewSeriesIDSet()
 	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
 
 	idxPath := filepath.Join(dbPath, "index")
