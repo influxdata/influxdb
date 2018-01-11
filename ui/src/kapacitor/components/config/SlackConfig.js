@@ -6,8 +6,7 @@ class SlackConfig extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      // if enabled true, else false.
-      testEnabled: true,
+      testEnabled: this.props.enabled,
     }
   }
 
@@ -101,6 +100,7 @@ SlackConfig.propTypes = {
   }).isRequired,
   onSave: func.isRequired,
   onTest: func,
+  enabled: bool.isRequired,
 }
 
 export default SlackConfig

@@ -196,6 +196,7 @@ class AlertTabs extends Component {
             onSave={this.handleSaveConfig('slack')}
             config={this.getSection(configSections, 'slack')}
             onTest={this.handleTestConfig('slack')}
+            enabled={this.getEnabled(configSections, 'slack')}
           />,
       },
       smtp: {
