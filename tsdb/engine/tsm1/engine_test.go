@@ -1159,27 +1159,9 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
 			}
 
-			if got, exp := tags, models.NewTags(map[string]string{"host": "0"}); !got.Equal(exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			if !tags.Equal(models.NewTags(map[string]string{"host": "0"})) && !tags.Equal(models.NewTags(map[string]string{"host": "B"})) {
+				t.Fatalf(`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
 			}
-
-			if elem, err = iter.Next(); err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID == 0 {
-				t.Fatalf("series index mismatch: EOF, exp 2 series")
-			}
-
-			// Lookup series.
-			name, tags = e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
-
-			if got, exp := tags, models.NewTags(map[string]string{"host": "B"}); !got.Equal(exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
-
 			iter.Close()
 
 			// Deleting remaining series should remove them from the series.

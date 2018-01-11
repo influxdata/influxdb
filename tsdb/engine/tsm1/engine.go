@@ -1365,6 +1365,10 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		buf := make([]byte, 1024) // For use when accessing series file.
 		ids := tsdb.NewSeriesIDSet()
 		for _, k := range seriesKeys {
+			if len(k) == 0 {
+				continue // This key was wiped because it shouldn't be removed from index.
+			}
+
 			name, tags := models.ParseKey(k)
 			sid := e.sfile.SeriesID([]byte(name), tags, buf)
 			if sid == 0 {
