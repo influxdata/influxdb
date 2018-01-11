@@ -97,12 +97,12 @@ class AlertTabs extends Component {
       await testAlertOutput(this.props.kapacitor, section, {})
       this.props.addFlashMessage({
         type: 'success',
-        text: `Successfully relayed an alert to ${section}.`,
+        text: `Successfully sent an alert to ${section}.`,
       })
     } catch (error) {
       this.props.addFlashMessage({
         type: 'error',
-        text: `There was an error relaying an alert to ${section}.`,
+        text: `There was an error sending an alert to ${section}.`,
       })
     }
   }
