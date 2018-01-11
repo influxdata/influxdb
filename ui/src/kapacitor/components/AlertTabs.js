@@ -92,20 +92,19 @@ class AlertTabs extends Component {
     }
   }
 
-  handleTestConfig = section => () => {
-    testAlertOutput(this.props.kapacitor, section, {})
-      .then(() => {
-        this.props.addFlashMessage({
-          type: 'success',
-          text: `Successfully relayed an alert to ${section}.`,
-        })
+  handleTestConfig = section => async () => {
+    try {
+      await testAlertOutput(this.props.kapacitor, section, {})
+      this.props.addFlashMessage({
+        type: 'success',
+        text: `Successfully relayed an alert to ${section}.`,
       })
-      .catch(() => {
-        this.props.addFlashMessage({
-          type: 'error',
-          text: `There was an error relaying an alert to ${section}.`,
-        })
+    } catch (error) {
+      this.props.addFlashMessage({
+        type: 'error',
+        text: `There was an error relaying an alert to ${section}.`,
       })
+    }
   }
 
   sanitizeProperties = (section, properties) => {

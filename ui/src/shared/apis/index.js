@@ -152,15 +152,18 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
   })
 }
 
-export function testAlertOutput(kapacitor, outputName, properties) {
-  return kapacitorProxy(
-    kapacitor,
-    'GET',
-    '/kapacitor/v1/service-tests'
-  ).then(({data: {services}}) => {
+export const testAlertOutput = async (kapacitor, outputName) => {
+  try {
+    const {data: {services}} = await kapacitorProxy(
+      kapacitor,
+      'GET',
+      '/kapacitor/v1/service-tests'
+    )
     const service = services.find(s => s.name === outputName)
     return kapacitorProxy(kapacitor, 'POST', service.link.href, {})
-  })
+  } catch (error) {
+    // empty
+  }
 }
 
 export function createKapacitorTask(kapacitor, id, type, dbrps, script) {
