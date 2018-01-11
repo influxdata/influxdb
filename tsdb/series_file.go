@@ -74,7 +74,6 @@ func (f *SeriesFile) Close() (err error) {
 			err = e
 		}
 	}
-	f.partitions = nil
 	return err
 }
 
