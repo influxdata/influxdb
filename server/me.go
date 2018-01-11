@@ -284,16 +284,24 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		// support OAuth2. This hard-coding should be removed whenever we add
 		// support for other authentication schemes.
 		Scheme: scheme,
-		Roles: []chronograf.Role{
-			{
-				Name: defaultOrg.DefaultRole,
-				// This is the ID of the default organization
-				Organization: defaultOrg.ID,
-			},
-		},
 		// TODO(desa): this needs a better name
 		SuperAdmin: s.newUsersAreSuperAdmin(),
 	}
+
+	allOrgs, err := s.Store.Organizations(serverCtx).All(serverCtx)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		return
+	}
+	roles := []chronograf.Role{}
+	for _, org := range allOrgs {
+		role := MappedRole(org, p)
+		if role != nil {
+			roles = append(roles, *role)
+		}
+	}
+
+	user.Roles = roles
 
 	newUser, err := s.Store.Users(serverCtx).Add(serverCtx, user)
 	if err != nil {

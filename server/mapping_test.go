@@ -12,7 +12,7 @@ import (
 
 func TestMappedRole(t *testing.T) {
 	type args struct {
-		org       *chronograf.Organization
+		org       chronograf.Organization
 		principal oauth2.Principal
 	}
 	type wants struct {
@@ -27,7 +27,7 @@ func TestMappedRole(t *testing.T) {
 		{
 			name: "single mapping all wildcards",
 			args: args{
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -50,7 +50,7 @@ func TestMappedRole(t *testing.T) {
 		{
 			name: "two mapping all wildcards",
 			args: args{
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -79,7 +79,7 @@ func TestMappedRole(t *testing.T) {
 		{
 			name: "two mapping all wildcards, different order",
 			args: args{
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -113,7 +113,7 @@ func TestMappedRole(t *testing.T) {
 					Issuer:  "google",
 					Group:   "influxdata.com",
 				},
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -142,7 +142,7 @@ func TestMappedRole(t *testing.T) {
 		{
 			name: "different two mapping all wildcards",
 			args: args{
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -171,7 +171,7 @@ func TestMappedRole(t *testing.T) {
 		{
 			name: "different two mapping all wildcards, different ordering",
 			args: args{
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -200,7 +200,7 @@ func TestMappedRole(t *testing.T) {
 		{
 			name: "three mapping all wildcards",
 			args: args{
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -240,7 +240,7 @@ func TestMappedRole(t *testing.T) {
 					Issuer:  "google",
 					Group:   "influxdata.com",
 				},
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -280,7 +280,7 @@ func TestMappedRole(t *testing.T) {
 					Issuer:  "google",
 					Group:   "influxdata.com",
 				},
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -320,7 +320,7 @@ func TestMappedRole(t *testing.T) {
 					Issuer:  "google",
 					Group:   "influxdata.com",
 				},
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{
@@ -345,7 +345,7 @@ func TestMappedRole(t *testing.T) {
 					Issuer:  "github",
 					Group:   "influxdata,another,mimi",
 				},
-				org: &chronograf.Organization{
+				org: chronograf.Organization{
 					ID:   "cool",
 					Name: "Cool Org",
 					Mappings: []chronograf.Mapping{

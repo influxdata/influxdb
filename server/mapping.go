@@ -8,7 +8,7 @@ import (
 	"github.com/influxdata/chronograf/roles"
 )
 
-func MappedRole(o *chronograf.Organization, p oauth2.Principal) *chronograf.Role {
+func MappedRole(o chronograf.Organization, p oauth2.Principal) *chronograf.Role {
 	roles := []*chronograf.Role{}
 	for _, mapping := range o.Mappings {
 		role := applyMapping(mapping, p)
