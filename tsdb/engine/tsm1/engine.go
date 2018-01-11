@@ -1364,6 +1364,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64, removeIn
 	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
 	if len(seriesKeys) > 0 {
+		buf := make([]byte, 1024) // For use when accessing series file.
 		for _, k := range seriesKeys {
 			// This key was crossed out earlier, skip it
 			if k == nil {
@@ -1388,8 +1389,23 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64, removeIn
 				continue
 			}
 
-			// Remove the series from the index.
-			if err := e.index.UnassignShard(string(k), e.id, ts); err != nil {
+			// Remove the series from the series file and index.
+
+			// TODO(edd): we need to first check with all other shards if it's
+			// OK to tombstone the series in the series file.
+			//
+			// Further, in the case of the inmem index, we should only remove
+			// the series from the index if we also tombstone it in the series
+			// file.
+			name, tags := models.ParseKey(k)
+			sid := e.sfile.SeriesID([]byte(name), tags, buf)
+			if sid == 0 {
+				return fmt.Errorf("unable to find id for series key %s during deletion", k)
+			}
+
+			// Remove the series from the index for this shard
+			id := (sid << 32) | e.id
+			if err := e.index.UnassignShard(string(k), id, ts); err != nil {
 				return err
 			}
 		}

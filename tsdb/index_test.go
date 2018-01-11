@@ -161,7 +161,7 @@ func MustNewIndex(index string) *Index {
 	}
 
 	idx := &Index{
-		Index:    tsdb.MustOpenIndex(0, "db0", filepath.Join(rootPath, "index"), sfile, opts),
+		Index:    tsdb.MustOpenIndex(0, "db0", filepath.Join(rootPath, "index"), tsdb.NewSeriesIDSet(), sfile, opts),
 		rootPath: rootPath,
 		sfile:    sfile,
 	}

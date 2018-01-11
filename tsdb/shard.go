@@ -295,9 +295,11 @@ func (s *Shard) Open() error {
 			return nil
 		}
 
+		seriesIDSet := NewSeriesIDSet()
+
 		// Initialize underlying index.
 		ipath := filepath.Join(s.path, "index")
-		idx, err := NewIndex(s.id, s.database, ipath, s.sfile, s.options)
+		idx, err := NewIndex(s.id, s.database, ipath, seriesIDSet, s.sfile, s.options)
 		if err != nil {
 			return err
 		}

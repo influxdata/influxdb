@@ -23,7 +23,7 @@ func createData(lo, hi int) (keys, names [][]byte, tags []models.Tags) {
 func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesExceeded(b *testing.B) {
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", nil)}
 	opt.Config.MaxValuesPerTag = 10
-	si := inmem.NewShardIndex(1, "foo", "bar", nil, opt)
+	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), nil, opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)
@@ -39,7 +39,7 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesExceeded(b *testin
 func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesNotExceeded(b *testing.B) {
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", nil)}
 	opt.Config.MaxValuesPerTag = 100000
-	si := inmem.NewShardIndex(1, "foo", "bar", nil, opt)
+	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), nil, opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)
@@ -54,7 +54,7 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesNotExceeded(b *tes
 
 func BenchmarkShardIndex_CreateSeriesListIfNotExists_NoMaxValues(b *testing.B) {
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", nil)}
-	si := inmem.NewShardIndex(1, "foo", "bar", nil, opt)
+	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), nil, opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)
@@ -71,7 +71,7 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxSeriesExceeded(b *testin
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", nil)}
 	opt.Config.MaxValuesPerTag = 0
 	opt.Config.MaxSeriesPerDatabase = 10
-	si := inmem.NewShardIndex(1, "foo", "bar", nil, opt)
+	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), nil, opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)

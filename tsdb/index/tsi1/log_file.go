@@ -429,7 +429,7 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *SeriesSet, names [][]byte, tagsSlice []models.Tags) error {
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) error {
 	buf := make([]byte, 2048)
 
 	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice, buf[:0])
@@ -441,7 +441,7 @@ func (f *LogFile) AddSeriesList(seriesSet *SeriesSet, names [][]byte, tagsSlice 
 	entries := make([]LogEntry, 0, len(names))
 	seriesSet.RLock()
 	for i := range names {
-		if seriesSet.Contains(seriesIDs[i]) {
+		if seriesSet.ContainsNoLock(seriesIDs[i]) {
 			// We don't need to allocate anything for this series.
 			continue
 		}
@@ -463,7 +463,7 @@ func (f *LogFile) AddSeriesList(seriesSet *SeriesSet, names [][]byte, tagsSlice 
 
 	for i := range entries {
 		entry := &entries[i]
-		if seriesSet.Contains(entry.SeriesID) {
+		if seriesSet.ContainsNoLock(entry.SeriesID) {
 			// We don't need to allocate anything for this series.
 			continue
 		}
@@ -471,7 +471,7 @@ func (f *LogFile) AddSeriesList(seriesSet *SeriesSet, names [][]byte, tagsSlice 
 			return err
 		}
 		f.execEntry(entry)
-		seriesSet.Add(entry.SeriesID)
+		seriesSet.AddNoLock(entry.SeriesID)
 	}
 	return nil
 }

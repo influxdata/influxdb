@@ -231,7 +231,7 @@ func TestEngine_Backup(t *testing.T) {
 	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex(db, sfile.SeriesFile)
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), sfile.SeriesFile, opt)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
 	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
@@ -338,7 +338,7 @@ func TestEngine_Export(t *testing.T) {
 	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex(db, sfile.SeriesFile)
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), sfile.SeriesFile, opt)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
 	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
@@ -931,6 +931,89 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	}
 }
 
+// Test that series id set gets updated and returned appropriately.
+func TestIndex_SeriesIDSet(t *testing.T) {
+	test := func(index string) error {
+		engine := MustOpenEngine(index)
+		defer engine.Close()
+
+		// Add some series.
+		engine.MustAddSeries("cpu", map[string]string{"host": "a", "region": "west"})
+		engine.MustAddSeries("cpu", map[string]string{"host": "b", "region": "west"})
+		engine.MustAddSeries("cpu", map[string]string{"host": "b"})
+		engine.MustAddSeries("gpu", nil)
+		engine.MustAddSeries("gpu", map[string]string{"host": "b"})
+		engine.MustAddSeries("mem", map[string]string{"host": "z"})
+
+		// Collect series IDs.
+		var ids []uint64
+		var e tsdb.SeriesIDElem
+		var err error
+
+		itr := engine.sfile.SeriesIDIterator()
+		for e, err = itr.Next(); ; e, err = itr.Next() {
+			if err != nil {
+				return err
+			} else if e.SeriesID == 0 {
+				break
+			}
+			ids = append(ids, e.SeriesID)
+		}
+
+		for _, id := range ids {
+			if !engine.SeriesIDSet().Contains(id) {
+				return fmt.Errorf("bitmap does not contain ID: %d", id)
+			}
+		}
+
+		// Drop all the series for the gpu measurement and they should no longer
+		// be in the series ID set.
+		if err := engine.DeleteMeasurement([]byte("gpu")); err != nil {
+			return err
+		}
+
+		// Drop the specific mem series
+		ditr := &seriesIterator{keys: [][]byte{[]byte("mem,host=z")}}
+		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64, true); err != nil {
+			return err
+		}
+
+		// Since series IDs are added sequentially, the last two would be the
+		// series for the gpu measurement...
+		for _, id := range ids {
+			contains := engine.SeriesIDSet().Contains(id)
+			if id < 4 && !contains {
+				return fmt.Errorf("bitmap does not contain ID: %d, but should", id)
+			} else if id >= 4 && contains {
+				return fmt.Errorf("bitmap still contains ID: %d after delete", id)
+			}
+		}
+
+		// Reopen the engine, and the series should be re-added to the bitmap.
+		if err := engine.Reopen(); err != nil {
+			panic(err)
+		}
+
+		for _, id := range ids {
+			contains := engine.SeriesIDSet().Contains(id)
+			if id < 4 && !contains {
+				return fmt.Errorf("[after re-open] bitmap does not contain ID: %d, but should", id)
+			} else if id >= 4 && contains {
+				return fmt.Errorf("[after re-open] bitmap still contains ID: %d after delete", id)
+			}
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
 // Ensures that deleting series from TSM files with multiple fields removes all the
 // series from the TSM files but leaves the series in the index intact.
 func TestEngine_DeleteSeries(t *testing.T) {
@@ -953,13 +1036,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			}
 			defer e.Close()
 
-			for _, p := range []models.Point{p1, p2, p3} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
-					t.Fatalf("create series index error: %v", err)
-				}
-			}
-
-			if err := e.WritePoints([]models.Point{p1, p2, p3}); err != nil {
+			if err := e.writePoints(p1, p2, p3); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1217,7 +1294,7 @@ func TestEngine_LastModified(t *testing.T) {
 			}
 			defer e.Close()
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3}); err != nil {
+			if err := e.writePoints(p1, p2, p3); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 
@@ -1264,7 +1341,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	db := path.Base(dir)
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex(db, sfile.SeriesFile)
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), sfile.SeriesFile, opt)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
 	e := tsm1.NewEngine(1, idx, db, dir, walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
@@ -1446,7 +1523,19 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 					e.SetCompactionsEnabled(true)
 				}
 			}()
-			wg.Wait()
+
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+
+			// Wait for waitgroup or fail if it takes too long.
+			select {
+			case <-time.NewTimer(30 * time.Second).C:
+				t.Fatalf("timed out after 30 seconds waiting for waitgroup")
+			case <-done:
+			}
 		})
 	}
 }
@@ -1690,9 +1779,12 @@ func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
 // Engine is a test wrapper for tsm1.Engine.
 type Engine struct {
 	*tsm1.Engine
-	root  string
-	index tsdb.Index
-	sfile *tsdb.SeriesFile
+	root        string
+	indexPath   string
+	indexType   string
+	index       tsdb.Index
+	seriesIDSet *tsdb.SeriesIDSet
+	sfile       *tsdb.SeriesFile
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
@@ -1710,12 +1802,7 @@ func NewEngine(index string) (*Engine, error) {
 	}
 
 	// Setup series file.
-	seriesPath, err := ioutil.TempDir(dbPath, tsdb.SeriesFileDirectory)
-	if err != nil {
-		return nil, err
-	}
-
-	sfile := tsdb.NewSeriesFile(seriesPath)
+	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
 	sfile.Logger = logger.New(os.Stdout)
 	if err = sfile.Open(); err != nil {
 		return nil, err
@@ -1727,19 +1814,145 @@ func NewEngine(index string) (*Engine, error) {
 		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
 
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dbPath, "index"), sfile, opt)
+	idxPath := filepath.Join(dbPath, "index")
+	seriesIDs := tsdb.NewSeriesIDSet()
+	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
+
+	tsm1Engine := tsm1.NewEngine(1, idx, db, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
+
 	return &Engine{
-		Engine: tsm1.NewEngine(1,
-			idx,
-			db,
-			filepath.Join(root, "data"),
-			filepath.Join(root, "wal"),
-			sfile,
-			opt).(*tsm1.Engine),
-		root:  root,
-		index: idx,
-		sfile: sfile,
+		Engine:      tsm1Engine,
+		root:        root,
+		indexPath:   idxPath,
+		indexType:   index,
+		index:       idx,
+		seriesIDSet: seriesIDs,
+		sfile:       sfile,
 	}, nil
+}
+
+// MustOpenEngine returns a new, open instance of Engine.
+func MustOpenEngine(index string) *Engine {
+	e, err := NewEngine(index)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := e.Open(); err != nil {
+		panic(err)
+	}
+	return e
+}
+
+// Close closes the engine and removes all underlying data.
+func (e *Engine) Close() error {
+	return e.close(true)
+}
+
+func (e *Engine) close(cleanup bool) error {
+	if e.index != nil {
+		e.index.Close()
+	}
+
+	if e.sfile != nil {
+		e.sfile.Close()
+	}
+
+	defer func() {
+		if cleanup {
+			os.RemoveAll(e.root)
+		}
+	}()
+	return e.Engine.Close()
+}
+
+// Reopen closes and reopens the engine.
+func (e *Engine) Reopen() error {
+	// Close engine without removing underlying engine data.
+	if err := e.close(false); err != nil {
+		return err
+	}
+
+	// Re-open series file. Must create a new series file using the same data.
+	e.sfile = tsdb.NewSeriesFile(e.sfile.Path())
+	if err := e.sfile.Open(); err != nil {
+		return err
+	}
+
+	db := path.Base(e.root)
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex(db, e.sfile)
+
+	// Re-open index.
+	e.seriesIDSet = tsdb.NewSeriesIDSet()
+	e.index = tsdb.MustOpenIndex(1, db, e.indexPath, e.seriesIDSet, e.sfile, opt)
+
+	// Re-initialize engine.
+	e.Engine = tsm1.NewEngine(1, e.index, db, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)
+
+	// Reopen engine
+	if err := e.Engine.Open(); err != nil {
+		return err
+	}
+
+	// Reload series data into index (no-op on TSI).
+	return e.LoadMetadataIndex(1, e.index)
+}
+
+// SeriesIDSet provides access to the underlying series id bitset in the engine's
+// index. It will panic if the underlying index does not have a SeriesIDSet
+// method.
+func (e *Engine) SeriesIDSet() *tsdb.SeriesIDSet {
+	return e.index.(interface {
+		SeriesIDSet() *tsdb.SeriesIDSet
+	}).SeriesIDSet()
+}
+
+// AddSeries adds the provided series data to the index and writes a point to
+// the engine with default values for a field and a time of now.
+func (e *Engine) AddSeries(name string, tags map[string]string) error {
+	point, err := models.NewPoint(name, models.NewTags(tags), models.Fields{"v": 1.0}, time.Now())
+	if err != nil {
+		return err
+	}
+	return e.writePoints(point)
+}
+
+// WritePointsString calls WritePointsString on the underlying engine, but also
+// adds the associated series to the index.
+func (e *Engine) WritePointsString(ptstr ...string) error {
+	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"))
+	if err != nil {
+		return err
+	}
+	return e.writePoints(points...)
+}
+
+// writePoints adds the series for the provided points to the index, and writes
+// the point data to the engine.
+func (e *Engine) writePoints(points ...models.Point) error {
+	for _, point := range points {
+		// Write into the index.
+		if err := e.Engine.CreateSeriesIfNotExists(point.Key(), point.Name(), point.Tags()); err != nil {
+			return err
+		}
+	}
+	// Write the points into the cache/wal.
+	return e.WritePoints(points)
+}
+
+// MustAddSeries calls AddSeries, panicking if there is an error.
+func (e *Engine) MustAddSeries(name string, tags map[string]string) {
+	if err := e.AddSeries(name, tags); err != nil {
+		panic(err)
+	}
+}
+
+// MustWriteSnapshot forces a snapshot of the engine. Panic on error.
+func (e *Engine) MustWriteSnapshot() {
+	if err := e.WriteSnapshot(); err != nil {
+		panic(err)
+	}
 }
 
 // SeriesFile is a test wrapper for tsdb.SeriesFile.
@@ -1771,73 +1984,6 @@ func (f *SeriesFile) Close() {
 	if err := f.SeriesFile.Close(); err != nil {
 		panic(err)
 	}
-}
-
-// MustOpenEngine returns a new, open instance of Engine.
-func MustOpenEngine(index string) *Engine {
-	e, err := NewEngine(index)
-	if err != nil {
-		panic(err)
-	}
-
-	if err := e.Open(); err != nil {
-		panic(err)
-	}
-	return e
-}
-
-// Close closes the engine and removes all underlying data.
-func (e *Engine) Close() error {
-	if e.index != nil {
-		e.index.Close()
-	}
-
-	if e.sfile != nil {
-		e.sfile.Close()
-	}
-
-	defer os.RemoveAll(e.root)
-	return e.Engine.Close()
-}
-
-// Reopen closes and reopens the engine.
-func (e *Engine) Reopen() error {
-	if err := e.Engine.Close(); err != nil {
-		return err
-	} else if e.index.Close(); err != nil {
-		return err
-	}
-
-	db := path.Base(e.root)
-	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex(db, e.sfile)
-
-	e.index = tsdb.MustOpenIndex(1, db, filepath.Join(e.root, "data", "index"), e.sfile, opt)
-
-	e.Engine = tsm1.NewEngine(1,
-		e.index,
-		db,
-		filepath.Join(e.root, "data"),
-		filepath.Join(e.root, "wal"),
-		e.sfile,
-		opt).(*tsm1.Engine)
-
-	if err := e.Engine.Open(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// MustWriteSnapshot forces a snapshot of the engine. Panic on error.
-func (e *Engine) MustWriteSnapshot() {
-	if err := e.WriteSnapshot(); err != nil {
-		panic(err)
-	}
-}
-
-// WritePointsString parses a string buffer and writes the points.
-func (e *Engine) WritePointsString(buf ...string) error {
-	return e.WritePoints(MustParsePointsString(strings.Join(buf, "\n")))
 }
 
 // MustParsePointsString parses points from a string. Panic on error.
