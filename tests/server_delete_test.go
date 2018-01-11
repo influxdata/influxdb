@@ -164,6 +164,109 @@ func TestServer_DELETE_DROP_SERIES_DROP_MEASUREMENT(t *testing.T) {
 	}
 }
 
+// **** The following tests are specific examples discovered using
+// TestServer_DELETE_DROP_SERIES_DROP_MEASUREMENT. They're added to prevent
+// regressions.
+
+// This test never explicitly failed, but it's a special case of
+// TestServer_Insert_Delete_1515688266259660938.
+func TestServer_Insert_Delete_1515688266259660938_same_shard(t *testing.T) {
+	// Original seed was 1515688266259660938.
+	t.Parallel()
+
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	for i := 0; i < 100; i++ {
+		if _, err := s.Write(db, rp, strings.Join([]string{
+			"m4,s67=a v=1 4",
+			"m4,s67=a v=1 12",
+			"m4,s1=a v=1 15",
+		}, "\n"), nil); err != nil {
+			t.Fatal(err)
+		}
+
+		query := fmt.Sprintf("DELETE FROM %q WHERE time >= 1 AND time <= 10 ", "m4")
+		_, err := s.QueryWithParams(query, url.Values{"db": []string{"db0"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Compare series left in index.
+		result, err := s.QueryWithParams("SHOW SERIES", url.Values{"db": []string{"db0"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		gotSeries, err := seriesFromShowSeries(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectedSeries := []string{"m4,s1=a", "m4,s67=a"}
+		if !reflect.DeepEqual(gotSeries, expectedSeries) {
+			t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
+		}
+
+		if err := s.DropDatabase(db); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// This test failed with seed 1515688266259660938.
+func TestServer_Insert_Delete_1515688266259660938(t *testing.T) {
+	// Original seed was 1515688266259660938.
+	t.Parallel()
+
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	for i := 0; i < 100; i++ {
+		if _, err := s.Write(db, rp, strings.Join([]string{
+			"m4,s67=a v=1 2127318532111304",
+			"m4,s67=a v=1 4840422259072956",
+			"m4,s1=a v=1 4777375719836601",
+		}, "\n"), nil); err != nil {
+			t.Fatal(err)
+		}
+
+		query := fmt.Sprintf("DELETE FROM %q WHERE time >= 1134567692141289 AND time <= 2233755799041351 ", "m4")
+		_, err := s.QueryWithParams(query, url.Values{"db": []string{"db0"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Compare series left in index.
+		result, err := s.QueryWithParams("SHOW SERIES", url.Values{"db": []string{"db0"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		gotSeries, err := seriesFromShowSeries(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectedSeries := []string{"m4,s1=a", "m4,s67=a"}
+		if !reflect.DeepEqual(gotSeries, expectedSeries) {
+			t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
+		}
+
+		if err := s.DropDatabase(db); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // SeriesTracker is a lockable tracker of which shards should own which series.
 type SeriesTracker struct {
 	sync.RWMutex
@@ -390,6 +493,27 @@ func (s *SeriesTracker) Verify() error {
 	}
 
 	// Get all series...
+	gotSeries, err := seriesFromShowSeries(res)
+	if err != nil {
+		return err
+	}
+
+	expectedSeries := make([]string, 0, len(s.series))
+	for series := range s.series {
+		expectedSeries = append(expectedSeries, series)
+	}
+	sort.Strings(expectedSeries)
+
+	if !reflect.DeepEqual(gotSeries, expectedSeries) {
+		return fmt.Errorf("verification failed:\ngot series: %v\nexpected series: %v\ndifference: %s", gotSeries, expectedSeries, cmp.Diff(gotSeries, expectedSeries))
+	}
+	return nil
+}
+
+// seriesFromShowSeries extracts a lexicographically sorted set of series keys
+// from a SHOW SERIES query.
+func seriesFromShowSeries(result string) ([]string, error) {
+	// Get all series...
 	var results struct {
 		Results []struct {
 			Series []struct {
@@ -398,8 +522,8 @@ func (s *SeriesTracker) Verify() error {
 		} `json:"results"`
 	}
 
-	if err := json.Unmarshal([]byte(res), &results); err != nil {
-		return err
+	if err := json.Unmarshal([]byte(result), &results); err != nil {
+		return nil, err
 	}
 
 	var gotSeries []string
@@ -414,16 +538,7 @@ func (s *SeriesTracker) Verify() error {
 	// not the same as lexicographic order.
 	sort.Strings(gotSeries)
 
-	expectedSeries := make([]string, 0, len(s.series))
-	for series := range s.series {
-		expectedSeries = append(expectedSeries, series)
-	}
-	sort.Strings(expectedSeries)
-
-	if !reflect.DeepEqual(gotSeries, expectedSeries) {
-		return fmt.Errorf("verification failed:\ngot series: %v\nexpected series: %v\ndifference: %s", gotSeries, expectedSeries, cmp.Diff(gotSeries, expectedSeries))
-	}
-	return nil
+	return gotSeries, nil
 }
 
 // DumpPoints returns all the series points.
