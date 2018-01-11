@@ -80,13 +80,13 @@ class AlertTabs extends Component {
           this.refreshKapacitorConfig(this.props.kapacitor)
           this.props.addFlashMessage({
             type: 'success',
-            text: `Alert for ${section} successfully saved`,
+            text: `Alert configuration for ${section} successfully saved.`,
           })
         })
         .catch(() => {
           this.props.addFlashMessage({
             type: 'error',
-            text: 'There was an error saving the kapacitor config',
+            text: `There was an error saving the alert configuration for ${section}.`,
           })
         })
     }
