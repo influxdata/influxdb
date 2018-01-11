@@ -21,7 +21,7 @@ const kapacitorDropdown = (
           to={`/sources/${source.id}/kapacitors/new`}
           className="btn btn-xs btn-default"
         >
-          <span className="icon plus" /> Add Config
+          <span className="icon plus" /> Add Kapacitor Connection
         </Link>
       </Authorized>
     )
@@ -62,7 +62,7 @@ const kapacitorDropdown = (
         onChoose={setActiveKapacitor}
         addNew={{
           url: `/sources/${source.id}/kapacitors/new`,
-          text: 'Add Kapacitor',
+          text: 'Add Kapacitor Connection',
         }}
         actions={[
           {
@@ -131,7 +131,7 @@ const InfluxTable = ({
                   <QuestionMarkTooltip
                     tipID="kapacitor-node-helper"
                     tipContent={
-                      '<p>Kapacitor Configurations are<br/>scoped per InfluxDB Connection.<br/>Only one can be active at a time.</p>'
+                      '<p>Kapacitor Connections are<br/>scoped per InfluxDB Connection.<br/>Only one can be active at a time.</p>'
                     }
                   />
                 </th>

@@ -208,7 +208,9 @@ class SourcePage extends Component {
             <div className="page-header__col-md-8">
               <div className="page-header__left">
                 <h1 className="page-header__title">
-                  {editMode ? 'Edit Connection' : 'Add a New Connection'}
+                  {editMode
+                    ? 'Configure InfluxDB Connection'
+                    : 'Add a New InfluxDB Connection'}
                 </h1>
               </div>
               {isInitialSource
