@@ -1368,7 +1368,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			name, tags := models.ParseKey(k)
 			sid := e.sfile.SeriesID([]byte(name), tags, buf)
 			if sid == 0 {
-				return fmt.Errorf("unable to find id for series key %s during deletion", k)
+				return fmt.Errorf("unable to find id for series key %q during deletion", k)
 			}
 			id := (sid << 32) | e.id
 

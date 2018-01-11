@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -947,7 +946,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 		engine.MustAddSeries("mem", map[string]string{"host": "z"})
 
 		// Collect series IDs.
-		var ids []uint64
+		seriesIDMap := map[string]uint64{}
 		var e tsdb.SeriesIDElem
 		var err error
 
@@ -958,10 +957,13 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			} else if e.SeriesID == 0 {
 				break
 			}
-			ids = append(ids, e.SeriesID)
+
+			name, tags := tsdb.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
+			key := fmt.Sprintf("%s%s", name, tags.HashKey())
+			seriesIDMap[key] = e.SeriesID
 		}
 
-		for _, id := range ids {
+		for _, id := range seriesIDMap {
 			if !engine.SeriesIDSet().Contains(id) {
 				return fmt.Errorf("bitmap does not contain ID: %d", id)
 			}
@@ -973,24 +975,29 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			return err
 		}
 
+		if engine.SeriesIDSet().Contains(seriesIDMap["gpu"]) {
+			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu"], "gpu")
+		} else if engine.SeriesIDSet().Contains(seriesIDMap["gpu,host=b"]) {
+			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu,host=b"], "gpu,host=b")
+		}
+		delete(seriesIDMap, "gpu")
+		delete(seriesIDMap, "gpu,host=b")
+
 		// Drop the specific mem series
 		ditr := &seriesIterator{keys: [][]byte{[]byte("mem,host=z")}}
-		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64, true); err != nil {
+		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64); err != nil {
 			return err
 		}
 
-		// Since series IDs are added sequentially, the last two would be the
-		// series for the gpu measurement...
-		for _, id := range ids {
-			contains := engine.SeriesIDSet().Contains(id)
-			key, _ := engine.sfile.Series(id)
-			isGpu := bytes.Equal(key, []byte("gpu"))
-			isMem := bytes.Equal(key, []byte("mem"))
+		if engine.SeriesIDSet().Contains(seriesIDMap["mem,host=z"]) {
+			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["mem,host=z"], "mem,host=z")
+		}
+		delete(seriesIDMap, "mem,host=z")
 
-			if (isGpu || isMem) && contains {
-				return fmt.Errorf("bitmap still contains ID: %d after delete: %s", id, string(key))
-			} else if !(isGpu || isMem) && !contains {
-				return fmt.Errorf("bitmap does not contain ID: %d, but should: %s", id, string(key))
+		// The rest of the keys should still be in the set.
+		for key, id := range seriesIDMap {
+			if !engine.SeriesIDSet().Contains(id) {
+				return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", id, key)
 			}
 		}
 
@@ -999,17 +1006,14 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			panic(err)
 		}
 
-		for _, id := range ids {
-			contains := engine.SeriesIDSet().Contains(id)
-			key, _ := engine.sfile.Series(id)
-			isGpu := bytes.Equal(key, []byte("gpu"))
-			isMem := bytes.Equal(key, []byte("mem"))
+		// Check bitset is expected.
+		expected := tsdb.NewSeriesIDSet()
+		for _, id := range seriesIDMap {
+			expected.Add(id)
+		}
 
-			if (isGpu || isMem) && contains {
-				return fmt.Errorf("[after re-open] bitmap still contains ID: %d after delete: %s", id, string(key))
-			} else if !(isGpu || isMem) && !contains {
-				return fmt.Errorf("[after re-open] bitmap does not contain ID: %d, but should: %s", id, string(key))
-			}
+		if !engine.SeriesIDSet().Equals(expected) {
+			return fmt.Errorf("got bitset %s, expected %s", engine.SeriesIDSet().String(), expected.String())
 		}
 		return nil
 	}
@@ -1175,7 +1179,6 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			if got, exp := tags, models.NewTags(map[string]string{"host": "B"}); !got.Equal(exp) {
 				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
 			}
-			sort.Strings(gotKeys)
 
 			iter.Close()
 
@@ -1789,12 +1792,11 @@ func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
 // Engine is a test wrapper for tsm1.Engine.
 type Engine struct {
 	*tsm1.Engine
-	root        string
-	indexPath   string
-	indexType   string
-	index       tsdb.Index
-	seriesIDSet *tsdb.SeriesIDSet
-	sfile       *tsdb.SeriesFile
+	root      string
+	indexPath string
+	indexType string
+	index     tsdb.Index
+	sfile     *tsdb.SeriesFile
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
@@ -1834,13 +1836,12 @@ func NewEngine(index string) (*Engine, error) {
 	tsm1Engine := tsm1.NewEngine(1, idx, db, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
 
 	return &Engine{
-		Engine:      tsm1Engine,
-		root:        root,
-		indexPath:   idxPath,
-		indexType:   index,
-		index:       idx,
-		seriesIDSet: seriesIDs,
-		sfile:       sfile,
+		Engine:    tsm1Engine,
+		root:      root,
+		indexPath: idxPath,
+		indexType: index,
+		index:     idx,
+		sfile:     sfile,
 	}, nil
 }
 
@@ -1896,9 +1897,12 @@ func (e *Engine) Reopen() error {
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex(db, e.sfile)
 
+	// Re-initialise the series id set
+	seriesIDSet := tsdb.NewSeriesIDSet()
+	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDSet})
+
 	// Re-open index.
-	e.seriesIDSet = tsdb.NewSeriesIDSet()
-	e.index = tsdb.MustOpenIndex(1, db, e.indexPath, e.seriesIDSet, e.sfile, opt)
+	e.index = tsdb.MustOpenIndex(1, db, e.indexPath, seriesIDSet, e.sfile, opt)
 
 	// Re-initialize engine.
 	e.Engine = tsm1.NewEngine(1, e.index, db, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)

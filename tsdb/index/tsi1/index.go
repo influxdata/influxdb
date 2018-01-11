@@ -143,6 +143,7 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 	seriesIDSet := tsdb.NewSeriesIDSet()
 	others := make([]*tsdb.SeriesIDSet, 0, i.PartitionN)
 	for _, p := range i.partitions {
+		fmt.Printf("Partition %s: bitset to merge is %v\n", p.id, p.seriesSet)
 		others = append(others, p.seriesSet)
 	}
 	seriesIDSet.Merge(others...)
@@ -480,7 +481,7 @@ func (i *Index) CreateSeriesListIfNotExists(_ [][]byte, names [][]byte, tagsSlic
 
 	// Determine partition for series using each series key.
 	buf := make([]byte, 2048)
-	for k, _ := range names {
+	for k := range names {
 		buf = tsdb.AppendSeriesKey(buf[:0], names[k], tagsSlice[k])
 
 		pidx := i.partitionIdx(buf)

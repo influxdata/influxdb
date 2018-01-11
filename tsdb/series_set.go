@@ -72,6 +72,19 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	s.bitmap = roaring.FastOr(bms...)
 }
 
+// Equals returns true if other and s are the same set of ids.
+func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
+	if s == other {
+		return true
+	}
+
+	s.RLock()
+	defer s.RUnlock()
+	other.RLock()
+	other.RUnlock()
+	return s.bitmap.Equals(other.bitmap)
+}
+
 // AndNot returns the set of elements that only exist in s.
 func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
 	s.RLock()

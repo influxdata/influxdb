@@ -611,6 +611,9 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 
 		name, tags := models.ParseKeyBytes(key)
 		seriesID := i.sfile.SeriesID(name, tags, nil)
+		if seriesID == 0 {
+			return fmt.Errorf("[partition %s] no series id for key %q when attempting index drop", i.id, string(key))
+		}
 
 		// Remove from series id set.
 		i.seriesSet.Remove(seriesID)
