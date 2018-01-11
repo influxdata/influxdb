@@ -6,25 +6,26 @@ class SlackConfig extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      testEnabled: !!this.props.config.options.url,
+      // if enabled true, else false.
+      testEnabled: true,
     }
   }
 
-  componentWillReceiveProps(nextProps) {
-    this.setState({
-      testEnabled: !!nextProps.config.options.url,
-    })
-  }
-
-  handleSaveAlert = e => {
+  handleSubmit = e => {
     e.preventDefault()
-
+    if (this.state.testEnabled) {
+      this.props.onTest()
+      return
+    }
     const properties = {
       url: this.url.value,
       channel: this.channel.value,
     }
-
     this.props.onSave(properties)
+    this.setState({testEnabled: true})
+  }
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   handleUrlRef = r => (this.url = r)
@@ -33,7 +34,7 @@ class SlackConfig extends Component {
     const {url, channel} = this.props.config.options
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <label htmlFor="slack-url">
             Slack Webhook URL (
@@ -46,6 +47,7 @@ class SlackConfig extends Component {
             defaultValue={url}
             id="url"
             refFunc={this.handleUrlRef}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -58,19 +60,31 @@ class SlackConfig extends Component {
             placeholder="#alerts"
             ref={r => (this.channel = r)}
             defaultValue={channel || ''}
+            onChange={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update Slack Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+            onClick={this.enableTest}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.enableTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
         <br />
         <br />
-        <div className="col-xs-12 text-center" onClick={this.props.onTest}>
-          ❤️❤️❤️❤️Test Slack Config❤️❤️❤️❤️
-        </div>
       </form>
     )
   }
