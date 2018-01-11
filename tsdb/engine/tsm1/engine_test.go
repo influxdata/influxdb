@@ -1532,8 +1532,8 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 
 			// Wait for waitgroup or fail if it takes too long.
 			select {
-			case <-time.NewTimer(10 * time.Second).C:
-				t.Fatalf("timed out after 10 seconds waiting for waitgroup")
+			case <-time.NewTimer(30 * time.Second).C:
+				t.Fatalf("timed out after 30 seconds waiting for waitgroup")
 			case <-done:
 			}
 		})
