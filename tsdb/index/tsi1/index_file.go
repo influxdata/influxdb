@@ -245,16 +245,13 @@ func (f *IndexFile) TagValueSeriesIDIterator(name, key, value []byte) tsdb.Serie
 	}
 
 	// Find value element.
-	ve := tblk.TagValueElem(key, value)
-	if ve == nil {
+	n, data := tblk.TagValueSeriesData(key, value)
+	if n == 0 {
 		return nil
 	}
 
 	// Create an iterator over value's series.
-	return &rawSeriesIDIterator{
-		n:    ve.(*TagBlockValueElem).series.n,
-		data: ve.(*TagBlockValueElem).series.data,
-	}
+	return &rawSeriesIDIterator{n: n, data: data}
 }
 
 // TagKey returns a tag key.

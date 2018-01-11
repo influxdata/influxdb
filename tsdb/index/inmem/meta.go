@@ -266,15 +266,7 @@ func (m *measurement) AddSeries(s *series) bool {
 			valueMap = newTagKeyValue()
 			m.seriesByTagKeyValue[string(t.Key)] = valueMap
 		}
-		ids := valueMap.LoadByte(t.Value)
-		ids = append(ids, s.ID)
-
-		// most of the time the series ID will be higher than all others because it's a new
-		// series. So don't do the sort if we don't have to.
-		if len(ids) > 1 && ids[len(ids)-1] < ids[len(ids)-2] {
-			sort.Sort(ids)
-		}
-		valueMap.StoreByte(t.Value, ids)
+		valueMap.InsertSeriesIDByte(t.Value, s.ID)
 	}
 
 	return true
@@ -1292,13 +1284,13 @@ func (s *series) Deleted() bool {
 //
 // TODO(edd): This could possibly be replaced by a sync.Map once we use Go 1.9.
 type tagKeyValue struct {
-	mu       sync.RWMutex
-	valueIDs map[string]seriesIDs
+	mu      sync.RWMutex
+	entries map[string]*tagKeyValueEntry
 }
 
 // NewTagKeyValue initialises a new TagKeyValue.
 func newTagKeyValue() *tagKeyValue {
-	return &tagKeyValue{valueIDs: make(map[string]seriesIDs)}
+	return &tagKeyValue{entries: make(map[string]*tagKeyValueEntry)}
 }
 
 // Cardinality returns the number of values in the TagKeyValue.
@@ -1309,7 +1301,7 @@ func (t *tagKeyValue) Cardinality() int {
 
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return len(t.valueIDs)
+	return len(t.entries)
 }
 
 // Contains returns true if the TagKeyValue contains value.
@@ -1320,8 +1312,32 @@ func (t *tagKeyValue) Contains(value string) bool {
 
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	_, ok := t.valueIDs[value]
+	_, ok := t.entries[value]
 	return ok
+}
+
+// InsertSeriesID adds a series id to the tag key value.
+func (t *tagKeyValue) InsertSeriesID(value string, id uint64) {
+	t.mu.Lock()
+	entry := t.entries[value]
+	if entry == nil {
+		entry = newTagKeyValueEntry()
+		t.entries[value] = entry
+	}
+	entry.m[id] = struct{}{}
+	t.mu.Unlock()
+}
+
+// InsertSeriesIDByte adds a series id to the tag key value.
+func (t *tagKeyValue) InsertSeriesIDByte(value []byte, id uint64) {
+	t.mu.Lock()
+	entry := t.entries[string(value)]
+	if entry == nil {
+		entry = newTagKeyValueEntry()
+		t.entries[string(value)] = entry
+	}
+	entry.m[id] = struct{}{}
+	t.mu.Unlock()
 }
 
 // Load returns the SeriesIDs for the provided tag value.
@@ -1331,9 +1347,10 @@ func (t *tagKeyValue) Load(value string) seriesIDs {
 	}
 
 	t.mu.RLock()
-	sIDs := t.valueIDs[value]
+	entry := t.entries[value]
+	ids := entry.ids()
 	t.mu.RUnlock()
-	return sIDs
+	return ids
 }
 
 // LoadByte returns the SeriesIDs for the provided tag value. It makes use of
@@ -1344,9 +1361,10 @@ func (t *tagKeyValue) LoadByte(value []byte) seriesIDs {
 	}
 
 	t.mu.RLock()
-	sIDs := t.valueIDs[string(value)]
+	entry := t.entries[string(value)]
+	ids := entry.ids()
 	t.mu.RUnlock()
-	return sIDs
+	return ids
 }
 
 // Range calls f sequentially on each key and value. A call to Range on a nil
@@ -1360,8 +1378,9 @@ func (t *tagKeyValue) Range(f func(tagValue string, a seriesIDs) bool) {
 
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	for tagValue, a := range t.valueIDs {
-		if !f(tagValue, a) {
+	for tagValue, entry := range t.entries {
+		ids := entry.ids()
+		if !f(tagValue, ids) {
 			return
 		}
 	}
@@ -1376,18 +1395,33 @@ func (t *tagKeyValue) RangeAll(f func(k string, a seriesIDs)) {
 	})
 }
 
-// Store stores ids under the value key.
-func (t *tagKeyValue) Store(value string, ids seriesIDs) {
-	t.mu.Lock()
-	t.valueIDs[value] = ids
-	t.mu.Unlock()
+type tagKeyValueEntry struct {
+	m map[uint64]struct{} // series id set
+	a seriesIDs           // lazily sorted list of series.
 }
 
-// StoreByte stores ids under the value key.
-func (t *tagKeyValue) StoreByte(value []byte, ids seriesIDs) {
-	t.mu.Lock()
-	t.valueIDs[string(value)] = ids
-	t.mu.Unlock()
+func newTagKeyValueEntry() *tagKeyValueEntry {
+	return &tagKeyValueEntry{m: make(map[uint64]struct{})}
+}
+
+func (e *tagKeyValueEntry) ids() seriesIDs {
+	if e == nil {
+		return nil
+	}
+
+	if len(e.a) == len(e.m) {
+		return e.a
+	}
+
+	a := make(seriesIDs, 0, len(e.m))
+	for id := range e.m {
+		a = append(a, id)
+	}
+	sort.Sort(a)
+
+	e.a = a
+	return e.a
+
 }
 
 // SeriesIDs is a convenience type for sorting, checking equality, and doing

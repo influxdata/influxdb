@@ -36,6 +36,7 @@ go.uber.org/multierr fb7d312c2c04c34f0ad621048bbb953b168f9ff6
 go.uber.org/zap 35aad584952c3e7020db7b839f6b102de6271f89
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
 golang.org/x/net 9dfe39835686865bff950a07b394c12a98ddc811
+golang.org/x/sync fd80eb99c8f653c847d294a001bdf2a3a6f768f5
 golang.org/x/sys 062cd7e4e68206d8bab9b18396626e855c992658
 golang.org/x/text a71fd10341b064c10f4a81ceac72bcf70f26ea34
 golang.org/x/time 6dc17368e09b0e8634d71cac8168d853e869a0c7

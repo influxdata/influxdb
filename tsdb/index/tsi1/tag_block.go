@@ -90,6 +90,14 @@ func (blk *TagBlock) UnmarshalBinary(data []byte) error {
 // TagKeyElem returns an element for a tag key.
 // Returns an element with a nil key if not found.
 func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
+	var elem TagBlockKeyElem
+	if !blk.DecodeTagKeyElem(key, &elem) {
+		return nil
+	}
+	return &elem
+}
+
+func (blk *TagBlock) DecodeTagKeyElem(key []byte, elem *TagBlockKeyElem) bool {
 	keyN := int64(binary.BigEndian.Uint64(blk.hashData[:TagKeyNSize]))
 	hash := rhh.HashKey(key)
 	pos := hash % keyN
@@ -100,21 +108,20 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 		// Find offset of tag key.
 		offset := binary.BigEndian.Uint64(blk.hashData[TagKeyNSize+(pos*TagKeyOffsetSize):])
 		if offset == 0 {
-			return nil
+			return false
 		}
 
 		// Parse into element.
-		var e TagBlockKeyElem
-		e.unmarshal(blk.data[offset:], blk.data)
+		elem.unmarshal(blk.data[offset:], blk.data)
 
 		// Return if keys match.
-		if bytes.Equal(e.key, key) {
-			return &e
+		if bytes.Equal(elem.key, key) {
+			return true
 		}
 
 		// Check if we've exceeded the probe distance.
-		if d > rhh.Dist(rhh.HashKey(e.key), pos, keyN) {
-			return nil
+		if d > rhh.Dist(rhh.HashKey(elem.key), pos, keyN) {
+			return false
 		}
 
 		// Move position forward.
@@ -122,21 +129,39 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 		d++
 
 		if d > keyN {
-			return nil
+			return false
 		}
 	}
 }
 
 // TagValueElem returns an element for a tag value.
 func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
-	// Find key element, exit if not found.
-	kelem, _ := blk.TagKeyElem(key).(*TagBlockKeyElem)
-	if kelem == nil {
+	var valueElem TagBlockValueElem
+	if !blk.DecodeTagValueElem(key, value, &valueElem) {
 		return nil
+	}
+	return &valueElem
+}
+
+// TagValueElem returns an element for a tag value.
+func (blk *TagBlock) TagValueSeriesData(key, value []byte) (uint64, []byte) {
+	var valueElem TagBlockValueElem
+	if !blk.DecodeTagValueElem(key, value, &valueElem) {
+		return 0, nil
+	}
+	return valueElem.series.n, valueElem.series.data
+}
+
+// DecodeTagValueElem returns an element for a tag value.
+func (blk *TagBlock) DecodeTagValueElem(key, value []byte, valueElem *TagBlockValueElem) bool {
+	// Find key element, exit if not found.
+	var keyElem TagBlockKeyElem
+	if !blk.DecodeTagKeyElem(key, &keyElem) {
+		return false
 	}
 
 	// Slice hash index data.
-	hashData := kelem.hashIndex.buf
+	hashData := keyElem.hashIndex.buf
 
 	valueN := int64(binary.BigEndian.Uint64(hashData[:TagValueNSize]))
 	hash := rhh.HashKey(value)
@@ -148,22 +173,21 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 		// Find offset of tag value.
 		offset := binary.BigEndian.Uint64(hashData[TagValueNSize+(pos*TagValueOffsetSize):])
 		if offset == 0 {
-			return nil
+			return false
 		}
 
 		// Parse into element.
-		var e TagBlockValueElem
-		e.unmarshal(blk.data[offset:])
+		valueElem.unmarshal(blk.data[offset:])
 
 		// Return if values match.
-		if bytes.Equal(e.value, value) {
-			return &e
+		if bytes.Equal(valueElem.value, value) {
+			return true
 		}
 
 		// Check if we've exceeded the probe distance.
-		max := rhh.Dist(rhh.HashKey(e.value), pos, valueN)
+		max := rhh.Dist(rhh.HashKey(valueElem.value), pos, valueN)
 		if d > max {
-			return nil
+			return false
 		}
 
 		// Move position forward.
@@ -171,7 +195,7 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 		d++
 
 		if d > valueN {
-			return nil
+			return false
 		}
 	}
 }

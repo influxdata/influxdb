@@ -48,8 +48,12 @@ func TestSeriesFile_Series(t *testing.T) {
 // Ensure series file can be compacted.
 func TestSeriesFileCompactor(t *testing.T) {
 	sfile := MustOpenSeriesFile()
-	sfile.CompactThreshold = 0
 	defer sfile.Close()
+
+	// Disable automatic compactions.
+	for _, p := range sfile.Partitions() {
+		p.CompactThreshold = 0
+	}
 
 	var names [][]byte
 	var tagsSlice []models.Tags
@@ -66,10 +70,12 @@ func TestSeriesFileCompactor(t *testing.T) {
 		t.Fatalf("unexpected series count: %d", n)
 	}
 
-	// Compact in-place.
-	compactor := tsdb.NewSeriesFileCompactor()
-	if err := compactor.Compact(sfile.SeriesFile); err != nil {
-		t.Fatal(err)
+	// Compact in-place for each partition.
+	for _, p := range sfile.Partitions() {
+		compactor := tsdb.NewSeriesPartitionCompactor()
+		if err := compactor.Compact(p); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// Verify all series exist.

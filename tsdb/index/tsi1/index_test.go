@@ -306,8 +306,8 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 	}
 
 	// Verify on disk size is the same in each stage.
-	// There are four series, and each series id is 8 bytes plus one byte for the tombstone header
-	expSize := int64(4 * 9)
+	// Each series stores flag(1) + series(uvarint(2)) + len(name)(1) + len(key)(1) + len(value)(1) + checksum(4).
+	expSize := int64(4 * 10)
 
 	// Each MANIFEST file is 419 bytes and there are tsi1.DefaultPartitionN of them
 	expSize += int64(tsi1.DefaultPartitionN * 419)
