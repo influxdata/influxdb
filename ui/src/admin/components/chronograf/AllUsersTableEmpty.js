@@ -16,11 +16,11 @@ const AllUsersTableEmpty = () =>
             <th style={{width: colRole}} className="align-with-col-text">
               Role
             </th>
+            <th style={{width: colProvider}}>Provider</th>
+            <th style={{width: colScheme}}>Scheme</th>
             <th style={{width: colSuperAdmin}} className="text-center">
               SuperAdmin
             </th>
-            <th style={{width: colProvider}}>Provider</th>
-            <th style={{width: colScheme}}>Scheme</th>
             <th className="text-right" style={{width: colActions}} />
           </tr>
         </thead>

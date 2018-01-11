@@ -127,9 +127,6 @@ class AllUsersTableRowNew extends Component {
             className="dropdown-stretch"
           />
         </td>
-        <td style={{width: colSuperAdmin}} className="text-center">
-          &mdash;
-        </td>
         <td style={{width: colProvider}}>
           <input
             className="form-control input-xs"
@@ -148,6 +145,9 @@ class AllUsersTableRowNew extends Component {
             placeholder="OAuth Scheme..."
             value={scheme}
           />
+        </td>
+        <td style={{width: colSuperAdmin}} className="text-center">
+          &mdash;
         </td>
         <td className="text-right" style={{width: colActions}}>
           <button className="btn btn-xs btn-square btn-info" onClick={onBlur}>

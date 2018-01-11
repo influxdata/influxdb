@@ -47,6 +47,12 @@ const AllUsersTableRow = ({
           />
         </span>
       </td>
+      <td style={{width: colProvider}}>
+        {user.provider}
+      </td>
+      <td style={{width: colScheme}}>
+        {user.scheme}
+      </td>
       <td style={{width: colSuperAdmin}} className="text-center">
         <SlideToggle
           active={user.superAdmin}
@@ -54,12 +60,6 @@ const AllUsersTableRow = ({
           size="xs"
           disabled={userIsMe}
         />
-      </td>
-      <td style={{width: colProvider}}>
-        {user.provider}
-      </td>
-      <td style={{width: colScheme}}>
-        {user.scheme}
       </td>
       <DeleteConfirmTableCell
         text="Remove"
