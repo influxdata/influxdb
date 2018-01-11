@@ -7,6 +7,14 @@ import AllUsersTableRowNew from 'src/admin/components/chronograf/AllUsersTableRo
 import AllUsersTableRow from 'src/admin/components/chronograf/AllUsersTableRow'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+const {
+  colOrganizations,
+  colProvider,
+  colScheme,
+  colSuperAdmin,
+  colRole,
+  colActions,
+} = USERS_TABLE
 
 class AllUsersTable extends Component {
   constructor(props) {
@@ -43,13 +51,6 @@ class AllUsersTable extends Component {
     const {users, organizations, onCreateUser, meID, notify} = this.props
 
     const {isCreatingUser} = this.state
-    const {
-      colRole,
-      colSuperAdmin,
-      colProvider,
-      colScheme,
-      colActions,
-    } = USERS_TABLE
 
     return (
       <div className="panel panel-default">
@@ -64,14 +65,18 @@ class AllUsersTable extends Component {
             <thead>
               <tr>
                 <th>Username</th>
-                <th style={{width: colRole}} className="align-with-col-text">
-                  Role
+                <th
+                  style={{width: colOrganizations}}
+                  className="align-with-col-text"
+                >
+                  Organizations
                 </th>
                 <th style={{width: colProvider}}>Provider</th>
                 <th style={{width: colScheme}}>Scheme</th>
                 <th style={{width: colSuperAdmin}} className="text-center">
                   SuperAdmin
                 </th>
+                <th className="text-right" style={{width: colRole}} />
                 <th className="text-right" style={{width: colActions}} />
               </tr>
             </thead>

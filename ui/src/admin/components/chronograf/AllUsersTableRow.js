@@ -5,6 +5,13 @@ import SlideToggle from 'shared/components/SlideToggle'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+const {
+  colOrganizations,
+  colProvider,
+  colScheme,
+  colSuperAdmin,
+  colRole,
+} = USERS_TABLE
 
 const AllUsersTableRow = ({
   organizations,
@@ -14,14 +21,17 @@ const AllUsersTableRow = ({
   onDelete,
   meID,
 }) => {
-  const {colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
-
   const dropdownOrganizationsItems = organizations.map(r => ({
     ...r,
     text: r.name,
   }))
 
   const userIsMe = user.id === meID
+
+  const userOrganizations = user.roles.map(r => ({
+    ...r,
+    name: organizations.find(o => r.organization === o.id).name,
+  }))
 
   return (
     <tr className={'chronograf-admin-table--user'}>
@@ -35,17 +45,8 @@ const AllUsersTableRow = ({
               {user.name}
             </strong>}
       </td>
-      <td style={{width: colRole}}>
-        <span className="chronograf-user--role">
-          <Dropdown
-            items={dropdownOrganizationsItems}
-            selected={'Add to Organization'}
-            onChoose={onAddUserToOrganization(user)}
-            buttonColor="btn-primary"
-            buttonSize="btn-xs"
-            className="dropdown-stretch"
-          />
-        </span>
+      <td style={{width: colOrganizations}}>
+        {userOrganizations.map(o => o.name).join(', ')}
       </td>
       <td style={{width: colProvider}}>
         {user.provider}
@@ -60,6 +61,18 @@ const AllUsersTableRow = ({
           size="xs"
           disabled={userIsMe}
         />
+      </td>
+      <td style={{width: colRole}}>
+        <span className="chronograf-user--role">
+          <Dropdown
+            items={dropdownOrganizationsItems}
+            selected={'Add to Organization'}
+            onChoose={onAddUserToOrganization(user)}
+            buttonColor="btn-primary"
+            buttonSize="btn-xs"
+            className="dropdown-stretch"
+          />
+        </span>
       </td>
       <DeleteConfirmTableCell
         text="Remove"
