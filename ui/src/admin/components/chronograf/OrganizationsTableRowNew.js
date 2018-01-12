@@ -73,6 +73,9 @@ class OrganizationsTableRowNew extends Component {
             ref={r => (this.inputRef = r)}
           />
         </div>
+        <div className="fancytable--td orgs-table--public">
+          <div className="orgs-table--public-toggle disabled">&mdash;</div>
+        </div>
         <div className="fancytable--td orgs-table--default-role deleting">
           <Dropdown
             items={dropdownRolesItems}
