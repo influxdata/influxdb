@@ -137,7 +137,8 @@ func (r *annotationResults) Annotations() (res []chronograf.Annotation, err erro
 func (c *Client) queryAnnotations(ctx context.Context, query string) ([]chronograf.Annotation, error) {
 	res, err := c.Query(ctx, chronograf.Query{
 		Command: query,
-		DB:      `chronograf`,
+		DB:      DefaultDB,
+		Epoch:   "ns",
 	})
 	if err != nil {
 		return nil, err

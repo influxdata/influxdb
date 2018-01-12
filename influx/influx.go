@@ -74,7 +74,10 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	params.Set("q", command)
 	params.Set("db", q.DB)
 	params.Set("rp", q.RP)
-	params.Set("epoch", "ms") // TODO(timraymond): set this based on analysis
+	params.Set("epoch", "ms")
+	if q.Epoch != "" {
+		params.Set("epoch", q.Epoch)
+	}
 	req.URL.RawQuery = params.Encode()
 
 	if c.Authorizer != nil {
