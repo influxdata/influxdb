@@ -105,10 +105,9 @@ const InfluxTable = ({
           <h2 className="panel-title">
             {isUsingAuth
               ? <span>
-                  InfluxDB Connections for{' '}
-                  <em>{me.currentOrganization.name}</em>
+                  Connections for <em>{me.currentOrganization.name}</em>
                 </span>
-              : <span>InfluxDB Connections</span>}
+              : <span>Connections</span>}
           </h2>
           <Authorized requiredRole={EDITOR_ROLE}>
             <Link
@@ -124,10 +123,10 @@ const InfluxTable = ({
             <thead>
               <tr>
                 <th className="source-table--connect-col" />
-                <th>Connection Name & Host</th>
+                <th>InfluxDB Connection</th>
                 <th className="text-right" />
                 <th>
-                  Active Kapacitor{' '}
+                  Kapacitor Connection{' '}
                   <QuestionMarkTooltip
                     tipID="kapacitor-node-helper"
                     tipContent={
