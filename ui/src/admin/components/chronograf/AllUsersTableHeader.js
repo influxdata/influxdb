@@ -1,10 +1,14 @@
 import React, {PropTypes} from 'react'
 
+import SlideToggle from 'shared/components/SlideToggle'
+
 const AllUsersTableHeader = ({
   numUsers,
   numOrganizations,
   onClickCreateUser,
   isCreatingUser,
+  authConfig: {superAdminNewUsers},
+  onChangeAuthConfig,
 }) => {
   const numUsersString = `${numUsers} User${numUsers === 1 ? '' : 's'}`
   const numOrganizationsString = `${numOrganizations} Org${numOrganizations ===
@@ -17,6 +21,12 @@ const AllUsersTableHeader = ({
       <h2 className="panel-title">
         {numUsersString} in {numOrganizationsString}
       </h2>
+      <SlideToggle
+        size="xs"
+        active={superAdminNewUsers}
+        onToggle={onChangeAuthConfig('superAdminNewUsers')}
+      />
+      <span>All new users are SuperAdmins</span>
       <button
         className="btn btn-primary btn-sm"
         onClick={onClickCreateUser}
@@ -29,7 +39,7 @@ const AllUsersTableHeader = ({
   )
 }
 
-const {bool, func, number} = PropTypes
+const {bool, func, number, shape} = PropTypes
 
 AllUsersTableHeader.defaultProps = {
   numUsers: 0,
@@ -42,6 +52,10 @@ AllUsersTableHeader.propTypes = {
   numOrganizations: number.isRequired,
   onClickCreateUser: func,
   isCreatingUser: bool.isRequired,
+  onChangeAuthConfig: func.isRequired,
+  authConfig: shape({
+    superAdminNewUsers: bool,
+  }),
 }
 
 export default AllUsersTableHeader

@@ -25,6 +25,19 @@ class AllUsersTable extends Component {
     }
   }
 
+  handleUpdateAuthConfig = fieldName => updatedValue => {
+    const {
+      actionsConfig: {updateAuthConfigAsync},
+      authConfig,
+      links,
+    } = this.props
+    const updatedAuthConfig = {
+      ...authConfig,
+      [fieldName]: updatedValue,
+    }
+    updateAuthConfigAsync(links.config.auth, authConfig, updatedAuthConfig)
+  }
+
   handleAddUserToOrganization = user => newOrganization => {
     console.log('handleAddUserToOrganization', user.name, newOrganization.id)
     // const newOrganizationRole = newOrganization + newOrganizationDefaultRole -- need to get this fresh from server or have server determine it, which requires a change to ValidUpdate
@@ -48,7 +61,14 @@ class AllUsersTable extends Component {
   }
 
   render() {
-    const {users, organizations, onCreateUser, meID, notify} = this.props
+    const {
+      users,
+      organizations,
+      onCreateUser,
+      authConfig,
+      meID,
+      notify,
+    } = this.props
 
     const {isCreatingUser} = this.state
 
@@ -59,6 +79,8 @@ class AllUsersTable extends Component {
           numOrganizations={organizations.length}
           onClickCreateUser={this.handleClickCreateUser}
           isCreatingUser={isCreatingUser}
+          authConfig={authConfig}
+          onChangeAuthConfig={this.handleUpdateAuthConfig}
         />
         <div className="panel-body">
           <table className="table table-highlight v-center chronograf-admin-table">
@@ -117,6 +139,11 @@ class AllUsersTable extends Component {
 const {arrayOf, bool, func, shape, string} = PropTypes
 
 AllUsersTable.propTypes = {
+  links: shape({
+    config: shape({
+      auth: string.isRequired,
+    }).isRequired,
+  }).isRequired,
   users: arrayOf(
     shape({
       id: string,
@@ -145,6 +172,13 @@ AllUsersTable.propTypes = {
   onUpdateUserRole: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
+  actionsConfig: shape({
+    getAuthConfigAsync: func.isRequired,
+    updateAuthConfigAsync: func.isRequired,
+  }),
+  authConfig: shape({
+    superAdminNewUsers: bool,
+  }),
   meID: string.isRequired,
   notify: func.isRequired,
 }

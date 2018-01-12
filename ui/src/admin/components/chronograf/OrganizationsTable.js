@@ -5,7 +5,6 @@ import uuid from 'node-uuid'
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
-import SlideToggle from 'shared/components/SlideToggle'
 
 import {PUBLIC_TOOLTIP} from 'src/admin/constants/index'
 
@@ -40,8 +39,6 @@ class OrganizationsTable extends Component {
       onChooseDefaultRole,
       onTogglePublic,
       currentOrganization,
-      authConfig: {superAdminNewUsers},
-      onChangeAuthConfig,
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -92,33 +89,13 @@ class OrganizationsTable extends Component {
               currentOrganization={currentOrganization}
             />
           )}
-          <table className="table v-center superadmin-config">
-            <thead>
-              <tr>
-                <th style={{width: 70}}>Config</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{width: 70}}>
-                  <SlideToggle
-                    size="xs"
-                    active={superAdminNewUsers}
-                    onToggle={onChangeAuthConfig('superAdminNewUsers')}
-                  />
-                </td>
-                <td>All new users are SuperAdmins</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
     )
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 OrganizationsTable.propTypes = {
   organizations: arrayOf(
@@ -136,9 +113,5 @@ OrganizationsTable.propTypes = {
   onRenameOrg: func.isRequired,
   onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
-  onChangeAuthConfig: func.isRequired,
-  authConfig: shape({
-    superAdminNewUsers: bool,
-  }),
 }
 export default OrganizationsTable

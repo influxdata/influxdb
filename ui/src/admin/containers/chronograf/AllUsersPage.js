@@ -3,6 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
+import * as configActionCreators from 'shared/actions/config'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import AllUsersTableEmpty from 'src/admin/components/chronograf/AllUsersTableEmpty'
@@ -17,13 +18,18 @@ class AllUsersPage extends Component {
     }
   }
 
+  componentDidMount() {
+    const {links, actionsConfig: {getAuthConfigAsync}} = this.props
+    getAuthConfigAsync(links.config.auth)
+  }
+
   handleCreateUser = user => {
-    const {links, actions: {createUserAsync}} = this.props
+    const {links, actionsAdmin: {createUserAsync}} = this.props
     createUserAsync(links.users, user)
   }
 
   handleUpdateUserRole = (user, currentRole, {name}) => {
-    const {actions: {updateUserAsync}} = this.props
+    const {actionsAdmin: {updateUserAsync}} = this.props
     const updatedRole = {...currentRole, name}
     const newRoles = user.roles.map(
       r => (r.organization === currentRole.organization ? updatedRole : r)
@@ -32,20 +38,20 @@ class AllUsersPage extends Component {
   }
 
   handleUpdateUserSuperAdmin = (user, superAdmin) => {
-    const {actions: {updateUserAsync}} = this.props
+    const {actionsAdmin: {updateUserAsync}} = this.props
     const updatedUser = {...user, superAdmin}
     updateUserAsync(user, updatedUser)
   }
 
   handleDeleteUser = user => {
-    const {actions: {deleteUserAsync}} = this.props
+    const {actionsAdmin: {deleteUserAsync}} = this.props
     deleteUserAsync(user)
   }
 
   async componentWillMount() {
     const {
       links,
-      actions: {loadOrganizationsAsync, loadUsersAsync},
+      actionsAdmin: {loadOrganizationsAsync, loadUsersAsync},
     } = this.props
 
     this.setState({isLoading: true})
@@ -59,7 +65,15 @@ class AllUsersPage extends Component {
   }
 
   render() {
-    const {organizations, meID, users, notify} = this.props
+    const {
+      organizations,
+      meID,
+      users,
+      authConfig,
+      actionsConfig,
+      links,
+      notify,
+    } = this.props
     const {isLoading} = this.state
 
     if (isLoading) {
@@ -75,39 +89,58 @@ class AllUsersPage extends Component {
         onUpdateUserRole={this.handleUpdateUserRole}
         onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
         onDeleteUser={this.handleDeleteUser}
+        links={links}
+        authConfig={authConfig}
+        actionsConfig={actionsConfig}
         notify={notify}
       />
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 AllUsersPage.propTypes = {
   links: shape({
     users: string.isRequired,
+    config: shape({
+      auth: string.isRequired,
+    }).isRequired,
   }),
   meID: string.isRequired,
   users: arrayOf(shape),
   organizations: arrayOf(shape),
-  actions: shape({
+  actionsAdmin: shape({
     loadUsersAsync: func.isRequired,
     loadOrganizationsAsync: func.isRequired,
     createUserAsync: func.isRequired,
     updateUserAsync: func.isRequired,
     deleteUserAsync: func.isRequired,
   }),
+  actionsConfig: shape({
+    getAuthConfigAsync: func.isRequired,
+    updateAuthConfigAsync: func.isRequired,
+  }),
+  authConfig: shape({
+    superAdminNewUsers: bool,
+  }),
   notify: func.isRequired,
 }
 
-const mapStateToProps = ({links, adminChronograf: {organizations, users}}) => ({
+const mapStateToProps = ({
+  links,
+  adminChronograf: {organizations, users},
+  config: {auth: authConfig},
+}) => ({
   links,
   organizations,
   users,
+  authConfig,
 })
 
 const mapDispatchToProps = dispatch => ({
-  actions: bindActionCreators(adminChronografActionCreators, dispatch),
+  actionsAdmin: bindActionCreators(adminChronografActionCreators, dispatch),
+  actionsConfig: bindActionCreators(configActionCreators, dispatch),
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
