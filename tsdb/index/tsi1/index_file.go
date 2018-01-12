@@ -23,13 +23,13 @@ const FileSignature = "TSI1"
 // IndexFile field size constants.
 const (
 	// IndexFile trailer fields
-	IndexFileVersionSize       = 2
-	MeasurementBlockOffsetSize = 8
-	MeasurementBlockSizeSize   = 8
+	IndexFileVersionSize = 2
 
 	IndexFileTrailerSize = IndexFileVersionSize +
-		MeasurementBlockOffsetSize +
-		MeasurementBlockSizeSize
+		8 + 8 + // measurement block offset + size
+		8 + 8 + // series id set offset + size
+		8 + 8 + // tombstone series id set offset + size
+		0
 )
 
 // IndexFile errors.
@@ -47,6 +47,10 @@ type IndexFile struct {
 	sfile *tsdb.SeriesFile
 	tblks map[string]*TagBlock // tag blocks by measurement name
 	mblk  MeasurementBlock
+
+	// Raw series set data.
+	seriesIDSetData          []byte
+	tombstoneSeriesIDSetData []byte
 
 	// Sortable identifier & filepath to the log file.
 	level int
@@ -141,6 +145,10 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 		return err
 	}
 
+	// Slice series set data.
+	f.seriesIDSetData = data[t.SeriesIDSet.Offset : t.SeriesIDSet.Offset+t.SeriesIDSet.Size]
+	f.tombstoneSeriesIDSetData = data[t.TombstoneSeriesIDSet.Offset : t.TombstoneSeriesIDSet.Offset+t.TombstoneSeriesIDSet.Size]
+
 	// Slice measurement block data.
 	buf := data[t.MeasurementBlock.Offset:]
 	buf = buf[:t.MeasurementBlock.Size]
@@ -173,6 +181,22 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 	f.data = data
 
 	return nil
+}
+
+func (f *IndexFile) SeriesIDSet() (*tsdb.SeriesIDSet, error) {
+	ss := tsdb.NewSeriesIDSet()
+	if err := ss.UnmarshalBinary(f.seriesIDSetData); err != nil {
+		return nil, err
+	}
+	return ss, nil
+}
+
+func (f *IndexFile) TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error) {
+	ss := tsdb.NewSeriesIDSet()
+	if err := ss.UnmarshalBinary(f.tombstoneSeriesIDSetData); err != nil {
+		return nil, err
+	}
+	return ss, nil
 }
 
 // Measurement returns a measurement element.
@@ -328,18 +352,35 @@ func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 	buf := data[len(data)-IndexFileTrailerSize:]
 
 	// Read measurement block info.
-	t.MeasurementBlock.Offset = int64(binary.BigEndian.Uint64(buf[0:MeasurementBlockOffsetSize]))
-	buf = buf[MeasurementBlockOffsetSize:]
-	t.MeasurementBlock.Size = int64(binary.BigEndian.Uint64(buf[0:MeasurementBlockSizeSize]))
-	buf = buf[MeasurementBlockSizeSize:]
+	t.MeasurementBlock.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.MeasurementBlock.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	// Read series id set info.
+	t.SeriesIDSet.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.SeriesIDSet.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	// Read series id set info.
+	t.TombstoneSeriesIDSet.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TombstoneSeriesIDSet.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
 	return t, nil
 }
 
 // IndexFileTrailer represents meta data written to the end of the index file.
 type IndexFileTrailer struct {
-	Version          int
+	Version int
+
 	MeasurementBlock struct {
+		Offset int64
+		Size   int64
+	}
+
+	SeriesIDSet struct {
+		Offset int64
+		Size   int64
+	}
+
+	TombstoneSeriesIDSet struct {
 		Offset int64
 		Size   int64
 	}
@@ -351,6 +392,20 @@ func (t *IndexFileTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	if err := writeUint64To(w, uint64(t.MeasurementBlock.Offset), &n); err != nil {
 		return n, err
 	} else if err := writeUint64To(w, uint64(t.MeasurementBlock.Size), &n); err != nil {
+		return n, err
+	}
+
+	// Write series id set info.
+	if err := writeUint64To(w, uint64(t.SeriesIDSet.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.SeriesIDSet.Size), &n); err != nil {
+		return n, err
+	}
+
+	// Write tombstone series id set info.
+	if err := writeUint64To(w, uint64(t.TombstoneSeriesIDSet.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.TombstoneSeriesIDSet.Size), &n); err != nil {
 		return n, err
 	}
 
