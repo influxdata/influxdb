@@ -92,7 +92,9 @@ class AlertTabs extends Component {
     }
   }
 
-  handleTestConfig = section => async () => {
+  handleTestConfig = section => async e => {
+    e.preventDefault()
+
     try {
       await testAlertOutput(this.props.kapacitor, section)
       this.props.addFlashMessage({
