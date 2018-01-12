@@ -4,20 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/influxdata/chronograf"
 )
 
 const (
 	// AllAnnotations returns all annotations from the chronograf database
-	AllAnnotations = `SELECT "duration_ns", "text", "annoType", "name" FROM "chronograf"."autogen"."annotations" WHERE "deleted"='false' ORDER BY time DESC`
+	AllAnnotations = `SELECT "duration_ns", "text", "type", "name" FROM "chronograf"."autogen"."annotations" WHERE "deleted"=false ORDER BY time DESC`
 	// GetAnnotationID returns all annotations from the chronograf database where id is %s
-	GetAnnotationID = `SELECT "duration_ns", "text", "annoType", "name" FROM "chronograf"."autogen"."annotations" WHERE "name"='%s' AND "deleted"='false' ORDER BY time DESC`
+	GetAnnotationID = `SELECT "duration_ns", "text", "type", "name" FROM "chronograf"."autogen"."annotations" WHERE "name"='%s' AND "deleted"=false ORDER BY time DESC`
+	// DefaultDB is chronograf.  Perhaps later we allow this to be changed
+	DefaultDB = "chronograf"
+	// DefaultRP is autogen. Perhaps later we allow this to be changed
+	DefaultRP = "autogen"
+	// DefaultMeasurement is annotations.
+	DefaultMeasurement = "annotations"
 )
 
 // AnnotationStore stores annotations within InfluxDB
 type AnnotationStore struct {
-	client Client
+	client Client // TODO: change this to an interface
 }
 
 // All lists all Annotations
@@ -40,17 +47,26 @@ func (a *AnnotationStore) Get(ctx context.Context, id string) (chronograf.Annota
 
 // Add creates a new annotation in the store
 func (a *AnnotationStore) Add(ctx context.Context, anno chronograf.Annotation) (chronograf.Annotation, error) {
-	return chronograf.Annotation{}, nil
+	lp := LineProtocol{
+		Measurement: DefaultMeasurement,
+	}.Annotation(&anno)
+
+	return anno, a.client.Write(ctx, DefaultDB, DefaultRP, lp)
 }
 
 // Delete removes the annotation from the store
 func (a *AnnotationStore) Delete(ctx context.Context, anno chronograf.Annotation) error {
-	return nil
+	lp := LineProtocol{
+		Measurement: DefaultMeasurement,
+	}.DeleteAnnotation(&anno)
+
+	return a.client.Write(ctx, DefaultDB, DefaultRP, lp)
 }
 
-// Update replaces annotatio
-func (a *AnnotationStore) Update(context.Context, chronograf.Annotation) error {
-	return nil
+// Update replaces annotation (just a call through to Add)
+func (a *AnnotationStore) Update(ctx context.Context, anno chronograf.Annotation) error {
+	_, err := a.Add(ctx, anno)
+	return err
 }
 
 type value []interface{}
@@ -83,7 +99,7 @@ type annotationResults []struct {
 	} `json:"series"`
 }
 
-// Annotations converts `SELECT "duration_ns", "text", "annoType", "id" FROM "chronograf"."autogen"."annotations"` to annotations
+// Annotations converts `SELECT "duration_ns", "text", "type", "name" FROM "chronograf"."autogen"."annotations"` to annotations
 func (r *annotationResults) Annotations() (res []chronograf.Annotation, err error) {
 	res = []chronograf.Annotation{}
 	for _, u := range *r {
@@ -149,13 +165,46 @@ func (c *Client) getAnnotations(ctx context.Context, id string) ([]chronograf.An
 	return c.queryAnnotations(ctx, fmt.Sprintf(GetAnnotationID, id))
 }
 
-func annotationLP(measurement string, a *chronograf.Annotation) string {
-	return fmt.Sprintf(`%s,annoType=%s,name=%s deleted=false,duration_ns=%di,text="%s" %d\n`,
-		measurement,
-		a.Type,
-		a.Name,
+var (
+	escapeMeasurement = strings.NewReplacer(
+		`,` /* to */, `\,`,
+		` ` /* to */, `\ `,
+	)
+	escapeTag = strings.NewReplacer(
+		`,` /* to */, `\,`,
+		`"` /* to */, `\"`,
+		` ` /* to */, `\ `,
+		`=` /* to */, `\=`,
+	)
+	escapeField = strings.NewReplacer(
+		`"` /* to */, `\"`,
+		`\` /* to */, `\\`,
+	)
+)
+
+// LineProtocol generates line protocol output for chronograf structures
+type LineProtocol struct {
+	Measurement string
+}
+
+// Annotation converts an annotation to line protocol
+func (l LineProtocol) Annotation(a *chronograf.Annotation) string {
+	return fmt.Sprintf(`%s,type=%s,name=%s deleted=false,duration_ns=%di,text="%s" %d\n`,
+		escapeMeasurement.Replace(l.Measurement),
+		escapeTag.Replace(a.Type),
+		escapeTag.Replace(a.Name),
 		a.Duration,
-		a.Text,
+		escapeField.Replace(a.Text),
+		a.Time,
+	)
+}
+
+// DeleteAnnotation sets the delete field to true for a specific annotation
+func (l LineProtocol) DeleteAnnotation(a *chronograf.Annotation) string {
+	return fmt.Sprintf(`%s,type=%s,name=%s deleted=true,duration_ns=0i,text="" %d\n`,
+		escapeMeasurement.Replace(l.Measurement),
+		escapeTag.Replace(a.Type),
+		escapeTag.Replace(a.Name),
 		a.Time,
 	)
 }

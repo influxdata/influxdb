@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -262,27 +263,49 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 	return version, chronograf.InfluxDB, nil
 }
 
-/*
-func (c *Client) write(u *url.URL) error {
+// Write POSTs line protocol to a database and retention policy
+func (c *Client) Write(ctx context.Context, db, rp, lp string) error {
+	err := c.write(ctx, c.URL, db, rp, lp)
+
+	// Some influxdb errors should not be treated as errors
+	if strings.Contains(err.Error(), "hinted handoff queue not empty") {
+		// This is an informational message
+		return nil
+	}
+
+	// If the database was not found, try to recreate it:
+	if strings.Contains(err.Error(), "database not found") {
+		_, err = c.CreateDB(ctx, &chronograf.Database{
+			Name: db,
+		})
+		if err != nil {
+			return err
+		}
+		// retry the write
+		return c.write(ctx, c.URL, db, rp, lp)
+	}
+
+	return err
+}
+
+func (c *Client) write(ctx context.Context, u *url.URL, db, rp, lp string) error {
 	u.Path = "write"
-	req, err := http.NewRequest("POST", u.String(), nil)
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(lp))
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "")
-	params := req.URL.Query()
-	params.Set("db", q.DB)
-	params.Set("rp", q.RP)
-	params.Set("precision", bp.Precision())
-	params.Set("consistency", bp.WriteConsistency())
-	req.URL.RawQuery = params.Encode()
 
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	if c.Authorizer != nil {
 		if err := c.Authorizer.Set(req); err != nil {
-			logs.Error("Error setting authorization header ", err)
-			return nil, err
+			return err
 		}
 	}
+
+	params := req.URL.Query()
+	params.Set("db", db)
+	params.Set("rp", rp)
+	req.URL.RawQuery = params.Encode()
 
 	hc := &http.Client{}
 	if c.InsecureSkipVerify {
@@ -290,24 +313,37 @@ func (c *Client) write(u *url.URL) error {
 	} else {
 		hc.Transport = defaultTransport
 	}
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
+	errChan := make(chan (error))
+	go func() {
+		resp, err := hc.Do(req)
+		if err != nil {
+			errChan <- err
+			return
+		}
 
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		err := fmt.Errorf("received status code %d from server: %s",
-			resp.StatusCode, string(body))
-		logs.
-			WithField("influx_status", resp.StatusCode).
-			Error(err)
+		if resp.StatusCode == http.StatusNoContent {
+			errChan <- nil
+			return
+		}
+		defer resp.Body.Close()
+
+		var response Response
+		dec := json.NewDecoder(resp.Body)
+		err = dec.Decode(&response)
+		if err != nil && err.Error() != "EOF" {
+			errChan <- err
+			return
+		}
+
+		errChan <- errors.New(response.Err)
+		return
+	}()
+
+	select {
+	case err := <-errChan:
 		return err
+	case <-ctx.Done():
+		return chronograf.ErrUpstreamTimeout
 	}
 }
-*/
