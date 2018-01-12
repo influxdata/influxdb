@@ -94,12 +94,24 @@ type TSDBStatus interface {
 	Type(context.Context) (string, error)
 }
 
+// Point is a field set in a series
+type Point struct {
+	Database        string
+	RetentionPolicy string
+	Measurement     string
+	Time            int64
+	Tags            map[string]string
+	Fields          map[string]interface{}
+}
+
 // TimeSeries represents a queryable time series database.
 type TimeSeries interface {
-	// Query retrieves time series data from the database.
-	Query(context.Context, Query) (Response, error)
 	// Connect will connect to the time series using the information in `Source`.
 	Connect(context.Context, *Source) error
+	// Query retrieves time series data from the database.
+	Query(context.Context, Query) (Response, error)
+	// Write records a point into a series
+	Write(context.Context, *Point) error
 	// UsersStore represents the user accounts within the TimeSeries database
 	Users(context.Context) UsersStore
 	// Permissions returns all valid names permissions in this database

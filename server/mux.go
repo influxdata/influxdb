@@ -141,6 +141,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// intended for Chronograf Users with the Viewer Role type.
 	router.POST("/chronograf/v1/sources/:id/queries", EnsureViewer(service.Queries))
 
+	// Annotations are user-defined events associated with this source
+	router.GET("/chronograf/v1/sources/:id/annotations", EnsureViewer(service.Annotations))
+	router.POST("/chronograf/v1/sources/:id/annotations", EnsureEditor(service.NewAnnotation))
+	router.DELETE("/chronograf/v1/sources/:id/annotations/:aid", EnsureEditor(service.RemoveAnnotation))
+	router.PUT("/chronograf/v1/sources/:id/annotations/:aid", EnsureEditor(service.UpdateAnnotation))
+
 	// All possible permissions for users in this source
 	router.GET("/chronograf/v1/sources/:id/permissions", EnsureViewer(service.Permissions))
 

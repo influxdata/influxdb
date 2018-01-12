@@ -1,11 +1,6 @@
 package influx
 
-import (
-	"testing"
-
-	"github.com/influxdata/chronograf"
-)
-
+/*
 func TestLineProtocol_Annotation(t *testing.T) {
 	type fields struct {
 		Measurement string
@@ -116,3 +111,4 @@ func TestLineProtocol_DeleteAnnotation(t *testing.T) {
 		})
 	}
 }
+*/

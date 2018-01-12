@@ -267,8 +267,9 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 }
 
 // Write POSTs line protocol to a database and retention policy
-func (c *Client) Write(ctx context.Context, db, rp, lp string) error {
-	err := c.write(ctx, c.URL, db, rp, lp)
+func (c *Client) Write(ctx context.Context, point *chronograf.Point) error {
+	lp := toLineProtocol(point)
+	err := c.write(ctx, c.URL, point.Database, point.RetentionPolicy, lp)
 
 	// Some influxdb errors should not be treated as errors
 	if strings.Contains(err.Error(), "hinted handoff queue not empty") {
@@ -279,13 +280,13 @@ func (c *Client) Write(ctx context.Context, db, rp, lp string) error {
 	// If the database was not found, try to recreate it:
 	if strings.Contains(err.Error(), "database not found") {
 		_, err = c.CreateDB(ctx, &chronograf.Database{
-			Name: db,
+			Name: point.Database,
 		})
 		if err != nil {
 			return err
 		}
 		// retry the write
-		return c.write(ctx, c.URL, db, rp, lp)
+		return c.write(ctx, c.URL, point.Database, point.RetentionPolicy, lp)
 	}
 
 	return err
