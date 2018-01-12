@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"io"
 	"sync"
 
 	"github.com/RoaringBitmap/roaring"
@@ -109,4 +110,28 @@ func (s *SeriesIDSet) String() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.String()
+}
+
+// Diff deletes any bits set in other.
+func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
+	other.RLock()
+	defer other.RUnlock()
+
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap = roaring.AndNot(s.bitmap, other.bitmap)
+}
+
+// UnmarshalBinary unmarshals data into the set.
+func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
+	s.Lock()
+	defer s.Unlock()
+	return s.bitmap.UnmarshalBinary(data)
+}
+
+// WriteTo writes the set to w.
+func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return s.bitmap.WriteTo(w)
 }

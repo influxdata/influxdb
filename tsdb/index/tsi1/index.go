@@ -143,7 +143,7 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 	seriesIDSet := tsdb.NewSeriesIDSet()
 	others := make([]*tsdb.SeriesIDSet, 0, i.PartitionN)
 	for _, p := range i.partitions {
-		others = append(others, p.seriesSet)
+		others = append(others, p.seriesIDSet)
 	}
 	seriesIDSet.Merge(others...)
 	return seriesIDSet
