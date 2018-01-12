@@ -3,6 +3,8 @@
 1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Allow adding multiple event handlers to a rule
 1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations"
 ### UI Improvements
+1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
+
 ### Bug Fixes
 1. [#2689](https://github.com/influxdata/chronograf/pull/2689): Allow insecure (self-signed) certificates for kapacitor and influxdb
 
