@@ -2,8 +2,6 @@ import React, {Component, PropTypes} from 'react'
 
 import uuid from 'node-uuid'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
@@ -94,28 +92,26 @@ class OrganizationsTable extends Component {
               currentOrganization={currentOrganization}
             />
           )}
-          <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <table className="table v-center superadmin-config">
-              <thead>
-                <tr>
-                  <th style={{width: 70}}>Config</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{width: 70}}>
-                    <SlideToggle
-                      size="xs"
-                      active={superAdminNewUsers}
-                      onToggle={onChangeAuthConfig('superAdminNewUsers')}
-                    />
-                  </td>
-                  <td>All new users are SuperAdmins</td>
-                </tr>
-              </tbody>
-            </table>
-          </Authorized>
+          <table className="table v-center superadmin-config">
+            <thead>
+              <tr>
+                <th style={{width: 70}}>Config</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{width: 70}}>
+                  <SlideToggle
+                    size="xs"
+                    active={superAdminNewUsers}
+                    onToggle={onChangeAuthConfig('superAdminNewUsers')}
+                  />
+                </td>
+                <td>All new users are SuperAdmins</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     )
