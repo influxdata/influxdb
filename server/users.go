@@ -59,10 +59,10 @@ func (r *userRequest) ValidRoles() error {
 			}
 			orgs[r.Organization] = true
 			switch r.Name {
-			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
+			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName, roles.WildcardRoleName:
 				continue
 			default:
-				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', and 'admin'", r.Name)
+				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'", r.Name)
 			}
 		}
 	}
@@ -171,6 +171,11 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.validRoles(serverCtx, req.Roles); err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+
 	user := &chronograf.User{
 		Name:     req.Name,
 		Provider: req.Provider,
@@ -254,6 +259,12 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	u, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
+	}
+
+	serverCtx := serverContext(ctx)
+	if err := s.validRoles(serverCtx, req.Roles); err != nil {
+		invalidData(w, err, s.Logger)
 		return
 	}
 
@@ -346,6 +357,22 @@ func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) 
 		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
 		// context, return error
 		return fmt.Errorf("User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information.")
+	}
+
+	return nil
+}
+
+func (s *Service) validRoles(ctx context.Context, rs []chronograf.Role) error {
+	for i, role := range rs {
+		// verify that the organization exists
+		org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &role.Organization})
+		if err != nil {
+			return err
+		}
+		if role.Name == roles.WildcardRoleName {
+			role.Name = org.DefaultRole
+			rs[i] = role
+		}
 	}
 
 	return nil

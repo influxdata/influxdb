@@ -112,9 +112,10 @@ func TestService_UserID(t *testing.T) {
 
 func TestService_NewUser(t *testing.T) {
 	type fields struct {
-		UsersStore  chronograf.UsersStore
-		ConfigStore chronograf.ConfigStore
-		Logger      chronograf.Logger
+		UsersStore         chronograf.UsersStore
+		OrganizationsStore chronograf.OrganizationsStore
+		ConfigStore        chronograf.ConfigStore
+		Logger             chronograf.Logger
 	}
 	type args struct {
 		w           *httptest.ResponseRecorder
@@ -202,6 +203,25 @@ func TestService_NewUser(t *testing.T) {
 						Auth: chronograf.AuthConfig{
 							SuperAdminNewUsers: false,
 						},
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						case "2":
+							return &chronograf.Organization{
+								ID:          "2",
+								Name:        "another",
+								DefaultRole: roles.MemberRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
 					},
 				},
 				UsersStore: &mocks.UsersStore{
@@ -427,14 +447,93 @@ func TestService_NewUser(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"id":"1338","superAdmin":true,"name":"bob","provider":"github","scheme":"oauth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
+		{
+			name: "Create a new Chronograf User with multiple roles with wildcard default role",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"POST",
+					"http://any.url",
+					nil,
+				),
+				user: &userRequest{
+					Name:     "bob",
+					Provider: "github",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "1",
+						},
+						{
+							Name:         roles.WildcardRoleName,
+							Organization: "2",
+						},
+					},
+				},
+			},
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: false,
+						},
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						case "2":
+							return &chronograf.Organization{
+								ID:          "2",
+								Name:        "another",
+								DefaultRole: roles.MemberRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					AddF: func(ctx context.Context, user *chronograf.User) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1338,
+							Name:     "bob",
+							Provider: "github",
+							Scheme:   "oauth2",
+							Roles: []chronograf.Role{
+								{
+									Name:         roles.AdminRoleName,
+									Organization: "1",
+								},
+								{
+									Name:         roles.MemberRoleName,
+									Organization: "2",
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			wantStatus:      http.StatusCreated,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1338","superAdmin":false,"name":"bob","provider":"github","scheme":"oauth2","roles":[{"name":"admin","organization":"1"},{"name":"member","organization":"2"}],"links":{"self":"/chronograf/v1/users/1338"}}`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
 				Store: &mocks.Store{
-					UsersStore:  tt.fields.UsersStore,
-					ConfigStore: tt.fields.ConfigStore,
+					UsersStore:         tt.fields.UsersStore,
+					ConfigStore:        tt.fields.ConfigStore,
+					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
 				Logger: tt.fields.Logger,
 			}
@@ -613,8 +712,9 @@ func TestService_RemoveUser(t *testing.T) {
 
 func TestService_UpdateUser(t *testing.T) {
 	type fields struct {
-		UsersStore chronograf.UsersStore
-		Logger     chronograf.Logger
+		UsersStore         chronograf.UsersStore
+		OrganizationsStore chronograf.OrganizationsStore
+		Logger             chronograf.Logger
 	}
 	type args struct {
 		w           *httptest.ResponseRecorder
@@ -635,6 +735,19 @@ func TestService_UpdateUser(t *testing.T) {
 			name: "Update a Chronograf user",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -693,6 +806,25 @@ func TestService_UpdateUser(t *testing.T) {
 			name: "Update a Chronograf user roles different orgs",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						case "2":
+							return &chronograf.Organization{
+								ID:          "2",
+								Name:        "another",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -804,6 +936,19 @@ func TestService_UpdateUser(t *testing.T) {
 			name: "SuperAdmin modifying their own SuperAdmin Status - user missing from context",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -857,6 +1002,19 @@ func TestService_UpdateUser(t *testing.T) {
 			name: "SuperAdmin modifying their own SuperAdmin Status",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -917,6 +1075,19 @@ func TestService_UpdateUser(t *testing.T) {
 			name: "Update a SuperAdmin's Roles - without super admin context",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -977,6 +1148,19 @@ func TestService_UpdateUser(t *testing.T) {
 			name: "Update a Chronograf user to super admin - without super admin context",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -1033,6 +1217,19 @@ func TestService_UpdateUser(t *testing.T) {
 			name: "Update a Chronograf user to super admin - with super admin context",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						switch *q.ID {
+						case "1":
+							return &chronograf.Organization{
+								ID:          "1",
+								Name:        "org",
+								DefaultRole: roles.ViewerRoleName,
+							}, nil
+						}
+						return nil, fmt.Errorf("org not found")
+					},
+				},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -1090,7 +1287,8 @@ func TestService_UpdateUser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
 				Store: &mocks.Store{
-					UsersStore: tt.fields.UsersStore,
+					UsersStore:         tt.fields.UsersStore,
+					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
 				Logger: tt.fields.Logger,
 			}
@@ -1354,7 +1552,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', and 'admin'"),
+			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
 		},
 		{
 			name: "Invalid roles - missing organization",
@@ -1444,7 +1642,7 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', and 'admin'"),
+			err:     fmt.Errorf("Unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
 		},
 		{
 			name: "Invalid - duplicate organization",
