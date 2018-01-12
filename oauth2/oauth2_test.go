@@ -45,6 +45,10 @@ func (mp *MockProvider) PrincipalID(provider *http.Client) (string, error) {
 	return mp.Email, nil
 }
 
+func (mp *MockProvider) PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error) {
+	return mp.Email, nil
+}
+
 func (mp *MockProvider) Scopes() []string {
 	return []string{}
 }
