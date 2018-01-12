@@ -94,7 +94,7 @@ class AlertTabs extends Component {
 
   handleTestConfig = section => async () => {
     try {
-      await testAlertOutput(this.props.kapacitor, section, {})
+      await testAlertOutput(this.props.kapacitor, section)
       this.props.addFlashMessage({
         type: 'success',
         text: `Successfully sent an alert to ${section}.`,

@@ -162,7 +162,7 @@ export const testAlertOutput = async (kapacitor, outputName) => {
     const service = services.find(s => s.name === outputName)
     return kapacitorProxy(kapacitor, 'POST', service.link.href, {})
   } catch (error) {
-    // empty
+    console.error(error)
   }
 }
 
