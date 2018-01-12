@@ -339,13 +339,12 @@ func (e *Engine) enableLevelCompactions(wait bool) {
 
 	// last one to enable, start things back up
 	e.Compactor.EnableCompactions()
-	quit := make(chan struct{})
-	e.done = quit
+	e.done = make(chan struct{})
 
 	e.wg.Add(1)
 	e.mu.Unlock()
 
-	go func() { defer e.wg.Done(); e.compact(quit) }()
+	go func() { defer e.wg.Done(); e.compact() }()
 }
 
 // disableLevelCompactions will stop level compactions before returning.
@@ -417,12 +416,11 @@ func (e *Engine) enableSnapshotCompactions() {
 	}
 
 	e.Compactor.EnableSnapshots()
-	quit := make(chan struct{})
-	e.snapDone = quit
+	e.snapDone = make(chan struct{})
 	e.snapWG.Add(1)
 	e.mu.Unlock()
 
-	go func() { defer e.snapWG.Done(); e.compactCache(quit) }()
+	go func() { defer e.snapWG.Done(); e.compactCache() }()
 }
 
 func (e *Engine) disableSnapshotCompactions() {
@@ -1597,10 +1595,14 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 }
 
 // compactCache continually checks if the WAL cache should be written to disk.
-func (e *Engine) compactCache(quit <-chan struct{}) {
+func (e *Engine) compactCache() {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 	for {
+		e.mu.RLock()
+		quit := e.snapDone
+		e.mu.RUnlock()
+
 		select {
 		case <-quit:
 			return
@@ -1636,11 +1638,15 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 		time.Since(lastWriteTime) > e.CacheFlushWriteColdDuration
 }
 
-func (e *Engine) compact(quit <-chan struct{}) {
+func (e *Engine) compact() {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
+		e.mu.RLock()
+		quit := e.done
+		e.mu.RUnlock()
+
 		select {
 		case <-quit:
 			return

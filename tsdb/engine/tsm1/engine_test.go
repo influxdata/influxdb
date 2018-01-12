@@ -983,10 +983,14 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 		// series for the gpu measurement...
 		for _, id := range ids {
 			contains := engine.SeriesIDSet().Contains(id)
-			if id < 4 && !contains {
-				return fmt.Errorf("bitmap does not contain ID: %d, but should", id)
-			} else if id >= 4 && contains {
-				return fmt.Errorf("bitmap still contains ID: %d after delete", id)
+			key, _ := engine.sfile.Series(id)
+			isGpu := bytes.Equal(key, []byte("gpu"))
+			isMem := bytes.Equal(key, []byte("mem"))
+
+			if (isGpu || isMem) && contains {
+				return fmt.Errorf("bitmap still contains ID: %d after delete: %s", id, string(key))
+			} else if !(isGpu || isMem) && !contains {
+				return fmt.Errorf("bitmap does not contain ID: %d, but should: %s", id, string(key))
 			}
 		}
 
@@ -997,10 +1001,14 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 		for _, id := range ids {
 			contains := engine.SeriesIDSet().Contains(id)
-			if id < 4 && !contains {
-				return fmt.Errorf("[after re-open] bitmap does not contain ID: %d, but should", id)
-			} else if id >= 4 && contains {
-				return fmt.Errorf("[after re-open] bitmap still contains ID: %d after delete", id)
+			key, _ := engine.sfile.Series(id)
+			isGpu := bytes.Equal(key, []byte("gpu"))
+			isMem := bytes.Equal(key, []byte("mem"))
+
+			if (isGpu || isMem) && contains {
+				return fmt.Errorf("[after re-open] bitmap still contains ID: %d after delete: %s", id, string(key))
+			} else if !(isGpu || isMem) && !contains {
+				return fmt.Errorf("[after re-open] bitmap does not contain ID: %d, but should: %s", id, string(key))
 			}
 		}
 		return nil
