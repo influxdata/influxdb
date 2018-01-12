@@ -162,18 +162,24 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesIfNotExists(shardID uint64, seriesSet *tsdb.SeriesIDSet, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
+func (i *Index) CreateSeriesIfNotExists(shardID uint64, seriesIDSet *tsdb.SeriesIDSet, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
 	if _, err := i.sfile.CreateSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}, nil); err != nil {
 		return err
 	}
 	seriesID := i.sfile.SeriesID(name, tags, nil)
-
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
 	i.mu.RUnlock()
 
 	if ss != nil {
+		// This series might need to be added to the local bitset, if the series
+		// was created on another shard.
+		seriesIDSet.Lock()
+		if !seriesIDSet.ContainsNoLock(ss.ID) {
+			seriesIDSet.AddNoLock(ss.ID)
+		}
+		seriesIDSet.Unlock()
 		ss.AssignShard(shardID, time.Now().UnixNano())
 		return nil
 	}
@@ -187,6 +193,13 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, seriesSet *tsdb.SeriesID
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
+		// This series might need to be added to the local bitset, if the series
+		// was created on another shard.
+		seriesIDSet.Lock()
+		if !seriesIDSet.ContainsNoLock(ss.ID) {
+			seriesIDSet.AddNoLock(ss.ID)
+		}
+		seriesIDSet.Unlock()
 		ss.AssignShard(shardID, time.Now().UnixNano())
 		return nil
 	}
@@ -211,7 +224,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, seriesSet *tsdb.SeriesID
 	i.seriesSketch.Add(key)
 
 	// This series needs to be added to the bitset tracking undeleted series IDs.
-	seriesSet.Add(seriesID)
+	seriesIDSet.Add(seriesID)
 
 	return nil
 }
@@ -686,8 +699,8 @@ func (i *Index) dropMeasurement(name string) error {
 	return nil
 }
 
-// DropSeries removes the series key and its tags from the index.
-func (i *Index) DropSeries(key []byte, ts int64) error {
+// DropSeriesGlobal removes the series key and its tags from the index.
+func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
 	if key == nil {
 		return nil
 	}
@@ -967,7 +980,7 @@ func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
 			// If this series no longer has shards assigned, remove the series
 			if ss.ShardN() == 0 {
 				// Remove the series key from the index.
-				return i.DropSeries([]byte(k), ts)
+				return i.DropSeriesGlobal([]byte(k), ts)
 			}
 		}
 	}
@@ -1010,7 +1023,7 @@ func (i *Index) RemoveShard(shardID uint64) {
 
 // assignExistingSeries assigns the existing series to shardID and returns the series, names and tags that
 // do not exists yet.
-func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
+func (i *Index) assignExistingSeries(shardID uint64, seriesIDSet *tsdb.SeriesIDSet, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
 	i.mu.RLock()
 	var n int
 	now := time.Now().UnixNano()
@@ -1021,6 +1034,13 @@ func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsS
 			tagsSlice[n] = tagsSlice[j]
 			n++
 		} else {
+			// Add the existing series to this shard's bitset, since this may
+			// be the first time the series is added to this shard.
+			seriesIDSet.Lock()
+			if !seriesIDSet.ContainsNoLock(ss.ID) {
+				seriesIDSet.AddNoLock(ss.ID)
+			}
+			seriesIDSet.Unlock()
 			ss.AssignShard(shardID, now)
 		}
 	}
@@ -1045,6 +1065,23 @@ type ShardIndex struct {
 	opt tsdb.EngineOptions
 }
 
+// DropSeries removes the provided series id from the local bitset tracking
+// series. It then checks the database-wide series file, and if the series id has
+// been deleted, it removes the series from the global in-memory index.
+func (idx *ShardIndex) DropSeries(key []byte, ts int64) error {
+	// TODO(edd): Make this more efficient by passing in the series id.
+	name, tags := models.ParseKey(key)
+	seriesID := idx.sfile.SeriesID([]byte(name), tags, nil)
+
+	// Remove from shard-local bitset if it exists.
+	idx.seriesIDSet.Lock()
+	if idx.seriesIDSet.ContainsNoLock(seriesID) {
+		idx.seriesIDSet.RemoveNoLock(seriesID)
+	}
+	idx.seriesIDSet.Unlock()
+	return nil
+}
+
 // UnassignShard unassigns the provided series from this shard.
 func (idx *ShardIndex) UnassignShard(key string, id uint64, ts int64) error {
 	// TODO(edd): temporarily munging series id and shard id into same value,
@@ -1057,7 +1094,7 @@ func (idx *ShardIndex) UnassignShard(key string, id uint64, ts int64) error {
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
 func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
-	keys, names, tagsSlice = idx.assignExistingSeries(idx.id, keys, names, tagsSlice)
+	keys, names, tagsSlice = idx.assignExistingSeries(idx.id, idx.seriesIDSet, keys, names, tagsSlice)
 	if len(keys) == 0 {
 		return nil
 	}

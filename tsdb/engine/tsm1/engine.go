@@ -1374,7 +1374,6 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			if sid == 0 {
 				return fmt.Errorf("unable to find id for series key %q during deletion", k)
 			}
-			id := (sid << 32) | e.id
 
 			// This key was crossed out earlier, skip it
 			if k == nil {
@@ -1399,8 +1398,8 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				continue
 			}
 
-			// Remove the series from the index for this shard
-			if err := e.index.UnassignShard(string(k), id, ts); err != nil {
+			// Remove the series from the local index.
+			if err := e.index.DropSeries(k, ts); err != nil {
 				return err
 			}
 
@@ -1421,8 +1420,22 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		// in any shard.
 		var err error
 		ids.ForEach(func(id uint64) {
+			name, tags := e.sfile.Series(id)
 			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
 				err = err1
+			}
+
+			if err != nil {
+				return
+			}
+
+			// In the case of the inmem index the series can be removed across
+			// the global index (all shards).
+			if index, ok := e.index.(*inmem.ShardIndex); ok {
+				key := models.MakeKey(name, tags)
+				if e := index.Index.DropSeriesGlobal(key, ts); e != nil {
+					err = e
+				}
 			}
 		})
 		if err != nil {
