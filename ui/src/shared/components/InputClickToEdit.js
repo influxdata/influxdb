@@ -5,34 +5,38 @@ class InputClickToEdit extends Component {
     super(props)
 
     this.state = {
-      reset: false,
       isEditing: null,
       value: this.props.value,
     }
+  }
+
+  handleCancel = () => {
+    this.setState({
+      isEditing: false,
+      value: this.props.value,
+    })
   }
 
   handleInputClick = () => {
     this.setState({isEditing: true})
   }
 
-  handleInputBlur = reset => e => {
+  handleInputBlur = e => {
     const {onUpdate, value} = this.props
 
-    if (!reset && value !== e.target.value) {
+    if (value !== e.target.value) {
       onUpdate(e.target.value)
     }
 
-    this.setState({reset: false, isEditing: false})
+    this.setState({isEditing: false})
   }
 
   handleKeyDown = e => {
     if (e.key === 'Enter') {
-      this.inputRef.blur()
+      this.handleInputBlur(e)
     }
     if (e.key === 'Escape') {
-      this.setState({reset: true, value: this.props.value}, () =>
-        this.inputRef.blur()
-      )
+      this.handleCancel()
     }
   }
 
@@ -41,7 +45,7 @@ class InputClickToEdit extends Component {
   }
 
   render() {
-    const {reset, isEditing, value} = this.state
+    const {isEditing, value} = this.state
     const {wrapperClass, disabled} = this.props
 
     return disabled
@@ -56,7 +60,7 @@ class InputClickToEdit extends Component {
                 type="text"
                 className="form-control input-sm provider--input"
                 defaultValue={value}
-                onBlur={this.handleInputBlur(reset)}
+                onBlur={this.handleInputBlur}
                 onKeyDown={this.handleKeyDown}
                 autoFocus={true}
                 onFocus={this.handleFocus}
