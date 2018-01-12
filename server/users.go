@@ -41,15 +41,15 @@ func (r *userRequest) ValidCreate() error {
 }
 
 func (r *userRequest) ValidUpdate() error {
-	if len(r.Roles) == 0 {
+	if r.Roles == nil {
 		return fmt.Errorf("No Roles to update")
 	}
 	return r.ValidRoles()
 }
 
 func (r *userRequest) ValidRoles() error {
-	orgs := map[string]bool{}
 	if len(r.Roles) > 0 {
+		orgs := map[string]bool{}
 		for _, r := range r.Roles {
 			if r.Organization == "" {
 				return fmt.Errorf("no organization was provided")

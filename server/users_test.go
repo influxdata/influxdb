@@ -732,6 +732,59 @@ func TestService_UpdateUser(t *testing.T) {
 		wantBody        string
 	}{
 		{
+			name: "Update a Chronograf user - no roles",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta",
+								Provider: "github",
+								Scheme:   "oauth2",
+								Roles: []chronograf.Role{
+									{
+										Name:         roles.EditorRoleName,
+										Organization: "1",
+									},
+								},
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				userKeyUser: &chronograf.User{
+					ID:         0,
+					Name:       "coolUser",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: false,
+				},
+				user: &userRequest{
+					ID:    1336,
+					Roles: []chronograf.Role{},
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1336","superAdmin":false,"name":"bobbetta","provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[]}`,
+		},
+		{
 			name: "Update a Chronograf user",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
@@ -1624,6 +1677,38 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 			},
 			wantErr: true,
 			err:     fmt.Errorf("No Roles to update"),
+		},
+		{
+			name: "Invalid - bad role name",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         "BillietaSpecialOrg",
+							Organization: "0",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
+		},
+		{
+			name: "Valid – roles empty",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "auth0",
+					Scheme:   "oauth2",
+					Roles:    []chronograf.Role{},
+				},
+			},
+			wantErr: false,
 		},
 		{
 			name: "Invalid - bad role name",

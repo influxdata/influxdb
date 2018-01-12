@@ -1690,6 +1690,75 @@ func TestServer(t *testing.T) {
 		},
 		{
 			name:    "PATCH /users",
+			subName: "Update user to have no roles",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PATCH",
+				path:   "/chronograf/v1/users/1?raw=true",
+				payload: map[string]interface{}{
+					"name":       "billibob",
+					"provider":   "github",
+					"scheme":     "oauth2",
+					"superAdmin": true,
+					"roles":      []chronograf.Role{},
+				},
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/1?raw=true"
+  },
+  "id": "1",
+  "name": "billibob",
+  "provider": "github",
+  "scheme": "oauth2",
+  "superAdmin": true,
+  "roles": [
+  ]
+}`,
+			},
+		},
+		{
+			name:    "PATCH /users",
 			subName: "Update user roles with wildcard",
 			fields: fields{
 				Config: &chronograf.Config{
