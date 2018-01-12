@@ -24,7 +24,9 @@ $orgs-table--delete-width: 30px;
 }
 .orgs-table--active {
   width: $orgs-table--active-width;
-
+  justify-content: center;
+  @include no-user-select();
+  
   .btn {width: 100%;}
 }
 .orgs-table--default-role.deleting {
