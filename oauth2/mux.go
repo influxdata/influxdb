@@ -118,10 +118,16 @@ func (j *AuthMux) Callback() http.Handler {
 
 		// if we received an extra id_token, inspect it
 		var id string
-		if tokenString, ok := token.Extra("id_token").(string); ok {
+		if token.Extra("id_token") != "" {
 			log.Debug("token provides extra id_token")
 			if provider, ok := j.Provider.(ExtendedProvider); ok {
 				log.Debug("provider implements PrincipalIDFromClaims()")
+				var tokenString string
+				if tokenString, ok = token.Extra("id_token").(string); !ok {
+					log.Error("cannot cast id_token as string")
+					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+					return
+				}
 				claims, err := j.Tokens.GetClaims(tokenString)
 				if err != nil {
 					log.Error("parsing extra id_token failed:", err)
@@ -130,7 +136,7 @@ func (j *AuthMux) Callback() http.Handler {
 				}
 				log.Debug("found claims: ", claims)
 				if id, err = provider.PrincipalIDFromClaims(claims); err != nil {
-					log.Error("claim not found:", err)
+					log.Error("requested claim not found in id_token:", err)
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 					return
 				}
