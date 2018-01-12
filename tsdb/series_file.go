@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
@@ -34,6 +35,8 @@ type SeriesFile struct {
 	path       string
 	partitions []*SeriesPartition
 
+	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
+
 	Logger *zap.Logger
 }
 
@@ -47,6 +50,10 @@ func NewSeriesFile(path string) *SeriesFile {
 
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
+	// Wait for all references to be released and prevent new ones from being acquired.
+	f.refs.Lock()
+	defer f.refs.Unlock()
+
 	// Create path if it doesn't exist.
 	if err := os.MkdirAll(filepath.Join(f.path), 0777); err != nil {
 		return err
@@ -69,11 +76,16 @@ func (f *SeriesFile) Open() error {
 
 // Close unmaps the data file.
 func (f *SeriesFile) Close() (err error) {
+	// Wait for all references to be released and prevent new ones from being acquired.
+	f.refs.Lock()
+	defer f.refs.Unlock()
+
 	for _, p := range f.partitions {
 		if e := p.Close(); e != nil && err == nil {
 			err = e
 		}
 	}
+
 	return err
 }
 
@@ -87,6 +99,17 @@ func (f *SeriesFile) SeriesPartitionPath(i int) string {
 
 // Partitions returns all partitions.
 func (f *SeriesFile) Partitions() []*SeriesPartition { return f.partitions }
+
+// Retain adds a reference count to the file.  It returns a release func.
+func (f *SeriesFile) Retain() func() {
+	if f != nil {
+		f.refs.RLock()
+
+		// Return the RUnlock func as the release func to be called when done.
+		return f.refs.RUnlock
+	}
+	return nop
+}
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The returned ids list returns values for new series and zero for existing series.
@@ -426,3 +449,5 @@ type uint64Slice []uint64
 func (a uint64Slice) Len() int           { return len(a) }
 func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
+
+func nop() {}
