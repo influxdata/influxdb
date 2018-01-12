@@ -8,9 +8,12 @@ import {PUSHOVER_DOCS_LINK} from 'src/kapacitor/copy'
 class PushoverConfig extends Component {
   constructor(props) {
     super(props)
+    this.state = {
+      testEnabled: this.props.enabled,
+    }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = e => {
     e.preventDefault()
 
     const properties = {
@@ -20,6 +23,11 @@ class PushoverConfig extends Component {
     }
 
     this.props.onSave(properties)
+    this.setState({testEnabled: true})
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   handleUserKeyRef = r => (this.userKey = r)
@@ -32,7 +40,7 @@ class PushoverConfig extends Component {
     const userKey = options['user-key']
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <label htmlFor="user-key">
             User Key
@@ -45,6 +53,7 @@ class PushoverConfig extends Component {
             defaultValue={userKey}
             id="user-key"
             refFunc={this.handleUserKeyRef}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -60,6 +69,7 @@ class PushoverConfig extends Component {
             defaultValue={token}
             id="token"
             refFunc={this.handleTokenRef}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -71,12 +81,26 @@ class PushoverConfig extends Component {
             type="text"
             ref={r => (this.url = r)}
             defaultValue={url || ''}
+            onChange={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update Pushover Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -95,6 +119,8 @@ PushoverConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default PushoverConfig

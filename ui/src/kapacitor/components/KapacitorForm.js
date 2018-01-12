@@ -6,8 +6,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 class KapacitorForm extends Component {
   render() {
     const {onInputChange, onReset, kapacitor, onSubmit, exists} = this.props
-    const {url, name, username, password} = kapacitor
-
+    const {url: kapaUrl, name, username, password} = kapacitor
     return (
       <div className="page">
         <div className="page-header">
@@ -29,13 +28,13 @@ class KapacitorForm extends Component {
                     <form onSubmit={onSubmit}>
                       <div>
                         <div className="form-group">
-                          <label htmlFor="url">Kapacitor URL</label>
+                          <label htmlFor="kapaUrl">Kapacitor URL</label>
                           <input
                             className="form-control"
-                            id="url"
-                            name="url"
-                            placeholder={url}
-                            value={url}
+                            id="kapaUrl"
+                            name="kapaUrl"
+                            placeholder={kapaUrl}
+                            value={kapaUrl}
                             onChange={onInputChange}
                             spellCheck="false"
                           />
@@ -60,7 +59,7 @@ class KapacitorForm extends Component {
                             id="username"
                             name="username"
                             placeholder="username"
-                            value={username}
+                            value={username || ''}
                             onChange={onInputChange}
                             spellCheck="false"
                           />
@@ -73,7 +72,7 @@ class KapacitorForm extends Component {
                             type="password"
                             name="password"
                             placeholder="password"
-                            value={password}
+                            value={password || ''}
                             onChange={onInputChange}
                             spellCheck="false"
                           />

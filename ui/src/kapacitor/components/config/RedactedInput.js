@@ -13,7 +13,7 @@ class RedactedInput extends Component {
   }
 
   render() {
-    const {defaultValue, id, refFunc} = this.props
+    const {defaultValue, id, refFunc, disableTest} = this.props
     const {editing} = this.state
 
     if (defaultValue === true && !editing) {
@@ -43,6 +43,7 @@ class RedactedInput extends Component {
         type="text"
         ref={refFunc}
         defaultValue={''}
+        onChange={disableTest}
       />
     )
   }
@@ -54,6 +55,7 @@ RedactedInput.propTypes = {
   id: string.isRequired,
   defaultValue: bool,
   refFunc: func.isRequired,
+  disableTest: func,
 }
 
 export default RedactedInput
