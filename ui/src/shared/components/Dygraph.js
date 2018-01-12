@@ -6,7 +6,7 @@ import NanoDate from 'nano-date'
 
 import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
-import Annotation from 'src/shared/components/Annotation'
+import Annotations from 'src/shared/components/Annotations'
 
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
@@ -22,20 +22,15 @@ import {
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
+
+const oneHourInNanos = '3600000000000'
 const annotations = [
   {
     group: '',
     name: 'anno1',
-    time: '1515716169000',
-    duration: '',
+    time: '1515716169000000000',
+    duration: oneHourInNanos,
     text: 'you have no swoggels',
-  },
-  {
-    group: '',
-    name: 'anno1',
-    time: `${1515716169000 + 3600000}`,
-    duration: '',
-    text: 'you have one swog',
   },
 ]
 
@@ -410,10 +405,7 @@ export default class Dygraph extends Component {
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        {this.dygraph &&
-          annotations.map((a, i) =>
-            <Annotation key={i} annotation={a} dygraph={this.dygraph} />
-          )}
+        <Annotations annotations={annotations} dygraph={this.dygraph} />
         <DygraphLegend
           {...legend}
           graph={this.graphRef}

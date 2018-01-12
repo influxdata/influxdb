@@ -83,6 +83,13 @@ class LineGraph extends Component {
       ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
 
+    const containerStyle = {
+      width: 'calc(100% - 32px)',
+      height: 'calc(100% - 16px)',
+      position: 'absolute',
+      top: '8px',
+    }
+
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? <GraphLoadingDots /> : null}
@@ -101,7 +108,7 @@ class LineGraph extends Component {
           overrideLineColors={lineColors}
           dygraphSeries={dygraphSeries}
           setResolution={this.props.setResolution}
-          containerStyle={{width: '100%', height: '100%'}}
+          containerStyle={containerStyle}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
           options={options}
         />

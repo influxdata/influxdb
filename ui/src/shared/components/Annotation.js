@@ -1,7 +1,13 @@
 import React, {PropTypes} from 'react'
 
+const nanosToMillis = time => {
+  return time.substring(0, time.length - 6)
+}
+
 const calcStyle = (annotation, dygraph) => {
-  const left = `${dygraph.toDomXCoord(annotation.time)}px`
+  const millis = nanosToMillis(annotation.time)
+  const left = `${dygraph.toDomXCoord(millis)}px`
+  const width = 2
 
   return {
     left,
@@ -9,8 +15,8 @@ const calcStyle = (annotation, dygraph) => {
     top: '0px',
     backgroundColor: '#f00',
     height: '100%',
-    width: '2px',
-    transform: 'translateX(-50%)',
+    width: `${width}px`,
+    transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the annotation pole
     zIndex: '10',
   }
 }
