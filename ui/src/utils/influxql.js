@@ -157,9 +157,9 @@ function _buildGroupByTime(groupBy) {
     return ''
   }
 
-  return ` GROUP BY ${groupBy.time === AUTO_GROUP_BY
+  return ` GROUP BY time(${groupBy.time === AUTO_GROUP_BY
     ? TEMP_VAR_INTERVAL
-    : `time(${groupBy.time})`}`
+    : `${groupBy.time}`})`
 }
 
 function _buildGroupByTags(groupBy) {
