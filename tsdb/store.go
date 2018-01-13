@@ -1074,6 +1074,9 @@ func (s *Store) MeasurementNames(auth query.Authorizer, database string, cond in
 		return nil, nil
 	}
 
+	release := sfile.Retain()
+	defer release()
+
 	// Build indexset.
 	is := IndexSet{Indexes: make([]Index, 0, len(shards)), SeriesFile: sfile}
 	for _, sh := range shards {
