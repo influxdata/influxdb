@@ -1267,7 +1267,7 @@ func TestStore_TagValues_Auth(t *testing.T) {
 		}
 
 		if gotValues != expValues {
-			return fmt.Errorf("got %d tags, but expected %d", gotValues, expValues)
+			return fmt.Errorf("got %d values, but expected %d", gotValues, expValues)
 		}
 		return nil
 	}

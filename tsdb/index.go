@@ -2170,7 +2170,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 				if err != nil {
 					return nil, err
 				} else if sitr == nil {
-					break
+					continue
 				}
 				defer sitr.Close()
 
