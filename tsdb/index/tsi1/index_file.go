@@ -217,6 +217,23 @@ func (f *IndexFile) MeasurementN() (n uint64) {
 	return n
 }
 
+// MeasurementHasSeries returns true if a measurement has any non-tombstoned series.
+func (f *IndexFile) MeasurementHasSeries(ss *tsdb.SeriesIDSet, name []byte) (ok bool) {
+	e, ok := f.mblk.Elem(name)
+	if !ok {
+		return false
+	}
+
+	e.ForEachSeriesID(func(id uint64) error {
+		if ss.Contains(id) {
+			ok = true
+			return errors.New("done")
+		}
+		return nil
+	})
+	return ok
+}
+
 // TagValueIterator returns a value iterator for a tag key and a flag
 // indicating if a tombstone exists on the measurement or key.
 func (f *IndexFile) TagValueIterator(name, key []byte) TagValueIterator {

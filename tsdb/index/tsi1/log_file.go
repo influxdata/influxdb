@@ -233,6 +233,22 @@ func (f *LogFile) Measurement(name []byte) MeasurementElem {
 	return mm
 }
 
+func (f *LogFile) MeasurementHasSeries(ss *tsdb.SeriesIDSet, name []byte) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return false
+	}
+	for id := range mm.series {
+		if ss.Contains(id) {
+			return true
+		}
+	}
+	return false
+}
+
 // MeasurementNames returns an ordered list of measurement names.
 func (f *LogFile) MeasurementNames() []string {
 	f.mu.RLock()

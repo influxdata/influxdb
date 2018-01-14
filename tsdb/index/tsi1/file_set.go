@@ -418,6 +418,7 @@ type File interface {
 
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
+	MeasurementHasSeries(ss *tsdb.SeriesIDSet, name []byte) bool
 
 	TagKey(name, key []byte) TagKeyElem
 	TagKeyIterator(name []byte) TagKeyIterator

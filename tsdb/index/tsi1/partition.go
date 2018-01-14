@@ -448,6 +448,23 @@ func (i *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
+// MeasurementHasSeries returns true if a measurement has at least one non-tombstoned series.
+func (p *Partition) MeasurementHasSeries(name []byte) (bool, error) {
+	fs, err := p.RetainFileSet()
+	if err != nil {
+		return false, err
+	}
+	defer fs.Release()
+
+	for _, f := range fs.files {
+		if f.MeasurementHasSeries(p.seriesIDSet, name) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // MeasurementIterator returns an iterator over all measurement names.
 func (i *Partition) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 	fs, err := i.RetainFileSet()
@@ -600,6 +617,11 @@ func (i *Partition) DropSeries(key []byte, ts int64) error {
 		seriesID := i.sfile.SeriesID(name, tags, nil)
 		if seriesID == 0 {
 			return fmt.Errorf("[partition %s] no series id for key %q when attempting index drop", i.id, string(key))
+		}
+
+		// Delete series from index.
+		if err := i.activeLogFile.DeleteSeriesID(seriesID); err != nil {
+			return err
 		}
 
 		// Remove from series id set.

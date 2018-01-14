@@ -357,6 +357,18 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	return atomic.LoadUint32(&found) == 1, nil
 }
 
+// MeasurementHasSeries returns true if a measurement has non-tombstoned series.
+func (i *Index) MeasurementHasSeries(name []byte) (bool, error) {
+	for _, p := range i.partitions {
+		if v, err := p.MeasurementHasSeries(name); err != nil {
+			return false, err
+		} else if v {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // fetchByteValues is a helper for gathering values from each partition in the index,
 // based on some criteria.
 //
@@ -534,18 +546,9 @@ func (i *Index) DropSeries(key []byte, ts int64) error {
 	}
 
 	// Check if that was the last series for the measurement in the entire index.
-	itr, err := i.MeasurementSeriesIDIterator(name)
-	if err != nil {
+	if ok, err := i.MeasurementHasSeries(name); err != nil {
 		return err
-	} else if itr == nil {
-		return nil
-	}
-	itr = tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
-	defer itr.Close()
-
-	if e, err := itr.Next(); err != nil {
-		return err
-	} else if e.SeriesID != 0 {
+	} else if ok {
 		return nil
 	}
 
