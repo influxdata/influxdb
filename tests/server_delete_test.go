@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -23,7 +22,7 @@ var rp = "rp0"
 // Makes it easy to debug times by emitting rfc formatted strings instead
 // of numbers.
 var tme = func(t int64) string {
-	// return time.Unix(0, t).UTC().String()
+	// return time.Unix(0, t).UTC().String() + fmt.Sprintf("(%d)", t)
 	return fmt.Sprint(t) // Just emit the number
 }
 
@@ -154,17 +153,18 @@ func TestServer_DELETE_DROP_SERIES_DROP_MEASUREMENT(t *testing.T) {
 		queries = append(queries, query)
 		if err != nil {
 			emit := queries
-			if len(queries) > 100 {
-				emit = queries[len(queries)-100:]
+			if len(queries) > 1000 {
+				emit = queries[len(queries)-1000:]
 			}
-			t.Logf("Emitting last 100 queries of %d total:\n%s\n", len(queries), strings.Join(emit, "\n"))
+			t.Logf("Emitting last 1000 queries of %d total:\n%s\n", len(queries), strings.Join(emit, "\n"))
 			t.Logf("Current points in Series Tracker index:\n%s\n", tracker.DumpPoints())
 			t.Fatal(err)
 		}
 	}
 }
 
-// **** The following tests are specific examples discovered using
+// **** The following tests are specific examples discovered using ****
+
 // TestServer_DELETE_DROP_SERIES_DROP_MEASUREMENT. They're added to prevent
 // regressions.
 
@@ -178,43 +178,19 @@ func TestServer_Insert_Delete_1515688266259660938_same_shard(t *testing.T) {
 	defer s.Close()
 
 	for i := 0; i < 100; i++ {
-		if _, err := s.Write(db, rp, strings.Join([]string{
-			"m4,s67=a v=1 4",
+		mustWrite(s, "m4,s67=a v=1 4",
 			"m4,s67=a v=1 12",
-			"m4,s1=a v=1 15",
-		}, "\n"), nil); err != nil {
-			t.Fatal(err)
-		}
+			"m4,s1=a v=1 15")
 
-		query := fmt.Sprintf("DELETE FROM %q WHERE time >= 1 AND time <= 10 ", "m4")
-		_, err := s.QueryWithParams(query, url.Values{"db": []string{"db0"}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		mustDelete(s, "m4", 1, 10)
 
 		// Compare series left in index.
-		result, err := s.QueryWithParams("SHOW SERIES", url.Values{"db": []string{"db0"}})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		gotSeries, err := seriesFromShowSeries(result)
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		gotSeries := mustGetSeries(s)
 		expectedSeries := []string{"m4,s1=a", "m4,s67=a"}
 		if !reflect.DeepEqual(gotSeries, expectedSeries) {
 			t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
 		}
-
-		if err := s.DropDatabase(db); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
-			t.Fatal(err)
-		}
+		mustDropCreate(s)
 	}
 }
 
@@ -227,43 +203,100 @@ func TestServer_Insert_Delete_1515688266259660938(t *testing.T) {
 	defer s.Close()
 
 	for i := 0; i < 100; i++ {
-		if _, err := s.Write(db, rp, strings.Join([]string{
-			"m4,s67=a v=1 2127318532111304",
+		mustWrite(s, "m4,s67=a v=1 2127318532111304", // should be deleted
 			"m4,s67=a v=1 4840422259072956",
-			"m4,s1=a v=1 4777375719836601",
-		}, "\n"), nil); err != nil {
-			t.Fatal(err)
-		}
+			"m4,s1=a v=1 4777375719836601")
 
-		query := fmt.Sprintf("DELETE FROM %q WHERE time >= 1134567692141289 AND time <= 2233755799041351 ", "m4")
-		_, err := s.QueryWithParams(query, url.Values{"db": []string{"db0"}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		mustDelete(s, "m4", 1134567692141289, 2233755799041351)
 
 		// Compare series left in index.
-		result, err := s.QueryWithParams("SHOW SERIES", url.Values{"db": []string{"db0"}})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		gotSeries, err := seriesFromShowSeries(result)
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		gotSeries := mustGetSeries(s)
 		expectedSeries := []string{"m4,s1=a", "m4,s67=a"}
 		if !reflect.DeepEqual(gotSeries, expectedSeries) {
 			t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
 		}
 
-		if err := s.DropDatabase(db); err != nil {
-			t.Fatal(err)
-		}
+		mustDropCreate(s)
+	}
+}
 
-		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
-			t.Fatal(err)
-		}
+// This test failed with seed 1515771752164780713.
+func TestServer_Insert_Delete_1515771752164780713(t *testing.T) {
+	// Original seed was 1515771752164780713.
+	t.Parallel()
+
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	mustWrite(s, "m6,s72=a v=1 641480139110750")            // series id 257 in shard 1
+	mustWrite(s, "m6,s32=a v=1 1320128148356150")           // series id 259 in shard 2
+	mustDelete(s, "m6", 1316178840387070, 3095172845699329) // deletes m6,s32=a (259) - shard 2 now empty
+	mustWrite(s, "m6,s61=a v=1 47161015166211")             // series id 261 in shard 3
+	mustWrite(s, "m6,s67=a v=1 4466443248294177")           // series 515 in shard 4
+	mustDelete(s, "m6", 495574950798826, 2963503790804876)  // deletes m6,s72 (257) - shard 1 now empty
+
+	// Compare series left in index.
+	gotSeries := mustGetSeries(s)
+
+	expectedSeries := []string{"m6,s61=a", "m6,s67=a"}
+	if !reflect.DeepEqual(gotSeries, expectedSeries) {
+		t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
+	}
+}
+
+// This test failed with seed 1515777603585914810.
+func TestServer_Insert_Delete_1515777603585914810(t *testing.T) {
+	// Original seed was 1515777603585914810.
+	t.Parallel()
+
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	mustWrite(s, "m5,s99=a v=1 1")
+	mustDelete(s, "m5", 0, 1)
+	mustWrite(s, "m5,s99=a v=1 1")
+
+	gotSeries := mustGetSeries(s)
+	expectedSeries := []string{"m5,s99=a"}
+	if !reflect.DeepEqual(gotSeries, expectedSeries) {
+		t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
+	}
+}
+
+func mustGetSeries(s Server) []string {
+	// Compare series left in index.
+	result, err := s.QueryWithParams("SHOW SERIES", url.Values{"db": []string{"db0"}})
+	if err != nil {
+		panic(err)
+	}
+
+	gotSeries, err := seriesFromShowSeries(result)
+	if err != nil {
+		panic(err)
+	}
+	return gotSeries
+}
+
+func mustDropCreate(s Server) {
+	if err := s.DropDatabase(db); err != nil {
+		panic(err)
+	}
+
+	if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
+		panic(err)
+	}
+}
+
+func mustWrite(s Server, points ...string) {
+	if _, err := s.Write(db, rp, strings.Join(points, "\n"), nil); err != nil {
+		panic(err)
+	}
+}
+
+func mustDelete(s Server, name string, min, max int64) {
+	query := fmt.Sprintf("DELETE FROM %q WHERE time >= %d AND time <= %d ", name, min, max)
+	if _, err := s.QueryWithParams(query, url.Values{"db": []string{db}}); err != nil {
+		panic(err)
 	}
 }
 
