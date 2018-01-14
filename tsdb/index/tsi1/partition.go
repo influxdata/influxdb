@@ -583,6 +583,13 @@ func (i *Partition) DropMeasurement(name []byte) error {
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
 // bulk.
 func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) error {
+	// Is there anything to do? The partition may have been sent an empty batch.
+	if len(names) == 0 {
+		return nil
+	} else if len(names) != len(tagsSlice) {
+		return fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", i.id, len(names), len(tagsSlice))
+	}
+
 	// Maintain reference count on files in file set.
 	fs, err := i.RetainFileSet()
 	if err != nil {
