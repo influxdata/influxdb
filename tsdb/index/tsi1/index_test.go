@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -19,10 +18,7 @@ const M, K = 4096, 6
 
 // Ensure index can iterate over all measurement names.
 func TestIndex_ForEachMeasurementName(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	idx := MustOpenIndex(sfile.SeriesFile, 1)
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -75,10 +71,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 
 // Ensure index can return whether a measurement exists.
 func TestIndex_MeasurementExists(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	idx := MustOpenIndex(sfile.SeriesFile, 1)
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -129,10 +122,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByRegex(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	idx := MustOpenIndex(sfile.SeriesFile, 1)
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -157,10 +147,7 @@ func TestIndex_MeasurementNamesByRegex(t *testing.T) {
 
 // Ensure index can delete a measurement and all related keys, values, & series.
 func TestIndex_DropMeasurement(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	idx := MustOpenIndex(sfile.SeriesFile, 1)
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -206,11 +193,8 @@ func TestIndex_DropMeasurement(t *testing.T) {
 }
 
 func TestIndex_Open(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
 	// Opening a fresh index should set the MANIFEST version to current version.
-	idx := NewIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
+	idx := NewIndex(tsi1.DefaultPartitionN)
 	t.Run("open new index", func(t *testing.T) {
 		if err := idx.Open(); err != nil {
 			t.Fatal(err)
@@ -239,9 +223,7 @@ func TestIndex_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			sfile := MustOpenSeriesFile()
-			defer sfile.Close()
-			idx = NewIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
+			idx = NewIndex(tsi1.DefaultPartitionN)
 			// Manually create a MANIFEST file for an incompatible index version.
 			// under one of the partitions.
 			partitionPath := filepath.Join(idx.Path(), "2")
@@ -275,9 +257,7 @@ func TestIndex_Open(t *testing.T) {
 
 func TestIndex_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
-		idx := MustOpenIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
+		idx := MustOpenIndex(tsi1.DefaultPartitionN)
 
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
@@ -290,9 +270,7 @@ func TestIndex_Manifest(t *testing.T) {
 }
 
 func TestIndex_DiskSizeBytes(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-	idx := MustOpenIndex(sfile.SeriesFile, tsi1.DefaultPartitionN)
+	idx := MustOpenIndex(tsi1.DefaultPartitionN)
 	defer idx.Close()
 
 	// Add series to index.
@@ -322,27 +300,40 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index
+	SeriesFile *SeriesFile
 }
 
 // NewIndex returns a new instance of Index at a temporary path.
-func NewIndex(sfile *tsdb.SeriesFile, partitionN uint64) *Index {
-	idx := &Index{Index: tsi1.NewIndex(sfile, tsi1.WithPath(MustTempDir()))}
-	idx.PartitionN = partitionN
+func NewIndex(partitionN uint64) *Index {
+	idx := &Index{SeriesFile: NewSeriesFile()}
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, tsi1.WithPath(MustTempDir()))
+	idx.Index.PartitionN = partitionN
 	return idx
 }
 
 // MustOpenIndex returns a new, open index. Panic on error.
-func MustOpenIndex(sfile *tsdb.SeriesFile, partitionN uint64) *Index {
-	idx := NewIndex(sfile, partitionN)
+func MustOpenIndex(partitionN uint64) *Index {
+	idx := NewIndex(partitionN)
 	if err := idx.Open(); err != nil {
 		panic(err)
 	}
 	return idx
 }
 
+// Open opens the underlying tsi1.Index and tsdb.SeriesFile
+func (idx Index) Open() error {
+	if err := idx.SeriesFile.Open(); err != nil {
+		return err
+	}
+	return idx.Index.Open()
+}
+
 // Close closes and removes the index directory.
 func (idx *Index) Close() error {
 	defer os.RemoveAll(idx.Path())
+	if err := idx.SeriesFile.Close(); err != nil {
+		return err
+	}
 	return idx.Index.Close()
 }
 
@@ -352,11 +343,15 @@ func (idx *Index) Reopen() error {
 		return err
 	}
 
-	sfile := idx.SeriesFile()
-	path, partitionN := idx.Path(), idx.PartitionN
+	// Reopen the series file correctly, by initialising a new underlying series
+	// file using the same disk data.
+	if err := idx.SeriesFile.Reopen(); err != nil {
+		return err
+	}
 
-	idx.Index = tsi1.NewIndex(sfile, tsi1.WithPath(path))
-	idx.PartitionN = partitionN
+	partitionN := idx.Index.PartitionN // Remember how many partitions to use.
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, tsi1.WithPath(idx.Index.Path()))
+	idx.Index.PartitionN = partitionN
 	if err := idx.Open(); err != nil {
 		return err
 	}
@@ -398,12 +393,15 @@ func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
 
 // CreateSeriesSliceIfNotExists creates multiple series at a time.
 func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
-	for i, s := range a {
-		if err := idx.CreateSeriesListIfNotExists(nil, [][]byte{s.Name}, []models.Tags{s.Tags}); err != nil {
-			return fmt.Errorf("i=%d, name=%s, tags=%v, err=%s", i, s.Name, s.Tags, err)
-		}
+	keys := make([][]byte, 0, len(a))
+	names := make([][]byte, 0, len(a))
+	tags := make([]models.Tags, 0, len(a))
+	for _, s := range a {
+		keys = append(keys, models.MakeKey(s.Name, s.Tags))
+		names = append(names, s.Name)
+		tags = append(tags, s.Tags)
 	}
-	return nil
+	return idx.CreateSeriesListIfNotExists(keys, names, tags)
 }
 
 func BytesToStrings(a [][]byte) []string {
