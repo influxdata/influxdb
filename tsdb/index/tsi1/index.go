@@ -536,14 +536,14 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 }
 
 // DropSeries drops the provided series from the index.
-func (i *Index) DropSeries(key []byte, ts int64) error {
-	// Extract measurement name.
-	name, _ := models.ParseKeyBytes(key)
-
+func (i *Index) DropSeries(seriesID uint64, key []byte, ts int64) error {
 	// Remove from partition.
-	if err := i.partition(key).DropSeries(key, ts); err != nil {
+	if err := i.partition(key).DropSeries(seriesID, ts); err != nil {
 		return err
 	}
+
+	// Extract measurement name.
+	name, _ := models.ParseKeyBytes(key)
 
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {
@@ -820,9 +820,9 @@ func (i *Index) AssignShard(k string, shardID uint64)         {}
 // UnassignShard removes the provided series key from the index. The naming of
 // this method stems from a legacy index logic that used to track which shards
 // owned which series.
-func (i *Index) UnassignShard(k string, id uint64, ts int64) error {
+func (i *Index) UnassignShard(k string, _ uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k), ts)
+	return i.DropSeries(0, []byte(k), ts)
 }
 
 func (i *Index) Rebuild() {}

@@ -1399,7 +1399,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			}
 
 			// Remove the series from the local index.
-			if err := e.index.DropSeries(k, ts); err != nil {
+			if err := e.index.DropSeries(sid, k, ts); err != nil {
 				return err
 			}
 

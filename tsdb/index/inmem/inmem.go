@@ -1065,14 +1065,9 @@ type ShardIndex struct {
 	opt tsdb.EngineOptions
 }
 
-// DropSeries removes the provided series id from the local bitset tracking
-// series. It then checks the database-wide series file, and if the series id has
-// been deleted, it removes the series from the global in-memory index.
-func (idx *ShardIndex) DropSeries(key []byte, ts int64) error {
-	// TODO(edd): Make this more efficient by passing in the series id.
-	name, tags := models.ParseKey(key)
-	seriesID := idx.sfile.SeriesID([]byte(name), tags, nil)
-
+// DropSeries removes the provided series id from the local bitset that tracks
+// series in this shard only.
+func (idx *ShardIndex) DropSeries(seriesID uint64, _ []byte, ts int64) error {
 	// Remove from shard-local bitset if it exists.
 	idx.seriesIDSet.Lock()
 	if idx.seriesIDSet.ContainsNoLock(seriesID) {

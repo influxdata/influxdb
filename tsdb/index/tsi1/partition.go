@@ -606,31 +606,15 @@ func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	return i.CheckLogFile()
 }
 
-func (i *Partition) DropSeries(key []byte, ts int64) error {
+func (i *Partition) DropSeries(seriesID uint64, ts int64) error {
 	// TODO: Use ts.
 
-	if err := func() error {
-		i.mu.RLock()
-		defer i.mu.RUnlock()
-
-		name, tags := models.ParseKeyBytes(key)
-		seriesID := i.sfile.SeriesID(name, tags, nil)
-		if seriesID == 0 {
-			return fmt.Errorf("[partition %s] no series id for key %q when attempting index drop", i.id, string(key))
-		}
-
-		// Delete series from index.
-		if err := i.activeLogFile.DeleteSeriesID(seriesID); err != nil {
-			return err
-		}
-
-		// Remove from series id set.
-		i.seriesIDSet.Remove(seriesID)
-
-		return nil
-	}(); err != nil {
+	// Delete series from index.
+	if err := i.activeLogFile.DeleteSeriesID(seriesID); err != nil {
 		return err
 	}
+
+	i.seriesIDSet.Remove(seriesID)
 
 	// Swap log file, if necessary.
 	if err := i.CheckLogFile(); err != nil {
