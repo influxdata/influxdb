@@ -323,6 +323,8 @@ func (m *measurement) Rebuild() *measurement {
 
 	for _, id := range m.sortedSeriesIDs {
 		if s := m.seriesByID[id]; s != nil {
+			// Explicitly set the new measurement on the series.
+			s.Measurement = nm
 			nm.AddSeries(s)
 		}
 	}
@@ -1238,11 +1240,9 @@ func (s *series) AssignShard(shardID uint64, ts int64) {
 
 func (s *series) UnassignShard(shardID uint64, ts int64) {
 	s.mu.Lock()
-	fmt.Println(s.shardIDs)
 	if s.LastModified() < ts {
 		delete(s.shardIDs, shardID)
 	}
-	fmt.Println(s.shardIDs)
 	s.mu.Unlock()
 }
 
@@ -1266,7 +1266,6 @@ func (s *series) ShardN() int {
 
 // Delete marks this series as deleted.  A deleted series should not be returned for queries.
 func (s *series) Delete(ts int64) {
-	fmt.Println("Marking series ", s.Key, "as deleted")
 	s.mu.Lock()
 	if s.LastModified() < ts {
 		s.deleted = true
