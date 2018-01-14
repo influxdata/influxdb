@@ -140,6 +140,24 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 }
 
+// Ensure the store does not return an error when delete from a non-existent db.
+func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		if err := s.DeleteSeries("db0", nil, nil, true); err != nil {
+			t.Fatal(err.Error())
+		}
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
 // Ensure the store can delete an existing shard.
 func TestStore_DeleteShard(t *testing.T) {
 	t.Parallel()
