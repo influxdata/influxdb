@@ -305,6 +305,7 @@ func (i *Partition) buildSeriesSet() error {
 		}(); err != nil {
 			return err
 		}
+		p.seriesIDSet.Merge(p.seriesIDSet, ss)
 	}
 }
 
