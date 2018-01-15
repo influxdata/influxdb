@@ -148,7 +148,7 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 		s := MustOpenStore(index)
 		defer s.Close()
 
-		if err := s.DeleteSeries("db0", nil, nil, true); err != nil {
+		if err := s.DeleteSeries("db0", nil, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 	}
