@@ -113,6 +113,10 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 	// Delete second series.
 	tags.Set([]byte("region"), []byte("west"))
+	sid = idx.Index.SeriesFile().SeriesID(name, tags, nil)
+	if sid == 0 {
+		t.Fatalf("got 0 series id for %s/%v", name, tags)
+	}
 	if err := idx.DropSeries(sid, models.MakeKey(name, tags), 0); err != nil {
 		t.Fatal(err)
 	}
