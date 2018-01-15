@@ -17,7 +17,6 @@ import (
 	"regexp"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -190,7 +189,6 @@ func (i *Index) CreateSeriesListIfNotExists(shardID uint64, seriesIDSet *tsdb.Se
 			seriesIDSet.AddNoLock(ss.ID)
 		}
 		seriesIDSet.Unlock()
-		ss.AssignShard(shardID, time.Now().UnixNano())
 	}
 	if !hasNewSeries {
 		return nil
@@ -226,7 +224,6 @@ func (i *Index) CreateSeriesListIfNotExists(shardID uint64, seriesIDSet *tsdb.Se
 			seriesIDSet.AddNoLock(ss.ID)
 		}
 		seriesIDSet.Unlock()
-		ss.AssignShard(shardID, time.Now().UnixNano())
 	}
 	if newSeriesN == 0 {
 		return nil
@@ -251,7 +248,6 @@ func (i *Index) CreateSeriesListIfNotExists(shardID uint64, seriesIDSet *tsdb.Se
 		i.series[skey] = ss
 
 		mms[j].AddSeries(ss)
-		ss.AssignShard(shardID, time.Now().UnixNano())
 
 		// Add the series to the series sketch.
 		i.seriesSketch.Add(key)
@@ -993,34 +989,6 @@ func (i *Index) SeriesIDIterator(opt query.IteratorOptions) (tsdb.SeriesIDIterat
 // DiskSizeBytes always returns zero bytes, since this is an in-memory index.
 func (i *Index) DiskSizeBytes() int64 { return 0 }
 
-// AssignShard update the index to indicate that series k exists in the given shardID.
-func (i *Index) AssignShard(k string, shardID uint64) {
-	ss, _ := i.Series([]byte(k))
-	if ss != nil {
-		ss.AssignShard(shardID, time.Now().UnixNano())
-	}
-}
-
-// UnassignShard updates the index to indicate that series k does not exist in
-// the given shardID.  The series will be unassigned if ts is greater than the
-// last time the series was modified.
-func (i *Index) UnassignShard(k string, shardID uint64, ts int64) error {
-	ss, _ := i.Series([]byte(k))
-	if ss != nil {
-		if ss.Assigned(shardID) {
-			// Remove the shard from any series
-			ss.UnassignShard(shardID, ts)
-
-			// If this series no longer has shards assigned, remove the series
-			if ss.ShardN() == 0 {
-				// Remove the series key from the index.
-				return i.DropSeriesGlobal([]byte(k), ts)
-			}
-		}
-	}
-	return nil
-}
-
 // Rebuild recreates the measurement indexes to allow deleted series to be removed
 // and garbage collected.
 func (i *Index) Rebuild() {
@@ -1046,21 +1014,11 @@ func (i *Index) Rebuild() {
 	})
 }
 
-// RemoveShard removes all references to shardID from any series or measurements
-// in the index.  If the shard was the only owner of data for the series, the series
-// is removed from the index.
-func (i *Index) RemoveShard(shardID uint64) {
-	for _, k := range i.SeriesKeys() {
-		i.UnassignShard(k, shardID, 0)
-	}
-}
-
 // assignExistingSeries assigns the existing series to shardID and returns the series, names and tags that
 // do not exists yet.
 func (i *Index) assignExistingSeries(shardID uint64, seriesIDSet *tsdb.SeriesIDSet, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
 	i.mu.RLock()
 	var n int
-	now := time.Now().UnixNano()
 	for j, key := range keys {
 		if ss := i.series[string(key)]; ss == nil {
 			keys[n] = keys[j]
@@ -1075,7 +1033,6 @@ func (i *Index) assignExistingSeries(shardID uint64, seriesIDSet *tsdb.SeriesIDS
 				seriesIDSet.AddNoLock(ss.ID)
 			}
 			seriesIDSet.Unlock()
-			ss.AssignShard(shardID, now)
 		}
 	}
 	i.mu.RUnlock()
@@ -1109,16 +1066,6 @@ func (idx *ShardIndex) DropSeries(seriesID uint64, _ []byte, ts int64) error {
 	}
 	idx.seriesIDSet.Unlock()
 	return nil
-}
-
-// UnassignShard unassigns the provided series from this shard.
-func (idx *ShardIndex) UnassignShard(key string, id uint64, ts int64) error {
-	// TODO(edd): temporarily munging series id and shard id into same value,
-	// to test prototype without having to change Index API.
-	sid, shardID := id>>32, id&0xFFFFFFFF
-
-	idx.seriesIDSet.Remove(sid)
-	return idx.Index.UnassignShard(key, shardID, ts)
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.

@@ -368,7 +368,7 @@ func (s *Shard) CloseFast() error {
 
 // close closes the shard an removes reference to the shard from associated
 // indexes, unless clean is false.
-func (s *Shard) close(clean bool) error {
+func (s *Shard) close(_ bool) error {
 	if s._engine == nil {
 		return nil
 	}
@@ -378,11 +378,6 @@ func (s *Shard) close(clean bool) error {
 	case <-s.closing:
 	default:
 		close(s.closing)
-	}
-
-	if clean {
-		// Don't leak our shard ID and series keys in the index
-		s.index.RemoveShard(s.id)
 	}
 
 	err := s._engine.Close()
@@ -434,7 +429,6 @@ func (s *Shard) UnloadIndex() {
 	if err := s.ready(); err != nil {
 		return
 	}
-	s.index.RemoveShard(s.id)
 }
 
 // Index returns a reference to the underlying index. It returns an error if

@@ -402,7 +402,7 @@ func (m *measurement) TagSets(shardID uint64, opt query.IteratorOptions) ([]*que
 		}
 
 		s := m.seriesByID[id]
-		if s == nil || s.Deleted() || !s.Assigned(shardID) {
+		if s == nil || s.Deleted() {
 			continue
 		}
 
@@ -1195,21 +1195,18 @@ func (a measurements) Union(other measurements) measurements {
 
 // series belong to a Measurement and represent unique time series in a database.
 type series struct {
+	mu sync.RWMutex
 	// lastModified tracks the last time the series was created.  If the series
 	// already exists and a request to create is received (a no-op), lastModified
 	// is increased to track that it is still in use.
 	lastModified int64
+	deleted      bool
 
 	// immutable
 	ID          uint64
 	Measurement *measurement
 	Key         string
 	Tags        models.Tags
-
-	mu       sync.RWMutex
-	shardIDs map[uint64]struct{} // shards that have this series defined
-
-	deleted bool
 }
 
 // newSeries returns an initialized series struct
@@ -1219,49 +1216,12 @@ func newSeries(id uint64, m *measurement, key string, tags models.Tags) *series 
 		Measurement:  m,
 		Key:          key,
 		Tags:         tags,
-		shardIDs:     make(map[uint64]struct{}),
 		lastModified: time.Now().UTC().UnixNano(),
 	}
 }
 
-func (s *series) AssignShard(shardID uint64, ts int64) {
-	atomic.StoreInt64(&s.lastModified, ts)
-	if s.Assigned(shardID) {
-		return
-	}
-
-	s.mu.Lock()
-	// Skip the existence check under the write lock because we're just storing
-	// and empty struct.
-	s.deleted = false
-	s.shardIDs[shardID] = struct{}{}
-	s.mu.Unlock()
-}
-
-func (s *series) UnassignShard(shardID uint64, ts int64) {
-	s.mu.Lock()
-	if s.LastModified() < ts {
-		delete(s.shardIDs, shardID)
-	}
-	s.mu.Unlock()
-}
-
-func (s *series) Assigned(shardID uint64) bool {
-	s.mu.RLock()
-	_, ok := s.shardIDs[shardID]
-	s.mu.RUnlock()
-	return ok
-}
-
 func (s *series) LastModified() int64 {
 	return atomic.LoadInt64(&s.lastModified)
-}
-
-func (s *series) ShardN() int {
-	s.mu.RLock()
-	n := len(s.shardIDs)
-	s.mu.RUnlock()
-	return n
 }
 
 // Delete marks this series as deleted.  A deleted series should not be returned for queries.
