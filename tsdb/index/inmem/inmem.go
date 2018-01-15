@@ -1174,7 +1174,11 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 
 	// Write entire batch at once if we are well below the max series threshold.
 	// Otherwise, insert one at a time until we reach an error.
-	if max := idx.opt.Config.MaxSeriesPerDatabase; max > 0 && len(idx.series)+len(keys) <= max {
+	idx.mu.RLock()
+	seriesN := len(idx.series)
+	idx.mu.RUnlock()
+
+	if max := idx.opt.Config.MaxSeriesPerDatabase; max > 0 && seriesN+len(keys) <= max {
 		if err := idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, keys, names, tagsSlice, &idx.opt, false); err != nil {
 			return err
 		}
