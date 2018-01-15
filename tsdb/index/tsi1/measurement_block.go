@@ -350,16 +350,26 @@ func (e *MeasurementBlockElem) HasSeries() bool { return e.series.n > 0 }
 // It requires loading the entire list of series in-memory.
 func (e *MeasurementBlockElem) SeriesIDs() []uint64 {
 	a := make([]uint64, 0, e.series.n)
+	e.ForEachSeriesID(func(id uint64) error {
+		a = append(a, id)
+		return nil
+	})
+	return a
+}
+
+func (e *MeasurementBlockElem) ForEachSeriesID(fn func(uint64) error) error {
 	var prev uint64
 	for data := e.series.data; len(data) > 0; {
 		delta, n := binary.Uvarint(data)
 		data = data[n:]
 
 		seriesID := prev + uint64(delta)
-		a = append(a, seriesID)
+		if err := fn(seriesID); err != nil {
+			return err
+		}
 		prev = seriesID
 	}
-	return a
+	return nil
 }
 
 // Size returns the size of the element.

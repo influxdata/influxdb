@@ -418,6 +418,7 @@ type File interface {
 
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
+	MeasurementHasSeries(ss *tsdb.SeriesIDSet, name []byte) bool
 
 	TagKey(name, key []byte) TagKeyElem
 	TagKeyIterator(name []byte) TagKeyIterator
@@ -432,6 +433,10 @@ type File interface {
 
 	// Sketches for cardinality estimation
 	MergeMeasurementsSketches(s, t estimator.Sketch) error
+
+	// Bitmap series existance.
+	SeriesIDSet() (*tsdb.SeriesIDSet, error)
+	TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error)
 
 	// Reference counting.
 	Retain()

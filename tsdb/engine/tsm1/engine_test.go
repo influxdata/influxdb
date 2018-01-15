@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -47,7 +46,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 
 			// Remove series.
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %s", err.Error())
 			}
 
@@ -947,7 +946,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 		engine.MustAddSeries("mem", map[string]string{"host": "z"})
 
 		// Collect series IDs.
-		var ids []uint64
+		seriesIDMap := map[string]uint64{}
 		var e tsdb.SeriesIDElem
 		var err error
 
@@ -958,10 +957,13 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			} else if e.SeriesID == 0 {
 				break
 			}
-			ids = append(ids, e.SeriesID)
+
+			name, tags := tsdb.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
+			key := fmt.Sprintf("%s%s", name, tags.HashKey())
+			seriesIDMap[key] = e.SeriesID
 		}
 
-		for _, id := range ids {
+		for _, id := range seriesIDMap {
 			if !engine.SeriesIDSet().Contains(id) {
 				return fmt.Errorf("bitmap does not contain ID: %d", id)
 			}
@@ -973,24 +975,29 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			return err
 		}
 
+		if engine.SeriesIDSet().Contains(seriesIDMap["gpu"]) {
+			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu"], "gpu")
+		} else if engine.SeriesIDSet().Contains(seriesIDMap["gpu,host=b"]) {
+			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu,host=b"], "gpu,host=b")
+		}
+		delete(seriesIDMap, "gpu")
+		delete(seriesIDMap, "gpu,host=b")
+
 		// Drop the specific mem series
 		ditr := &seriesIterator{keys: [][]byte{[]byte("mem,host=z")}}
-		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64, true); err != nil {
+		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64); err != nil {
 			return err
 		}
 
-		// Since series IDs are added sequentially, the last two would be the
-		// series for the gpu measurement...
-		for _, id := range ids {
-			contains := engine.SeriesIDSet().Contains(id)
-			key, _ := engine.sfile.Series(id)
-			isGpu := bytes.Equal(key, []byte("gpu"))
-			isMem := bytes.Equal(key, []byte("mem"))
+		if engine.SeriesIDSet().Contains(seriesIDMap["mem,host=z"]) {
+			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["mem,host=z"], "mem,host=z")
+		}
+		delete(seriesIDMap, "mem,host=z")
 
-			if (isGpu || isMem) && contains {
-				return fmt.Errorf("bitmap still contains ID: %d after delete: %s", id, string(key))
-			} else if !(isGpu || isMem) && !contains {
-				return fmt.Errorf("bitmap does not contain ID: %d, but should: %s", id, string(key))
+		// The rest of the keys should still be in the set.
+		for key, id := range seriesIDMap {
+			if !engine.SeriesIDSet().Contains(id) {
+				return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", id, key)
 			}
 		}
 
@@ -999,17 +1006,14 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			panic(err)
 		}
 
-		for _, id := range ids {
-			contains := engine.SeriesIDSet().Contains(id)
-			key, _ := engine.sfile.Series(id)
-			isGpu := bytes.Equal(key, []byte("gpu"))
-			isMem := bytes.Equal(key, []byte("mem"))
+		// Check bitset is expected.
+		expected := tsdb.NewSeriesIDSet()
+		for _, id := range seriesIDMap {
+			expected.Add(id)
+		}
 
-			if (isGpu || isMem) && contains {
-				return fmt.Errorf("[after re-open] bitmap still contains ID: %d after delete: %s", id, string(key))
-			} else if !(isGpu || isMem) && !contains {
-				return fmt.Errorf("[after re-open] bitmap does not contain ID: %d, but should: %s", id, string(key))
-			}
+		if !engine.SeriesIDSet().Equals(expected) {
+			return fmt.Errorf("got bitset %s, expected %s", engine.SeriesIDSet().String(), expected.String())
 		}
 		return nil
 	}
@@ -1024,7 +1028,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 }
 
 // Ensures that deleting series from TSM files with multiple fields removes all the
-// series from the TSM files but leaves the series in the index intact.
+/// series
 func TestEngine_DeleteSeries(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
@@ -1058,7 +1062,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1071,56 +1075,22 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			if _, ok := keys[exp]; !ok {
 				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
 			}
-
-			// Deleting all the TSM values for a single series should still leave
-			// the series in the index intact.
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			} else if iter == nil {
-				t.Fatal("nil iterator")
-			}
-			defer iter.Close()
-
-			var gotKeys []string
-			expKeys := []string{"cpu,host=A", "cpu,host=B"}
-
-			for {
-				elem, err := iter.Next()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if elem.SeriesID == 0 {
-					break
-				}
-
-				// Lookup series.
-				name, tags := e.sfile.Series(elem.SeriesID)
-				gotKeys = append(gotKeys, string(models.MakeKey(name, tags)))
-			}
-
-			if !reflect.DeepEqual(gotKeys, expKeys) {
-				t.Fatalf("got keys %v, expected %v", gotKeys, expKeys)
-			}
 		})
 	}
 }
 
-// Ensures that deleting series from TSM files over a range of time deleted the
-// series from the TSM files but leaves the series in the index.
 func TestEngine_DeleteSeriesRange(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 			// Create a few points.
-			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000")
+			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000") // Should not be deleted
 			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A value=1.3 3000000000")
-			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
-			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000")
+			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000") // Should not be deleted
+			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000") // Should not be deleted
 			p6 := MustParsePointString("cpu,host=C value=1.3 1000000000")
-			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
-			p8 := MustParsePointString("disk,host=C value=1.3 1000000000")
+			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")  // Should not be deleted
+			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
 			e, err := NewEngine(index)
 			if err != nil {
@@ -1153,7 +1123,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 3000000000, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1167,39 +1137,54 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
 			}
 
-			// Deleting all the TSM values for a single series should still leave
-			// the series in the index intact.
+			// Check that the series still exists in the index
 			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
-			} else if iter == nil {
-				t.Fatal("nil iterator")
 			}
 			defer iter.Close()
 
-			var gotKeys []string
-			expKeys := []string{"cpu,host=0", "cpu,host=A", "cpu,host=B", "cpu,host=C"}
-
-			for {
-				elem, err := iter.Next()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if elem.SeriesID == 0 {
-					break
-				}
-
-				// Lookup series.
-				name, tags := e.sfile.Series(elem.SeriesID)
-				gotKeys = append(gotKeys, string(models.MakeKey(name, tags)))
+			elem, err := iter.Next()
+			if err != nil {
+				t.Fatal(err)
 			}
-			sort.Strings(gotKeys)
-
-			if !reflect.DeepEqual(gotKeys, expKeys) {
-				t.Fatalf("got keys %v, expected %v", gotKeys, expKeys)
+			if elem.SeriesID == 0 {
+				t.Fatalf("series index mismatch: EOF, exp 2 series")
 			}
 
+			// Lookup series.
+			name, tags := e.sfile.Series(elem.SeriesID)
+			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+			}
+
+			if !tags.Equal(models.NewTags(map[string]string{"host": "0"})) && !tags.Equal(models.NewTags(map[string]string{"host": "B"})) {
+				t.Fatalf(`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
+			}
+			iter.Close()
+
+			// Deleting remaining series should remove them from the series.
+			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
+			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+				t.Fatalf("failed to delete series: %v", err)
+			}
+
+			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+				t.Fatalf("iterator error: %v", err)
+			}
+			if iter == nil {
+				return
+			}
+
+			defer iter.Close()
+			if elem, err = iter.Next(); err != nil {
+				t.Fatal(err)
+			}
+			if elem.SeriesID != 0 {
+				t.Fatalf("got an undeleted series id, but series should be dropped from index")
+			}
 		})
 	}
 }
@@ -1241,7 +1226,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, 0, 0, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1325,7 +1310,7 @@ func TestEngine_LastModified(t *testing.T) {
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64, false); err != nil {
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
@@ -1789,12 +1774,11 @@ func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
 // Engine is a test wrapper for tsm1.Engine.
 type Engine struct {
 	*tsm1.Engine
-	root        string
-	indexPath   string
-	indexType   string
-	index       tsdb.Index
-	seriesIDSet *tsdb.SeriesIDSet
-	sfile       *tsdb.SeriesFile
+	root      string
+	indexPath string
+	indexType string
+	index     tsdb.Index
+	sfile     *tsdb.SeriesFile
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
@@ -1823,21 +1807,23 @@ func NewEngine(index string) (*Engine, error) {
 	if index == "inmem" {
 		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
+	// Initialise series id sets. Need to do this as it's normally done at the
+	// store level.
+	seriesIDs := tsdb.NewSeriesIDSet()
+	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
 
 	idxPath := filepath.Join(dbPath, "index")
-	seriesIDs := tsdb.NewSeriesIDSet()
 	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
 
 	tsm1Engine := tsm1.NewEngine(1, idx, db, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
 
 	return &Engine{
-		Engine:      tsm1Engine,
-		root:        root,
-		indexPath:   idxPath,
-		indexType:   index,
-		index:       idx,
-		seriesIDSet: seriesIDs,
-		sfile:       sfile,
+		Engine:    tsm1Engine,
+		root:      root,
+		indexPath: idxPath,
+		indexType: index,
+		index:     idx,
+		sfile:     sfile,
 	}, nil
 }
 
@@ -1893,9 +1879,12 @@ func (e *Engine) Reopen() error {
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex(db, e.sfile)
 
+	// Re-initialise the series id set
+	seriesIDSet := tsdb.NewSeriesIDSet()
+	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDSet})
+
 	// Re-open index.
-	e.seriesIDSet = tsdb.NewSeriesIDSet()
-	e.index = tsdb.MustOpenIndex(1, db, e.indexPath, e.seriesIDSet, e.sfile, opt)
+	e.index = tsdb.MustOpenIndex(1, db, e.indexPath, seriesIDSet, e.sfile, opt)
 
 	// Re-initialize engine.
 	e.Engine = tsm1.NewEngine(1, e.index, db, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)
@@ -2052,4 +2041,13 @@ func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 	s := series{name: name, tags: tags}
 	itr.keys = itr.keys[1:]
 	return s, nil
+}
+
+type seriesIDSets []*tsdb.SeriesIDSet
+
+func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
+	for _, v := range a {
+		f(v)
+	}
+	return nil
 }

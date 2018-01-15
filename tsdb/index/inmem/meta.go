@@ -323,6 +323,8 @@ func (m *measurement) Rebuild() *measurement {
 
 	for _, id := range m.sortedSeriesIDs {
 		if s := m.seriesByID[id]; s != nil {
+			// Explicitly set the new measurement on the series.
+			s.Measurement = nm
 			nm.AddSeries(s)
 		}
 	}

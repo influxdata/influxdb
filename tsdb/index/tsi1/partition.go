@@ -51,7 +51,7 @@ type Partition struct {
 
 	// Fast series lookup of series IDs in the series file that have been present
 	// in this partition. This set tracks both insertions and deletions of a series.
-	seriesSet *tsdb.SeriesIDSet
+	seriesIDSet *tsdb.SeriesIDSet
 
 	// Compaction management
 	levels          []CompactionLevel // compaction levels
@@ -91,10 +91,10 @@ type Partition struct {
 // NewPartition returns a new instance of Partition.
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return &Partition{
-		closing:   make(chan struct{}),
-		path:      path,
-		sfile:     sfile,
-		seriesSet: tsdb.NewSeriesIDSet(),
+		closing:     make(chan struct{}),
+		path:        path,
+		sfile:       sfile,
+		seriesIDSet: tsdb.NewSeriesIDSet(),
 
 		// Default compaction thresholds.
 		MaxLogFileSize: DefaultMaxLogFileSize,
@@ -261,47 +261,31 @@ func (i *Partition) deleteNonManifestFiles(m *Manifest) error {
 	return nil
 }
 
-func (i *Partition) buildSeriesSet() error {
-	fs := i.retainFileSet()
+func (p *Partition) buildSeriesSet() error {
+	fs := p.retainFileSet()
 	defer fs.Release()
 
-	i.seriesSet = tsdb.NewSeriesIDSet()
+	p.seriesIDSet = tsdb.NewSeriesIDSet()
 
-	mitr := fs.MeasurementIterator()
-	if mitr == nil {
-		return nil
-	}
+	// Read series sets from files in reverse.
+	for i := len(fs.files) - 1; i >= 0; i-- {
+		f := fs.files[i]
 
-	// Iterate over each measurement.
-	for {
-		me := mitr.Next()
-		if me == nil {
-			return nil
-		}
-
-		// Iterate over each series id.
-		if err := func() error {
-			sitr := fs.MeasurementSeriesIDIterator(me.Name())
-			if sitr == nil {
-				return nil
-			}
-			defer sitr.Close()
-
-			for {
-				elem, err := sitr.Next()
-				if err != nil {
-					return err
-				} else if elem.SeriesID == 0 {
-					return nil
-				}
-
-				// Add id to series set.
-				i.seriesSet.Add(elem.SeriesID)
-			}
-		}(); err != nil {
+		// Delete anything that's been tombstoned.
+		ts, err := f.TombstoneSeriesIDSet()
+		if err != nil {
 			return err
 		}
+		p.seriesIDSet.Diff(ts)
+
+		// Add series created within the file.
+		ss, err := f.SeriesIDSet()
+		if err != nil {
+			return err
+		}
+		p.seriesIDSet.Merge(p.seriesIDSet, ss)
 	}
+	return nil
 }
 
 // Wait returns once outstanding compactions have finished.
@@ -464,6 +448,23 @@ func (i *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
+// MeasurementHasSeries returns true if a measurement has at least one non-tombstoned series.
+func (p *Partition) MeasurementHasSeries(name []byte) (bool, error) {
+	fs, err := p.RetainFileSet()
+	if err != nil {
+		return false, err
+	}
+	defer fs.Release()
+
+	for _, f := range fs.files {
+		if f.MeasurementHasSeries(p.seriesIDSet, name) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // MeasurementIterator returns an iterator over all measurement names.
 func (i *Partition) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 	fs, err := i.RetainFileSet()
@@ -579,6 +580,13 @@ func (i *Partition) DropMeasurement(name []byte) error {
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
 // bulk.
 func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) error {
+	// Is there anything to do? The partition may have been sent an empty batch.
+	if len(names) == 0 {
+		return nil
+	} else if len(names) != len(tagsSlice) {
+		return fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", i.id, len(names), len(tagsSlice))
+	}
+
 	// Maintain reference count on files in file set.
 	fs, err := i.RetainFileSet()
 	if err != nil {
@@ -589,7 +597,7 @@ func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	// Ensure fileset cannot change during insert.
 	i.mu.RLock()
 	// Insert series into log file.
-	if err := i.activeLogFile.AddSeriesList(i.seriesSet, names, tagsSlice); err != nil {
+	if err := i.activeLogFile.AddSeriesList(i.seriesIDSet, names, tagsSlice); err != nil {
 		i.mu.RUnlock()
 		return err
 	}
@@ -598,30 +606,15 @@ func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	return i.CheckLogFile()
 }
 
-func (i *Partition) DropSeries(key []byte, ts int64) error {
+func (i *Partition) DropSeries(seriesID uint64, ts int64) error {
 	// TODO: Use ts.
 
-	if err := func() error {
-		i.mu.RLock()
-		defer i.mu.RUnlock()
-
-		name, tags := models.ParseKey(key)
-		mname := []byte(name)
-		seriesID := i.sfile.SeriesID(mname, tags, nil)
-
-		// Remove from series id set.
-		i.seriesSet.Remove(seriesID)
-
-		// TODO(edd): this should only happen when there are no shards containing
-		// this series.
-		if err := i.sfile.DeleteSeriesID(seriesID); err != nil {
-			return err
-		}
-
-		return nil
-	}(); err != nil {
+	// Delete series from index.
+	if err := i.activeLogFile.DeleteSeriesID(seriesID); err != nil {
 		return err
 	}
+
+	i.seriesIDSet.Remove(seriesID)
 
 	// Swap log file, if necessary.
 	if err := i.CheckLogFile(); err != nil {

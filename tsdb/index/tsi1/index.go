@@ -143,7 +143,7 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 	seriesIDSet := tsdb.NewSeriesIDSet()
 	others := make([]*tsdb.SeriesIDSet, 0, i.PartitionN)
 	for _, p := range i.partitions {
-		others = append(others, p.seriesSet)
+		others = append(others, p.seriesIDSet)
 	}
 	seriesIDSet.Merge(others...)
 	return seriesIDSet
@@ -357,6 +357,18 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	return atomic.LoadUint32(&found) == 1, nil
 }
 
+// MeasurementHasSeries returns true if a measurement has non-tombstoned series.
+func (i *Index) MeasurementHasSeries(name []byte) (bool, error) {
+	for _, p := range i.partitions {
+		if v, err := p.MeasurementHasSeries(name); err != nil {
+			return false, err
+		} else if v {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // fetchByteValues is a helper for gathering values from each partition in the index,
 // based on some criteria.
 //
@@ -467,7 +479,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *Index) CreateSeriesListIfNotExists(_ [][]byte, names [][]byte, tagsSlice []models.Tags) error {
+func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) error {
 	// All slices must be of equal length.
 	if len(names) != len(tagsSlice) {
 		return errors.New("names/tags length mismatch in index")
@@ -479,13 +491,10 @@ func (i *Index) CreateSeriesListIfNotExists(_ [][]byte, names [][]byte, tagsSlic
 	pTags := make([][]models.Tags, i.PartitionN)
 
 	// Determine partition for series using each series key.
-	buf := make([]byte, 2048)
-	for k, _ := range names {
-		buf = tsdb.AppendSeriesKey(buf[:0], names[k], tagsSlice[k])
-
-		pidx := i.partitionIdx(buf)
-		pNames[pidx] = append(pNames[pidx], names[k])
-		pTags[pidx] = append(pTags[pidx], tagsSlice[k])
+	for ki, key := range keys {
+		pidx := i.partitionIdx(key)
+		pNames[pidx] = append(pNames[pidx], names[ki])
+		pTags[pidx] = append(pTags[pidx], tagsSlice[ki])
 	}
 
 	// Process each subset of series on each partition.
@@ -527,34 +536,24 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 }
 
 // DropSeries drops the provided series from the index.
-func (i *Index) DropSeries(key []byte, ts int64) error {
+func (i *Index) DropSeries(seriesID uint64, key []byte, ts int64) error {
 	// Remove from partition.
-	if err := i.partition(key).DropSeries(key, ts); err != nil {
+	if err := i.partition(key).DropSeries(seriesID, ts); err != nil {
 		return err
 	}
 
 	// Extract measurement name.
-	name, _ := models.ParseKey(key)
-	mname := []byte(name)
+	name, _ := models.ParseKeyBytes(key)
 
 	// Check if that was the last series for the measurement in the entire index.
-	itr, err := i.MeasurementSeriesIDIterator(mname)
-	if err != nil {
+	if ok, err := i.MeasurementHasSeries(name); err != nil {
 		return err
-	} else if itr == nil {
-		return nil
-	}
-	itr = tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
-	defer itr.Close()
-
-	if e, err := itr.Next(); err != nil {
-		return err
-	} else if e.SeriesID != 0 {
+	} else if ok {
 		return nil
 	}
 
 	// If no more series exist in the measurement then delete the measurement.
-	if err := i.DropMeasurement(mname); err != nil {
+	if err := i.DropMeasurement(name); err != nil {
 		return err
 	}
 	return nil
@@ -821,9 +820,9 @@ func (i *Index) AssignShard(k string, shardID uint64)         {}
 // UnassignShard removes the provided series key from the index. The naming of
 // this method stems from a legacy index logic that used to track which shards
 // owned which series.
-func (i *Index) UnassignShard(k string, id uint64, ts int64) error {
+func (i *Index) UnassignShard(k string, _ uint64, ts int64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([]byte(k), ts)
+	return i.DropSeries(0, []byte(k), ts)
 }
 
 func (i *Index) Rebuild() {}

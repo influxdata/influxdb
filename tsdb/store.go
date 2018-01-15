@@ -267,6 +267,9 @@ func (s *Store) loadShards() error {
 					opt := s.EngineOptions
 					opt.InmemIndex = idx
 
+					// Provide an implementation of the ShardIDSets
+					opt.SeriesIDSets = shardSet{store: s, db: db}
+
 					// Existing shards should continue to use inmem index.
 					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
 						opt.IndexVersion = "inmem"
@@ -486,6 +489,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	// Copy index options and pass in shared index.
 	opt := s.EngineOptions
 	opt.InmemIndex = idx
+	opt.SeriesIDSets = shardSet{store: s, db: database}
 
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
 	shard := NewShard(shardID, path, walPath, sfile, opt)
@@ -937,7 +941,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
-func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, removeIndex bool) error {
+func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
 	if err != nil {
@@ -1015,7 +1019,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				continue
 			}
 			defer itr.Close()
-			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max, removeIndex); err != nil {
+			if err := sh.DeleteSeriesRange(NewSeriesIteratorAdapter(sfile, itr), min, max); err != nil {
 				return err
 			}
 
@@ -1730,4 +1734,29 @@ func relativePath(storePath, shardPath string) (string, error) {
 	}
 
 	return name, nil
+}
+
+type shardSet struct {
+	store *Store
+	db    string
+}
+
+func (s shardSet) ForEach(f func(ids *SeriesIDSet)) error {
+	s.store.mu.RLock()
+	shards := s.store.filterShards(byDatabase(s.db))
+	s.store.mu.RUnlock()
+
+	for _, sh := range shards {
+		idx, err := sh.Index()
+		if err != nil {
+			return err
+		}
+
+		if t, ok := idx.(interface {
+			SeriesIDSet() *SeriesIDSet
+		}); ok {
+			f(t.SeriesIDSet())
+		}
+	}
+	return nil
 }

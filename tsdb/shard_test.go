@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -365,6 +366,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir), sfile.SeriesFile)
+	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -452,6 +454,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir), sfile.SeriesFile)
+	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 	if err := sh.Open(); err != nil {
@@ -892,13 +895,12 @@ cpu,secret=foo value=100 0
 		}
 
 		// Delete series cpu,host=serverA,region=uswest
-		idx, err := sh.Index()
-		if err != nil {
-			return err
-		}
-
-		if err := idx.DropSeries([]byte("cpu,host=serverA,region=uswest"), time.Now().UnixNano()); err != nil {
-			return err
+		//
+		// We can't call directly on the index as we need to ensure the series
+		// file is updated appropriately.
+		sitr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=serverA,region=uswest")}}
+		if err := sh.DeleteSeriesRange(sitr, math.MinInt64, math.MaxInt64); err != nil {
+			t.Fatalf("failed to drop series: %s", err.Error())
 		}
 
 		if itr, err = sh.CreateIterator(context.Background(), v.m, query.IteratorOptions{
@@ -1849,6 +1851,10 @@ func NewShard(index string, sfile *tsdb.SeriesFile) *Shard {
 	if index == "inmem" {
 		opt.InmemIndex = inmem.NewIndex(path.Base(dir), sfile)
 	}
+	// Initialise series id sets. Need to do this as it's normally done at the
+	// store level.
+	seriesIDs := tsdb.NewSeriesIDSet()
+	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
 
 	return &Shard{
 		Shard: tsdb.NewShard(0,
@@ -1923,4 +1929,13 @@ func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 	s := series{name: name, tags: tags}
 	itr.keys = itr.keys[1:]
 	return s, nil
+}
+
+type seriesIDSets []*tsdb.SeriesIDSet
+
+func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
+	for _, v := range a {
+		f(v)
+	}
+	return nil
 }

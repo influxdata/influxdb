@@ -27,6 +27,7 @@ import (
 var verboseServerLogs bool
 var indexType string
 var cleanupData bool
+var seed int64
 
 // Server represents a test wrapper for run.Server.
 type Server interface {

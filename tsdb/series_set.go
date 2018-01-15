@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"io"
 	"sync"
 
 	"github.com/RoaringBitmap/roaring"
@@ -70,4 +71,67 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	s.Lock()
 	defer s.Unlock()
 	s.bitmap = roaring.FastOr(bms...)
+}
+
+// Equals returns true if other and s are the same set of ids.
+func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
+	if s == other {
+		return true
+	}
+
+	s.RLock()
+	defer s.RUnlock()
+	other.RLock()
+	other.RUnlock()
+	return s.bitmap.Equals(other.bitmap)
+}
+
+// AndNot returns the set of elements that only exist in s.
+func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
+	s.RLock()
+	defer s.RUnlock()
+	other.RLock()
+	defer other.RUnlock()
+
+	return &SeriesIDSet{bitmap: roaring.AndNot(s.bitmap, other.bitmap)}
+}
+
+// ForEach calls f for each id in the set.
+func (s *SeriesIDSet) ForEach(f func(id uint64)) {
+	s.RLock()
+	defer s.RUnlock()
+	itr := s.bitmap.Iterator()
+	for itr.HasNext() {
+		f(uint64(itr.Next()))
+	}
+}
+
+func (s *SeriesIDSet) String() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.bitmap.String()
+}
+
+// Diff deletes any bits set in other.
+func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
+	other.RLock()
+	defer other.RUnlock()
+
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap = roaring.AndNot(s.bitmap, other.bitmap)
+}
+
+// UnmarshalBinary unmarshals data into the set.
+func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
+	s.Lock()
+	defer s.Unlock()
+	return s.bitmap.UnmarshalBinary(data)
+}
+
+// WriteTo writes the set to w.
+func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return s.bitmap.WriteTo(w)
 }

@@ -32,7 +32,7 @@ type Index interface {
 	InitializeSeries(key, name []byte, tags models.Tags) error
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
-	DropSeries(key []byte, ts int64) error
+	DropSeries(seriesID uint64, key []byte, ts int64) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
@@ -2170,7 +2170,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 				if err != nil {
 					return nil, err
 				} else if sitr == nil {
-					break
+					continue
 				}
 				defer sitr.Close()
 
