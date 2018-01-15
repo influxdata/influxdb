@@ -283,7 +283,7 @@ func (p *Partition) buildSeriesSet() error {
 		if err != nil {
 			return err
 		}
-		p.seriesIDSet.Merge(p.seriesIDSet, ss)
+		p.seriesIDSet.Merge(ss)
 	}
 	return nil
 }

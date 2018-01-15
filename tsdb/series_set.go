@@ -59,18 +59,28 @@ func (s *SeriesIDSet) RemoveNoLock(id uint64) {
 	s.bitmap.Remove(uint32(id))
 }
 
-// Merge merged the contents of others into s.
+// Merge merged the contents of others into s. The caller does not need to
+// provide s as an argument, and the contents of s will always be present in s
+// after Merge returns.
 func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
-	bms := make([]*roaring.Bitmap, 0, len(others))
+	bms := make([]*roaring.Bitmap, 0, len(others)+1)
+
+	s.RLock()
+	bms = append(bms, s.bitmap) // Add ourself.
+
+	// Add other bitsets.
 	for _, other := range others {
 		other.RLock()
+		defer other.RUnlock() // Hold until we have merged all the bitmaps
 		bms = append(bms, other.bitmap)
-		other.RUnlock()
 	}
 
+	result := roaring.FastOr(bms...)
+	s.RUnlock()
+
 	s.Lock()
-	defer s.Unlock()
-	s.bitmap = roaring.FastOr(bms...)
+	s.bitmap = result
+	s.Unlock()
 }
 
 // Equals returns true if other and s are the same set of ids.

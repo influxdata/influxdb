@@ -73,11 +73,11 @@ func (p IndexFiles) buildSeriesIDSets() (seriesIDSet, tombstoneSeriesIDSet *tsdb
 
 		// Add tombstones and remove from old series existence set.
 		seriesIDSet.Diff(ts)
-		tombstoneSeriesIDSet.Merge(tombstoneSeriesIDSet, ts)
+		tombstoneSeriesIDSet.Merge(ts)
 
 		// Add new series and remove from old series tombstone set.
 		tombstoneSeriesIDSet.Diff(ss)
-		seriesIDSet.Merge(seriesIDSet, ss)
+		seriesIDSet.Merge(ss)
 	}
 
 	return seriesIDSet, tombstoneSeriesIDSet, nil
