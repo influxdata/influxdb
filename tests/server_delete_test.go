@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -113,6 +114,11 @@ func setupCommands(s *LocalServer, tracker *SeriesTracker) []Command {
 // and a database's series file.
 func TestServer_DELETE_DROP_SERIES_DROP_MEASUREMENT(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() || os.Getenv("GORACE") != "" {
+		t.Skip("Skipping test in short or race mode.")
+	}
+
 	N := 5000
 	shardN := 10
 	r := rand.New(rand.NewSource(seed))
