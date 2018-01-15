@@ -433,6 +433,10 @@ type File interface {
 	// Sketches for cardinality estimation
 	MergeMeasurementsSketches(s, t estimator.Sketch) error
 
+	// Bitmap series existance.
+	SeriesIDSet() (*tsdb.SeriesIDSet, error)
+	TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error)
+
 	// Reference counting.
 	Retain()
 	Release()

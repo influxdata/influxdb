@@ -46,6 +46,43 @@ func (p IndexFiles) Files() []File {
 	return other
 }
 
+func (p IndexFiles) buildSeriesIDSets() (seriesIDSet, tombstoneSeriesIDSet *tsdb.SeriesIDSet, err error) {
+	if len(p) == 0 {
+		return tsdb.NewSeriesIDSet(), tsdb.NewSeriesIDSet(), nil
+	}
+
+	// Start with sets from last file.
+	if seriesIDSet, err = p[len(p)-1].SeriesIDSet(); err != nil {
+		return nil, nil, err
+	} else if tombstoneSeriesIDSet, err = p[len(p)-1].TombstoneSeriesIDSet(); err != nil {
+		return nil, nil, err
+	}
+
+	// Build sets in reverse order.
+	// This assumes that bits in both sets are mutually exclusive.
+	for i := len(p) - 2; i >= 0; i-- {
+		ss, err := p[i].SeriesIDSet()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		ts, err := p[i].TombstoneSeriesIDSet()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Add tombstones and remove from old series existence set.
+		seriesIDSet.Diff(ts)
+		tombstoneSeriesIDSet.Merge(tombstoneSeriesIDSet, ts)
+
+		// Add new series and remove from old series tombstone set.
+		tombstoneSeriesIDSet.Diff(ss)
+		seriesIDSet.Merge(seriesIDSet, ss)
+	}
+
+	return seriesIDSet, tombstoneSeriesIDSet, nil
+}
+
 // MeasurementNames returns a sorted list of all measurement names for all files.
 func (p *IndexFiles) MeasurementNames() [][]byte {
 	itr := p.MeasurementIterator()
@@ -146,8 +183,30 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64) 
 	}
 	t.MeasurementBlock.Size = n - t.MeasurementBlock.Offset
 
+	// Build series sets.
+	seriesIDSet, tombstoneSeriesIDSet, err := p.buildSeriesIDSets()
+	if err != nil {
+		return n, err
+	}
+
+	// Write series set.
+	t.SeriesIDSet.Offset = n
+	nn, err := seriesIDSet.WriteTo(bw)
+	if n += nn; err != nil {
+		return n, err
+	}
+	t.SeriesIDSet.Size = n - t.SeriesIDSet.Offset
+
+	// Write tombstone series set.
+	t.TombstoneSeriesIDSet.Offset = n
+	nn, err = tombstoneSeriesIDSet.WriteTo(bw)
+	if n += nn; err != nil {
+		return n, err
+	}
+	t.TombstoneSeriesIDSet.Size = n - t.TombstoneSeriesIDSet.Offset
+
 	// Write trailer.
-	nn, err := t.WriteTo(bw)
+	nn, err = t.WriteTo(bw)
 	n += nn
 	if err != nil {
 		return n, err
