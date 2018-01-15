@@ -20,7 +20,7 @@ test:
         - bash circle-test.sh:
             parallel: true
             # Race tests using 960s timeout
-            timeout: 960
+            timeout: 1500
 
 deployment:
   release:
