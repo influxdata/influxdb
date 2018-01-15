@@ -970,7 +970,8 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 
 	sfile := s.sfiles[database]
 	if sfile == nil {
-		return fmt.Errorf("unable to locate series file for database: %q", database)
+		// No series file means nothing has been written to this DB and thus nothing to delete.
+		return nil
 	}
 	shards := s.filterShards(byDatabase(database))
 
