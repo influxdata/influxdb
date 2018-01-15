@@ -59,6 +59,13 @@ func (s *SeriesIDSet) RemoveNoLock(id uint64) {
 	s.bitmap.Remove(uint32(id))
 }
 
+// Cardinality returns the cardinality of the SeriesIDSet.
+func (s *SeriesIDSet) Cardinality() uint64 {
+	s.RLock()
+	defer s.RUnlock()
+	return s.bitmap.GetCardinality()
+}
+
 // Merge merged the contents of others into s. The caller does not need to
 // provide s as an argument, and the contents of s will always be present in s
 // after Merge returns.
@@ -96,7 +103,8 @@ func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
 	return s.bitmap.Equals(other.bitmap)
 }
 
-// AndNot returns the set of elements that only exist in s.
+// AndNot returns a new SeriesIDSet containing elements that were present in s,
+// but not present in other.
 func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
 	s.RLock()
 	defer s.RUnlock()
@@ -122,7 +130,7 @@ func (s *SeriesIDSet) String() string {
 	return s.bitmap.String()
 }
 
-// Diff deletes any bits set in other.
+// Diff removes from s any elements also present in other.
 func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 	other.RLock()
 	defer other.RUnlock()

@@ -411,15 +411,6 @@ func (s *Shard) LastModified() time.Time {
 	return engine.LastModified()
 }
 
-// UnloadIndex removes all references to this shard from the DatabaseIndex
-func (s *Shard) UnloadIndex() {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if err := s.ready(); err != nil {
-		return
-	}
-}
-
 // Index returns a reference to the underlying index. It returns an error if
 // the index is nil.
 func (s *Shard) Index() (Index, error) {
