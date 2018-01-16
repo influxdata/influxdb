@@ -180,6 +180,10 @@ func TestServer_Insert_Delete_1515688266259660938_same_shard(t *testing.T) {
 	// Original seed was 1515688266259660938.
 	t.Parallel()
 
+	if testing.Short() || os.Getenv("GORACE") != "" {
+		t.Skip("Skipping test in short or race mode.")
+	}
+
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
@@ -204,6 +208,10 @@ func TestServer_Insert_Delete_1515688266259660938_same_shard(t *testing.T) {
 func TestServer_Insert_Delete_1515688266259660938(t *testing.T) {
 	// Original seed was 1515688266259660938.
 	t.Parallel()
+
+	if testing.Short() || os.Getenv("GORACE") != "" {
+		t.Skip("Skipping test in short or race mode.")
+	}
 
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
@@ -230,6 +238,10 @@ func TestServer_Insert_Delete_1515688266259660938(t *testing.T) {
 func TestServer_Insert_Delete_1515771752164780713(t *testing.T) {
 	// Original seed was 1515771752164780713.
 	t.Parallel()
+
+	if testing.Short() || os.Getenv("GORACE") != "" {
+		t.Skip("Skipping test in short or race mode.")
+	}
 
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
