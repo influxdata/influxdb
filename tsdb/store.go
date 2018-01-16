@@ -885,16 +885,39 @@ func (s *Store) estimateCardinality(dbName string, getSketches func(*Shard) (est
 }
 
 // SeriesCardinality returns the series cardinality for the provided database.
+//
+// Cardinality is calculated exactly by unioning all shards' bitsets of series IDs.
 func (s *Store) SeriesCardinality(database string) (int64, error) {
-	sfile := s.seriesFile(database)
-	if sfile == nil {
-		return 0, nil
-	}
-	return int64(sfile.SeriesCount()), nil
+	s.mu.RLock()
+	shards := s.filterShards(byDatabase(database))
+	s.mu.RUnlock()
+
+	others := make([]*SeriesIDSet, 0, len(shards))
+	s.walkShards(shards, func(sh *Shard) error {
+		index, err := sh.Index()
+		if err != nil {
+			return err
+		}
+
+		if i, ok := index.(interface {
+			SeriesIDSet() *SeriesIDSet
+		}); ok {
+			others = append(others, i.SeriesIDSet())
+		} else {
+			return fmt.Errorf("unable to get series id set for index in shard at %s", sh.Path())
+		}
+		return nil
+	})
+
+	ss := NewSeriesIDSet()
+	ss.Merge(others...)
+	return int64(ss.Cardinality()), nil
 }
 
 // MeasurementsCardinality returns the measurement cardinality for the provided
 // database.
+//
+// Cardinality is calculated using a sketch-based estimation.
 func (s *Store) MeasurementsCardinality(database string) (int64, error) {
 	return s.estimateCardinality(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
 		if sh == nil {

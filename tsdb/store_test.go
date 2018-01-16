@@ -634,7 +634,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	// Delete all the series for each measurement.
-	mnames, err := store.MeasurementNames(query.OpenAuthorizer, "db", nil)
+	mnames, err := store.MeasurementNames(nil, "db", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -652,9 +652,8 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	// Estimated cardinality should be well within 10 of the actual cardinality.
-	// TODO(edd): this epsilon is arbitrary. How can I make it better?
-	if got, exp := cardinality, int64(10); got > exp {
-		t.Errorf("series cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
+	if got, exp := int(cardinality), 10; got > exp {
+		t.Errorf("series cardinality was %v (expected within %v), expected was: %d", got, exp, 0)
 	}
 
 	// Since all the series have been deleted, all the measurements should have
@@ -665,14 +664,12 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 
 	// Estimated cardinality should be well within 2 of the actual cardinality.
 	// TODO(edd): this is totally arbitrary. How can I make it better?
-	if got, exp := cardinality, int64(2); got > exp {
-		t.Errorf("measurement cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
+	if got, exp := int(cardinality), 2; got > exp {
+		t.Errorf("measurement cardinality was %v (expected within %v), expected was: %d", got, exp, 0)
 	}
 }
 
 func TestStore_Cardinality_Tombstoning(t *testing.T) {
-	t.Skip("TODO(benbjohnson): Fix once series file moved to DB")
-
 	t.Parallel()
 
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
