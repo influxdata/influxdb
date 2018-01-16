@@ -13,6 +13,7 @@ import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
+import {getAnnotations} from 'src/shared/annotations/helpers'
 import {
   OPTIONS,
   LINE_COLORS,
@@ -403,47 +404,14 @@ export default class Dygraph extends Component {
       isFilterVisible,
     } = this.state
 
-    let annotationsWithEndpoints = []
-
-    if (this.dygraph) {
-      const [xStart, xEnd] = this.dygraph.xAxisRange()
-      annotationsWithEndpoints = annotations.reduce((acc, a) => {
-        // Don't render if annotation.time is outside the graph
-        if (+a.time < xStart || +a.time > xEnd) {
-          return acc
-        }
-        // If annotation does not have duration, include in array
-        if (!a.duration) {
-          return [...acc, a]
-        }
-
-        const annotationEndpoint = {
-          ...a,
-          time: String(Number(a.time) + Number(a.duration)),
-          duration: '',
-        }
-
-        const endpointOutOfBounds =
-          +annotationEndpoint.time < xStart || +annotationEndpoint.time > xEnd
-
-        // If endpoint is out of bounds, just render the start point
-        if (endpointOutOfBounds) {
-          return [...acc, a]
-        }
-
-        // Render both the start and end point
-        return [...acc, a, annotationEndpoint]
-      }, [])
-    }
-
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         <Annotations
-          annotations={annotationsWithEndpoints}
+          annotations={getAnnotations(this.dygraph, annotations)}
           dygraph={this.dygraph}
         />
         <AnnotationWindows
-          annotations={annotationsWithEndpoints}
+          annotations={getAnnotations(this.dygraph, annotations)}
           dygraph={this.dygraph}
         />
         <DygraphLegend
