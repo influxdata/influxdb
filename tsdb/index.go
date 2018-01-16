@@ -1097,9 +1097,6 @@ func (is IndexSet) FieldSet() *MeasurementFieldSet {
 
 // DedupeInmemIndexes returns an index set which removes duplicate in-memory indexes.
 func (is IndexSet) DedupeInmemIndexes() IndexSet {
-	release := is.SeriesFile.Retain()
-	defer release()
-
 	other := IndexSet{Indexes: make([]Index, 0, len(is.Indexes)), SeriesFile: is.SeriesFile}
 
 	var hasInmem bool
@@ -1116,6 +1113,8 @@ func (is IndexSet) DedupeInmemIndexes() IndexSet {
 	return other
 }
 
+// MeasurementNamesByExpr returns a slice of measurement names matching the
+// provided condition. If no condition is provided then all names are returned.
 func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
@@ -1125,7 +1124,7 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.E
 		return is.measurementNamesByExpr(auth, expr)
 	}
 
-	itr, err := is.MeasurementIterator()
+	itr, err := is.measurementIterator()
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
@@ -1220,7 +1219,7 @@ func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.E
 
 // measurementNamesByNameFilter returns matching measurement names in sorted order.
 func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) ([][]byte, error) {
-	itr, err := is.MeasurementIterator()
+	itr, err := is.measurementIterator()
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
@@ -1260,7 +1259,7 @@ func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influx
 func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
 	var names [][]byte
 
-	mitr, err := is.MeasurementIterator()
+	mitr, err := is.measurementIterator()
 	if err != nil {
 		return nil, err
 	} else if mitr == nil {
@@ -1286,7 +1285,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 			break
 		}
 		// If the measurement doesn't have the tag key, then it won't be considered.
-		if ok, err := is.HasTagKey(me, []byte(key)); err != nil {
+		if ok, err := is.hasTagKey(me, []byte(key)); err != nil {
 			return nil, err
 		} else if !ok {
 			continue
@@ -1295,7 +1294,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 		// Authorization must be explicitly granted when an authorizer is present.
 		authorized = auth == nil
 
-		vitr, err := is.TagValueIterator(me, []byte(key))
+		vitr, err := is.tagValueIterator(me, []byte(key))
 		if err != nil {
 			return nil, err
 		}
@@ -1321,7 +1320,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 
 				// When an authorizer is present, the measurement should be
 				// included only if one of it's series is authorized.
-				sitr, err := is.TagValueSeriesIDIterator(me, []byte(key), ve)
+				sitr, err := is.tagValueSeriesIDIterator(me, []byte(key), ve)
 				if err != nil {
 					return nil, err
 				} else if sitr == nil {
@@ -1391,7 +1390,7 @@ func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byt
 		return true
 	}
 
-	sitr, err := is.MeasurementSeriesIDIterator(name)
+	sitr, err := is.measurementSeriesIDIterator(name)
 	if err != nil || sitr == nil {
 		return false
 	}
@@ -1417,6 +1416,12 @@ func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byt
 // HasTagKey returns true if the tag key exists in any index for the provided
 // measurement.
 func (is IndexSet) HasTagKey(name, key []byte) (bool, error) {
+	return is.hasTagKey(name, key)
+}
+
+// hasTagKey returns true if the tag key exists in any index for the provided
+// measurement, and guarantees to never take a lock on the series file.
+func (is IndexSet) hasTagKey(name, key []byte) (bool, error) {
 	for _, idx := range is.Indexes {
 		if ok, err := idx.HasTagKey(name, key); err != nil {
 			return false, err
@@ -1442,6 +1447,12 @@ func (is IndexSet) HasTagValue(name, key, value []byte) (bool, error) {
 
 // MeasurementIterator returns an iterator over all measurements in the index.
 func (is IndexSet) MeasurementIterator() (MeasurementIterator, error) {
+	return is.measurementIterator()
+}
+
+// measurementIterator returns an iterator over all measurements in the index.
+// It guarantees to never take any locks on the underlying series file.
+func (is IndexSet) measurementIterator() (MeasurementIterator, error) {
 	a := make([]MeasurementIterator, 0, len(is.Indexes))
 	for _, idx := range is.Indexes {
 		itr, err := idx.MeasurementIterator()
@@ -1457,6 +1468,12 @@ func (is IndexSet) MeasurementIterator() (MeasurementIterator, error) {
 
 // TagKeyIterator returns a key iterator for a measurement.
 func (is IndexSet) TagKeyIterator(name []byte) (TagKeyIterator, error) {
+	return is.tagKeyIterator(name)
+}
+
+// tagKeyIterator returns a key iterator for a measurement. It guarantees to never
+// take any locks on the underlying series file.
+func (is IndexSet) tagKeyIterator(name []byte) (TagKeyIterator, error) {
 	a := make([]TagKeyIterator, 0, len(is.Indexes))
 	for _, idx := range is.Indexes {
 		itr, err := idx.TagKeyIterator(name)
@@ -1472,6 +1489,12 @@ func (is IndexSet) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 
 // TagValueIterator returns a value iterator for a tag key.
 func (is IndexSet) TagValueIterator(name, key []byte) (TagValueIterator, error) {
+	return is.tagValueIterator(name, key)
+}
+
+// tagValueIterator returns a value iterator for a tag key. It guarantees to never
+// take any locks on the underlying series file.
+func (is IndexSet) tagValueIterator(name, key []byte) (TagValueIterator, error) {
 	a := make([]TagValueIterator, 0, len(is.Indexes))
 	for _, idx := range is.Indexes {
 		itr, err := idx.TagValueIterator(name, key)
@@ -1491,7 +1514,7 @@ func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.Authorizer, name, tagKey
 	release := is.SeriesFile.Retain()
 	defer release()
 
-	itr, err := is.TagKeySeriesIDIterator(name, tagKey)
+	itr, err := is.tagKeySeriesIDIterator(name, tagKey)
 	if err != nil {
 		return false, err
 	} else if itr == nil {
@@ -1525,7 +1548,13 @@ func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.Authorizer, name, tagKey
 func (is IndexSet) MeasurementSeriesIDIterator(name []byte) (SeriesIDIterator, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
+	return is.measurementSeriesIDIterator(name)
+}
 
+// measurementSeriesIDIterator does not provide any locking on the Series file.
+//
+// See  MeasurementSeriesIDIterator for more details.
+func (is IndexSet) measurementSeriesIDIterator(name []byte) (SeriesIDIterator, error) {
 	a := make([]SeriesIDIterator, 0, len(is.Indexes))
 	for _, idx := range is.Indexes {
 		itr, err := idx.MeasurementSeriesIDIterator(name)
@@ -1545,7 +1574,7 @@ func (is IndexSet) ForEachMeasurementTagKey(name []byte, fn func(key []byte) err
 	release := is.SeriesFile.Retain()
 	defer release()
 
-	itr, err := is.TagKeyIterator(name)
+	itr, err := is.tagKeyIterator(name)
 	if err != nil {
 		return err
 	} else if itr == nil {
@@ -1589,7 +1618,14 @@ func (is IndexSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 func (is IndexSet) TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
+	return is.tagKeySeriesIDIterator(name, key)
+}
 
+// tagKeySeriesIDIterator returns a series iterator for all values across a
+// single key.
+//
+// It guarantees to never take any locks on the series file.
+func (is IndexSet) tagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, error) {
 	a := make([]SeriesIDIterator, 0, len(is.Indexes))
 	for _, idx := range is.Indexes {
 		itr, err := idx.TagKeySeriesIDIterator(name, key)
@@ -1607,7 +1643,13 @@ func (is IndexSet) TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, e
 func (is IndexSet) TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIterator, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
+	return is.tagValueSeriesIDIterator(name, key, value)
+}
 
+// tagValueSeriesIDIterator does not provide any locking on the Series File.
+//
+// See TagValueSeriesIDIterator for more details.
+func (is IndexSet) tagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIterator, error) {
 	a := make([]SeriesIDIterator, 0, len(is.Indexes))
 	for _, idx := range is.Indexes {
 		itr, err := idx.TagValueSeriesIDIterator(name, key, value)
@@ -1627,10 +1669,18 @@ func (is IndexSet) TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIt
 func (is IndexSet) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr) (SeriesIDIterator, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
+	return is.measurementSeriesByExprIterator(name, expr)
+}
 
+// measurementSeriesByExprIterator returns a series iterator for a measurement
+// that is filtered by expr. See MeasurementSeriesByExprIterator for more details.
+//
+// measurementSeriesByExprIterator guarantees to never take any locks on the
+// series file.
+func (is IndexSet) measurementSeriesByExprIterator(name []byte, expr influxql.Expr) (SeriesIDIterator, error) {
 	// Return all series for the measurement if there are no tag expressions.
 	if expr == nil {
-		return is.MeasurementSeriesIDIterator(name)
+		return is.measurementSeriesIDIterator(name)
 	}
 	fieldset := is.FieldSet()
 
@@ -1647,7 +1697,7 @@ func (is IndexSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) 
 	defer release()
 
 	// Create iterator for all matching series.
-	itr, err := is.MeasurementSeriesByExprIterator(name, expr)
+	itr, err := is.measurementSeriesByExprIterator(name, expr)
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
@@ -1730,13 +1780,13 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 	// If this binary expression has another binary expression, then this
 	// is some expression math and we should just pass it to the underlying query.
 	if _, ok := n.LHS.(*influxql.BinaryExpr); ok {
-		itr, err := is.MeasurementSeriesIDIterator(name)
+		itr, err := is.measurementSeriesIDIterator(name)
 		if err != nil {
 			return nil, err
 		}
 		return newSeriesIDExprIterator(itr, n), nil
 	} else if _, ok := n.RHS.(*influxql.BinaryExpr); ok {
-		itr, err := is.MeasurementSeriesIDIterator(name)
+		itr, err := is.measurementSeriesIDIterator(name)
 		if err != nil {
 			return nil, err
 		}
@@ -1756,7 +1806,7 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 
 	// For fields, return all series from this measurement.
 	if key.Val != "_name" && ((key.Type == influxql.Unknown && mf.HasField(key.Val)) || key.Type == influxql.AnyField || (key.Type != influxql.Tag && key.Type != influxql.Unknown)) {
-		itr, err := is.MeasurementSeriesIDIterator(name)
+		itr, err := is.measurementSeriesIDIterator(name)
 		if err != nil {
 			return nil, err
 		}
@@ -1764,7 +1814,7 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 	} else if value, ok := value.(*influxql.VarRef); ok {
 		// Check if the RHS is a variable and if it is a field.
 		if value.Val != "_name" && ((value.Type == influxql.Unknown && mf.HasField(value.Val)) || key.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
-			itr, err := is.MeasurementSeriesIDIterator(name)
+			itr, err := is.measurementSeriesIDIterator(name)
 			if err != nil {
 				return nil, err
 			}
@@ -1782,7 +1832,7 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 		return is.seriesByBinaryExprVarRefIterator(name, []byte(key.Val), value, n.Op)
 	default:
 		if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
-			return is.MeasurementSeriesIDIterator(name)
+			return is.measurementSeriesIDIterator(name)
 		}
 		return nil, nil
 	}
@@ -1792,7 +1842,7 @@ func (is IndexSet) seriesByBinaryExprStringIterator(name, key, value []byte, op 
 	// Special handling for "_name" to match measurement name.
 	if bytes.Equal(key, []byte("_name")) {
 		if (op == influxql.EQ && bytes.Equal(value, name)) || (op == influxql.NEQ && !bytes.Equal(value, name)) {
-			return is.MeasurementSeriesIDIterator(name)
+			return is.measurementSeriesIDIterator(name)
 		}
 		return nil, nil
 	}
@@ -1800,15 +1850,15 @@ func (is IndexSet) seriesByBinaryExprStringIterator(name, key, value []byte, op 
 	if op == influxql.EQ {
 		// Match a specific value.
 		if len(value) != 0 {
-			return is.TagValueSeriesIDIterator(name, key, value)
+			return is.tagValueSeriesIDIterator(name, key, value)
 		}
 
-		mitr, err := is.MeasurementSeriesIDIterator(name)
+		mitr, err := is.measurementSeriesIDIterator(name)
 		if err != nil {
 			return nil, err
 		}
 
-		kitr, err := is.TagKeySeriesIDIterator(name, key)
+		kitr, err := is.tagKeySeriesIDIterator(name, key)
 		if err != nil {
 			if mitr != nil {
 				mitr.Close()
@@ -1822,12 +1872,12 @@ func (is IndexSet) seriesByBinaryExprStringIterator(name, key, value []byte, op 
 
 	// Return all measurement series without this tag value.
 	if len(value) != 0 {
-		mitr, err := is.MeasurementSeriesIDIterator(name)
+		mitr, err := is.measurementSeriesIDIterator(name)
 		if err != nil {
 			return nil, err
 		}
 
-		vitr, err := is.TagValueSeriesIDIterator(name, key, value)
+		vitr, err := is.tagValueSeriesIDIterator(name, key, value)
 		if err != nil {
 			if mitr != nil {
 				mitr.Close()
@@ -1839,7 +1889,7 @@ func (is IndexSet) seriesByBinaryExprStringIterator(name, key, value []byte, op 
 	}
 
 	// Return all series across all values of this tag key.
-	return is.TagKeySeriesIDIterator(name, key)
+	return is.tagKeySeriesIDIterator(name, key)
 }
 
 func (is IndexSet) seriesByBinaryExprRegexIterator(name, key []byte, value *regexp.Regexp, op influxql.Token) (SeriesIDIterator, error) {
@@ -1847,7 +1897,7 @@ func (is IndexSet) seriesByBinaryExprRegexIterator(name, key []byte, value *rege
 	if bytes.Equal(key, []byte("_name")) {
 		match := value.Match(name)
 		if (op == influxql.EQREGEX && match) || (op == influxql.NEQREGEX && !match) {
-			mitr, err := is.MeasurementSeriesIDIterator(name)
+			mitr, err := is.measurementSeriesIDIterator(name)
 			if err != nil {
 				return nil, err
 			}
@@ -1855,16 +1905,16 @@ func (is IndexSet) seriesByBinaryExprRegexIterator(name, key []byte, value *rege
 		}
 		return nil, nil
 	}
-	return is.MatchTagValueSeriesIDIterator(name, key, value, op == influxql.EQREGEX)
+	return is.matchTagValueSeriesIDIterator(name, key, value, op == influxql.EQREGEX)
 }
 
 func (is IndexSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *influxql.VarRef, op influxql.Token) (SeriesIDIterator, error) {
-	itr0, err := is.TagKeySeriesIDIterator(name, key)
+	itr0, err := is.tagKeySeriesIDIterator(name, key)
 	if err != nil {
 		return nil, err
 	}
 
-	itr1, err := is.TagKeySeriesIDIterator(name, []byte(value.Val))
+	itr1, err := is.tagKeySeriesIDIterator(name, []byte(value.Val))
 	if err != nil {
 		if itr0 != nil {
 			itr0.Close()
@@ -1883,9 +1933,15 @@ func (is IndexSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *inf
 func (is IndexSet) MatchTagValueSeriesIDIterator(name, key []byte, value *regexp.Regexp, matches bool) (SeriesIDIterator, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
+	return is.matchTagValueSeriesIDIterator(name, key, value, matches)
+}
 
+// matchTagValueSeriesIDIterator returns a series iterator for tags which match
+// value. See MatchTagValueSeriesIDIterator for more details.
+//
+// It guarantees to never take any locks on the underlying series file.
+func (is IndexSet) matchTagValueSeriesIDIterator(name, key []byte, value *regexp.Regexp, matches bool) (SeriesIDIterator, error) {
 	matchEmpty := value.MatchString("")
-
 	if matches {
 		if matchEmpty {
 			return is.matchTagValueEqualEmptySeriesIDIterator(name, key, value)
@@ -1900,11 +1956,11 @@ func (is IndexSet) MatchTagValueSeriesIDIterator(name, key []byte, value *regexp
 }
 
 func (is IndexSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, value *regexp.Regexp) (SeriesIDIterator, error) {
-	vitr, err := is.TagValueIterator(name, key)
+	vitr, err := is.tagValueIterator(name, key)
 	if err != nil {
 		return nil, err
 	} else if vitr == nil {
-		return is.MeasurementSeriesIDIterator(name)
+		return is.measurementSeriesIDIterator(name)
 	}
 	defer vitr.Close()
 
@@ -1919,7 +1975,7 @@ func (is IndexSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, val
 			}
 
 			if !value.Match(e) {
-				itr, err := is.TagValueSeriesIDIterator(name, key, e)
+				itr, err := is.tagValueSeriesIDIterator(name, key, e)
 				if err != nil {
 					return err
 				}
@@ -1932,7 +1988,7 @@ func (is IndexSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, val
 		return nil, err
 	}
 
-	mitr, err := is.MeasurementSeriesIDIterator(name)
+	mitr, err := is.measurementSeriesIDIterator(name)
 	if err != nil {
 		SeriesIDIterators(itrs).Close()
 		return nil, err
@@ -1942,7 +1998,7 @@ func (is IndexSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, val
 }
 
 func (is IndexSet) matchTagValueEqualNotEmptySeriesIDIterator(name, key []byte, value *regexp.Regexp) (SeriesIDIterator, error) {
-	vitr, err := is.TagValueIterator(name, key)
+	vitr, err := is.tagValueIterator(name, key)
 	if err != nil {
 		return nil, err
 	} else if vitr == nil {
@@ -1961,7 +2017,7 @@ func (is IndexSet) matchTagValueEqualNotEmptySeriesIDIterator(name, key []byte, 
 		}
 
 		if value.Match(e) {
-			itr, err := is.TagValueSeriesIDIterator(name, key, e)
+			itr, err := is.tagValueSeriesIDIterator(name, key, e)
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
@@ -1973,7 +2029,7 @@ func (is IndexSet) matchTagValueEqualNotEmptySeriesIDIterator(name, key []byte, 
 }
 
 func (is IndexSet) matchTagValueNotEqualEmptySeriesIDIterator(name, key []byte, value *regexp.Regexp) (SeriesIDIterator, error) {
-	vitr, err := is.TagValueIterator(name, key)
+	vitr, err := is.tagValueIterator(name, key)
 	if err != nil {
 		return nil, err
 	} else if vitr == nil {
@@ -1992,7 +2048,7 @@ func (is IndexSet) matchTagValueNotEqualEmptySeriesIDIterator(name, key []byte, 
 		}
 
 		if !value.Match(e) {
-			itr, err := is.TagValueSeriesIDIterator(name, key, e)
+			itr, err := is.tagValueSeriesIDIterator(name, key, e)
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
@@ -2004,11 +2060,11 @@ func (is IndexSet) matchTagValueNotEqualEmptySeriesIDIterator(name, key []byte, 
 }
 
 func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byte, value *regexp.Regexp) (SeriesIDIterator, error) {
-	vitr, err := is.TagValueIterator(name, key)
+	vitr, err := is.tagValueIterator(name, key)
 	if err != nil {
 		return nil, err
 	} else if vitr == nil {
-		return is.MeasurementSeriesIDIterator(name)
+		return is.measurementSeriesIDIterator(name)
 	}
 	defer vitr.Close()
 
@@ -2022,7 +2078,7 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 			break
 		}
 		if value.Match(e) {
-			itr, err := is.TagValueSeriesIDIterator(name, key, e)
+			itr, err := is.tagValueSeriesIDIterator(name, key, e)
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
@@ -2031,7 +2087,7 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 		}
 	}
 
-	mitr, err := is.MeasurementSeriesIDIterator(name)
+	mitr, err := is.measurementSeriesIDIterator(name)
 	if err != nil {
 		SeriesIDIterators(itrs).Close()
 		return nil, err
@@ -2049,7 +2105,15 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *MeasurementFieldSet) ([]map[string]struct{}, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
+	return is.tagValuesByKeyAndExpr(auth, name, keys, expr, fieldset)
+}
 
+// tagValuesByKeyAndExpr retrieves tag values for the provided tag keys. See
+// TagValuesByKeyAndExpr for more details.
+//
+// tagValuesByKeyAndExpr guarantees to never take any locks on the underlying
+// series file.
+func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *MeasurementFieldSet) ([]map[string]struct{}, error) {
 	database := is.Database()
 
 	itr, err := is.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
@@ -2134,7 +2198,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 	// all.
 	if expr == nil {
 		for ki, key := range keys {
-			vitr, err := is.TagValueIterator(name, []byte(key))
+			vitr, err := is.tagValueIterator(name, []byte(key))
 			if err != nil {
 				return nil, err
 			} else if vitr == nil {
@@ -2166,7 +2230,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 					break
 				}
 
-				sitr, err := is.TagValueSeriesIDIterator(name, []byte(key), val)
+				sitr, err := is.tagValueSeriesIDIterator(name, []byte(key), val)
 				if err != nil {
 					return nil, err
 				} else if sitr == nil {
@@ -2201,7 +2265,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 	// This is the case where we have filtered series by some WHERE condition.
 	// We only care about the tag values for the keys given the
 	// filtered set of series ids.
-	resultSet, err := is.TagValuesByKeyAndExpr(auth, name, keys, expr, is.FieldSet())
+	resultSet, err := is.tagValuesByKeyAndExpr(auth, name, keys, expr, is.FieldSet())
 	if err != nil {
 		return nil, err
 	}
@@ -2224,7 +2288,7 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 	release := is.SeriesFile.Retain()
 	defer release()
 
-	itr, err := is.MeasurementSeriesByExprIterator(name, opt.Condition)
+	itr, err := is.measurementSeriesByExprIterator(name, opt.Condition)
 	if err != nil {
 		return nil, err
 	} else if itr != nil {
@@ -2319,7 +2383,7 @@ func RegisterIndex(name string, fn NewIndexFunc) {
 	newIndexFuncs[name] = fn
 }
 
-// RegisteredIndexs returns the slice of currently registered indexes.
+// RegisteredIndexes returns the slice of currently registered indexes.
 func RegisteredIndexes() []string {
 	a := make([]string, 0, len(newIndexFuncs))
 	for k := range newIndexFuncs {
