@@ -937,6 +937,9 @@ type LogEntry struct {
 
 // UnmarshalBinary unmarshals data into e.
 func (e *LogEntry) UnmarshalBinary(data []byte) error {
+	var sz uint64
+	var n int
+
 	orig := data
 	start := len(data)
 
@@ -956,8 +959,9 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	// Parse name length.
 	if len(data) < 1 {
 		return io.ErrShortBuffer
+	} else if sz, n = binary.Uvarint(data); n == 0 {
+		return io.ErrShortBuffer
 	}
-	sz, n := binary.Uvarint(data)
 
 	// Read name data.
 	if len(data) < n+int(sz) {
@@ -968,8 +972,9 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	// Parse key length.
 	if len(data) < 1 {
 		return io.ErrShortBuffer
+	} else if sz, n = binary.Uvarint(data); n == 0 {
+		return io.ErrShortBuffer
 	}
-	sz, n = binary.Uvarint(data)
 
 	// Read key data.
 	if len(data) < n+int(sz) {
@@ -980,8 +985,9 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	// Parse value length.
 	if len(data) < 1 {
 		return io.ErrShortBuffer
+	} else if sz, n = binary.Uvarint(data); n == 0 {
+		return io.ErrShortBuffer
 	}
-	sz, n = binary.Uvarint(data)
 
 	// Read value data.
 	if len(data) < n+int(sz) {
