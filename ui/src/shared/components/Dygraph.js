@@ -7,6 +7,7 @@ import NanoDate from 'nano-date'
 import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import Annotations from 'src/shared/components/Annotations'
+import AnnotationWindows from 'src/shared/components/AnnotationWindows'
 
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
@@ -23,13 +24,12 @@ import {
 } from 'src/shared/graphs/helpers'
 const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
 
-const oneHourInNanos = '3600000000000'
 const annotations = [
   {
     group: '',
     name: 'anno1',
-    time: '1515716169000000000',
-    duration: oneHourInNanos,
+    time: '1515716169000',
+    duration: '3600000', // 1 hour
     text: 'you have no swoggels',
   },
 ]
@@ -403,9 +403,49 @@ export default class Dygraph extends Component {
       isFilterVisible,
     } = this.state
 
+    let annotationsWithEndpoints = []
+
+    if (this.dygraph) {
+      const [xStart, xEnd] = this.dygraph.xAxisRange()
+      annotationsWithEndpoints = annotations.reduce((acc, a) => {
+        // Don't render if annotation.time is outside the graph
+        if (+a.time < xStart || +a.time > xEnd) {
+          return acc
+        }
+        // If annotation does not have duration, include in array
+        if (!a.duration) {
+          return [...acc, a]
+        }
+
+        const annotationEndpoint = {
+          ...a,
+          time: String(Number(a.time) + Number(a.duration)),
+          duration: '',
+        }
+
+        const endpointOutOfBounds =
+          +annotationEndpoint.time < xStart || +annotationEndpoint.time > xEnd
+
+        // If endpoint is out of bounds, just render the start point
+        if (endpointOutOfBounds) {
+          return [...acc, a]
+        }
+
+        // Render both the start and end point
+        return [...acc, a, annotationEndpoint]
+      }, [])
+    }
+
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        <Annotations annotations={annotations} dygraph={this.dygraph} />
+        <Annotations
+          annotations={annotationsWithEndpoints}
+          dygraph={this.dygraph}
+        />
+        <AnnotationWindows
+          annotations={annotationsWithEndpoints}
+          dygraph={this.dygraph}
+        />
         <DygraphLegend
           {...legend}
           graph={this.graphRef}
@@ -430,7 +470,7 @@ export default class Dygraph extends Component {
             this.props.dygraphRef(r)
           }}
           className="dygraph-child-container"
-          style={this.props.containerStyle}
+          style={{...this.props.containerStyle, zIndex: '100'}}
         />
       </div>
     )
