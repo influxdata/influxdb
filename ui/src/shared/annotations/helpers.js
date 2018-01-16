@@ -1,4 +1,4 @@
-export const getAnnotations = (graph, annotations) => {
+export const getAnnotations = (graph, annotations = []) => {
   if (!graph) {
     return []
   }
@@ -9,6 +9,7 @@ export const getAnnotations = (graph, annotations) => {
     if (+a.time < xStart || +a.time > xEnd) {
       return acc
     }
+
     // If annotation does not have duration, include in array
     if (!a.duration) {
       return [...acc, a]
