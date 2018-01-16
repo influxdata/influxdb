@@ -162,27 +162,88 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 func TestStore_DeleteShard(t *testing.T) {
 	t.Parallel()
 
-	test := func(index string) {
+	test := func(index string) error {
 		s := MustOpenStore(index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
 		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
-			t.Fatal(err)
+			return err
 		} else if sh := s.Shard(1); sh == nil {
-			t.Fatalf("expected shard")
+			return fmt.Errorf("expected shard")
 		}
 
-		// Reopen shard and recheck.
-		if err := s.Reopen(); err != nil {
-			t.Fatal(err)
-		} else if sh := s.Shard(1); sh == nil {
-			t.Fatalf("shard exists")
+		// Create another shard.
+		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+			return err
+		} else if sh := s.Shard(2); sh == nil {
+			return fmt.Errorf("expected shard")
 		}
+
+		// and another, but in a different db.
+		if err := s.CreateShard("db1", "rp0", 3, true); err != nil {
+			return err
+		} else if sh := s.Shard(3); sh == nil {
+			return fmt.Errorf("expected shard")
+		}
+
+		// Write series data to the db0 shards.
+		s.MustWriteToShardString(1, "cpu,servera=a v=1", "cpu,serverb=b v=1", "mem,serverc=a v=1")
+		s.MustWriteToShardString(2, "cpu,servera=a v=1", "mem,serverc=a v=1")
+
+		// Write similar data to db1 database
+		s.MustWriteToShardString(3, "cpu,serverb=b v=1")
+
+		// Reopen the store and check all shards still exist
+		if err := s.Reopen(); err != nil {
+			return err
+		}
+		for i := uint64(1); i <= 3; i++ {
+			if sh := s.Shard(i); sh == nil {
+				return fmt.Errorf("shard %d missing", i)
+			}
+		}
+
+		// Remove the first shard from the store.
+		if err := s.DeleteShard(1); err != nil {
+			return err
+		}
+
+		// cpu,serverb=b should be removed from the series file for db0 because
+		// shard 1 was the only owner of that series.
+		// Verify by getting  all tag keys.
+		keys, err := s.TagKeys(nil, []uint64{2}, nil)
+		if err != nil {
+			return err
+		}
+
+		expKeys := []tsdb.TagKeys{
+			{Measurement: "cpu", Keys: []string{"servera"}},
+			{Measurement: "mem", Keys: []string{"serverc"}},
+		}
+		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+			return fmt.Errorf("got keys %v, expected %v", got, exp)
+		}
+
+		// Verify that the same series was not removed from other databases'
+		// series files.
+		if keys, err = s.TagKeys(nil, []uint64{3}, nil); err != nil {
+			return err
+		}
+
+		expKeys = []tsdb.TagKeys{{Measurement: "cpu", Keys: []string{"serverb"}}}
+		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+			return fmt.Errorf("got keys %v, expected %v", got, exp)
+		}
+		return nil
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 

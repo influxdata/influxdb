@@ -534,28 +534,67 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 
-	// Remove the shard from the database indexes before closing the shard.
-	// Closing the shard will do this as well, but it will unload it while
-	// the shard is locked which can block stats collection and other calls.
-	sh.UnloadIndex()
-
-	if err := sh.Close(); err != nil {
-		return err
-	}
-
-	if err := os.RemoveAll(sh.path); err != nil {
-		return err
-	}
-
-	if err := os.RemoveAll(sh.walPath); err != nil {
-		return err
-	}
-
+	// Remove the shard from Store so it's not returned to callers requesting
+	// shards.
 	s.mu.Lock()
 	delete(s.shards, shardID)
 	s.mu.Unlock()
 
-	return nil
+	// Get the shard's local bitset of series IDs.
+	index, err := sh.Index()
+	if err != nil {
+		return err
+	}
+
+	var ss *SeriesIDSet
+	if i, ok := index.(interface {
+		SeriesIDSet() *SeriesIDSet
+	}); ok {
+		ss = i.SeriesIDSet()
+	}
+
+	db := sh.Database()
+	if err := sh.Close(); err != nil {
+		return err
+	}
+
+	// Determine if the shard contained any series that are not present in any
+	// other shards in the database.
+	shards := s.filterShards(byDatabase(db))
+
+	s.walkShards(shards, func(sh *Shard) error {
+		index, err := sh.Index()
+		if err != nil {
+			return err
+		}
+
+		if i, ok := index.(interface {
+			SeriesIDSet() *SeriesIDSet
+		}); ok {
+			ss.Diff(i.SeriesIDSet())
+		} else {
+			return fmt.Errorf("unable to get series id set for index in shard at %s", sh.Path())
+		}
+		return nil
+	})
+
+	// Remove any remaining series in the set from the series file, as they don't
+	// exist in any of the database's remaining shards.
+	if ss.Cardinality() > 0 {
+		sfile := s.seriesFile(db)
+		if sfile != nil {
+			ss.ForEach(func(id uint64) {
+				sfile.DeleteSeriesID(id)
+			})
+		}
+	}
+
+	// Remove the on-disk shard data.
+	if err := os.RemoveAll(sh.path); err != nil {
+		return err
+	}
+
+	return os.RemoveAll(sh.walPath)
 }
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
