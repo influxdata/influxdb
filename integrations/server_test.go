@@ -899,7 +899,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "GET",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billibob",
@@ -937,7 +937,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "GET",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billibob",
@@ -949,12 +949,12 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users"
+    "self": "/chronograf/v1/organizations/default/users"
   },
   "users": [
     {
       "links": {
-        "self": "/chronograf/v1/users/1"
+        "self": "/chronograf/v1/organizations/default/users/1"
       },
       "id": "1",
       "name": "billibob",
@@ -1011,7 +1011,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "GET",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billibob",
@@ -1023,12 +1023,12 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users"
+    "self": "/chronograf/v1/organizations/default/users"
   },
   "users": [
     {
       "links": {
-        "self": "/chronograf/v1/users/1"
+        "self": "/chronograf/v1/organizations/default/users/1"
       },
       "id": "1",
       "name": "billibob",
@@ -1084,7 +1084,7 @@ func TestServer(t *testing.T) {
 					},
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users?raw=true",
+				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billibob",
@@ -1096,7 +1096,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2?raw=true"
+    "self": "/chronograf/v1/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1145,7 +1145,7 @@ func TestServer(t *testing.T) {
 					Roles:    []chronograf.Role{},
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users?raw=true",
+				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billibob",
@@ -1157,7 +1157,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2?raw=true"
+    "self": "/chronograf/v1/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1215,7 +1215,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "GET",
-				path:   "/chronograf/v1/users?raw=true",
+				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billibob",
@@ -1227,12 +1227,12 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users?raw=true"
+    "self": "/chronograf/v1/users"
   },
   "users": [
     {
       "links": {
-        "self": "/chronograf/v1/users/1?raw=true"
+        "self": "/chronograf/v1/users/1"
       },
       "id": "1",
       "name": "billibob",
@@ -1248,7 +1248,7 @@ func TestServer(t *testing.T) {
     },
     {
       "links": {
-        "self": "/chronograf/v1/users/2?raw=true"
+        "self": "/chronograf/v1/users/2"
       },
       "id": "2",
       "name": "billietta",
@@ -1317,7 +1317,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "GET",
-				path:   "/chronograf/v1/users?raw=true",
+				path:   "/chronograf/v1/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billieta",
@@ -1365,7 +1365,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:     "user",
 					Provider: "provider",
@@ -1388,7 +1388,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2"
+    "self": "/chronograf/v1/organizations/default/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1435,7 +1435,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:     "user",
 					Provider: "provider",
@@ -1458,7 +1458,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2"
+    "self": "/chronograf/v1/organizations/default/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1505,7 +1505,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:     "user",
 					Provider: "provider",
@@ -1528,7 +1528,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2"
+    "self": "/chronograf/v1/organizations/default/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1575,7 +1575,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:       "user",
 					Provider:   "provider",
@@ -1641,7 +1641,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users?raw=true",
+				path:   "/chronograf/v1/users",
 				payload: &chronograf.User{
 					Name:     "user",
 					Provider: "provider",
@@ -1668,7 +1668,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2?raw=true"
+    "self": "/chronograf/v1/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1726,7 +1726,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "PATCH",
-				path:   "/chronograf/v1/users/1?raw=true",
+				path:   "/chronograf/v1/users/1",
 				payload: map[string]interface{}{
 					"name":       "billibob",
 					"provider":   "github",
@@ -1745,7 +1745,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/1?raw=true"
+    "self": "/chronograf/v1/users/1"
   },
   "id": "1",
   "name": "billibob",
@@ -1795,7 +1795,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "PATCH",
-				path:   "/chronograf/v1/users/1?raw=true",
+				path:   "/chronograf/v1/users/1",
 				payload: &chronograf.User{
 					Name:       "billibob",
 					Provider:   "github",
@@ -1823,7 +1823,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/1?raw=true"
+    "self": "/chronograf/v1/users/1"
   },
   "id": "1",
   "name": "billibob",
@@ -1869,7 +1869,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "PATCH",
-				path:   "/chronograf/v1/users/1",
+				path:   "/chronograf/v1/organizations/default/users/1",
 				payload: map[string]interface{}{
 					"id":         "1",
 					"superAdmin": false,
@@ -1964,7 +1964,7 @@ func TestServer(t *testing.T) {
   "scheme": "oauth2",
   "superAdmin": true,
   "links": {
-    "self": "/chronograf/v1/users/1"
+    "self": "/chronograf/v1/organizations/1/users/1"
   },
   "organizations": [
     {

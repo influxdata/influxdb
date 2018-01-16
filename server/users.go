@@ -79,16 +79,18 @@ type userResponse struct {
 	Roles      []chronograf.Role `json:"roles"`
 }
 
-func newUserResponse(u *chronograf.User, raw bool) *userResponse {
+func newUserResponse(u *chronograf.User, org string) *userResponse {
 	// This ensures that any user response with no roles returns an empty array instead of
 	// null when marshaled into JSON. That way, JavaScript doesn't need any guard on the
 	// key existing and it can simply be iterated over.
 	if u.Roles == nil {
 		u.Roles = []chronograf.Role{}
 	}
-	selfLink := fmt.Sprintf("/chronograf/v1/users/%d", u.ID)
-	if raw {
-		selfLink = fmt.Sprintf("%s?raw=true", selfLink)
+	var selfLink string
+	if org != "" {
+		selfLink = fmt.Sprintf("/chronograf/v1/organizations/%s/users/%d", org, u.ID)
+	} else {
+		selfLink = fmt.Sprintf("/chronograf/v1/users/%d", u.ID)
 	}
 	return &userResponse{
 		ID:         u.ID,
@@ -108,18 +110,20 @@ type usersResponse struct {
 	Users []*userResponse `json:"users"`
 }
 
-func newUsersResponse(users []chronograf.User, raw bool) *usersResponse {
+func newUsersResponse(users []chronograf.User, org string) *usersResponse {
 	usersResp := make([]*userResponse, len(users))
 	for i, user := range users {
-		usersResp[i] = newUserResponse(&user, raw)
+		usersResp[i] = newUserResponse(&user, org)
 	}
 	sort.Slice(usersResp, func(i, j int) bool {
 		return usersResp[i].ID < usersResp[j].ID
 	})
 
-	selfLink := "/chronograf/v1/users"
-	if raw {
-		selfLink = fmt.Sprintf("%s?raw=true", selfLink)
+	var selfLink string
+	if org != "" {
+		selfLink = fmt.Sprintf("/chronograf/v1/organizations/%s/users", org)
+	} else {
+		selfLink = "/chronograf/v1/users"
 	}
 	return &usersResponse{
 		Users: usersResp,
@@ -145,7 +149,9 @@ func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newUserResponse(user, hasServerContext(ctx))
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	res := newUserResponse(user, orgID)
+	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -198,7 +204,8 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newUserResponse(res, hasServerContext(ctx))
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	cu := newUserResponse(res, orgID)
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusCreated, cu, s.Logger)
 }
@@ -319,7 +326,8 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newUserResponse(u, hasServerContext(ctx))
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	cu := newUserResponse(u, orgID)
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusOK, cu, s.Logger)
 }
@@ -334,7 +342,8 @@ func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newUsersResponse(users, hasServerContext(ctx))
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	res := newUsersResponse(users, orgID)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 

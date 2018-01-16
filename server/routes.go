@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
@@ -31,7 +32,7 @@ func (r *AuthRoutes) Lookup(provider string) (AuthRoute, bool) {
 type getRoutesResponse struct {
 	Layouts       string                   `json:"layouts"`          // Location of the layouts endpoint
 	Users         string                   `json:"users"`            // Location of the users endpoint
-	RawUsers      string                   `json:"rawUsers"`         // Location of the raw users endpoint
+	AllUsers      string                   `json:"allUsers"`         // Location of the raw users endpoint
 	Organizations string                   `json:"organizations"`    // Location of the organizations endpoint
 	Mappings      string                   `json:"mappings"`         // Location of the application mappings endpoint
 	Sources       string                   `json:"sources"`          // Location of the sources endpoint
@@ -48,6 +49,7 @@ type getRoutesResponse struct {
 // external links for the client to know about, such as for JSON feeds or custom side nav buttons.
 // Optionally, routes for authentication can be returned.
 type AllRoutes struct {
+	Middleware  func(http.HandlerFunc) http.HandlerFunc
 	AuthRoutes  []AuthRoute       // Location of all auth routes. If no auth, this can be empty.
 	LogoutLink  string            // Location of the logout route for all auth routes. If no auth, this can be empty.
 	StatusFeed  string            // External link to the JSON Feed for the News Feed on the client's Status Page
@@ -56,18 +58,32 @@ type AllRoutes struct {
 }
 
 // ServeHTTP returns all top level routes and external links within chronograf
-func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s.Middleware != nil {
+		s.Middleware(s.serveHTTP)(w, r)
+		return
+	}
+	s.serveHTTP(w, r)
+}
+
+// serveHTTP returns all top level routes and external links within chronograf
+func (a *AllRoutes) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	customLinks, err := NewCustomLinks(a.CustomLinks)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), a.Logger)
 		return
 	}
 
+	org := "default"
+	if contextOrg, ok := hasOrganizationContext(r.Context()); ok {
+		org = contextOrg
+	}
+
 	routes := getRoutesResponse{
 		Sources:       "/chronograf/v1/sources",
 		Layouts:       "/chronograf/v1/layouts",
-		Users:         "/chronograf/v1/users",
-		RawUsers:      "/chronograf/v1/users?raw=true",
+		Users:         fmt.Sprintf("/chronograf/v1/organizations/%s/users", org),
+		AllUsers:      "/chronograf/v1/users",
 		Organizations: "/chronograf/v1/organizations",
 		Me:            "/chronograf/v1/me",
 		Environment:   "/chronograf/v1/env",

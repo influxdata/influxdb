@@ -11,11 +11,6 @@ import (
 	"github.com/influxdata/chronograf/roles"
 )
 
-const (
-	rawQueryKey   = "raw"
-	rawQueryValue = "true"
-)
-
 // AuthorizedToken extracts the token and validates; if valid the next handler
 // will be run.  The principal will be sent to the next handler via the request's
 // Context.  It is up to the next handler to determine if the principal has access.
@@ -54,11 +49,8 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 	})
 }
 
-// CheckRaw checks the query parameters on the HTTP request looking for
-// the pair raw=true. If it finds a pair and the user is a super admin,
-// then the user making the request will be given raw access to the data
-// store (usually users are given a facade).
-func CheckForRawQuery(logger chronograf.Logger, next http.HandlerFunc) http.HandlerFunc {
+// RawStoreAccess gives a super admin access to the data store without a facade.
+func RawStoreAccess(logger chronograf.Logger, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if isServer := hasServerContext(ctx); isServer {
@@ -67,20 +59,17 @@ func CheckForRawQuery(logger chronograf.Logger, next http.HandlerFunc) http.Hand
 		}
 
 		log := logger.
-			WithField("component", "raw_query").
+			WithField("component", "raw_store").
 			WithField("remote_addr", r.RemoteAddr).
 			WithField("method", r.Method).
 			WithField("url", r.URL)
 
-		v := r.URL.Query().Get(rawQueryKey)
-		if v == rawQueryValue {
-			if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
-				r = r.WithContext(serverContext(ctx))
-			} else {
-				log.Error("User making request is not a SuperAdmin")
-				Error(w, http.StatusForbidden, "User is not authorized", logger)
-				return
-			}
+		if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+			r = r.WithContext(serverContext(ctx))
+		} else {
+			log.Error("User making request is not a SuperAdmin")
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
+			return
 		}
 
 		next(w, r)
@@ -219,6 +208,13 @@ func hasAuthorizedRole(u *chronograf.User, role string) bool {
 	}
 
 	switch role {
+	case roles.MemberRoleName:
+		for _, r := range u.Roles {
+			switch r.Name {
+			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
+				return true
+			}
+		}
 	case roles.ViewerRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {

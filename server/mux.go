@@ -68,6 +68,16 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		hr.NotFound = http.StripPrefix(opts.Basepath, hr.NotFound)
 	}
 
+	EnsureMember := func(next http.HandlerFunc) http.HandlerFunc {
+		return AuthorizedUser(
+			service.Store,
+			opts.UseAuth,
+			roles.MemberRoleName,
+			opts.Logger,
+			next,
+		)
+	}
+	_ = EnsureMember
 	EnsureViewer := func(next http.HandlerFunc) http.HandlerFunc {
 		return AuthorizedUser(
 			service.Store,
@@ -105,8 +115,16 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		)
 	}
 
-	checkForRawQuery := func(next http.HandlerFunc) http.HandlerFunc {
-		return CheckForRawQuery(opts.Logger, next)
+	rawStoreAccess := func(next http.HandlerFunc) http.HandlerFunc {
+		return RawStoreAccess(opts.Logger, next)
+	}
+
+	ensureOrgMatches := func(next http.HandlerFunc) http.HandlerFunc {
+		return RouteMatchesPrincipal(
+			opts.UseAuth,
+			opts.Logger,
+			next,
+		)
 	}
 
 	/* Documentation */
@@ -118,9 +136,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/organizations", EnsureAdmin(service.Organizations))
 	router.POST("/chronograf/v1/organizations", EnsureSuperAdmin(service.NewOrganization))
 
-	router.GET("/chronograf/v1/organizations/:id", EnsureAdmin(service.OrganizationID))
-	router.PATCH("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.UpdateOrganization))
-	router.DELETE("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.RemoveOrganization))
+	router.GET("/chronograf/v1/organizations/:oid", EnsureAdmin(service.OrganizationID))
+	router.PATCH("/chronograf/v1/organizations/:oid", EnsureSuperAdmin(service.UpdateOrganization))
+	router.DELETE("/chronograf/v1/organizations/:oid", EnsureSuperAdmin(service.RemoveOrganization))
 
 	// Sources
 	router.GET("/chronograf/v1/sources", EnsureViewer(service.Sources))
@@ -198,12 +216,19 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PUT("/chronograf/v1/me", service.UpdateMe(opts.Auth))
 
 	// TODO(desa): what to do about admin's being able to set superadmin
-	router.GET("/chronograf/v1/users", EnsureAdmin(checkForRawQuery(service.Users)))
-	router.POST("/chronograf/v1/users", EnsureAdmin(checkForRawQuery(service.NewUser)))
+	router.GET("/chronograf/v1/organizations/:oid/users", EnsureAdmin(ensureOrgMatches(service.Users)))
+	router.POST("/chronograf/v1/organizations/:oid/users", EnsureAdmin(ensureOrgMatches(service.NewUser)))
 
-	router.GET("/chronograf/v1/users/:id", EnsureAdmin(checkForRawQuery(service.UserID)))
-	router.DELETE("/chronograf/v1/users/:id", EnsureAdmin(checkForRawQuery(service.RemoveUser)))
-	router.PATCH("/chronograf/v1/users/:id", EnsureAdmin(checkForRawQuery(service.UpdateUser)))
+	router.GET("/chronograf/v1/organizations/:oid/users/:id", EnsureAdmin(ensureOrgMatches(service.UserID)))
+	router.DELETE("/chronograf/v1/organizations/:oid/users/:id", EnsureAdmin(ensureOrgMatches(service.RemoveUser)))
+	router.PATCH("/chronograf/v1/organizations/:oid/users/:id", EnsureAdmin(ensureOrgMatches(service.UpdateUser)))
+
+	router.GET("/chronograf/v1/users", EnsureSuperAdmin(rawStoreAccess(service.Users)))
+	router.POST("/chronograf/v1/users", EnsureSuperAdmin(rawStoreAccess(service.NewUser)))
+
+	router.GET("/chronograf/v1/users/:id", EnsureSuperAdmin(rawStoreAccess(service.UserID)))
+	router.DELETE("/chronograf/v1/users/:id", EnsureSuperAdmin(rawStoreAccess(service.RemoveUser)))
+	router.PATCH("/chronograf/v1/users/:id", EnsureSuperAdmin(rawStoreAccess(service.UpdateUser)))
 
 	// Dashboards
 	router.GET("/chronograf/v1/dashboards", EnsureViewer(service.Dashboards))
