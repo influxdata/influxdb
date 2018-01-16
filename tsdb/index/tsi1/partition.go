@@ -296,13 +296,12 @@ func (i *Partition) Wait() {
 // Close closes the index.
 func (i *Partition) Close() error {
 	// Wait for goroutines to finish outstanding compactions.
+	i.once.Do(func() { close(i.closing) })
 	i.wg.Wait()
 
 	// Lock index and close remaining
 	i.mu.Lock()
 	defer i.mu.Unlock()
-
-	i.once.Do(func() { close(i.closing) })
 
 	// Close log files.
 	for _, f := range i.fileSet.files {
@@ -315,14 +314,14 @@ func (i *Partition) Close() error {
 
 // closing returns true if the partition is currently closing. It does not require
 // a lock so will always return to callers.
-// func (i *Partition) closing() bool {
-// 	select {
-// 	case <-i.closing:
-// 		return true
-// 	default:
-// 		return false
-// 	}
-// }
+func (p *Partition) isClosing() bool {
+	select {
+	case <-p.closing:
+		return true
+	default:
+		return false
+	}
+}
 
 // Path returns the path to the partition.
 func (i *Partition) Path() string { return i.path }
@@ -766,7 +765,9 @@ func (i *Partition) Compact() {
 
 // compact compacts continguous groups of files that are not currently compacting.
 func (i *Partition) compact() {
-	if i.compactionsDisabled {
+	if i.isClosing() {
+		return
+	} else if i.compactionsDisabled {
 		return
 	}
 
@@ -964,6 +965,10 @@ func (i *Partition) checkLogFile() error {
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
 func (i *Partition) compactLogFile(logFile *LogFile) {
+	if i.isClosing() {
+		return
+	}
+
 	start := time.Now()
 
 	// Retrieve identifier from current path.
