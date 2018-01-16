@@ -1478,8 +1478,11 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 		fields: make(map[string]*MeasurementFields),
 		path:   path,
 	}
+
+	// If there is a load error, return the error and an empty set so
+	// it can be rebuild manually.
 	if err := fs.load(); err != nil {
-		return nil, err
+		return fs, err
 	}
 	return fs, nil
 }
@@ -1598,7 +1601,11 @@ func (fs *MeasurementFieldSet) saveNoLock() error {
 		return err
 	}
 
-	return file.RenameFile(path, fs.path)
+	if err := file.RenameFile(path, fs.path); err != nil {
+		return err
+	}
+
+	return file.SyncDir(filepath.Dir(fs.path))
 }
 
 func (fs *MeasurementFieldSet) load() error {
