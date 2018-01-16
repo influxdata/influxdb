@@ -2046,6 +2046,168 @@ func TestServer(t *testing.T) {
 }`,
 			},
 		},
+		{
+			name:    "GET /",
+			subName: "signed into default org",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "layouts": "/chronograf/v1/layouts",
+  "users": "/chronograf/v1/organizations/default/users",
+  "allUsers": "/chronograf/v1/users",
+  "organizations": "/chronograf/v1/organizations",
+  "mappings": "/chronograf/v1/mappings",
+  "sources": "/chronograf/v1/sources",
+  "me": "/chronograf/v1/me",
+  "environment": "/chronograf/v1/env",
+  "dashboards": "/chronograf/v1/dashboards",
+  "config": {
+    "self": "/chronograf/v1/config",
+    "auth": "/chronograf/v1/config/auth"
+  },
+  "auth": [
+    {
+      "name": "github",
+      "label": "Github",
+      "login": "/oauth/github/login",
+      "logout": "/oauth/github/logout",
+      "callback": "/oauth/github/callback"
+    }
+  ],
+  "logout": "/oauth/logout",
+  "external": {
+    "statusFeed": ""
+  }
+}
+`,
+			},
+		},
+		{
+			name:    "GET /",
+			subName: "signed into org 1",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "member",
+								Organization: "1",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/",
+				principal: oauth2.Principal{
+					Organization: "1",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "layouts": "/chronograf/v1/layouts",
+  "users": "/chronograf/v1/organizations/1/users",
+  "allUsers": "/chronograf/v1/users",
+  "organizations": "/chronograf/v1/organizations",
+  "mappings": "/chronograf/v1/mappings",
+  "sources": "/chronograf/v1/sources",
+  "me": "/chronograf/v1/me",
+  "environment": "/chronograf/v1/env",
+  "dashboards": "/chronograf/v1/dashboards",
+  "config": {
+    "self": "/chronograf/v1/config",
+    "auth": "/chronograf/v1/config/auth"
+  },
+  "auth": [
+    {
+      "name": "github",
+      "label": "Github",
+      "login": "/oauth/github/login",
+      "logout": "/oauth/github/logout",
+      "callback": "/oauth/github/callback"
+    }
+  ],
+  "logout": "/oauth/logout",
+  "external": {
+    "statusFeed": ""
+  }
+}
+`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

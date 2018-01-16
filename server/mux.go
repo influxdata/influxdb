@@ -279,7 +279,8 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		CustomLinks: opts.CustomLinks,
 	}
 
-	router.Handler("GET", "/chronograf/v1/", allRoutes)
+	allRoutes.Middleware = EnsureMember
+	router.Handler("GET", "/chronograf/v1/", AuthorizedToken(opts.Auth, opts.Logger, allRoutes))
 
 	var out http.Handler
 
