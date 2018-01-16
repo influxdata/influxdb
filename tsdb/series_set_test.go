@@ -219,3 +219,94 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 		}
 	})
 }
+
+// Typical benchmarks for a laptop:
+//
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_1/shards_1-4         	  200000	      8095 ns/op	   16656 B/op	      11 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_1/shards_10-4        	  200000	     11755 ns/op	   18032 B/op	      47 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_1/shards_100-4       	   50000	     41632 ns/op	   31794 B/op	     407 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_10000/shards_1-4     	  200000	      6022 ns/op	    8384 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_10000/shards_10-4    	  100000	     19674 ns/op	    9760 B/op	      43 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_10000/shards_100-4   	   10000	    152865 ns/op	   23522 B/op	     403 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_1000000/shards_1-4   	  200000	      8252 ns/op	    9712 B/op	      44 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_1000000/shards_10-4  	   50000	     29566 ns/op	   15984 B/op	     143 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_1000000/shards_100-4 	   10000	    237672 ns/op	   78710 B/op	    1133 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_10000000/shards_1-4  	  100000	     21559 ns/op	   25968 B/op	     330 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_10000000/shards_10-4 	   20000	    102326 ns/op	  114325 B/op	     537 allocs/op
+// BenchmarkSeriesIDSet_Merge_Duplicates/cardinality_10000000/shards_100-4      2000	   1042697 ns/op	  997909 B/op	    2608 allocs/op
+func BenchmarkSeriesIDSet_Merge_Duplicates(b *testing.B) {
+	cardinalities := []int{1, 10000, 1000000, 10000000}
+	shards := []int{1, 10, 100}
+
+	for _, cardinality := range cardinalities {
+		set = NewSeriesIDSet()
+		for i := 0; i < cardinality; i++ {
+			set.Add(uint64(i))
+		}
+
+		for _, shard := range shards {
+			others := make([]*SeriesIDSet, 0, shard)
+			for s := 0; s < shard; s++ {
+				others = append(others, &SeriesIDSet{bitmap: set.bitmap.Clone()})
+			}
+
+			b.Run(fmt.Sprintf("cardinality_%d/shards_%d", cardinality, shard), func(b *testing.B) {
+				base := &SeriesIDSet{bitmap: set.bitmap.Clone()}
+				for i := 0; i < b.N; i++ {
+					base.Merge(others...)
+					b.StopTimer()
+					base.bitmap = set.bitmap.Clone()
+					b.StartTimer()
+				}
+			})
+
+		}
+	}
+}
+
+// Typical benchmarks for a laptop:
+//
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_1/shards_1-4         	  200000	      7841 ns/op	   16656 B/op	      11 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_1/shards_10-4        	  200000	     13093 ns/op	   18048 B/op	      47 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_1/shards_100-4       	   30000	     57399 ns/op	   31985 B/op	     407 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_10000/shards_1-4     	  200000	      7740 ns/op	    8384 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_10000/shards_10-4    	   50000	     37116 ns/op	   18208 B/op	      52 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_10000/shards_100-4   	    5000	    409487 ns/op	  210563 B/op	     955 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_1000000/shards_1-4   	  100000	     19289 ns/op	   19328 B/op	      79 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_1000000/shards_10-4  	   10000	    129048 ns/op	  159716 B/op	     556 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_1000000/shards_100-4 	     500	   3482907 ns/op	 5428116 B/op	    6174 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_10000000/shards_1-4  	   30000	     43734 ns/op	   51872 B/op	     641 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_10000000/shards_10-4 	    3000	    514412 ns/op	  748678 B/op	    3687 allocs/op
+// BenchmarkSeriesIDSet_Merge_Unique/cardinality_10000000/shards_100-4         	      30	  61891687 ns/op	69626539 B/op	   36038 allocs/op
+func BenchmarkSeriesIDSet_Merge_Unique(b *testing.B) {
+	cardinalities := []int{1, 10000, 1000000, 10000000}
+	shards := []int{1, 10, 100}
+
+	for _, cardinality := range cardinalities {
+		set = NewSeriesIDSet()
+		for i := 0; i < cardinality; i++ {
+			set.Add(uint64(i))
+		}
+
+		for _, shard := range shards {
+			others := make([]*SeriesIDSet, 0, shard)
+			for s := 1; s <= shard; s++ {
+				other := NewSeriesIDSet()
+				for i := 0; i < cardinality; i++ {
+					other.Add(uint64(i + (s * cardinality)))
+				}
+				others = append(others, other)
+			}
+
+			b.Run(fmt.Sprintf("cardinality_%d/shards_%d", cardinality, shard), func(b *testing.B) {
+				base := &SeriesIDSet{bitmap: set.bitmap.Clone()}
+				for i := 0; i < b.N; i++ {
+					base.Merge(others...)
+					b.StopTimer()
+					base.bitmap = set.bitmap.Clone()
+					b.StartTimer()
+				}
+			})
+		}
+	}
+}
