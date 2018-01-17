@@ -24,9 +24,11 @@ class Annotations extends Component {
         {annotations.map((a, i) =>
           <Annotation key={i} annotation={a} dygraph={dygraph} />
         )}
-        {annotations.map((a, i) =>
-          <AnnotationWindow key={i} annotation={a} dygraph={dygraph} />
-        )}
+        {annotations.map((a, i) => {
+          return a.duration
+            ? <AnnotationWindow key={i} annotation={a} dygraph={dygraph} />
+            : null
+        })}
       </div>
     )
   }
