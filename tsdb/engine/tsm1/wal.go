@@ -225,9 +225,11 @@ func (l *WAL) Open() error {
 			return err
 		}
 
-		totalOldDiskSize += stat.Size()
-		if stat.ModTime().After(l.lastWriteTime) {
-			l.lastWriteTime = stat.ModTime().UTC()
+		if stat.Size() > 0 {
+			totalOldDiskSize += stat.Size()
+			if stat.ModTime().After(l.lastWriteTime) {
+				l.lastWriteTime = stat.ModTime().UTC()
+			}
 		}
 	}
 	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
@@ -562,10 +564,6 @@ func (l *WAL) newSegmentFile() error {
 		return err
 	}
 	l.currentSegmentWriter = NewWALSegmentWriter(fd)
-
-	if stat, err := fd.Stat(); err == nil {
-		l.lastWriteTime = stat.ModTime()
-	}
 
 	// Reset the current segment size stat
 	atomic.StoreInt64(&l.stats.CurrentBytes, 0)
