@@ -1289,7 +1289,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 		}
 		tagMatch = false
 		// Authorization must be explicitly granted when an authorizer is present.
-		authorized = auth == nil
+		authorized = query.AuthorizerIsOpen(auth)
 
 		vitr, err := is.tagValueIterator(me, []byte(key))
 		if err != nil {
@@ -1311,7 +1311,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 				}
 
 				tagMatch = true
-				if auth == nil {
+				if query.AuthorizerIsOpen(auth) {
 					break
 				}
 
@@ -1383,7 +1383,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 // measurementAuthorizedSeries determines if the measurement contains a series
 // that is authorized to be read.
 func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byte) bool {
-	if auth == nil {
+	if query.AuthorizerIsOpen(auth) {
 		return true
 	}
 
@@ -1529,7 +1529,7 @@ func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.Authorizer, name, tagKey
 			return false, nil
 		}
 
-		if auth == nil || auth == query.OpenAuthorizer {
+		if query.AuthorizerIsOpen(auth) {
 			return true, nil
 		}
 
@@ -2204,7 +2204,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 			defer vitr.Close()
 
 			// If no authorizer present then return all values.
-			if auth == nil {
+			if query.AuthorizerIsOpen(auth) {
 				for {
 					val, err := vitr.Next()
 					if err != nil {
