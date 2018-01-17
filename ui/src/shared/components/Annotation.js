@@ -29,7 +29,8 @@ const Annotation = ({annotation, dygraph}) =>
   <div
     className="dygraph-annotation"
     style={calcStyle(annotation, dygraph)}
-    data-time={annotation.time}
+    data-time-ms={annotation.time}
+    data-time-local={new Date(+annotation.time)}
   />
 
 const {shape, string} = PropTypes
