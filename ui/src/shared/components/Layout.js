@@ -56,7 +56,6 @@ const Layout = (
     onDeleteCell,
     synchronizer,
     resizeCoords,
-    annotations,
     onCancelEditCell,
     onSummonOverlayTechnologies,
     grabDataForDownload,
@@ -85,7 +84,6 @@ const Layout = (
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
-          annotations={annotations}
           manualRefresh={manualRefresh}
           synchronizer={synchronizer}
           grabDataForDownload={grabDataForDownload}
@@ -106,7 +104,6 @@ Layout.contextTypes = {
 }
 
 const propTypes = {
-  annotations: arrayOf(shape({})),
   autoRefresh: number.isRequired,
   manualRefresh: number,
   timeRange: shape({

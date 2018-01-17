@@ -21,7 +21,6 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
-  annotations,
   resizerTopHeight,
   manualRefresh, // when changed, re-mounts the component
   synchronizer,
@@ -82,7 +81,6 @@ const RefreshingGraph = ({
       key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
-      annotations={annotations}
       autoRefresh={autoRefresh}
       isBarGraph={type === 'bar'}
       synchronizer={synchronizer}
@@ -98,7 +96,6 @@ const RefreshingGraph = ({
 const {arrayOf, func, number, shape, string} = PropTypes
 
 RefreshingGraph.propTypes = {
-  annotations: arrayOf(shape({})),
   timeRange: shape({
     lower: string.isRequired,
   }),

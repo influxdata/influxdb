@@ -12,7 +12,6 @@ import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
-import {getAnnotations} from 'src/shared/annotations/helpers'
 
 import {
   OPTIONS,
@@ -324,14 +323,10 @@ export default class Dygraph extends Component {
 
   render() {
     const {isHidden} = this.state
-    const {annotations} = this.props
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        <Annotations
-          annotationsRef={this.handleAnnotationsRef}
-          annotations={getAnnotations(this.dygraph, annotations)}
-        />
+        <Annotations annotationsRef={this.handleAnnotationsRef} />
         <DygraphLegend
           dygraph={this.dygraph}
           graph={this.graphRef}
@@ -379,7 +374,6 @@ Dygraph.defaultProps = {
 }
 
 Dygraph.propTypes = {
-  annotations: arrayOf(shape({})),
   axes: shape({
     y: shape({
       bounds: array,

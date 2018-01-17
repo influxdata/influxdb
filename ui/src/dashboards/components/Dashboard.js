@@ -12,7 +12,6 @@ const Dashboard = ({
   dashboard,
   onAddCell,
   timeRange,
-  annotations,
   autoRefresh,
   manualRefresh,
   onDeleteCell,
@@ -58,7 +57,6 @@ const Dashboard = ({
               sources={sources}
               isEditable={true}
               timeRange={timeRange}
-              annotations={annotations}
               autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               synchronizer={synchronizer}
@@ -101,7 +99,6 @@ Dashboard.propTypes = {
       })
     ).isRequired,
   }),
-  annotations: arrayOf(shape()),
   templatesIncludingDashTime: arrayOf(shape()).isRequired,
   inPresentationMode: bool,
   onAddCell: func,

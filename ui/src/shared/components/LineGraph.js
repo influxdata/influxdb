@@ -46,7 +46,6 @@ class LineGraph extends Component {
       cellHeight,
       ruleValues,
       isBarGraph,
-      annotations,
       resizeCoords,
       synchronizer,
       isRefreshing,
@@ -104,7 +103,6 @@ class LineGraph extends Component {
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          annotations={annotations}
           synchronizer={synchronizer}
           resizeCoords={resizeCoords}
           overrideLineColors={lineColors}
@@ -143,7 +141,6 @@ LineGraph.defaultProps = {
 }
 
 LineGraph.propTypes = {
-  annotations: arrayOf(shape({})),
   axes: shape({
     y: shape({
       bounds: array,
