@@ -33,6 +33,7 @@
 - [#9235](https://github.com/influxdata/influxdb/pull/9235): Improve performance when writes exceed `max-values-per-tag` or `max-series`.
 - [#9216](https://github.com/influxdata/influxdb/issues/9216): Prevent a panic when a query simultaneously finishes and is killed at the same time.
 - [#9255](https://github.com/influxdata/influxdb/issues/9255): Fix missing sorting of blocks by time when compacting.
+- [#9327](https://github.com/influxdata/influxdb/pull/9327): wal: update lastWriteTime behavior
 
 ## v1.4.3 [unreleased]
 
