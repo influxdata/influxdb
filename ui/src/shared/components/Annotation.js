@@ -8,23 +8,29 @@ const calcStyle = ({time}, dygraph) => {
     visibility = 'hidden'
   }
 
-  const left = `${dygraph.toDomXCoord(time)}px`
+  const containerLeftPadding = 16
+  const left = `${dygraph.toDomXCoord(time) + containerLeftPadding}px`
   const width = 2
 
   return {
     left,
     position: 'absolute',
-    top: '0px',
+    top: '8px',
     backgroundColor: '#f00',
-    height: 'calc(100% - 20px)',
+    height: 'calc(100% - 36px)',
     width: `${width}px`,
     transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the annotation pole
     visibility,
+    zIndex: '3',
   }
 }
 
 const Annotation = ({annotation, dygraph}) =>
-  <div className="dygraph-annotation" style={calcStyle(annotation, dygraph)} />
+  <div
+    className="dygraph-annotation"
+    style={calcStyle(annotation, dygraph)}
+    data-time={annotation.time}
+  />
 
 const {shape, string} = PropTypes
 

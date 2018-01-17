@@ -2,14 +2,6 @@ import React, {PropTypes, Component} from 'react'
 import Annotation from 'src/shared/components/Annotation'
 import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 
-const style = {
-  position: 'absolute',
-  width: '0',
-  height: 'calc(100% - 16px)',
-  top: '8px',
-  zIndex: '150',
-}
-
 class Annotations extends Component {
   state = {
     dygraph: null,
@@ -28,7 +20,7 @@ class Annotations extends Component {
     }
 
     return (
-      <div className="annotations-container" style={style}>
+      <div className="annotations-container">
         {annotations.map((a, i) =>
           <Annotation key={i} annotation={a} dygraph={dygraph} />
         )}

@@ -359,7 +359,7 @@ export default class Dygraph extends Component {
             this.props.dygraphRef(r)
           }}
           className="dygraph-child-container"
-          style={{...this.props.containerStyle, zIndex: '100'}}
+          style={{...this.props.containerStyle, zIndex: '2'}}
         />
       </div>
     )
