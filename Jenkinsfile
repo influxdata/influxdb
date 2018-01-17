@@ -4,6 +4,25 @@ pipeline {
   agent none
 
   stages {
+    stage('gometalinter') {
+      agent {
+        docker {
+          image 'jsternberg/gometalinter-diff'
+          alwaysPull true
+        }
+      }
+
+      when {
+        expression {
+          return env.CHANGE_TARGET != ""
+        }
+      }
+
+      steps {
+        sh "gometalinter-diff remotes/origin/${CHANGE_TARGET}"
+      }
+    }
+
     stage('64bit') {
       agent {
         docker {
