@@ -25,13 +25,24 @@ const calcStyle = ({time}, dygraph) => {
   }
 }
 
+const triangleStyle = {
+  position: 'absolute',
+  top: '3px',
+  left: '-6px',
+  border: '7px solid transparent',
+  borderTopColor: '#f00',
+  transform: 'scaleY(1.5)',
+}
+
 const Annotation = ({annotation, dygraph}) =>
   <div
     className="dygraph-annotation"
     style={calcStyle(annotation, dygraph)}
     data-time-ms={annotation.time}
     data-time-local={new Date(+annotation.time)}
-  />
+  >
+    <div style={triangleStyle} />
+  </div>
 
 const {shape, string} = PropTypes
 
