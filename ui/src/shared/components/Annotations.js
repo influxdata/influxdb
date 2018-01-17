@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import Annotation from 'src/shared/components/Annotation'
+import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 
 const style = {
   position: 'absolute',
@@ -9,25 +10,41 @@ const style = {
   zIndex: '150',
 }
 
-const Annotations = ({annotations, dygraph}) => {
-  if (!dygraph) {
-    return null
+class Annotations extends Component {
+  state = {
+    dygraph: null,
   }
 
-  return (
-    <div className="annotations-container" style={style}>
-      {annotations.map((a, i) =>
-        <Annotation key={i} annotation={a} dygraph={dygraph} />
-      )}
-    </div>
-  )
+  componentDidMount() {
+    this.props.annotationsRef(this)
+  }
+
+  render() {
+    const {dygraph} = this.state
+    const {annotations} = this.props
+
+    if (!dygraph) {
+      return null
+    }
+
+    return (
+      <div className="annotations-container" style={style}>
+        {annotations.map((a, i) =>
+          <Annotation key={i} annotation={a} dygraph={dygraph} />
+        )}
+        {annotations.map((a, i) =>
+          <AnnotationWindow key={i} annotation={a} dygraph={dygraph} />
+        )}
+      </div>
+    )
+  }
 }
 
-const {arrayOf, shape} = PropTypes
+const {arrayOf, func, shape} = PropTypes
 
 Annotations.propTypes = {
   annotations: arrayOf(shape({})),
-  dygraph: shape({}),
+  annotationsRef: func,
 }
 
 export default Annotations

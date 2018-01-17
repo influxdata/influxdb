@@ -7,7 +7,6 @@ import NanoDate from 'nano-date'
 import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import Annotations from 'src/shared/components/Annotations'
-import AnnotationWindows from 'src/shared/components/AnnotationWindows'
 
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
@@ -47,8 +46,6 @@ export default class Dygraph extends Component {
     }
   }
 
-  annotationGraph = null
-
   componentDidMount() {
     const {
       axes: {y, y2},
@@ -68,9 +65,6 @@ export default class Dygraph extends Component {
       highlightCallback: this.highlightCallback,
       unhighlightCallback: this.unhighlightCallback,
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
-      drawCallback: g => {
-        this.annotationGraph = g
-      },
       axes: {
         y: {
           valueRange: this.getYRange(timeSeries),
@@ -172,6 +166,9 @@ export default class Dygraph extends Component {
       series: this.hashColorDygraphSeries(),
       plotter: isBarGraph ? barPlotter : null,
       legendFormatter: this.legendComponent.legendFormatter,
+      drawCallback: graph => {
+        this.annotationsRef.setState({dygraph: graph})
+      },
     }
 
     dygraph.updateOptions(updateOptions)
@@ -335,18 +332,16 @@ export default class Dygraph extends Component {
     this.setState({isHidden: false})
   }
 
+  handleAnnotationsRef = ref => (this.annotationsRef = ref)
+
   render() {
     const {isHidden} = this.state
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         <Annotations
+          annotationsRef={this.handleAnnotationsRef}
           annotations={getAnnotations(this.dygraph, annotations)}
-          dygraph={this.annotationGraph}
-        />
-        <AnnotationWindows
-          annotations={getAnnotations(this.dygraph, annotations)}
-          dygraph={this.annotationGraph}
         />
         <DygraphLegend
           dygraph={this.dygraph}
