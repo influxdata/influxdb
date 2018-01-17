@@ -327,15 +327,14 @@ export default class Dygraph extends Component {
     }
   }
 
-  highlightCallback = ({pageX}) => {
-    this.pageX = pageX
-    this.setState({isHidden: false})
+  highlightCallback = ({clientX}) => {
+    this.setState({pageX: clientX, isHidden: false})
   }
 
   handleAnnotationsRef = ref => (this.annotationsRef = ref)
 
   render() {
-    const {isHidden} = this.state
+    const {isHidden, pageX} = this.state
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
@@ -346,7 +345,7 @@ export default class Dygraph extends Component {
         <DygraphLegend
           dygraph={this.dygraph}
           graph={this.graphRef}
-          pageX={this.pageX}
+          pageX={pageX}
           isHidden={isHidden}
           legendNode={this.legendNodeRef}
           onHide={this.handleHideLegend}

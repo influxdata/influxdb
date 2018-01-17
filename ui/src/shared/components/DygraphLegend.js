@@ -21,6 +21,7 @@ class DygraphLegend extends Component {
     filterText: '',
     isSnipped: false,
     isFilterVisible: false,
+    legendStyles: {},
   }
 
   componentDidMount() {
