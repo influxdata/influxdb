@@ -37,13 +37,13 @@ class OpsGenieConfig extends Component {
     })
   }
 
-  handleDeleteTeam = team => () => {
+  handleDeleteTeam = team => {
     this.setState({
       currentTeams: this.state.currentTeams.filter(t => t !== team),
     })
   }
 
-  handleDeleteRecipient = recipient => () => {
+  handleDeleteRecipient = recipient => {
     this.setState({
       currentRecipients: this.state.currentRecipients.filter(
         r => r !== recipient

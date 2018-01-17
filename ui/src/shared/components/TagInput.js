@@ -18,12 +18,16 @@ class TagInput extends Component {
     }
   }
 
+  handleDeleteTag = item => {
+    this.props.onDeleteTag(item)
+  }
+
   shouldAddToList(item, tags) {
     return !_.isEmpty(item) && !tags.find(l => l === item)
   }
 
   render() {
-    const {title, tags, onDeleteTag} = this.props
+    const {title, tags} = this.props
 
     return (
       <div className="form-group col-xs-12">
@@ -39,7 +43,7 @@ class TagInput extends Component {
           ref={r => (this.input = r)}
           onKeyDown={this.handleAddTag}
         />
-        <Tags tags={tags} onDeleteTag={onDeleteTag} />
+        <Tags tags={tags} onDeleteTag={this.handleDeleteTag} />
       </div>
     )
   }
