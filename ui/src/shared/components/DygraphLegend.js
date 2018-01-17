@@ -22,6 +22,7 @@ class DygraphLegend extends Component {
     isSnipped: false,
     isFilterVisible: false,
     legendStyles: {},
+    pageX: null,
   }
 
   componentDidMount() {
@@ -86,16 +87,10 @@ class DygraphLegend extends Component {
   }
 
   render() {
-    const {
-      pageX,
-      graph,
-      onHide,
-      isHidden,
-      legendNodeRef,
-      legendNode,
-    } = this.props
+    const {graph, onHide, isHidden, legendNodeRef, legendNode} = this.props
 
     const {
+      pageX,
       legend,
       filterText,
       isSnipped,
@@ -210,12 +205,11 @@ class DygraphLegend extends Component {
   }
 }
 
-const {bool, func, number, shape} = PropTypes
+const {bool, func, shape} = PropTypes
 
 DygraphLegend.propTypes = {
   legendComponent: func,
   legendNode: shape({}),
-  pageX: number,
   dygraph: shape({}),
   graph: shape({}),
   onHide: func.isRequired,
