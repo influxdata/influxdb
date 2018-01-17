@@ -26,15 +26,6 @@ const calcStyle = ({time}, dygraph, isDragging) => {
   }
 }
 
-// const triangleStyle = {
-//   position: 'absolute',
-//   top: '-5px',
-//   left: '-6px',
-//   border: '7px solid transparent',
-//   borderTopColor: '#f00',
-//   transform: 'scaleY(1.5)',
-//   cursor: 'pointer',
-// }
 const triangleStyle = {
   position: 'absolute',
   top: '-7px',
@@ -84,6 +75,9 @@ class Annotation extends Component {
 
     const minPercentChange = 0.5
 
+    // check annotation.id for `-end`
+    // if true:
+    // updateAnnotation with duration instead of time
     if (
       Math.abs(
         dygraph.toPercentXCoord(time) - dygraph.toPercentXCoord(annotation.time)
