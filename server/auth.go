@@ -11,6 +11,13 @@ import (
 	"github.com/influxdata/chronograf/roles"
 )
 
+// HasAuthorizedToken extracts the token from a request and validates it using the authenticator.
+// It is used by routes that need access to the token to populate links request.
+func HasAuthorizedToken(auth oauth2.Authenticator, r *http.Request) (oauth2.Principal, error) {
+	ctx := r.Context()
+	return auth.Validate(ctx, r)
+}
+
 // AuthorizedToken extracts the token and validates; if valid the next handler
 // will be run.  The principal will be sent to the next handler via the request's
 // Context.  It is up to the next handler to determine if the principal has access.

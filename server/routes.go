@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 // AuthRoute are the routes for each type of OAuth2 provider
@@ -49,25 +50,16 @@ type getRoutesResponse struct {
 // external links for the client to know about, such as for JSON feeds or custom side nav buttons.
 // Optionally, routes for authentication can be returned.
 type AllRoutes struct {
-	Middleware  func(http.HandlerFunc) http.HandlerFunc
-	AuthRoutes  []AuthRoute       // Location of all auth routes. If no auth, this can be empty.
-	LogoutLink  string            // Location of the logout route for all auth routes. If no auth, this can be empty.
-	StatusFeed  string            // External link to the JSON Feed for the News Feed on the client's Status Page
-	CustomLinks map[string]string // Custom external links for client's User menu, as passed in via CLI/ENV
-	Logger      chronograf.Logger
-}
-
-// ServeHTTP returns all top level routes and external links within chronograf
-func (s *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.Middleware != nil {
-		s.Middleware(s.serveHTTP)(w, r)
-		return
-	}
-	s.serveHTTP(w, r)
+	GetPrincipal func(r *http.Request) oauth2.Principal // GetPrincipal is used to retrieve the principal on http request.
+	AuthRoutes   []AuthRoute                            // Location of all auth routes. If no auth, this can be empty.
+	LogoutLink   string                                 // Location of the logout route for all auth routes. If no auth, this can be empty.
+	StatusFeed   string                                 // External link to the JSON Feed for the News Feed on the client's Status Page
+	CustomLinks  map[string]string                      // Custom external links for client's User menu, as passed in via CLI/ENV
+	Logger       chronograf.Logger
 }
 
 // serveHTTP returns all top level routes and external links within chronograf
-func (a *AllRoutes) serveHTTP(w http.ResponseWriter, r *http.Request) {
+func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	customLinks, err := NewCustomLinks(a.CustomLinks)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), a.Logger)
@@ -75,8 +67,12 @@ func (a *AllRoutes) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	org := "default"
-	if contextOrg, ok := hasOrganizationContext(r.Context()); ok {
-		org = contextOrg
+	if a.GetPrincipal != nil {
+		// If there is a principal, use the organization to populate the users routes
+		// otherwise use the default organization
+		if p := a.GetPrincipal(r); p.Organization != "" {
+			org = p.Organization
+		}
 	}
 
 	routes := getRoutesResponse{

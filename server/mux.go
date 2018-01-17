@@ -279,8 +279,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		CustomLinks: opts.CustomLinks,
 	}
 
-	allRoutes.Middleware = EnsureMember
-	router.Handler("GET", "/chronograf/v1/", AuthorizedToken(opts.Auth, opts.Logger, allRoutes))
+	getPrincipal := func(r *http.Request) oauth2.Principal {
+		p, _ := HasAuthorizedToken(opts.Auth, r)
+		return p
+	}
+	allRoutes.GetPrincipal = getPrincipal
+	router.Handler("GET", "/chronograf/v1/", allRoutes)
 
 	var out http.Handler
 
