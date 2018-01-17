@@ -121,6 +121,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	ensureOrgMatches := func(next http.HandlerFunc) http.HandlerFunc {
 		return RouteMatchesPrincipal(
+			service.Store,
 			opts.UseAuth,
 			opts.Logger,
 			next,

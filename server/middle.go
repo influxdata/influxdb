@@ -10,6 +10,7 @@ import (
 // RouteMatchesPrincipal checks that the organization on context matches the organization
 // in the route.
 func RouteMatchesPrincipal(
+	store DataStore,
 	useAuth bool,
 	logger chronograf.Logger,
 	next http.HandlerFunc,
@@ -33,6 +34,16 @@ func RouteMatchesPrincipal(
 			log.Error("Failed to retrieve principal from context")
 			Error(w, http.StatusForbidden, "User is not authorized", logger)
 			return
+		}
+
+		if p.Organization == "" {
+			defaultOrg, err := store.Organizations(ctx).DefaultOrganization(ctx)
+			if err != nil {
+				log.Error("Failed to look up default organization")
+				Error(w, http.StatusForbidden, "User is not authorized", logger)
+				return
+			}
+			p.Organization = defaultOrg.ID
 		}
 
 		if orgID != p.Organization {

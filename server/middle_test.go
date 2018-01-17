@@ -9,12 +9,14 @@ import (
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/log"
+	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/oauth2"
 )
 
 func TestRouteMatchesPrincipal(t *testing.T) {
 	type fields struct {
-		Logger chronograf.Logger
+		OrganizationsStore chronograf.OrganizationsStore
+		Logger             chronograf.Logger
 	}
 	type args struct {
 		useAuth      bool
@@ -34,6 +36,13 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 			name: "route matches request params",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID: "default",
+						}, nil
+					},
+				},
 			},
 			args: args{
 				useAuth: true,
@@ -57,6 +66,13 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 			name: "route does not match request params",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID: "default",
+						}, nil
+					},
+				},
 			},
 			args: args{
 				useAuth: true,
@@ -80,6 +96,13 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 			name: "missing principal",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID: "default",
+						}, nil
+					},
+				},
 			},
 			args: args{
 				useAuth:   true,
@@ -99,6 +122,13 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 			name: "not using auth",
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID: "default",
+						}, nil
+					},
+				},
 			},
 			args: args{
 				useAuth: false,
@@ -122,11 +152,15 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			store := &mocks.Store{
+				OrganizationsStore: tt.fields.OrganizationsStore,
+			}
 			var matches bool
 			next := func(w http.ResponseWriter, r *http.Request) {
 				matches = true
 			}
 			fn := RouteMatchesPrincipal(
+				store,
 				tt.args.useAuth,
 				tt.fields.Logger,
 				next,

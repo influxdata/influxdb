@@ -1897,6 +1897,74 @@ func TestServer(t *testing.T) {
 			},
 		},
 		{
+			name:    "GET /organization/default/users",
+			subName: "Organization not set explicitly on principal",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Organizations: []chronograf.Organization{},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/organizations/default/users",
+				principal: oauth2.Principal{
+					Organization: "",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/organizations/default/users"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/organizations/default/users/1"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "default"
+        }
+      ]
+    }
+  ]
+}
+`,
+			},
+		},
+		{
 			name:    "PUT /me",
 			subName: "Change SuperAdmins current organization to org they dont belong to",
 			fields: fields{
