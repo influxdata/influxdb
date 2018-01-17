@@ -51,6 +51,7 @@ var (
 	// Static objects to prevent small allocs.
 	timeBytes              = []byte("time")
 	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
+	emptyBytes             = []byte{}
 )
 
 var (
@@ -1350,7 +1351,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
-				seriesKeys[j] = nil
+				seriesKeys[j] = emptyBytes
 				j++
 			}
 		}
