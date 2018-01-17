@@ -356,7 +356,7 @@ func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, ke
 	// and tag key.
 	var authorized bool
 	mm.SeriesByTagKeyValue(key).Range(func(_ string, sIDs seriesIDs) bool {
-		if auth == nil || auth == query.OpenAuthorizer {
+		if query.AuthorizerIsOpen(auth) {
 			authorized = true
 			return false
 		}
@@ -631,7 +631,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 
 		tagMatch = false
 		// Authorization must be explicitly granted when an authorizer is present.
-		authorized = auth == nil
+		authorized = query.AuthorizerIsOpen(auth)
 
 		// Check the tag values belonging to the tag key for equivalence to the
 		// tag value being filtered on.
@@ -641,7 +641,7 @@ func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagF
 			}
 
 			tagMatch = true
-			if auth == nil {
+			if query.AuthorizerIsOpen(auth) {
 				return false // No need to continue checking series, there is a match.
 			}
 
