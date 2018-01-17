@@ -729,6 +729,24 @@ func (i *Index) dropMeasurement(name string) error {
 	return nil
 }
 
+// DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
+// series for the measurment.
+func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil
+	}
+
+	if m.HasSeries() {
+		return nil
+	}
+
+	return i.dropMeasurement(string(name))
+}
+
 // DropSeriesGlobal removes the series key and its tags from the index.
 func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
 	if key == nil {
@@ -1058,7 +1076,7 @@ type ShardIndex struct {
 
 // DropSeries removes the provided series id from the local bitset that tracks
 // series in this shard only.
-func (idx *ShardIndex) DropSeries(seriesID uint64, _ []byte, ts int64) error {
+func (idx *ShardIndex) DropSeries(seriesID uint64, _ []byte, _ bool) error {
 	// Remove from shard-local bitset if it exists.
 	idx.seriesIDSet.Lock()
 	if idx.seriesIDSet.ContainsNoLock(seriesID) {
@@ -1066,6 +1084,12 @@ func (idx *ShardIndex) DropSeries(seriesID uint64, _ []byte, ts int64) error {
 	}
 	idx.seriesIDSet.Unlock()
 	return nil
+}
+
+// DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
+// series for the measurment.
+func (idx *ShardIndex) DropMeasurementIfSeriesNotExist(name []byte) error {
+	return idx.Index.DropMeasurementIfSeriesNotExist(name)
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.

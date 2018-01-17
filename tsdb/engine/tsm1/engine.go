@@ -51,6 +51,7 @@ var (
 	// Static objects to prevent small allocs.
 	timeBytes              = []byte("time")
 	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
+	emptyBytes             = []byte{}
 )
 
 var (
@@ -1350,7 +1351,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
-				seriesKeys[j] = nil
+				seriesKeys[j] = emptyBytes
 				j++
 			}
 		}
@@ -1364,19 +1365,16 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if len(seriesKeys) > 0 {
 		buf := make([]byte, 1024) // For use when accessing series file.
 		ids := tsdb.NewSeriesIDSet()
+		measurements := make(map[string]struct{}, 1)
+
 		for _, k := range seriesKeys {
 			if len(k) == 0 {
 				continue // This key was wiped because it shouldn't be removed from index.
 			}
 
-			name, tags := models.ParseKey(k)
-			sid := e.sfile.SeriesID([]byte(name), tags, buf)
+			name, tags := models.ParseKeyBytes(k)
+			sid := e.sfile.SeriesID(name, tags, buf)
 			if sid == 0 {
-				continue
-			}
-
-			// This key was crossed out earlier, skip it
-			if k == nil {
 				continue
 			}
 
@@ -1398,14 +1396,20 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				continue
 			}
 
+			measurements[string(name)] = struct{}{}
 			// Remove the series from the local index.
-			if err := e.index.DropSeries(sid, k, ts); err != nil {
+			if err := e.index.DropSeries(sid, k, false); err != nil {
 				return err
 			}
 
 			// Add the id to the set of delete ids.
 			ids.Add(sid)
+		}
 
+		for k := range measurements {
+			if err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
+				return err
+			}
 		}
 
 		// Remove any series IDs for our set that still exist in other shards.
