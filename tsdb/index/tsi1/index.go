@@ -535,11 +535,16 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 	return nil
 }
 
-// DropSeries drops the provided series from the index.
-func (i *Index) DropSeries(seriesID uint64, key []byte, ts int64) error {
+// DropSeries drops the provided series from the index.  If cascade is true
+// and this is the last series to the measurement, the measurment will also be dropped.
+func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	// Remove from partition.
-	if err := i.partition(key).DropSeries(seriesID, ts); err != nil {
+	if err := i.partition(key).DropSeries(seriesID); err != nil {
 		return err
+	}
+
+	if !cascade {
+		return nil
 	}
 
 	// Extract measurement name.
@@ -557,6 +562,20 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, ts int64) error {
 		return err
 	}
 	return nil
+}
+
+// DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
+// series for the measurment.
+func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
+	// Check if that was the last series for the measurement in the entire index.
+	if ok, err := i.MeasurementHasSeries(name); err != nil {
+		return err
+	} else if ok {
+		return nil
+	}
+
+	// If no more series exist in the measurement then delete the measurement.
+	return i.DropMeasurement(name)
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
