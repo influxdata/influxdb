@@ -239,6 +239,7 @@ class DashboardPage extends Component {
       showTemplateControlBar,
       dashboard,
       dashboards,
+      annotations,
       autoRefresh,
       manualRefresh,
       onManualRefresh,
@@ -375,6 +376,7 @@ class DashboardPage extends Component {
               sources={sources}
               dashboard={dashboard}
               timeRange={timeRange}
+              annotations={annotations}
               autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               onZoom={this.handleZoomedTimeRange}
@@ -398,6 +400,13 @@ class DashboardPage extends Component {
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DashboardPage.propTypes = {
+  annotations: arrayOf(
+    shape({
+      time: string,
+      duration: string,
+      text: string,
+    })
+  ).isRequired,
   source: shape({
     links: shape({
       proxy: string,
@@ -479,7 +488,9 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
+    annotations,
   } = state
+
   const meRole = _.get(me, 'role', null)
 
   const timeRange =
@@ -492,16 +503,17 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   )
 
   return {
-    dashboards,
-    autoRefresh,
-    dashboard,
-    timeRange,
-    showTemplateControlBar,
-    inPresentationMode,
-    cellQueryStatus,
     sources,
     meRole,
+    dashboard,
+    timeRange,
+    dashboards,
+    annotations,
+    autoRefresh,
     isUsingAuth,
+    cellQueryStatus,
+    inPresentationMode,
+    showTemplateControlBar,
   }
 }
 

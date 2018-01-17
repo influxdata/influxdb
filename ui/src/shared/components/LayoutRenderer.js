@@ -79,6 +79,7 @@ class LayoutRenderer extends Component {
       autoRefresh,
       manualRefresh,
       onDeleteCell,
+      annotations,
       synchronizer,
       onCancelEditCell,
       onSummonOverlayTechnologies,
@@ -129,11 +130,12 @@ class LayoutRenderer extends Component {
                     timeRange={timeRange}
                     isEditable={isEditable}
                     onEditCell={onEditCell}
-                    resizeCoords={resizeCoords}
+                    annotations={annotations}
                     autoRefresh={autoRefresh}
-                    manualRefresh={manualRefresh}
+                    resizeCoords={resizeCoords}
                     onDeleteCell={onDeleteCell}
                     synchronizer={synchronizer}
+                    manualRefresh={manualRefresh}
                     onCancelEditCell={onCancelEditCell}
                     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
                   />
@@ -150,6 +152,7 @@ class LayoutRenderer extends Component {
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 LayoutRenderer.propTypes = {
+  annotations: arrayOf(shape({})),
   autoRefresh: number.isRequired,
   manualRefresh: number,
   timeRange: shape({

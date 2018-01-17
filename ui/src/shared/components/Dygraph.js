@@ -13,6 +13,7 @@ import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
 import {getAnnotations} from 'src/shared/annotations/helpers'
+
 import {
   OPTIONS,
   LINE_COLORS,
@@ -23,23 +24,6 @@ import {
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
-
-const annotations = [
-  {
-    group: '',
-    name: 'anno1',
-    time: '1515716169000',
-    duration: '33600000', // 1 hour
-    text: 'you have no swoggels',
-  },
-  {
-    group: '',
-    name: 'anno2',
-    time: '1515772377000',
-    duration: '',
-    text: 'another annotation',
-  },
-]
 
 export default class Dygraph extends Component {
   constructor(props) {
@@ -340,6 +324,7 @@ export default class Dygraph extends Component {
 
   render() {
     const {isHidden} = this.state
+    const {annotations} = this.props
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
@@ -394,6 +379,7 @@ Dygraph.defaultProps = {
 }
 
 Dygraph.propTypes = {
+  annotations: arrayOf(shape({})),
   axes: shape({
     y: shape({
       bounds: array,
