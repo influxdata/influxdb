@@ -36,8 +36,9 @@ func (s *SeriesIDSet) AddNoLock(id uint64) {
 // Contains returns true if the id exists in the set.
 func (s *SeriesIDSet) Contains(id uint64) bool {
 	s.RLock()
-	defer s.RUnlock()
-	return s.ContainsNoLock(id)
+	x := s.ContainsNoLock(id)
+	s.RUnlock()
+	return x
 }
 
 // ContainsNoLock returns true if the id exists in the set. ContainsNoLock is
