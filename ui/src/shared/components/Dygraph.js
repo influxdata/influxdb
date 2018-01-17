@@ -39,8 +39,6 @@ export default class Dygraph extends Component {
     super(props)
     this.state = {
       pageX: null,
-      sortType: '',
-      filterText: '',
       isSynced: false,
       isHidden: true,
     }
