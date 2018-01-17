@@ -38,10 +38,16 @@ class AllUsersTable extends Component {
     updateAuthConfigAsync(links.config.auth, authConfig, updatedAuthConfig)
   }
 
-  handleAddUserToOrganization = user => newOrganization => {
-    console.log('handleAddUserToOrganization', user.name, newOrganization.id)
-    // const newOrganizationRole = newOrganization + newOrganizationDefaultRole -- need to get this fresh from server or have server determine it, which requires a change to ValidUpdate
-    // this.props.onUpdateUserRole(user, newOrganizationRole)
+  handleAddToOrganization = user => organization => {
+    console.log('handleAddToOrganization', user.name, organization)
+    // const organizationRole = organization + organizationDefaultRole -- need to get this fresh from server or have server determine it, which requires a change to ValidUpdate
+    // this.props.onUpdateUserRole({...user, roles: [...user.roles, organizationRole]})
+  }
+
+  handleRemoveFromOrganization = user => organization => {
+    console.log('handleRemoveFromOrganization', user.name, organization)
+    // const roles = newOrganizationRole.filter(o => o.id === organization.id)
+    // this.props.onUpdateUserRole({...user, roles})
   }
 
   handleChangeSuperAdmin = user => newStatus => {
@@ -117,7 +123,10 @@ class AllUsersTable extends Component {
                       user={user}
                       key={uuid.v4()}
                       organizations={organizations}
-                      onAddUserToOrganization={this.handleAddUserToOrganization}
+                      onAddToOrganization={this.handleAddToOrganization}
+                      onRemoveFromOrganization={
+                        this.handleRemoveFromOrganization
+                      }
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
                       onDelete={this.handleDeleteUser}
                       meID={meID}

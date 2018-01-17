@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 
+import Tags from 'shared/components/Tags'
 import Dropdown from 'shared/components/Dropdown'
 import SlideToggle from 'shared/components/SlideToggle'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
@@ -16,7 +17,8 @@ const {
 const AllUsersTableRow = ({
   organizations,
   user,
-  onAddUserToOrganization,
+  onAddToOrganization,
+  onRemoveFromOrganization,
   onChangeSuperAdmin,
   onDelete,
   meID,
@@ -46,7 +48,10 @@ const AllUsersTableRow = ({
             </strong>}
       </td>
       <td style={{width: colOrganizations}}>
-        {userOrganizations.map(o => o.name).join(', ')}
+        <Tags
+          tags={userOrganizations}
+          onDeleteTag={onRemoveFromOrganization(user)}
+        />
       </td>
       <td style={{width: colProvider}}>
         {user.provider}
@@ -67,7 +72,7 @@ const AllUsersTableRow = ({
           <Dropdown
             items={dropdownOrganizationsItems}
             selected={'Add to Organization'}
-            onChoose={onAddUserToOrganization(user)}
+            onChoose={onAddToOrganization(user)}
             buttonColor="btn-primary"
             buttonSize="btn-xs"
             className="dropdown-stretch"
@@ -93,7 +98,8 @@ AllUsersTableRow.propTypes = {
     name: string.isRequired,
     id: string.isRequired,
   }),
-  onAddUserToOrganization: func.isRequired,
+  onAddToOrganization: func.isRequired,
+  onRemoveFromOrganization: func.isRequired,
   onChangeSuperAdmin: func.isRequired,
   onDelete: func.isRequired,
   meID: string.isRequired,
