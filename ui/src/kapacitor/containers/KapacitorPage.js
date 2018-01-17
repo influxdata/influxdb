@@ -136,7 +136,7 @@ class KapacitorPage extends Component {
   }
 
   render() {
-    const {source, addFlashMessage} = this.props
+    const {source, addFlashMessage, location} = this.props
     const {kapacitor, exists} = this.state
 
     return (
@@ -148,6 +148,7 @@ class KapacitorPage extends Component {
         source={source}
         addFlashMessage={addFlashMessage}
         exists={exists}
+        locationState={location.state}
       />
     )
   }
@@ -168,6 +169,7 @@ KapacitorPage.propTypes = {
     url: string.isRequired,
     kapacitors: array,
   }),
+  location: shape({}),
 }
 
 export default withRouter(KapacitorPage)
