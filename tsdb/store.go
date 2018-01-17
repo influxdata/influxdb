@@ -1032,14 +1032,14 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	}
 
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	sfile := s.sfiles[database]
 	if sfile == nil {
+		s.mu.RUnlock()
 		// No series file means nothing has been written to this DB and thus nothing to delete.
 		return nil
 	}
 	shards := s.filterShards(byDatabase(database))
+	s.mu.RUnlock()
 
 	// Limit to 1 delete for each shard since expanding the measurement into the list
 	// of series keys can be very memory intensive if run concurrently.
