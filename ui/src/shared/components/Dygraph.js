@@ -32,6 +32,13 @@ const annotations = [
     duration: '33600000', // 1 hour
     text: 'you have no swoggels',
   },
+  {
+    group: '',
+    name: 'anno2',
+    time: '1515772377000',
+    duration: '',
+    text: 'another annotation',
+  },
 ]
 
 export default class Dygraph extends Component {
