@@ -1,18 +1,20 @@
 import React, {PropTypes} from 'react'
 
 const calcStyle = (annotation, dygraph) => {
-  const [startX] = dygraph.xAxisRange()
+  const [startX, endX] = dygraph.xAxisRange()
   const containerLeftPadding = 16
+  const windowEnd = Number(annotation.time) + Number(annotation.duration)
 
   let windowStartXCoord = dygraph.toDomXCoord(annotation.time)
+  let windowEndXCoord = dygraph.toDomXCoord(windowEnd)
 
   if (annotation.time < startX) {
     windowStartXCoord = dygraph.toDomXCoord(startX)
   }
+  if (windowEnd > endX) {
+    windowEndXCoord = dygraph.toDomXCoord(endX)
+  }
 
-  const windowEndXCoord = dygraph.toDomXCoord(
-    Number(annotation.time) + Number(annotation.duration)
-  )
   const windowWidth = Number(windowEndXCoord) - Number(windowStartXCoord)
 
   const left = `${windowStartXCoord + containerLeftPadding}px`
