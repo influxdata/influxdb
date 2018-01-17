@@ -58,7 +58,7 @@ class AllUsersPage extends Component {
 
     await Promise.all([
       loadOrganizationsAsync(links.organizations),
-      loadUsersAsync(links.rawUsers),
+      loadUsersAsync(links.allUsers),
     ])
 
     this.setState({isLoading: false})
