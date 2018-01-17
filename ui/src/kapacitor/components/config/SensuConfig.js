@@ -3,9 +3,12 @@ import React, {PropTypes, Component} from 'react'
 class SensuConfig extends Component {
   constructor(props) {
     super(props)
+    this.state = {
+      testEnabled: this.props.enabled,
+    }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = e => {
     e.preventDefault()
 
     const properties = {
@@ -14,13 +17,18 @@ class SensuConfig extends Component {
     }
 
     this.props.onSave(properties)
+    this.setState({testEnabled: true})
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   render() {
     const {source, addr} = this.props.config.options
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="source">Source</label>
           <input
@@ -29,6 +37,7 @@ class SensuConfig extends Component {
             type="text"
             ref={r => (this.source = r)}
             defaultValue={source || ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -40,12 +49,26 @@ class SensuConfig extends Component {
             type="text"
             ref={r => (this.addr = r)}
             defaultValue={addr || ''}
+            onChange={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update Sensu Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -53,7 +76,7 @@ class SensuConfig extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 SensuConfig.propTypes = {
   config: shape({
@@ -63,6 +86,8 @@ SensuConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default SensuConfig

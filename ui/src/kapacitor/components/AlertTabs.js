@@ -2,7 +2,11 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
-import {getKapacitorConfig, updateKapacitorConfigSection} from 'shared/apis'
+import {
+  getKapacitorConfig,
+  updateKapacitorConfigSection,
+  testAlertOutput,
+} from 'shared/apis'
 
 import {
   AlertaConfig,
@@ -76,15 +80,32 @@ class AlertTabs extends Component {
           this.refreshKapacitorConfig(this.props.kapacitor)
           this.props.addFlashMessage({
             type: 'success',
-            text: `Alert for ${section} successfully saved`,
+            text: `Alert configuration for ${section} successfully saved.`,
           })
         })
         .catch(() => {
           this.props.addFlashMessage({
             type: 'error',
-            text: 'There was an error saving the kapacitor config',
+            text: `There was an error saving the alert configuration for ${section}.`,
           })
         })
+    }
+  }
+
+  handleTestConfig = section => async e => {
+    e.preventDefault()
+
+    try {
+      await testAlertOutput(this.props.kapacitor, section)
+      this.props.addFlashMessage({
+        type: 'success',
+        text: `Successfully triggered an alert to ${section}. If the alert does not reach its destination, please check your configuration settings.`,
+      })
+    } catch (error) {
+      this.props.addFlashMessage({
+        type: 'error',
+        text: `There was an error sending an alert to ${section}.`,
+      })
     }
   }
 
@@ -116,6 +137,8 @@ class AlertTabs extends Component {
           <AlertaConfig
             onSave={this.handleSaveConfig('alerta')}
             config={this.getSection(configSections, 'alerta')}
+            onTest={this.handleTestConfig('alerta')}
+            enabled={this.getEnabled(configSections, 'alerta')}
           />,
       },
       hipchat: {
@@ -125,6 +148,8 @@ class AlertTabs extends Component {
           <HipChatConfig
             onSave={this.handleSaveConfig('hipchat')}
             config={this.getSection(configSections, 'hipchat')}
+            onTest={this.handleTestConfig('hipchat')}
+            enabled={this.getEnabled(configSections, 'hipchat')}
           />,
       },
       opsgenie: {
@@ -134,6 +159,8 @@ class AlertTabs extends Component {
           <OpsGenieConfig
             onSave={this.handleSaveConfig('opsgenie')}
             config={this.getSection(configSections, 'opsgenie')}
+            onTest={this.handleTestConfig('opsgenie')}
+            enabled={this.getEnabled(configSections, 'opsgenie')}
           />,
       },
       pagerduty: {
@@ -143,6 +170,8 @@ class AlertTabs extends Component {
           <PagerDutyConfig
             onSave={this.handleSaveConfig('pagerduty')}
             config={this.getSection(configSections, 'pagerduty')}
+            onTest={this.handleTestConfig('pagerduty')}
+            enabled={this.getEnabled(configSections, 'pagerduty')}
           />,
       },
       pushover: {
@@ -152,6 +181,8 @@ class AlertTabs extends Component {
           <PushoverConfig
             onSave={this.handleSaveConfig('pushover')}
             config={this.getSection(configSections, 'pushover')}
+            onTest={this.handleTestConfig('pushover')}
+            enabled={this.getEnabled(configSections, 'pushover')}
           />,
       },
       sensu: {
@@ -161,6 +192,8 @@ class AlertTabs extends Component {
           <SensuConfig
             onSave={this.handleSaveConfig('sensu')}
             config={this.getSection(configSections, 'sensu')}
+            onTest={this.handleTestConfig('sensu')}
+            enabled={this.getEnabled(configSections, 'sensu')}
           />,
       },
       slack: {
@@ -170,6 +203,8 @@ class AlertTabs extends Component {
           <SlackConfig
             onSave={this.handleSaveConfig('slack')}
             config={this.getSection(configSections, 'slack')}
+            onTest={this.handleTestConfig('slack')}
+            enabled={this.getEnabled(configSections, 'slack')}
           />,
       },
       smtp: {
@@ -179,6 +214,8 @@ class AlertTabs extends Component {
           <SMTPConfig
             onSave={this.handleSaveConfig('smtp')}
             config={this.getSection(configSections, 'smtp')}
+            onTest={this.handleTestConfig('smtp')}
+            enabled={this.getEnabled(configSections, 'smtp')}
           />,
       },
       talk: {
@@ -188,6 +225,8 @@ class AlertTabs extends Component {
           <TalkConfig
             onSave={this.handleSaveConfig('talk')}
             config={this.getSection(configSections, 'talk')}
+            onTest={this.handleTestConfig('talk')}
+            enabled={this.getEnabled(configSections, 'talk')}
           />,
       },
       telegram: {
@@ -197,6 +236,8 @@ class AlertTabs extends Component {
           <TelegramConfig
             onSave={this.handleSaveConfig('telegram')}
             config={this.getSection(configSections, 'telegram')}
+            onTest={this.handleTestConfig('telegram')}
+            enabled={this.getEnabled(configSections, 'telegram')}
           />,
       },
       victorops: {
@@ -206,6 +247,8 @@ class AlertTabs extends Component {
           <VictorOpsConfig
             onSave={this.handleSaveConfig('victorops')}
             config={this.getSection(configSections, 'victorops')}
+            onTest={this.handleTestConfig('victorops')}
+            enabled={this.getEnabled(configSections, 'victorops')}
           />,
       },
     }

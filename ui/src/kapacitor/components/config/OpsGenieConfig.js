@@ -12,10 +12,11 @@ class OpsGenieConfig extends Component {
     this.state = {
       currentTeams: teams || [],
       currentRecipients: recipients || [],
+      testEnabled: this.props.enabled,
     }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = e => {
     e.preventDefault()
 
     const properties = {
@@ -25,6 +26,11 @@ class OpsGenieConfig extends Component {
     }
 
     this.props.onSave(properties)
+    this.setState({testEnabled: true})
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   handleAddTeam = team => {
@@ -59,13 +65,14 @@ class OpsGenieConfig extends Component {
     const {currentTeams, currentRecipients} = this.state
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <label htmlFor="api-key">API Key</label>
           <RedactedInput
             defaultValue={apiKey}
             id="api-key"
             refFunc={this.handleApiKeyRef}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -74,17 +81,32 @@ class OpsGenieConfig extends Component {
           onAddTag={this.handleAddTeam}
           onDeleteTag={this.handleDeleteTeam}
           tags={currentTeams}
+          disableTest={this.disableTest}
         />
         <TagInput
           title="Recipients"
           onAddTag={this.handleAddRecipient}
           onDeleteTag={this.handleDeleteRecipient}
           tags={currentRecipients}
+          disableTest={this.disableTest}
         />
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update OpsGenie Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -103,6 +125,8 @@ OpsGenieConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 class TagInput extends Component {
@@ -121,6 +145,7 @@ class TagInput extends Component {
 
       this.input.value = ''
       onAddTag(newItem)
+      this.props.disableTest()
     }
   }
 
@@ -156,6 +181,7 @@ TagInput.propTypes = {
   onDeleteTag: func.isRequired,
   tags: arrayOf(string).isRequired,
   title: string.isRequired,
+  disableTest: func.isRequired,
 }
 
 const Tags = ({tags, onDeleteTag}) =>
