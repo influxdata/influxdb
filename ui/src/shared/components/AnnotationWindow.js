@@ -11,6 +11,7 @@ const calcStyle = (annotation, dygraph) => {
   if (annotation.time < startX) {
     windowStartXCoord = dygraph.toDomXCoord(startX)
   }
+
   if (windowEnd > endX) {
     windowEndXCoord = dygraph.toDomXCoord(endX)
   }

@@ -1,10 +1,10 @@
 import React, {PropTypes} from 'react'
 
 const calcStyle = ({time}, dygraph) => {
-  const [startX] = dygraph.xAxisRange()
+  const [startX, endX] = dygraph.xAxisRange()
   let visibility = 'visible'
 
-  if (time < startX) {
+  if (time < startX || time > endX) {
     visibility = 'hidden'
   }
 
