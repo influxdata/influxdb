@@ -32,6 +32,7 @@ const triangleStyle = {
   border: '7px solid transparent',
   borderTopColor: '#f00',
   transform: 'scaleY(1.5)',
+  cursor: 'pointer',
 }
 
 const Annotation = ({annotation, dygraph}) =>

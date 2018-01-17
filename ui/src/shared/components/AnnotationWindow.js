@@ -7,6 +7,7 @@ const calcStyle = (annotation, dygraph) => {
 
   let windowStartXCoord = dygraph.toDomXCoord(annotation.time)
   let windowEndXCoord = dygraph.toDomXCoord(windowEnd)
+  let visibility = 'visible'
 
   if (annotation.time < startX) {
     windowStartXCoord = dygraph.toDomXCoord(startX)
@@ -16,7 +17,11 @@ const calcStyle = (annotation, dygraph) => {
     windowEndXCoord = dygraph.toDomXCoord(endX)
   }
 
-  const windowWidth = Number(windowEndXCoord) - Number(windowStartXCoord)
+  if (windowEnd < startX || annotation.time > endX) {
+    visibility = 'hidden'
+  }
+
+  const windowWidth = windowEndXCoord - windowStartXCoord
 
   const left = `${windowStartXCoord + containerLeftPadding}px`
   const width = `${windowWidth}px`
@@ -31,6 +36,7 @@ const calcStyle = (annotation, dygraph) => {
     borderTop: '2px solid #f00',
     width,
     zIndex: '1',
+    visibility,
   }
 }
 const AnnotationWindow = ({annotation, dygraph}) =>
