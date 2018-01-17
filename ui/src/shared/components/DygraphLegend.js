@@ -30,7 +30,10 @@ class DygraphLegend extends Component {
   }
 
   componentWillUnmount() {
-    if (!this.props.dygraph.visibility().find(bool => bool === true)) {
+    if (
+      !this.props.dygraph.graphDiv ||
+      !this.props.dygraph.visibility().find(bool => bool === true)
+    ) {
       this.setState({filterText: ''})
     }
   }
