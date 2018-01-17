@@ -8,11 +8,11 @@ export const getAnnotations = (graph, annotations = []) => {
     // Don't render if annotation.time is outside the graph
     const time = +a.time
     const duration = +a.duration
+    const endpoint = time + duration
 
     if (time < xStart) {
-      const endPoint = time + duration
-      if (endPoint > xStart) {
-        return [...acc, a, {...a, time: `${endPoint}`, duration: ''}]
+      if (endpoint > xStart) {
+        return [...acc, a, {...a, time: `${endpoint}`, duration: ''}]
       }
 
       return acc
@@ -27,21 +27,12 @@ export const getAnnotations = (graph, annotations = []) => {
       return [...acc, a]
     }
 
-    const annotationEndpoint = {
-      ...a,
-      time: `${time + duration}`,
-      duration: '',
-    }
-
-    const endpointOutOfBounds =
-      +annotationEndpoint.time < xStart || +annotationEndpoint.time > xEnd
-
     // If endpoint is out of bounds, just render the start point
-    if (endpointOutOfBounds) {
+    if (endpoint > xEnd) {
       return [...acc, a]
     }
 
     // Render both the start and end point
-    return [...acc, a, annotationEndpoint]
+    return [...acc, a, {...a, time: `${time + duration}`, duration: ''}]
   }, [])
 }
