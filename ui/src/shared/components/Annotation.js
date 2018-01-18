@@ -29,8 +29,6 @@ class Annotation extends Component {
     this.setState({isDragging: false, mouseOver: false})
   }
 
-  counter = 0
-
   handleDrag = e => {
     if (!this.state.isDragging) {
       return
@@ -38,18 +36,19 @@ class Annotation extends Component {
 
     const {pageX} = e
     const {annotation, annotations, dygraph, onUpdateAnnotation} = this.props
-    const {id, time} = annotation
+    const {id, time, duration} = annotation
     const {left} = dygraph.graphDiv.getBoundingClientRect()
     const [startX, endX] = dygraph.xAxisRange()
 
     const graphX = pageX - left
     let newTime = dygraph.toDataXCoord(graphX)
+    const oldTime = +time
 
     const minPercentChange = 0.5
 
     if (
       Math.abs(
-        dygraph.toPercentXCoord(newTime) - dygraph.toPercentXCoord(time)
+        dygraph.toPercentXCoord(newTime) - dygraph.toPercentXCoord(oldTime)
       ) *
         100 <
       minPercentChange
@@ -76,12 +75,22 @@ class Annotation extends Component {
         return console.error('Start annotation does not exist')
       }
 
-      const {duration} = startAnnotation
-      const newDuration = Number(newTime) - Number(time) + Number(duration)
+      const newDuration = newTime - oldTime + Number(startAnnotation.duration)
 
       this.counter = this.counter + 1
       return onUpdateAnnotation({
         ...startAnnotation,
+        duration: `${newDuration}`,
+      })
+    }
+
+    if (duration) {
+      const differenceInTimes = oldTime - newTime
+      const newDuration = Number(duration) + differenceInTimes
+
+      return onUpdateAnnotation({
+        ...annotation,
+        time: `${newTime}`,
         duration: `${newDuration}`,
       })
     }
