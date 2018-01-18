@@ -38,11 +38,10 @@ const generateResponseWithLinks = (response, newLinks) => {
 
 const AJAX = async (
   {url, resource, id, method = 'GET', data = {}, params = {}, headers = {}},
-  excludeBasepath
+  {excludeBasepath} = {}
 ) => {
   try {
     let response
-
     url = addBasepath(url, excludeBasepath)
 
     if (!links) {
