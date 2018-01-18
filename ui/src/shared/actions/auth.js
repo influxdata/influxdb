@@ -1,7 +1,5 @@
 import {getMe as getMeAJAX, updateMe as updateMeAJAX} from 'shared/apis/auth'
 
-import {linksReceived} from 'shared/actions/links'
-
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
@@ -52,25 +50,15 @@ export const meChangeOrganizationFailed = () => ({
 // re-hydrated. if `getMeAsync` is only being used to refresh me after creating
 // an organization, this is undesirable behavior
 export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
+  console.log('getMeAsync dispatch', dispatch)
   if (shouldResetMe) {
     dispatch(authRequested())
     dispatch(meGetRequested())
   }
   try {
     // These non-me objects are added to every response by some AJAX trickery
-    const {
-      data: me,
-      auth,
-      users,
-      allUsers,
-      meLink,
-      config,
-      external,
-      logoutLink,
-      organizations,
-      environment,
-    } = await getMeAJAX()
-
+    const {data: me, auth, logoutLink} = await getMeAJAX()
+    // TODO: eventually, get the links for auth and logout out of here and into linksGetCompleted
     dispatch(
       meGetCompleted({
         me,
@@ -78,30 +66,27 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
         logoutLink,
       })
     )
-
-    dispatch(
-      linksReceived({
-        external,
-        users,
-        allUsers,
-        organizations,
-        me: meLink,
-        config,
-        environment,
-      })
-    ) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
   } catch (error) {
     dispatch(meGetFailed())
     dispatch(errorThrown(error))
   }
 }
 
+// meChangeOrganizationAsync is for switching the user's current organization.
+//
+// Global links state also needs to be refreshed upon organization change so
+// that Admin Chronograf / Current Org User tab's link is valid, but this is
+// happening automatically because we are using a browser redirect to reload
+// the application. if at some point we stop using a redirect and instead
+// make it a seamless SPA experience, a la issue #2463, we'll need to refresh
+// links manually.
 export const meChangeOrganizationAsync = (
   url,
   organization
 ) => async dispatch => {
   dispatch(meChangeOrganizationRequested())
   try {
+    console.log('meChangeOrganizationAsync url', url)
     const {data: me, auth, logoutLink} = await updateMeAJAX(url, organization)
     const currentRole = me.roles.find(
       r => r.organization === me.currentOrganization.id
