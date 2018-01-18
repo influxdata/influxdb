@@ -1,16 +1,17 @@
 import React, {Component, PropTypes} from 'react'
 
+import AnnotationTooltip from 'src/shared/components/AnnotationTooltip'
+
 import {
   annotationStyle,
   flagStyle,
   clickAreaStyle,
-  tooltipStyle,
 } from 'src/shared/annotations/styles'
 
 class Annotation extends Component {
   state = {
     isDragging: false,
-    mouseOver: false,
+    isMouseOver: false,
   }
 
   handleStartDrag = () => {
@@ -22,15 +23,16 @@ class Annotation extends Component {
   }
 
   handleMouseEnter = () => {
-    this.setState({mouseOver: true})
+    this.setState({isMouseOver: true})
   }
 
   handleMouseLeave = e => {
-    // if new target = tooltip then maintain mouseOver as true
-    if (e.relatedTarget === this.tooltip) {
+    const {annotation} = this.props
+
+    if (e.relatedTarget.id === `tooltip-${annotation.id}`) {
       return this.setState({isDragging: false})
     }
-    this.setState({isDragging: false, mouseOver: false})
+    this.setState({isDragging: false, isMouseOver: false})
   }
 
   handleDrag = e => {
@@ -107,7 +109,7 @@ class Annotation extends Component {
 
   render() {
     const {annotation, dygraph} = this.props
-    const {isDragging, mouseOver} = this.state
+    const {isDragging, isMouseOver} = this.state
 
     const humanTime = `${new Date(+annotation.time)}`
 
@@ -126,16 +128,12 @@ class Annotation extends Component {
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={flagStyle(mouseOver, isDragging)} />
-        <div
-          ref={el => (this.tooltip = el)}
-          style={tooltipStyle(mouseOver, isDragging)}
+        <div style={flagStyle(isMouseOver, isDragging)} />
+        <AnnotationTooltip
+          annotation={annotation}
           onMouseLeave={this.handleMouseLeave}
-        >
-          {annotation.name}
-          <br />
-          {humanTime}
-        </div>
+          annotationState={this.state}
+        />
       </div>
     )
   }

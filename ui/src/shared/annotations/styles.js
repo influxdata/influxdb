@@ -56,8 +56,8 @@ export const clickAreaStyle = dragging => {
   return style
 }
 
-export const tooltipStyle = (mouseOver, isDragging) => {
-  const style = {
+export const tooltipStyle = visibility => {
+  return {
     position: 'absolute',
     bottom: 'calc(100% + 8px)',
     left: '50%',
@@ -71,13 +71,9 @@ export const tooltipStyle = (mouseOver, isDragging) => {
     borderRadius: '4px',
     whiteSpace: 'nowrap',
     userSelect: 'none',
-    display: 'none',
+    flexDirection: 'column',
+    display: visibility ? 'flex' : 'none',
   }
-
-  if (mouseOver || isDragging) {
-    return {...style, display: 'block'}
-  }
-  return style
 }
 
 export const annotationStyle = ({time}, dygraph, isDragging) => {
