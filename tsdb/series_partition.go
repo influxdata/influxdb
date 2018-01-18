@@ -49,6 +49,7 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 		path:             path,
 		CompactThreshold: DefaultSeriesPartitionCompactThreshold,
 		Logger:           zap.NewNop(),
+		seq:              uint64(id) + 1,
 	}
 }
 
@@ -111,7 +112,9 @@ func (p *SeriesPartition) openSegments() error {
 
 	// Find max series id by searching segments in reverse order.
 	for i := len(p.segments) - 1; i >= 0; i-- {
-		if p.seq = p.segments[i].MaxSeriesID(); p.seq > 0 {
+		if seq := p.segments[i].MaxSeriesID(); seq >= p.seq {
+			// Reset our sequence num to the next one to assign
+			p.seq = seq + SeriesFilePartitionN
 			break
 		}
 	}
@@ -376,16 +379,13 @@ func (p *SeriesPartition) activeSegment() *SeriesSegment {
 }
 
 func (p *SeriesPartition) insert(key []byte) (id uint64, offset int64, err error) {
-	// ID is built using a autoincrement sequence joined to the partition id.
-	// Format: <seq(7b)><partition(1b)>
-	id = ((p.seq + 1) << 8) | uint64(p.id)
-
+	id = p.seq
 	offset, err = p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryInsertFlag, id, key))
 	if err != nil {
 		return 0, 0, err
 	}
 
-	p.seq++
+	p.seq += SeriesFilePartitionN
 	return id, offset, nil
 }
 
