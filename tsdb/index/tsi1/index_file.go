@@ -224,14 +224,15 @@ func (f *IndexFile) MeasurementHasSeries(ss *tsdb.SeriesIDSet, name []byte) (ok 
 		return false
 	}
 
+	var exists bool
 	e.ForEachSeriesID(func(id uint64) error {
 		if ss.Contains(id) {
-			ok = true
+			exists = true
 			return errors.New("done")
 		}
 		return nil
 	})
-	return ok
+	return exists
 }
 
 // TagValueIterator returns a value iterator for a tag key and a flag
