@@ -4,7 +4,7 @@ import {
   annotationStyle,
   flagStyle,
   clickAreaStyle,
-  timeIndicatorStyle,
+  tooltipStyle,
 } from 'src/shared/annotations/styles'
 
 class Annotation extends Component {
@@ -25,7 +25,11 @@ class Annotation extends Component {
     this.setState({mouseOver: true})
   }
 
-  handleMouseLeave = () => {
+  handleMouseLeave = e => {
+    // if new target = tooltip then maintain mouseOver as true
+    if (e.relatedTarget === this.tooltip) {
+      return this.setState({isDragging: false})
+    }
     this.setState({isDragging: false, mouseOver: false})
   }
 
@@ -123,11 +127,15 @@ class Annotation extends Component {
           onMouseLeave={this.handleMouseLeave}
         />
         <div style={flagStyle(mouseOver, isDragging)} />
-        {isDragging
-          ? <div style={timeIndicatorStyle}>
-              {humanTime}
-            </div>
-          : null}
+        <div
+          ref={el => (this.tooltip = el)}
+          style={tooltipStyle(mouseOver, isDragging)}
+          onMouseLeave={this.handleMouseLeave}
+        >
+          {annotation.name}
+          <br />
+          {humanTime}
+        </div>
       </div>
     )
   }

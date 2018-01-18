@@ -5,7 +5,7 @@ const zIndexWindow = '1'
 const zIndexAnnotation = '3'
 const zIndexAnnotationDragging = '4'
 
-export const flagStyle = (hover, dragging) => {
+export const flagStyle = (mouseOver, dragging) => {
   const style = {
     position: 'absolute',
     top: '-3px',
@@ -25,7 +25,7 @@ export const flagStyle = (hover, dragging) => {
       backgroundColor: `rgb(${annotationDragColor})`,
     }
   }
-  if (hover) {
+  if (mouseOver) {
     return {...style, transform: 'scale(1.5,1.5)'}
   }
 
@@ -56,20 +56,28 @@ export const clickAreaStyle = dragging => {
   return style
 }
 
-export const timeIndicatorStyle = {
-  position: 'absolute',
-  top: '26px',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  backgroundColor: '#000',
-  zIndex: '3',
-  color: '#fff',
-  fontSize: '12px',
-  fontWeight: '600',
-  padding: '4px',
-  borderRadius: '4px',
-  whiteSpace: 'nowrap',
-  userSelect: 'none',
+export const tooltipStyle = (mouseOver, isDragging) => {
+  const style = {
+    position: 'absolute',
+    bottom: 'calc(100% + 8px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: '#000',
+    zIndex: '3',
+    color: '#fff',
+    fontSize: '12px',
+    fontWeight: '600',
+    padding: '4px',
+    borderRadius: '4px',
+    whiteSpace: 'nowrap',
+    userSelect: 'none',
+    display: 'none',
+  }
+
+  if (mouseOver || isDragging) {
+    return {...style, display: 'block'}
+  }
+  return style
 }
 
 export const annotationStyle = ({time}, dygraph, isDragging) => {
