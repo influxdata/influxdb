@@ -3,27 +3,27 @@
 
 // Nuetrals (Dark to Light)
 export const NEUTRALS = [
-  '#0f0e15', //obsidian
-  '#1c1c21', //raven
-  '#202028', //kevlar
-  '#292933', //castle
-  '#31313d', //onyx
-  '#383846', //pepper
-  '#434453', //smoke
-  '#545667', //graphite
-  '#676978', //storm
-  '#757888', //mountain
-  '#8e91a1', //wolf
-  '#999dab', //sidewalk
-  '#a4a8b6', //forge
-  '#bec2cc', //mist
-  '#c6cad3', //chromium
-  '#d4d7dd', //platinum
-  '#e7e8eb', //pearl
-  '#eeeff2', //whisper
-  '#f6f6f8', //cloud
-  '#fafafc', //ghost
-  '#ffffff', //white
+  '#0f0e15', // Obsidian
+  '#1c1c21', // Raven
+  '#202028', // Kevlar
+  '#292933', // Castle
+  '#31313d', // Onyx
+  '#383846', // Pepper
+  '#434453', // Smoke
+  '#545667', // Graphite
+  '#676978', // Storm
+  '#757888', // Mountain
+  '#8e91a1', // Wolf
+  '#999dab', // Sidewalk
+  '#a4a8b6', // Forge
+  '#bec2cc', // Mist
+  '#c6cad3', // Chromium
+  '#d4d7dd', // Platinum
+  '#e7e8eb', // Pearl
+  '#eeeff2', // Whisper
+  '#f6f6f8', // Cloud
+  '#fafafc', // Ghost
+  '#ffffff', // White
 ]
 
 // Telegraf (Dark to Light)
