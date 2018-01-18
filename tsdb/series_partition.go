@@ -35,7 +35,8 @@ type SeriesPartition struct {
 	index    *SeriesIndex
 	seq      uint64 // series id sequence
 
-	compacting bool
+	compacting          bool
+	compactionsDisabled int
 
 	CompactThreshold int
 
@@ -249,7 +250,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	}
 
 	// Check if we've crossed the compaction threshold.
-	if !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
+	if p.compactionsEnabled() && !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
 		p.compacting = true
 		logger := p.Logger.With(zap.String("path", p.path))
 		logger.Info("beginning series partition compaction")
@@ -360,6 +361,26 @@ func (p *SeriesPartition) SeriesCount() uint64 {
 	n := p.index.Count()
 	p.mu.RUnlock()
 	return n
+}
+
+func (p *SeriesPartition) DisableCompactions() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.compactionsDisabled++
+}
+
+func (p *SeriesPartition) EnableCompactions() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.compactionsEnabled() {
+		return
+	}
+	p.compactionsDisabled++
+}
+
+func (p *SeriesPartition) compactionsEnabled() bool {
+	return p.compactionsDisabled == 0
 }
 
 // AppendSeriesIDs returns a list of all series ids.

@@ -1206,6 +1206,11 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 			// filling up.
 			e.disableLevelCompactions(true)
 			defer e.enableLevelCompactions(true)
+
+			e.sfile.DisableCompactions()
+			defer e.sfile.EnableCompactions()
+			e.sfile.Wait()
+
 			disableOnce = true
 		}
 
