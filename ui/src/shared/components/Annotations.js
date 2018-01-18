@@ -29,11 +29,12 @@ class Annotations extends Component {
 
     return (
       <div className="annotations-container">
-        {annotations.map((a, i) =>
+        {annotations.map(a =>
           <Annotation
-            key={i}
+            key={a.id}
             annotation={a}
             dygraph={dygraph}
+            annotations={annotations}
             onUpdateAnnotation={handleUpdateAnnotation}
           />
         )}

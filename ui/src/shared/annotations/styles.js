@@ -124,9 +124,11 @@ export const annotationWindowStyle = (annotation, dygraph) => {
   }
 
   const windowWidth = windowEndXCoord - windowStartXCoord
+  const isDurationNegative = windowWidth < 0
+  const foo = isDurationNegative ? windowWidth : 0
 
-  const left = `${windowStartXCoord + containerLeftPadding}px`
-  const width = `${windowWidth}px`
+  const left = `${windowStartXCoord + containerLeftPadding + foo}px`
+  const width = `${Math.abs(windowWidth)}px`
 
   const gradientStartColor = `rgba(${annotationColor},0.3)`
   const gradientEndColor = `rgba(${annotationColor},0)`
