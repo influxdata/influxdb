@@ -215,7 +215,7 @@ func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 }
 
 func (f *SeriesFile) SeriesIDPartitionID(id uint64) int {
-	return int(id & 0xFF)
+	return int((id - 1) % SeriesFilePartitionN)
 }
 
 func (f *SeriesFile) SeriesIDPartition(id uint64) *SeriesPartition {
