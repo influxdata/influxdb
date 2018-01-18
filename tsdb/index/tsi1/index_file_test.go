@@ -49,6 +49,26 @@ func TestGenerateIndexFile(t *testing.T) {
 	}
 }
 
+// Ensure a MeasurementHashSeries returns false when all series are tombstoned.
+func TestIndexFile_MeasurementHasSeries_Tombstoned(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f, err := CreateIndexFile(sfile.SeriesFile, []Series{
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate all series are tombstoned
+	ss := tsdb.NewSeriesIDSet()
+
+	if f.MeasurementHasSeries(ss, []byte("cpu")) {
+		t.Fatalf("MeasurementHasSeries got true, exp false")
+	}
+}
+
 func BenchmarkIndexFile_TagValueSeries(b *testing.B) {
 	b.Run("M=1,K=2,V=3", func(b *testing.B) {
 		sfile := MustOpenSeriesFile()
