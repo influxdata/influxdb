@@ -1,52 +1,16 @@
 import React, {Component, PropTypes} from 'react'
 
-const calcStyle = ({time}, dygraph, isDragging) => {
-  // TODO: export and test this function
-  const [startX, endX] = dygraph.xAxisRange()
-  let visibility = 'visible'
-
-  if (time < startX || time > endX) {
-    visibility = 'hidden'
-  }
-
-  const containerLeftPadding = 16
-  const left = `${dygraph.toDomXCoord(time) + containerLeftPadding}px`
-  const width = 2
-
-  return {
-    left,
-    position: 'absolute',
-    top: '8px',
-    backgroundColor: '#f00',
-    height: 'calc(100% - 36px)',
-    width: `${width}px`,
-    transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the annotation pole
-    visibility,
-    zIndex: isDragging ? '4' : '3',
-  }
-}
-
-const triangleStyle = {
-  position: 'absolute',
-  top: '-7px',
-  left: '-7px',
-  width: '14px',
-  height: '14px',
-  backgroundColor: '#f00',
-  cursor: 'pointer',
-}
-const triangleStyleDragging = {
-  ...triangleStyle,
-  backgroundColor: 'rgba(0,0,255,0.2)',
-  width: '10000px',
-  left: '-5000px',
-  height: '10000px',
-  top: '-5000px',
-}
+import {
+  annotationStyle,
+  flagStyle,
+  clickAreaStyle,
+  timeIndicatorStyle,
+} from 'src/shared/annotations/styles'
 
 class Annotation extends Component {
   state = {
     isDragging: false,
+    mouseOver: false,
   }
 
   handleStartDrag = () => {
@@ -57,8 +21,12 @@ class Annotation extends Component {
     this.setState({isDragging: false})
   }
 
+  handleMouseEnter = () => {
+    this.setState({mouseOver: true})
+  }
+
   handleMouseLeave = () => {
-    this.setState({isDragging: false})
+    this.setState({isDragging: false, mouseOver: false})
   }
 
   handleDrag = e => {
@@ -104,21 +72,31 @@ class Annotation extends Component {
 
   render() {
     const {annotation, dygraph} = this.props
-    const {isDragging} = this.state
+    const {isDragging, mouseOver} = this.state
+
+    const humanTime = `${new Date(+annotation.time)}`
 
     return (
       <div
         className="dygraph-annotation"
-        style={calcStyle(annotation, dygraph, isDragging)}
+        style={annotationStyle(annotation, dygraph, isDragging)}
         data-time-ms={annotation.time}
-        data-time-local={new Date(+annotation.time)}
+        data-time-local={humanTime}
       >
         <div
-          style={isDragging ? triangleStyleDragging : triangleStyle}
+          style={clickAreaStyle(isDragging)}
           onMouseMove={this.handleDrag}
           onMouseDown={this.handleStartDrag}
           onMouseUp={this.handleStopDrag}
+          onMouseEnter={this.handleMouseEnter}
+          onMouseLeave={this.handleMouseLeave}
         />
+        <div style={flagStyle(mouseOver, isDragging)} />
+        {isDragging
+          ? <div style={timeIndicatorStyle}>
+              {humanTime}
+            </div>
+          : null}
       </div>
     )
   }
