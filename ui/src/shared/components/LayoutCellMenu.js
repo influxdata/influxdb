@@ -1,69 +1,79 @@
-import React, {PropTypes} from 'react'
-import OnClickOutside from 'react-onclickoutside'
-import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
+import React, {Component, PropTypes} from 'react'
+import classnames from 'classnames'
 
-const LayoutCellMenu = OnClickOutside(
-  ({
-    cell,
-    onEdit,
-    queries,
-    onDelete,
-    isEditable,
-    dataExists,
-    isDeleting,
-    onDeleteClick,
-    onCSVDownload,
-  }) =>
-    <div className="dash-graph-context">
+import MenuTooltipButton from 'src/shared/components/MenuTooltipButton'
+import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
+
+class LayoutCellMenu extends Component {
+  state = {
+    subMenuIsOpen: false,
+  }
+
+  handleToggleSubMenu = () => {
+    this.setState({subMenuIsOpen: !this.state.subMenuIsOpen})
+  }
+
+  render() {
+    const {subMenuIsOpen} = this.state
+    const {
+      cell,
+      onEdit,
+      queries,
+      onDelete,
+      isEditable,
+      dataExists,
+      onCSVDownload,
+    } = this.props
+
+    return (
       <div
-        className={`${isEditable
-          ? 'dash-graph--custom-indicators dash-graph--draggable'
-          : 'dash-graph--custom-indicators'}`}
+        className={classnames('dash-graph-context', {
+          'dash-graph-context__open': subMenuIsOpen,
+        })}
       >
-        {queries && <CustomTimeIndicator queries={queries} />}
+        <div
+          className={`${isEditable
+            ? 'dash-graph--custom-indicators dash-graph--draggable'
+            : 'dash-graph--custom-indicators'}`}
+        >
+          {queries && <CustomTimeIndicator queries={queries} />}
+        </div>
+        {isEditable &&
+          <div className="dash-graph-context--buttons">
+            <MenuTooltipButton
+              icon="pencil"
+              menuOptions={[{text: 'Queries', action: onEdit(cell)}]}
+              informParent={this.handleToggleSubMenu}
+            />
+            {dataExists &&
+              <MenuTooltipButton
+                icon="download"
+                menuOptions={[
+                  {text: 'Download CSV', action: onCSVDownload(cell)},
+                ]}
+                informParent={this.handleToggleSubMenu}
+              />}
+            <MenuTooltipButton
+              icon="trash"
+              theme="danger"
+              menuOptions={[{text: 'Confirm', action: onDelete(cell)}]}
+              informParent={this.handleToggleSubMenu}
+            />
+          </div>}
       </div>
-      {isEditable &&
-        <div className="dash-graph-context--buttons">
-          <div className="dash-graph-context--button" onClick={onEdit(cell)}>
-            <span className="icon pencil" />
-          </div>
-          {dataExists &&
-            <div
-              className="dash-graph-context--button"
-              onClick={onCSVDownload(cell)}
-            >
-              <span className="icon download" />
-            </div>}
-          {isDeleting
-            ? <div className="dash-graph-context--button active">
-                <span className="icon trash" />
-                <div
-                  className="dash-graph-context--confirm"
-                  onClick={onDelete(cell)}
-                >
-                  Confirm
-                </div>
-              </div>
-            : <div
-                className="dash-graph-context--button"
-                onClick={onDeleteClick}
-              >
-                <span className="icon trash" />
-              </div>}
-        </div>}
-    </div>
-)
+    )
+  }
+}
 
 const {arrayOf, bool, func, shape} = PropTypes
 
 LayoutCellMenu.propTypes = {
-  isDeleting: bool,
   onEdit: func,
   onDelete: func,
-  onDeleteClick: func,
   cell: shape(),
   isEditable: bool,
   dataExists: bool,
+  onCSVDownload: func,
   queries: arrayOf(shape()),
 }
 

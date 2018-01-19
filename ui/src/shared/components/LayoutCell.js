@@ -12,19 +12,6 @@ import download from 'src/external/download.js'
 class LayoutCell extends Component {
   constructor(props) {
     super(props)
-    this.state = {
-      isDeleting: false,
-    }
-  }
-
-  closeMenu = () => {
-    this.setState({
-      isDeleting: false,
-    })
-  }
-
-  handleDeleteClick = () => {
-    this.setState({isDeleting: true})
   }
 
   handleDeleteCell = cell => () => {
@@ -49,7 +36,6 @@ class LayoutCell extends Component {
   render() {
     const {cell, children, isEditable, celldata} = this.props
 
-    const {isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
 
     return (
@@ -59,12 +45,10 @@ class LayoutCell extends Component {
             cell={cell}
             queries={queries}
             dataExists={!!celldata.length}
-            isDeleting={isDeleting}
             isEditable={isEditable}
             onDelete={this.handleDeleteCell}
             onEdit={this.handleSummonOverlay}
             handleClickOutside={this.closeMenu}
-            onDeleteClick={this.handleDeleteClick}
             onCSVDownload={this.handleCSVDownload}
           />
         </Authorized>

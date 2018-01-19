@@ -192,7 +192,6 @@ $dash-graph-options-arrow: 8px;
 .dash-graph--custom-indicators {
   height: 24px;
   border-radius: 3px;
-  top: 3px;
   display: flex;
   cursor: default;
 
@@ -227,6 +226,9 @@ $dash-graph-options-arrow: 8px;
   align-items: center;
   flex-wrap: nowrap;
 }
+.dash-graph-context.dash-graph-context__open {
+  z-index: 20;
+}
 .dash-graph-context--buttons {
   display: flex;
 }
@@ -237,6 +239,7 @@ $dash-graph-options-arrow: 8px;
   font-size: 12px;
   position: relative;
   color: $g11-sidewalk;
+  margin-right: 2px;
   transition: color 0.25s ease, background-color 0.25s ease;
 
   &:hover,
@@ -245,8 +248,8 @@ $dash-graph-options-arrow: 8px;
     color: $g20-white;
     background-color: $g5-pepper;
   }
-  &:first-child {
-    margin-right: 2px;
+  &:last-child {
+    margin-right: 0px;
   }
 
   > .icon {
@@ -255,41 +258,96 @@ $dash-graph-options-arrow: 8px;
     left: 50%;
     transform: translate(-50%, -50%);
   }
+  &.active {
+    position: relative;
+    z-index: 20;
+  }
 }
-.dash-graph-context--confirm {
+.dash-graph-context--menu,
+.dash-graph-context--menu.default {
   z-index: 3;
   position: absolute;
   top: calc(100% + 8px);
   left: 50%;
+  background-color: $g6-smoke;
   transform: translateX(-50%);
-  width: 58px;
-  height: 24px;
   border-radius: 3px;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 24px;
-  background-color: $c-curacao;
-  color: $g20-white;
-  transition: background-color 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
 
   &:before {
     position: absolute;
     content: '';
     border: 6px solid transparent;
-    border-bottom-color: $c-curacao;
+    border-bottom-color: $g6-smoke;
     left: 50%;
     top: 0;
     transform: translate(-50%, -100%);
     transition: border-color 0.25s ease;
   }
 
-  &:hover {
-    background-color: $c-dreamsicle;
-    cursor: pointer;
+  .dash-graph-context--menu-item {
+    @include no-user-select();
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 26px;
+    height: 26px;
+    padding: 0 10px;
+    color: $g20-white;
+    transition: background-color 0.25s ease;
+
+    &:first-child {
+      border-top-left-radius: 3px;
+      border-top-right-radius: 3px;
+    }
+    &:last-child {
+      border-bottom-left-radius: 3px;
+      border-bottom-right-radius: 3px;
+    }
+    &:hover {
+      background-color: $g8-storm;
+      cursor: pointer;
+    }
   }
-  &:hover:before {
-    border-bottom-color: $c-dreamsicle;
+}
+
+.dash-graph-context--menu.primary {
+  background-color: $c-ocean;
+  &:before {
+    border-bottom-color: $c-ocean;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-pool;
+  }
+}
+.dash-graph-context--menu.warning {
+  background-color: $c-star;
+  &:before {
+    border-bottom-color: $c-star;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-comet;
+  }
+}
+.dash-graph-context--menu.success {
+  background-color: $c-rainforest;
+  &:before {
+    border-bottom-color: $c-rainforest;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-honeydew;
+  }
+}
+.dash-graph-context--menu.danger {
+  background-color: $c-curacao;
+  &:before {
+    border-bottom-color: $c-curacao;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-dreamsicle;
   }
 }
 
