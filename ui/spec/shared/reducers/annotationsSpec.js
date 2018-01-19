@@ -1,10 +1,13 @@
 import reducer from 'shared/reducers/annotations'
 
 import {
+  addAnnotation,
   deleteAnnotation,
   loadAnnotations,
   updateAnnotation,
 } from 'shared/actions/annotations'
+
+import {DEFAULT_ANNOTATION_ID} from 'src/shared/constants/annotations'
 
 const a1 = {
   id: '1',
@@ -45,6 +48,14 @@ describe.only('Shared.Reducers.annotations', () => {
     const state = [a1, a2]
     const expected = [a2]
     const actual = reducer(state, deleteAnnotation(a1))
+
+    expect(actual).to.deep.equal(expected)
+  })
+
+  it('can add an annotation', () => {
+    const state = []
+    const expected = [{...a1, id: DEFAULT_ANNOTATION_ID}]
+    const actual = reducer(state, addAnnotation(a1))
 
     expect(actual).to.deep.equal(expected)
   })

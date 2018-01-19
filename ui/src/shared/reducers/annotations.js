@@ -1,3 +1,5 @@
+import {DEFAULT_ANNOTATION_ID} from 'src/shared/constants/annotations'
+
 const initialState = [
   {
     id: '0',
@@ -35,6 +37,12 @@ const annotationsReducer = (state = initialState, action) => {
       const newState = state.filter(a => a.id !== annotation.id)
 
       return newState
+    }
+
+    case 'ADD_ANNOTATION': {
+      const {annotation} = action.payload
+
+      return [...state, {...annotation, id: DEFAULT_ANNOTATION_ID}]
     }
   }
 

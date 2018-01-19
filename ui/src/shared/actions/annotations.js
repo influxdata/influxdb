@@ -18,3 +18,10 @@ export const deleteAnnotation = annotation => ({
     annotation,
   },
 })
+
+export const addAnnotation = annotation => ({
+  type: 'ADD_ANNOTATION',
+  payload: {
+    annotation,
+  },
+})
