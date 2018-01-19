@@ -75,7 +75,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if cmd.portable {
-		return cmd.runOnlineEnterprise()
+		return cmd.runOnlinePortable()
 	} else if cmd.online {
 		return cmd.runOnlineLegacy()
 	} else {
@@ -100,13 +100,13 @@ func (cmd *Command) runOffline() error {
 	return nil
 }
 
-func (cmd *Command) runOnlineEnterprise() error {
-	err := cmd.updateMetaEnterprise()
+func (cmd *Command) runOnlinePortable() error {
+	err := cmd.updateMetaPortable()
 	if err != nil {
 		cmd.StderrLogger.Printf("error updating meta: %v", err)
 		return err
 	}
-	err = cmd.uploadShardsEnterprise()
+	err = cmd.uploadShardsPortable()
 	if err != nil {
 		cmd.StderrLogger.Printf("error updating shards: %v", err)
 		return err
@@ -311,7 +311,7 @@ func (cmd *Command) unpackMeta() error {
 	return nil
 }
 
-func (cmd *Command) updateMetaEnterprise() error {
+func (cmd *Command) updateMetaPortable() error {
 	var metaBytes []byte
 	fileName := filepath.Join(cmd.backupFilesPath, cmd.manifestMeta.FileName)
 
@@ -320,7 +320,7 @@ func (cmd *Command) updateMetaEnterprise() error {
 		return err
 	}
 
-	var ep backup_util.EnterprisePacker
+	var ep backup_util.PortablePacker
 	ep.UnmarshalBinary(fileBytes)
 
 	metaBytes = ep.Data
@@ -394,7 +394,7 @@ func (cmd *Command) unpackShard(shard uint64) error {
 	return cmd.unpackFiles(pat + ".*")
 }
 
-func (cmd *Command) uploadShardsEnterprise() error {
+func (cmd *Command) uploadShardsPortable() error {
 	for _, file := range cmd.manifestFiles {
 		if cmd.sourceDatabase == "" || cmd.sourceDatabase == file.Database {
 			if cmd.backupRetention == "" || cmd.backupRetention == file.Policy {

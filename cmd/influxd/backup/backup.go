@@ -166,7 +166,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	cmd.BackupFiles = []string{}
 
 	// for portable saving, if needed
-	cmd.portableFileBase = time.Now().UTC().Format(backup_util.EnterpriseFileNamePattern)
+	cmd.portableFileBase = time.Now().UTC().Format(backup_util.PortableFileNamePattern)
 
 	// if startArg and endArg are unspecified, then assume we are doing a full backup of the DB
 	cmd.isBackup = startArg == "" && endArg == ""
@@ -424,7 +424,7 @@ func (cmd *Command) backupMetastore() error {
 			return err
 		}
 		filename := cmd.portableFileBase + ".meta"
-		ep := backup_util.EnterprisePacker{Data: metaBytes, MaxNodeID: 0}
+		ep := backup_util.PortablePacker{Data: metaBytes, MaxNodeID: 0}
 		protoBytes, err := ep.MarshalBinary()
 		if err != nil {
 			return err
