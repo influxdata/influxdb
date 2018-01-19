@@ -6,6 +6,7 @@ import NanoDate from 'nano-date'
 
 import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
+import PersistentLegend from 'src/shared/components/PersistentLegend'
 import Annotations from 'src/shared/components/Annotations'
 
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
@@ -315,6 +316,7 @@ export default class Dygraph extends Component {
           className="dygraph-child-container"
           style={{...this.props.containerStyle, zIndex: '2'}}
         />
+        <PersistentLegend dygraph={this.dygraph} />
       </div>
     )
   }

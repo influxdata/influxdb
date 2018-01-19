@@ -86,7 +86,7 @@ class LineGraph extends Component {
 
     const containerStyle = {
       width: 'calc(100% - 32px)',
-      height: 'calc(100% - 16px)',
+      height: 'calc(100% - 46px)',
       position: 'absolute',
       top: '8px',
     }
