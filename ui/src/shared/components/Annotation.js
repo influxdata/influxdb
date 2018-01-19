@@ -132,6 +132,7 @@ class Annotation extends Component {
     const {isDragging, isMouseOver} = this.state
 
     const humanTime = `${new Date(+annotation.time)}`
+    const hasDuration = !!annotation.duration
 
     return (
       <div
@@ -148,7 +149,14 @@ class Annotation extends Component {
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={flagStyle(isMouseOver, isDragging)} />
+        <div
+          style={flagStyle(
+            isMouseOver,
+            isDragging,
+            hasDuration,
+            this.isEndpoint()
+          )}
+        />
         <AnnotationTooltip
           annotation={annotation}
           onMouseLeave={this.handleMouseLeave}
