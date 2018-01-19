@@ -35,6 +35,7 @@
 - [#9255](https://github.com/influxdata/influxdb/issues/9255): Fix missing sorting of blocks by time when compacting.
 - [#9327](https://github.com/influxdata/influxdb/pull/9327): wal: update lastWriteTime behavior
 - [#9290](https://github.com/influxdata/influxdb/issues/9290): Fix regression to allow binary operations on literals.
+- [#9342](https://github.com/influxdata/influxdb/pull/9342): Fix data races in tcp.Mux and tcp.listener
 
 ## v1.4.3 [unreleased]
 
