@@ -270,6 +270,9 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 func (c *Client) Write(ctx context.Context, point *chronograf.Point) error {
 	lp := toLineProtocol(point)
 	err := c.write(ctx, c.URL, point.Database, point.RetentionPolicy, lp)
+	if err == nil {
+		return nil
+	}
 
 	// Some influxdb errors should not be treated as errors
 	if strings.Contains(err.Error(), "hinted handoff queue not empty") {

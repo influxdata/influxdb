@@ -30,6 +30,7 @@ const (
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
 	ErrConfigNotFound                  = Error("cannot find configuration")
+	ErrAnnotationNotFound              = Error("annotation not found")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -483,20 +484,20 @@ type Databases interface {
 
 // Annotation represents a time-based metadata associated with a source
 type Annotation struct {
-	Name     string `json:"name"`               // Name is the unique annotation group identifier
-	Type     string `json:"type"`               // Type describes the kind of annotation
-	Time     int64  `json:"time,string"`        // Time is the time in nanoseconds since epoch of the start of the annotation
-	Duration int64  `json:"duration_ns,string"` // Duration is the duration in nanoseconds of the annotation
-	Text     string `json:"text"`               // Text is the associated user-facing text describing the annotation
+	ID       string        // ID is the unique annotation identifier
+	Time     time.Time     // Time is the start time of the annotation
+	Duration time.Duration // Duration of the annotation
+	Text     string        // Text is the associated user-facing text describing the annotation
+	Type     string        // Type describes the kind of annotation
 }
 
 // AnnotationStore represents storage and retrieval of annotations
 type AnnotationStore interface {
-	All(context.Context) ([]Annotation, error)              // All lists all Annotations
-	Add(context.Context, Annotation) (Annotation, error)    // Add creates a new annotation in the store
-	Delete(context.Context, Annotation) error               // Delete removes the annotation from the store
-	Get(ctx context.Context, id string) (Annotation, error) // Get retrieves an annotation
-	Update(context.Context, Annotation) error               // Update replaces annotation
+	All(ctx context.Context, start, stop time.Time) ([]Annotation, error) // All lists all Annotations between start and stop
+	Add(context.Context, *Annotation) (*Annotation, error)                // Add creates a new annotation in the store
+	Delete(ctx context.Context, id string) error                          // Delete removes the annotation from the store
+	Get(ctx context.Context, id string) (*Annotation, error)              // Get retrieves an annotation
+	Update(context.Context, *Annotation) error                            // Update replaces annotation
 }
 
 // DashboardID is the dashboard ID

@@ -35,8 +35,10 @@ func toLineProtocol(point *chronograf.Point) string {
 	measurement := escapeMeasurement.Replace(point.Measurement)
 	tags := []string{}
 	for tag, value := range point.Tags {
-		t := fmt.Sprintf("%s=%s", escapeKeys.Replace(tag), escapeTagValues.Replace(value))
-		tags = append(tags, t)
+		if value != "" {
+			t := fmt.Sprintf("%s=%s", escapeKeys.Replace(tag), escapeTagValues.Replace(value))
+			tags = append(tags, t)
+		}
 	}
 	// it is faster to insert data into influx db if the tags are sorted
 	sort.Strings(tags)
@@ -52,11 +54,13 @@ func toLineProtocol(point *chronograf.Point) string {
 		case float64, float32:
 			format = fmt.Sprintf("%s=%f", escapeKeys.Replace(field), v)
 		case string:
-			format = fmt.Sprintf("%s=%s", escapeKeys.Replace(field), escapeFieldStrings.Replace(v))
+			format = fmt.Sprintf(`%s="%s"`, escapeKeys.Replace(field), escapeFieldStrings.Replace(v))
 		case bool:
 			format = fmt.Sprintf("%s=%t", escapeKeys.Replace(field), v)
 		}
-		fields = append(fields, format)
+		if format != "" {
+			fields = append(fields, format)
+		}
 	}
 	return fmt.Sprintf("%s,%s %s %d\n",
 		measurement,
