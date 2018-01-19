@@ -76,7 +76,7 @@ type Partition struct {
 	MaxLogFileSize int64
 
 	// Frequency of compaction checks.
-	compactionsDisabled       bool
+	compactionsDisabled       int
 	compactionMonitorInterval time.Duration
 
 	logger *zap.Logger
@@ -761,11 +761,32 @@ func (i *Partition) Compact() {
 	i.compact()
 }
 
+func (i *Partition) DisableCompactions() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.compactionsDisabled++
+}
+
+func (i *Partition) EnableCompactions() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Already enabled?
+	if i.compactionsEnabled() {
+		return
+	}
+	i.compactionsDisabled--
+}
+
+func (i *Partition) compactionsEnabled() bool {
+	return i.compactionsDisabled == 0
+}
+
 // compact compacts continguous groups of files that are not currently compacting.
 func (i *Partition) compact() {
 	if i.isClosing() {
 		return
-	} else if i.compactionsDisabled {
+	} else if !i.compactionsEnabled() {
 		return
 	}
 

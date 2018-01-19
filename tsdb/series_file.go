@@ -111,6 +111,26 @@ func (f *SeriesFile) Retain() func() {
 	return nop
 }
 
+// EnableCompactions allows compactions to run.
+func (f *SeriesFile) EnableCompactions() {
+	for _, p := range f.partitions {
+		p.EnableCompactions()
+	}
+}
+
+// DisableCompactions prevents new compactions from running.
+func (f *SeriesFile) DisableCompactions() {
+	for _, p := range f.partitions {
+		p.DisableCompactions()
+	}
+}
+
+// Wait waits for all Retains to be released.
+func (f *SeriesFile) Wait() {
+	f.refs.Lock()
+	defer f.refs.Unlock()
+}
+
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The returned ids list returns values for new series and zero for existing series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []uint64, err error) {
