@@ -1,38 +1,84 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 
-import {tooltipStyle} from 'src/shared/annotations/styles'
+import AnnotationInput from 'src/shared/components/AnnotationInput'
 
-const AnnotationTooltip = ({
-  annotation,
-  onMouseLeave,
-  annotationState: {isDragging, isMouseOver},
-}) => {
-  const humanTime = `${new Date(+annotation.time)}`
-  const isVisible = isDragging || isMouseOver
+import {
+  tooltipStyle,
+  tooltipItemsStyle,
+  tooltipTimestampStyle,
+} from 'src/shared/annotations/styles'
 
-  return (
-    <div
-      id={`tooltip-${annotation.id}`}
-      onMouseLeave={onMouseLeave}
-      style={tooltipStyle(isVisible)}
-    >
-      {!isDragging &&
-        <span>
-          {annotation.name}
-        </span>}
-      <span>
-        {humanTime}
-      </span>
-    </div>
-  )
+const TimeStamp = ({time}) =>
+  <div style={tooltipTimestampStyle}>
+    {`${new Date(+time)}`}
+  </div>
+
+class AnnotationTooltip extends Component {
+  state = {
+    annotation: this.props.annotation,
+  }
+
+  handleChangeInput = key => value => {
+    const {annotation} = this.state
+    const newAnnotation = {...annotation, [key]: value}
+
+    this.setState({annotation: newAnnotation})
+  }
+
+  handleConfirmUpdate = () => {
+    this.props.onConfirmUpdate(this.state.annotation)
+  }
+
+  handleRejectUpdate = () => {
+    this.setState({annotation: this.props.annotation})
+  }
+
+  render() {
+    const {annotation} = this.state
+    const {
+      onMouseLeave,
+      annotationState,
+      annotationState: {isDragging},
+    } = this.props
+
+    return (
+      <div
+        id={`tooltip-${annotation.id}`}
+        onMouseLeave={onMouseLeave}
+        style={tooltipStyle(annotationState)}
+      >
+        {isDragging
+          ? <TimeStamp time={this.props.annotation.time} />
+          : <div style={tooltipItemsStyle}>
+              <AnnotationInput
+                value={annotation.name}
+                onChangeInput={this.handleChangeInput('name')}
+                onConfirmUpdate={this.handleConfirmUpdate}
+                onRejectUpdate={this.handleRejectUpdate}
+              />
+              <AnnotationInput
+                value={annotation.text}
+                onChangeInput={this.handleChangeInput('text')}
+                onConfirmUpdate={this.handleConfirmUpdate}
+                onRejectUpdate={this.handleRejectUpdate}
+              />
+              <TimeStamp time={this.props.annotation.time} />
+            </div>}
+      </div>
+    )
+  }
 }
 
-const {func, shape} = PropTypes
+const {func, shape, string} = PropTypes
 
+TimeStamp.propTypes = {
+  time: string.isRequired,
+}
 AnnotationTooltip.propTypes = {
   annotation: shape({}).isRequired,
   onMouseLeave: func.isRequired,
   annotationState: shape({}),
+  onConfirmUpdate: func.isRequired,
 }
 
 export default AnnotationTooltip

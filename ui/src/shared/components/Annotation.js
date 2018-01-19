@@ -8,10 +8,24 @@ import {
   clickAreaStyle,
 } from 'src/shared/annotations/styles'
 
+const idAppendage = '-end'
+
 class Annotation extends Component {
   state = {
     isDragging: false,
     isMouseOver: false,
+  }
+
+  isEndpoint = () => {
+    const {annotation: {id}} = this.props
+
+    return id.substring(id.length - idAppendage.length) === idAppendage
+  }
+
+  getStartID = () => {
+    const {annotation: {id}} = this.props
+
+    return id.substring(0, id.length - idAppendage.length)
   }
 
   handleStartDrag = () => {
@@ -42,7 +56,7 @@ class Annotation extends Component {
 
     const {pageX} = e
     const {annotation, annotations, dygraph, onUpdateAnnotation} = this.props
-    const {id, time, duration} = annotation
+    const {time, duration} = annotation
     const {left} = dygraph.graphDiv.getBoundingClientRect()
     const [startX, endX] = dygraph.xAxisRange()
 
@@ -70,13 +84,8 @@ class Annotation extends Component {
       newTime = startX
     }
 
-    const idAppendage = '-end'
-    const isEndpoint =
-      id.substring(id.length - idAppendage.length) === idAppendage
-
-    if (isEndpoint) {
-      const startID = id.substring(0, id.length - idAppendage.length)
-      const startAnnotation = annotations.find(a => a.id === startID)
+    if (this.isEndpoint()) {
+      const startAnnotation = annotations.find(a => a.id === this.getStartID())
       if (!startAnnotation) {
         return console.error('Start annotation does not exist')
       }
@@ -107,8 +116,19 @@ class Annotation extends Component {
     e.stopPropagation()
   }
 
+  handleConfirmUpdate = annotation => {
+    const {onUpdateAnnotation} = this.props
+
+    if (this.isEndpoint()) {
+      const id = this.getStartID()
+      return onUpdateAnnotation({...annotation, id})
+    }
+
+    onUpdateAnnotation(annotation)
+  }
+
   render() {
-    const {annotation, dygraph} = this.props
+    const {dygraph, annotation} = this.props
     const {isDragging, isMouseOver} = this.state
 
     const humanTime = `${new Date(+annotation.time)}`
@@ -116,7 +136,7 @@ class Annotation extends Component {
     return (
       <div
         className="dygraph-annotation"
-        style={annotationStyle(annotation, dygraph, isDragging)}
+        style={annotationStyle(annotation, dygraph, isMouseOver, isDragging)}
         data-time-ms={annotation.time}
         data-time-local={humanTime}
       >
@@ -133,6 +153,7 @@ class Annotation extends Component {
           annotation={annotation}
           onMouseLeave={this.handleMouseLeave}
           annotationState={this.state}
+          onConfirmUpdate={this.handleConfirmUpdate}
         />
       </div>
     )
