@@ -45,7 +45,7 @@ type Command struct {
 	backupRetention     string
 	restoreRetention    string
 	shard               uint64
-	enterprise          bool
+	portable            bool
 	online              bool
 	manifestMeta        *backup_util.MetaEntry
 	manifestFiles       map[uint64]*backup_util.Entry
@@ -74,7 +74,7 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
-	if cmd.enterprise {
+	if cmd.portable {
 		return cmd.runOnlineEnterprise()
 	} else if cmd.online {
 		return cmd.runOnlineLegacy()
@@ -142,7 +142,7 @@ func (cmd *Command) parseFlags(args []string) error {
 	fs.StringVar(&cmd.restoreRetention, "newrp", "", "")
 	fs.Uint64Var(&cmd.shard, "shard", 0, "")
 	fs.BoolVar(&cmd.online, "online", false, "")
-	fs.BoolVar(&cmd.enterprise, "enterprise", false, "")
+	fs.BoolVar(&cmd.portable, "portable", false, "")
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = cmd.printUsage
 	if err := fs.Parse(args); err != nil {
@@ -164,22 +164,22 @@ func (cmd *Command) parseFlags(args []string) error {
 		return fmt.Errorf("backup path should be a valid directory: %s", cmd.backupFilesPath)
 	}
 
-	if cmd.enterprise || cmd.online {
+	if cmd.portable || cmd.online {
 		// validate the arguments
 
 		if cmd.metadir != "" {
-			return fmt.Errorf("offline parameter metadir found, not compatible with -enterprise")
+			return fmt.Errorf("offline parameter metadir found, not compatible with -portable")
 		}
 
 		if cmd.datadir != "" {
-			return fmt.Errorf("offline parameter datadir found, not compatible with -enterprise")
+			return fmt.Errorf("offline parameter datadir found, not compatible with -portable")
 		}
 
 		if cmd.restoreRetention == "" {
 			cmd.restoreRetention = cmd.backupRetention
 		}
 
-		if cmd.enterprise {
+		if cmd.portable {
 			var err error
 			cmd.manifestMeta, cmd.manifestFiles, err = backup_util.LoadIncremental(cmd.backupFilesPath)
 			if err != nil {
@@ -540,10 +540,10 @@ func (cmd *Command) unpackTar(tarFile string) error {
 func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stdout, `Uses backups from the PATH to restore the metastore, databases,
 retention policies, or specific shards.  Default mode requires the instance to be stopped before running, and will wipe
-	all databases from the system (e.g., for disaster recovery).  The improved online and enterprise modes requires
+	all databases from the system (e.g., for disaster recovery).  The improved online and portable modes require
     the instance to be running, and the database name used must not already exist.
 
-Usage: influxd restore [-enterprise] [flags] PATH
+Usage: influxd restore [-portable] [flags] PATH
 
 The default mode consumes files in an OSS only file format. PATH is a directory containing the backup data
 
@@ -565,7 +565,7 @@ Options:
 	        Optional. If given, the restore will be done using the new process, detailed below.  All other arguments
 	        above should be omitted.
 
-The -enterprise restore mode consumes files in an improved format that includes a file manifest.
+The -portable restore mode consumes files in an improved format that includes a file manifest.
 
 Options:
 	-host  <host:port>

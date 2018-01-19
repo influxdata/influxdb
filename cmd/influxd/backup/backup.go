@@ -54,9 +54,9 @@ type Command struct {
 	start    time.Time
 	end      time.Time
 
-	enterprise         bool
-	manifest           backup_util.Manifest
-	enterpriseFileBase string
+	portable         bool
+	manifest         backup_util.Manifest
+	portableFileBase string
 
 	BackupFiles []string
 }
@@ -107,8 +107,8 @@ func (cmd *Command) Run(args ...string) error {
 		}
 
 		cmd.StdoutLogger.Println("No database, retention policy or shard ID given. Full meta store backed up.")
-		if cmd.enterprise {
-			cmd.StdoutLogger.Println("Backing up all databases in enterprise format")
+		if cmd.portable {
+			cmd.StdoutLogger.Println("Backing up all databases in portable format")
 			if err := cmd.backupDatabase(); err != nil {
 				cmd.StderrLogger.Printf("backup failed: %v", err)
 				return err
@@ -118,8 +118,8 @@ func (cmd *Command) Run(args ...string) error {
 
 	}
 
-	if cmd.enterprise {
-		filename := cmd.enterpriseFileBase + ".manifest"
+	if cmd.portable {
+		filename := cmd.portableFileBase + ".manifest"
 		if err := cmd.manifest.Save(filepath.Join(cmd.path, filename)); err != nil {
 			cmd.StderrLogger.Printf("manifest save failed: %v", err)
 			return err
@@ -153,7 +153,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	fs.StringVar(&sinceArg, "since", "", "")
 	fs.StringVar(&startArg, "start", "", "")
 	fs.StringVar(&endArg, "end", "", "")
-	fs.BoolVar(&cmd.enterprise, "enterprise", false, "")
+	fs.BoolVar(&cmd.portable, "portable", false, "")
 
 	fs.SetOutput(cmd.Stderr)
 	fs.Usage = cmd.printUsage
@@ -165,8 +165,8 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 
 	cmd.BackupFiles = []string{}
 
-	// for enterprise saving, if needed
-	cmd.enterpriseFileBase = time.Now().UTC().Format(backup_util.EnterpriseFileNamePattern)
+	// for portable saving, if needed
+	cmd.portableFileBase = time.Now().UTC().Format(backup_util.EnterpriseFileNamePattern)
 
 	// if startArg and endArg are unspecified, then assume we are doing a full backup of the DB
 	cmd.isBackup = startArg == "" && endArg == ""
@@ -244,7 +244,7 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 
 	// TODO: verify shard backup data
 	err = cmd.downloadAndVerify(req, shardArchivePath, nil)
-	if !cmd.enterprise {
+	if !cmd.portable {
 		cmd.BackupFiles = append(cmd.BackupFiles, shardArchivePath)
 	}
 
@@ -252,12 +252,12 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 		return err
 	}
 
-	if cmd.enterprise {
+	if cmd.portable {
 		f, err := os.Open(shardArchivePath)
 		defer f.Close()
 		defer os.Remove(shardArchivePath)
 
-		filePrefix := cmd.enterpriseFileBase + ".s" + sid
+		filePrefix := cmd.portableFileBase + ".s" + sid
 		filename := filePrefix + ".tar.gz"
 		out, err := os.OpenFile(filepath.Join(cmd.path, filename), os.O_CREATE|os.O_RDWR, 0600)
 
@@ -413,17 +413,17 @@ func (cmd *Command) backupMetastore() error {
 		return err
 	}
 
-	if !cmd.enterprise {
+	if !cmd.portable {
 		cmd.BackupFiles = append(cmd.BackupFiles, metastoreArchivePath)
 	}
 
-	if cmd.enterprise {
+	if cmd.portable {
 		metaBytes, err := backup_util.GetMetaBytes(metastoreArchivePath)
 		defer os.Remove(metastoreArchivePath)
 		if err != nil {
 			return err
 		}
-		filename := cmd.enterpriseFileBase + ".meta"
+		filename := cmd.portableFileBase + ".meta"
 		ep := backup_util.EnterprisePacker{Data: metaBytes, MaxNodeID: 0}
 		protoBytes, err := ep.MarshalBinary()
 		if err != nil {
@@ -583,8 +583,8 @@ Usage: influxd backup [flags] PATH
             All points earlier than this time stamp will be excluded from the export. Not compatible with -since.
 	-end <2015-12-24T08:12:23Z>
             All points later than this time stamp will be excluded from the export. Not compatible with -since.
-	-enterprise
-	        Generate backup files in the format used for influxdb enterprise.
+	-portable
+	        Generate backup files in a format that is portable between different influxdb products.
 
 `)
 
