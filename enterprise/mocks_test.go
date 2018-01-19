@@ -118,6 +118,10 @@ func (ts *TimeSeries) Connect(ctx context.Context, src *chronograf.Source) error
 	return nil
 }
 
+func (ts *TimeSeries) Write(ctx context.Context, point *chronograf.Point) error {
+	return nil
+}
+
 func (ts *TimeSeries) Users(ctx context.Context) chronograf.UsersStore {
 	return nil
 }

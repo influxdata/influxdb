@@ -30,6 +30,7 @@ const (
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
 	ErrConfigNotFound                  = Error("cannot find configuration")
+	ErrAnnotationNotFound              = Error("annotation not found")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -94,12 +95,24 @@ type TSDBStatus interface {
 	Type(context.Context) (string, error)
 }
 
+// Point is a field set in a series
+type Point struct {
+	Database        string
+	RetentionPolicy string
+	Measurement     string
+	Time            int64
+	Tags            map[string]string
+	Fields          map[string]interface{}
+}
+
 // TimeSeries represents a queryable time series database.
 type TimeSeries interface {
-	// Query retrieves time series data from the database.
-	Query(context.Context, Query) (Response, error)
 	// Connect will connect to the time series using the information in `Source`.
 	Connect(context.Context, *Source) error
+	// Query retrieves time series data from the database.
+	Query(context.Context, Query) (Response, error)
+	// Write records a point into a series
+	Write(context.Context, *Point) error
 	// UsersStore represents the user accounts within the TimeSeries database
 	Users(context.Context) UsersStore
 	// Permissions returns all valid names permissions in this database
@@ -166,6 +179,7 @@ type Query struct {
 	Command      string        `json:"query"`                // Command is the query itself
 	DB           string        `json:"db,omitempty"`         // DB is optional and if empty will not be used.
 	RP           string        `json:"rp,omitempty"`         // RP is a retention policy and optional; if empty will not be used.
+	Epoch        string        `json:"epoch,omitempty"`      // Epoch is the time format for the return results
 	TemplateVars []TemplateVar `json:"tempVars,omitempty"`   // TemplateVars are template variables to replace within an InfluxQL query
 	Wheres       []string      `json:"wheres,omitempty"`     // Wheres restricts the query to certain attributes
 	GroupBys     []string      `json:"groupbys,omitempty"`   // GroupBys collate the query by these tags
@@ -231,7 +245,7 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
-// DBRP is a database and retention policy for a kapacitor task
+// DBRP represents a database and retention policy for a time series source
 type DBRP struct {
 	DB string `json:"db"`
 	RP string `json:"rp"`
@@ -467,6 +481,24 @@ type Databases interface {
 	DropRP(context.Context, string, string) error
 }
 
+// Annotation represents a time-based metadata associated with a source
+type Annotation struct {
+	ID       string        // ID is the unique annotation identifier
+	Time     time.Time     // Time is the start time of the annotation
+	Duration time.Duration // Duration of the annotation
+	Text     string        // Text is the associated user-facing text describing the annotation
+	Type     string        // Type describes the kind of annotation
+}
+
+// AnnotationStore represents storage and retrieval of annotations
+type AnnotationStore interface {
+	All(ctx context.Context, start, stop time.Time) ([]Annotation, error) // All lists all Annotations between start and stop
+	Add(context.Context, *Annotation) (*Annotation, error)                // Add creates a new annotation in the store
+	Delete(ctx context.Context, id string) error                          // Delete removes the annotation from the store
+	Get(ctx context.Context, id string) (*Annotation, error)              // Get retrieves an annotation
+	Update(context.Context, *Annotation) error                            // Update replaces annotation
+}
+
 // DashboardID is the dashboard ID
 type DashboardID int
 
@@ -610,7 +642,6 @@ type OrganizationsStore interface {
 }
 
 // AuthConfig is the global application config section for auth parameters
-
 type AuthConfig struct {
 	// SuperAdminNewUsers should be true by default to give a seamless upgrade to
 	// 1.4.0 for legacy users. It means that all new users will by default receive
@@ -648,7 +679,7 @@ type BuildStore interface {
 	Update(context.Context, BuildInfo) error
 }
 
-// Environement is the set of front-end exposed environment variables
+// Environment is the set of front-end exposed environment variables
 // that were set on the server
 type Environment struct {
 	TelegrafSystemInterval time.Duration `json:"telegrafSystemInterval"`

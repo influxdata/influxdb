@@ -141,6 +141,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// intended for Chronograf Users with the Viewer Role type.
 	router.POST("/chronograf/v1/sources/:id/queries", EnsureViewer(service.Queries))
 
+	// Annotations are user-defined events associated with this source
+	router.GET("/chronograf/v1/sources/:id/annotations", EnsureViewer(service.Annotations))
+	router.POST("/chronograf/v1/sources/:id/annotations", EnsureEditor(service.NewAnnotation))
+	router.GET("/chronograf/v1/sources/:id/annotations/:aid", EnsureViewer(service.Annotation))
+	router.DELETE("/chronograf/v1/sources/:id/annotations/:aid", EnsureEditor(service.RemoveAnnotation))
+	router.PATCH("/chronograf/v1/sources/:id/annotations/:aid", EnsureEditor(service.UpdateAnnotation))
+
 	// All possible permissions for users in this source
 	router.GET("/chronograf/v1/sources/:id/permissions", EnsureViewer(service.Permissions))
 
@@ -377,4 +384,20 @@ func paramID(key string, r *http.Request) (int, error) {
 		return -1, fmt.Errorf("Error converting ID %s", param)
 	}
 	return id, nil
+}
+
+func paramInt64(key string, r *http.Request) (int64, error) {
+	ctx := r.Context()
+	param := httprouter.GetParamFromContext(ctx, key)
+	v, err := strconv.ParseInt(param, 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("Error converting parameter %s", param)
+	}
+	return v, nil
+}
+
+func paramStr(key string, r *http.Request) (string, error) {
+	ctx := r.Context()
+	param := httprouter.GetParamFromContext(ctx, key)
+	return param, nil
 }

@@ -21,7 +21,8 @@ type sourceLinks struct {
 	Permissions string `json:"permissions"`     // URL for all allowed permissions for this source
 	Users       string `json:"users"`           // URL for all users associated with this source
 	Roles       string `json:"roles,omitempty"` // URL for all users associated with this source
-	Databases   string `json:"databases"`       // URL for the databases contained within this soure
+	Databases   string `json:"databases"`       // URL for the databases contained within this source
+	Annotations string `json:"annotations"`     // URL for the annotations of this source
 }
 
 type sourceResponse struct {
@@ -51,6 +52,7 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 			Permissions: fmt.Sprintf("%s/%d/permissions", httpAPISrcs, src.ID),
 			Users:       fmt.Sprintf("%s/%d/users", httpAPISrcs, src.ID),
 			Databases:   fmt.Sprintf("%s/%d/dbs", httpAPISrcs, src.ID),
+			Annotations: fmt.Sprintf("%s/%d/annotations", httpAPISrcs, src.ID),
 		},
 	}
 

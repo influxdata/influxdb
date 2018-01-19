@@ -550,7 +550,8 @@
       "patch": {
         "tags": ["sources", "users"],
         "summary": "Update user configuration",
-        "description": "Update one parameter at a time (one of password, permissions or roles)",
+        "description":
+          "Update one parameter at a time (one of password, permissions or roles)",
         "parameters": [
           {
             "name": "id",
@@ -3139,7 +3140,7 @@
         "rp": "autogen",
         "tempVars": [
           {
-            "tempVar": "$myfield",
+            "tempVar": ":myfield:",
             "values": [
               {
                 "type": "fieldKey",
@@ -3159,6 +3160,11 @@
         },
         "rp": {
           "type": "string"
+        },
+        "epoch": {
+          "description": "timestamp return format",
+          "type": "string",
+          "enum": ["h", "m", "s", "ms", "u", "ns"]
         },
         "tempVars": {
           "type": "array",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -73,7 +74,10 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	params.Set("q", command)
 	params.Set("db", q.DB)
 	params.Set("rp", q.RP)
-	params.Set("epoch", "ms") // TODO(timraymond): set this based on analysis
+	params.Set("epoch", "ms")
+	if q.Epoch != "" {
+		params.Set("epoch", q.Epoch)
+	}
 	req.URL.RawQuery = params.Encode()
 
 	if c.Authorizer != nil {
@@ -260,4 +264,93 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 	}
 
 	return version, chronograf.InfluxDB, nil
+}
+
+// Write POSTs line protocol to a database and retention policy
+func (c *Client) Write(ctx context.Context, point *chronograf.Point) error {
+	lp := toLineProtocol(point)
+	err := c.write(ctx, c.URL, point.Database, point.RetentionPolicy, lp)
+	if err == nil {
+		return nil
+	}
+
+	// Some influxdb errors should not be treated as errors
+	if strings.Contains(err.Error(), "hinted handoff queue not empty") {
+		// This is an informational message
+		return nil
+	}
+
+	// If the database was not found, try to recreate it:
+	if strings.Contains(err.Error(), "database not found") {
+		_, err = c.CreateDB(ctx, &chronograf.Database{
+			Name: point.Database,
+		})
+		if err != nil {
+			return err
+		}
+		// retry the write
+		return c.write(ctx, c.URL, point.Database, point.RetentionPolicy, lp)
+	}
+
+	return err
+}
+
+func (c *Client) write(ctx context.Context, u *url.URL, db, rp, lp string) error {
+	u.Path = "write"
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(lp))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	if c.Authorizer != nil {
+		if err := c.Authorizer.Set(req); err != nil {
+			return err
+		}
+	}
+
+	params := req.URL.Query()
+	params.Set("db", db)
+	params.Set("rp", rp)
+	req.URL.RawQuery = params.Encode()
+
+	hc := &http.Client{}
+	if c.InsecureSkipVerify {
+		hc.Transport = skipVerifyTransport
+	} else {
+		hc.Transport = defaultTransport
+	}
+
+	errChan := make(chan (error))
+	go func() {
+		resp, err := hc.Do(req)
+		if err != nil {
+			errChan <- err
+			return
+		}
+
+		if resp.StatusCode == http.StatusNoContent {
+			errChan <- nil
+			return
+		}
+		defer resp.Body.Close()
+
+		var response Response
+		dec := json.NewDecoder(resp.Body)
+		err = dec.Decode(&response)
+		if err != nil && err.Error() != "EOF" {
+			errChan <- err
+			return
+		}
+
+		errChan <- errors.New(response.Err)
+		return
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-ctx.Done():
+		return chronograf.ErrUpstreamTimeout
+	}
 }
