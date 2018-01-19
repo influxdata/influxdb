@@ -50,6 +50,9 @@ class AnnotationTooltip extends Component {
         {isDragging
           ? <TimeStamp time={this.props.annotation.time} />
           : <div style={tooltipItemsStyle}>
+              <button className="btn btn-sm btn-danger btn-square">
+                <span className="icon trash" />
+              </button>
               <AnnotationInput
                 value={annotation.name}
                 onChangeInput={this.handleChangeInput('name')}
