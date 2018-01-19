@@ -1,9 +1,11 @@
+import {NEUTRALS} from 'src/shared/constants/InfluxColors'
+
 // Styles for all things Annotations
 const annotationColor = '255,255,255'
 const annotationDragColor = '0,255,0'
 const zIndexWindow = '1'
 const zIndexAnnotation = '3'
-const zIndexAnnotationDragging = '4'
+const zIndexAnnotationActive = '4'
 
 export const flagStyle = (mouseOver, dragging) => {
   const style = {
@@ -56,27 +58,44 @@ export const clickAreaStyle = dragging => {
   return style
 }
 
-export const tooltipStyle = visibility => {
+export const tooltipStyle = annotationState => {
+  const {isDragging, isMouseOver} = annotationState
+  const isVisible = isDragging || isMouseOver
+
   return {
     position: 'absolute',
     bottom: 'calc(100% + 8px)',
     left: '50%',
     transform: 'translateX(-50%)',
-    backgroundColor: '#000',
+    backgroundColor: NEUTRALS[0],
     zIndex: '3',
-    color: '#fff',
-    fontSize: '12px',
+    color: NEUTRALS[20],
+    fontSize: '14px',
     fontWeight: '600',
-    padding: '4px',
+    padding: isDragging ? '6px' : '12px',
     borderRadius: '4px',
     whiteSpace: 'nowrap',
     userSelect: 'none',
-    flexDirection: 'column',
-    display: visibility ? 'flex' : 'none',
+    display: isVisible ? 'flex' : 'none',
   }
 }
 
-export const annotationStyle = ({time}, dygraph, isDragging) => {
+export const tooltipItemsStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+}
+export const tooltipTimestampStyle = {display: 'block'}
+export const tooltipInputContainer = {marginBottom: '4px'}
+export const tooltipFormStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexWrap: 'nowrap',
+  width: '100%',
+}
+export const tooltipInputButton = {marginLeft: '2px'}
+export const tooltipInput = {flex: '1 0 0'}
+
+export const annotationStyle = ({time}, dygraph, isMouseOver, isDragging) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   let visibility = 'visible'
@@ -101,7 +120,8 @@ export const annotationStyle = ({time}, dygraph, isDragging) => {
     transition: 'backgroundColor 0.25s ease',
     transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the annotation pole
     visibility,
-    zIndex: isDragging ? zIndexAnnotationDragging : zIndexAnnotation,
+    zIndex:
+      isDragging || isMouseOver ? zIndexAnnotationActive : zIndexAnnotation,
   }
 }
 
