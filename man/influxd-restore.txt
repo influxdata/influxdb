@@ -5,13 +5,13 @@ NAME
 ----
 influxd-restore - Uses backups from the PATH to restore the metastore, databases, retention policies, or specific
  shards.  Default mode requires the instance to be stopped before running, and will wipe all databases from the
- system (e.g., for disaster recovery).  The improved online and enterprise modes requires the instance to be running,
+ system (e.g., for disaster recovery).  The improved online and portable modes require the instance to be running,
  and the database name used must not already exist.
 
 
 SYNOPSIS
 --------
-'influxd restore' [-enterprise] [flags] PATH
+'influxd restore' [-portable] [flags] PATH
 
 DESCRIPTION
 -----------
@@ -43,7 +43,7 @@ The default mode consumes files in an OSS only file format. PATH is a directory 
 	        Optional. If given, the restore will be done using the new process, detailed below.  All other arguments
 	        above should be omitted.
 
-The -enterprise restore mode consumes files in an improved format that includes a file manifest.
+The -portable restore mode consumes files in an improved format that includes a file manifest.
 
 Options:
 -host <host:port>::
