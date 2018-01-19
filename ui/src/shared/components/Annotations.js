@@ -5,7 +5,10 @@ import {bindActionCreators} from 'redux'
 import Annotation from 'src/shared/components/Annotation'
 import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 
-import {updateAnnotation} from 'src/shared/actions/annotations'
+import {
+  updateAnnotation,
+  deleteAnnotation,
+} from 'src/shared/actions/annotations'
 import {getAnnotations} from 'src/shared/annotations/helpers'
 
 class Annotations extends Component {
@@ -19,7 +22,7 @@ class Annotations extends Component {
 
   render() {
     const {dygraph} = this.state
-    const {handleUpdateAnnotation} = this.props
+    const {handleUpdateAnnotation, handleDeleteAnnotation} = this.props
 
     if (!dygraph) {
       return null
@@ -36,6 +39,7 @@ class Annotations extends Component {
             dygraph={dygraph}
             annotations={annotations}
             onUpdateAnnotation={handleUpdateAnnotation}
+            onDeleteAnnotation={handleDeleteAnnotation}
           />
         )}
         {annotations.map((a, i) => {
@@ -53,6 +57,7 @@ const {arrayOf, func, shape} = PropTypes
 Annotations.propTypes = {
   annotations: arrayOf(shape({})),
   annotationsRef: func,
+  handleDeleteAnnotation: func.isRequired,
   handleUpdateAnnotation: func.isRequired,
 }
 
@@ -62,6 +67,7 @@ const mapStateToProps = ({annotations}) => ({
 
 const mapDispatchToProps = dispatch => ({
   handleUpdateAnnotation: bindActionCreators(updateAnnotation, dispatch),
+  handleDeleteAnnotation: bindActionCreators(deleteAnnotation, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(Annotations)

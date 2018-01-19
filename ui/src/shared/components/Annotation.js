@@ -3,9 +3,9 @@ import React, {Component, PropTypes} from 'react'
 import AnnotationTooltip from 'src/shared/components/AnnotationTooltip'
 
 import {
-  annotationStyle,
   flagStyle,
   clickAreaStyle,
+  annotationStyle,
 } from 'src/shared/annotations/styles'
 
 const idAppendage = '-end'
@@ -127,6 +127,10 @@ class Annotation extends Component {
     onUpdateAnnotation(annotation)
   }
 
+  handleDeleteAnnotation = () => {
+    this.props.onDeleteAnnotation(this.props.annotation)
+  }
+
   render() {
     const {dygraph, annotation} = this.props
     const {isDragging, isMouseOver} = this.state
@@ -162,6 +166,7 @@ class Annotation extends Component {
           onMouseLeave={this.handleMouseLeave}
           annotationState={this.state}
           onConfirmUpdate={this.handleConfirmUpdate}
+          onDelete={this.handleDeleteAnnotation}
         />
       </div>
     )
@@ -179,6 +184,7 @@ Annotation.propTypes = {
   }).isRequired,
   dygraph: shape({}).isRequired,
   onUpdateAnnotation: func.isRequired,
+  onDeleteAnnotation: func.isRequired,
 }
 
 export default Annotation

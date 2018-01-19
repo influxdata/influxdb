@@ -29,6 +29,13 @@ const annotationsReducer = (state = initialState, action) => {
 
       return newState
     }
+
+    case 'DELETE_ANNOTATION': {
+      const {annotation} = action.payload
+      const newState = state.filter(a => a.id !== annotation.id)
+
+      return newState
+    }
   }
 
   return state

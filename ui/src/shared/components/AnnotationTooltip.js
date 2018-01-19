@@ -50,7 +50,10 @@ class AnnotationTooltip extends Component {
         {isDragging
           ? <TimeStamp time={this.props.annotation.time} />
           : <div style={tooltipItemsStyle}>
-              <button className="btn btn-sm btn-danger btn-square">
+              <button
+                className="btn btn-sm btn-danger btn-square"
+                onClick={this.props.onDelete}
+              >
                 <span className="icon trash" />
               </button>
               <AnnotationInput
@@ -82,6 +85,7 @@ AnnotationTooltip.propTypes = {
   onMouseLeave: func.isRequired,
   annotationState: shape({}),
   onConfirmUpdate: func.isRequired,
+  onDelete: func.isRequired,
 }
 
 export default AnnotationTooltip
