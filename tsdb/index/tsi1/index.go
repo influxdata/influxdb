@@ -24,6 +24,9 @@ import (
 // IndexName is the name of the index.
 const IndexName = "tsi1"
 
+// ErrCompactionCancelled is returned if an index is closed while a compaction is occuring.
+var ErrCompactionCancelled = errors.New("tsi1: compaction cancelled")
+
 func init() {
 	// FIXME(edd): Remove this.
 	if os.Getenv("TSI_PARTITIONS") != "" {

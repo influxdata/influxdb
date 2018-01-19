@@ -151,14 +151,22 @@ func (p IndexFiles) TagValueSeriesIDIterator(name, key, value []byte) tsdb.Serie
 }
 
 // CompactTo merges all index files and writes them to w.
-func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64) (n int64, err error) {
+func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, cancel <-chan struct{}) (n int64, err error) {
 	var t IndexFileTrailer
+
+	// Check for cancellation.
+	select {
+	case <-cancel:
+		return n, ErrCompactionCancelled
+	default:
+	}
 
 	// Wrap writer in buffered I/O.
 	bw := bufio.NewWriter(w)
 
 	// Setup context object to track shared data for this compaction.
 	var info indexCompactInfo
+	info.cancel = cancel
 	info.tagSets = make(map[string]indexTagSetPos)
 
 	// Write magic number.
@@ -238,11 +246,19 @@ func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64
 func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
 	var seriesIDs []uint64
 
+	// Check for cancellation.
+	select {
+	case <-info.cancel:
+		return ErrCompactionCancelled
+	default:
+	}
+
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
 	}
 
+	var seriesN int
 	enc := NewTagBlockEncoder(w)
 	for ke := kitr.Next(); ke != nil; ke = kitr.Next() {
 		// Encode key.
@@ -268,6 +284,15 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 							break
 						}
 						seriesIDs = append(seriesIDs, se.SeriesID)
+
+						// Check for cancellation periodically.
+						if seriesN++; seriesN%1000 == 0 {
+							select {
+							case <-info.cancel:
+								return ErrCompactionCancelled
+							default:
+							}
+						}
 					}
 				}
 
@@ -301,9 +326,17 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	mw := NewMeasurementBlockWriter()
 
+	// Check for cancellation.
+	select {
+	case <-info.cancel:
+		return ErrCompactionCancelled
+	default:
+	}
+
 	// Add measurement data & compute sketches.
 	mitr := p.MeasurementIterator()
 	if mitr != nil {
+		var seriesN int
 		for m := mitr.Next(); m != nil; m = mitr.Next() {
 			name := m.Name()
 
@@ -321,6 +354,15 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 						break
 					}
 					seriesIDs = append(seriesIDs, e.SeriesID)
+
+					// Check for cancellation periodically.
+					if seriesN++; seriesN%1000 == 0 {
+						select {
+						case <-info.cancel:
+							return ErrCompactionCancelled
+						default:
+						}
+					}
 				}
 				sort.Sort(uint64Slice(seriesIDs))
 
@@ -373,6 +415,9 @@ type IndexFilesInfo struct {
 // indexCompactInfo is a context object used for tracking position information
 // during the compaction of index files.
 type indexCompactInfo struct {
+	cancel <-chan struct{}
+	sfile  *tsdb.SeriesFile
+
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos
 }

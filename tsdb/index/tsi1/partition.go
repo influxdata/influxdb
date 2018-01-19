@@ -844,6 +844,14 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 	// Build a logger for this compaction.
 	logger := i.logger.With(zap.String("token", generateCompactionToken()))
 
+	// Check for cancellation.
+	select {
+	case <-i.closing:
+		logger.Error("cannot begin compaction", zap.Error(ErrCompactionCancelled))
+		return
+	default:
+	}
+
 	// Files have already been retained by caller.
 	// Ensure files are released only once.
 	var once sync.Once
@@ -856,7 +864,7 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 	path := filepath.Join(i.path, FormatIndexFileName(i.NextSequence(), level))
 	f, err := os.Create(path)
 	if err != nil {
-		logger.Error("cannot create compation files", zap.Error(err))
+		logger.Error("cannot create compaction files", zap.Error(err))
 		return
 	}
 	defer f.Close()
@@ -868,7 +876,7 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 
 	// Compact all index files to new index file.
 	lvl := i.levels[level]
-	n, err := IndexFiles(files).CompactTo(f, i.sfile, lvl.M, lvl.K)
+	n, err := IndexFiles(files).CompactTo(f, i.sfile, lvl.M, lvl.K, i.closing)
 	if err != nil {
 		logger.Error("cannot compact index files", zap.Error(err))
 		return
@@ -1007,7 +1015,7 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 
 	// Compact log file to new index file.
 	lvl := i.levels[1]
-	n, err := logFile.CompactTo(f, lvl.M, lvl.K)
+	n, err := logFile.CompactTo(f, lvl.M, lvl.K, i.closing)
 	if err != nil {
 		logger.Error("cannot compact log file", zap.Error(err), zap.String("path", logFile.Path()))
 		return
