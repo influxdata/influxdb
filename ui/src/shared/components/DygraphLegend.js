@@ -40,12 +40,6 @@ class DygraphLegend extends Component {
     ) {
       this.setState({filterText: ''})
     }
-
-    this.props.dygraph.updateOptions({
-      legendFormatter: () => {},
-      highlightCallback: () => {},
-      unhighlightCallback: () => {},
-    })
   }
 
   handleToggleFilter = () => {
