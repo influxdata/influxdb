@@ -18,14 +18,9 @@ import (
 	"github.com/influxdata/influxdb/pkg/bits"
 )
 
-const (
-	// floatUncompressed is an uncompressed format using 8 bytes per value.
-	// Not yet implemented.
-	floatUncompressed = 0
-
-	// floatCompressedGorilla is a compressed format using the gorilla paper encoding
-	floatCompressedGorilla = 1
-)
+// Note: an uncompressed format is not yet implemented.
+// floatCompressedGorilla is a compressed format using the gorilla paper encoding
+const floatCompressedGorilla = 1
 
 // uvnan is the constant returned from math.NaN().
 const uvnan = 0x7FF8000000000001

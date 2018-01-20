@@ -443,7 +443,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Create another snapshot
-	snapshot, err = c.Snapshot()
+	_, err = c.Snapshot()
 	if err != nil {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}
@@ -454,7 +454,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 
 	c.ClearSnapshot(true)
 
-	snapshot, err = c.Snapshot()
+	_, err = c.Snapshot()
 	if err != nil {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}

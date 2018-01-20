@@ -1233,7 +1233,6 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 		if err := e.deleteSeriesRange(batch, min, max); err != nil {
 			return err
 		}
-		batch = batch[:0]
 	}
 
 	e.index.Rebuild()
@@ -2769,40 +2768,6 @@ func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {
 		return key, nil
 	}
 	return key[:sep], key[sep+len(keyFieldSeparator):]
-}
-
-// readDir recursively reads all files from a path.
-func readDir(root, rel string) ([]string, error) {
-	// Open root.
-	f, err := os.Open(filepath.Join(root, rel))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	// Read all files.
-	fis, err := f.Readdir(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read all subdirectories and append to the end.
-	var paths []string
-	for _, fi := range fis {
-		// Simply append if it's a file.
-		if !fi.IsDir() {
-			paths = append(paths, filepath.Join(rel, fi.Name()))
-			continue
-		}
-
-		// Read and append nested file paths.
-		children, err := readDir(root, filepath.Join(rel, fi.Name()))
-		if err != nil {
-			return nil, err
-		}
-		paths = append(paths, children...)
-	}
-	return paths, nil
 }
 
 func varRefSliceContains(a []influxql.VarRef, v string) bool {
