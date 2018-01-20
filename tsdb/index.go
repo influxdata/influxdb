@@ -9,7 +9,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -238,28 +237,26 @@ func (itr *seriesQueryAdapterIterator) Close() error {
 
 // Next emits the next point in the iterator.
 func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
-	for {
-		// Read next series element.
-		e, err := itr.itr.Next()
-		if err != nil {
-			return nil, err
-		} else if e.SeriesID == 0 {
-			return nil, nil
-		}
-
-		// Convert to a key.
-		name, tags := ParseSeriesKey(itr.sfile.SeriesKey(e.SeriesID))
-		key := string(models.MakeKey(name, tags))
-
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = key
-			}
-		}
-		return &itr.point, nil
+	// Read next series element.
+	e, err := itr.itr.Next()
+	if err != nil {
+		return nil, err
+	} else if e.SeriesID == 0 {
+		return nil, nil
 	}
+
+	// Convert to a key.
+	name, tags := ParseSeriesKey(itr.sfile.SeriesKey(e.SeriesID))
+	key := string(models.MakeKey(name, tags))
+
+	// Write auxiliary fields.
+	for i, f := range itr.opt.Aux {
+		switch f.Val {
+		case "key":
+			itr.point.Aux[i] = key
+		}
+	}
+	return &itr.point, nil
 }
 
 // filterUndeletedSeriesIDIterator returns all series which are not deleted.
@@ -2436,6 +2433,3 @@ type byTagKey []*query.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-
-// TEMP
-func dump(v interface{}) { spew.Dump(v) }

@@ -29,10 +29,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// monitorStatInterval is the interval at which the shard is inspected
-// for the purpose of determining certain monitoring statistics.
-const monitorStatInterval = 30 * time.Second
-
 const (
 	statWriteReq           = "writeReq"
 	statWriteReqOK         = "writeReqOk"

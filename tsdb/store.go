@@ -1172,17 +1172,6 @@ func (a TagKeysSlice) Len() int           { return len(a) }
 func (a TagKeysSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a TagKeysSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
 
-type tagKeys struct {
-	name []byte
-	keys []string
-}
-
-type tagKeysSlice []tagKeys
-
-func (a tagKeysSlice) Len() int           { return len(a) }
-func (a tagKeysSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a tagKeysSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
-
 // TagKeys returns the tag keys in the given database, matching the condition.
 func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagKeys, error) {
 	if len(shardIDs) == 0 {
@@ -1729,35 +1718,6 @@ func (a KeyValues) Less(i, j int) bool {
 		return a[i].Value < a[j].Value
 	}
 	return ki < kj
-}
-
-// filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
-// Unlike limit and offset on SELECT statements, the limit and offset don't apply to the number of Rows, but
-// to the number of total Values returned, since each Value represents a unique series.
-func (e *Store) filterShowSeriesResult(limit, offset int, rows models.Rows) models.Rows {
-	var filteredSeries models.Rows
-	seriesCount := 0
-	for _, r := range rows {
-		var currentSeries [][]interface{}
-
-		// filter the values
-		for _, v := range r.Values {
-			if seriesCount >= offset && seriesCount-offset < limit {
-				currentSeries = append(currentSeries, v)
-			}
-			seriesCount++
-		}
-
-		// only add the row back in if there are some values in it
-		if len(currentSeries) > 0 {
-			r.Values = currentSeries
-			filteredSeries = append(filteredSeries, r)
-			if seriesCount > limit+offset {
-				return filteredSeries
-			}
-		}
-	}
-	return filteredSeries
 }
 
 // decodeStorePath extracts the database and retention policy names
