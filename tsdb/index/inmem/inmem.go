@@ -1288,32 +1288,3 @@ func (itr *seriesIDIterator) nextKeys() error {
 // errMaxSeriesPerDatabaseExceeded is a marker error returned during series creation
 // to indicate that a new series would exceed the limits of the database.
 var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceeded")
-
-type seriesIterator struct {
-	keys [][]byte
-	elem seriesElement
-}
-
-type seriesElement struct {
-	tsdb.SeriesElem
-	name    []byte
-	tags    models.Tags
-	deleted bool
-}
-
-func (s seriesElement) Name() []byte        { return s.name }
-func (s seriesElement) Tags() models.Tags   { return s.tags }
-func (s seriesElement) Deleted() bool       { return s.deleted }
-func (s seriesElement) Expr() influxql.Expr { return nil }
-
-func (itr *seriesIterator) Next() tsdb.SeriesElem {
-	if len(itr.keys) == 0 {
-		return nil
-	}
-
-	name, tags := models.ParseKeyBytes(itr.keys[0])
-	itr.elem.name = name
-	itr.elem.tags = tags
-	itr.keys = itr.keys[1:]
-	return &itr.elem
-}

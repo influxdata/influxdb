@@ -373,8 +373,6 @@ type IndexFilesInfo struct {
 // indexCompactInfo is a context object used for tracking position information
 // during the compaction of index files.
 type indexCompactInfo struct {
-	sfile *tsdb.SeriesFile
-
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos
 }

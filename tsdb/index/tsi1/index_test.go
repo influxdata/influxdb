@@ -414,11 +414,3 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 	}
 	return idx.CreateSeriesListIfNotExists(keys, names, tags)
 }
-
-func BytesToStrings(a [][]byte) []string {
-	s := make([]string, 0, len(a))
-	for _, v := range a {
-		s = append(s, string(v))
-	}
-	return s
-}

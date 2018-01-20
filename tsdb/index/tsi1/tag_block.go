@@ -271,9 +271,6 @@ type TagBlockKeyElem struct {
 	}
 
 	size int
-
-	// Reusable iterator.
-	itr tagBlockValueIterator
 }
 
 // Deleted returns true if the key has been tombstoned.
@@ -485,7 +482,7 @@ func ReadTagBlockTrailer(data []byte) (TagBlockTrailer, error) {
 	t.HashIndex.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
 	// Read total size.
-	t.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Size = int64(binary.BigEndian.Uint64(buf[0:8]))
 
 	return t, nil
 }

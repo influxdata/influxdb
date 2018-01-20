@@ -255,7 +255,7 @@ func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
 
 	// Read tombstone measurement sketch info.
 	t.TSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TSketch.Size = int64(binary.BigEndian.Uint64(buf[0:8]))
 
 	return t, nil
 }

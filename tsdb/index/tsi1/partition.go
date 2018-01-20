@@ -76,8 +76,7 @@ type Partition struct {
 	MaxLogFileSize int64
 
 	// Frequency of compaction checks.
-	compactionsDisabled       int
-	compactionMonitorInterval time.Duration
+	compactionsDisabled int
 
 	logger *zap.Logger
 
