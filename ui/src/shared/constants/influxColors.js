@@ -70,7 +70,7 @@ export const PURPLES = {
 
 // Kapacitor (Dark to Light)
 export const GREENS = {
-  ypsy: '#152B2D',
+  gypsy: '#152B2D',
   emerald: '#108174',
   viridian: '#32B08C',
   viridianDisabled: '#2B6058',

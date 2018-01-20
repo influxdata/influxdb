@@ -6,6 +6,18 @@ export const addingAnnotationSuccess = () => ({
   type: 'ADDING_ANNOTATION_SUCCESS',
 })
 
+export const dismissAddingAnnotation = () => ({
+  type: 'DISMISS_ADDING_ANNOTATION',
+})
+
+export const mouseEnterTempAnnotation = () => ({
+  type: 'MOUSEENTER_TEMP_ANNOTATION',
+})
+
+export const mouseLeaveTempAnnotation = () => ({
+  type: 'MOUSELEAVE_TEMP_ANNOTATION',
+})
+
 export const loadAnnotations = annotations => ({
   type: 'LOAD_ANNOTATIONS',
   payload: {

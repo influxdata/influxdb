@@ -1,131 +1,103 @@
 import React, {Component, PropTypes} from 'react'
+import classnames from 'classnames'
 
-const newContainer = {
-  position: 'absolute',
-  zIndex: '9999',
-  top: '8px',
-  left: '16px',
-  width: 'calc(100% - 32px)',
-  height: 'calc(100% - 16px)',
-  backgroundColor: 'rgba(255,255,255,0.2)',
-}
-const newLineStyle = left => {
-  const width = 2
+import OnClickOutside from 'shared/components/OnClickOutside'
 
-  return {
-    position: 'absolute',
-    top: '0',
-    left: `${left}px`,
-    height: 'calc(100% - 20px)',
-    width: `${width}px`,
-    transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the comment pole
-    backgroundColor: '#f00',
-    visibility: left ? 'visible' : 'hidden',
-    zIndex: '5',
-  }
-}
-const prompterContainerStyle = isMouseHovering => {
-  return {
-    height: '100%',
-    display: 'flex',
-    justifyContent: 'center',
-    alignContent: 'center',
-    alignItems: 'center',
-    visibility: isMouseHovering ? 'hidden' : 'visible',
-    transition: 'all',
-  }
-}
-
-const prompterStyle = isMouseHovering => {
-  return {
-    padding: '16px 32px',
-    textAlign: 'center',
-    backgroundColor: 'rgba(255,0,0,0.7)',
-    color: '#fff',
-    borderRadius: '5px',
-    fontSize: '17px',
-    lineHeight: '30px',
-    fontWeight: '400',
-    opacity: isMouseHovering ? '0' : '1',
-    transition: 'opacity 0.25s ease',
-  }
-}
+import {
+  newAnnotationContainer,
+  newAnnotationCrosshairStyle,
+  newAnnotationTooltipStyle,
+  newAnnotationFlagStyle,
+  newAnnotationHelperStyle,
+  newAnnotationTimestampStyle,
+} from 'src/shared/annotations/styles'
 
 class NewAnnotation extends Component {
   state = {
-    xPos: null,
-    isMouseHovering: true,
+    isMouseOver: false,
   }
-
-  handleMouseEnter = () => {
-    this.setState({isMouseHovering: true})
+  handleMouseOver = () => {
+    this.setState({isMouseOver: true})
+    this.props.onMouseEnterTempAnnotation()
   }
 
   handleMouseMove = e => {
-    if (this.state.isMouseHovering === false) {
+    const {isTempHovering} = this.props
+
+    if (isTempHovering === false) {
       return
     }
 
+    const {dygraph, tempAnnotation, onUpdateAnnotation} = this.props
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
-    this.setState({xPos: trueGraphX})
+
+    const time = `${dygraph.toDataXCoord(trueGraphX)}`
+
+    onUpdateAnnotation({...tempAnnotation, time})
   }
 
   handleMouseLeave = () => {
-    this.setState({xPos: null, isMouseHovering: false})
+    this.setState({isMouseOver: false})
+    this.props.onMouseLeaveTempAnnotation()
   }
 
   handleClick = () => {
-    const {onAddAnnotation, onAddingAnnotationSuccess, dygraph} = this.props
-    const {xPos} = this.state
+    const {
+      onAddAnnotation,
+      onAddingAnnotationSuccess,
+      tempAnnotation,
+      onMouseLeaveTempAnnotation,
+    } = this.props
 
-    const time = `${dygraph.toDataXCoord(xPos)}`
-
-    const annotation = {
-      id: 'newannotationid', // TODO generate real ID
-      group: '',
-      name: 'New Annotation',
-      time,
-      duration: '',
-      text: '',
-    }
-
-    this.setState({xPos: null, isMouseHovering: false})
+    this.setState({isMouseOver: false})
+    onMouseLeaveTempAnnotation()
+    onAddAnnotation(tempAnnotation)
     onAddingAnnotationSuccess()
-    onAddAnnotation(annotation)
+  }
+
+  handleClickOutside = () => {
+    const {onDismissAddingAnnotation, isTempHovering} = this.props
+
+    if (!isTempHovering) {
+      onDismissAddingAnnotation()
+    }
   }
 
   render() {
-    const {dygraph} = this.props
-    const {xPos, isMouseHovering} = this.state
+    const {dygraph, isTempHovering, tempAnnotation: {time}} = this.props
+    const {isMouseOver} = this.state
 
-    const timestamp = `${new Date(dygraph.toDataXCoord(xPos))}`
+    const timestamp = `${new Date(+time)}`
+
+    const crosshairLeft = dygraph.toDomXCoord(time)
 
     return (
       <div
-        className="new-annotation"
+        className={classnames('new-annotation', {hover: isTempHovering})}
         ref={el => (this.wrapper = el)}
         onMouseMove={this.handleMouseMove}
-        onMouseEnter={this.handleMouseEnter}
+        onMouseOver={this.handleMouseOver}
         onMouseLeave={this.handleMouseLeave}
         onClick={this.handleClick}
-        style={newContainer}
+        style={newAnnotationContainer}
       >
         <div
-          className="new-annotation--prompter"
-          style={prompterContainerStyle(isMouseHovering)}
+          className="new-annotation--crosshair"
+          style={newAnnotationCrosshairStyle(crosshairLeft)}
         >
-          <div style={prompterStyle(isMouseHovering)}>
-            <strong>Click</strong> to create Annotation
-            <br />
-            <strong>Drag</strong> to create Range
-          </div>
-        </div>
-        <div className="new-annotation--crosshair" style={newLineStyle(xPos)}>
-          <div className="new-annotation--tooltip">
-            Create Annotation at:
-            <br />
-            {timestamp}
+          <div
+            className="new-annotation--flag"
+            style={newAnnotationFlagStyle}
+          />
+          <div
+            className="new-annotation--tooltip"
+            style={newAnnotationTooltipStyle(isMouseOver)}
+          >
+            <span style={newAnnotationHelperStyle}>Click to Annotate</span>
+            <span style={newAnnotationTimestampStyle}>
+              {timestamp}
+            </span>
           </div>
         </div>
       </div>
@@ -133,12 +105,18 @@ class NewAnnotation extends Component {
   }
 }
 
-const {func, shape} = PropTypes
+const {bool, func, shape} = PropTypes
 
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
+  isTempHovering: bool,
+  tempAnnotation: shape({}).isRequired,
   onAddAnnotation: func.isRequired,
+  onDismissAddingAnnotation: func.isRequired,
   onAddingAnnotationSuccess: func.isRequired,
+  onUpdateAnnotation: func.isRequired,
+  onMouseEnterTempAnnotation: func.isRequired,
+  onMouseLeaveTempAnnotation: func.isRequired,
 }
 
-export default NewAnnotation
+export default OnClickOutside(NewAnnotation)

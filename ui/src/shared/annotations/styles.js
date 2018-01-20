@@ -1,4 +1,4 @@
-import {NEUTRALS} from 'src/shared/constants/InfluxColors'
+import {NEUTRALS, BLUES} from 'src/shared/constants/InfluxColors'
 
 // Styles for all things Annotations
 const annotationColor = '255,255,255'
@@ -6,6 +6,8 @@ const annotationDragColor = '0,201,255'
 const zIndexWindow = '1'
 const zIndexAnnotation = '3'
 const zIndexAnnotationActive = '4'
+const timestampFontSize = '14px'
+const timestampFontWeight = '600'
 
 export const flagStyle = (mouseOver, dragging, hasDuration, isEndpoint) => {
   const baseStyle = {
@@ -122,9 +124,6 @@ export const tooltipStyle = annotationState => {
     transform: 'translateX(-50%)',
     backgroundColor: NEUTRALS[0],
     zIndex: '3',
-    color: NEUTRALS[20],
-    fontSize: '13px',
-    fontWeight: '600',
     padding: isDragging ? '6px 12px' : '12px 12px 6px 12px',
     borderRadius: '4px',
     whiteSpace: 'nowrap',
@@ -139,7 +138,12 @@ export const tooltipItemsStyle = {
   flexDirection: 'column',
   alignItems: 'center',
 }
-export const tooltipTimestampStyle = {display: 'block'}
+export const tooltipTimestampStyle = {
+  color: NEUTRALS[20],
+  display: 'block',
+  fontSize: timestampFontSize,
+  fontWeight: timestampFontWeight,
+}
 export const tooltipInputContainer = {width: '100%', marginBottom: '4px'}
 export const tooltipFormStyle = {
   display: 'inline-flex',
@@ -223,4 +227,72 @@ export const annotationWindowStyle = (annotation, dygraph) => {
     zIndex: zIndexWindow,
     visibility,
   }
+}
+
+// Styles for new Annotations
+export const newAnnotationContainer = {
+  position: 'absolute',
+  zIndex: '9999',
+  top: '8px',
+  left: '16px',
+  width: 'calc(100% - 32px)',
+  height: 'calc(100% - 16px)',
+  cursor: 'pointer',
+}
+export const newAnnotationCrosshairStyle = left => {
+  const width = 2
+
+  return {
+    position: 'absolute',
+    top: '0',
+    left: `${left}px`,
+    height: 'calc(100% - 20px)',
+    width: `${width}px`,
+    transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the comment pole
+    background: `linear-gradient(to bottom, ${NEUTRALS[20]} 0%,${BLUES.hydrogen} 100%)`,
+    visibility: left ? 'visible' : 'hidden',
+    transition: 'opacity 0.4s ease',
+    zIndex: '5',
+    cursor: 'pointer',
+  }
+}
+export const newAnnotationTooltipStyle = isMouseHovering => {
+  return {
+    display: isMouseHovering ? 'flex' : 'none',
+    flexDirection: 'column',
+    alignItems: 'center',
+    background: `linear-gradient(to bottom, ${BLUES.pool} 0%,${BLUES.ocean} 100%)`,
+    borderRadius: '4px',
+    padding: '6px 12px',
+    position: 'absolute',
+    bottom: 'calc(100% + 8px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: '10',
+  }
+}
+export const newAnnotationFlagStyle = {
+  position: 'absolute',
+  zIndex: '2',
+  top: '-3px',
+  left: '-4px',
+  width: '10px',
+  height: '10px',
+  backgroundColor: NEUTRALS[20],
+  borderRadius: '50%',
+}
+export const newAnnotationHelperStyle = {
+  whiteSpace: 'nowrap',
+  fontSize: '13px',
+  lineHeight: '13px',
+  fontWeight: '600',
+  color: BLUES.neutrino,
+  marginBottom: '4px',
+}
+export const newAnnotationTimestampStyle = {
+  whiteSpace: 'nowrap',
+  fontSize: timestampFontSize,
+  lineHeight: timestampFontSize,
+  fontWeight: timestampFontWeight,
+  color: NEUTRALS[20],
 }

@@ -3,6 +3,7 @@ import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
 const initialState = {
   mode: null,
+  isTempHovering: false,
   annotations: [
     {
       id: '0',
@@ -26,10 +27,14 @@ const initialState = {
 const annotationsReducer = (state = initialState, action) => {
   switch (action.type) {
     case 'ADDING_ANNOTATION': {
+      const annotations = state.annotations.filter(
+        a => a.id !== TEMP_ANNOTATION.id
+      )
+
       return {
         ...state,
         mode: ADDING,
-        annotations: [...state.annotations, TEMP_ANNOTATION],
+        annotations: [...annotations, TEMP_ANNOTATION],
       }
     }
 
@@ -39,6 +44,26 @@ const annotationsReducer = (state = initialState, action) => {
       )
 
       return {...state, mode: null, annotations}
+    }
+
+    case 'DISMISS_ADDING_ANNOTATION': {
+      const annotations = state.annotations.filter(
+        a => a.id !== TEMP_ANNOTATION.id
+      )
+
+      return {...state, mode: null, annotations}
+    }
+
+    case 'MOUSEENTER_TEMP_ANNOTATION': {
+      const newState = {...state, isTempHovering: true}
+
+      return newState
+    }
+
+    case 'MOUSELEAVE_TEMP_ANNOTATION': {
+      const newState = {...state, isTempHovering: false}
+
+      return newState
     }
 
     case 'LOAD_ANNOTATIONS': {

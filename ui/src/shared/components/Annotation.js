@@ -2,6 +2,8 @@ import React, {Component, PropTypes} from 'react'
 
 import AnnotationTooltip from 'src/shared/components/AnnotationTooltip'
 
+import {TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
+
 import {
   flagStyle,
   clickAreaStyle,
@@ -137,6 +139,10 @@ class Annotation extends Component {
 
     const humanTime = `${new Date(+annotation.time)}`
     const hasDuration = !!annotation.duration
+
+    if (annotation.id === TEMP_ANNOTATION.id) {
+      return null
+    }
 
     return (
       <div

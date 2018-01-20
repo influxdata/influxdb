@@ -545,3 +545,14 @@ div.dropdown.dropdown-stretch > div.dropdown-toggle,
 div.dropdown.dropdown-stretch > button.dropdown-toggle {
   width: 100%;
 }
+
+/*
+  New Annotations
+  ------------------------------------------------------------------------------
+*/
+.new-annotation--crosshair {
+  opacity: 0;
+}
+.new-annotation.hover .new-annotation--crosshair {
+  opacity: 1;
+}
