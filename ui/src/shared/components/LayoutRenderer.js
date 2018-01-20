@@ -26,7 +26,12 @@ class LayoutRenderer extends Component {
     this.state = {
       rowHeight: this.calculateRowHeight(),
       resizeCoords: null,
+      annotationMode: null,
     }
+  }
+
+  handleStartAddAnnotation = () => {
+    this.setState({annotationMode: 'adding'})
   }
 
   handleLayoutChange = layout => {
@@ -84,7 +89,7 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
-    const {rowHeight, resizeCoords} = this.state
+    const {rowHeight, resizeCoords, annotationMode} = this.state
     const isDashboard = !!this.props.onPositionChange
 
     return (
@@ -134,7 +139,9 @@ class LayoutRenderer extends Component {
                     onDeleteCell={onDeleteCell}
                     synchronizer={synchronizer}
                     manualRefresh={manualRefresh}
+                    annotationMode={annotationMode}
                     onCancelEditCell={onCancelEditCell}
+                    onStartAddAnnotation={this.handleStartAddAnnotation}
                     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
                   />
                 </Authorized>

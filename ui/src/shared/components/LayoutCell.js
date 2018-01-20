@@ -10,10 +10,6 @@ import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
 
 class LayoutCell extends Component {
-  constructor(props) {
-    super(props)
-  }
-
   handleDeleteCell = cell => () => {
     this.props.onDeleteCell(cell)
   }
@@ -34,7 +30,13 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, celldata} = this.props
+    const {
+      cell,
+      children,
+      isEditable,
+      celldata,
+      onStartAddAnnotation,
+    } = this.props
 
     const queries = _.get(cell, ['queries'], [])
 
@@ -50,6 +52,7 @@ class LayoutCell extends Component {
             onEdit={this.handleSummonOverlay}
             handleClickOutside={this.closeMenu}
             onCSVDownload={this.handleCSVDownload}
+            onStartAddAnnotation={onStartAddAnnotation}
           />
         </Authorized>
         <LayoutCellHeader cellName={cell.name} isEditable={isEditable} />
@@ -88,6 +91,7 @@ LayoutCell.propTypes = {
   isEditable: bool,
   onCancelEditCell: func,
   celldata: arrayOf(shape()),
+  onStartAddAnnotation: func.isRequired,
 }
 
 export default LayoutCell

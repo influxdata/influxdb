@@ -16,11 +16,8 @@ const getSource = (cell, source, sources, defaultSource) => {
 }
 
 class LayoutState extends Component {
-  constructor(props) {
-    super(props)
-    this.state = {
-      celldata: [],
-    }
+  state = {
+    celldata: [],
   }
 
   grabDataForDownload = celldata => {
@@ -28,11 +25,10 @@ class LayoutState extends Component {
   }
 
   render() {
-    const {celldata} = this.state
     return (
       <Layout
         {...this.props}
-        celldata={celldata}
+        {...this.state}
         grabDataForDownload={this.grabDataForDownload}
       />
     )
@@ -47,6 +43,7 @@ const Layout = (
     source,
     sources,
     onZoom,
+    celldata,
     templates,
     timeRange,
     isEditable,
@@ -56,10 +53,11 @@ const Layout = (
     onDeleteCell,
     synchronizer,
     resizeCoords,
+    annotationMode,
     onCancelEditCell,
+    onStartAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
-    celldata,
   },
   {source: defaultSource}
 ) =>
@@ -70,22 +68,24 @@ const Layout = (
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
+    onStartAddAnnotation={onStartAddAnnotation}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
   >
     {cell.isWidget
       ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
       : <RefreshingGraph
-          colors={colors}
           axes={axes}
           type={type}
           cellHeight={h}
+          colors={colors}
           onZoom={onZoom}
           sources={sources}
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
-          manualRefresh={manualRefresh}
           synchronizer={synchronizer}
+          manualRefresh={manualRefresh}
+          annotationMode={annotationMode}
           grabDataForDownload={grabDataForDownload}
           resizeCoords={resizeCoords}
           queries={buildQueriesForLayouts(

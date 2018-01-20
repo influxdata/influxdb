@@ -26,7 +26,11 @@ class DygraphLegend extends Component {
   }
 
   componentDidMount() {
-    this.props.legendComponent(this)
+    this.props.dygraph.updateOptions({
+      legendFormatter: this.legendFormatter,
+      highlightCallback: this.highlightCallback,
+      unhighlightCallback: this.unhighlightCallback,
+    })
   }
 
   componentWillUnmount() {
@@ -36,6 +40,12 @@ class DygraphLegend extends Component {
     ) {
       this.setState({filterText: ''})
     }
+
+    this.props.dygraph.updateOptions({
+      legendFormatter: () => {},
+      highlightCallback: () => {},
+      unhighlightCallback: () => {},
+    })
   }
 
   handleToggleFilter = () => {
@@ -69,6 +79,32 @@ class DygraphLegend extends Component {
     this.setState({sortType, isAscending: !this.state.isAscending})
   }
 
+  unhighlightCallback = e => {
+    const {
+      top,
+      bottom,
+      left,
+      right,
+    } = this.legendNodeRef.getBoundingClientRect()
+
+    const mouseY = e.clientY
+    const mouseX = e.clientX
+
+    const mouseBuffer = 5
+    const mouseInLegendY = mouseY <= bottom && mouseY >= top - mouseBuffer
+    const mouseInLegendX = mouseX <= right && mouseX >= left
+    const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
+
+    if (!isMouseHoveringLegend) {
+      this.props.onHide(e)
+    }
+  }
+
+  highlightCallback = ({pageX}) => {
+    this.setState({pageX})
+    this.props.onShow()
+  }
+
   legendFormatter = legend => {
     if (!legend.x) {
       return ''
@@ -90,7 +126,7 @@ class DygraphLegend extends Component {
   }
 
   render() {
-    const {graph, onHide, isHidden, legendNodeRef, legendNode} = this.props
+    const {dygraph, onHide, isHidden} = this.props
 
     const {
       pageX,
@@ -111,7 +147,7 @@ class DygraphLegend extends Component {
     const ordered = isAscending ? sorted : sorted.reverse()
     const filtered = ordered.filter(s => s.label.match(filterText))
     const hidden = isHidden ? 'hidden' : ''
-    const style = makeLegendStyles(graph, legendNode, pageX)
+    const style = makeLegendStyles(dygraph.graphDiv, this.legendNodeRef, pageX)
 
     const renderSortAlpha = (
       <div
@@ -146,7 +182,7 @@ class DygraphLegend extends Component {
     return (
       <div
         className={`dygraph-legend ${hidden}`}
-        ref={legendNodeRef}
+        ref={el => (this.legendNodeRef = el)}
         onMouseLeave={onHide}
         style={style}
       >
@@ -211,13 +247,10 @@ class DygraphLegend extends Component {
 const {bool, func, shape} = PropTypes
 
 DygraphLegend.propTypes = {
-  legendComponent: func,
-  legendNode: shape({}),
   dygraph: shape({}),
-  graph: shape({}),
   onHide: func.isRequired,
+  onShow: func.isRequired,
   isHidden: bool.isRequired,
-  legendNodeRef: func.isRequired,
 }
 
 export default DygraphLegend

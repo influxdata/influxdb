@@ -23,6 +23,7 @@ class LayoutCellMenu extends Component {
       isEditable,
       dataExists,
       onCSVDownload,
+      onStartAddAnnotation,
     } = this.props
 
     return (
@@ -42,7 +43,10 @@ class LayoutCellMenu extends Component {
           <div className="dash-graph-context--buttons">
             <MenuTooltipButton
               icon="pencil"
-              menuOptions={[{text: 'Queries', action: onEdit(cell)}]}
+              menuOptions={[
+                {text: 'Queries', action: onEdit(cell)},
+                {text: 'Add Annotation', action: onStartAddAnnotation},
+              ]}
               informParent={this.handleToggleSubMenu}
             />
             {dataExists &&
@@ -75,6 +79,7 @@ LayoutCellMenu.propTypes = {
   dataExists: bool,
   onCSVDownload: func,
   queries: arrayOf(shape()),
+  onStartAddAnnotation: func.isRequired,
 }
 
 export default LayoutCellMenu

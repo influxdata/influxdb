@@ -6,6 +6,7 @@ import Annotation from 'src/shared/components/Annotation'
 import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 
 import {
+  addAnnotation,
   updateAnnotation,
   deleteAnnotation,
 } from 'src/shared/actions/annotations'
@@ -22,7 +23,7 @@ class Annotations extends Component {
 
   render() {
     const {dygraph} = this.state
-    const {handleUpdateAnnotation, handleDeleteAnnotation} = this.props
+    const {mode, handleUpdateAnnotation, handleDeleteAnnotation} = this.props
 
     if (!dygraph) {
       return null
@@ -35,6 +36,7 @@ class Annotations extends Component {
         {annotations.map(a =>
           <Annotation
             key={a.id}
+            mode={mode}
             annotation={a}
             dygraph={dygraph}
             annotations={annotations}
@@ -52,13 +54,15 @@ class Annotations extends Component {
   }
 }
 
-const {arrayOf, func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 Annotations.propTypes = {
   annotations: arrayOf(shape({})),
+  mode: string,
   annotationsRef: func,
   handleDeleteAnnotation: func.isRequired,
   handleUpdateAnnotation: func.isRequired,
+  handleAddAnnotation: func.isRequired,
 }
 
 const mapStateToProps = ({annotations}) => ({
@@ -66,6 +70,7 @@ const mapStateToProps = ({annotations}) => ({
 })
 
 const mapDispatchToProps = dispatch => ({
+  handleAddAnnotation: bindActionCreators(addAnnotation, dispatch),
   handleUpdateAnnotation: bindActionCreators(updateAnnotation, dispatch),
   handleDeleteAnnotation: bindActionCreators(deleteAnnotation, dispatch),
 })

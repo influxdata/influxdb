@@ -49,7 +49,6 @@ export default class Dygraph extends Component {
       logscale: y.scale === LOG,
       colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
-      highlightCallback: this.highlightCallback,
       unhighlightCallback: this.unhighlightCallback,
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
@@ -122,6 +121,7 @@ export default class Dygraph extends Component {
     const {labels, axes: {y, y2}, options, isBarGraph} = this.props
 
     const dygraph = this.dygraph
+
     if (!dygraph) {
       throw new Error(
         'Dygraph not configured in time; this should not be possible!'
@@ -152,7 +152,6 @@ export default class Dygraph extends Component {
       colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
       plotter: isBarGraph ? barPlotter : null,
-      legendFormatter: this.legendComponent.legendFormatter,
       drawCallback: graph => {
         this.annotationsRef.setState({dygraph: graph})
       },
@@ -262,10 +261,6 @@ export default class Dygraph extends Component {
     return buildDefaultYLabel(queryConfig)
   }
 
-  handleLegendRef = el => (this.legendNodeRef = el)
-
-  handleLegendComponentRef = ref => (this.legendComponent = ref)
-
   resize = () => {
     this.dygraph.resizeElements_()
     this.dygraph.predraw_()
@@ -293,49 +288,30 @@ export default class Dygraph extends Component {
     crosshair.plugin.deselect()
   }
 
-  unhighlightCallback = e => {
-    const {
-      top,
-      bottom,
-      left,
-      right,
-    } = this.legendNodeRef.getBoundingClientRect()
-
-    const mouseY = e.clientY
-    const mouseX = e.clientX
-
-    const mouseBuffer = 5
-    const mouseInLegendY = mouseY <= bottom && mouseY >= top - mouseBuffer
-    const mouseInLegendX = mouseX <= right && mouseX >= left
-    const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
-
-    if (!isMouseHoveringLegend) {
-      this.setState({isHidden: true})
-    }
-  }
-
-  highlightCallback = ({pageX}) => {
-    this.legendComponent.setState({pageX})
+  handleShowLegend = () => {
     this.setState({isHidden: false})
   }
 
   handleAnnotationsRef = ref => (this.annotationsRef = ref)
 
   render() {
+    const {annotationMode} = this.props
     const {isHidden} = this.state
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        <Annotations annotationsRef={this.handleAnnotationsRef} />
-        <DygraphLegend
-          dygraph={this.dygraph}
-          graph={this.graphRef}
-          isHidden={isHidden}
-          legendNode={this.legendNodeRef}
-          onHide={this.handleHideLegend}
-          legendNodeRef={this.handleLegendRef}
-          legendComponent={this.handleLegendComponentRef}
+        <Annotations
+          mode={annotationMode}
+          annotationsRef={this.handleAnnotationsRef}
         />
+        {this.dygraph &&
+          annotationMode !== 'adding' &&
+          <DygraphLegend
+            isHidden={isHidden}
+            dygraph={this.dygraph}
+            onHide={this.handleHideLegend}
+            onShow={this.handleShowLegend}
+          />}
         <div
           ref={r => {
             this.graphRef = r
@@ -403,4 +379,5 @@ Dygraph.propTypes = {
   setResolution: func,
   dygraphRef: func,
   onZoom: func,
+  annotationMode: string,
 }

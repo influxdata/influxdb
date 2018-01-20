@@ -49,7 +49,9 @@ class LineGraph extends Component {
       resizeCoords,
       synchronizer,
       isRefreshing,
+      setResolution,
       isGraphFilled,
+      annotationMode,
       showSingleStat,
       displayOptions,
       underlayCallback,
@@ -99,18 +101,19 @@ class LineGraph extends Component {
           onZoom={onZoom}
           labels={labels}
           queries={queries}
+          options={options}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           resizeCoords={resizeCoords}
-          overrideLineColors={lineColors}
           dygraphSeries={dygraphSeries}
-          setResolution={this.props.setResolution}
+          setResolution={setResolution}
+          overrideLineColors={lineColors}
           containerStyle={containerStyle}
+          annotationMode={annotationMode}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
-          options={options}
         />
         {showSingleStat
           ? <SingleStat data={data} cellHeight={cellHeight} />
@@ -177,6 +180,7 @@ LineGraph.propTypes = {
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,
+  annotationMode: string,
 }
 
 export default LineGraph
