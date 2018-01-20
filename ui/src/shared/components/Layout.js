@@ -53,9 +53,9 @@ const Layout = (
     onDeleteCell,
     synchronizer,
     resizeCoords,
-    annotationMode,
     onCancelEditCell,
-    onStartAddAnnotation,
+    onStopAddAnnotation,
+    onStartAddingAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
   },
@@ -68,7 +68,7 @@ const Layout = (
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
-    onStartAddAnnotation={onStartAddAnnotation}
+    onStartAddingAnnotation={onStartAddingAnnotation}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
   >
     {cell.isWidget
@@ -85,7 +85,7 @@ const Layout = (
           autoRefresh={autoRefresh}
           synchronizer={synchronizer}
           manualRefresh={manualRefresh}
-          annotationMode={annotationMode}
+          onStopAddAnnotation={onStopAddAnnotation}
           grabDataForDownload={grabDataForDownload}
           resizeCoords={resizeCoords}
           queries={buildQueriesForLayouts(

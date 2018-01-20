@@ -1,3 +1,15 @@
+export const ADDING = 'adding'
+export const EDITING = 'editing'
+
+export const TEMP_ANNOTATION = {
+  id: 'tempAnnotation',
+  group: '',
+  name: 'New Annotation',
+  time: '',
+  duration: '',
+  text: '',
+}
+
 export const getAnnotations = (graph, annotations = []) => {
   if (!graph) {
     return []

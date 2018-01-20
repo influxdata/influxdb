@@ -1,3 +1,11 @@
+export const addingAnnotation = () => ({
+  type: 'ADDING_ANNOTATION',
+})
+
+export const addingAnnotationSuccess = () => ({
+  type: 'ADDING_ANNOTATION_SUCCESS',
+})
+
 export const loadAnnotations = annotations => ({
   type: 'LOAD_ANNOTATIONS',
   payload: {

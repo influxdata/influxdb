@@ -35,7 +35,7 @@ class LayoutCell extends Component {
       children,
       isEditable,
       celldata,
-      onStartAddAnnotation,
+      onStartAddingAnnotation,
     } = this.props
 
     const queries = _.get(cell, ['queries'], [])
@@ -52,7 +52,7 @@ class LayoutCell extends Component {
             onEdit={this.handleSummonOverlay}
             handleClickOutside={this.closeMenu}
             onCSVDownload={this.handleCSVDownload}
-            onStartAddAnnotation={onStartAddAnnotation}
+            onStartAddingAnnotation={onStartAddingAnnotation}
           />
         </Authorized>
         <LayoutCellHeader cellName={cell.name} isEditable={isEditable} />
@@ -91,7 +91,7 @@ LayoutCell.propTypes = {
   isEditable: bool,
   onCancelEditCell: func,
   celldata: arrayOf(shape()),
-  onStartAddAnnotation: func.isRequired,
+  onStartAddingAnnotation: func.isRequired,
 }
 
 export default LayoutCell

@@ -38,12 +38,13 @@ const prompterContainerStyle = isMouseHovering => {
 
 const prompterStyle = isMouseHovering => {
   return {
-    padding: '16px',
+    padding: '16px 32px',
     textAlign: 'center',
-    backgroundColor: 'rgba(255,0,0,0.2)',
+    backgroundColor: 'rgba(255,0,0,0.7)',
     color: '#fff',
-    borderRadius: '4px',
-    fontSize: '16px',
+    borderRadius: '5px',
+    fontSize: '17px',
+    lineHeight: '30px',
     fontWeight: '400',
     opacity: isMouseHovering ? '0' : '1',
     transition: 'opacity 0.25s ease',
@@ -53,7 +54,7 @@ const prompterStyle = isMouseHovering => {
 class NewAnnotation extends Component {
   state = {
     xPos: null,
-    isMouseHovering: false,
+    isMouseHovering: true,
   }
 
   handleMouseEnter = () => {
@@ -67,37 +68,38 @@ class NewAnnotation extends Component {
 
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
-    console.log('mouseMove')
     this.setState({xPos: trueGraphX})
   }
 
   handleMouseLeave = () => {
-    console.log('mouseLeave')
     this.setState({xPos: null, isMouseHovering: false})
   }
 
   handleClick = () => {
-    const {onAddAnnotation, dygraph} = this.props
+    const {onAddAnnotation, onAddingAnnotationSuccess, dygraph} = this.props
     const {xPos} = this.state
 
-    const time = dygraph.toDataXCoord(xPos)
+    const time = `${dygraph.toDataXCoord(xPos)}`
 
     const annotation = {
-      id: 'newannotationid',
+      id: 'newannotationid', // TODO generate real ID
       group: '',
       name: 'New Annotation',
       time,
       duration: '',
       text: '',
     }
-    console.log(annotation)
-    onAddAnnotation(annotation)
+
     this.setState({xPos: null, isMouseHovering: false})
+    onAddingAnnotationSuccess()
+    onAddAnnotation(annotation)
   }
 
   render() {
-    // const {dygraph} = this.props
+    const {dygraph} = this.props
     const {xPos, isMouseHovering} = this.state
+
+    const timestamp = `${new Date(dygraph.toDataXCoord(xPos))}`
 
     return (
       <div
@@ -114,13 +116,17 @@ class NewAnnotation extends Component {
           style={prompterContainerStyle(isMouseHovering)}
         >
           <div style={prompterStyle(isMouseHovering)}>
-            <strong>Click</strong> to add Annotation
+            <strong>Click</strong> to create Annotation
             <br />
-            <strong>Drag</strong> to add Range
+            <strong>Drag</strong> to create Range
           </div>
         </div>
         <div className="new-annotation--crosshair" style={newLineStyle(xPos)}>
-          <div className="new-annotation--tooltip" />
+          <div className="new-annotation--tooltip">
+            Create Annotation at:
+            <br />
+            {timestamp}
+          </div>
         </div>
       </div>
     )
@@ -132,7 +138,7 @@ const {func, shape} = PropTypes
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
   onAddAnnotation: func.isRequired,
-  onCancelAddAnnotation: func.isRequired,
+  onAddingAnnotationSuccess: func.isRequired,
 }
 
 export default NewAnnotation

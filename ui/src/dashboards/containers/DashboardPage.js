@@ -25,6 +25,7 @@ import {
   setAutoRefresh,
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
+import {addingAnnotation} from 'shared/actions/annotations'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const FORMAT_INFLUXQL = 'influxql'
@@ -248,6 +249,7 @@ class DashboardPage extends Component {
       handleChooseAutoRefresh,
       handleClickPresentationButton,
       params: {sourceID, dashboardID},
+      handleStartAddingAnnotation,
     } = this.props
 
     const low = zoomedLower ? zoomedLower : lower
@@ -387,6 +389,7 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
+              onStartAddingAnnotation={handleStartAddingAnnotation}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
             />
           : null}
@@ -467,6 +470,7 @@ DashboardPage.propTypes = {
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
   notify: func.isRequired,
+  handleStartAddingAnnotation: func.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -516,6 +520,7 @@ const mapDispatchToProps = dispatch => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(publishNotification, dispatch),
+  handleStartAddingAnnotation: bindActionCreators(addingAnnotation, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(

@@ -23,7 +23,7 @@ class LayoutCellMenu extends Component {
       isEditable,
       dataExists,
       onCSVDownload,
-      onStartAddAnnotation,
+      onStartAddingAnnotation,
     } = this.props
 
     return (
@@ -45,7 +45,7 @@ class LayoutCellMenu extends Component {
               icon="pencil"
               menuOptions={[
                 {text: 'Queries', action: onEdit(cell)},
-                {text: 'Add Annotation', action: onStartAddAnnotation},
+                {text: 'Add Annotation', action: onStartAddingAnnotation},
               ]}
               informParent={this.handleToggleSubMenu}
             />
@@ -79,7 +79,7 @@ LayoutCellMenu.propTypes = {
   dataExists: bool,
   onCSVDownload: func,
   queries: arrayOf(shape()),
-  onStartAddAnnotation: func.isRequired,
+  onStartAddingAnnotation: func.isRequired,
 }
 
 export default LayoutCellMenu

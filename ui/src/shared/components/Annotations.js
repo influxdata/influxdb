@@ -4,11 +4,15 @@ import {bindActionCreators} from 'redux'
 
 import Annotation from 'src/shared/components/Annotation'
 import AnnotationWindow from 'src/shared/components/AnnotationWindow'
+import NewAnnotation from 'src/shared/components/NewAnnotation'
+
+import {ADDING} from 'src/shared/annotations/helpers'
 
 import {
   addAnnotation,
   updateAnnotation,
   deleteAnnotation,
+  addingAnnotationSuccess,
 } from 'src/shared/actions/annotations'
 import {getAnnotations} from 'src/shared/annotations/helpers'
 
@@ -23,7 +27,13 @@ class Annotations extends Component {
 
   render() {
     const {dygraph} = this.state
-    const {mode, handleUpdateAnnotation, handleDeleteAnnotation} = this.props
+    const {
+      mode,
+      handleUpdateAnnotation,
+      handleDeleteAnnotation,
+      handleAddAnnotation,
+      handleAddingAnnotationSuccess,
+    } = this.props
 
     if (!dygraph) {
       return null
@@ -33,6 +43,12 @@ class Annotations extends Component {
 
     return (
       <div className="annotations-container">
+        {mode === ADDING &&
+          <NewAnnotation
+            dygraph={dygraph}
+            onAddAnnotation={handleAddAnnotation}
+            onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
+          />}
         {annotations.map(a =>
           <Annotation
             key={a.id}
@@ -63,13 +79,19 @@ Annotations.propTypes = {
   handleDeleteAnnotation: func.isRequired,
   handleUpdateAnnotation: func.isRequired,
   handleAddAnnotation: func.isRequired,
+  handleAddingAnnotationSuccess: func.isRequired,
 }
 
-const mapStateToProps = ({annotations}) => ({
+const mapStateToProps = ({annotations: {annotations, mode}}) => ({
   annotations,
+  mode,
 })
 
 const mapDispatchToProps = dispatch => ({
+  handleAddingAnnotationSuccess: bindActionCreators(
+    addingAnnotationSuccess,
+    dispatch
+  ),
   handleAddAnnotation: bindActionCreators(addAnnotation, dispatch),
   handleUpdateAnnotation: bindActionCreators(updateAnnotation, dispatch),
   handleDeleteAnnotation: bindActionCreators(deleteAnnotation, dispatch),

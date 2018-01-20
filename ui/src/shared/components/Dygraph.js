@@ -295,17 +295,12 @@ export default class Dygraph extends Component {
   handleAnnotationsRef = ref => (this.annotationsRef = ref)
 
   render() {
-    const {annotationMode} = this.props
     const {isHidden} = this.state
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        <Annotations
-          mode={annotationMode}
-          annotationsRef={this.handleAnnotationsRef}
-        />
+        <Annotations annotationsRef={this.handleAnnotationsRef} />
         {this.dygraph &&
-          annotationMode !== 'adding' &&
           <DygraphLegend
             isHidden={isHidden}
             dygraph={this.dygraph}
@@ -379,5 +374,4 @@ Dygraph.propTypes = {
   setResolution: func,
   dygraphRef: func,
   onZoom: func,
-  annotationMode: string,
 }

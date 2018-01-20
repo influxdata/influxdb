@@ -22,7 +22,6 @@ const RefreshingGraph = ({
   cellHeight,
   autoRefresh,
   resizerTopHeight,
-  annotationMode,
   manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
@@ -86,7 +85,6 @@ const RefreshingGraph = ({
       isBarGraph={type === 'bar'}
       synchronizer={synchronizer}
       resizeCoords={resizeCoords}
-      annotationMode={annotationMode}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
       grabDataForDownload={grabDataForDownload}
@@ -98,7 +96,6 @@ const RefreshingGraph = ({
 const {arrayOf, func, number, shape, string} = PropTypes
 
 RefreshingGraph.propTypes = {
-  annotationMode: string,
   timeRange: shape({
     lower: string.isRequired,
   }),

@@ -23,6 +23,7 @@ const Dashboard = ({
   onSummonOverlayTechnologies,
   onSelectTemplate,
   showTemplateControlBar,
+  onStartAddingAnnotation,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
@@ -63,6 +64,7 @@ const Dashboard = ({
               onDeleteCell={onDeleteCell}
               onPositionChange={onPositionChange}
               templates={templatesIncludingDashTime}
+              onStartAddingAnnotation={onStartAddingAnnotation}
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
             />
           : <div className="dashboard__empty">
@@ -119,6 +121,7 @@ Dashboard.propTypes = {
   onSelectTemplate: func.isRequired,
   showTemplateControlBar: bool,
   onZoom: func,
+  onStartAddingAnnotation: func.isRequired,
 }
 
 export default Dashboard

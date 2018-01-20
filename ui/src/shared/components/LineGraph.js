@@ -51,7 +51,6 @@ class LineGraph extends Component {
       isRefreshing,
       setResolution,
       isGraphFilled,
-      annotationMode,
       showSingleStat,
       displayOptions,
       underlayCallback,
@@ -112,7 +111,6 @@ class LineGraph extends Component {
           setResolution={setResolution}
           overrideLineColors={lineColors}
           containerStyle={containerStyle}
-          annotationMode={annotationMode}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
         />
         {showSingleStat
@@ -180,7 +178,6 @@ LineGraph.propTypes = {
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,
-  annotationMode: string,
 }
 
 export default LineGraph
