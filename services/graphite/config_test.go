@@ -34,7 +34,7 @@ tags=["region=us-east"]
 		t.Fatalf("unexpected database selected: %s", c.Database)
 	} else if c.RetentionPolicy != "myrp" {
 		t.Fatalf("unexpected retention policy selected: %s", c.RetentionPolicy)
-	} else if c.Enabled != true {
+	} else if !c.Enabled {
 		t.Fatalf("unexpected graphite enabled: %v", c.Enabled)
 	} else if c.Protocol != "tcp" {
 		t.Fatalf("unexpected graphite protocol: %s", c.Protocol)

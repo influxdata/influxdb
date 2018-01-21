@@ -19,7 +19,7 @@ check-interval = "1s"
 	}
 
 	// Validate configuration.
-	if c.Enabled != true {
+	if !c.Enabled {
 		t.Fatalf("unexpected enabled state: %v", c.Enabled)
 	} else if time.Duration(c.CheckInterval) != time.Second {
 		t.Fatalf("unexpected check interval: %v", c.CheckInterval)

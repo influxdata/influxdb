@@ -20,7 +20,7 @@ typesdb = "yyy"
 	}
 
 	// Validate configuration.
-	if c.Enabled != true {
+	if !c.Enabled {
 		t.Fatalf("unexpected enabled: %v", c.Enabled)
 	} else if c.BindAddress != ":9000" {
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)

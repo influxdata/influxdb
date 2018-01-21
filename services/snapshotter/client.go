@@ -9,12 +9,13 @@ import (
 	"io"
 
 	"archive/tar"
-	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/tcp"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tcp"
 )
 
 // Client provides an API for the snapshotter service.
@@ -101,12 +102,11 @@ func decodeUintPair(bits []byte) (uint64, uint64, error) {
 }
 
 func (c *Client) UploadShard(shardID, newShardID uint64, destinationDatabase, restoreRetention string, tr *tar.Reader) error {
-
 	conn, err := tcp.Dial("tcp", c.host, MuxHeader)
-	defer conn.Close()
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
 	var shardBytes [9]byte
 	shardBytes[0] = byte(RequestShardUpdate)

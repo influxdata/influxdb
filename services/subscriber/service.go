@@ -279,7 +279,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 	}
 
 	dbis := s.MetaClient.Databases()
-	allEntries := make(map[subEntry]bool, 0)
+	allEntries := make(map[subEntry]bool)
 	// Add in new subscriptions
 	for _, dbi := range dbis {
 		for _, rpi := range dbi.RetentionPolicies {

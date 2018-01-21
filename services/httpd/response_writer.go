@@ -187,10 +187,7 @@ func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 		}
 	}
 	csv.Flush()
-	if err := csv.Error(); err != nil {
-		return n, err
-	}
-	return n, nil
+	return n, csv.Error()
 }
 
 type msgpackFormatter struct {
