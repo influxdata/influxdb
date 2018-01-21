@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"compress/gzip"
+
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	tarstream "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/services/meta"
@@ -34,7 +35,6 @@ type Command struct {
 	Stdout io.Writer
 
 	host   string
-	path   string
 	client *snapshotter.Client
 
 	backupFilesPath     string
@@ -359,6 +359,9 @@ func (cmd *Command) updateMetaLegacy() error {
 	fileName := metaFiles[len(metaFiles)-1]
 	cmd.StdoutLogger.Printf("Using metastore snapshot: %v\n", fileName)
 	metaBytes, err = backup_util.GetMetaBytes(fileName)
+	if err != nil {
+		return err
+	}
 
 	req := &snapshotter.Request{
 		Type:                   snapshotter.RequestMetaStoreUpdate,
@@ -416,7 +419,7 @@ func (cmd *Command) uploadShardsPortable() error {
 						targetDB = file.Database
 					}
 
-					if err := cmd.client.UploadShard(file.ShardID, cmd.shardIDMap[file.ShardID], cmd.destinationDatabase, cmd.restoreRetention, tr); err != nil {
+					if err := cmd.client.UploadShard(file.ShardID, cmd.shardIDMap[file.ShardID], targetDB, cmd.restoreRetention, tr); err != nil {
 						f.Close()
 						return err
 					}
