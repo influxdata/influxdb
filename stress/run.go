@@ -269,7 +269,7 @@ func (s *StressTest) Start(wHandle responseHandler, rHandle responseHandler) {
 	wg.Add(1)
 	// Starts Writing
 	go func() {
-		r := make(chan response, 0)
+		r := make(chan response)
 		wt := NewTimer()
 
 		go func() {

@@ -57,6 +57,11 @@ const (
 	keywordEnd
 )
 
+// These assignments prevent static analysis tools highlighting lack of use of
+// boundary constants.
+var _, _ = literalBeg, literalEnd
+var _, _ = keywordBeg, keywordEnd
+
 var eof = rune(1)
 
 func isWhitespace(ch rune) bool { return ch == ' ' || ch == '\t' || ch == '\n' }
