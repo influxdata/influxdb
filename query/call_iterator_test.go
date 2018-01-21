@@ -1211,11 +1211,3 @@ func (g *FloatPointGenerator) Next() (*query.FloatPoint, error) {
 	g.i++
 	return p, nil
 }
-
-func MustCallIterator(input query.Iterator, opt query.IteratorOptions) query.Iterator {
-	itr, err := query.NewCallIterator(input, opt)
-	if err != nil {
-		panic(err)
-	}
-	return itr
-}
