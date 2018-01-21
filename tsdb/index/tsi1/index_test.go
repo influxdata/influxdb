@@ -363,10 +363,7 @@ func (idx *Index) Reopen() error {
 	partitionN := idx.Index.PartitionN // Remember how many partitions to use.
 	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, tsi1.WithPath(idx.Index.Path()))
 	idx.Index.PartitionN = partitionN
-	if err := idx.Open(); err != nil {
-		return err
-	}
-	return nil
+	return idx.Open()
 }
 
 // Run executes a subtest for each of several different states:

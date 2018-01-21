@@ -693,8 +693,6 @@ func (t *Tombstoner) writeTombstone(dst io.Writer, ts Tombstone) error {
 	}
 
 	binary.BigEndian.PutUint64(t.tmp[:], uint64(ts.Max))
-	if _, err := dst.Write(t.tmp[:]); err != nil {
-		return err
-	}
-	return nil
+	_, err := dst.Write(t.tmp[:])
+	return err
 }

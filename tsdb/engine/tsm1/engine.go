@@ -868,8 +868,7 @@ func (e *Engine) filterFileToBackup(r *TSMReader, fi os.FileInfo, shardRelativeP
 	defer w.Close()
 
 	// implicit else: here we iterate over the blocks and only keep the ones we really want.
-	var bi *BlockIterator
-	bi = r.BlockIterator()
+	bi := r.BlockIterator()
 
 	for bi.Next() {
 		// not concerned with typ or checksum since we are just blindly writing back, with no decoding
@@ -1298,10 +1297,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			}
 		}
 
-		if err := batch.Commit(); err != nil {
-			return err
-		}
-		return nil
+		return batch.Commit()
 	}); err != nil {
 		return err
 	}

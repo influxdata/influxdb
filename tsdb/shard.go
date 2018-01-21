@@ -1477,10 +1477,7 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 
 	// If there is a load error, return the error and an empty set so
 	// it can be rebuild manually.
-	if err := fs.load(); err != nil {
-		return fs, err
-	}
-	return fs, nil
+	return fs, fs.load()
 }
 
 // Fields returns fields for a measurement by name.

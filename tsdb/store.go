@@ -727,10 +727,7 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 		limit.Take()
 		defer limit.Release()
 
-		if err := sh.DeleteMeasurement([]byte(name)); err != nil {
-			return err
-		}
-		return nil
+		return sh.DeleteMeasurement([]byte(name))
 	})
 }
 
@@ -1008,7 +1005,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	a, err := s.ExpandSources(sources)
 	if err != nil {
 		return err
-	} else if sources != nil && len(sources) != 0 && len(a) == 0 {
+	} else if len(sources) > 0 && len(a) == 0 {
 		return nil
 	}
 	sources = a

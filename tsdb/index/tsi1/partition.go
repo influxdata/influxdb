@@ -613,10 +613,7 @@ func (i *Partition) DropSeries(seriesID uint64) error {
 	i.seriesIDSet.Remove(seriesID)
 
 	// Swap log file, if necessary.
-	if err := i.CheckLogFile(); err != nil {
-		return err
-	}
-	return nil
+	return i.CheckLogFile()
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
@@ -1067,8 +1064,6 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 		logger.Error("cannot remove log file", zap.Error(err))
 		return
 	}
-
-	return
 }
 
 // unionStringSets returns the union of two sets

@@ -644,11 +644,7 @@ func (enc *TagBlockEncoder) Close() error {
 	// Write trailer.
 	nn, err := enc.trailer.WriteTo(enc.w)
 	enc.n += nn
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // ensureHeaderWritten writes a single byte to offset the rest of the block.
