@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"fmt"
+
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 )
@@ -68,9 +69,11 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		// wait for the snapshot to write
 		time.Sleep(time.Second)
 
-		res, err := s.Query(`show series on mydb; show retention policies on mydb`)
+		if _, err := s.Query(`show series on mydb; show retention policies on mydb`); err != nil {
+			t.Fatalf("error querying: %s", err.Error())
+		}
 
-		res, err = s.Query(`select * from "mydb"."forever"."myseries"`)
+		res, err := s.Query(`select * from "mydb"."forever"."myseries"`)
 		if err != nil {
 			t.Fatalf("error querying: %s", err.Error())
 		}
@@ -185,7 +188,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 	}
 
-	res, err = s.Query(`drop database mydb; drop database mydbbak; drop database mydbbak2;`)
+	_, err = s.Query(`drop database mydb; drop database mydbbak; drop database mydbbak2;`)
 	if err != nil {
 		t.Fatalf("Error dropping databases %s", err.Error())
 	}
