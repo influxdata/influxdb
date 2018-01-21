@@ -261,5 +261,4 @@ func (i *Importer) batchWrite() {
 	}
 	i.throttlePointsWritten = 0
 	i.lastWrite = time.Now()
-	return
 }
