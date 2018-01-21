@@ -132,10 +132,7 @@ func (v *treeSortVisitor) Visit(node *TreeNode) Visitor {
 		}
 
 		ln, rn := node.Children[i].Raw.Name, node.Children[j].Raw.Name
-		if ln < rn {
-			return true
-		}
-		return false
+		return ln < rn
 	})
 	return v
 }

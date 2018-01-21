@@ -118,10 +118,7 @@ func extractFile(tr *tar.Reader, dir string) error {
 	subDir, _ := filepath.Split(relativePath)
 	// If this is a directory entry (usually just `index` for tsi), create it an move on.
 	if hdr.Typeflag == tar.TypeDir {
-		if err := os.MkdirAll(filepath.Join(dir, subDir), os.FileMode(hdr.Mode).Perm()); err != nil {
-			return err
-		}
-		return nil
+		return os.MkdirAll(filepath.Join(dir, subDir), os.FileMode(hdr.Mode).Perm())
 	}
 
 	// Make sure the dir we need to write into exists.  It should, but just double check in

@@ -49,9 +49,8 @@ func (p *Bytes) Put(c []byte) {
 // new byte slice.  Byte slices added to the pool that are over the max size
 // are dropped.
 type LimitedBytes struct {
-	allocated int64
-	maxSize   int
-	pool      chan []byte
+	maxSize int
+	pool    chan []byte
 }
 
 // NewBytes returns a Bytes pool with capacity for max byte slices
