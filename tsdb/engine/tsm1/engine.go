@@ -1028,7 +1028,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 
 	nativeFileName := filepath.FromSlash(hdr.Name)
 	// Skip file if it does not have a matching prefix.
-	if !filepath.HasPrefix(nativeFileName, shardRelativePath) {
+	if !strings.HasPrefix(nativeFileName, shardRelativePath) {
 		return "", nil
 	}
 	filename, err := filepath.Rel(shardRelativePath, nativeFileName)
