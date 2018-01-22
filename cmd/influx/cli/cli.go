@@ -975,7 +975,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string, supp
 			}
 
 			for _, vv := range v {
-				values = append(values, interfaceToString(vv))
+				values = append(values, interfaceToString(vv, c.Format == "column"))
 			}
 			rows = append(rows, strings.Join(values, separator))
 		}
@@ -983,7 +983,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string, supp
 	return rows
 }
 
-func interfaceToString(v interface{}) string {
+func interfaceToString(v interface{}, escapeString bool) string {
 	switch t := v.(type) {
 	case nil:
 		return ""
@@ -994,7 +994,11 @@ func interfaceToString(v interface{}) string {
 	case float32, float64:
 		return fmt.Sprintf("%v", t)
 	default:
-		return fmt.Sprintf("%v", t)
+		if !escapeString {
+			return fmt.Sprintf("%v", t)
+		}
+		v := fmt.Sprintf("%q", t)
+		return v[1 : len(v)-1]
 	}
 }
 
