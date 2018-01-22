@@ -1,3 +1,4 @@
+Foo
 ## v1.5.0 [unreleased]
 
 ### Breaking changes
