@@ -1,4 +1,4 @@
-import {NEUTRALS, BLUES} from 'src/shared/constants/InfluxColors'
+import {NEUTRALS, BLUES} from 'src/shared/constants/influxColors'
 
 // Styles for all things Annotations
 const annotationColor = '255,255,255'
