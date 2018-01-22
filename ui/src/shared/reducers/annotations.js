@@ -1,5 +1,6 @@
 import {DEFAULT_ANNOTATION_ID} from 'src/shared/constants/annotations'
 import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
+import uuid from 'node-uuid'
 
 const initialState = {
   mode: null,
@@ -43,7 +44,11 @@ const annotationsReducer = (state = initialState, action) => {
         a => a.id !== TEMP_ANNOTATION.id
       )
 
-      return {...state, mode: null, annotations}
+      return {
+        ...state,
+        mode: null,
+        annotations,
+      }
     }
 
     case 'DISMISS_ADDING_ANNOTATION': {
@@ -51,17 +56,27 @@ const annotationsReducer = (state = initialState, action) => {
         a => a.id !== TEMP_ANNOTATION.id
       )
 
-      return {...state, mode: null, annotations}
+      return {
+        ...state,
+        mode: null,
+        annotations,
+      }
     }
 
     case 'MOUSEENTER_TEMP_ANNOTATION': {
-      const newState = {...state, isTempHovering: true}
+      const newState = {
+        ...state,
+        isTempHovering: true,
+      }
 
       return newState
     }
 
     case 'MOUSELEAVE_TEMP_ANNOTATION': {
-      const newState = {...state, isTempHovering: false}
+      const newState = {
+        ...state,
+        isTempHovering: false,
+      }
 
       return newState
     }
@@ -69,7 +84,10 @@ const annotationsReducer = (state = initialState, action) => {
     case 'LOAD_ANNOTATIONS': {
       const {annotations} = action.payload
 
-      return {...state, annotations}
+      return {
+        ...state,
+        annotations,
+      }
     }
 
     case 'UPDATE_ANNOTATION': {
@@ -78,24 +96,36 @@ const annotationsReducer = (state = initialState, action) => {
         a => (a.id === annotation.id ? annotation : a)
       )
 
-      return {...state, annotations}
+      return {
+        ...state,
+        annotations,
+      }
     }
 
     case 'DELETE_ANNOTATION': {
       const {annotation} = action.payload
       const annotations = state.annotations.filter(a => a.id !== annotation.id)
 
-      return {...state, annotations}
+      return {
+        ...state,
+        annotations,
+      }
     }
 
     case 'ADD_ANNOTATION': {
       const {annotation} = action.payload
       const annotations = [
         ...state.annotations,
-        {...annotation, id: DEFAULT_ANNOTATION_ID},
+        {
+          ...annotation,
+          id: `${DEFAULT_ANNOTATION_ID + uuid.v4()}`,
+        },
       ]
 
-      return {...state, annotations}
+      return {
+        ...state,
+        annotations,
+      }
     }
   }
 

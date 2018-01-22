@@ -15,14 +15,58 @@ import {
 class NewAnnotation extends Component {
   state = {
     isMouseOver: false,
+    mouseAction: null,
   }
+
   handleMouseOver = () => {
     this.setState({isMouseOver: true})
     this.props.onMouseEnterTempAnnotation()
   }
 
+  handleMouseUp = () => {
+    const {
+      onAddAnnotation,
+      onAddingAnnotationSuccess,
+      tempAnnotation,
+      onMouseLeaveTempAnnotation,
+      dygraph,
+    } = this.props
+    const {trueGraphX} = this.state
+
+    if (this.state.mouseAction === 'dragging') {
+      // time on mouse down
+      const staticTime = dygraph.toDataXCoord(trueGraphX)
+      // time on mouse up
+      const draggingTime = Number(tempAnnotation.time)
+      const duration = draggingTime - staticTime
+
+      onAddAnnotation({
+        ...tempAnnotation,
+        time: `${staticTime}`,
+        duration: `${duration}`,
+      })
+      onAddingAnnotationSuccess()
+
+      return this.setState({
+        isMouseOver: false,
+        mouseAction: null,
+        trueGraphX: null,
+      })
+    }
+
+    onMouseLeaveTempAnnotation()
+    onAddAnnotation(tempAnnotation)
+    onAddingAnnotationSuccess()
+    return this.setState({
+      isMouseOver: false,
+      mouseAction: null,
+      trueGraphX: null,
+    })
+  }
+
   handleMouseMove = e => {
     const {isTempHovering} = this.props
+    this.setState({mouseAction: 'dragging'})
 
     if (isTempHovering === false) {
       return
@@ -42,18 +86,11 @@ class NewAnnotation extends Component {
     this.props.onMouseLeaveTempAnnotation()
   }
 
-  handleClick = () => {
-    const {
-      onAddAnnotation,
-      onAddingAnnotationSuccess,
-      tempAnnotation,
-      onMouseLeaveTempAnnotation,
-    } = this.props
+  handleMouseDown = e => {
+    const wrapperRect = this.wrapper.getBoundingClientRect()
+    const trueGraphX = e.pageX - wrapperRect.left
 
-    this.setState({isMouseOver: false})
-    onMouseLeaveTempAnnotation()
-    onAddAnnotation(tempAnnotation)
-    onAddingAnnotationSuccess()
+    this.setState({mouseAction: null, trueGraphX})
   }
 
   handleClickOutside = () => {
@@ -66,11 +103,12 @@ class NewAnnotation extends Component {
 
   render() {
     const {dygraph, isTempHovering, tempAnnotation: {time}} = this.props
-    const {isMouseOver} = this.state
+    const {isMouseOver, mouseAction} = this.state
 
     const timestamp = `${new Date(+time)}`
 
     const crosshairLeft = dygraph.toDomXCoord(time)
+    const staticCrosshairLeft = this.state.trueGraphX
 
     return (
       <div
@@ -79,9 +117,15 @@ class NewAnnotation extends Component {
         onMouseMove={this.handleMouseMove}
         onMouseOver={this.handleMouseOver}
         onMouseLeave={this.handleMouseLeave}
-        onClick={this.handleClick}
+        onMouseUp={this.handleMouseUp}
+        onMouseDown={this.handleMouseDown}
         style={newAnnotationContainer}
       >
+        {mouseAction === 'dragging' &&
+          <div
+            className="new-annotation--crosshair__static"
+            style={newAnnotationCrosshairStyle(staticCrosshairLeft)}
+          />}
         <div
           className="new-annotation--crosshair"
           style={newAnnotationCrosshairStyle(crosshairLeft)}
