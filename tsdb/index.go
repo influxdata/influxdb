@@ -2183,7 +2183,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 	results := make([][]string, len(keys))
 	// If the keys are not sorted, then sort them.
 	if !keysSorted {
-		sort.Sort(sort.StringSlice(keys))
+		sort.Strings(keys)
 	}
 
 	release := is.SeriesFile.Retain()
@@ -2271,7 +2271,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 		for v := range s {
 			values = append(values, v)
 		}
-		sort.Sort(sort.StringSlice(values))
+		sort.Strings(values)
 		results[i] = values
 	}
 	return results, nil

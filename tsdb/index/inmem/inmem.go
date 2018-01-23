@@ -397,14 +397,14 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 
 	// If we haven't been provided sorted keys, then we need to sort them.
 	if !keysSorted {
-		sort.Sort(sort.StringSlice(keys))
+		sort.Strings(keys)
 	}
 
 	ids, _, _ := mm.WalkWhereForSeriesIds(expr)
 	if ids.Len() == 0 && expr == nil {
 		for ki, key := range keys {
 			values := mm.TagValues(auth, key)
-			sort.Sort(sort.StringSlice(values))
+			sort.Strings(values)
 			results[ki] = values
 		}
 		return results, nil
