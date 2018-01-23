@@ -4,12 +4,15 @@ import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
 import {
+  circleFlagStyle,
+  staticFlagStyle,
+  draggingFlagStyle,
   newAnnotationContainer,
   newAnnotationCrosshairStyle,
   newAnnotationTooltipStyle,
-  newAnnotationFlagStyle,
   newAnnotationHelperStyle,
   newAnnotationTimestampStyle,
+  newAnnotationWindowStyle,
 } from 'src/shared/annotations/styles'
 
 class NewAnnotation extends Component {
@@ -66,7 +69,9 @@ class NewAnnotation extends Component {
 
   handleMouseMove = e => {
     const {isTempHovering} = this.props
-    this.setState({mouseAction: 'dragging'})
+    if (this.state.mouseAction === 'down') {
+      this.setState({mouseAction: 'dragging'})
+    }
 
     if (isTempHovering === false) {
       return
@@ -90,7 +95,7 @@ class NewAnnotation extends Component {
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
 
-    this.setState({mouseAction: null, trueGraphX})
+    this.setState({mouseAction: 'down', trueGraphX})
   }
 
   handleClickOutside = () => {
@@ -110,6 +115,8 @@ class NewAnnotation extends Component {
     const crosshairLeft = dygraph.toDomXCoord(time)
     const staticCrosshairLeft = this.state.trueGraphX
 
+    const isDragging = mouseAction === 'dragging'
+
     return (
       <div
         className={classnames('new-annotation', {hover: isTempHovering})}
@@ -121,18 +128,28 @@ class NewAnnotation extends Component {
         onMouseDown={this.handleMouseDown}
         style={newAnnotationContainer}
       >
-        {mouseAction === 'dragging' &&
+        {isDragging &&
           <div
             className="new-annotation--crosshair__static"
             style={newAnnotationCrosshairStyle(staticCrosshairLeft)}
-          />}
+          >
+            <div style={isDragging ? staticFlagStyle : circleFlagStyle} />
+          </div>}
+        <div
+          className="new-annotation--window"
+          style={newAnnotationWindowStyle(
+            isDragging,
+            staticCrosshairLeft,
+            crosshairLeft
+          )}
+        />
         <div
           className="new-annotation--crosshair"
           style={newAnnotationCrosshairStyle(crosshairLeft)}
         >
           <div
             className="new-annotation--flag"
-            style={newAnnotationFlagStyle}
+            style={isDragging ? draggingFlagStyle : circleFlagStyle}
           />
           <div
             className="new-annotation--tooltip"

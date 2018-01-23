@@ -2,7 +2,7 @@ import {NEUTRALS, BLUES} from 'src/shared/constants/influxColors'
 
 // Styles for all things Annotations
 const annotationColor = '255,255,255'
-const annotationDragColor = '0,201,255'
+const annotationDragColor = '107,223,255'
 const zIndexWindow = '1'
 const zIndexAnnotation = '3'
 const zIndexAnnotationActive = '4'
@@ -249,7 +249,7 @@ export const newAnnotationCrosshairStyle = left => {
     height: 'calc(100% - 20px)',
     width: `${width}px`,
     transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the comment pole
-    background: `linear-gradient(to bottom, ${NEUTRALS[20]} 0%,${BLUES.hydrogen} 100%)`,
+    background: `linear-gradient(to bottom, ${BLUES.hydrogen} 0%,${BLUES.pool} 100%)`,
     visibility: left ? 'visible' : 'hidden',
     transition: 'opacity 0.4s ease',
     zIndex: '5',
@@ -271,16 +271,6 @@ export const newAnnotationTooltipStyle = isMouseHovering => {
     zIndex: '10',
   }
 }
-export const newAnnotationFlagStyle = {
-  position: 'absolute',
-  zIndex: '2',
-  top: '-3px',
-  left: '-4px',
-  width: '10px',
-  height: '10px',
-  backgroundColor: NEUTRALS[20],
-  borderRadius: '50%',
-}
 export const newAnnotationHelperStyle = {
   whiteSpace: 'nowrap',
   fontSize: '13px',
@@ -295,4 +285,74 @@ export const newAnnotationTimestampStyle = {
   lineHeight: timestampFontSize,
   fontWeight: timestampFontWeight,
   color: NEUTRALS[20],
+}
+export const circleFlagStyle = {
+  position: 'absolute',
+  zIndex: '2',
+  top: '-3px',
+  left: '-2px',
+  width: '6px',
+  height: '6px',
+  backgroundColor: `rgb(${annotationDragColor})`,
+  borderRadius: '50%',
+  transition: 'background-color 0.25s ease, transform 0.25s ease',
+}
+
+export const staticFlagStyle = {
+  position: 'absolute',
+  zIndex: '2',
+  top: '-6px',
+  width: '0',
+  height: '0',
+  left: '0',
+  border: '6px solid transparent',
+  borderLeftColor: `rgb(${annotationDragColor})`,
+  borderRadius: '0',
+  background: 'none',
+  transition: 'border-left-color 0.25s ease, transform 0.25s ease',
+  transformOrigin: '0% 50%',
+}
+export const draggingFlagStyle = {
+  position: 'absolute',
+  zIndex: '2',
+  top: '-6px',
+  width: '0',
+  height: '0',
+  left: 'initial',
+  right: '0',
+  border: '6px solid transparent',
+  borderRightColor: `rgb(${annotationDragColor})`,
+  borderRadius: '0',
+  background: 'none',
+  transition: 'border-right-color 0.25s ease, transform 0.25s ease',
+  transformOrigin: '100% 50%',
+}
+
+export const newAnnotationWindowStyle = (isDragging, staticX, draggingX) => {
+  // TODO: export and test this function
+
+  const width = `${Math.abs(Number(draggingX) - Number(staticX))}px`
+
+  let left
+
+  if (draggingX > staticX) {
+    left = `${staticX}px`
+  } else {
+    left = `${draggingX}px`
+  }
+
+  const gradientStartColor = `rgba(${annotationDragColor},0.15)`
+  const gradientEndColor = `rgba(${annotationDragColor},0)`
+
+  return {
+    left,
+    position: 'absolute',
+    top: '0',
+    background: `linear-gradient(to bottom, ${gradientStartColor} 0%,${gradientEndColor} 100%)`,
+    height: 'calc(100% - 20px)',
+    borderTop: `2px dotted rgba(${annotationDragColor},0.35)`,
+    width,
+    zIndex: '3',
+    visibility: isDragging ? 'visible' : 'hidden',
+  }
 }
