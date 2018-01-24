@@ -208,7 +208,7 @@ func (f *msgpackFormatter) WriteResponse(resp Response) (n int, err error) {
 	enc.WriteMapHeader(1)
 	if resp.Err != nil {
 		enc.WriteString("error")
-		enc.WriteString(err.Error())
+		enc.WriteString(resp.Err.Error())
 		return 0, nil
 	} else {
 		enc.WriteString("results")
