@@ -129,3 +129,28 @@ func TestResponseWriter_MessagePack(t *testing.T) {
 		t.Fatalf("unexpected output: %s != %s", have, want)
 	}
 }
+
+func TestResponseWriter_MessagePack_Error(t *testing.T) {
+	header := make(http.Header)
+	header.Set("Accept", "application/x-msgpack")
+	r := &http.Request{
+		Header: header,
+		URL:    &url.URL{},
+	}
+	w := httptest.NewRecorder()
+
+	writer := httpd.NewResponseWriter(w, r)
+	writer.WriteResponse(httpd.Response{
+		Err: fmt.Errorf("test error"),
+	})
+
+	reader := msgp.NewReader(w.Body)
+	var buf bytes.Buffer
+	if _, err := reader.WriteToJSON(&buf); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	want := fmt.Sprintf(`{"error":"test error"}`)
+	if have := strings.TrimSpace(buf.String()); have != want {
+		t.Fatalf("unexpected output: %s != %s", have, want)
+	}
+}
