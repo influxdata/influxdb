@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -23,22 +22,22 @@ type annotationLinks struct {
 }
 
 type annotationResponse struct {
-	ID       string          `json:"id"`       // ID is the unique annotation identifier
-	Time     string          `json:"time"`     // Time in RFC3339 of the start of the annotation
-	Duration string          `json:"duration"` // Duration is the duration in milliseconds of the annotation
-	Text     string          `json:"text"`     // Text is the associated user-facing text describing the annotation
-	Type     string          `json:"type"`     // Type describes the kind of annotation
-	Links    annotationLinks `json:"links"`
+	ID        string          `json:"id"`        // ID is the unique annotation identifier
+	StartTime string          `json:"startTime"` // StartTime in RFC3339 of the start of the annotation
+	EndTime   string          `json:"endTime"`   // EndTime in RFC3339 of the end of the annotation
+	Text      string          `json:"text"`      // Text is the associated user-facing text describing the annotation
+	Type      string          `json:"type"`      // Type describes the kind of annotation
+	Links     annotationLinks `json:"links"`
 }
 
 func newAnnotationResponse(src chronograf.Source, a *chronograf.Annotation) annotationResponse {
 	base := "/chronograf/v1/sources"
 	return annotationResponse{
-		ID:       a.ID,
-		Time:     a.Time.Format(timeMilliFormat),
-		Duration: fmt.Sprintf("%d", int64(a.Duration/time.Millisecond)),
-		Text:     a.Text,
-		Type:     a.Type,
+		ID:        a.ID,
+		StartTime: a.StartTime.Format(timeMilliFormat),
+		EndTime:   a.EndTime.Format(timeMilliFormat),
+		Text:      a.Text,
+		Type:      a.Type,
 		Links: annotationLinks{
 			Self: fmt.Sprintf("%s/%d/annotations/%s", base, src.ID, a.ID),
 		},
@@ -178,17 +177,17 @@ func (s *Service) Annotation(w http.ResponseWriter, r *http.Request) {
 }
 
 type newAnnotationRequest struct {
-	Time     time.Time     `json:"time"`           // Time is the time in rfc3339 milliseconds
-	Duration time.Duration `json:"duration"`       // Duration is the annotation duration in milliseconds
-	Text     string        `json:"text,omitempty"` // Text is the associated user-facing text describing the annotation
-	Type     string        `json:"type,omitempty"` // Type describes the kind of annotation
+	StartTime time.Time `json:"startTime"`      // StartTime is the time in rfc3339 milliseconds
+	EndTime   time.Time `json:"endTime"`        // EndTime is the time in rfc3339 milliseconds
+	Text      string    `json:"text,omitempty"` // Text is the associated user-facing text describing the annotation
+	Type      string    `json:"type,omitempty"` // Type describes the kind of annotation
 }
 
 func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	type Alias newAnnotationRequest
 	aux := &struct {
-		Time     string `json:"time"`
-		Duration string `json:"duration"`
+		StartTime string `json:"startTime"`
+		EndTime   string `json:"endTime"`
 		*Alias
 	}{
 		Alias: (*Alias)(ar),
@@ -198,21 +197,14 @@ func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	}
 
 	var err error
-	ar.Time, err = time.Parse(timeMilliFormat, aux.Time)
+	ar.StartTime, err = time.Parse(timeMilliFormat, aux.StartTime)
 	if err != nil {
 		return err
 	}
 
-	if aux.Duration != "" {
-		// duration in milliseconds is a max of 13 characters
-		if len(aux.Duration) > 13 {
-			return fmt.Errorf("duration must be in milliseconds since unix epoch")
-		}
-		d, err := strconv.ParseInt(aux.Duration, 10, 64)
-		if err != nil {
-			return err
-		}
-		ar.Duration = time.Duration(d) * time.Millisecond
+	ar.EndTime, err = time.Parse(timeMilliFormat, aux.EndTime)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -220,10 +212,10 @@ func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 
 func (ar *newAnnotationRequest) Annotation() *chronograf.Annotation {
 	return &chronograf.Annotation{
-		Time:     ar.Time,
-		Duration: ar.Duration,
-		Text:     ar.Text,
-		Type:     ar.Type,
+		StartTime: ar.StartTime,
+		EndTime:   ar.EndTime,
+		Text:      ar.Text,
+		Type:      ar.Type,
 	}
 }
 
@@ -327,17 +319,17 @@ func (s *Service) RemoveAnnotation(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateAnnotationRequest struct {
-	Time     *time.Time     `json:"time,omitempty"`     // Time is the time in rfc3339 milliseconds
-	Duration *time.Duration `json:"duration,omitempty"` // Duration is the annotation duration in milliseconds
-	Text     *string        `json:"text,omitempty"`     // Text is the associated user-facing text describing the annotation
-	Type     *string        `json:"type,omitempty"`     // Type describes the kind of annotation
+	StartTime *time.Time `json:"startTime,omitempty"` // StartTime is the time in rfc3339 milliseconds
+	EndTime   *time.Time `json:"endTime,omitempty"`   // EndTime is the time in rfc3339 milliseconds
+	Text      *string    `json:"text,omitempty"`      // Text is the associated user-facing text describing the annotation
+	Type      *string    `json:"type,omitempty"`      // Type describes the kind of annotation
 }
 
 func (u *updateAnnotationRequest) UnmarshalJSON(data []byte) error {
 	type Alias updateAnnotationRequest
 	aux := &struct {
-		Time     *string `json:"time,omitempty"`
-		Duration *string `json:"duration,omitempty"`
+		StartTime *string `json:"startTime,omitempty"`
+		EndTime   *string `json:"endTime,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(u),
@@ -346,29 +338,24 @@ func (u *updateAnnotationRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if aux.Time != nil {
-		tm, err := time.Parse(timeMilliFormat, *aux.Time)
+	if aux.StartTime != nil {
+		tm, err := time.Parse(timeMilliFormat, *aux.StartTime)
 		if err != nil {
 			return err
 		}
-		u.Time = &tm
+		u.StartTime = &tm
 	}
 
-	if aux.Duration != nil {
-		// duration in milliseconds is a max of 13 characters
-		if len(*aux.Duration) > 13 {
-			return fmt.Errorf("duration must be in milliseconds since unix epoch")
-		}
-		d, err := strconv.ParseInt(*aux.Duration, 10, 64)
+	if aux.EndTime != nil {
+		tm, err := time.Parse(timeMilliFormat, *aux.EndTime)
 		if err != nil {
 			return err
 		}
-		dur := time.Duration(d) * time.Millisecond
-		u.Duration = &dur
+		u.EndTime = &tm
 	}
 
 	// Update must have at least one field set
-	if u.Time == nil && u.Duration == nil && u.Text == nil && u.Type == nil {
+	if u.StartTime == nil && u.EndTime == nil && u.Text == nil && u.Type == nil {
 		return fmt.Errorf("update request must have at least one field")
 	}
 
@@ -422,14 +409,14 @@ func (s *Service) UpdateAnnotation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Duration != nil {
-		cur.Duration = *req.Duration
+	if req.StartTime != nil {
+		cur.StartTime = *req.StartTime
+	}
+	if req.EndTime != nil {
+		cur.EndTime = *req.EndTime
 	}
 	if req.Text != nil {
 		cur.Text = *req.Text
-	}
-	if req.Time != nil {
-		cur.Time = *req.Time
 	}
 	if req.Type != nil {
 		cur.Type = *req.Type

@@ -487,11 +487,11 @@ type Databases interface {
 
 // Annotation represents a time-based metadata associated with a source
 type Annotation struct {
-	ID       string        // ID is the unique annotation identifier
-	Time     time.Time     // Time is the start time of the annotation
-	Duration time.Duration // Duration of the annotation
-	Text     string        // Text is the associated user-facing text describing the annotation
-	Type     string        // Type describes the kind of annotation
+	ID        string    // ID is the unique annotation identifier
+	StartTime time.Time // StartTime starts the annotation
+	EndTime   time.Time // EndTime ends the annotation
+	Text      string    // Text is the associated user-facing text describing the annotation
+	Type      string    // Type describes the kind of annotation
 }
 
 // AnnotationStore represents storage and retrieval of annotations
