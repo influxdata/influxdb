@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import moment from 'moment'
 
 import AnnotationInput from 'src/shared/components/AnnotationInput'
 
@@ -10,7 +11,7 @@ import {
 
 const TimeStamp = ({time}) =>
   <div style={tooltipTimestampStyle}>
-    {`${new Date(+time)}`}
+    {`${moment(+time).format('YYYY/DD/MM HH:mm:ss.SS')}`}
   </div>
 
 class AnnotationTooltip extends Component {
