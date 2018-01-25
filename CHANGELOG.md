@@ -1,9 +1,13 @@
-## v1.4.0.1 [2017-1-9]
+## v1.4.1.0 [unreleased]
 ### Features
 1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Allow adding multiple event handlers to a rule
 1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations"
 ### UI Improvements
 1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
+### Bug Fixes
+
+## v1.4.0.1 [2017-1-9]
+### Features
 1. [#2690](https://github.com/influxdata/chronograf/pull/2690): Add separate CLI flag for canned sources, kapacitors, dashboards, and organizations
 1. [#2672](https://github.com/influxdata/chronograf/pull/2672): Add telegraf interval configuration
 
