@@ -59,15 +59,15 @@ func newAnnotationsResponse(src chronograf.Source, as []chronograf.Annotation) a
 	}
 }
 
-func validAnnotationQuery(query url.Values) (time.Time, time.Time, error) {
+func validAnnotationQuery(query url.Values) (startTime, stopTime time.Time, err error) {
 	start := query.Get(since)
 	if start == "" {
 		return time.Time{}, time.Time{}, fmt.Errorf("since parameter is required")
 	}
 
-	startTime, err := time.Parse(timeMilliFormat, start)
+	startTime, err = time.Parse(timeMilliFormat, start)
 	if err != nil {
-		return time.Time{}, time.Time{}, err
+		return
 	}
 
 	// if until isn't stated, the default time is now
@@ -365,6 +365,11 @@ func (u *updateAnnotationRequest) UnmarshalJSON(data []byte) error {
 		}
 		dur := time.Duration(d) * time.Millisecond
 		u.Duration = &dur
+	}
+
+	// Update must have at least one field set
+	if u.Time == nil && u.Duration == nil && u.Text == nil && u.Type == nil {
+		return fmt.Errorf("update request must have at least one field")
 	}
 
 	return nil
