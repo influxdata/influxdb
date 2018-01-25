@@ -1,12 +1,17 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
+import {withRouter} from 'react-router'
+import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
 import SourceIndicator from 'shared/components/SourceIndicator'
+import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
+import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'
+import {setAutoRefresh} from 'shared/actions/app'
 
 class HostsPage extends Component {
   constructor(props) {
@@ -19,59 +24,26 @@ class HostsPage extends Component {
     }
   }
 
-  async componentDidMount() {
+  async fetchHostsData() {
     const {source, links, addFlashMessage} = this.props
-
     const {telegrafSystemInterval} = await getEnv(links.environment)
-
-    const hostsError = 'Unable to get apps for hosts'
-    let hosts, layouts
-
+    const hostsError = 'Unable to get hosts'
     try {
-      const [h, {data}] = await Promise.all([
-        getCpuAndLoadForHosts(
-          source.links.proxy,
-          source.telegraf,
-          telegrafSystemInterval
-        ),
-        getLayouts(),
-        new Promise(resolve => {
-          this.setState({hostsLoading: true})
-          resolve()
-        }),
-      ])
-
-      hosts = h
-      layouts = data.layouts
-
-      this.setState({
-        hosts,
-        hostsLoading: false,
-      })
-    } catch (error) {
-      this.setState({
-        hostsError: error.toString(),
-        hostsLoading: false,
-      })
-
-      console.error(error)
-    }
-
-    if (!hosts || !layouts) {
-      addFlashMessage({type: 'error', text: hostsError})
-      return this.setState({
-        hostsError,
-        hostsLoading: false,
-      })
-    }
-
-    try {
+      const hosts = await getCpuAndLoadForHosts(
+        source.links.proxy,
+        source.telegraf,
+        telegrafSystemInterval
+      )
+      if (!hosts) {
+        throw new Error(hostsError)
+      }
       const newHosts = await getAppsForHosts(
         source.links.proxy,
         hosts,
-        layouts,
+        this.layouts,
         source.telegraf
       )
+
       this.setState({
         hosts: newHosts,
         hostsError: '',
@@ -87,8 +59,50 @@ class HostsPage extends Component {
     }
   }
 
+  async componentDidMount() {
+    const {addFlashMessage, autoRefresh} = this.props
+
+    this.setState({hostsLoading: true}) // Only print this once
+    const {data} = await getLayouts()
+    this.layouts = data.layouts
+    if (!this.layouts) {
+      const layoutError = 'Unable to get apps for hosts'
+      addFlashMessage({type: 'error', text: layoutError})
+      this.setState({
+        hostsError: layoutError,
+        hostsLoading: false,
+      })
+      return
+    }
+    await this.fetchHostsData()
+    if (autoRefresh) {
+      this.intervalID = setInterval(() => this.fetchHostsData(), autoRefresh)
+    }
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (this.props.manualRefresh !== nextProps.manualRefresh) {
+      this.fetchHostsData()
+    }
+    if (this.props.autoRefresh !== nextProps.autoRefresh) {
+      clearInterval(this.intervalID)
+
+      if (nextProps.autoRefresh) {
+        this.intervalID = setInterval(
+          () => this.fetchHostsData(),
+          nextProps.autoRefresh
+        )
+      }
+    }
+  }
+
   render() {
-    const {source} = this.props
+    const {
+      source,
+      autoRefresh,
+      onChooseAutoRefresh,
+      onManualRefresh,
+    } = this.props
     const {hosts, hostsLoading, hostsError} = this.state
     return (
       <div className="page hosts-list-page">
@@ -99,6 +113,12 @@ class HostsPage extends Component {
             </div>
             <div className="page-header__right">
               <SourceIndicator />
+              <AutoRefreshDropdown
+                iconName="refresh"
+                selected={autoRefresh}
+                onChoose={onChooseAutoRefresh}
+                onManualRefresh={onManualRefresh}
+              />
             </div>
           </div>
         </div>
@@ -119,13 +139,20 @@ class HostsPage extends Component {
       </div>
     )
   }
+
+  componentWillUnmount() {
+    clearInterval(this.intervalID)
+    this.intervalID = false
+  }
 }
 
-const {func, shape, string} = PropTypes
+const {func, shape, string, number} = PropTypes
 
-const mapStateToProps = ({links}) => {
+const mapStateToProps = state => {
+  const {app: {persisted: {autoRefresh}}, links} = state
   return {
     links,
+    autoRefresh,
   }
 }
 
@@ -143,6 +170,20 @@ HostsPage.propTypes = {
     environment: string.isRequired,
   }),
   addFlashMessage: func,
+  autoRefresh: number.isRequired,
+  manualRefresh: number,
+  onChooseAutoRefresh: func.isRequired,
+  onManualRefresh: func.isRequired,
 }
 
-export default connect(mapStateToProps, null)(HostsPage)
+HostsPage.defaultProps = {
+  manualRefresh: 0,
+}
+
+const mapDispatchToProps = dispatch => ({
+  onChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(
+  ManualRefresh(withRouter(HostsPage))
+)
