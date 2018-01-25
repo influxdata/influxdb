@@ -56,18 +56,20 @@ class LayoutCellMenu extends Component {
         {isEditable &&
           mode !== EDITING &&
           <div className="dash-graph-context--buttons">
-            <MenuTooltipButton
-              icon="pencil"
-              menuOptions={[
-                {text: 'Queries', action: onEdit(cell)},
-                {text: 'Add Annotation', action: onStartAddingAnnotation},
-                {
-                  text: 'Edit Annotations',
-                  action: onStartEditingAnnotation,
-                },
-              ]}
-              informParent={this.handleToggleSubMenu}
-            />
+            {queries.length
+              ? <MenuTooltipButton
+                  icon="pencil"
+                  menuOptions={[
+                    {text: 'Configure', action: onEdit(cell)},
+                    {text: 'Add Annotation', action: onStartAddingAnnotation},
+                    {
+                      text: 'Edit Annotations',
+                      action: onStartEditingAnnotation,
+                    },
+                  ]}
+                  informParent={this.handleToggleSubMenu}
+                />
+              : null}
             {dataExists &&
               <MenuTooltipButton
                 icon="download"
