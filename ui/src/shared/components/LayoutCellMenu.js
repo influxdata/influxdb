@@ -1,8 +1,19 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import classnames from 'classnames'
 
 import MenuTooltipButton from 'src/shared/components/MenuTooltipButton'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
+
+import {EDITING} from 'src/shared/annotations/helpers'
+
+import {
+  addingAnnotation,
+  editingAnnotation,
+  dismissEditingAnnotation,
+} from 'src/shared/actions/annotations'
 
 class LayoutCellMenu extends Component {
   state = {
@@ -16,6 +27,7 @@ class LayoutCellMenu extends Component {
   render() {
     const {subMenuIsOpen} = this.state
     const {
+      mode,
       cell,
       onEdit,
       queries,
@@ -24,6 +36,8 @@ class LayoutCellMenu extends Component {
       dataExists,
       onCSVDownload,
       onStartAddingAnnotation,
+      onStartEditingAnnotation,
+      onDismissEditingAnnotation,
     } = this.props
 
     return (
@@ -40,12 +54,17 @@ class LayoutCellMenu extends Component {
           {queries && <CustomTimeIndicator queries={queries} />}
         </div>
         {isEditable &&
+          mode !== EDITING &&
           <div className="dash-graph-context--buttons">
             <MenuTooltipButton
               icon="pencil"
               menuOptions={[
                 {text: 'Queries', action: onEdit(cell)},
                 {text: 'Add Annotation', action: onStartAddingAnnotation},
+                {
+                  text: 'Edit Annotations',
+                  action: onStartEditingAnnotation,
+                },
               ]}
               informParent={this.handleToggleSubMenu}
             />
@@ -64,14 +83,24 @@ class LayoutCellMenu extends Component {
               informParent={this.handleToggleSubMenu}
             />
           </div>}
+        {mode === 'editing' &&
+          <div className="dash-graph-context--buttons">
+            <div
+              className="btn btn-xs btn-success"
+              onClick={onDismissEditingAnnotation}
+            >
+              Done
+            </div>
+          </div>}
       </div>
     )
   }
 }
 
-const {arrayOf, bool, func, shape} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 LayoutCellMenu.propTypes = {
+  mode: string,
   onEdit: func,
   onDelete: func,
   cell: shape(),
@@ -80,6 +109,21 @@ LayoutCellMenu.propTypes = {
   onCSVDownload: func,
   queries: arrayOf(shape()),
   onStartAddingAnnotation: func.isRequired,
+  onStartEditingAnnotation: func.isRequired,
+  onDismissEditingAnnotation: func.isRequired,
 }
 
-export default LayoutCellMenu
+const mapStateToProps = ({annotations: {mode}}) => ({
+  mode,
+})
+
+const mapDispatchToProps = dispatch => ({
+  onStartAddingAnnotation: bindActionCreators(addingAnnotation, dispatch),
+  onStartEditingAnnotation: bindActionCreators(editingAnnotation, dispatch),
+  onDismissEditingAnnotation: bindActionCreators(
+    dismissEditingAnnotation,
+    dispatch
+  ),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(LayoutCellMenu)

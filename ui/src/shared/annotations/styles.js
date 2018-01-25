@@ -89,15 +89,15 @@ export const flagStyle = (mouseOver, dragging, hasDuration, isEndpoint) => {
   return style
 }
 
-export const clickAreaStyle = dragging => {
+export const clickAreaStyle = (dragging, editing) => {
   const style = {
     position: 'absolute',
     top: '-8px',
-    left: '-7px',
-    width: '16px',
-    height: '16px',
+    left: editing ? '-5px' : '-7px',
+    width: editing ? '12px' : '16px',
+    height: editing ? 'calc(100% + 8px)' : '16px',
     zIndex: '4',
-    cursor: 'pointer',
+    cursor: editing ? 'col-resize' : 'default',
   }
 
   if (dragging) {

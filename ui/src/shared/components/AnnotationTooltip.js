@@ -39,6 +39,7 @@ class AnnotationTooltip extends Component {
       onMouseLeave,
       annotationState,
       annotationState: {isDragging},
+      isEditing,
     } = this.props
 
     return (
@@ -50,24 +51,33 @@ class AnnotationTooltip extends Component {
         {isDragging
           ? <TimeStamp time={this.props.annotation.time} />
           : <div style={tooltipItemsStyle}>
-              <button
-                className="btn btn-sm btn-danger btn-square"
-                onClick={this.props.onDelete}
-              >
-                <span className="icon trash" />
-              </button>
-              <AnnotationInput
-                value={annotation.name}
-                onChangeInput={this.handleChangeInput('name')}
-                onConfirmUpdate={this.handleConfirmUpdate}
-                onRejectUpdate={this.handleRejectUpdate}
-              />
-              <AnnotationInput
-                value={annotation.text}
-                onChangeInput={this.handleChangeInput('text')}
-                onConfirmUpdate={this.handleConfirmUpdate}
-                onRejectUpdate={this.handleRejectUpdate}
-              />
+              {isEditing &&
+                <button
+                  className="btn btn-sm btn-danger btn-square"
+                  onClick={this.props.onDelete}
+                >
+                  <span className="icon trash" />
+                </button>}
+              {isEditing
+                ? <AnnotationInput
+                    value={annotation.name}
+                    onChangeInput={this.handleChangeInput('name')}
+                    onConfirmUpdate={this.handleConfirmUpdate}
+                    onRejectUpdate={this.handleRejectUpdate}
+                  />
+                : <div>
+                    {annotation.name}
+                  </div>}
+              {isEditing
+                ? <AnnotationInput
+                    value={annotation.text}
+                    onChangeInput={this.handleChangeInput('text')}
+                    onConfirmUpdate={this.handleConfirmUpdate}
+                    onRejectUpdate={this.handleRejectUpdate}
+                  />
+                : <div>
+                    {annotation.text}
+                  </div>}
               <TimeStamp time={this.props.annotation.time} />
             </div>}
       </div>
@@ -75,12 +85,13 @@ class AnnotationTooltip extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 TimeStamp.propTypes = {
   time: string.isRequired,
 }
 AnnotationTooltip.propTypes = {
+  isEditing: bool,
   annotation: shape({}).isRequired,
   onMouseLeave: func.isRequired,
   annotationState: shape({}),

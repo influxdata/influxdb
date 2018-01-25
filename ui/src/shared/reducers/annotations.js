@@ -1,5 +1,5 @@
 import {DEFAULT_ANNOTATION_ID} from 'src/shared/constants/annotations'
-import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
+import {ADDING, EDITING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 import uuid from 'node-uuid'
 
 const initialState = {
@@ -27,6 +27,20 @@ const initialState = {
 
 const annotationsReducer = (state = initialState, action) => {
   switch (action.type) {
+    case 'EDITING_ANNOTATION': {
+      return {
+        ...state,
+        mode: EDITING,
+      }
+    }
+
+    case 'DISMISS_EDITING_ANNOTATION': {
+      return {
+        ...state,
+        mode: null,
+      }
+    }
+
     case 'ADDING_ANNOTATION': {
       const annotations = state.annotations.filter(
         a => a.id !== TEMP_ANNOTATION.id

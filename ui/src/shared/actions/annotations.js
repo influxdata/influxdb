@@ -1,3 +1,11 @@
+export const editingAnnotation = () => ({
+  type: 'EDITING_ANNOTATION',
+})
+
+export const dismissEditingAnnotation = () => ({
+  type: 'DISMISS_EDITING_ANNOTATION',
+})
+
 export const addingAnnotation = () => ({
   type: 'ADDING_ANNOTATION',
 })

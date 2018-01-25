@@ -81,7 +81,6 @@ class LayoutRenderer extends Component {
       onDeleteCell,
       synchronizer,
       onCancelEditCell,
-      onStartAddingAnnotation,
       onSummonOverlayTechnologies,
     } = this.props
 
@@ -137,7 +136,6 @@ class LayoutRenderer extends Component {
                     manualRefresh={manualRefresh}
                     onCancelEditCell={onCancelEditCell}
                     onStopAddAnnotation={this.handleStopAddAnnotation}
-                    onStartAddingAnnotation={onStartAddingAnnotation}
                     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
                   />
                 </Authorized>
@@ -195,7 +193,6 @@ LayoutRenderer.propTypes = {
   onCancelEditCell: func,
   onZoom: func,
   sources: arrayOf(shape({})),
-  onStartAddingAnnotation: func.isRequired,
 }
 
 export default LayoutRenderer

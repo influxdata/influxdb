@@ -55,7 +55,6 @@ const Layout = (
     resizeCoords,
     onCancelEditCell,
     onStopAddAnnotation,
-    onStartAddingAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
   },
@@ -68,7 +67,6 @@ const Layout = (
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
-    onStartAddingAnnotation={onStartAddingAnnotation}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
   >
     {cell.isWidget

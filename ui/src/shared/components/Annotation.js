@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import AnnotationTooltip from 'src/shared/components/AnnotationTooltip'
 
-import {TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
+import {ADDING, EDITING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
 import {
   flagStyle,
@@ -31,6 +31,11 @@ class Annotation extends Component {
   }
 
   handleStartDrag = () => {
+    const {mode} = this.props
+    if (mode === ADDING || mode === null) {
+      return
+    }
+
     this.setState({isDragging: true})
   }
 
@@ -134,7 +139,7 @@ class Annotation extends Component {
   }
 
   render() {
-    const {dygraph, annotation} = this.props
+    const {dygraph, annotation, mode} = this.props
     const {isDragging, isMouseOver} = this.state
 
     const humanTime = `${new Date(+annotation.time)}`
@@ -144,6 +149,8 @@ class Annotation extends Component {
       return null
     }
 
+    const isEditing = mode === EDITING
+
     return (
       <div
         className="dygraph-annotation"
@@ -152,7 +159,7 @@ class Annotation extends Component {
         data-time-local={humanTime}
       >
         <div
-          style={clickAreaStyle(isDragging)}
+          style={clickAreaStyle(isDragging, isEditing)}
           onMouseMove={this.handleDrag}
           onMouseDown={this.handleStartDrag}
           onMouseUp={this.handleStopDrag}
@@ -168,6 +175,7 @@ class Annotation extends Component {
           )}
         />
         <AnnotationTooltip
+          isEditing={isEditing}
           annotation={annotation}
           onMouseLeave={this.handleMouseLeave}
           annotationState={this.state}
@@ -182,6 +190,7 @@ class Annotation extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 Annotation.propTypes = {
+  mode: string,
   annotations: arrayOf(shape({})),
   annotation: shape({
     id: string.isRequired,
