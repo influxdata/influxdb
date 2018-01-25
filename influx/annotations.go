@@ -14,7 +14,7 @@ import (
 
 const (
 	// AllAnnotations returns all annotations from the chronograf database
-	AllAnnotations = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "deleted"=false AND time > %dns and start_time < %dns ORDER BY time DESC`
+	AllAnnotations = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "deleted"=false AND time > %dns and "start_time" < %d ORDER BY time DESC`
 	// GetAnnotationID returns all annotations from the chronograf database where id is %s
 	GetAnnotationID = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "id"='%s' AND "deleted"=false ORDER BY time DESC`
 	// DefaultDB is chronograf.  Perhaps later we allow this to be changed
@@ -91,7 +91,7 @@ func (a *AnnotationStore) Update(ctx context.Context, anno *chronograf.Annotatio
 
 	// If the updated annotation has a different time, then, we must
 	// delete the previous annotation
-	if cur.EndTime != anno.EndTime {
+	if !cur.EndTime.Equal(anno.EndTime) {
 		return a.client.Write(ctx, toDeletedPoint(cur))
 	}
 	return nil

@@ -34,8 +34,8 @@ func newAnnotationResponse(src chronograf.Source, a *chronograf.Annotation) anno
 	base := "/chronograf/v1/sources"
 	return annotationResponse{
 		ID:        a.ID,
-		StartTime: a.StartTime.Format(timeMilliFormat),
-		EndTime:   a.EndTime.Format(timeMilliFormat),
+		StartTime: a.StartTime.UTC().Format(timeMilliFormat),
+		EndTime:   a.EndTime.UTC().Format(timeMilliFormat),
 		Text:      a.Text,
 		Type:      a.Type,
 		Links: annotationLinks{
@@ -58,6 +58,7 @@ func newAnnotationsResponse(src chronograf.Source, as []chronograf.Annotation) a
 	}
 }
 
+// TODO: check that start time is before stop time
 func validAnnotationQuery(query url.Values) (startTime, stopTime time.Time, err error) {
 	start := query.Get(since)
 	if start == "" {
@@ -183,6 +184,7 @@ type newAnnotationRequest struct {
 	Type      string    `json:"type,omitempty"` // Type describes the kind of annotation
 }
 
+// TODO: check that the endtime is after the starttime
 func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	type Alias newAnnotationRequest
 	aux := &struct {
@@ -325,6 +327,7 @@ type updateAnnotationRequest struct {
 	Type      *string    `json:"type,omitempty"`      // Type describes the kind of annotation
 }
 
+// TODO: make sure that endtime is after starttime
 func (u *updateAnnotationRequest) UnmarshalJSON(data []byte) error {
 	type Alias updateAnnotationRequest
 	aux := &struct {
