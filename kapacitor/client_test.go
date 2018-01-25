@@ -131,7 +131,7 @@ func TestClient_All(t *testing.T) {
 						ID:         "howdy",
 						Name:       "howdy",
 						TICKScript: "",
-						Type:       "unknown TaskType 0",
+						Type:       "invalid",
 						Status:     "enabled",
 						DBRPs:      []chronograf.DBRP{},
 					},
@@ -318,10 +318,12 @@ trigger
     |httpOut('output')
 `,
 						Trigger: "threshold",
-						Alerts:  []string{},
 						TriggerValues: chronograf.TriggerValues{
 							Operator: "greater than",
 							Value:    "90000",
+						},
+						AlertNodes: chronograf.AlertNodes{
+							IsStateChangesOnly: true,
 						},
 						Query: &chronograf.QueryConfig{
 							Database:        "_internal",
@@ -647,10 +649,12 @@ trigger
     |httpOut('output')
 `,
 					Trigger: "threshold",
-					Alerts:  []string{},
 					TriggerValues: chronograf.TriggerValues{
 						Operator: "greater than",
 						Value:    "90000",
+					},
+					AlertNodes: chronograf.AlertNodes{
+						IsStateChangesOnly: true,
 					},
 					Query: &chronograf.QueryConfig{
 						Database:        "_internal",
@@ -1124,7 +1128,7 @@ func TestClient_Update(t *testing.T) {
 					},
 					Trigger: Relative,
 					TriggerValues: chronograf.TriggerValues{
-						Operator: InsideRange,
+						Operator: insideRange,
 					},
 				},
 			},

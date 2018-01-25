@@ -1,6 +1,5 @@
 import reducer from 'src/kapacitor/reducers/rules'
 import {defaultRuleConfigs} from 'src/kapacitor/constants'
-import {ALERT_NODES_ACCESSORS} from 'src/kapacitor/constants'
 
 import {
   chooseTrigger,
@@ -9,9 +8,7 @@ import {
   updateRuleValues,
   updateDetails,
   updateMessage,
-  updateAlerts,
   updateAlertNodes,
-  updateAlertProperty,
   updateRuleName,
   deleteRuleSuccess,
   updateRuleStatusSuccess,
@@ -100,56 +97,33 @@ describe('Kapacitor.Reducers.rules', () => {
     expect(newState[ruleID].message).to.equal(message)
   })
 
-  it('can update the alerts', () => {
+  it('can update a slack alert', () => {
     const ruleID = 1
     const initialState = {
       [ruleID]: {
         id: ruleID,
         queryID: 988,
-        alerts: [],
+        alertNodes: {},
       },
     }
-
-    const alerts = ['slack']
-    const newState = reducer(initialState, updateAlerts(ruleID, alerts))
-    expect(newState[ruleID].alerts).to.equal(alerts)
-  })
-
-  it('can update an alerta alert', () => {
-    const ruleID = 1
-    const initialState = {
-      [ruleID]: {
-        id: ruleID,
-        queryID: 988,
-        alerts: [],
-        alertNodes: [],
-      },
+    const updatedSlack = {
+      alias: 'slack-1',
+      username: 'testname',
+      iconEmoji: 'testemoji',
+      enabled: true,
+      text: 'slack',
+      type: 'slack',
+      url: true,
     }
-
-    const tickScript = `stream
-      |alert()
-        .alerta()
-          .resource('Hostname or service')
-          .event('Something went wrong')
-          .environment('Development')
-          .group('Dev. Servers')
-          .services('a b c')
-    `
-
-    let newState = reducer(
+    const expectedSlack = {
+      username: 'testname',
+      iconEmoji: 'testemoji',
+    }
+    const newState = reducer(
       initialState,
-      updateAlertNodes(ruleID, 'alerta', tickScript)
+      updateAlertNodes(ruleID, [updatedSlack])
     )
-    const expectedStr = `alerta().resource('Hostname or service').event('Something went wrong').environment('Development').group('Dev. Servers').services('a b c')`
-    let actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID])
-
-    // Test both data structure and accessor string
-    expect(actualStr).to.equal(expectedStr)
-
-    // Test that accessor string is the same if fed back in
-    newState = reducer(newState, updateAlertNodes(ruleID, 'alerta', actualStr))
-    actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID])
-    expect(actualStr).to.equal(expectedStr)
+    expect(newState[ruleID].alertNodes.slack[0]).to.deep.equal(expectedSlack)
   })
 
   it('can update the name', () => {
@@ -199,106 +173,6 @@ describe('Kapacitor.Reducers.rules', () => {
 
     const newState = reducer(initialState, updateDetails(ruleID, details))
     expect(newState[ruleID].details).to.equal(details)
-  })
-
-  it('can update properties', () => {
-    const ruleID = 1
-
-    const alertNodeName = 'pushover'
-
-    const alertProperty1_Name = 'device'
-    const alertProperty1_ArgsOrig =
-      'pineapple_kingdom_control_room,bob_cOreos_watch'
-    const alertProperty1_ArgsDiff = 'pineapple_kingdom_control_tower'
-
-    const alertProperty2_Name = 'URLTitle'
-    const alertProperty2_ArgsOrig = 'Cubeapple Rising'
-    const alertProperty2_ArgsDiff = 'Cubeapple Falling'
-
-    const alertProperty1_Orig = {
-      name: alertProperty1_Name,
-      args: [alertProperty1_ArgsOrig],
-    }
-    const alertProperty1_Diff = {
-      name: alertProperty1_Name,
-      args: [alertProperty1_ArgsDiff],
-    }
-    const alertProperty2_Orig = {
-      name: alertProperty2_Name,
-      args: [alertProperty2_ArgsOrig],
-    }
-    const alertProperty2_Diff = {
-      name: alertProperty2_Name,
-      args: [alertProperty2_ArgsDiff],
-    }
-
-    const initialState = {
-      [ruleID]: {
-        id: ruleID,
-        alertNodes: [
-          {
-            name: 'pushover',
-            args: null,
-            properties: null,
-          },
-        ],
-      },
-    }
-
-    const getAlertPropertyArgs = (matchState, propertyName) =>
-      matchState[ruleID].alertNodes
-        .find(node => node.name === alertNodeName)
-        .properties.find(property => property.name === propertyName).args[0]
-
-    // add first property
-    let newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty1_Orig)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsOrig
-    )
-
-    // change first property
-    newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty1_Diff)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsDiff
-    )
-
-    // add second property
-    newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty2_Orig)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsDiff
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty2_Name)).to.equal(
-      alertProperty2_ArgsOrig
-    )
-    expect(
-      newState[ruleID].alertNodes.find(node => node.name === alertNodeName)
-        .properties.length
-    ).to.equal(2)
-
-    // change second property
-    newState = reducer(
-      initialState,
-      updateAlertProperty(ruleID, alertNodeName, alertProperty2_Diff)
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty1_Name)).to.equal(
-      alertProperty1_ArgsDiff
-    )
-    expect(getAlertPropertyArgs(newState, alertProperty2_Name)).to.equal(
-      alertProperty2_ArgsDiff
-    )
-    expect(
-      newState[ruleID].alertNodes.find(node => node.name === alertNodeName)
-        .properties.length
-    ).to.equal(2)
   })
 
   it('can update status', () => {

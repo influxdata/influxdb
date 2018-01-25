@@ -33,14 +33,6 @@ required = ["github.com/jteeuwen/go-bindata","github.com/gogo/protobuf/proto","g
   revision = "1bc362c7737e51014af7299e016444b654095ad9"
 
 [[constraint]]
-  name = "github.com/influxdata/influxdb"
-  revision = "af72d9b0e4ebe95be30e89b160f43eabaf0529ed"
-
-[[constraint]]
-  name = "github.com/influxdata/kapacitor"
-  version = "^1.2.0"
-
-[[constraint]]
   name = "github.com/influxdata/usage-client"
   revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
 
@@ -75,3 +67,12 @@ required = ["github.com/jteeuwen/go-bindata","github.com/gogo/protobuf/proto","g
 [[constraint]]
   name = "google.golang.org/api"
   revision = "bc20c61134e1d25265dd60049f5735381e79b631"
+
+[[constraint]]
+  name = "github.com/influxdata/influxdb"
+  version = "~1.1.0"
+
+
+[[constraint]]
+  name = "github.com/influxdata/kapacitor"
+  revision = "6de30070b39afde111fea5e041281126fe8aae31"

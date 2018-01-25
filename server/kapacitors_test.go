@@ -94,9 +94,9 @@ func Test_KapacitorRulesGet(t *testing.T) {
 		expected    []chronograf.AlertRule
 	}{
 		{
-			"basic",
-			"/chronograf/v1/sources/1/kapacitors/1/rules",
-			[]chronograf.AlertRule{
+			name:        "basic",
+			requestPath: "/chronograf/v1/sources/1/kapacitors/1/rules",
+			mockAlerts: []chronograf.AlertRule{
 				{
 					ID:         "cpu_alert",
 					Name:       "cpu_alert",
@@ -106,15 +106,31 @@ func Test_KapacitorRulesGet(t *testing.T) {
 					TICKScript: tickScript,
 				},
 			},
-			[]chronograf.AlertRule{
+			expected: []chronograf.AlertRule{
 				{
 					ID:         "cpu_alert",
 					Name:       "cpu_alert",
 					Status:     "enabled",
 					Type:       "stream",
 					DBRPs:      []chronograf.DBRP{{DB: "telegraf", RP: "autogen"}},
-					Alerts:     []string{},
 					TICKScript: tickScript,
+					AlertNodes: chronograf.AlertNodes{
+						Posts:     []*chronograf.Post{},
+						TCPs:      []*chronograf.TCP{},
+						Email:     []*chronograf.Email{},
+						Exec:      []*chronograf.Exec{},
+						Log:       []*chronograf.Log{},
+						VictorOps: []*chronograf.VictorOps{},
+						PagerDuty: []*chronograf.PagerDuty{},
+						Pushover:  []*chronograf.Pushover{},
+						Sensu:     []*chronograf.Sensu{},
+						Slack:     []*chronograf.Slack{},
+						Telegram:  []*chronograf.Telegram{},
+						HipChat:   []*chronograf.HipChat{},
+						Alerta:    []*chronograf.Alerta{},
+						OpsGenie:  []*chronograf.OpsGenie{},
+						Talk:      []*chronograf.Talk{},
+					},
 				},
 			},
 		},

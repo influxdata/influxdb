@@ -19,7 +19,7 @@ class RuleMessageTemplates extends Component {
 
   render() {
     return (
-      <div className="rule-section--row rule-section--row-last rule-section--border-top">
+      <div className="rule-section--row rule-section--row-last">
         <p>Templates:</p>
         {_.map(RULE_MESSAGE_TEMPLATES, (template, key) => {
           return (

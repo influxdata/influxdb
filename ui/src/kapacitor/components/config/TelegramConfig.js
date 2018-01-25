@@ -7,9 +7,12 @@ import RedactedInput from './RedactedInput'
 class TelegramConfig extends Component {
   constructor(props) {
     super(props)
+    this.state = {
+      testEnabled: this.props.enabled,
+    }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = e => {
     e.preventDefault()
 
     let parseMode
@@ -29,6 +32,11 @@ class TelegramConfig extends Component {
     }
 
     this.props.onSave(properties)
+    this.setState({testEnabled: true})
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   handleTokenRef = r => (this.token = r)
@@ -42,7 +50,7 @@ class TelegramConfig extends Component {
     const parseMode = options['parse-mode']
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <div className="alert alert-warning alert-icon no-user-select">
             <span className="icon triangle" />
@@ -68,6 +76,7 @@ class TelegramConfig extends Component {
             defaultValue={token}
             id="token"
             refFunc={this.handleTokenRef}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -86,6 +95,7 @@ class TelegramConfig extends Component {
             placeholder="your-telegram-chat-id"
             ref={r => (this.chatID = r)}
             defaultValue={chatID || ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -100,6 +110,7 @@ class TelegramConfig extends Component {
                 value="markdown"
                 defaultChecked={parseMode !== 'HTML'}
                 ref={r => (this.parseModeMarkdown = r)}
+                onChange={this.disableTest}
               />
               <label htmlFor="parseModeMarkdown">Markdown</label>
             </div>
@@ -111,6 +122,7 @@ class TelegramConfig extends Component {
                 value="html"
                 defaultChecked={parseMode === 'HTML'}
                 ref={r => (this.parseModeHTML = r)}
+                onChange={this.disableTest}
               />
               <label htmlFor="parseModeHTML">HTML</label>
             </div>
@@ -124,6 +136,7 @@ class TelegramConfig extends Component {
               type="checkbox"
               defaultChecked={disableWebPagePreview}
               ref={r => (this.disableWebPagePreview = r)}
+              onChange={this.disableTest}
             />
             <label htmlFor="disableWebPagePreview">
               Disable{' '}
@@ -142,6 +155,7 @@ class TelegramConfig extends Component {
               type="checkbox"
               defaultChecked={disableNotification}
               ref={r => (this.disableNotification = r)}
+              onChange={this.disableTest}
             />
             <label htmlFor="disableNotification">
               Disable notifications on iOS devices and disable sounds on Android
@@ -151,8 +165,21 @@ class TelegramConfig extends Component {
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update Telegram Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -173,6 +200,8 @@ TelegramConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default TelegramConfig

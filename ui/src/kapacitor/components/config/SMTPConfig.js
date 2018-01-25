@@ -3,9 +3,12 @@ import React, {PropTypes, Component} from 'react'
 class SMTPConfig extends Component {
   constructor(props) {
     super(props)
+    this.state = {
+      testEnabled: this.props.enabled,
+    }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = e => {
     e.preventDefault()
 
     const properties = {
@@ -17,13 +20,18 @@ class SMTPConfig extends Component {
     }
 
     this.props.onSave(properties)
+    this.setState({testEnabled: true})
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   render() {
     const {host, port, from, username, password} = this.props.config.options
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="smtp-host">SMTP Host</label>
           <input
@@ -32,6 +40,7 @@ class SMTPConfig extends Component {
             type="text"
             ref={r => (this.host = r)}
             defaultValue={host || ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -43,6 +52,7 @@ class SMTPConfig extends Component {
             type="text"
             ref={r => (this.port = r)}
             defaultValue={port || ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -55,6 +65,7 @@ class SMTPConfig extends Component {
             type="text"
             ref={r => (this.from = r)}
             defaultValue={from || ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -66,6 +77,7 @@ class SMTPConfig extends Component {
             type="text"
             ref={r => (this.username = r)}
             defaultValue={username || ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -77,12 +89,26 @@ class SMTPConfig extends Component {
             type="password"
             ref={r => (this.password = r)}
             defaultValue={`${password}`}
+            onChange={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update SMTP Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -103,6 +129,8 @@ SMTPConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default SMTPConfig

@@ -1,9 +1,20 @@
 ## v1.4.1.0 [unreleased]
 ### Features
+1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Allow adding multiple event handlers to a rule
+1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations"
 ### UI Improvements
+1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
 ### Bug Fixes
-1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected.
+1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
 
+## v1.4.0.1 [2017-1-9]
+### Features
+1. [#2690](https://github.com/influxdata/chronograf/pull/2690): Add separate CLI flag for canned sources, kapacitors, dashboards, and organizations
+1. [#2672](https://github.com/influxdata/chronograf/pull/2672): Add telegraf interval configuration
+
+### Bug Fixes
+1. [#2689](https://github.com/influxdata/chronograf/pull/2689): Allow insecure (self-signed) certificates for kapacitor and influxdb
+1. [#2664](https://github.com/influxdata/chronograf/pull/2664): Fix positioning of custom time indicator
 
 ## v1.4.0.0 [2017-12-22]
 ### UI Improvements
@@ -12,6 +23,7 @@
 ### Bug Fixes
 1. [#2652](https://github.com/influxdata/chronograf/pull/2652): Make page render successfully when attempting to edit a source
 1. [#2664](https://github.com/influxdata/chronograf/pull/2664): Fix CustomTimeIndicator positioning
+1. [#2687](https://github.com/influxdata/chronograf/pull/2687): Remove series with "no value" from legend
 
 ## v1.4.0.0-rc2 [2017-12-21]
 ### UI Improvements
@@ -87,6 +99,19 @@
 1. [#2466](https://github.com/influxdata/chronograf/pull/2466): Fix supplying a role link to sources that do not have a metaURL
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Fix hoverline intermittently not rendering
 1. [#2483](https://github.com/influxdata/chronograf/pull/2483): Update MySQL pre-canned dashboard to have query derivative correctly
+
+### Features
+1. [#2188](https://github.com/influxdata/chronograf/pull/2188): Add Kapacitor logs to the TICKscript editor
+1. [#2384](https://github.com/influxdata/chronograf/pull/2384): Add filtering by name to Dashboard index page
+1. [#2385](https://github.com/influxdata/chronograf/pull/2385): Add time shift feature to DataExplorer and Dashboards
+1. [#2400](https://github.com/influxdata/chronograf/pull/2400): Allow override of generic oauth2 keys for email
+1. [#2426](https://github.com/influxdata/chronograf/pull/2426): Add auto group by time to Data Explorer
+1. [#2456](https://github.com/influxdata/chronograf/pull/2456): Add boolean thresholds for kapacitor threshold alerts
+1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
+1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
+1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
+
+### UI Improvements
 
 ## v1.3.10.0 [2017-10-24]
 ### Bug Fixes
