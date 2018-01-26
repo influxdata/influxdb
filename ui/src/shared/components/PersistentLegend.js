@@ -20,6 +20,7 @@ const persistentLegendItemClassname = (visibilities, i) => {
     return `persistent-legend--item${visibilities[i] ? '' : ' disabled'}`
   }
 
+  // all series are visible to match expected initial state
   return 'persistent-legend--item'
 }
 
@@ -45,6 +46,7 @@ class PersistentLegend extends Component {
     const {visibilities} = this.state
     const labels = dygraph ? _.drop(dygraph.getLabels()) : []
 
+    /* Add style={{color: seriesColor}} to <div> & <span> below */
     return (
       <div className="persistent-legend" style={style}>
         {_.map(labels, (v, i) =>
@@ -53,7 +55,13 @@ class PersistentLegend extends Component {
             key={uuid.v4()}
             onClick={this.handleClick(i)}
           >
-            {removeMeasurement(v)}
+            <div
+              className="persistent-legend--dot"
+              style={{backgroundColor: '#00C9FF'}}
+            />
+            <span style={{color: '#00C9FF'}}>
+              {removeMeasurement(v)}
+            </span>
           </div>
         )}
       </div>

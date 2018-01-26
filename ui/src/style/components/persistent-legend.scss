@@ -9,7 +9,15 @@
   display: flex;
   align-items: flex-end;
 }
-
+.persistent-legend--dot {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: $g20-white;
+}
 .persistent-legend--item {
   height: 22px;
   line-height: 22px;
@@ -18,25 +26,41 @@
   transition:
     background-color 0.25s ease,
     color 0.25s ease;
-  color: $g13-mist;
+  color: $g20-white;
   font-size: 12px;
   font-weight: 600;
   padding: 0 7px;
   margin-right: 2px;
 
+  span,
+  .persistent-legend--dot {
+    opacity: 0.8;
+    transition: opacity 0.25s ease;
+  }
+
   &:hover {
     cursor: pointer;
-    color: $g20-white;
     background-color: $g6-smoke;
+
+    span,
+    .persistent-legend--dot {opacity: 1;}
   }
   &.disabled {
     background-color: $g1-raven;
-    color: $g9-mountain;
     font-style: italic;
+
+    span,
+    .persistent-legend--dot {
+      opacity: 0.35;
+    }
 
     &:hover {
       background-color: $g2-kevlar;
-      color: $g13-mist;
+
+      span,
+      .persistent-legend--dot {
+        opacity: 0.65;
+      }
     }
   }
 }
