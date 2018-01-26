@@ -10,6 +10,11 @@ const style = {
   height: '30px',
 }
 
+const removeMeasurement = (label = '') => {
+  const [measurement] = label.match(/^(.*)[.]/g) || ['']
+  return label.replace(measurement, '')
+}
+
 const persistentLegendItemClassname = (visibilities, i) => {
   if (visibilities.length) {
     return `persistent-legend--item${visibilities[i] ? '' : ' disabled'}`
@@ -48,7 +53,7 @@ class PersistentLegend extends Component {
             key={uuid.v4()}
             onClick={this.handleClick(i)}
           >
-            {v}
+            {removeMeasurement(v)}
           </div>
         )}
       </div>
@@ -58,6 +63,6 @@ class PersistentLegend extends Component {
 
 const {shape} = PropTypes
 
-PersistentLegend.propTypes = {dygraph: shape({})}
+PersistentLegend.propTypes = {sharedLegend: shape({}), dygraph: shape({})}
 
 export default PersistentLegend
