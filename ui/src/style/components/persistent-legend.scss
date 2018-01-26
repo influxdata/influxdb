@@ -1,0 +1,22 @@
+/*
+  Persistent Legend
+  ------------------------------------------------------------------------------
+  Seen in a dashboard cell, below the graph
+  NOTE: Styles for the parent are stored in Javascript, in PersistentLegend.js
+*/
+
+.persistent-legend {
+  display: flex;
+  align-items: center;
+}
+
+.persistent-legend--item {
+  height: 28px;
+  line-height: 28px;
+  background-color: $g3-castle;
+  border-radius: 3px;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
+  color: $g11-sidewalk;
+}
