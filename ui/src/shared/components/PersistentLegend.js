@@ -35,7 +35,7 @@ class PersistentLegend extends Component {
   }
 }
 
-const {func} = PropTypes
+const {func, shape} = PropTypes
 
 PersistentLegend.propTypes = {dygraph: shape({})}
 
