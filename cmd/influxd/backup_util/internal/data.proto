@@ -6,7 +6,7 @@ package backup_util;
 //
 //========================================================================
 
-message EnterpriseData {
+message PortableData {
     required bytes Data = 1;
     required uint64 MaxNodeID = 2;
 }
