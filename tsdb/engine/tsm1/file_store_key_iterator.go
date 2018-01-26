@@ -84,7 +84,7 @@ RETRY:
 		}
 	}
 
-	if merging && bytes.Compare(m.key, key) == 0 {
+	if merging && bytes.Equal(m.key, key) {
 		// same as previous key, keep iterating
 		goto RETRY
 	}

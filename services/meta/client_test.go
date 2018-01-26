@@ -736,8 +736,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	u, err = c.User("wilma")
-	if err != meta.ErrUserNotFound {
+	if _, err = c.User("wilma"); err != meta.ErrUserNotFound {
 		t.Fatalf("user lookup should fail with %s", meta.ErrUserNotFound)
 	}
 

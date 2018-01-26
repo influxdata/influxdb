@@ -868,8 +868,7 @@ func (e *Engine) filterFileToBackup(r *TSMReader, fi os.FileInfo, shardRelativeP
 	defer w.Close()
 
 	// implicit else: here we iterate over the blocks and only keep the ones we really want.
-	var bi *BlockIterator
-	bi = r.BlockIterator()
+	bi := r.BlockIterator()
 
 	for bi.Next() {
 		// not concerned with typ or checksum since we are just blindly writing back, with no decoding
@@ -1029,7 +1028,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 
 	nativeFileName := filepath.FromSlash(hdr.Name)
 	// Skip file if it does not have a matching prefix.
-	if !filepath.HasPrefix(nativeFileName, shardRelativePath) {
+	if !strings.HasPrefix(nativeFileName, shardRelativePath) {
 		return "", nil
 	}
 	filename, err := filepath.Rel(shardRelativePath, nativeFileName)
@@ -1233,7 +1232,6 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 		if err := e.deleteSeriesRange(batch, min, max); err != nil {
 			return err
 		}
-		batch = batch[:0]
 	}
 
 	e.index.Rebuild()
@@ -1299,10 +1297,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			}
 		}
 
-		if err := batch.Commit(); err != nil {
-			return err
-		}
-		return nil
+		return batch.Commit()
 	}); err != nil {
 		return err
 	}
@@ -2769,40 +2764,6 @@ func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {
 		return key, nil
 	}
 	return key[:sep], key[sep+len(keyFieldSeparator):]
-}
-
-// readDir recursively reads all files from a path.
-func readDir(root, rel string) ([]string, error) {
-	// Open root.
-	f, err := os.Open(filepath.Join(root, rel))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	// Read all files.
-	fis, err := f.Readdir(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read all subdirectories and append to the end.
-	var paths []string
-	for _, fi := range fis {
-		// Simply append if it's a file.
-		if !fi.IsDir() {
-			paths = append(paths, filepath.Join(rel, fi.Name()))
-			continue
-		}
-
-		// Read and append nested file paths.
-		children, err := readDir(root, filepath.Join(rel, fi.Name()))
-		if err != nil {
-			return nil, err
-		}
-		paths = append(paths, children...)
-	}
-	return paths, nil
 }
 
 func varRefSliceContains(a []influxql.VarRef, v string) bool {

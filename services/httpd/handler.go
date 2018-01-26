@@ -969,8 +969,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
-	var closing chan struct{}
-	closing = make(chan struct{})
+	closing := make(chan struct{})
 	if notifier, ok := w.(http.CloseNotifier); ok {
 		// CloseNotify() is not guaranteed to send a notification when the query
 		// is closed. Use this channel to signal that the query is finished to

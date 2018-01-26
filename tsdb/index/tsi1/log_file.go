@@ -1056,16 +1056,6 @@ func appendLogEntry(dst []byte, e *LogEntry) []byte {
 // logMeasurements represents a map of measurement names to measurements.
 type logMeasurements map[string]*logMeasurement
 
-// names returns a sorted list of measurement names.
-func (m logMeasurements) names() []string {
-	a := make([]string, 0, len(m))
-	for name := range m {
-		a = append(a, name)
-	}
-	sort.Strings(a)
-	return a
-}
-
 type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagKey

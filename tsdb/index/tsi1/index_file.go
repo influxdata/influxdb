@@ -122,13 +122,6 @@ func (f *IndexFile) Compacting() bool {
 	return v
 }
 
-// setCompacting sets whether the index file is being compacted.
-func (f *IndexFile) setCompacting(v bool) {
-	f.mu.Lock()
-	f.compacting = v
-	f.mu.Unlock()
-}
-
 // UnmarshalBinary opens an index from data.
 // The byte slice is retained so it must be kept open.
 func (f *IndexFile) UnmarshalBinary(data []byte) error {
@@ -379,7 +372,7 @@ func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 
 	// Read series id set info.
 	t.TombstoneSeriesIDSet.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TombstoneSeriesIDSet.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TombstoneSeriesIDSet.Size = int64(binary.BigEndian.Uint64(buf[0:8]))
 
 	return t, nil
 }

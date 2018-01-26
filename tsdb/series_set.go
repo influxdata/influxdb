@@ -100,7 +100,7 @@ func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
 	s.RLock()
 	defer s.RUnlock()
 	other.RLock()
-	other.RUnlock()
+	defer other.RUnlock()
 	return s.bitmap.Equals(other.bitmap)
 }
 

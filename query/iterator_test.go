@@ -1552,35 +1552,6 @@ func TestIterator_EncodeDecode(t *testing.T) {
 	}
 }
 
-// IteratorCreator is a mockable implementation of SelectStatementExecutor.IteratorCreator.
-type IteratorCreator struct {
-	CreateIteratorFn  func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
-	FieldDimensionsFn func(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-}
-
-func (ic *IteratorCreator) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-	return ic.CreateIteratorFn(ctx, m, opt)
-}
-
-func (ic *IteratorCreator) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-	return ic.FieldDimensionsFn(m)
-}
-
-func (ic *IteratorCreator) MapType(m *influxql.Measurement, field string) influxql.DataType {
-	f, d, err := ic.FieldDimensions(m)
-	if err != nil {
-		return influxql.Unknown
-	}
-
-	if typ, ok := f[field]; ok {
-		return typ
-	}
-	if _, ok := d[field]; ok {
-		return influxql.Tag
-	}
-	return influxql.Unknown
-}
-
 // Test implementation of influxql.FloatIterator
 type FloatIterator struct {
 	Points []query.FloatPoint

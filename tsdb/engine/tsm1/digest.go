@@ -122,15 +122,3 @@ func Digest(dir string, w io.WriteCloser) error {
 		MaxTime: math.MaxInt64,
 	}, w)
 }
-
-type rwPair struct {
-	r    *TSMReader
-	w    TSMWriter
-	outf *os.File
-}
-
-func (rw *rwPair) close() {
-	rw.r.Close()
-	rw.w.Close()
-	rw.outf.Close()
-}

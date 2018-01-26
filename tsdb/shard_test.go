@@ -515,11 +515,8 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 
 	// Spin up two goroutines that write points with different field types in reverse
 	// order concurrently.  After writing them, query them back.
-	var wg sync.WaitGroup
-	wg.Add(2)
+	errC := make(chan error, 2)
 	go func() {
-		defer wg.Done()
-
 		// Write 250 floats and then ints to the same field
 		points := make([]models.Point, 0, 500)
 		for i := 0; i < cap(points); i++ {
@@ -542,7 +539,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 
 		for i := 0; i < 500; i++ {
 			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
 			}
 
 			sh.WritePoints(points)
@@ -556,7 +553,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 				EndTime:    influxql.MaxTime,
 			})
 			if err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
 			}
 
 			switch itr := iter.(type) {
@@ -577,11 +574,10 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 			}
 
 		}
+		errC <- nil
 	}()
 
 	go func() {
-		defer wg.Done()
-
 		// Write 250 ints and then floats to the same field
 		points := make([]models.Point, 0, 500)
 		for i := 0; i < cap(points); i++ {
@@ -603,7 +599,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 		}
 		for i := 0; i < 500; i++ {
 			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
 			}
 
 			sh.WritePoints(points)
@@ -617,7 +613,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 				EndTime:    influxql.MaxTime,
 			})
 			if err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
 			}
 
 			switch itr := iter.(type) {
@@ -635,9 +631,15 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 				iter.Close()
 			}
 		}
+		errC <- nil
 	}()
 
-	wg.Wait()
+	// Check results
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 // Ensures that when a shard is closed, it removes any series meta-data

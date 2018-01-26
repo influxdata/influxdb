@@ -21,7 +21,7 @@ func SortDedup(a [][]byte) [][]byte {
 
 	i, j := 0, 1
 	for j < len(a) {
-		if bytes.Compare(a[j-1], a[j]) != 0 {
+		if !bytes.Equal(a[j-1], a[j]) {
 			a[i] = a[j-1]
 			i++
 		}
@@ -58,10 +58,7 @@ func SearchBytes(a [][]byte, x []byte) int {
 // Contains returns true if x is an element of the sorted slice a.
 func Contains(a [][]byte, x []byte) bool {
 	n := SearchBytes(a, x)
-	if n < len(a) {
-		return bytes.Compare(a[n], x) == 0
-	}
-	return false
+	return n < len(a) && bytes.Equal(a[n], x)
 }
 
 // SearchBytesFixed searches a for x using a binary search.  The size of a must be a multiple of
@@ -155,7 +152,7 @@ func CloneSlice(a [][]byte) [][]byte {
 // Pack converts a sparse array to a dense one.  It removes sections of a containing
 // runs of val of length width.  The returned value is a subslice of a.
 func Pack(a []byte, width int, val byte) []byte {
-	var i, j, iStart, jStart, end int
+	var i, j, jStart, end int
 
 	fill := make([]byte, width)
 	for i := 0; i < len(fill); i++ {
@@ -169,7 +166,6 @@ func Pack(a []byte, width int, val byte) []byte {
 
 	for i < len(a) {
 		// Find the next gap to remove
-		iStart = i
 		for i < len(a) && a[i] == val {
 			i += width
 		}
@@ -185,7 +181,6 @@ func Pack(a []byte, width int, val byte) []byte {
 
 		// Move the non-gap over the section to remove.
 		copy(a[end:], a[jStart:j])
-		i = iStart + len(a[jStart:j])
 		end += j - jStart
 		i = j
 	}

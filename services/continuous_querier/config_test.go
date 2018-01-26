@@ -21,7 +21,7 @@ enabled = true
 	// Validate configuration.
 	if time.Duration(c.RunInterval) != time.Minute {
 		t.Fatalf("unexpected run interval: %v", c.RunInterval)
-	} else if c.Enabled != true {
+	} else if !c.Enabled {
 		t.Fatalf("unexpected enabled: %v", c.Enabled)
 	}
 }

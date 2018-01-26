@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"fmt"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
@@ -1509,9 +1510,7 @@ func (si *SubscriptionInfo) unmarshal(pb *internal.SubscriptionInfo) {
 
 	if len(pb.GetDestinations()) > 0 {
 		si.Destinations = make([]string, len(pb.GetDestinations()))
-		for i, h := range pb.GetDestinations() {
-			si.Destinations[i] = h
-		}
+		copy(si.Destinations, pb.GetDestinations())
 	}
 }
 

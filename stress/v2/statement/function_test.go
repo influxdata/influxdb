@@ -87,10 +87,6 @@ func TestStringersEval(t *testing.T) {
 	if parseFloat(values[4].(string)) > floatRandFunction.Argument {
 		t.Errorf("Expected value below: %v\nGot value: %v\n", floatRandFunction.Argument, values[4])
 	}
-	// Check the spoofTime func
-	if values[5] != 8 {
-
-	}
 }
 
 func spoofTime() int64 {

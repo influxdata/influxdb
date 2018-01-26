@@ -514,15 +514,6 @@ func (c *Cache) Split(n int) []*Cache {
 	return caches
 }
 
-// unsortedKeys returns a slice of all keys under management by the cache. The
-// keys are not sorted.
-func (c *Cache) unsortedKeys() [][]byte {
-	c.mu.RLock()
-	store := c.store
-	c.mu.RUnlock()
-	return store.keys(false)
-}
-
 // Values returns a copy of all values, deduped and sorted, for the given key.
 func (c *Cache) Values(key []byte) Values {
 	var snapshotEntries *entry

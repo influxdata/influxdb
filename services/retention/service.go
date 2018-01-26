@@ -85,7 +85,7 @@ func (s *Service) run() {
 				db string
 				rp string
 			}
-			deletedShardIDs := make(map[uint64]deletionInfo, 0)
+			deletedShardIDs := make(map[uint64]deletionInfo)
 
 			dbs := s.MetaClient.Databases()
 			for _, d := range dbs {

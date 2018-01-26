@@ -263,6 +263,10 @@ func collectShards(dbs []os.FileInfo) tsdb.ShardInfos {
 // backupDatabase backs up the database named db
 func backupDatabase(db string) error {
 	copyFile := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		// Strip the DataPath from the path and replace with BackupPath.
 		toPath := strings.Replace(path, opts.DataPath, opts.BackupPath, 1)
 

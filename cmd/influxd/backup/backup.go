@@ -254,12 +254,18 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 
 	if cmd.portable {
 		f, err := os.Open(shardArchivePath)
+		if err != nil {
+			return err
+		}
 		defer f.Close()
 		defer os.Remove(shardArchivePath)
 
 		filePrefix := cmd.portableFileBase + ".s" + sid
 		filename := filePrefix + ".tar.gz"
 		out, err := os.OpenFile(filepath.Join(cmd.path, filename), os.O_CREATE|os.O_RDWR, 0600)
+		if err != nil {
+			return err
+		}
 
 		zw := gzip.NewWriter(out)
 		zw.Name = filePrefix + ".tar"

@@ -47,10 +47,8 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 	var wire opentracing.SpanContext
 
 	if len(req.Trace) > 0 {
-		wire, err = opentracing.GlobalTracer().Extract(opentracing.TextMap, opentracing.TextMapCarrier(req.Trace))
-		if err != nil {
-			// TODO(sgc): log it?
-		}
+		wire, _ = opentracing.GlobalTracer().Extract(opentracing.TextMap, opentracing.TextMapCarrier(req.Trace))
+		// TODO(sgc): Log ignored error?
 	}
 
 	span := opentracing.StartSpan("storage.read", ext.RPCServerOption(wire))
