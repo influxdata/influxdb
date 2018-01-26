@@ -7,16 +7,36 @@
 
 .persistent-legend {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .persistent-legend--item {
-  height: 28px;
-  line-height: 28px;
-  background-color: $g3-castle;
+  height: 22px;
+  line-height: 22px;
+  background-color: $g4-onyx;
   border-radius: 3px;
   transition:
     background-color 0.25s ease,
     color 0.25s ease;
-  color: $g11-sidewalk;
+  color: $g13-mist;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 7px;
+  margin-right: 2px;
+
+  &:hover {
+    cursor: pointer;
+    color: $g20-white;
+    background-color: $g6-smoke;
+  }
+  &.disabled {
+    background-color: $g1-raven;
+    color: $g9-mountain;
+    font-style: italic;
+
+    &:hover {
+      background-color: $g2-kevlar;
+      color: $g13-mist;
+    }
+  }
 }
