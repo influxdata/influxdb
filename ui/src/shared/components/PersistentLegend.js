@@ -20,13 +20,17 @@ class PersistentLegend extends Component {
   }
 
   render() {
-    const labels = this.props.dygraph
-      ? _.drop(this.props.dygraph.getLabels())
-      : []
+    const {dygraph} = this.props
+    const labels = dygraph ? _.drop(dygraph.getLabels()) : []
+
     return (
       <div className="persistent-legend" style={style}>
         {_.map(labels, (v, i) =>
-          <div key={uuid.v4()} onClick={this.handleClick(i)}>
+          <div
+            className="persistent-legend--item"
+            key={uuid.v4()}
+            onClick={this.handleClick(i)}
+          >
             {v}
           </div>
         )}
