@@ -2,23 +2,19 @@ import {getLinks as getLinksAJAX} from 'shared/apis/links'
 
 import {errorThrown} from 'shared/actions/errors'
 
-import * as actionTypes from 'shared/constants/actionTypes'
 import {linksLink} from 'shared/constants'
 
 const linksGetRequested = () => ({
-  type: actionTypes.LINKS_GET_REQUESTED,
+  type: 'LINKS_GET_REQUESTED',
 })
 
-const linksGetCompleted = links => {
-  console.log('linksGetCompleted', links, actionTypes.LINKS_GET_COMPLETED)
-  return {
-    type: actionTypes.LINKS_GET_COMPLETED,
-    payload: {links},
-  }
-}
+const linksGetCompleted = links => ({
+  type: 'LINKS_GET_COMPLETED',
+  payload: {links},
+})
 
 const linksGetFailed = () => ({
-  type: actionTypes.LINKS_GET_FAILED,
+  type: 'LINKS_GET_FAILED',
 })
 
 export const getLinksAsync = () => async dispatch => {
