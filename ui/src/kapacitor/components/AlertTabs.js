@@ -123,18 +123,16 @@ class AlertTabs extends Component {
 
     return cleanProps
   }
-  getInitialIndex = (supportedConfigs, routerLocation) => {
-    if (routerLocation && routerLocation.hash) {
-      const hash = _.replace(routerLocation.hash, '#', '')
-      const index = _.indexOf(_.keys(supportedConfigs), hash)
-      return index >= 0 ? index : 0
-    }
-    return 0
+
+  getInitialIndex = (supportedConfigs, hash) => {
+    const index = _.indexOf(_.keys(supportedConfigs), _.replace(hash, '#', ''))
+    return index >= 0 ? index : 0
   }
 
   render() {
     const {configSections} = this.state
-    const {routerLocation} = this.props
+    const {hash} = this.props
+
     if (!configSections) {
       return null
     }
@@ -271,7 +269,7 @@ class AlertTabs extends Component {
 
         <Tabs
           tabContentsClass="config-endpoint"
-          initialIndex={this.getInitialIndex(supportedConfigs, routerLocation)}
+          initialIndex={this.getInitialIndex(supportedConfigs, hash)}
         >
           <TabList customClass="config-endpoint--tabs">
             {_.reduce(
@@ -323,7 +321,7 @@ AlertTabs.propTypes = {
     }).isRequired,
   }),
   addFlashMessage: func.isRequired,
-  routerLocation: shape({pathname: string, hash: string}).isRequired,
+  hash: string.isRequired,
 }
 
 export default AlertTabs

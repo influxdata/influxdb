@@ -136,7 +136,8 @@ class KapacitorPage extends Component {
   }
 
   render() {
-    const {source, addFlashMessage, location} = this.props
+    const {source, addFlashMessage, location, params} = this.props
+    const hash = (location && location.hash) || (params && params.hash) || ''
     const {kapacitor, exists} = this.state
     return (
       <KapacitorForm
@@ -147,7 +148,7 @@ class KapacitorPage extends Component {
         source={source}
         addFlashMessage={addFlashMessage}
         exists={exists}
-        routerLocation={location}
+        hash={hash}
       />
     )
   }
