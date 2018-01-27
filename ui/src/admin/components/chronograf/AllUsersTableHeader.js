@@ -21,20 +21,24 @@ const AllUsersTableHeader = ({
       <h2 className="panel-title">
         {numUsersString} in {numOrganizationsString}
       </h2>
-      <SlideToggle
-        size="xs"
-        active={superAdminNewUsers}
-        onToggle={onChangeAuthConfig('superAdminNewUsers')}
-      />
-      <span>All new users are SuperAdmins</span>
-      <button
-        className="btn btn-primary btn-sm"
-        onClick={onClickCreateUser}
-        disabled={isCreatingUser || !onClickCreateUser}
-      >
-        <span className="icon plus" />
-        Add User
-      </button>
+      <div style={{display: 'flex', alignItems: 'center'}}>
+        <div className="all-users-admin-toggle">
+          <SlideToggle
+            size="xs"
+            active={superAdminNewUsers}
+            onToggle={onChangeAuthConfig('superAdminNewUsers')}
+          />
+          <span>All new users are SuperAdmins</span>
+        </div>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={onClickCreateUser}
+          disabled={isCreatingUser || !onClickCreateUser}
+        >
+          <span className="icon plus" />
+          Add User
+        </button>
+      </div>
     </div>
   )
 }
