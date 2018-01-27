@@ -80,7 +80,7 @@ const AllUsersTableRow = ({
         </span>
       </td>
       <DeleteConfirmTableCell
-        text="Remove"
+        text="Delete"
         onDelete={onDelete}
         item={user}
         buttonSize="btn-xs"
