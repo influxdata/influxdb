@@ -45,7 +45,7 @@ class AllUsersPage extends Component {
 
   handleDeleteUser = user => {
     const {actionsAdmin: {deleteUserAsync}} = this.props
-    deleteUserAsync(user)
+    deleteUserAsync(user, {isAbsoluteDelete: true})
   }
 
   async componentWillMount() {

@@ -160,14 +160,19 @@ export const updateUserAsync = (user, updatedUser) => async dispatch => {
   }
 }
 
-export const deleteUserAsync = user => async dispatch => {
+export const deleteUserAsync = (
+  user,
+  {isAbsoluteDelete} = {}
+) => async dispatch => {
   dispatch(removeUser(user))
   try {
     await deleteUserAJAX(user)
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `User removed from organization: ${user.scheme}::${user.provider}::${user.name}`
+        `User removed from ${isAbsoluteDelete
+          ? 'all organizations and deleted'
+          : 'organization'}: ${user.scheme}::${user.provider}::${user.name}`
       )
     )
   } catch (error) {
