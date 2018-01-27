@@ -424,3 +424,5 @@ export const DEFAULT_SOURCE = {
   insecureSkipVerify: false,
   metaUrl: '',
 }
+
+export const linksLink = '/chronograf/v1'

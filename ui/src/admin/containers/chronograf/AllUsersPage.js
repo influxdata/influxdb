@@ -28,13 +28,10 @@ class AllUsersPage extends Component {
     createUserAsync(links.users, user)
   }
 
-  handleUpdateUserRole = (user, currentRole, {name}) => {
+  handleUpdateUserRoles = (user, roles) => {
     const {actionsAdmin: {updateUserAsync}} = this.props
-    const updatedRole = {...currentRole, name}
-    const newRoles = user.roles.map(
-      r => (r.organization === currentRole.organization ? updatedRole : r)
-    )
-    updateUserAsync(user, {...user, roles: newRoles})
+    const updatedUser = {...user, roles}
+    updateUserAsync(user, updatedUser)
   }
 
   handleUpdateUserSuperAdmin = (user, superAdmin) => {
@@ -45,7 +42,7 @@ class AllUsersPage extends Component {
 
   handleDeleteUser = user => {
     const {actionsAdmin: {deleteUserAsync}} = this.props
-    deleteUserAsync(user)
+    deleteUserAsync(user, {isAbsoluteDelete: true})
   }
 
   async componentWillMount() {
@@ -86,7 +83,7 @@ class AllUsersPage extends Component {
         users={users}
         organizations={organizations}
         onCreateUser={this.handleCreateUser}
-        onUpdateUserRole={this.handleUpdateUserRole}
+        onUpdateUserRoles={this.handleUpdateUserRoles}
         onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
         onDeleteUser={this.handleDeleteUser}
         links={links}

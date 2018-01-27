@@ -11,6 +11,7 @@ const actionsAllowedDuringBlackout = [
   'ME_',
   'NOTIFICATION_',
   'ERROR_',
+  'LINKS_',
 ]
 const notificationsBlackoutDuration = 5000
 let allowNotifications = true // eslint-disable-line

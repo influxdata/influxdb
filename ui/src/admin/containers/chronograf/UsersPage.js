@@ -33,7 +33,7 @@ class UsersPage extends Component {
 
   handleDeleteUser = user => {
     const {actions: {deleteUserAsync}} = this.props
-    deleteUserAsync(user)
+    deleteUserAsync(user, {isAbsoluteDelete: false})
   }
 
   async componentWillMount() {

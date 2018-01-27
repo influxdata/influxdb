@@ -38,15 +38,19 @@ class AllUsersTable extends Component {
   }
 
   handleAddToOrganization = user => organization => {
-    console.log('handleAddToOrganization', user.name, organization)
-    // const organizationRole = organization + organizationDefaultRole -- need to get this fresh from server or have server determine it, which requires a change to ValidUpdate
-    // this.props.onUpdateUserRole({...user, roles: [...user.roles, organizationRole]})
+    // '*' tells the server to fill in the current defaultRole of that org
+    const newRoles = user.roles.concat({
+      organization: organization.id,
+      name: '*',
+    })
+    this.props.onUpdateUserRoles(user, newRoles)
   }
 
-  handleRemoveFromOrganization = user => organization => {
-    console.log('handleRemoveFromOrganization', user.name, organization)
-    // const roles = newOrganizationRole.filter(o => o.id === organization.id)
-    // this.props.onUpdateUserRole({...user, roles})
+  handleRemoveFromOrganization = user => role => {
+    const newRoles = user.roles.filter(
+      r => r.organization !== role.organization // TODO: the organization upstream of this should use .id instead of .organization for this property
+    )
+    this.props.onUpdateUserRoles(user, newRoles)
   }
 
   handleChangeSuperAdmin = user => newStatus => {
@@ -176,7 +180,7 @@ AllUsersTable.propTypes = {
     })
   ),
   onCreateUser: func.isRequired,
-  onUpdateUserRole: func.isRequired,
+  onUpdateUserRoles: func.isRequired,
   onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
   actionsConfig: shape({

@@ -22,10 +22,12 @@ const AllUsersTableRow = ({
   onDelete,
   meID,
 }) => {
-  const dropdownOrganizationsItems = organizations.map(r => ({
-    ...r,
-    text: r.name,
-  }))
+  const dropdownOrganizationsItems = organizations
+    .filter(o => !user.roles.find(role => role.organization === o.id))
+    .map(o => ({
+      ...o,
+      text: o.name,
+    }))
 
   const userIsMe = user.id === meID
 
