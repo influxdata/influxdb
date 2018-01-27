@@ -1,5 +1,7 @@
 import {getMe as getMeAJAX, updateMe as updateMeAJAX} from 'shared/apis/auth'
 
+import {getLinksAsync} from 'shared/actions/links'
+
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
@@ -101,6 +103,10 @@ export const meChangeOrganizationAsync = (
     )
     dispatch(meChangeOrganizationCompleted())
     dispatch(meGetCompleted({me, auth, logoutLink}))
+
+    // refresh links after every successful meChangeOrganization to refresh
+    // /organizations/:id/users link for Admin / Current Org Users page to load
+    dispatch(getLinksAsync())
     // TODO: reload sources upon me change org if non-refresh behavior preferred
     // instead of current behavior on both invocations of meChangeOrganization,
     // which is to refresh index via router.push('')
