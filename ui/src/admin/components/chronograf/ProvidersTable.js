@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import ProvidersTableRow from 'src/admin/components/chronograf/ProvidersTableRow'
-// import NewProviderMap from 'src/admin/components/chronograf/NewProviderMap'
+import ProvidersTableRowNew from 'src/admin/components/chronograf/ProvidersTableRowNew'
 
 class ProvidersTable extends Component {
   constructor(props) {
@@ -15,7 +15,7 @@ class ProvidersTable extends Component {
     this.setState({isCreatingMap: true})
   }
 
-  handleDismissCreateMap = () => {
+  handleCancelCreateMap = () => {
     this.setState({isCreatingMap: false})
   }
 
@@ -57,14 +57,10 @@ class ProvidersTable extends Component {
             <div className="fancytable--th provider--redirect">
               Organization
             </div>
+            <div className="fancytable--th" />
             <div className="fancytable--th provider--delete" />
           </div>
-          {/* {isCreatingMap
-                  ? <NewProviderMap
-                      onCreateMap={this.handleCreateMap}
-                      onDismissCreateMap={this.handleDismissCreateMap}
-                    />
-                  : null} */}
+          <div>hi</div>
           {providerMaps.map(providerMap =>
             <ProvidersTableRow
               key={providerMap.id}
@@ -74,6 +70,13 @@ class ProvidersTable extends Component {
               onUpdate={onUpdateMap}
             />
           )}
+          {isCreatingMap
+            ? <ProvidersTableRowNew
+                organizations={organizations}
+                onCreate={this.handleCreateMap}
+                onCancel={this.handleCancelCreateMap}
+              />
+            : null}
         </div>
       </div>
     )

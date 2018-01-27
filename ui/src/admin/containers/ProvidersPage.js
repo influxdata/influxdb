@@ -29,7 +29,8 @@ class ProvidersPage extends Component {
   handleDeleteMap = () => {}
 
   render() {
-    const {organizations, providerMaps} = this.props
+    // const {organizations, providerMaps} = this.props
+    const {organizations} = this.props
 
     return organizations
       ? <ProvidersTable
