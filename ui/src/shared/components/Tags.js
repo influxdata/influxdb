@@ -1,6 +1,7 @@
 import React, {Component, PropTypes} from 'react'
+import TagsAddButton from 'src/shared/components/TagsAddButton'
 
-const Tags = ({tags, onDeleteTag}) =>
+const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) =>
   <div className="input-tag-list">
     {tags.map(item => {
       return (
@@ -11,6 +12,9 @@ const Tags = ({tags, onDeleteTag}) =>
         />
       )
     })}
+    {addMenuItems && addMenuChoose
+      ? <TagsAddButton items={addMenuItems} onChoose={addMenuChoose} />
+      : null}
   </div>
 
 class Tag extends Component {
@@ -36,6 +40,8 @@ const {arrayOf, func, oneOfType, shape, string} = PropTypes
 Tags.propTypes = {
   tags: arrayOf(oneOfType([shape(), string])),
   onDeleteTag: func,
+  addMenuItems: arrayOf(shape({})),
+  addMenuChoose: func,
 }
 
 Tag.propTypes = {

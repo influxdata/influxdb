@@ -37,7 +37,7 @@ class TagInput extends Component {
         <input
           placeholder={`Type and hit 'Enter' to add to list of ${title}`}
           autoComplete="off"
-          className="form-control"
+          className="form-control tag-input"
           id={title}
           type="text"
           ref={r => (this.input = r)}
