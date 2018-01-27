@@ -23,17 +23,29 @@ class ConfirmButton extends Component {
     this.props.confirmAction()
   }
 
-  handleClickOutside() {
+  handleClickOutside = () => {
     this.setState({expanded: false})
   }
 
   render() {
-    const {text, confirmText, type, size, square, icon, disabled} = this.props
+    const {
+      text,
+      confirmText,
+      type,
+      size,
+      square,
+      icon,
+      disabled,
+      customClass,
+    } = this.props
     const {expanded} = this.state
 
-    const classname = `confirm-button btn ${type} ${size}${square
-      ? ' btn-square'
-      : ''}${disabled ? ' disabled' : ''}${expanded ? ' expanded' : ''}`
+    const customClassString = customClass ? ` ${customClass}` : ''
+    const squareString = square ? ' btn-square' : ''
+    const expandedString = expanded ? ' expanded' : ''
+    const disabledString = disabled ? ' disabled' : ''
+
+    const classname = `confirm-button btn ${type} ${size}${customClassString}${squareString}${expandedString}${disabledString}`
 
     return (
       <div className={classname} onClick={this.handleButtonClick}>
@@ -58,7 +70,7 @@ ConfirmButton.defaultProps = {
   confirmText: 'Confirm',
   type: 'btn-default',
   size: 'btn-sm',
-  square: true,
+  square: false,
 }
 ConfirmButton.propTypes = {
   text: string,
@@ -69,6 +81,7 @@ ConfirmButton.propTypes = {
   square: bool,
   icon: string,
   disabled: bool,
+  customClass: string,
 }
 
 export default OnClickOutside(ConfirmButton)
