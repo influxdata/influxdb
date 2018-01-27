@@ -114,7 +114,7 @@ class KapacitorForm extends Component {
       kapacitor,
       addFlashMessage,
       source,
-      locationState,
+      routerLocation,
     } = this.props
 
     if (exists) {
@@ -123,7 +123,7 @@ class KapacitorForm extends Component {
           source={source}
           kapacitor={kapacitor}
           addFlashMessage={addFlashMessage}
-          locationState={locationState}
+          routerLocation={routerLocation}
         />
       )
     }
@@ -161,7 +161,7 @@ KapacitorForm.propTypes = {
   source: shape({}).isRequired,
   addFlashMessage: func.isRequired,
   exists: bool.isRequired,
-  locationState: shape({}),
+  routerLocation: shape({pathname: string, hash: string}).isRequired,
 }
 
 export default KapacitorForm

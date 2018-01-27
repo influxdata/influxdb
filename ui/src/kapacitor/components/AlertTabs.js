@@ -123,16 +123,23 @@ class AlertTabs extends Component {
 
     return cleanProps
   }
+  getInitialIndex = (supportedConfigs, routerLocation) => {
+    if (routerLocation && routerLocation.hash) {
+      const hash = _.replace(routerLocation.hash, '#', '')
+      const index = _.indexOf(_.keys(supportedConfigs), hash)
+      return index >= 0 ? index : 0
+    }
+    return 0
+  }
 
   render() {
     const {configSections} = this.state
-    const {locationState} = this.props
+    const {routerLocation} = this.props
     if (!configSections) {
       return null
     }
     const supportedConfigs = {
       alerta: {
-        index: 0,
         type: 'Alerta',
         enabled: this.getEnabled(configSections, 'alerta'),
         renderComponent: () =>
@@ -144,7 +151,6 @@ class AlertTabs extends Component {
           />,
       },
       hipchat: {
-        index: 1,
         type: 'HipChat',
         enabled: this.getEnabled(configSections, 'hipchat'),
         renderComponent: () =>
@@ -156,7 +162,6 @@ class AlertTabs extends Component {
           />,
       },
       opsgenie: {
-        index: 2,
         type: 'OpsGenie',
         enabled: this.getEnabled(configSections, 'opsgenie'),
         renderComponent: () =>
@@ -168,7 +173,6 @@ class AlertTabs extends Component {
           />,
       },
       pagerduty: {
-        index: 3,
         type: 'PagerDuty',
         enabled: this.getEnabled(configSections, 'pagerduty'),
         renderComponent: () =>
@@ -180,7 +184,6 @@ class AlertTabs extends Component {
           />,
       },
       pushover: {
-        index: 4,
         type: 'Pushover',
         enabled: this.getEnabled(configSections, 'pushover'),
         renderComponent: () =>
@@ -192,7 +195,6 @@ class AlertTabs extends Component {
           />,
       },
       sensu: {
-        index: 5,
         type: 'Sensu',
         enabled: this.getEnabled(configSections, 'sensu'),
         renderComponent: () =>
@@ -204,7 +206,6 @@ class AlertTabs extends Component {
           />,
       },
       slack: {
-        index: 6,
         type: 'Slack',
         enabled: this.getEnabled(configSections, 'slack'),
         renderComponent: () =>
@@ -216,7 +217,6 @@ class AlertTabs extends Component {
           />,
       },
       smtp: {
-        index: 7,
         type: 'SMTP',
         enabled: this.getEnabled(configSections, 'smtp'),
         renderComponent: () =>
@@ -228,7 +228,6 @@ class AlertTabs extends Component {
           />,
       },
       talk: {
-        index: 8,
         type: 'Talk',
         enabled: this.getEnabled(configSections, 'talk'),
         renderComponent: () =>
@@ -240,7 +239,6 @@ class AlertTabs extends Component {
           />,
       },
       telegram: {
-        index: 9,
         type: 'Telegram',
         enabled: this.getEnabled(configSections, 'telegram'),
         renderComponent: () =>
@@ -252,7 +250,6 @@ class AlertTabs extends Component {
           />,
       },
       victorops: {
-        index: 10,
         type: 'VictorOps',
         enabled: this.getEnabled(configSections, 'victorops'),
         renderComponent: () =>
@@ -264,7 +261,6 @@ class AlertTabs extends Component {
           />,
       },
     }
-
     return (
       <div>
         <div className="panel panel-minimal">
@@ -275,9 +271,7 @@ class AlertTabs extends Component {
 
         <Tabs
           tabContentsClass="config-endpoint"
-          initialIndex={
-            locationState ? supportedConfigs[locationState.configName].index : 0
-          }
+          initialIndex={this.getInitialIndex(supportedConfigs, routerLocation)}
         >
           <TabList customClass="config-endpoint--tabs">
             {_.reduce(
@@ -329,7 +323,7 @@ AlertTabs.propTypes = {
     }).isRequired,
   }),
   addFlashMessage: func.isRequired,
-  locationState: shape({}),
+  routerLocation: shape({pathname: string, hash: string}).isRequired,
 }
 
 export default AlertTabs

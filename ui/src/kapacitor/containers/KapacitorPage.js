@@ -138,7 +138,6 @@ class KapacitorPage extends Component {
   render() {
     const {source, addFlashMessage, location} = this.props
     const {kapacitor, exists} = this.state
-
     return (
       <KapacitorForm
         onSubmit={this.handleSubmit}
@@ -148,7 +147,7 @@ class KapacitorPage extends Component {
         source={source}
         addFlashMessage={addFlashMessage}
         exists={exists}
-        locationState={location.state}
+        routerLocation={location}
       />
     )
   }
@@ -169,7 +168,7 @@ KapacitorPage.propTypes = {
     url: string.isRequired,
     kapacitors: array,
   }),
-  location: shape({}),
+  location: shape({pathname: string, hash: string}).isRequired,
 }
 
 export default withRouter(KapacitorPage)
