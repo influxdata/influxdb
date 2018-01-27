@@ -67,8 +67,9 @@ const AJAX = async (
       headers,
     })
 
-    // TODO: just return the unadulterated response, once auth, me, and
-    // logoutLink are refactored elsewhere
+    // TODO: Just return the unadulterated response without grafting auth, me,
+    // and logoutLink onto this object, once those are retrieved via their own
+    // AJAX request and action creator.
     return links ? generateResponseWithLinks(response, links) : response
   } catch (error) {
     const {response} = error

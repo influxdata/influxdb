@@ -14,7 +14,6 @@ import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 class UserNavBlock extends Component {
   handleChangeCurrentOrganization = organizationID => async () => {
     const {router, links, meChangeOrganization} = this.props
-    console.log('handleChangeCurrentOrganization', links.me)
     await meChangeOrganization(links.me, {organization: organizationID})
     router.push('')
   }

@@ -52,7 +52,6 @@ export const meChangeOrganizationFailed = () => ({
 // re-hydrated. if `getMeAsync` is only being used to refresh me after creating
 // an organization, this is undesirable behavior
 export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
-  console.log('getMeAsync dispatch', dispatch)
   if (shouldResetMe) {
     dispatch(authRequested())
     dispatch(meGetRequested())
@@ -79,16 +78,15 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
 // Global links state also needs to be refreshed upon organization change so
 // that Admin Chronograf / Current Org User tab's link is valid, but this is
 // happening automatically because we are using a browser redirect to reload
-// the application. if at some point we stop using a redirect and instead
-// make it a seamless SPA experience, a la issue #2463, we'll need to refresh
-// links manually.
+// the application. If at some point we stop using a redirect and instead
+// make it a seamless SPA experience, a la issue #2463, we'll need to make sure
+// links are still refreshed.
 export const meChangeOrganizationAsync = (
   url,
   organization
 ) => async dispatch => {
   dispatch(meChangeOrganizationRequested())
   try {
-    console.log('meChangeOrganizationAsync url', url)
     const {data: me, auth, logoutLink} = await updateMeAJAX(url, organization)
     const currentRole = me.roles.find(
       r => r.organization === me.currentOrganization.id

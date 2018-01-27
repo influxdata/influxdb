@@ -4,13 +4,12 @@ import {linksLink} from 'shared/constants'
 
 export const getLinks = async () => {
   try {
-    const res = await getAJAX(linksLink)
+    const response = await getAJAX(linksLink)
+    // TODO: Remove use of links entirely from within AJAX function so that
+    // call to setAJAXLinks is not necessary. See issue #1486.
+    setAJAXLinks({updatedLinks: response.data})
 
-    // TODO: remove use of links entirely from within AJAX function so that
-    // call to setAJAXLinks is not necessary. see issue #1486
-    setAJAXLinks({updatedLinks: res.data})
-
-    return res
+    return response
   } catch (error) {
     console.error(error)
     throw error

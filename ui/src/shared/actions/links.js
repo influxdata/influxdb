@@ -18,11 +18,9 @@ const linksGetFailed = () => ({
 })
 
 export const getLinksAsync = () => async dispatch => {
-  console.log('getLinksAsync dispatch', dispatch)
   dispatch(linksGetRequested())
   try {
     const {data} = await getLinksAJAX()
-    console.log('getLinksAJAX links', data)
     dispatch(linksGetCompleted(data))
   } catch (error) {
     const message = `Failed to retrieve api links from ${linksLink}`
