@@ -6,15 +6,14 @@ import AllUsersTableHeader from 'src/admin/components/chronograf/AllUsersTableHe
 import AllUsersTableRowNew from 'src/admin/components/chronograf/AllUsersTableRowNew'
 import AllUsersTableRow from 'src/admin/components/chronograf/AllUsersTableRow'
 
-import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 const {
   colOrganizations,
   colProvider,
   colScheme,
   colSuperAdmin,
-  colRole,
   colActions,
-} = USERS_TABLE
+} = ALL_USERS_TABLE
 
 class AllUsersTable extends Component {
   constructor(props) {
@@ -104,7 +103,6 @@ class AllUsersTable extends Component {
                 <th style={{width: colSuperAdmin}} className="text-center">
                   SuperAdmin
                 </th>
-                <th className="text-right" style={{width: colRole}} />
                 <th className="text-right" style={{width: colActions}} />
               </tr>
             </thead>

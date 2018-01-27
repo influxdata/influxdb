@@ -1,18 +1,17 @@
 import React, {PropTypes} from 'react'
 
 import Tags from 'shared/components/Tags'
-import Dropdown from 'shared/components/Dropdown'
 import SlideToggle from 'shared/components/SlideToggle'
 import ConfirmButton from 'shared/components/ConfirmButton'
 
-import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 const {
   colOrganizations,
   colProvider,
   colScheme,
   colSuperAdmin,
-  colRole,
-} = USERS_TABLE
+  colActions,
+} = ALL_USERS_TABLE
 
 const AllUsersTableRow = ({
   organizations,
@@ -53,14 +52,9 @@ const AllUsersTableRow = ({
         <Tags
           tags={userOrganizations}
           onDeleteTag={onRemoveFromOrganization(user)}
-        />
-        <Dropdown
-          items={dropdownOrganizationsItems}
-          selected={'Add'}
-          onChoose={onAddToOrganization(user)}
-          buttonColor="btn-default"
-          buttonSize="btn-xs"
-          className="dropdown-90"
+          emptyStateText="None"
+          addMenuItems={dropdownOrganizationsItems}
+          addMenuChoose={onAddToOrganization(user)}
         />
       </td>
       <td style={{width: colProvider}}>
@@ -77,13 +71,14 @@ const AllUsersTableRow = ({
           disabled={userIsMe}
         />
       </td>
-      <td style={{width: colRole}}>
+      <td style={{textAlign: 'right', width: colActions}}>
         <ConfirmButton
           confirmText="Remove from all Orgs"
           confirmAction={wrappedDelete}
-          square={true}
-          icon="trash"
+          size="btn-xs"
+          text="Remove"
           disabled={userIsMe}
+          customClass="table--show-on-row-hover"
         />
       </td>
     </tr>

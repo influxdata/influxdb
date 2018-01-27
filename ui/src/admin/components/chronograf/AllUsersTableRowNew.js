@@ -2,15 +2,14 @@ import React, {Component, PropTypes} from 'react'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 const {
   colOrganizations,
   colProvider,
   colScheme,
   colSuperAdmin,
-  colRole,
   colActions,
-} = USERS_TABLE
+} = ALL_USERS_TABLE
 
 const nullOrganization = {id: null, name: 'None'}
 
@@ -117,7 +116,16 @@ class AllUsersTableRowNew extends Component {
             onKeyDown={this.handleKeyDown}
           />
         </td>
-        <td style={{width: colOrganizations}} />
+        <td style={{width: colOrganizations}}>
+          <Dropdown
+            items={dropdownOrganizationsItems}
+            selected={selectedRole.text}
+            onChoose={this.handleSelectOrganization}
+            buttonColor="btn-primary"
+            buttonSize="btn-xs"
+            className="dropdown-stretch"
+          />
+        </td>
         <td style={{width: colProvider}}>
           <input
             className="form-control input-xs"
@@ -139,16 +147,6 @@ class AllUsersTableRowNew extends Component {
         </td>
         <td style={{width: colSuperAdmin}} className="text-center">
           &mdash;
-        </td>
-        <td style={{width: colRole}}>
-          <Dropdown
-            items={dropdownOrganizationsItems}
-            selected={selectedRole.text}
-            onChoose={this.handleSelectOrganization}
-            buttonColor="btn-primary"
-            buttonSize="btn-xs"
-            className="dropdown-stretch"
-          />
         </td>
         <td className="text-right" style={{width: colActions}}>
           <button className="btn btn-xs btn-square btn-info" onClick={onBlur}>
