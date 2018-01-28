@@ -1,8 +1,10 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -25,8 +27,18 @@ var Stderr io.Writer
 var Stdout io.Writer
 
 func init() {
+	size := 1 << 21
+	env := os.Getenv("INFLUXDB_PRIVATE_LOG_BUFFER_SIZE")
+	if env != "" {
+		if n, err := strconv.ParseInt(env, 10, 64); err != nil {
+			fmt.Printf("Unable to parse %q as logging buffer size.\n", env)
+		} else {
+			size = int(n)
+		}
+	}
+
 	// Initialize LoggingBuffer with 2MB size.
-	LoggingBuffer = bytesutil.NewCircularBuffer(1 << 21)
+	LoggingBuffer = bytesutil.NewCircularBuffer(size)
 	Stderr = io.MultiWriter(LoggingBuffer, os.Stderr)
 	Stdout = io.MultiWriter(LoggingBuffer, os.Stdout)
 }
