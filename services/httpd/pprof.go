@@ -14,6 +14,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
+
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -27,7 +29,7 @@ func (h *Handler) handleProfiles(w http.ResponseWriter, r *http.Request) {
 	case "/debug/pprof/symbol":
 		httppprof.Symbol(w, r)
 	case "/debug/pprof/all":
-		h.archiveProfilesAndQueries(w, r)
+		h.archiveProfilesQueriesAndLogs(w, r)
 	default:
 		httppprof.Index(w, r)
 	}
@@ -40,7 +42,8 @@ type prof struct {
 	Debug int64
 }
 
-// archiveProfilesAndQueries collects the following profiles:
+// archiveProfilesQueriesAndLogs collects the following profiles:
+//
 //	- goroutine profile
 //	- heap profile
 //	- blocking profile
@@ -52,6 +55,8 @@ type prof struct {
 //  - SHOW SHARDS
 //  - SHOW STATS
 //  - SHOW DIAGNOSTICS
+//
+// It also includes recently log file activity.
 //
 // All information is added to a tar archive and then compressed, before being
 // returned to the requester as an archive file. Where profiles support debug
@@ -67,7 +72,7 @@ type prof struct {
 // The value after the `cpu` query parameter is not actually important, as long
 // as there is something there.
 //
-func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) archiveProfilesQueriesAndLogs(w http.ResponseWriter, r *http.Request) {
 	var allProfs = []*prof{
 		{Name: "goroutine", Debug: 1},
 		{Name: "block", Debug: 1},
@@ -127,11 +132,13 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		// Write the profile file's data.
 		if _, err := tw.Write(buf.Bytes()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		// Reset the buffer for the next profile.
@@ -153,6 +160,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 		rows, err := query.fn()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		for i, row := range rows {
@@ -164,6 +172,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 			out = append(out, '\n')
 			if _, err := tabW.Write(out); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 
 			// Write all the values
@@ -175,6 +184,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 				out = append(out, '\n')
 				if _, err := tabW.Write(out); err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
 				}
 			}
 
@@ -182,12 +192,14 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 			if i < len(rows)-1 {
 				if _, err := tabW.Write([]byte("\n")); err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
 				}
 			}
 		}
 
 		if err := tabW.Flush(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		err = tw.WriteHeader(&tar.Header{
@@ -197,25 +209,46 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		// Write the query file's data.
 		if _, err := tw.Write(buf.Bytes()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		// Reset the buffer for the next query.
 		buf.Reset()
 	}
 
+	// Write the logs out.
+	err := tw.WriteHeader(&tar.Header{
+		Name: "influxd.log",
+		Mode: 0600,
+		Size: int64(logger.LoggingBuffer.Len()),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Write the log data.
+	if _, err := tw.Write(logger.LoggingBuffer.Bytes()); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// Close the tar writer.
 	if err := tw.Close(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Close the gzip writer.
 	if err := gz.Close(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Return the gzipped archive.
