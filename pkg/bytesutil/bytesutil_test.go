@@ -3,12 +3,69 @@ package bytesutil_test
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 )
+
+func TestCircularBuffer(t *testing.T) {
+	examples := []struct {
+		inputs   [][]byte
+		capacity int
+		buf      []byte
+	}{
+		{inputs: [][]byte{nil}, capacity: 1, buf: []byte{}},
+		{inputs: [][]byte{nil}, capacity: 10, buf: []byte{}},
+		{inputs: [][]byte{{}}, capacity: 1, buf: []byte{}},
+		{inputs: [][]byte{{1, 2, 3}, {1}, {87, 88}}, capacity: 6, buf: []byte{1, 2, 3, 1, 87, 88}},
+		{inputs: [][]byte{{1, 2, 3}, {1}, {87, 88}}, capacity: 10, buf: []byte{1, 2, 3, 1, 87, 88}},
+		{inputs: [][]byte{{1, 2, 3}, {1}, {87, 88}}, capacity: 4, buf: []byte{3, 1, 87, 88}},
+		{inputs: [][]byte{{1, 2, 3}}, capacity: 2, buf: []byte{2, 3}},
+		{inputs: [][]byte{{11, 11, 11, 121}}, capacity: 2, buf: []byte{11, 121}},
+		{inputs: [][]byte{{11, 11, 11, 121}, {1}, {2}, {3}, {4}, {5, 6, 7}}, capacity: 10, buf: []byte{11, 11, 121, 1, 2, 3, 4, 5, 6, 7}},
+	}
+
+	for i, example := range examples {
+		t.Run(fmt.Sprintf("example %d", i), func(t *testing.T) {
+			buf := bytesutil.NewCircularBuffer(example.capacity)
+
+			for _, input := range example.inputs {
+				n, err := buf.Write(input)
+				if err != nil {
+					t.Error(err)
+				}
+
+				if got, exp := n, len(input); len(input) < example.capacity && got != exp {
+					t.Errorf("returned %d bytes written, expected to return write %d bytes written", got, exp)
+				} else if got, exp := n, example.capacity; len(input) > example.capacity && got != exp {
+					t.Errorf("returned %d bytes written, expected to return write %d bytes written", got, exp)
+				}
+
+			}
+
+			if got, exp := buf.Bytes(), example.buf; !reflect.DeepEqual(got, exp) {
+				t.Errorf("got %v, expected %v", got, exp)
+			}
+		})
+	}
+}
+
+func BenchmarkCircularBuffer(b *testing.B) {
+	b.ReportAllocs()
+	b.Run("Write", func(b *testing.B) {
+		buf := bytesutil.NewCircularBuffer(100)
+		data := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+		for i := 0; i < b.N; i++ {
+			if _, err := buf.Write(data); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
 
 func TestSearchBytesFixed(t *testing.T) {
 	n, sz := 5, 8

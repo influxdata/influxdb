@@ -4,7 +4,81 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"sync"
 )
+
+// CircularBuffer is an io.Writer backed by a circular buffer, whose size can be
+// specified during initialization.
+//
+// CircularBuffer is safe for use from multiple goroutines.
+type CircularBuffer struct {
+	mu  sync.RWMutex
+	buf []byte // Underlying data.
+	n   int    // CircularBuffer capacity.
+	end int    // Current length of data in buffer.
+}
+
+// NewCircularBuffer creates and initialises a new CircularBuffer of size n.
+func NewCircularBuffer(n int) *CircularBuffer {
+	return &CircularBuffer{
+		buf: make([]byte, n),
+		n:   n,
+	}
+}
+
+// Write appends the contents of p to the CircularBuffer, returning the number of bytes
+// written, and any error encountered.
+func (b *CircularBuffer) Write(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if len(p) >= b.n { // p is larger than maximum capacity.
+		copy(b.buf, p[len(p)-b.n:])
+		b.end = b.n
+		return b.n, nil
+	}
+
+	if len(p)+b.end <= b.n { // p fits into existing capacity.
+		copy(b.buf[b.end:], p)
+		b.end += len(p)
+		return len(p), nil
+	}
+
+	// Move buffer down such that `end` is `len(p)` further down the buffer.
+	remain := b.n - b.end
+	copy(b.buf, b.buf[len(p)-remain:])
+
+	// Copy p onto remaining portion of buf, such that p fits exactly into the
+	// buffer's capacity.
+	copy(b.buf[b.n-len(p):], p)
+	b.end = b.n
+	return len(p), nil
+}
+
+// Len returns the number of bytes in the CircularBuffer.
+func (b *CircularBuffer) Len() int {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.end
+}
+
+// Bytes returns the contents of the CircularBuffer.
+func (b *CircularBuffer) Bytes() []byte {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	out := make([]byte, b.end)
+	copy(out, b.buf)
+	return out
+}
+
+// String returns the contents of the CircularBuffer as a string.
+func (b *CircularBuffer) String() string {
+	return string(b.Bytes())
+}
 
 // Sort sorts a slice of byte slices.
 func Sort(a [][]byte) {
