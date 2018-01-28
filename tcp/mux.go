@@ -7,9 +7,10 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/logger"
 )
 
 const (
@@ -59,7 +60,7 @@ func NewMux() *Mux {
 	return &Mux{
 		m:       make(map[byte]*listener),
 		Timeout: DefaultTimeout,
-		Logger:  log.New(os.Stderr, "[tcp] ", log.LstdFlags),
+		Logger:  log.New(logger.Stderr, "[tcp] ", log.LstdFlags),
 	}
 }
 

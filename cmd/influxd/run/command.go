@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 )
 
@@ -56,8 +57,8 @@ func NewCommand() *Command {
 		closing: make(chan struct{}),
 		Closed:  make(chan struct{}),
 		Stdin:   os.Stdin,
-		Stdout:  os.Stdout,
-		Stderr:  os.Stderr,
+		Stdout:  logger.Stdout,
+		Stderr:  logger.Stderr,
 		Logger:  zap.NewNop(),
 	}
 }

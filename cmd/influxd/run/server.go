@@ -26,17 +26,16 @@ import (
 	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/services/snapshotter"
+	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
-	client "github.com/influxdata/usage-client/v1"
-	"go.uber.org/zap"
-
-	// Initialize the engine & index packages
-	"github.com/influxdata/influxdb/services/storage"
+	// Import engine and index.
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	_ "github.com/influxdata/influxdb/tsdb/index"
+	client "github.com/influxdata/usage-client/v1"
+	"go.uber.org/zap"
 )
 
 var startTime time.Time

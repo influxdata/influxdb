@@ -62,10 +62,10 @@ type Main struct {
 // NewMain return a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		Logger: logger.New(os.Stderr),
+		Logger: logger.New(logger.Stderr),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdout: logger.Stdout,
+		Stderr: logger.Stderr,
 	}
 }
 

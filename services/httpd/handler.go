@@ -24,6 +24,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -121,7 +122,7 @@ func NewHandler(c Config) *Handler {
 		mux:            pat.New(),
 		Config:         &c,
 		Logger:         zap.NewNop(),
-		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
+		CLFLogger:      log.New(logger.Stderr, "[httpd] ", 0),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
 	}
