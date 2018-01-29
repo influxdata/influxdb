@@ -571,6 +571,41 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 		})
 	}
 }
+func TestStore_Shard_SeriesN(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) error {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		// Create shard with data.
+		s.MustCreateShardWithData("db0", "rp0", 1,
+			`cpu value=1 0`,
+			`cpu,host=serverA value=2 10`,
+		)
+
+		// Create 2nd shard w/ same measurements.
+		s.MustCreateShardWithData("db0", "rp0", 2,
+			`cpu value=1 0`,
+			`cpu value=2 10`,
+		)
+
+		if got, exp := s.Shard(1).SeriesN(), int64(2); got != exp {
+			return fmt.Errorf("[shard %d] got series count of %d, but expected %d", 1, got, exp)
+		} else if got, exp := s.Shard(2).SeriesN(), int64(1); got != exp {
+			return fmt.Errorf("[shard %d] got series count of %d, but expected %d", 2, got, exp)
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
 
 func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 	t.Parallel()
