@@ -8,8 +8,12 @@ After=network-online.target
 [Service]
 User=chronograf
 Group=chronograf
+Environment="HOST=0.0.0.0"
+Environment="PORT=8888"
+Environment="BOLT_PATH=/var/lib/chronograf/chronograf-v1.db"
+Environment="CANNED_PATH=/usr/share/chronograf/canned"
 EnvironmentFile=-/etc/default/chronograf
-ExecStart=/usr/bin/chronograf --host 0.0.0.0 --port 8888 -b /var/lib/chronograf/chronograf-v1.db -c /usr/share/chronograf/canned $CHRONOGRAF_OPTS
+ExecStart=/usr/bin/chronograf $CHRONOGRAF_OPTS
 KillMode=control-group
 Restart=on-failure
 
