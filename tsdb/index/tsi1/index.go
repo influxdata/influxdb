@@ -610,13 +610,14 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 	return s, ts, nil
 }
 
-// SeriesN returns the number of unique non-tombstoned series in the index.
+// SeriesN returns the number of unique non-tombstoned series in this index.
+//
 // Since indexes are not shared across shards, the count returned by SeriesN
 // cannot be combined with other shard's results. If you need to count series
-// across indexes then use SeriesSketches and merge the results from other
-// indexes.
+// across indexes then use either the database-wide series file, or merge the
+// index-level bitsets or sketches.
 func (i *Index) SeriesN() int64 {
-	return int64(i.sfile.SeriesCount())
+	return int64(i.SeriesIDSet().Cardinality())
 }
 
 // HasTagKey returns true if tag key exists. It returns the first error

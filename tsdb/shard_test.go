@@ -691,10 +691,7 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 func TestShard_CreateIterator_Ascending(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			sfile := MustOpenSeriesFile()
-			defer sfile.Close()
-
-			sh := NewShard(index, sfile.SeriesFile)
+			sh := NewShard(index)
 			defer sh.Close()
 
 			// Calling CreateIterator when the engine is not open will return
@@ -778,10 +775,7 @@ func TestShard_CreateIterator_Descending(t *testing.T) {
 	var itr query.Iterator
 
 	test := func(index string) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
-
-		sh = NewShard(index, sfile.SeriesFile)
+		sh = NewShard(index)
 
 		// Calling CreateIterator when the engine is not open will return
 		// ErrEngineClosed.
@@ -883,10 +877,7 @@ func TestShard_CreateIterator_Series_Auth(t *testing.T) {
 	}
 
 	test := func(index string, v variant) error {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
-
-		sh := MustNewOpenShard(index, sfile.SeriesFile)
+		sh := MustNewOpenShard(index)
 		defer sh.Close()
 		sh.MustWritePointsString(`
 cpu,host=serverA,region=uswest value=100 0
@@ -1015,10 +1006,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 	var sh *Shard
 
 	test := func(index string) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
-
-		sh = NewShard(index, sfile.SeriesFile)
+		sh = NewShard(index)
 		if err := sh.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1069,10 +1057,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 func TestShard_Closed_Functions(t *testing.T) {
 	var sh *Shard
 	test := func(index string) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
-
-		sh = NewShard(index, sfile.SeriesFile)
+		sh = NewShard(index)
 		if err := sh.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1108,7 +1093,7 @@ func TestShard_FieldDimensions(t *testing.T) {
 	defer sfile.Close()
 
 	setup := func(index string) {
-		sh = NewShard(index, sfile.SeriesFile)
+		sh = NewShard(index)
 
 		if err := sh.Open(); err != nil {
 			t.Fatal(err)
@@ -1223,11 +1208,8 @@ _reserved,region=uswest value="foo" 0
 func TestShards_FieldDimensions(t *testing.T) {
 	var shard1, shard2 *Shard
 
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
 	setup := func(index string) {
-		shard1 = NewShard(index, sfile.SeriesFile)
+		shard1 = NewShard(index)
 		if err := shard1.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1238,7 +1220,7 @@ cpu,host=serverA,region=uswest value=50,val2=5  10
 cpu,host=serverB,region=uswest value=25  0
 `)
 
-		shard2 = NewShard(index, sfile.SeriesFile)
+		shard2 = NewShard(index)
 		if err := shard2.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1352,10 +1334,7 @@ func TestShards_MapType(t *testing.T) {
 	var shard1, shard2 *Shard
 
 	setup := func(index string) {
-		sfile := MustOpenSeriesFile()
-		defer sfile.Close()
-
-		shard1 = NewShard(index, sfile.SeriesFile)
+		shard1 = NewShard(index)
 		if err := shard1.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1366,7 +1345,7 @@ cpu,host=serverA,region=uswest value=50,val2=5  10
 cpu,host=serverB,region=uswest value=25  0
 `)
 
-		shard2 = NewShard(index, sfile.SeriesFile)
+		shard2 = NewShard(index)
 		if err := shard2.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1493,11 +1472,8 @@ _reserved,region=uswest value="foo" 0
 func TestShards_MeasurementsByRegex(t *testing.T) {
 	var shard1, shard2 *Shard
 
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
 	setup := func(index string) {
-		shard1 = NewShard(index, sfile.SeriesFile)
+		shard1 = NewShard(index)
 		if err := shard1.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1508,7 +1484,7 @@ cpu,host=serverA,region=uswest value=50,val2=5  10
 cpu,host=serverB,region=uswest value=25  0
 `)
 
-		shard2 = NewShard(index, sfile.SeriesFile)
+		shard2 = NewShard(index)
 		if err := shard2.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -1924,24 +1900,26 @@ func chunkedWrite(shard *tsdb.Shard, points []models.Point) {
 // Shard represents a test wrapper for tsdb.Shard.
 type Shard struct {
 	*tsdb.Shard
-	sfile *tsdb.SeriesFile
+	sfile *SeriesFile
 	path  string
 }
 
 // NewShard returns a new instance of Shard with temp paths.
-func NewShard(index string, sfile *tsdb.SeriesFile) *Shard {
+func NewShard(index string) *Shard {
 	// Create temporary path for data and WAL.
 	dir, err := ioutil.TempDir("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}
 
+	sfile := MustOpenSeriesFile()
+
 	// Build engine options.
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
 	opt.Config.WALDir = filepath.Join(dir, "wal")
 	if index == "inmem" {
-		opt.InmemIndex = inmem.NewIndex(path.Base(dir), sfile)
+		opt.InmemIndex = inmem.NewIndex(path.Base(dir), sfile.SeriesFile)
 	}
 	// Initialise series id sets. Need to do this as it's normally done at the
 	// store level.
@@ -1952,7 +1930,7 @@ func NewShard(index string, sfile *tsdb.SeriesFile) *Shard {
 		Shard: tsdb.NewShard(0,
 			filepath.Join(dir, "data", "db0", "rp0", "1"),
 			filepath.Join(dir, "wal", "db0", "rp0", "1"),
-			sfile,
+			sfile.SeriesFile,
 			opt,
 		),
 		sfile: sfile,
@@ -1961,8 +1939,8 @@ func NewShard(index string, sfile *tsdb.SeriesFile) *Shard {
 }
 
 // MustNewOpenShard creates and opens a shard with the provided index.
-func MustNewOpenShard(index string, sfile *tsdb.SeriesFile) *Shard {
-	sh := NewShard(index, sfile)
+func MustNewOpenShard(index string) *Shard {
+	sh := NewShard(index)
 	if err := sh.Open(); err != nil {
 		panic(err)
 	}
@@ -1971,6 +1949,11 @@ func MustNewOpenShard(index string, sfile *tsdb.SeriesFile) *Shard {
 
 // Close closes the shard and removes all underlying data.
 func (sh *Shard) Close() error {
+	// Will remove temp series file data.
+	if err := sh.sfile.Close(); err != nil {
+		return err
+	}
+
 	defer os.RemoveAll(sh.path)
 	return sh.Shard.Close()
 }
