@@ -44,7 +44,13 @@ class PersistentLegend extends Component {
   render() {
     const {dygraph} = this.props
     const {visibilities} = this.state
+
     const labels = dygraph ? _.drop(dygraph.getLabels()) : []
+    const colors = dygraph
+      ? _.map(labels, l => {
+          return dygraph.attributes_.series_[l].options.color
+        })
+      : []
 
     /* Add style={{color: seriesColor}} to <div> & <span> below */
     return (
@@ -57,9 +63,9 @@ class PersistentLegend extends Component {
           >
             <div
               className="persistent-legend--dot"
-              style={{backgroundColor: '#00C9FF'}}
+              style={{backgroundColor: colors[i]}}
             />
-            <span style={{color: '#00C9FF'}}>
+            <span style={{color: colors[i]}}>
               {removeMeasurement(v)}
             </span>
           </div>
