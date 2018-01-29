@@ -33,12 +33,17 @@ class PersistentLegend extends Component {
     }
   }
 
-  handleClick = i => () => {
+  handleClick = i => e => {
     const visibilities = this.props.dygraph.visibility()
-    visibilities[i] = !visibilities[i]
+    const selected =
+      this.state.selected || _.fill(Array(visibilities.length), false)
 
-    this.props.dygraph.setVisibility(visibilities)
-    this.setState({visibilities})
+    if (e.shiftKey || e.metaKey) {
+      visibilities[i] = !visibilities[i]
+      this.props.dygraph.setVisibility(visibilities)
+      this.setState({visibilities})
+      return
+    }
   }
 
   render() {
