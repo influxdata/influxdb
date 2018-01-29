@@ -35,8 +35,6 @@ class PersistentLegend extends Component {
 
   handleClick = i => e => {
     const visibilities = this.props.dygraph.visibility()
-    const selected =
-      this.state.selected || _.fill(Array(visibilities.length), false)
 
     if (e.shiftKey || e.metaKey) {
       visibilities[i] = !visibilities[i]
@@ -44,6 +42,14 @@ class PersistentLegend extends Component {
       this.setState({visibilities})
       return
     }
+
+    const newVisibilities = visibilities[i]
+      ? _.map(visibilities, v => !v)
+      : _.map(visibilities, v => false)
+    newVisibilities[i] = true
+
+    this.props.dygraph.setVisibility(newVisibilities)
+    this.setState({visibilities: newVisibilities})
   }
 
   render() {
@@ -57,7 +63,6 @@ class PersistentLegend extends Component {
         })
       : []
 
-    /* Add style={{color: seriesColor}} to <div> & <span> below */
     return (
       <div className="persistent-legend" style={style}>
         {_.map(labels, (v, i) =>
