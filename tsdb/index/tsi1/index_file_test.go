@@ -109,7 +109,7 @@ func CreateIndexFile(sfile *tsdb.SeriesFile, series []Series) (*tsi1.IndexFile, 
 
 	// Write index file to buffer.
 	var buf bytes.Buffer
-	if _, err := lf.CompactTo(&buf, M, K); err != nil {
+	if _, err := lf.CompactTo(&buf, M, K, nil); err != nil {
 		return nil, err
 	}
 
@@ -132,7 +132,7 @@ func GenerateIndexFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (
 
 	// Compact log file to buffer.
 	var buf bytes.Buffer
-	if _, err := lf.CompactTo(&buf, M, K); err != nil {
+	if _, err := lf.CompactTo(&buf, M, K, nil); err != nil {
 		return nil, err
 	}
 

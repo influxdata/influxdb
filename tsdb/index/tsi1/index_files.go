@@ -157,7 +157,7 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 	// Check for cancellation.
 	select {
 	case <-cancel:
-		return n, ErrCompactionCancelled
+		return n, ErrCompactionInterrupted
 	default:
 	}
 
@@ -249,7 +249,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 	// Check for cancellation.
 	select {
 	case <-info.cancel:
-		return ErrCompactionCancelled
+		return ErrCompactionInterrupted
 	default:
 	}
 
@@ -289,7 +289,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 						if seriesN++; seriesN%1000 == 0 {
 							select {
 							case <-info.cancel:
-								return ErrCompactionCancelled
+								return ErrCompactionInterrupted
 							default:
 							}
 						}
@@ -329,7 +329,7 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 	// Check for cancellation.
 	select {
 	case <-info.cancel:
-		return ErrCompactionCancelled
+		return ErrCompactionInterrupted
 	default:
 	}
 
@@ -359,7 +359,7 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 					if seriesN++; seriesN%1000 == 0 {
 						select {
 						case <-info.cancel:
-							return ErrCompactionCancelled
+							return ErrCompactionInterrupted
 						default:
 						}
 					}

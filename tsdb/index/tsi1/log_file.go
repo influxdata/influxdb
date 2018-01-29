@@ -758,7 +758,7 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	// Check for cancellation.
 	select {
 	case <-cancel:
-		return n, ErrCompactionCancelled
+		return n, ErrCompactionInterrupted
 	default:
 	}
 
@@ -842,7 +842,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 	// Check for cancellation.
 	select {
 	case <-info.cancel:
-		return ErrCompactionCancelled
+		return ErrCompactionInterrupted
 	default:
 	}
 
@@ -876,7 +876,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 			if valueN++; valueN%1000 == 0 {
 				select {
 				case <-info.cancel:
-					return ErrCompactionCancelled
+					return ErrCompactionInterrupted
 				default:
 				}
 			}
@@ -907,7 +907,7 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *log
 	// Check for cancellation.
 	select {
 	case <-info.cancel:
-		return ErrCompactionCancelled
+		return ErrCompactionInterrupted
 	default:
 	}
 
