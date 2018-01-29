@@ -45,7 +45,7 @@ class PersistentLegend extends Component {
 
     const newVisibilities = visibilities[i]
       ? _.map(visibilities, v => !v)
-      : _.map(visibilities, v => false)
+      : _.map(visibilities, () => false)
     newVisibilities[i] = true
 
     this.props.dygraph.setVisibility(newVisibilities)
