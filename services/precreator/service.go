@@ -87,8 +87,5 @@ func (s *Service) runPrecreation() {
 // precreate performs actual resource precreation.
 func (s *Service) precreate(now time.Time) error {
 	cutoff := now.Add(s.advancePeriod).UTC()
-	if err := s.MetaClient.PrecreateShardGroups(now, cutoff); err != nil {
-		return err
-	}
-	return nil
+	return s.MetaClient.PrecreateShardGroups(now, cutoff)
 }

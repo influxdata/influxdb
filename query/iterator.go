@@ -515,7 +515,6 @@ func (a *auxIteratorFields) iterator(name string, typ influxql.DataType) Iterato
 			f.append(itr)
 			return itr
 		default:
-			break
 		}
 	}
 

@@ -296,7 +296,7 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 
 	// Verify on disk size is the same in each stage.
 	// Each series stores flag(1) + series(uvarint(2)) + len(name)(1) + len(key)(1) + len(value)(1) + checksum(4).
-	expSize := int64(4 * 10)
+	expSize := int64(4 * 9)
 
 	// Each MANIFEST file is 419 bytes and there are tsi1.DefaultPartitionN of them
 	expSize += int64(tsi1.DefaultPartitionN * 419)
@@ -363,10 +363,7 @@ func (idx *Index) Reopen() error {
 	partitionN := idx.Index.PartitionN // Remember how many partitions to use.
 	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, tsi1.WithPath(idx.Index.Path()))
 	idx.Index.PartitionN = partitionN
-	if err := idx.Open(); err != nil {
-		return err
-	}
-	return nil
+	return idx.Open()
 }
 
 // Run executes a subtest for each of several different states:
@@ -413,12 +410,4 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 		tags = append(tags, s.Tags)
 	}
 	return idx.CreateSeriesListIfNotExists(keys, names, tags)
-}
-
-func BytesToStrings(a [][]byte) []string {
-	s := make([]string, 0, len(a))
-	for _, v := range a {
-		s = append(s, string(v))
-	}
-	return s
 }

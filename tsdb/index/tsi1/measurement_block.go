@@ -255,7 +255,7 @@ func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
 
 	// Read tombstone measurement sketch info.
 	t.TSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TSketch.Size = int64(binary.BigEndian.Uint64(buf[0:8]))
 
 	return t, nil
 }
@@ -525,11 +525,7 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	// Write trailer.
 	nn, err := t.WriteTo(w)
 	n += nn
-	if err != nil {
-		return n, err
-	}
-
-	return n, nil
+	return n, err
 }
 
 // writeMeasurementTo encodes a single measurement entry into w.
@@ -577,11 +573,8 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 		return err
 	}
 	nn, err := mw.buf.WriteTo(w)
-	if *n += nn; err != nil {
-		return err
-	}
-
-	return nil
+	*n += nn
+	return err
 }
 
 // writeSketchTo writes an estimator.Sketch into w, updating the number of bytes

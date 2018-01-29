@@ -11,9 +11,9 @@ import (
 // NewStressTest creates the backend for the stress test
 func NewStressTest() *StressTest {
 
-	packageCh := make(chan Package, 0)
-	directiveCh := make(chan Directive, 0)
-	responseCh := make(chan Response, 0)
+	packageCh := make(chan Package)
+	directiveCh := make(chan Directive)
+	responseCh := make(chan Response)
 
 	clnt, _ := influx.NewHTTPClient(influx.HTTPConfig{
 		Addr: fmt.Sprintf("http://%v/", "localhost:8086"),
@@ -46,8 +46,8 @@ func NewStressTest() *StressTest {
 // NewTestStressTest returns a StressTest to be used for testing Statements
 func NewTestStressTest() (*StressTest, chan Package, chan Directive) {
 
-	packageCh := make(chan Package, 0)
-	directiveCh := make(chan Directive, 0)
+	packageCh := make(chan Package)
+	directiveCh := make(chan Directive)
 
 	s := &StressTest{
 		TestDB:    "_stressTest",

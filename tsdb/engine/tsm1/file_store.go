@@ -815,37 +815,6 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 	return 0
 }
 
-// walkFiles calls fn for each file in filestore in parallel.
-func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
-	// Copy the current TSM files to prevent a slow walker from
-	// blocking other operations.
-	f.mu.RLock()
-	files := make([]TSMFile, len(f.files))
-	copy(files, f.files)
-	f.mu.RUnlock()
-
-	// struct to hold the result of opening each reader in a goroutine
-	errC := make(chan error, len(files))
-	for _, f := range files {
-		go func(tsm TSMFile) {
-			if err := fn(tsm); err != nil {
-				errC <- fmt.Errorf("file %s: %s", tsm.Path(), err)
-				return
-			}
-
-			errC <- nil
-		}(f)
-	}
-
-	for i := 0; i < cap(errC); i++ {
-		res := <-errC
-		if res != nil {
-			return res
-		}
-	}
-	return nil
-}
-
 // We need to determine the possible files that may be accessed by this query given
 // the time range.
 func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
@@ -1125,23 +1094,6 @@ func (c *KeyCursor) Close() {
 	c.current = nil
 }
 
-// hasOverlappingBlocks returns true if blocks have overlapping time ranges.
-// This result is computed once and stored as the "duplicates" field.
-func (c *KeyCursor) hasOverlappingBlocks() bool {
-	if len(c.seeks) == 0 {
-		return false
-	}
-
-	for i := 1; i < len(c.seeks); i++ {
-		prev := c.seeks[i-1]
-		cur := c.seeks[i]
-		if prev.entry.MaxTime >= cur.entry.MinTime {
-			return true
-		}
-	}
-	return false
-}
-
 // seek positions the cursor at the given time.
 func (c *KeyCursor) seek(t int64) {
 	if len(c.seeks) == 0 {
@@ -1352,11 +1304,6 @@ type tsmReaders []TSMFile
 func (a tsmReaders) Len() int           { return len(a) }
 func (a tsmReaders) Less(i, j int) bool { return a[i].Path() < a[j].Path() }
 func (a tsmReaders) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-type stream struct {
-	c chan seriesKey
-	v seriesKey
-}
 
 type seriesKey struct {
 	key []byte

@@ -655,7 +655,6 @@ func emptyTestServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
 		w.Header().Set("X-Influxdb-Version", "x.x")
-		return
 	}))
 }
 

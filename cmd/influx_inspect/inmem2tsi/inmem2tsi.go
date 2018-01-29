@@ -146,11 +146,7 @@ func (cmd *Command) run(seriesFilePath, dataDir, walDir string) error {
 
 	// Rename TSI to standard path.
 	cmd.Logger.Info("moving tsi to permanent location")
-	if err := os.Rename(tmpPath, indexPath); err != nil {
-		return err
-	}
-
-	return nil
+	return os.Rename(tmpPath, indexPath)
 }
 
 func (cmd *Command) processTSMFile(index *tsi1.Index, path string) error {
@@ -213,13 +209,4 @@ func (cmd *Command) collectWALFiles(path string) ([]string, error) {
 		paths = append(paths, filepath.Join(path, fi.Name()))
 	}
 	return paths, nil
-}
-
-func (cmd *Command) printUsage() {
-	usage := `Converts a shard from an in-memory index to a TSI index.
-
-Usage: influx_inspect inmem2tsi [-v] -datadir DATADIR -waldir WALDIR
-`
-
-	fmt.Fprintf(cmd.Stdout, usage)
 }

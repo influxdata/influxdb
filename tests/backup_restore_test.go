@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"fmt"
+
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 )
@@ -24,8 +25,8 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	partialBackupDir, _ := ioutil.TempDir("", "backup")
 	defer os.RemoveAll(partialBackupDir)
 
-	enterpriseBackupDir, _ := ioutil.TempDir("", "backup")
-	defer os.RemoveAll(enterpriseBackupDir)
+	portableBackupDir, _ := ioutil.TempDir("", "backup")
+	defer os.RemoveAll(portableBackupDir)
 
 	db := "mydb"
 	rp := "forever"
@@ -68,9 +69,11 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		// wait for the snapshot to write
 		time.Sleep(time.Second)
 
-		res, err := s.Query(`show series on mydb; show retention policies on mydb`)
+		if _, err := s.Query(`show series on mydb; show retention policies on mydb`); err != nil {
+			t.Fatalf("error querying: %s", err.Error())
+		}
 
-		res, err = s.Query(`select * from "mydb"."forever"."myseries"`)
+		res, err := s.Query(`select * from "mydb"."forever"."myseries"`)
 		if err != nil {
 			t.Fatalf("error querying: %s", err.Error())
 		}
@@ -93,7 +96,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
 
-		if err := cmd.Run("-enterprise", "-host", hostAddress, "-database", "mydb", "-start", "1970-01-01T00:00:00.001Z", "-end", "1970-01-01T00:00:00.007Z", enterpriseBackupDir); err != nil {
+		if err := cmd.Run("-portable", "-host", hostAddress, "-database", "mydb", "-start", "1970-01-01T00:00:00.001Z", "-end", "1970-01-01T00:00:00.007Z", portableBackupDir); err != nil {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
 
@@ -162,8 +165,8 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
 	}
 
-	// 3. enterprise should be the same as the non-enterprise live restore
-	cmd.Run("-host", hostAddress, "-enterprise", "-newdb", "mydbbak2", "-db", "mydb", enterpriseBackupDir)
+	// 3. portable should be the same as the non-portable live restore
+	cmd.Run("-host", hostAddress, "-portable", "-newdb", "mydbbak2", "-db", "mydb", portableBackupDir)
 
 	// wait for the import to finish, and unlock the shard engine.
 	time.Sleep(time.Second)
@@ -181,17 +184,17 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	// now backup
 	bCmd := backup.NewCommand()
 
-	if err := bCmd.Run("-enterprise", "-host", hostAddress, enterpriseBackupDir); err != nil {
+	if err := bCmd.Run("-portable", "-host", hostAddress, portableBackupDir); err != nil {
 		t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 	}
 
-	res, err = s.Query(`drop database mydb; drop database mydbbak; drop database mydbbak2;`)
+	_, err = s.Query(`drop database mydb; drop database mydbbak; drop database mydbbak2;`)
 	if err != nil {
 		t.Fatalf("Error dropping databases %s", err.Error())
 	}
 
-	// 3. enterprise should be the same as the non-enterprise live restore
-	cmd.Run("-host", hostAddress, "-enterprise", enterpriseBackupDir)
+	// 3. portable should be the same as the non-portable live restore
+	cmd.Run("-host", hostAddress, "-portable", portableBackupDir)
 
 	// wait for the import to finish, and unlock the shard engine.
 	time.Sleep(3 * time.Second)

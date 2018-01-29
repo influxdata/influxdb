@@ -169,7 +169,7 @@ func (c *client) Close() error {
 // once the client is instantiated.
 type client struct {
 	// N.B - if url.UserInfo is accessed in future modifications to the
-	// methods on client, you will need to syncronise access to url.
+	// methods on client, you will need to synchronize access to url.
 	url        url.URL
 	username   string
 	password   string
@@ -319,8 +319,8 @@ func (p *Point) String() string {
 
 // PrecisionString returns a line-protocol string of the Point,
 // with the timestamp formatted for the given precision.
-func (p *Point) PrecisionString(precison string) string {
-	return p.pt.PrecisionString(precison)
+func (p *Point) PrecisionString(precision string) string {
+	return p.pt.PrecisionString(precision)
 }
 
 // Name returns the measurement name of the point.

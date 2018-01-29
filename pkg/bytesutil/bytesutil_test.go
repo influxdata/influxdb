@@ -221,17 +221,23 @@ func TestPack_WidthOne_LastFill(t *testing.T) {
 	}
 }
 
-func BenchmarkSortDedup(b *testing.B) {
-	data := toByteSlices("bbb", "aba", "bbb", "aba", "ccc", "bbb", "aba")
-	in := append([][]byte{}, data...)
-	b.ResetTimer()
-	b.ReportAllocs()
+var result [][]byte
 
-	for i := 0; i < b.N; i++ {
-		x := in
-		x = bytesutil.SortDedup(x)
+func BenchmarkSortDedup(b *testing.B) {
+	b.Run("sort-deduplicate", func(b *testing.B) {
+		data := toByteSlices("bbb", "aba", "bbb", "aba", "ccc", "bbb", "aba")
+		in := append([][]byte{}, data...)
+		b.ReportAllocs()
+
 		copy(in, data)
-	}
+		for i := 0; i < b.N; i++ {
+			result = bytesutil.SortDedup(in)
+
+			b.StopTimer()
+			copy(in, data)
+			b.StartTimer()
+		}
+	})
 }
 
 func BenchmarkContains_True(b *testing.B) {

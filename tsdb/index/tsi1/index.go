@@ -168,7 +168,6 @@ func (i *Index) Open() error {
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.Database = i.database
-		p.compactionsDisabled = i.disableCompactions
 		p.logger = i.logger.With(zap.String("partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
@@ -214,6 +213,18 @@ func (i *Index) Compact() {
 	defer i.mu.Unlock()
 	for _, p := range i.partitions {
 		p.Compact()
+	}
+}
+
+func (i *Index) EnableCompactions() {
+	for _, p := range i.partitions {
+		p.EnableCompactions()
+	}
+}
+
+func (i *Index) DisableCompactions() {
+	for _, p := range i.partitions {
+		p.DisableCompactions()
 	}
 }
 

@@ -67,8 +67,3 @@ func (sc *stressClient) makeGet(addr, statementID string, tr *Tracer) {
 	// Send the response
 	sc.responseChan <- NewResponse(sc.queryPoint(statementID, body, resp.StatusCode, elapsed, tr.Tags), tr)
 }
-
-func success(r *http.Response) bool {
-	// ADD success for tcp, udp, etc
-	return r != nil && (r.StatusCode == 204 || r.StatusCode == 200)
-}

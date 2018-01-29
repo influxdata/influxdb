@@ -34,6 +34,9 @@
 - [#9216](https://github.com/influxdata/influxdb/issues/9216): Prevent a panic when a query simultaneously finishes and is killed at the same time.
 - [#9255](https://github.com/influxdata/influxdb/issues/9255): Fix missing sorting of blocks by time when compacting.
 - [#9327](https://github.com/influxdata/influxdb/pull/9327): wal: update lastWriteTime behavior
+- [#9290](https://github.com/influxdata/influxdb/issues/9290): Fix regression to allow binary operations on literals.
+- [#9342](https://github.com/influxdata/influxdb/pull/9342): Fix data races in tcp.Mux and tcp.listener
+- [#9353](https://github.com/influxdata/influxdb/pull/9353): Fix panic in msgpack httpd WriteResponse error handler.
 - [#9335](https://github.com/influxdata/influxdb/pull/9335): Prevent race condition caused by WaitGroup re-use
 
 ## v1.4.3 [unreleased]

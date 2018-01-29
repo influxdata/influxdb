@@ -76,8 +76,7 @@ type Partition struct {
 	MaxLogFileSize int64
 
 	// Frequency of compaction checks.
-	compactionsDisabled       bool
-	compactionMonitorInterval time.Duration
+	compactionsDisabled int
 
 	logger *zap.Logger
 
@@ -614,10 +613,7 @@ func (i *Partition) DropSeries(seriesID uint64) error {
 	i.seriesIDSet.Remove(seriesID)
 
 	// Swap log file, if necessary.
-	if err := i.CheckLogFile(); err != nil {
-		return err
-	}
-	return nil
+	return i.CheckLogFile()
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
@@ -761,11 +757,32 @@ func (i *Partition) Compact() {
 	i.compact()
 }
 
+func (i *Partition) DisableCompactions() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.compactionsDisabled++
+}
+
+func (i *Partition) EnableCompactions() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Already enabled?
+	if i.compactionsEnabled() {
+		return
+	}
+	i.compactionsDisabled--
+}
+
+func (i *Partition) compactionsEnabled() bool {
+	return i.compactionsDisabled == 0
+}
+
 // compact compacts continguous groups of files that are not currently compacting.
 func (i *Partition) compact() {
 	if i.isClosing() {
 		return
-	} else if i.compactionsDisabled {
+	} else if !i.compactionsEnabled() {
 		return
 	}
 
@@ -1047,8 +1064,6 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 		logger.Error("cannot remove log file", zap.Error(err))
 		return
 	}
-
-	return
 }
 
 // unionStringSets returns the union of two sets

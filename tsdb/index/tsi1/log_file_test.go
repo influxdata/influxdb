@@ -241,14 +241,6 @@ func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*L
 	return f, nil
 }
 
-func MustGenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) *LogFile {
-	f, err := GenerateLogFile(sfile, measurementN, tagN, valueN)
-	if err != nil {
-		panic(err)
-	}
-	return f
-}
-
 func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesValueN int) {
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()

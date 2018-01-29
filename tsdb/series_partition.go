@@ -35,7 +35,8 @@ type SeriesPartition struct {
 	index    *SeriesIndex
 	seq      uint64 // series id sequence
 
-	compacting bool
+	compacting          bool
+	compactionsDisabled int
 
 	CompactThreshold int
 
@@ -49,6 +50,7 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 		path:             path,
 		CompactThreshold: DefaultSeriesPartitionCompactThreshold,
 		Logger:           zap.NewNop(),
+		seq:              uint64(id) + 1,
 	}
 }
 
@@ -111,7 +113,9 @@ func (p *SeriesPartition) openSegments() error {
 
 	// Find max series id by searching segments in reverse order.
 	for i := len(p.segments) - 1; i >= 0; i-- {
-		if p.seq = p.segments[i].MaxSeriesID(); p.seq > 0 {
+		if seq := p.segments[i].MaxSeriesID(); seq >= p.seq {
+			// Reset our sequence num to the next one to assign
+			p.seq = seq + SeriesFilePartitionN
 			break
 		}
 	}
@@ -246,7 +250,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	}
 
 	// Check if we've crossed the compaction threshold.
-	if !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
+	if p.compactionsEnabled() && !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
 		p.compacting = true
 		logger := p.Logger.With(zap.String("path", p.path))
 		logger.Info("beginning series partition compaction")
@@ -359,6 +363,26 @@ func (p *SeriesPartition) SeriesCount() uint64 {
 	return n
 }
 
+func (p *SeriesPartition) DisableCompactions() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.compactionsDisabled++
+}
+
+func (p *SeriesPartition) EnableCompactions() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.compactionsEnabled() {
+		return
+	}
+	p.compactionsDisabled++
+}
+
+func (p *SeriesPartition) compactionsEnabled() bool {
+	return p.compactionsDisabled == 0
+}
+
 // AppendSeriesIDs returns a list of all series ids.
 func (p *SeriesPartition) AppendSeriesIDs(a []uint64) []uint64 {
 	for _, segment := range p.segments {
@@ -376,16 +400,13 @@ func (p *SeriesPartition) activeSegment() *SeriesSegment {
 }
 
 func (p *SeriesPartition) insert(key []byte) (id uint64, offset int64, err error) {
-	// ID is built using a autoincrement sequence joined to the partition id.
-	// Format: <seq(7b)><partition(1b)>
-	id = ((p.seq + 1) << 8) | uint64(p.id)
-
+	id = p.seq
 	offset, err = p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryInsertFlag, id, key))
 	if err != nil {
 		return 0, 0, err
 	}
 
-	p.seq++
+	p.seq += SeriesFilePartitionN
 	return id, offset, nil
 }
 

@@ -59,7 +59,6 @@ func TestSeriesIDSet_AndNot(t *testing.T) {
 
 }
 
-var resultUint64 uint64
 var resultBool bool
 
 // Contains should be typically a constant time lookup. Example results on a laptop:

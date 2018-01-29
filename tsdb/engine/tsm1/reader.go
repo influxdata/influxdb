@@ -1451,11 +1451,7 @@ func (m *mmapAccessor) rename(path string) error {
 	}
 
 	m.b, err = mmap(m.f, 0, int(stat.Size()))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (m *mmapAccessor) read(key []byte, timestamp int64) ([]Value, error) {
