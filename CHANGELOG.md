@@ -7,6 +7,7 @@
 1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
+1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
 
 ## v1.4.0.1 [2017-1-9]
 ### Features
