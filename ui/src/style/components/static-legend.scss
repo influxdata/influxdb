@@ -1,15 +1,15 @@
 /*
-  Persistent Legend
+  static Legend
   ------------------------------------------------------------------------------
   Seen in a dashboard cell, below the graph
-  NOTE: Styles for the parent are stored in Javascript, in PersistentLegend.js
+  NOTE: Styles for the parent are stored in Javascript, in staticLegend.js
 */
 
-.persistent-legend {
+.static-legend {
   display: flex;
   align-items: flex-end;
 }
-.persistent-legend--dot {
+.static-legend--dot {
   display: inline-block;
   vertical-align: middle;
   margin-right: 4px;
@@ -18,14 +18,12 @@
   border-radius: 50%;
   background-color: $g20-white;
 }
-.persistent-legend--item {
+.static-legend--item {
   height: 22px;
   line-height: 22px;
   background-color: $g4-onyx;
   border-radius: 3px;
-  transition:
-    background-color 0.25s ease,
-    color 0.25s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
   color: $g20-white;
   font-size: 12px;
   font-weight: 600;
@@ -33,7 +31,7 @@
   margin-right: 2px;
 
   span,
-  .persistent-legend--dot {
+  .static-legend--dot {
     opacity: 0.8;
     transition: opacity 0.25s ease;
   }
@@ -43,14 +41,16 @@
     background-color: $g6-smoke;
 
     span,
-    .persistent-legend--dot {opacity: 1;}
+    .static-legend--dot {
+      opacity: 1;
+    }
   }
   &.disabled {
     background-color: $g1-raven;
     font-style: italic;
 
     span,
-    .persistent-legend--dot {
+    .static-legend--dot {
       opacity: 0.35;
     }
 
@@ -58,7 +58,7 @@
       background-color: $g2-kevlar;
 
       span,
-      .persistent-legend--dot {
+      .static-legend--dot {
         opacity: 0.65;
       }
     }

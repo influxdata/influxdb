@@ -15,16 +15,16 @@ const removeMeasurement = (label = '') => {
   return label.replace(measurement, '')
 }
 
-const persistentLegendItemClassname = (visibilities, i) => {
+const staticLegendItemClassname = (visibilities, i) => {
   if (visibilities.length) {
-    return `persistent-legend--item${visibilities[i] ? '' : ' disabled'}`
+    return `static-legend--item${visibilities[i] ? '' : ' disabled'}`
   }
 
   // all series are visible to match expected initial state
-  return 'persistent-legend--item'
+  return 'static-legend--item'
 }
 
-class PersistentLegend extends Component {
+class StaticLegend extends Component {
   constructor(props) {
     super(props)
 
@@ -64,15 +64,15 @@ class PersistentLegend extends Component {
       : []
 
     return (
-      <div className="persistent-legend" style={style}>
+      <div className="static-legend" style={style}>
         {_.map(labels, (v, i) =>
           <div
-            className={persistentLegendItemClassname(visibilities, i)}
+            className={staticLegendItemClassname(visibilities, i)}
             key={uuid.v4()}
             onClick={this.handleClick(i)}
           >
             <div
-              className="persistent-legend--dot"
+              className="static-legend--dot"
               style={{backgroundColor: colors[i]}}
             />
             <span style={{color: colors[i]}}>
@@ -87,6 +87,6 @@ class PersistentLegend extends Component {
 
 const {shape} = PropTypes
 
-PersistentLegend.propTypes = {sharedLegend: shape({}), dygraph: shape({})}
+StaticLegend.propTypes = {sharedLegend: shape({}), dygraph: shape({})}
 
-export default PersistentLegend
+export default StaticLegend
