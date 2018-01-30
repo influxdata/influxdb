@@ -123,6 +123,14 @@ const adminChronograf = (state = initialState, action) => {
         mappings: [...state.mappings, mapping],
       }
     }
+
+    case 'CHRONOGRAF_DELETE_MAPPING': {
+      const {mapping} = action.payload
+      return {
+        ...state,
+        mappings: state.mappings.filter(m => m.id !== mapping.id),
+      }
+    }
   }
 
   return state

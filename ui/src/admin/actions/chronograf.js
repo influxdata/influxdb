@@ -117,6 +117,13 @@ export const createMapping = mapping => ({
   },
 })
 
+export const deleteMapping = mapping => ({
+  type: 'CHRONOGRAF_DELETE_MAPPING',
+  payload: {
+    mapping,
+  },
+})
+
 // async actions (thunks)
 export const loadUsersAsync = url => async dispatch => {
   try {

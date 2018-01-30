@@ -21,6 +21,7 @@ class ProvidersTable extends Component {
 
   handleCreateMap = newMap => {
     const {onCreateMap} = this.props
+    //todo: better way of getting mapping id
     this.setState({isCreatingMap: false})
     const newMapID = this.props.mappings.length.toString()
     newMap.id = newMapID

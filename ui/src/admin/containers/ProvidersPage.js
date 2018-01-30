@@ -6,7 +6,6 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import ProvidersTable from 'src/admin/components/chronograf/ProvidersTable'
-import {createMapping} from '../actions/chronograf'
 
 class ProvidersPage extends Component {
   constructor(props) {
@@ -24,7 +23,6 @@ class ProvidersPage extends Component {
   }
 
   handleCreateMap = mapping => {
-    // update the redux store
     this.props.actions.createMapping(mapping)
   }
 
@@ -35,7 +33,9 @@ class ProvidersPage extends Component {
     // update the server
   }
 
-  handleDeleteMap = () => {}
+  handleDeleteMap = mapping => {
+    this.props.actions.deleteMapping(mapping)
+  }
 
   render() {
     const {organizations, mappings = []} = this.props
