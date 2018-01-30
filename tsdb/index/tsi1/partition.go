@@ -76,6 +76,7 @@ type Partition struct {
 	MaxLogFileSize int64
 
 	// Frequency of compaction checks.
+	compactionInterrupt chan struct{}
 	compactionsDisabled int
 
 	logger *zap.Logger
@@ -97,7 +98,9 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 
 		// Default compaction thresholds.
 		MaxLogFileSize: DefaultMaxLogFileSize,
+
 		// compactionEnabled: true,
+		compactionInterrupt: make(chan struct{}),
 
 		logger:  zap.NewNop(),
 		version: Version,
@@ -295,7 +298,10 @@ func (i *Partition) Wait() {
 // Close closes the index.
 func (i *Partition) Close() error {
 	// Wait for goroutines to finish outstanding compactions.
-	i.once.Do(func() { close(i.closing) })
+	i.once.Do(func() {
+		close(i.closing)
+		close(i.compactionInterrupt)
+	})
 	i.wg.Wait()
 
 	// Lock index and close remaining
@@ -761,6 +767,17 @@ func (i *Partition) DisableCompactions() {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.compactionsDisabled++
+
+	select {
+	case <-i.closing:
+		return
+	default:
+	}
+
+	if i.compactionsDisabled == 0 {
+		close(i.compactionInterrupt)
+		i.compactionInterrupt = make(chan struct{})
+	}
 }
 
 func (i *Partition) EnableCompactions() {
@@ -785,6 +802,7 @@ func (i *Partition) compact() {
 	} else if !i.compactionsEnabled() {
 		return
 	}
+	interrupt := i.compactionInterrupt
 
 	fs := i.retainFileSet()
 	defer fs.Release()
@@ -821,7 +839,7 @@ func (i *Partition) compact() {
 				defer i.wg.Done()
 
 				// Compact to a new level.
-				i.compactToLevel(files, level+1)
+				i.compactToLevel(files, level+1, interrupt)
 
 				// Ensure compaction lock for the level is released.
 				i.mu.Lock()
@@ -837,12 +855,20 @@ func (i *Partition) compact() {
 
 // compactToLevel compacts a set of files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
-func (i *Partition) compactToLevel(files []*IndexFile, level int) {
+func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-chan struct{}) {
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
 	// Build a logger for this compaction.
 	logger := i.logger.With(zap.String("token", generateCompactionToken()))
+
+	// Check for cancellation.
+	select {
+	case <-interrupt:
+		logger.Error("cannot begin compaction", zap.Error(ErrCompactionInterrupted))
+		return
+	default:
+	}
 
 	// Files have already been retained by caller.
 	// Ensure files are released only once.
@@ -856,7 +882,7 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 	path := filepath.Join(i.path, FormatIndexFileName(i.NextSequence(), level))
 	f, err := os.Create(path)
 	if err != nil {
-		logger.Error("cannot create compation files", zap.Error(err))
+		logger.Error("cannot create compaction files", zap.Error(err))
 		return
 	}
 	defer f.Close()
@@ -868,7 +894,7 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 
 	// Compact all index files to new index file.
 	lvl := i.levels[level]
-	n, err := IndexFiles(files).CompactTo(f, i.sfile, lvl.M, lvl.K)
+	n, err := IndexFiles(files).CompactTo(f, i.sfile, lvl.M, lvl.K, interrupt)
 	if err != nil {
 		logger.Error("cannot compact index files", zap.Error(err))
 		return
@@ -984,6 +1010,10 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 		return
 	}
 
+	i.mu.Lock()
+	interrupt := i.compactionInterrupt
+	i.mu.Unlock()
+
 	start := time.Now()
 
 	// Retrieve identifier from current path.
@@ -1007,7 +1037,7 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 
 	// Compact log file to new index file.
 	lvl := i.levels[1]
-	n, err := logFile.CompactTo(f, lvl.M, lvl.K)
+	n, err := logFile.CompactTo(f, lvl.M, lvl.K, interrupt)
 	if err != nil {
 		logger.Error("cannot compact log file", zap.Error(err), zap.String("path", logFile.Path()))
 		return

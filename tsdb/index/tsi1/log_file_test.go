@@ -332,7 +332,7 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 			// Compact log file.
 			for i := 0; i < b.N; i++ {
 				buf := bytes.NewBuffer(make([]byte, 0, 150*seriesN))
-				if _, err := f.CompactTo(buf, m, k); err != nil {
+				if _, err := f.CompactTo(buf, m, k, nil); err != nil {
 					b.Fatal(err)
 				}
 				b.Logf("sz=%db", buf.Len())

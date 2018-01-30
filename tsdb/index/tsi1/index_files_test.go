@@ -35,7 +35,7 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 	// Compact the two together and write out to a buffer.
 	var buf bytes.Buffer
 	a := tsi1.IndexFiles{f0, f1}
-	if n, err := a.CompactTo(&buf, sfile.SeriesFile, M, K); err != nil {
+	if n, err := a.CompactTo(&buf, sfile.SeriesFile, M, K, nil); err != nil {
 		t.Fatal(err)
 	} else if n == 0 {
 		t.Fatal("expected data written")

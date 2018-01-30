@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	ErrSeriesPartitionClosed = errors.New("tsdb: series partition closed")
+	ErrSeriesPartitionClosed              = errors.New("tsdb: series partition closed")
+	ErrSeriesPartitionCompactionCancelled = errors.New("tsdb: series partition compaction cancelled")
 )
 
 // DefaultSeriesPartitionCompactThreshold is the number of series IDs to hold in the in-memory
@@ -25,11 +26,14 @@ const DefaultSeriesPartitionCompactThreshold = 1 << 17 // 128K
 
 // SeriesPartition represents a subset of series file data.
 type SeriesPartition struct {
-	mu     sync.RWMutex
-	wg     sync.WaitGroup
-	id     int
-	path   string
-	closed bool
+	mu   sync.RWMutex
+	wg   sync.WaitGroup
+	id   int
+	path string
+
+	closed  bool
+	closing chan struct{}
+	once    sync.Once
 
 	segments []*SeriesSegment
 	index    *SeriesIndex
@@ -48,6 +52,7 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 	return &SeriesPartition{
 		id:               id,
 		path:             path,
+		closing:          make(chan struct{}),
 		CompactThreshold: DefaultSeriesPartitionCompactThreshold,
 		Logger:           zap.NewNop(),
 		seq:              uint64(id) + 1,
@@ -134,6 +139,7 @@ func (p *SeriesPartition) openSegments() error {
 
 // Close unmaps the data files.
 func (p *SeriesPartition) Close() (err error) {
+	p.once.Do(func() { close(p.closing) })
 	p.wg.Wait()
 
 	p.mu.Lock()
@@ -260,7 +266,9 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 		go func() {
 			defer p.wg.Done()
 
-			if err := NewSeriesPartitionCompactor().Compact(p); err != nil {
+			compactor := NewSeriesPartitionCompactor()
+			compactor.cancel = p.closing
+			if err := compactor.Compact(p); err != nil {
 				logger.With(zap.Error(err)).Error("series partition compaction failed")
 			}
 
@@ -472,7 +480,9 @@ func (p *SeriesPartition) seriesKeyByOffset(offset int64) []byte {
 }
 
 // SeriesPartitionCompactor represents an object reindexes a series partition and optionally compacts segments.
-type SeriesPartitionCompactor struct{}
+type SeriesPartitionCompactor struct {
+	cancel <-chan struct{}
+}
 
 // NewSeriesPartitionCompactor returns a new instance of SeriesPartitionCompactor.
 func NewSeriesPartitionCompactor() *SeriesPartitionCompactor {
@@ -530,6 +540,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	idOffsetMap := make([]byte, (hdr.Capacity * SeriesIndexElemSize))
 
 	// Reindex all partitions.
+	var entryN int
 	for _, segment := range segments {
 		errDone := errors.New("done")
 
@@ -537,6 +548,15 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 			// Make sure we don't go past the offset where the compaction began.
 			if offset >= index.maxOffset {
 				return errDone
+			}
+
+			// Check for cancellation periodically.
+			if entryN++; entryN%1000 == 0 {
+				select {
+				case <-c.cancel:
+					return ErrSeriesPartitionCompactionCancelled
+				default:
+				}
 			}
 
 			// Only process insert entries.

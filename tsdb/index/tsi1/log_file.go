@@ -751,9 +751,16 @@ func (f *LogFile) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 }
 
 // CompactTo compacts the log file and writes it to w.
-func (f *LogFile) CompactTo(w io.Writer, m, k uint64) (n int64, err error) {
+func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n int64, err error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+
+	// Check for cancellation.
+	select {
+	case <-cancel:
+		return n, ErrCompactionInterrupted
+	default:
+	}
 
 	// Wrap in bufferred writer.
 	bw := bufio.NewWriter(w)
@@ -761,6 +768,7 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64) (n int64, err error) {
 	// Setup compaction offset tracking data.
 	var t IndexFileTrailer
 	info := newLogFileCompactInfo()
+	info.cancel = cancel
 
 	// Write magic number.
 	if err := writeTo(bw, []byte(FileSignature), &n); err != nil {
@@ -831,7 +839,15 @@ func (f *LogFile) writeTagsetsTo(w io.Writer, names []string, info *logFileCompa
 func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactInfo, n *int64) error {
 	mm := f.mms[name]
 
+	// Check for cancellation.
+	select {
+	case <-info.cancel:
+		return ErrCompactionInterrupted
+	default:
+	}
+
 	enc := NewTagBlockEncoder(w)
+	var valueN int
 	for _, k := range mm.keys() {
 		tag := mm.tagSet[k]
 
@@ -854,6 +870,15 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 			value := tag.tagValues[v]
 			if err := enc.EncodeValue(value.name, value.deleted, value.seriesIDs()); err != nil {
 				return err
+			}
+
+			// Check for cancellation periodically.
+			if valueN++; valueN%1000 == 0 {
+				select {
+				case <-info.cancel:
+					return ErrCompactionInterrupted
+				default:
+				}
 			}
 		}
 	}
@@ -879,6 +904,13 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *logFileCompactInfo, n *int64) error {
 	mw := NewMeasurementBlockWriter()
 
+	// Check for cancellation.
+	select {
+	case <-info.cancel:
+		return ErrCompactionInterrupted
+	default:
+	}
+
 	// Add measurement data.
 	for _, name := range names {
 		mm := f.mms[name]
@@ -895,7 +927,8 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *log
 
 // logFileCompactInfo is a context object to track compaction position info.
 type logFileCompactInfo struct {
-	mms map[string]*logFileMeasurementCompactInfo
+	cancel <-chan struct{}
+	mms    map[string]*logFileMeasurementCompactInfo
 }
 
 // newLogFileCompactInfo returns a new instance of logFileCompactInfo.
