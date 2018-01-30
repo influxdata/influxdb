@@ -7,34 +7,38 @@ import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import ProvidersTable from 'src/admin/components/chronograf/ProvidersTable'
 
-import {PROVIDER_MAPS} from 'src/admin/constants/dummyProviderMaps'
-
 class ProvidersPage extends Component {
   constructor(props) {
     super(props)
   }
 
   componentDidMount() {
-    const {links, actions: {loadOrganizationsAsync}} = this.props
+    const {
+      links,
+      actions: {loadOrganizationsAsync, loadMappingsAsync},
+    } = this.props
 
     loadOrganizationsAsync(links.organizations)
+    loadMappingsAsync(links.mappings)
   }
 
   handleCreateMap = () => {}
 
-  handleUpdateMap = _updatedMap => {
-    // console.log(_updatedMap)
+  handleUpdateMap = updatedMap => {
+    // update the redux store
+    this.props.actions.updateMapping(updatedMap)
+
+    // update the server
   }
 
   handleDeleteMap = () => {}
 
   render() {
-    // const {organizations, providerMaps} = this.props
-    const {organizations} = this.props
+    const {organizations, mappings = []} = this.props
 
     return organizations
       ? <ProvidersTable
-          providerMaps={PROVIDER_MAPS} // TODO: replace with providerMaps prop
+          mappings={mappings}
           organizations={organizations}
           onCreateMap={this.handleCreateMap}
           onUpdateMap={this.handleUpdateMap}
@@ -56,7 +60,7 @@ ProvidersPage.propTypes = {
       name: string.isRequired,
     })
   ),
-  providerMaps: arrayOf(
+  mappings: arrayOf(
     shape({
       id: string,
       scheme: string,
@@ -74,9 +78,13 @@ ProvidersPage.propTypes = {
   notify: func.isRequired,
 }
 
-const mapStateToProps = ({links, adminChronograf: {organizations}}) => ({
+const mapStateToProps = ({
+  links,
+  adminChronograf: {organizations, mappings},
+}) => ({
   links,
   organizations,
+  mappings,
 })
 
 const mapDispatchToProps = dispatch => ({

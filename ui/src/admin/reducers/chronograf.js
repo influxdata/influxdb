@@ -58,7 +58,10 @@ const adminChronograf = (state = initialState, action) => {
 
     case 'CHRONOGRAF_ADD_ORGANIZATION': {
       const {organization} = action.payload
-      return {...state, organizations: [organization, ...state.organizations]}
+      return {
+        ...state,
+        organizations: [organization, ...state.organizations],
+      }
     }
 
     case 'CHRONOGRAF_RENAME_ORGANIZATION': {
@@ -91,6 +94,24 @@ const adminChronograf = (state = initialState, action) => {
             organization._tempID
               ? o._tempID !== organization._tempID
               : o.id !== organization.id
+        ),
+      }
+    }
+
+    case 'CHRONOGRAF_LOAD_MAPPINGS': {
+      const {mappings} = action.payload
+      return {
+        ...state,
+        mappings,
+      }
+    }
+
+    case 'CHRONOGRAF_UPDATE_MAPPING': {
+      const {mapping} = action.payload
+      return {
+        ...state,
+        mappings: state.mappings.map(
+          m => (m.id === mapping.id ? {...mapping} : m)
         ),
       }
     }

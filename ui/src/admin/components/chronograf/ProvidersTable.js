@@ -25,11 +25,11 @@ class ProvidersTable extends Component {
   }
 
   render() {
-    const {providerMaps, organizations, onUpdateMap, onDeleteMap} = this.props
+    const {mappings = [], organizations, onUpdateMap, onDeleteMap} = this.props
     const {isCreatingMap} = this.state
 
     const tableTitle =
-      providerMaps.length === 1 ? '1 Map' : `${providerMaps.length} Maps`
+      mappings.length === 1 ? '1 Map' : `${mappings.length} Maps`
 
     return (
       <div className="panel panel-default">
@@ -60,11 +60,10 @@ class ProvidersTable extends Component {
             <div className="fancytable--th" />
             <div className="fancytable--th provider--delete" />
           </div>
-          <div>hi</div>
-          {providerMaps.map(providerMap =>
+          {mappings.map(mapping =>
             <ProvidersTableRow
-              key={providerMap.id}
-              providerMap={providerMap}
+              key={mapping.id}
+              mapping={mapping}
               organizations={organizations}
               onDelete={onDeleteMap}
               onUpdate={onUpdateMap}
@@ -86,7 +85,7 @@ class ProvidersTable extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 ProvidersTable.propTypes = {
-  providerMaps: arrayOf(
+  mappings: arrayOf(
     shape({
       id: string,
       scheme: string,

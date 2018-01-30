@@ -1,6 +1,8 @@
 import _ from 'lodash'
 import uuid from 'node-uuid'
 
+import {PROVIDER_MAPS} from 'src/admin/constants/dummyProviderMaps'
+
 import {
   getUsers as getUsersAJAX,
   getOrganizations as getOrganizationsAJAX,
@@ -94,6 +96,20 @@ export const removeOrganization = organization => ({
   },
 })
 
+export const loadMappings = mappings => ({
+  type: 'CHRONOGRAF_LOAD_MAPPINGS',
+  payload: {
+    mappings,
+  },
+})
+
+export const updateMapping = mapping => ({
+  type: 'CHRONOGRAF_UPDATE_MAPPING',
+  payload: {
+    mapping,
+  },
+})
+
 // async actions (thunks)
 export const loadUsersAsync = url => async dispatch => {
   try {
@@ -108,6 +124,16 @@ export const loadOrganizationsAsync = url => async dispatch => {
   try {
     const {data} = await getOrganizationsAJAX(url)
     dispatch(loadOrganizations(data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
+}
+
+export const loadMappingsAsync = url => async dispatch => {
+  try {
+    // awaiting backend changes
+    // const {data} await getOrganizationsAJAX(url);
+    dispatch(loadMappings(PROVIDER_MAPS))
   } catch (error) {
     dispatch(errorThrown(error))
   }

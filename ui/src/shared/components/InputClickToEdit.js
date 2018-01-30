@@ -28,7 +28,7 @@ class InputClickToEdit extends Component {
       onUpdate(e.target.value)
     }
 
-    this.setState({isEditing: false})
+    this.setState({isEditing: false, value: e.target.value})
   }
 
   handleKeyDown = e => {

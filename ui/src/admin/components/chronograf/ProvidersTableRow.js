@@ -11,10 +11,10 @@ class ProvidersTableRow extends Component {
     super(props)
 
     this.state = {
-      scheme: this.props.providerMap.scheme,
-      provider: this.props.providerMap.provider,
-      providerOrganization: this.props.providerMap.providerOrganization,
-      redirectOrg: this.props.providerMap.redirectOrg,
+      scheme: this.props.mapping.scheme,
+      provider: this.props.mapping.provider,
+      providerOrganization: this.props.mapping.providerOrganization,
+      redirectOrg: this.props.mapping.redirectOrg,
       isDeleting: false,
     }
   }
@@ -27,35 +27,35 @@ class ProvidersTableRow extends Component {
     this.setState({isDeleting: false})
   }
 
-  handleDeleteMap = providerMap => {
+  handleDeleteMap = mapping => {
     const {onDelete} = this.props
 
     this.setState({isDeleting: false})
-    onDelete(providerMap)
+    onDelete(mapping)
   }
 
   handleChangeScheme = scheme => {
     this.setState({scheme})
-    this.handleUpdateProviderMap()
+    this.handleUpdateMapping()
   }
 
   handleChangeProvider = provider => {
     this.setState({provider})
-    this.handleUpdateProviderMap()
+    this.handleUpdateMapping()
   }
 
   handleChangeProviderOrg = providerOrganization => {
     this.setState({providerOrganization})
-    this.handleUpdateProviderMap()
+    this.handleUpdateMapping()
   }
 
   handleChooseOrganization = org => {
     this.setState({redirectOrg: org})
-    this.handleUpdateProviderMap()
+    this.handleUpdateMapping()
   }
 
-  handleUpdateProviderMap = () => {
-    const {onUpdate, providerMap: {id}} = this.props
+  handleUpdateMapping = () => {
+    const {onUpdate, mapping: {id}} = this.props
     const {scheme, provider, providerOrganization, redirectOrg} = this.state
 
     const updatedMap = {
@@ -76,7 +76,7 @@ class ProvidersTableRow extends Component {
       redirectOrg,
       isDeleting,
     } = this.state
-    const {organizations, providerMap} = this.props
+    const {organizations, mapping} = this.props
 
     const dropdownItems = organizations.map(role => ({
       ...role,
@@ -87,30 +87,30 @@ class ProvidersTableRow extends Component {
       ? 'fancytable--td provider--redirect deleting'
       : 'fancytable--td provider--redirect'
 
-    const isDefaultProviderMap = DEFAULT_PROVIDER_MAP_ID === providerMap.id
+    const isDefaultMapping = DEFAULT_PROVIDER_MAP_ID === mapping.id
 
     return (
       <div className="fancytable--row">
         <div className="fancytable--td provider--id">
-          {providerMap.id}
+          {mapping.id}
         </div>
         <InputClickToEdit
           value={scheme}
           wrapperClass="fancytable--td provider--scheme"
           onUpdate={this.handleChangeScheme}
-          disabled={isDefaultProviderMap}
+          disabled={isDefaultMapping}
         />
         <InputClickToEdit
           value={provider}
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
-          disabled={isDefaultProviderMap}
+          disabled={isDefaultMapping}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
-          disabled={isDefaultProviderMap}
+          disabled={isDefaultMapping}
         />
         <div className="fancytable--td provider--arrow">
           <span />
@@ -125,7 +125,7 @@ class ProvidersTableRow extends Component {
         </div>
         {isDeleting
           ? <ConfirmButtons
-              item={providerMap}
+              item={mapping}
               onCancel={this.handleDismissDeleteConfirmation}
               onConfirm={this.handleDeleteMap}
               onClickOutside={this.handleDismissDeleteConfirmation}
@@ -144,7 +144,7 @@ class ProvidersTableRow extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 ProvidersTableRow.propTypes = {
-  providerMap: shape({
+  mapping: shape({
     id: string,
     scheme: string,
     provider: string,
