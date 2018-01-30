@@ -121,6 +121,10 @@ func munmap(b []byte) (err error) {
 	return nil
 }
 
+func madviseWillNeed(b []byte) error {
+	return nil
+}
+
 func madviseDontNeed(b []byte) error {
 	// Not supported
 	return nil
