@@ -1,14 +1,14 @@
-// Package inmem2tsi reads an in-memory index and exports it as a TSI index.
-package inmem2tsi
+// Package buildtsi reads an in-memory index and exports it as a TSI index.
+package buildtsi
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -24,6 +24,10 @@ type Command struct {
 	Stdout  io.Writer
 	Verbose bool
 	Logger  *zap.Logger
+
+	databaseFilter  string
+	retentionFilter string
+	shardFilter     string
 }
 
 // NewCommand returns a new instance of Command.
@@ -38,40 +42,117 @@ func NewCommand() *Command {
 // Run executes the command.
 func (cmd *Command) Run(args ...string) error {
 	fs := flag.NewFlagSet("inmem2tsi", flag.ExitOnError)
-	seriesFilePath := fs.String("series-file", "", "series file path")
-	dataDir := fs.String("datadir", "", "shard data directory")
-	walDir := fs.String("waldir", "", "shard WAL directory")
+	dataDir := fs.String("datadir", "", "data directory")
+	walDir := fs.String("waldir", "", "WAL directory")
+	fs.StringVar(&cmd.databaseFilter, "database", "", "optional: database name")
+	fs.StringVar(&cmd.retentionFilter, "retention", "", "optional: retention policy")
+	fs.StringVar(&cmd.shardFilter, "shard", "", "optional: shard id")
 	fs.BoolVar(&cmd.Verbose, "v", false, "verbose")
 	fs.SetOutput(cmd.Stdout)
 	if err := fs.Parse(args); err != nil {
 		return err
-	} else if fs.NArg() > 0 || *seriesFilePath == "" || *dataDir == "" || *walDir == "" {
+	} else if fs.NArg() > 0 || *dataDir == "" || *walDir == "" {
 		return flag.ErrHelp
 	}
 	cmd.Logger = logger.New(cmd.Stderr)
 
-	return cmd.run(*seriesFilePath, *dataDir, *walDir)
+	return cmd.run(*dataDir, *walDir)
 }
 
-func (cmd *Command) run(seriesFilePath, dataDir, walDir string) error {
-	sfile := tsdb.NewSeriesFile(seriesFilePath)
+func (cmd *Command) run(dataDir, walDir string) error {
+	fis, err := ioutil.ReadDir(dataDir)
+	if err != nil {
+		return err
+	}
+
+	for _, fi := range fis {
+		name := fi.Name()
+		if !fi.IsDir() {
+			continue
+		} else if cmd.databaseFilter != "" && name != cmd.databaseFilter {
+			continue
+		}
+
+		if err := cmd.processDatabase(name, filepath.Join(dataDir, name), filepath.Join(walDir, name)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
+	cmd.Logger.Info("rebuilding database", zap.String("name", dbName))
+
+	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, tsdb.SeriesFileDirectory))
 	sfile.Logger = cmd.Logger
 	if err := sfile.Open(); err != nil {
 		return err
 	}
 	defer sfile.Close()
 
+	fis, err := ioutil.ReadDir(dataDir)
+	if err != nil {
+		return err
+	}
+
+	for _, fi := range fis {
+		rpName := fi.Name()
+		if !fi.IsDir() {
+			continue
+		} else if rpName == tsdb.SeriesFileDirectory {
+			continue
+		} else if cmd.retentionFilter != "" && rpName != cmd.retentionFilter {
+			continue
+		}
+
+		if err := cmd.processRetentionPolicy(sfile, dbName, rpName, filepath.Join(dataDir, rpName), filepath.Join(walDir, rpName)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpName, dataDir, walDir string) error {
+	cmd.Logger.Info("rebuilding retention policy", zap.String("db", dbName), zap.String("rp", rpName))
+
+	fis, err := ioutil.ReadDir(dataDir)
+	if err != nil {
+		return err
+	}
+
+	for _, fi := range fis {
+		if !fi.IsDir() {
+			continue
+		} else if cmd.shardFilter != "" && fi.Name() != cmd.shardFilter {
+			continue
+		}
+
+		shardID, err := strconv.ParseUint(fi.Name(), 10, 64)
+		if err != nil {
+			continue
+		}
+
+		if err := cmd.processShard(sfile, dbName, rpName, shardID, filepath.Join(dataDir, fi.Name()), filepath.Join(walDir, fi.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, shardID uint64, dataDir, walDir string) error {
+	cmd.Logger.Info("rebuilding shard", zap.String("db", dbName), zap.String("rp", rpName), zap.Uint64("shard", shardID))
+
 	// Check if shard already has a TSI index.
 	indexPath := filepath.Join(dataDir, "index")
 	cmd.Logger.Info("checking index path", zap.String("path", indexPath))
 	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
-		return errors.New("tsi1 index already exists")
+		cmd.Logger.Info("tsi1 index already exists, skipping", zap.String("path", indexPath))
+		return nil
 	}
 
-	cmd.Logger.Info("opening shard",
-		zap.String("datadir", dataDir),
-		zap.String("waldir", walDir),
-	)
+	cmd.Logger.Info("opening shard")
 
 	// Find shard files.
 	tsmPaths, err := cmd.collectTSMFiles(dataDir)
@@ -91,9 +172,7 @@ func (cmd *Command) run(seriesFilePath, dataDir, walDir string) error {
 	}
 
 	// Open TSI index in temporary path.
-	tsiIndex := tsi1.NewIndex(sfile,
-		tsi1.WithPath(tmpPath),
-	)
+	tsiIndex := tsi1.NewIndex(sfile, tsi1.WithPath(tmpPath))
 	tsiIndex.WithLogger(cmd.Logger)
 	cmd.Logger.Info("opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
