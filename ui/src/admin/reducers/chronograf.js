@@ -116,7 +116,7 @@ const adminChronograf = (state = initialState, action) => {
       }
     }
 
-    case 'CHRONOGRAF_CREATE_MAPPING': {
+    case 'CHRONOGRAF_ADD_MAPPING': {
       const {mapping} = action.payload
       return {
         ...state,
@@ -124,11 +124,16 @@ const adminChronograf = (state = initialState, action) => {
       }
     }
 
-    case 'CHRONOGRAF_DELETE_MAPPING': {
+    case 'CHRONOGRAF_REMOVE_MAPPING': {
       const {mapping} = action.payload
       return {
         ...state,
-        mappings: state.mappings.filter(m => m.id !== mapping.id),
+        mappings: state.mappings.filter(
+          m =>
+            mapping._tempID
+              ? m._tempID !== mapping._tempID
+              : m.id !== mapping.id
+        ),
       }
     }
   }

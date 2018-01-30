@@ -110,15 +110,15 @@ export const updateMapping = mapping => ({
   },
 })
 
-export const createMapping = mapping => ({
-  type: 'CHRONOGRAF_CREATE_MAPPING',
+export const addMapping = mapping => ({
+  type: 'CHRONOGRAF_ADD_MAPPING',
   payload: {
     mapping,
   },
 })
 
-export const deleteMapping = mapping => ({
-  type: 'CHRONOGRAF_DELETE_MAPPING',
+export const removeMapping = mapping => ({
+  type: 'CHRONOGRAF_REMOVE_MAPPING',
   payload: {
     mapping,
   },
@@ -143,13 +143,59 @@ export const loadOrganizationsAsync = url => async dispatch => {
   }
 }
 
-export const loadMappingsAsync = url => async dispatch => {
+export const loadMappingsAsync = () => async dispatch => {
   try {
     // awaiting backend changes
+    // todo: change to below instead of starting from provider maps data
     // const {data} await getOrganizationsAJAX(url);
     dispatch(loadMappings(PROVIDER_MAPS))
   } catch (error) {
     dispatch(errorThrown(error))
+  }
+}
+
+export const createMappingAsync = (url, mapping) => async dispatch => {
+  const mappingWithTempID = {...mapping, _tempID: uuid.v4()}
+  dispatch(addMapping(mappingWithTempID))
+  try {
+    /* const {data} = await createMappingAJAX(url, mapping)
+    dispatch(updateMapping(data))
+    */
+  } catch (error) {
+    const message = `${_.upperFirst(
+      _.toLower(error.data.message)
+    )}: Scheme: ${mapping.scheme} Provider: ${mapping.provider}`
+    dispatch(errorThrown(error, message))
+    setTimeout(
+      () => dispatch(removeMapping(mappingWithTempID)),
+      REVERT_STATE_DELAY
+    )
+  }
+}
+
+export const deleteMappingAsync = mapping => async dispatch => {
+  dispatch(removeMapping(mapping))
+  try {
+    // await deleteMappingAJAX(mapping)
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        `Mapping deleted: ${mapping.id} ${mapping.scheme}`
+      )
+    )
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(addMapping(mapping))
+  }
+}
+
+export const updateMappingAsync = mapping => async dispatch => {
+  dispatch(updateMapping(mapping))
+  try {
+    // const {data} = await updateMappingAJAX(mapping)
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(updateMapping(mapping))
   }
 }
 

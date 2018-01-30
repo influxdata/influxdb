@@ -7,13 +7,13 @@ export const PROVIDER_MAPS = [
     scheme: '*',
     provider: '*',
     providerOrganization: '*',
-    redirectOrg: {id: DEFAULT_ORG_ID, name: 'Default'},
+    organizationId: DEFAULT_ORG_ID,
   },
   {
     id: '1',
     scheme: 'oauth2',
     provider: 'github',
     providerOrganization: null,
-    redirectOrg: {id: '5', name: 'moarOrg'},
+    organizationId: '2',
   },
 ]

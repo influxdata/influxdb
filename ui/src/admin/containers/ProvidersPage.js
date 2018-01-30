@@ -23,18 +23,34 @@ class ProvidersPage extends Component {
   }
 
   handleCreateMap = mapping => {
-    this.props.actions.createMapping(mapping)
+    this.props.actions.createMappingAsync('', mapping)
+    /*
+    const {
+      links,
+      actions: {createMappingAsync}
+    } = this.props
+    await createMappingAsync(links.mappings, mapping)
+    // this.refreshMe()? -- why
+    */
   }
 
   handleUpdateMap = updatedMap => {
     // update the redux store
-    this.props.actions.updateMapping(updatedMap)
+    this.props.actions.updateMappingAsync(updatedMap)
 
     // update the server
+    /*
+    const {actionsAdmin: {updateMappingAsync}} = this.props
+    await updateMappingAsync(mapping)
+    */
   }
 
   handleDeleteMap = mapping => {
-    this.props.actions.deleteMapping(mapping)
+    this.props.actions.deleteMappingAsync(mapping)
+    /*
+    const {actionsAdmin: {deleteOrganizationAsync}} = this.props
+    deleteMappingAsync(mapping) // why no await?
+    */
   }
 
   render() {
@@ -70,10 +86,7 @@ ProvidersPage.propTypes = {
       scheme: string,
       provider: string,
       providerOrganization: string,
-      redirectOrg: shape({
-        id: string.isRequired,
-        name: string.isRequired,
-      }),
+      organizationId: string,
     })
   ),
   actions: shape({

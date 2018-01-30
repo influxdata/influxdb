@@ -14,7 +14,7 @@ class ProvidersTableRow extends Component {
       scheme: this.props.mapping.scheme,
       provider: this.props.mapping.provider,
       providerOrganization: this.props.mapping.providerOrganization,
-      redirectOrg: this.props.mapping.redirectOrg,
+      organizationId: this.props.mapping.organizationId,
       isDeleting: false,
     }
   }
@@ -29,7 +29,6 @@ class ProvidersTableRow extends Component {
 
   handleDeleteMap = mapping => {
     const {onDelete} = this.props
-
     this.setState({isDeleting: false})
     onDelete(mapping)
   }
@@ -50,20 +49,20 @@ class ProvidersTableRow extends Component {
   }
 
   handleChooseOrganization = org => {
-    this.setState({redirectOrg: org})
+    this.setState({organizationId: org.id})
     this.handleUpdateMapping()
   }
 
   handleUpdateMapping = () => {
     const {onUpdate, mapping: {id}} = this.props
-    const {scheme, provider, providerOrganization, redirectOrg} = this.state
+    const {scheme, provider, providerOrganization, organizationId} = this.state
 
     const updatedMap = {
       id,
       scheme,
       provider,
       providerOrganization,
-      redirectOrg,
+      organizationId,
     }
     onUpdate(updatedMap)
   }
@@ -73,17 +72,19 @@ class ProvidersTableRow extends Component {
       scheme,
       provider,
       providerOrganization,
-      redirectOrg,
+      organizationId,
       isDeleting,
     } = this.state
     const {organizations, mapping} = this.props
+
+    const selectedOrg = organizations.find(o => o.id === organizationId)
 
     const dropdownItems = organizations.map(role => ({
       ...role,
       text: role.name,
     }))
 
-    const redirectOrgClassName = isDeleting
+    const organizationIdClassName = isDeleting
       ? 'fancytable--td provider--redirect deleting'
       : 'fancytable--td provider--redirect'
 
@@ -115,11 +116,11 @@ class ProvidersTableRow extends Component {
         <div className="fancytable--td provider--arrow">
           <span />
         </div>
-        <div className={redirectOrgClassName}>
+        <div className={organizationIdClassName}>
           <Dropdown
             items={dropdownItems}
             onChoose={this.handleChooseOrganization}
-            selected={redirectOrg.name}
+            selected={selectedOrg.name}
             className="dropdown-stretch"
           />
         </div>
@@ -149,10 +150,7 @@ ProvidersTableRow.propTypes = {
     scheme: string,
     provider: string,
     providerOrganization: string,
-    redirectOrg: shape({
-      id: string.isRequired,
-      name: string.isRequired,
-    }),
+    organizationId: string,
   }),
   organizations: arrayOf(
     shape({
