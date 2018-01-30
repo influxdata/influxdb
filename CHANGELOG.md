@@ -1,4 +1,4 @@
-## v1.4.3 [unreleased]
+## v1.4.3 [2017-01-30]
 
 ### Configuration Changes
 
