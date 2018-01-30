@@ -107,7 +107,12 @@ class NewAnnotation extends Component {
   }
 
   render() {
-    const {dygraph, isTempHovering, tempAnnotation: {time}} = this.props
+    const {
+      dygraph,
+      isTempHovering,
+      tempAnnotation: {time},
+      staticLegendHeight,
+    } = this.props
     const {isMouseOver, mouseAction} = this.state
 
     const timestamp = `${new Date(+time)}`
@@ -126,7 +131,7 @@ class NewAnnotation extends Component {
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleMouseUp}
         onMouseDown={this.handleMouseDown}
-        style={newAnnotationContainer}
+        style={newAnnotationContainer(staticLegendHeight)}
       >
         {isDragging &&
           <div
@@ -166,7 +171,7 @@ class NewAnnotation extends Component {
   }
 }
 
-const {bool, func, shape} = PropTypes
+const {bool, func, number, shape} = PropTypes
 
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
@@ -178,6 +183,7 @@ NewAnnotation.propTypes = {
   onUpdateAnnotation: func.isRequired,
   onMouseEnterTempAnnotation: func.isRequired,
   onMouseLeaveTempAnnotation: func.isRequired,
+  staticLegendHeight: number,
 }
 
 export default OnClickOutside(NewAnnotation)

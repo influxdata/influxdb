@@ -139,7 +139,7 @@ class Annotation extends Component {
   }
 
   render() {
-    const {dygraph, annotation, mode} = this.props
+    const {dygraph, annotation, mode, staticLegendHeight} = this.props
     const {isDragging, isMouseOver} = this.state
 
     const humanTime = `${new Date(+annotation.time)}`
@@ -154,7 +154,13 @@ class Annotation extends Component {
     return (
       <div
         className="dygraph-annotation"
-        style={annotationStyle(annotation, dygraph, isMouseOver, isDragging)}
+        style={annotationStyle(
+          annotation,
+          dygraph,
+          isMouseOver,
+          isDragging,
+          staticLegendHeight
+        )}
         data-time-ms={annotation.time}
         data-time-local={humanTime}
       >
@@ -187,7 +193,7 @@ class Annotation extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 Annotation.propTypes = {
   mode: string,
@@ -200,6 +206,7 @@ Annotation.propTypes = {
   dygraph: shape({}).isRequired,
   onUpdateAnnotation: func.isRequired,
   onDeleteAnnotation: func.isRequired,
+  staticLegendHeight: number,
 }
 
 export default Annotation

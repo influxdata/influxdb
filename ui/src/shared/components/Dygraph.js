@@ -31,6 +31,7 @@ export default class Dygraph extends Component {
     this.state = {
       isSynced: false,
       isHidden: true,
+      staticLegendHeight: null,
     }
   }
 
@@ -295,13 +296,31 @@ export default class Dygraph extends Component {
 
   handleAnnotationsRef = ref => (this.annotationsRef = ref)
 
+  handleReceiveStaticLegendHeight = staticLegendHeight => {
+    this.setState({staticLegendHeight})
+  }
+
   render() {
-    const {isHidden} = this.state
+    const {isHidden, staticLegendHeight} = this.state
     const {showStaticLegend} = this.props
+
+    let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
+    if (showStaticLegend) {
+      const cellVerticalPadding = 16
+
+      dygraphStyle = {
+        ...this.props.containerStyle,
+        zIndex: '2',
+        height: `calc(100% - ${staticLegendHeight + cellVerticalPadding}px)`,
+      }
+    }
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        <Annotations annotationsRef={this.handleAnnotationsRef} />
+        <Annotations
+          annotationsRef={this.handleAnnotationsRef}
+          staticLegendHeight={staticLegendHeight}
+        />
         {this.dygraph &&
           <DygraphLegend
             isHidden={isHidden}
@@ -315,9 +334,16 @@ export default class Dygraph extends Component {
             this.props.dygraphRef(r)
           }}
           className="dygraph-child-container"
-          style={{...this.props.containerStyle, zIndex: '2'}}
+          style={dygraphStyle}
         />
-        {showStaticLegend ? <StaticLegend dygraph={this.dygraph} /> : null}
+        {showStaticLegend
+          ? <StaticLegend
+              dygraph={this.dygraph}
+              handleReceiveStaticLegendHeight={
+                this.handleReceiveStaticLegendHeight
+              }
+            />
+          : null}
       </div>
     )
   }

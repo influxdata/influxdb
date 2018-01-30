@@ -154,7 +154,13 @@ export const tooltipFormStyle = {
 export const tooltipInputButton = {marginLeft: '2px'}
 export const tooltipInput = {flex: '1 0 0'}
 
-export const annotationStyle = ({time}, dygraph, isMouseOver, isDragging) => {
+export const annotationStyle = (
+  {time},
+  dygraph,
+  isMouseOver,
+  isDragging,
+  staticLegendHeight
+) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   let visibility = 'visible'
@@ -167,6 +173,10 @@ export const annotationStyle = ({time}, dygraph, isMouseOver, isDragging) => {
   const left = `${dygraph.toDomXCoord(time) + containerLeftPadding}px`
   const width = 2
 
+  const height = staticLegendHeight
+    ? `calc(100% - ${staticLegendHeight + 36}px)`
+    : 'calc(100% - 36px)'
+
   return {
     left,
     position: 'absolute',
@@ -174,7 +184,7 @@ export const annotationStyle = ({time}, dygraph, isMouseOver, isDragging) => {
     backgroundColor: `rgb(${isDragging
       ? annotationDragColor
       : annotationColor})`,
-    height: 'calc(100% - 36px)',
+    height,
     width: `${width}px`,
     transition: 'background-color 0.25s ease',
     transform: `translateX(-${width / 2}px)`, // translate should always be half with width to horizontally center the annotation pole
@@ -184,7 +194,11 @@ export const annotationStyle = ({time}, dygraph, isMouseOver, isDragging) => {
   }
 }
 
-export const annotationWindowStyle = (annotation, dygraph) => {
+export const annotationWindowStyle = (
+  annotation,
+  dygraph,
+  staticLegendHeight
+) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   const containerLeftPadding = 16
@@ -216,12 +230,16 @@ export const annotationWindowStyle = (annotation, dygraph) => {
   const gradientStartColor = `rgba(${annotationColor},0.15)`
   const gradientEndColor = `rgba(${annotationColor},0)`
 
+  const height = staticLegendHeight
+    ? `calc(100% - ${staticLegendHeight + 36}px)`
+    : 'calc(100% - 36px)'
+
   return {
     left,
     position: 'absolute',
     top: '8px',
     background: `linear-gradient(to bottom, ${gradientStartColor} 0%,${gradientEndColor} 100%)`,
-    height: 'calc(100% - 36px)',
+    height,
     borderTop: `2px dotted rgba(${annotationColor},0.35)`,
     width,
     zIndex: zIndexWindow,
@@ -230,14 +248,20 @@ export const annotationWindowStyle = (annotation, dygraph) => {
 }
 
 // Styles for new Annotations
-export const newAnnotationContainer = {
-  position: 'absolute',
-  zIndex: '9999',
-  top: '8px',
-  left: '16px',
-  width: 'calc(100% - 32px)',
-  height: 'calc(100% - 16px)',
-  cursor: 'pointer',
+export const newAnnotationContainer = staticLegendHeight => {
+  const style = {
+    position: 'absolute',
+    zIndex: '9999',
+    top: '8px',
+    left: '16px',
+    width: 'calc(100% - 32px)',
+    height: 'calc(100% - 16px)',
+    cursor: 'pointer',
+  }
+
+  return staticLegendHeight
+    ? {...style, height: `calc(100% - ${16 + staticLegendHeight}px)`}
+    : style
 }
 export const newAnnotationCrosshairStyle = left => {
   const width = 2

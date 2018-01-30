@@ -7,7 +7,7 @@ const style = {
   width: 'calc(100% - 32px)',
   bottom: '8px',
   left: '16px',
-  height: '30px',
+  paddingTop: '8px',
 }
 
 const removeMeasurement = (label = '') => {
@@ -31,6 +31,15 @@ class StaticLegend extends Component {
     this.state = {
       visibilities: [],
     }
+  }
+
+  componentDidUpdate = () => {
+    const {height} = this.staticLegendRef.getBoundingClientRect()
+    this.props.handleReceiveStaticLegendHeight(height)
+  }
+
+  componentWillUnmount = () => {
+    this.props.handleReceiveStaticLegendHeight(null)
   }
 
   handleClick = i => e => {
@@ -64,7 +73,13 @@ class StaticLegend extends Component {
       : []
 
     return (
-      <div className="static-legend" style={style}>
+      <div
+        className="static-legend"
+        style={style}
+        ref={s => {
+          this.staticLegendRef = s
+        }}
+      >
         {_.map(labels, (v, i) =>
           <div
             className={staticLegendItemClassname(visibilities, i)}
@@ -85,8 +100,12 @@ class StaticLegend extends Component {
   }
 }
 
-const {shape} = PropTypes
+const {shape, func} = PropTypes
 
-StaticLegend.propTypes = {sharedLegend: shape({}), dygraph: shape({})}
+StaticLegend.propTypes = {
+  sharedLegend: shape({}),
+  dygraph: shape({}),
+  handleReceiveStaticLegendHeight: func.isRequired,
+}
 
 export default StaticLegend

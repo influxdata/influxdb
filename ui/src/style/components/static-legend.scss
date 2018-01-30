@@ -8,6 +8,7 @@
 .static-legend {
   display: flex;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 .static-legend--dot {
   display: inline-block;
@@ -29,7 +30,7 @@
   font-size: 12px;
   font-weight: 600;
   padding: 0 7px;
-  margin-right: 2px;
+  margin: 1px;
 
   span,
   .static-legend--dot {
