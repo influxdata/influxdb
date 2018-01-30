@@ -416,7 +416,6 @@ type IndexFilesInfo struct {
 // during the compaction of index files.
 type indexCompactInfo struct {
 	cancel <-chan struct{}
-	sfile  *tsdb.SeriesFile
 
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos
