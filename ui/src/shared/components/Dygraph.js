@@ -297,6 +297,7 @@ export default class Dygraph extends Component {
 
   render() {
     const {isHidden} = this.state
+    const {showStaticLegend} = this.props
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
@@ -316,7 +317,7 @@ export default class Dygraph extends Component {
           className="dygraph-child-container"
           style={{...this.props.containerStyle, zIndex: '2'}}
         />
-        <PersistentLegend dygraph={this.dygraph} />
+        {showStaticLegend ? <PersistentLegend dygraph={this.dygraph} /> : null}
       </div>
     )
   }
@@ -362,6 +363,7 @@ Dygraph.propTypes = {
   containerStyle: shape({}),
   isGraphFilled: bool,
   isBarGraph: bool,
+  showStaticLegend: bool,
   overrideLineColors: array,
   dygraphSeries: shape({}).isRequired,
   ruleValues: shape({
