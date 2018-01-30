@@ -21,6 +21,7 @@
 .static-legend--item {
   height: 22px;
   line-height: 22px;
+  white-space: nowrap;
   background-color: $g4-onyx;
   border-radius: 3px;
   transition: background-color 0.25s ease, color 0.25s ease;
