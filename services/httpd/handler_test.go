@@ -615,7 +615,7 @@ func TestHandler_PromRead(t *testing.T) {
 
 	h := NewHandler(false)
 	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
-		if stmt.String() != `SELECT f64 FROM foo.._ WHERE eq = 'a' AND neq != 'b' AND regex =~ 'c' AND neqregex !~ 'd' AND time >= '1970-01-01T00:00:00.001Z' AND time <= '1970-01-01T00:00:00.002Z' GROUP BY *` {
+		if stmt.String() != `SELECT f64 FROM foo.._ WHERE eq = 'a' AND neq != 'b' AND regex =~ /c/ AND neqregex !~ /d/ AND time >= '1970-01-01T00:00:00.001Z' AND time <= '1970-01-01T00:00:00.002Z' GROUP BY *` {
 			t.Fatalf("unexpected query: %s", stmt.String())
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)

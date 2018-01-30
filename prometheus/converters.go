@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
@@ -93,6 +94,8 @@ func ReadRequestToInfluxQLQuery(req *remote.ReadRequest, db, rp string) (*influx
 // condFromMatcher converts a Prometheus LabelMatcher into an equivalent InfluxQL BinaryExpr
 func condFromMatcher(m *remote.LabelMatcher) (*influxql.BinaryExpr, error) {
 	var op influxql.Token
+	var rhs influxql.Expr
+
 	switch m.Type {
 	case remote.MatchType_EQUAL:
 		op = influxql.EQ
@@ -106,10 +109,22 @@ func condFromMatcher(m *remote.LabelMatcher) (*influxql.BinaryExpr, error) {
 		return nil, fmt.Errorf("unknown match type %v", m.Type)
 	}
 
+	if op == influxql.EQREGEX || op == influxql.NEQREGEX {
+		re, err := regexp.Compile(m.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert regex values to InfluxDB format.
+		rhs = &influxql.RegexLiteral{Val: re}
+	} else {
+		rhs = &influxql.StringLiteral{Val: m.Value}
+	}
+
 	return &influxql.BinaryExpr{
 		Op:  op,
 		LHS: &influxql.VarRef{Val: m.Name},
-		RHS: &influxql.StringLiteral{Val: m.Value},
+		RHS: rhs,
 	}, nil
 }
 
