@@ -32,10 +32,17 @@ class ProvidersTableRowNew extends Component {
     this.setState({redirectOrg: org})
   }
 
+  handleSaveNewMapping = () => {
+    const {scheme, provider, providerOrganization, redirectOrg} = this.state
+    const {onCreate} = this.props
+    // id is calculated in providers table
+    onCreate({id: '', scheme, provider, providerOrganization, redirectOrg})
+  }
+
   render() {
     const {scheme, provider, providerOrganization, redirectOrg} = this.state
 
-    const {organizations, onCreate, onCancel} = this.props
+    const {organizations, onCancel} = this.props
 
     const dropdownItems = organizations.map(role => ({
       ...role,
@@ -71,7 +78,10 @@ class ProvidersTableRowNew extends Component {
             className="dropdown-stretch"
           />
         </div>
-        <ConfirmButtons onCancel={onCancel} onConfirm={onCreate} />
+        <ConfirmButtons
+          onCancel={onCancel}
+          onConfirm={this.handleSaveNewMapping}
+        />
       </div>
     )
   }

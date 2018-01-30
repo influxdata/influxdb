@@ -110,6 +110,13 @@ export const updateMapping = mapping => ({
   },
 })
 
+export const createMapping = mapping => ({
+  type: 'CHRONOGRAF_CREATE_MAPPING',
+  payload: {
+    mapping,
+  },
+})
+
 // async actions (thunks)
 export const loadUsersAsync = url => async dispatch => {
   try {

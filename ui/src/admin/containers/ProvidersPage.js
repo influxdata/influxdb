@@ -6,6 +6,7 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import ProvidersTable from 'src/admin/components/chronograf/ProvidersTable'
+import {createMapping} from '../actions/chronograf'
 
 class ProvidersPage extends Component {
   constructor(props) {
@@ -22,7 +23,10 @@ class ProvidersPage extends Component {
     loadMappingsAsync(links.mappings)
   }
 
-  handleCreateMap = () => {}
+  handleCreateMap = mapping => {
+    // update the redux store
+    this.props.actions.createMapping(mapping)
+  }
 
   handleUpdateMap = updatedMap => {
     // update the redux store

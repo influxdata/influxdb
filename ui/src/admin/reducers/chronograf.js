@@ -115,6 +115,14 @@ const adminChronograf = (state = initialState, action) => {
         ),
       }
     }
+
+    case 'CHRONOGRAF_CREATE_MAPPING': {
+      const {mapping} = action.payload
+      return {
+        ...state,
+        mappings: [...state.mappings, mapping],
+      }
+    }
   }
 
   return state
