@@ -280,8 +280,7 @@ func TestStore_Open(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore()
-		s.EngineOptions.IndexVersion = index
+		s := NewStore(index)
 		defer s.Close()
 
 		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0", "2"), 0777); err != nil {
@@ -324,8 +323,7 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore()
-		s.EngineOptions.IndexVersion = index
+		s := NewStore(index)
 		defer s.Close()
 
 		// Create a file instead of a directory for a database.
@@ -351,8 +349,7 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore()
-		s.EngineOptions.IndexVersion = index
+		s := NewStore(index)
 		defer s.Close()
 
 		// Create an RP file instead of a directory.
@@ -382,8 +379,7 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore()
-		s.EngineOptions.IndexVersion = index
+		s := NewStore(index)
 		defer s.Close()
 
 		// Create a non-numeric shard file.
@@ -712,8 +708,7 @@ func TestStore_Cardinality_Tombstoning(t *testing.T) {
 	}
 
 	test := func(index string) {
-		store := NewStore()
-		store.EngineOptions.IndexVersion = index
+		store := NewStore(index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -771,8 +766,6 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Unique(t *testing.T) {
-	t.Skip("TODO(benbjohnson): Merge series file to DB level")
-
 	t.Parallel()
 
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
@@ -780,8 +773,7 @@ func TestStore_Cardinality_Unique(t *testing.T) {
 	}
 
 	test := func(index string) {
-		store := NewStore()
-		store.EngineOptions.IndexVersion = index
+		store := NewStore(index)
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 		if err := store.Open(); err != nil {
 			panic(err)
@@ -863,8 +855,7 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 	}
 
 	test := func(index string) {
-		store := NewStore()
-		store.EngineOptions.IndexVersion = index
+		store := NewStore(index)
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 		if err := store.Open(); err != nil {
 			panic(err)
@@ -932,8 +923,7 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 	}
 
 	test := func(index string) error {
-		store := NewStore()
-		store.EngineOptions.Config.Index = "inmem"
+		store := NewStore(index)
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 		if err := store.Open(); err != nil {
 			panic(err)
@@ -1400,8 +1390,7 @@ func createTagValues(mname string, kvs map[string][]string) tsdb.TagValues {
 
 func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		store := NewStore()
-		store.EngineOptions.IndexVersion = index
+		store := NewStore(index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -1504,8 +1493,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 
 	var s *Store
 	setup := func(shards, measurements, tagValues int, index string, useRandom bool) []uint64 { // returns shard ids
-		s = NewStore()
-		s.EngineOptions.IndexVersion = index
+		s := NewStore(index)
 		if err := s.Open(); err != nil {
 			panic(err)
 		}
@@ -1607,16 +1595,18 @@ func BenchmarkStore_TagValues(b *testing.B) {
 // Store is a test wrapper for tsdb.Store.
 type Store struct {
 	*tsdb.Store
+	index string
 }
 
 // NewStore returns a new instance of Store with a temporary path.
-func NewStore() *Store {
+func NewStore(index string) *Store {
 	path, err := ioutil.TempDir("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}
 
-	s := &Store{Store: tsdb.NewStore(path)}
+	s := &Store{Store: tsdb.NewStore(path), index: index}
+	s.EngineOptions.IndexVersion = index
 	s.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
 	s.EngineOptions.Config.TraceLoggingEnabled = true
 
@@ -1630,8 +1620,7 @@ func NewStore() *Store {
 // MustOpenStore returns a new, open Store using the specified index,
 // at a temporary path.
 func MustOpenStore(index string) *Store {
-	s := NewStore()
-	s.EngineOptions.IndexVersion = index
+	s := NewStore(index)
 
 	if err := s.Open(); err != nil {
 		panic(err)
@@ -1646,7 +1635,13 @@ func (s *Store) Reopen() error {
 	}
 
 	s.Store = tsdb.NewStore(s.Path())
+	s.EngineOptions.IndexVersion = s.index
 	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
+	s.EngineOptions.Config.TraceLoggingEnabled = true
+
+	if testing.Verbose() {
+		s.WithLogger(logger.New(os.Stdout))
+	}
 	return s.Store.Open()
 }
 
