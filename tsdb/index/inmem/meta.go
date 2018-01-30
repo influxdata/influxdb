@@ -1321,15 +1321,15 @@ func (t *TagKeyValue) LoadByte(value []byte) SeriesIDs {
 // TagKeyValue is a no-op.
 //
 // If f returns false then iteration over any remaining keys or values will cease.
-func (t *TagKeyValue) Range(f func(k string, a SeriesIDs) bool) {
+func (t *TagKeyValue) Range(f func(tagValue string, a SeriesIDs) bool) {
 	if t == nil {
 		return
 	}
 
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	for k, a := range t.valueIDs {
-		if !f(k, a) {
+	for tagValue, a := range t.valueIDs {
+		if !f(tagValue, a) {
 			return
 		}
 	}

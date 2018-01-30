@@ -37,6 +37,7 @@ type Index interface {
 	TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
+	TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool
 
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 	TagKeyCardinality(name, key []byte) int
