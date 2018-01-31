@@ -48,6 +48,7 @@ class AnnotationTooltip extends Component {
         id={`tooltip-${annotation.id}`}
         onMouseLeave={onMouseLeave}
         style={tooltipStyle(annotationState)}
+        className="annotation-tooltip"
       >
         {isDragging
           ? <TimeStamp time={this.props.annotation.time} />

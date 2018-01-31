@@ -556,3 +556,13 @@ div.dropdown.dropdown-stretch > button.dropdown-toggle {
 .new-annotation.hover .new-annotation--crosshair {
   opacity: 1;
 }
+.annotation-tooltip:before {
+  content: '';
+  display: block;
+  position: absolute;
+  width: calc(100% + 16px);
+  height: calc(100% + 28px);
+  top: -14px;
+  left: -8px;
+  z-index: -1;
+}
