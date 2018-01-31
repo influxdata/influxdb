@@ -19,6 +19,8 @@ type HashMap struct {
 	threshold  int64
 	mask       int64
 	loadFactor int
+
+	tmpKey []byte
 }
 
 func NewHashMap(opt Options) *HashMap {
@@ -65,16 +67,19 @@ func (m *HashMap) insert(hash int64, key []byte, val interface{}) (overwritten b
 	pos := hash & m.mask
 	var dist int64
 
+	var copied bool
+	searchKey := key
+
 	// Continue searching until we find an empty slot or lower probe distance.
 	for {
 		e := &m.elems[pos]
 
 		// Empty slot found or matching key, insert and exit.
-		match := bytes.Equal(m.elems[pos].key, key)
+		match := bytes.Equal(m.elems[pos].key, searchKey)
 		if m.hashes[pos] == 0 || match {
 			m.hashes[pos] = hash
 			e.hash, e.value = hash, val
-			e.setKey(key)
+			e.setKey(searchKey)
 			return match
 		}
 
@@ -86,11 +91,16 @@ func (m *HashMap) insert(hash int64, key []byte, val interface{}) (overwritten b
 			hash, m.hashes[pos] = m.hashes[pos], hash
 			val, e.value = e.value, val
 
-			tmp := make([]byte, len(e.key))
-			copy(tmp, e.key)
+			m.tmpKey = assign(m.tmpKey, e.key)
+			e.setKey(searchKey)
 
-			e.setKey(key)
-			key = tmp
+			if !copied {
+				searchKey = make([]byte, len(key))
+				copy(searchKey, key)
+				copied = true
+			}
+
+			searchKey = assign(searchKey, m.tmpKey)
 
 			// Update current distance.
 			dist = elemDist
@@ -208,15 +218,7 @@ func (e *hashElem) reset() {
 
 // setKey copies v to a key on e.
 func (e *hashElem) setKey(v []byte) {
-	// Shrink or grow key to fit value.
-	if len(e.key) > len(v) {
-		e.key = e.key[:len(v)]
-	} else if len(e.key) < len(v) {
-		e.key = append(e.key, make([]byte, len(v)-len(e.key))...)
-	}
-
-	// Copy value to key.
-	copy(e.key, v)
+	e.key = assign(e.key, v)
 }
 
 // Options represents initialization options that are passed to NewHashMap().
@@ -266,6 +268,15 @@ func pow2(v int64) int64 {
 		}
 	}
 	panic("unreachable")
+}
+
+func assign(x, v []byte) []byte {
+	if cap(x) < len(v) {
+		x = make([]byte, len(v))
+	}
+	x = x[:len(v)]
+	copy(x, v)
+	return x
 }
 
 type byteSlices [][]byte

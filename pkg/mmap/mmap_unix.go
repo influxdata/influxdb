@@ -10,7 +10,6 @@ package mmap
 import (
 	"os"
 	"syscall"
-	"unsafe"
 )
 
 // Map memory-maps a file.
@@ -35,11 +34,6 @@ func Map(path string, sz int64) ([]byte, error) {
 
 	data, err := syscall.Mmap(int(f.Fd()), 0, int(sz), syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
-		return nil, err
-	}
-
-	if _, _, err := syscall.Syscall(syscall.SYS_MADVISE, uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)), uintptr(syscall.MADV_RANDOM)); err != 0 {
-		Unmap(data)
 		return nil, err
 	}
 
