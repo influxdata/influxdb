@@ -5,7 +5,7 @@ import {getLinksAsync} from 'shared/actions/links'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
-import {LONG_NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
+import {NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
 
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',
@@ -96,7 +96,7 @@ export const meChangeOrganizationAsync = (
         'success',
         `Now logged in to '${me.currentOrganization
           .name}' as '${currentRole.name}'`,
-        LONG_NOTIFICATION_DISMISS_DELAY
+        NOTIFICATION_DISMISS_DELAY
       )
     )
     dispatch(meChangeOrganizationCompleted())

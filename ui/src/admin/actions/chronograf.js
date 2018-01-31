@@ -165,13 +165,14 @@ export const deleteUserAsync = (
 ) => async dispatch => {
   dispatch(removeUser(user))
   try {
+    console.log(user)
     await deleteUserAJAX(user)
     dispatch(
       publishAutoDismissingNotification(
         'success',
-        `User removed from ${isAbsoluteDelete
+        `${user.name} has been removed from ${isAbsoluteDelete
           ? 'all organizations and deleted'
-          : 'organization'}: ${user.scheme}::${user.provider}::${user.name}`
+          : 'the current organization'}`
       )
     )
   } catch (error) {
