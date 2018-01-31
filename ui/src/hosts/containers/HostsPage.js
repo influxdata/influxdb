@@ -1,6 +1,5 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
-import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 
@@ -185,5 +184,5 @@ const mapDispatchToProps = dispatch => ({
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  ManualRefresh(withRouter(HostsPage))
+  ManualRefresh(HostsPage)
 )
