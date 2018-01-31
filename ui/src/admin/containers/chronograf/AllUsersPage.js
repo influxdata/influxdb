@@ -28,16 +28,20 @@ class AllUsersPage extends Component {
     createUserAsync(links.users, user)
   }
 
-  handleUpdateUserRoles = (user, roles) => {
+  handleUpdateUserRoles = (user, roles, successMessage) => {
     const {actionsAdmin: {updateUserAsync}} = this.props
     const updatedUser = {...user, roles}
-    updateUserAsync(user, updatedUser)
+    updateUserAsync(user, updatedUser, successMessage)
   }
 
   handleUpdateUserSuperAdmin = (user, superAdmin) => {
     const {actionsAdmin: {updateUserAsync}} = this.props
     const updatedUser = {...user, superAdmin}
-    updateUserAsync(user, updatedUser)
+    updateUserAsync(
+      user,
+      updatedUser,
+      `${user.name}'s SuperAdmin status has been updated`
+    )
   }
 
   handleDeleteUser = user => {

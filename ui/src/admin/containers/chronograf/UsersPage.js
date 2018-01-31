@@ -28,7 +28,11 @@ class UsersPage extends Component {
     const newRoles = user.roles.map(
       r => (r.organization === currentRole.organization ? updatedRole : r)
     )
-    updateUserAsync(user, {...user, roles: newRoles})
+    updateUserAsync(
+      user,
+      {...user, roles: newRoles},
+      `${user.name} is now a ${name}`
+    )
   }
 
   handleDeleteUser = user => {

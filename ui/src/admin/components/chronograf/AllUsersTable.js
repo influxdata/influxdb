@@ -43,14 +43,25 @@ class AllUsersTable extends Component {
       organization: organization.id,
       name: '*',
     })
-    this.props.onUpdateUserRoles(user, newRoles)
+    this.props.onUpdateUserRoles(
+      user,
+      newRoles,
+      `${user.name} has been added to ${organization.name}`
+    )
   }
 
   handleRemoveFromOrganization = user => role => {
     const newRoles = user.roles.filter(
       r => r.organization !== role.organization // TODO: the organization upstream of this should use .id instead of .organization for this property
     )
-    this.props.onUpdateUserRoles(user, newRoles)
+    const {name} = this.props.organizations.find(
+      o => o.id === role.organization
+    )
+    this.props.onUpdateUserRoles(
+      user,
+      newRoles,
+      `${user.name} has been removed from ${name}`
+    )
   }
 
   handleChangeSuperAdmin = user => newStatus => {

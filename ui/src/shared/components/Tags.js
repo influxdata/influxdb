@@ -12,7 +12,7 @@ const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) =>
         />
       )
     })}
-    {addMenuItems && addMenuChoose
+    {addMenuItems.length && addMenuChoose
       ? <TagsAddButton items={addMenuItems} onChoose={addMenuChoose} />
       : null}
   </div>

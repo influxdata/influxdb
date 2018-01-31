@@ -131,7 +131,11 @@ export const createUserAsync = (url, user) => async dispatch => {
   }
 }
 
-export const updateUserAsync = (user, updatedUser) => async dispatch => {
+export const updateUserAsync = (
+  user,
+  updatedUser,
+  successMessage
+) => async dispatch => {
   dispatch(updateUser(user, updatedUser))
   try {
     // currently the request will be rejected if name, provider, or scheme, or
@@ -145,12 +149,7 @@ export const updateUserAsync = (user, updatedUser) => async dispatch => {
       provider: null,
       scheme: null,
     })
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `User updated: ${user.scheme}::${user.provider}::${user.name}`
-      )
-    )
+    dispatch(publishAutoDismissingNotification('success', successMessage))
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))
