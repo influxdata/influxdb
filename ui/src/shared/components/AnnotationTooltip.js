@@ -69,16 +69,6 @@ class AnnotationTooltip extends Component {
                 : <div>
                     {annotation.name}
                   </div>}
-              {isEditing
-                ? <AnnotationInput
-                    value={annotation.text}
-                    onChangeInput={this.handleChangeInput('text')}
-                    onConfirmUpdate={this.handleConfirmUpdate}
-                    onRejectUpdate={this.handleRejectUpdate}
-                  />
-                : <div>
-                    {annotation.text}
-                  </div>}
               <TimeStamp time={this.props.annotation.time} />
             </div>}
       </div>
