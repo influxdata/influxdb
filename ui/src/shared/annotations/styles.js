@@ -119,12 +119,12 @@ export const tooltipStyle = annotationState => {
 
   return {
     position: 'absolute',
-    bottom: 'calc(100% + 8px)',
+    bottom: 'calc(100% + 6px)',
     left: '50%',
     transform: 'translateX(-50%)',
     backgroundColor: NEUTRALS[0],
     zIndex: '3',
-    padding: isDragging ? '6px 12px' : '12px 12px 6px 12px',
+    padding: '6px 12px',
     borderRadius: '4px',
     whiteSpace: 'nowrap',
     userSelect: 'none',

@@ -67,7 +67,7 @@ class AnnotationInput extends Component {
           ? <form onSubmit={this.handleFormSubmit} style={tooltipFormStyle}>
               <input
                 type="text"
-                className="form-control input-sm"
+                className="form-control input-xs"
                 style={tooltipInput}
                 value={value}
                 onChange={this.handleChange}
@@ -76,7 +76,7 @@ class AnnotationInput extends Component {
                 onFocus={this.handleFocus}
               />
               <button
-                className="btn btn-square btn-sm btn-default"
+                className="btn btn-square btn-xs btn-default"
                 style={tooltipInputButton}
                 type="button"
                 onClick={this.handleClickOutside}
@@ -84,7 +84,7 @@ class AnnotationInput extends Component {
                 <span className="icon remove" />
               </button>
               <button
-                className="btn btn-square btn-sm btn-success"
+                className="btn btn-square btn-xs btn-success"
                 style={tooltipInputButton}
                 type="submit"
               >
