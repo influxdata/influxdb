@@ -300,14 +300,14 @@ class Dygraph extends Component {
     const {isHidden} = this.state
     const {mode} = this.props
 
-    const showLegend = this.dygraph && mode !== EDITING && mode !== ADDING
+    const hideLegend = mode === EDITING || mode === ADDING ? true : isHidden
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         <Annotations annotationsRef={this.handleAnnotationsRef} />
-        {showLegend &&
+        {this.dygraph &&
           <DygraphLegend
-            isHidden={isHidden}
+            isHidden={hideLegend}
             dygraph={this.dygraph}
             onHide={this.handleHideLegend}
             onShow={this.handleShowLegend}
