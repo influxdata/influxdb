@@ -1025,7 +1025,7 @@ type WALSegmentWriter struct {
 // NewWALSegmentWriter returns a new WALSegmentWriter writing to w.
 func NewWALSegmentWriter(w io.WriteCloser) *WALSegmentWriter {
 	return &WALSegmentWriter{
-		bw: bufio.NewWriter(w),
+		bw: bufio.NewWriterSize(w, 16*1024),
 		w:  w,
 	}
 }
