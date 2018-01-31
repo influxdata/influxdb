@@ -13,7 +13,7 @@ import (
 // basically defines the maximum number of partitions you can have in the ring.
 // If a smaller number of partitions are chosen when creating a ring, then
 // they're evenly spread across this many partitions in the ring.
-const partitions = 4096
+const partitions = 16
 
 // ring is a structure that maps series keys to entries.
 //
