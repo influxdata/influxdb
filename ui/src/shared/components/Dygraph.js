@@ -1,5 +1,6 @@
 /* eslint-disable no-magic-numbers */
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
 import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
 import NanoDate from 'nano-date'
@@ -23,8 +24,9 @@ import {
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
+import {ADDING, EDITING} from 'src/shared/annotations/helpers'
 
-export default class Dygraph extends Component {
+class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -296,11 +298,14 @@ export default class Dygraph extends Component {
 
   render() {
     const {isHidden} = this.state
+    const {mode} = this.props
+
+    const showLegend = this.dygraph && mode !== EDITING && mode !== ADDING
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         <Annotations annotationsRef={this.handleAnnotationsRef} />
-        {this.dygraph &&
+        {showLegend &&
           <DygraphLegend
             isHidden={isHidden}
             dygraph={this.dygraph}
@@ -374,4 +379,11 @@ Dygraph.propTypes = {
   setResolution: func,
   dygraphRef: func,
   onZoom: func,
+  mode: string,
 }
+
+const mapStateToProps = ({annotations: {mode}}) => ({
+  mode,
+})
+
+export default connect(mapStateToProps, null)(Dygraph)
