@@ -135,7 +135,15 @@ class Annotation extends Component {
   }
 
   handleDeleteAnnotation = () => {
-    this.props.onDeleteAnnotation(this.props.annotation)
+    const {annotation, annotations, onDeleteAnnotation} = this.props
+
+    if (this.isEndpoint()) {
+      const startAnnotation = annotations.find(a => a.id === this.getStartID())
+
+      return onDeleteAnnotation(startAnnotation)
+    }
+
+    return onDeleteAnnotation(annotation)
   }
 
   render() {
