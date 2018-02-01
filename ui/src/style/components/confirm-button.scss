@@ -17,7 +17,7 @@
 }
 .confirm-button--confirmation {
   white-space: pre;
-  max-width: 200px;
+  max-width: 210px;
   border-radius: 3px;
   background-color: $c-curacao;
   opacity: 0;
@@ -56,5 +56,18 @@
   }
   .confirm-button--confirmation {
     opacity: 1;
+  }
+}
+.confirm-button.btn.btn-default.btn-xs.btn-xxs {
+  padding-right: 0;
+  margin-top: -1px;
+
+  &:hover {
+    background-color: #383846;
+    color: #c6cad3;
+  }
+
+  span.icon.remove {
+    margin-right: 0;
   }
 }

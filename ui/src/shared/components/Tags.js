@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import TagsAddButton from 'src/shared/components/TagsAddButton'
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) =>
   <div className="input-tag-list">
@@ -29,7 +30,15 @@ class Tag extends Component {
         <span>
           {item.text || item.name || item}
         </span>
-        <span className="icon remove" onClick={this.handleClickDelete(item)} />
+        {
+          <ConfirmButton
+            icon="remove"
+            size="btn-xs"
+            customClass="btn-xxs"
+            confirmText="Remove user from organization?"
+            confirmAction={this.handleClickDelete(item)}
+          />
+        }
       </span>
     )
   }
