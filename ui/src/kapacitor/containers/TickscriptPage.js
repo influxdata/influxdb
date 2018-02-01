@@ -198,15 +198,18 @@ class TickscriptPage extends Component {
   }
 
   handleSelectDbrps = dbrps => {
-    this.setState({task: {...this.state.task, dbrps}})
+    this.setState({task: {...this.state.task, dbrps}, unsavedChanges: true})
   }
 
   handleChangeType = type => () => {
-    this.setState({task: {...this.state.task, type}})
+    this.setState({task: {...this.state.task, type}, unsavedChanges: true})
   }
 
   handleChangeID = e => {
-    this.setState({task: {...this.state.task, id: e.target.value}})
+    this.setState({
+      task: {...this.state.task, id: e.target.value},
+      unsavedChanges: true,
+    })
   }
 
   handleToggleLogsVisibility = () => {
