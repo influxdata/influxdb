@@ -24,7 +24,7 @@ class TickscriptPage extends Component {
         dbrps: [],
         type: 'stream',
       },
-      validation: '',
+      consoleMessage: '',
       isEditingID: true,
       logs: [],
       areLogsEnabled: false,
@@ -173,8 +173,11 @@ class TickscriptPage extends Component {
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
       }
-      if (response) {
-        this.setState({unsavedChanges: false})
+      if (response && !response.code) {
+        this.setState({unsavedChanges: false, consoleMessage: ''})
+      }
+      if (response.code) {
+        this.setState({unsavedChanges: true, consoleMessage: response.message})
       }
     } catch (error) {
       console.error(error)
@@ -218,18 +221,18 @@ class TickscriptPage extends Component {
     const {source} = this.props
     const {
       task,
-      validation,
       logs,
       areLogsVisible,
       areLogsEnabled,
       unsavedChanges,
+      consoleMessage,
     } = this.state
     return (
       <Tickscript
         task={task}
         logs={logs}
         source={source}
-        validation={validation}
+        consoleMessage={consoleMessage}
         onSave={this.handleSave}
         unsavedChanges={unsavedChanges}
         onExit={this.handleExit}

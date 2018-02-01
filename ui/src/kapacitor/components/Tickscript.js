@@ -11,7 +11,7 @@ const Tickscript = ({
   onExit,
   task,
   logs,
-  validation,
+  consoleMessage,
   onSelectDbrps,
   onChangeScript,
   onChangeType,
@@ -42,10 +42,13 @@ const Tickscript = ({
           onChangeID={onChangeID}
           task={task}
         />
-        <TickscriptEditorConsole validation={validation} />
         <TickscriptEditor
           script={task.tickscript}
           onChangeScript={onChangeScript}
+        />
+        <TickscriptEditorConsole
+          consoleMessage={consoleMessage}
+          unsavedChanges={unsavedChanges}
         />
       </div>
       {areLogsVisible ? <LogsTable logs={logs} /> : null}
@@ -71,7 +74,7 @@ Tickscript.propTypes = {
   }).isRequired,
   onChangeScript: func.isRequired,
   onSelectDbrps: func.isRequired,
-  validation: string,
+  consoleMessage: string,
   onChangeType: func.isRequired,
   onChangeID: func.isRequired,
   isNewTickscript: bool.isRequired,
