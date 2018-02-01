@@ -184,36 +184,10 @@ class TickscriptPage extends Component {
     }
   }
 
-  handleSaveAndExit = async () => {
-    const {kapacitor, task} = this.state
-    const {
-      source: {id: sourceID},
-      router,
-      kapacitorActions: {createTaskExit, updateTaskExit},
-      params: {ruleID},
-    } = this.props
+  handleExit = () => {
+    const {source: {id: sourceID}, router} = this.props
 
-    let response
-
-    try {
-      if (this._isEditing()) {
-        response = await updateTaskExit(
-          kapacitor,
-          task,
-          ruleID,
-          router,
-          sourceID
-        )
-      } else {
-        response = await createTaskExit(kapacitor, task, router, sourceID)
-      }
-      if (response && response.code === 500) {
-        return this.setState({validation: response.message})
-      }
-    } catch (error) {
-      console.error(error)
-      throw error
-    }
+    return router.push(`/sources/${sourceID}/alert-rules`)
   }
 
   handleChangeScript = tickscript => {
@@ -258,7 +232,7 @@ class TickscriptPage extends Component {
         validation={validation}
         onSave={this.handleSave}
         unsavedChanges={unsavedChanges}
-        onSaveAndExit={this.handleSaveAndExit}
+        onExit={this.handleExit}
         isNewTickscript={!this._isEditing()}
         onSelectDbrps={this.handleSelectDbrps}
         onChangeScript={this.handleChangeScript}
@@ -289,8 +263,6 @@ TickscriptPage.propTypes = {
   kapacitorActions: shape({
     updateTask: func.isRequired,
     createTask: func.isRequired,
-    updateTaskExit: func.isRequired,
-    createTaskExit: func.isRequired,
     getRule: func.isRequired,
   }),
   router: shape({

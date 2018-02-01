@@ -8,7 +8,7 @@ import LogsTable from 'src/kapacitor/components/LogsTable'
 
 const Tickscript = ({
   onSave,
-  onSaveAndExit,
+  onExit,
   task,
   logs,
   validation,
@@ -26,8 +26,8 @@ const Tickscript = ({
     <TickscriptHeader
       task={task}
       onSave={onSave}
+      onExit={onExit}
       unsavedChanges={unsavedChanges}
-      onSaveAndExit={onSaveAndExit}
       areLogsVisible={areLogsVisible}
       areLogsEnabled={areLogsEnabled}
       onToggleLogsVisibility={onToggleLogsVisibility}
@@ -57,6 +57,7 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 Tickscript.propTypes = {
   logs: arrayOf(shape()).isRequired,
   onSave: func.isRequired,
+  onExit: func.isRequired,
   source: shape({
     id: string,
   }),
@@ -74,6 +75,7 @@ Tickscript.propTypes = {
   onChangeType: func.isRequired,
   onChangeID: func.isRequired,
   isNewTickscript: bool.isRequired,
+  unsavedChanges: bool,
 }
 
 export default Tickscript

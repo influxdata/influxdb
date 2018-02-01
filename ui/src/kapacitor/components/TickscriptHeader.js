@@ -7,7 +7,7 @@ import ConfirmButton from 'src/shared/components/ConfirmButton'
 const TickscriptHeader = ({
   task: {id},
   onSave,
-  onSaveAndExit,
+  onExit,
   unsavedChanges,
   areLogsVisible,
   areLogsEnabled,
@@ -48,12 +48,12 @@ const TickscriptHeader = ({
           ? <ConfirmButton
               text="Exit"
               confirmText="Discard unsaved changes?"
-              confirmAction={onSaveAndExit}
+              confirmAction={onExit}
             />
           : <button
               className="btn btn-default btn-sm"
               title="Return to Alert Rules Page"
-              onClick={onSaveAndExit}
+              onClick={onExit}
             >
               Exit
             </button>}
@@ -66,6 +66,7 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 TickscriptHeader.propTypes = {
   isNewTickscript: bool,
   onSave: func,
+  onExit: func.isRequired,
   areLogsVisible: bool,
   areLogsEnabled: bool,
   onToggleLogsVisibility: func.isRequired,
@@ -77,6 +78,7 @@ TickscriptHeader.propTypes = {
       })
     ),
   }),
+  unsavedChanges: bool,
 }
 
 export default TickscriptHeader
