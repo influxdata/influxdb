@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 
 export const Tabber = ({labelText, children, tipID, tipContent}) =>
-  <div className="form-group col-sm-6">
+  <div className="form-group col-md-6">
     <label>
       {labelText}
       {tipID
