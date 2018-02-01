@@ -9,6 +9,9 @@
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap;
+  max-height: 50%;
+  overflow: auto;
+  @include custom-scrollbar($g3-castle,$g6-smoke);
 }
 .static-legend--dot {
   display: inline-block;
