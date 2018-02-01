@@ -47,7 +47,7 @@ const TickscriptHeader = ({
         {unsavedChanges
           ? <ConfirmButton
               text="Exit"
-              confirmText="This will discard unsaved changes"
+              confirmText="Discard unsaved changes?"
               confirmAction={onSaveAndExit}
             />
           : <button
