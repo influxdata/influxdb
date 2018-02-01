@@ -9,9 +9,18 @@
     visibility: hidden;
     transition: all;
     position: absolute;
-    top: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+
+    &.bottom {
+      top: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    &.left {
+      top: 50%;
+      right: calc(100% + 4px);
+      transform: translateY(-50%);
+    }
   }
 }
 .confirm-button--confirmation {
@@ -28,11 +37,7 @@
   &:after {
     content: '';
     border: 8px solid transparent;
-    border-bottom-color: $c-curacao;
     position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
     transition: border-color 0.25s ease;
     z-index: 100;
   }
@@ -41,11 +46,30 @@
     background-color: $c-dreamsicle;
     cursor: pointer;
   }
-  &:hover:after {
-    border-bottom-color: $c-dreamsicle;
-  }
 }
-.confirm-button.expanded {
+
+.confirm-button--tooltip.bottom .confirm-button--confirmation:after {
+  bottom: 100%;
+  left: 50%;
+  border-bottom-color: $c-curacao;
+  transform: translateX(-50%);
+}
+.confirm-button--tooltip.bottom .confirm-button--confirmation:hover:after {
+  border-bottom-color: $c-dreamsicle;
+}
+.confirm-button--tooltip.left .confirm-button--confirmation:after {
+  left: 100%;
+  top: 50%;
+  border-left-color: $c-curacao;
+  transform: translateY(-50%);
+}
+.confirm-button--tooltip.left .confirm-button--confirmation:hover:after {
+  border-left-color: $c-dreamsicle;
+}
+
+.confirm-button.active {
+  z-index: 999;
+
   .confirm-button--tooltip {
     visibility: visible;
   }
