@@ -38,6 +38,10 @@ const AllUsersTableRow = ({
 
   const wrappedDelete = () => onDelete(user)
 
+  const removeWarning = userIsMe
+    ? 'WARNING: this will remove your user record entirely and log you out'
+    : 'Remove from all Orgs'
+
   return (
     <tr className={'chronograf-admin-table--user'}>
       <td>
@@ -75,11 +79,10 @@ const AllUsersTableRow = ({
       </td>
       <td style={{textAlign: 'right', width: colActions}}>
         <ConfirmButton
-          confirmText="Remove from all Orgs"
+          confirmText={removeWarning}
           confirmAction={wrappedDelete}
           size="btn-xs"
           text="Remove"
-          disabled={userIsMe}
           customClass="table--show-on-row-hover"
         />
       </td>

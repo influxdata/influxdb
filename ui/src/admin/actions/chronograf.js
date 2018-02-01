@@ -165,7 +165,6 @@ export const deleteUserAsync = (
 ) => async dispatch => {
   dispatch(removeUser(user))
   try {
-    console.log(user)
     await deleteUserAJAX(user)
     dispatch(
       publishAutoDismissingNotification(
