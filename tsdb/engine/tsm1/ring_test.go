@@ -12,8 +12,8 @@ func TestRing_newRing(t *testing.T) {
 		n         int
 		returnErr bool
 	}{
-		{n: 1}, {n: 2}, {n: 4}, {n: 8}, {n: 16}, {n: 32}, {n: 64}, {n: 128}, {n: 256},
-		{n: 0, returnErr: true}, {n: 3, returnErr: true}, {n: 512, returnErr: true},
+		{n: 1}, {n: 2}, {n: 4}, {n: 8}, {n: 16}, {n: 32, returnErr: true},
+		{n: 0, returnErr: true}, {n: 3, returnErr: true},
 	}
 
 	for i, example := range examples {

@@ -19,7 +19,7 @@ import (
 // testing, a value above the number of cores on the machine does not provide
 // any additional benefit. For now we'll set it to the number of cores on the
 // largest box we could imagine running influx.
-const ringShards = 4096
+const ringShards = 16
 
 var (
 	// ErrSnapshotInProgress is returned if a snapshot is attempted while one is already running.
