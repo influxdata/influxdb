@@ -16,6 +16,7 @@ const DashVisualization = (
     queryConfigs,
     editQueryStatus,
     resizerTopHeight,
+    showStaticLegend,
   },
   {source: {links: {proxy}}}
 ) =>
@@ -31,11 +32,12 @@ const DashVisualization = (
         autoRefresh={autoRefresh}
         editQueryStatus={editQueryStatus}
         resizerTopHeight={resizerTopHeight}
+        showStaticLegend={showStaticLegend}
       />
     </div>
   </div>
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DashVisualization.defaultProps = {
   name: '',
@@ -69,6 +71,7 @@ DashVisualization.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  showStaticLegend: bool,
 }
 
 DashVisualization.contextTypes = {

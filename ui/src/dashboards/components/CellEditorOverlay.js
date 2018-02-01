@@ -60,6 +60,7 @@ class CellEditorOverlay extends Component {
       axes,
       colorSingleStatText: colorsTypeContainsText,
       colors: validateColors(colors, type, colorsTypeContainsText),
+      showStaticLegend: false,
     }
   }
 
@@ -370,6 +371,10 @@ class CellEditorOverlay extends Component {
     })
   }
 
+  handleToggleStaticLegend = newState => () => {
+    this.setState({showStaticLegend: newState})
+  }
+
   handleSetQuerySource = source => {
     const queriesWorkingDraft = this.state.queriesWorkingDraft.map(q => ({
       ..._.cloneDeep(q),
@@ -460,6 +465,7 @@ class CellEditorOverlay extends Component {
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
       colorSingleStatText,
+      showStaticLegend,
     } = this.state
 
     const queryActions = {
@@ -491,6 +497,7 @@ class CellEditorOverlay extends Component {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             onCellRename={this.handleCellRename}
+            showStaticLegend={showStaticLegend}
           />
           <CEOBottom>
             <OverlayControls
@@ -518,6 +525,8 @@ class CellEditorOverlay extends Component {
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
+                  onToggleStaticLegend={this.handleToggleStaticLegend}
+                  showStaticLegend={showStaticLegend}
                   queryConfigs={queriesWorkingDraft}
                   selectedGraphType={cellWorkingType}
                   onSetPrefixSuffix={this.handleSetPrefixSuffix}
