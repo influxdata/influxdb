@@ -173,11 +173,9 @@ class TickscriptPage extends Component {
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
       }
-      if (response && response.code === 500) {
-        // check responses on failing??!
-        return this.setState({validation: response.message})
+      if (response) {
+        this.setState({unsavedChanges: false})
       }
-      this.setState({unsavedChanges: false})
     } catch (error) {
       console.error(error)
       throw error
@@ -226,7 +224,6 @@ class TickscriptPage extends Component {
       areLogsEnabled,
       unsavedChanges,
     } = this.state
-
     return (
       <Tickscript
         task={task}

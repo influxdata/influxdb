@@ -30,7 +30,7 @@ const TickscriptHeader = ({
         {isNewTickscript
           ? <button
               className="btn btn-success btn-sm"
-              title="ID your TICKscript to save"
+              title="Name your TICKscript to save"
               onClick={onSave}
               disabled={!id}
             >
@@ -52,7 +52,7 @@ const TickscriptHeader = ({
             />
           : <button
               className="btn btn-default btn-sm"
-              title="Return to Alert Rules Page"
+              title="Return to Alert Rules"
               onClick={onExit}
             >
               Exit

@@ -198,7 +198,7 @@ export const updateRuleStatus = (rule, status) => dispatch => {
 export const createTask = (kapacitor, task) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    dispatch(publishNotification('success', 'You made a TICKscript!'))
+    dispatch(publishNotification('success', 'TICKscript successfully created'))
     return data
   } catch (error) {
     if (!error) {
@@ -218,14 +218,13 @@ export const updateTask = (
 ) => async dispatch => {
   try {
     const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
-    dispatch(publishNotification('success', 'TICKscript updated successully'))
+    dispatch(publishNotification('success', 'TICKscript saved'))
     return data
   } catch (error) {
     if (!error) {
       dispatch(errorThrown('Could not communicate with server'))
       return
     }
-
     return error.data
   }
 }
