@@ -18,16 +18,10 @@ const getSource = (cell, source, sources, defaultSource) => {
 class LayoutState extends Component {
   state = {
     celldata: [],
-    showStaticLegend: false,
   }
 
   grabDataForDownload = celldata => {
     this.setState({celldata})
-  }
-
-  toggleShowStaticLegend = () => {
-    const showStaticLegend = !this.state.showStaticLegend
-    this.setState({showStaticLegend})
   }
 
   render() {
@@ -36,7 +30,6 @@ class LayoutState extends Component {
         {...this.props}
         {...this.state}
         grabDataForDownload={this.grabDataForDownload}
-        toggleShowStaticLegend={this.toggleShowStaticLegend}
       />
     )
   }
@@ -60,10 +53,8 @@ const Layout = (
     onDeleteCell,
     synchronizer,
     resizeCoords,
-    showStaticLegend,
     onCancelEditCell,
     onStopAddAnnotation,
-    toggleShowStaticLegend,
     onSummonOverlayTechnologies,
     grabDataForDownload,
   },
@@ -76,7 +67,6 @@ const Layout = (
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
-    toggleShowStaticLegend={toggleShowStaticLegend}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
   >
     {cell.isWidget
@@ -93,7 +83,6 @@ const Layout = (
           autoRefresh={autoRefresh}
           synchronizer={synchronizer}
           manualRefresh={manualRefresh}
-          showStaticLegend={showStaticLegend}
           onStopAddAnnotation={onStopAddAnnotation}
           grabDataForDownload={grabDataForDownload}
           resizeCoords={resizeCoords}

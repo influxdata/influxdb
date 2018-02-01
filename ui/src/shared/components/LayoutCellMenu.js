@@ -35,7 +35,6 @@ class LayoutCellMenu extends Component {
       isEditable,
       dataExists,
       onCSVDownload,
-      toggleShowStaticLegend,
       onStartAddingAnnotation,
       onStartEditingAnnotation,
       onDismissEditingAnnotation,
@@ -66,10 +65,6 @@ class LayoutCellMenu extends Component {
                     {
                       text: 'Edit Annotations',
                       action: onStartEditingAnnotation,
-                    },
-                    {
-                      text: 'Show Legend',
-                      action: toggleShowStaticLegend,
                     },
                   ]}
                   informParent={this.handleToggleSubMenu}
@@ -115,7 +110,6 @@ LayoutCellMenu.propTypes = {
   dataExists: bool,
   onCSVDownload: func,
   queries: arrayOf(shape()),
-  toggleShowStaticLegend: func.isRequired,
   onStartAddingAnnotation: func.isRequired,
   onStartEditingAnnotation: func.isRequired,
   onDismissEditingAnnotation: func.isRequired,

@@ -30,13 +30,7 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {
-      cell,
-      children,
-      isEditable,
-      celldata,
-      toggleShowStaticLegend,
-    } = this.props
+    const {cell, children, isEditable, celldata} = this.props
 
     const queries = _.get(cell, ['queries'], [])
 
@@ -51,7 +45,6 @@ class LayoutCell extends Component {
             onDelete={this.handleDeleteCell}
             onEdit={this.handleSummonOverlay}
             onCSVDownload={this.handleCSVDownload}
-            toggleShowStaticLegend={toggleShowStaticLegend}
           />
         </Authorized>
         <LayoutCellHeader cellName={cell.name} isEditable={isEditable} />
@@ -89,7 +82,6 @@ LayoutCell.propTypes = {
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,
-  toggleShowStaticLegend: func,
   celldata: arrayOf(shape()),
 }
 
