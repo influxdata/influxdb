@@ -22,7 +22,7 @@ const RefreshingGraph = ({
   cellHeight,
   autoRefresh,
   resizerTopHeight,
-  showStaticLegend,
+  staticLegend,
   manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
@@ -86,7 +86,7 @@ const RefreshingGraph = ({
       isBarGraph={type === 'bar'}
       synchronizer={synchronizer}
       resizeCoords={resizeCoords}
-      showStaticLegend={showStaticLegend}
+      staticLegend={staticLegend}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
       grabDataForDownload={grabDataForDownload}
@@ -95,7 +95,7 @@ const RefreshingGraph = ({
   )
 }
 
-const {arrayOf, func, number, shape, string, bool} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 RefreshingGraph.propTypes = {
   timeRange: shape({
@@ -111,7 +111,7 @@ RefreshingGraph.propTypes = {
   axes: shape(),
   queries: arrayOf(shape()).isRequired,
   editQueryStatus: func,
-  showStaticLegend: bool,
+  staticLegend: shape({}).isRequired,
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,

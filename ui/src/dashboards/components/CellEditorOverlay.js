@@ -18,6 +18,8 @@ import {getQueryConfig} from 'shared/apis'
 import {
   removeUnselectedTemplateValues,
   TYPE_QUERY_CONFIG,
+  STATIC_LEGEND_SHOW,
+  STATIC_LEGEND_HIDE,
 } from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -33,11 +35,15 @@ import {
   validateColors,
 } from 'src/dashboards/constants/gaugeColors'
 
+const FAKE_LEGEND_OPTS = {
+  type: null,
+  orient: 'bottom',
+}
 class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {name, type, queries, axes, colors}, sources} = props
+    const {cell: {name, type, queries, axes, colors, legend}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -60,7 +66,7 @@ class CellEditorOverlay extends Component {
       axes,
       colorSingleStatText: colorsTypeContainsText,
       colors: validateColors(colors, type, colorsTypeContainsText),
-      showStaticLegend: false,
+      staticLegend: legend || FAKE_LEGEND_OPTS,
     }
   }
 
@@ -372,7 +378,10 @@ class CellEditorOverlay extends Component {
   }
 
   handleToggleStaticLegend = newState => () => {
-    this.setState({showStaticLegend: newState})
+    const type = newState ? STATIC_LEGEND_SHOW : STATIC_LEGEND_HIDE
+    const staticLegend = {...this.state.staticLegend, type}
+
+    this.setState({staticLegend})
   }
 
   handleSetQuerySource = source => {
@@ -465,7 +474,7 @@ class CellEditorOverlay extends Component {
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
       colorSingleStatText,
-      showStaticLegend,
+      staticLegend,
     } = this.state
 
     const queryActions = {
@@ -497,7 +506,7 @@ class CellEditorOverlay extends Component {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             onCellRename={this.handleCellRename}
-            showStaticLegend={showStaticLegend}
+            staticLegend={staticLegend}
           />
           <CEOBottom>
             <OverlayControls
@@ -526,7 +535,7 @@ class CellEditorOverlay extends Component {
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
                   onToggleStaticLegend={this.handleToggleStaticLegend}
-                  showStaticLegend={showStaticLegend}
+                  staticLegend={staticLegend}
                   queryConfigs={queriesWorkingDraft}
                   selectedGraphType={cellWorkingType}
                   onSetPrefixSuffix={this.handleSetPrefixSuffix}

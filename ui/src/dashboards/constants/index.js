@@ -105,3 +105,6 @@ export const TYPE_QUERY_CONFIG = 'queryConfig'
 export const TYPE_SHIFTED = 'shifted queryConfig'
 export const TYPE_IFQL = 'ifql'
 export const DASHBOARD_NAME_MAX_LENGTH = 50
+
+export const STATIC_LEGEND_SHOW = 'static'
+export const STATIC_LEGEND_HIDE = null
