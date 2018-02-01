@@ -163,6 +163,10 @@ func (h *Plus) Add(v []byte) {
 
 // Count returns a cardinality estimate.
 func (h *Plus) Count() uint64 {
+	if h == nil {
+		return 0 // Nothing to do.
+	}
+
 	if h.sparse {
 		h.mergeSparse()
 		return uint64(h.linearCount(h.mp, h.mp-uint32(h.sparseList.count)))

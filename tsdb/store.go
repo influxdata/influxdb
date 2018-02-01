@@ -849,7 +849,9 @@ func (s *Store) DiskSize() (int64, error) {
 	return size, nil
 }
 
-func (s *Store) estimateCardinality(dbName string, getSketches func(*Shard) (estimator.Sketch, estimator.Sketch, error)) (int64, error) {
+// sketchesForDatabase returns merged sketches for the provided database, by
+// walking each shard in the database and merging the sketches found there.
+func (s *Store) sketchesForDatabase(dbName string, getSketches func(*Shard) (estimator.Sketch, estimator.Sketch, error)) (estimator.Sketch, estimator.Sketch, error) {
 	var (
 		ss estimator.Sketch // Sketch estimating number of items.
 		ts estimator.Sketch // Sketch estimating number of tombstoned items.
@@ -863,27 +865,26 @@ func (s *Store) estimateCardinality(dbName string, getSketches func(*Shard) (est
 	for _, shard := range shards {
 		s, t, err := getSketches(shard)
 		if err != nil {
-			return 0, err
+			return nil, nil, err
 		}
 
 		if ss == nil {
 			ss, ts = s, t
 		} else if err = ss.Merge(s); err != nil {
-			return 0, err
+			return nil, nil, err
 		} else if err = ts.Merge(t); err != nil {
-			return 0, err
+			return nil, nil, err
 		}
 	}
-
-	if ss != nil {
-		return int64(ss.Count() - ts.Count()), nil
-	}
-	return 0, nil
+	return ss, ts, nil
 }
 
-// SeriesCardinality returns the series cardinality for the provided database.
+// SeriesCardinality returns the exact series cardinality for the provided
+// database.
 //
-// Cardinality is calculated exactly by unioning all shards' bitsets of series IDs.
+// Cardinality is calculated exactly by unioning all shards' bitsets of series
+// IDs. The result of this method cannot be combined with any other results.
+//
 func (s *Store) SeriesCardinality(database string) (int64, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))
@@ -911,12 +912,46 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 	return int64(ss.Cardinality()), nil
 }
 
-// MeasurementsCardinality returns the measurement cardinality for the provided
-// database.
+// SeriesSketches returns the sketches associated with the series data in all
+// the shards in the provided database.
 //
-// Cardinality is calculated using a sketch-based estimation.
+// The returned sketches can be combined with other sketches to provide an
+// estimation across distributed databases.
+func (s *Store) SeriesSketches(database string) (estimator.Sketch, estimator.Sketch, error) {
+	return s.sketchesForDatabase(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+		if sh == nil {
+			return nil, nil, errors.New("shard nil, can't get cardinality")
+		}
+		return sh.SeriesSketches()
+	})
+}
+
+// MeasurementsCardinality returns an estimation of the measurement cardinality
+// for the provided database.
+//
+// Cardinality is calculated using a sketch-based estimation. The result of this
+// method cannot be combined with any other results.
 func (s *Store) MeasurementsCardinality(database string) (int64, error) {
-	return s.estimateCardinality(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+	ss, ts, err := s.sketchesForDatabase(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+		if sh == nil {
+			return nil, nil, errors.New("shard nil, can't get cardinality")
+		}
+		return sh.MeasurementsSketches()
+	})
+
+	if err != nil {
+		return 0, err
+	}
+	return int64(ss.Count() - ts.Count()), nil
+}
+
+// MeasurementsSketches returns the sketches associated with the measurement
+// data in all the shards in the provided database.
+//
+// The returned sketches can be combined with other sketches to provide an
+// estimation across distributed databases.
+func (s *Store) MeasurementsSketches(database string) (estimator.Sketch, estimator.Sketch, error) {
+	return s.sketchesForDatabase(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
 		if sh == nil {
 			return nil, nil, errors.New("shard nil, can't get cardinality")
 		}

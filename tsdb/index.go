@@ -36,6 +36,7 @@ type Index interface {
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
+	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 
 	HasTagKey(name, key []byte) (bool, error)
 	HasTagValue(name, key, value []byte) (bool, error)

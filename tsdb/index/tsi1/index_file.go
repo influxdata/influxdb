@@ -52,6 +52,9 @@ type IndexFile struct {
 	seriesIDSetData          []byte
 	tombstoneSeriesIDSetData []byte
 
+	// Series sketches
+	sketch, tSketch estimator.Sketch
+
 	// Sortable identifier & filepath to the log file.
 	level int
 	id    int
@@ -340,13 +343,22 @@ func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterat
 	return f.mblk.SeriesIDIterator(name)
 }
 
-// MergeMeasurementsSketches merges the index file's series sketches into the provided
-// sketches.
+// MergeMeasurementsSketches merges the index file's measurements sketches into
+// the provided sketches.
 func (f *IndexFile) MergeMeasurementsSketches(s, t estimator.Sketch) error {
 	if err := s.Merge(f.mblk.sketch); err != nil {
 		return err
 	}
 	return t.Merge(f.mblk.tSketch)
+}
+
+// MergeSeriesSketches merges the index file's series sketches into the provided
+// sketches.
+func (f *IndexFile) MergeSeriesSketches(s, t estimator.Sketch) error {
+	if err := s.Merge(f.sketch); err != nil {
+		return err
+	}
+	return t.Merge(f.tSketch)
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.

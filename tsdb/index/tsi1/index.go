@@ -594,7 +594,7 @@ func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
-// instances of the type sketch types in all the index files.
+// instances of the type sketch types in all the partitions.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	s, ts := hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for _, p := range i.partitions {
@@ -614,8 +614,27 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 	return s, ts, nil
 }
 
-// SeriesN returns the number of unique non-tombstoned series in this index.
-//
+// SeriesSketches returns the two sketches for the index by merging all
+// instances of the type sketch types in all the partitions.
+func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	s, ts := hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	for _, p := range i.partitions {
+		// Get partition's measurement sketches and merge.
+		ps, pts, err := p.SeriesSketches()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := s.Merge(ps); err != nil {
+			return nil, nil, err
+		} else if err := ts.Merge(pts); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return s, ts, nil
+}
+
 // Since indexes are not shared across shards, the count returned by SeriesN
 // cannot be combined with other shard's results. If you need to count series
 // across indexes then use either the database-wide series file, or merge the

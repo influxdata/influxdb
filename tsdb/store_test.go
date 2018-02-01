@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
@@ -930,6 +932,138 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 		}
 		defer store.Close()
 		return testStoreCardinalityCompactions(store)
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(index); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestStore_Sketches(t *testing.T) {
+	t.Parallel()
+
+	checkCardinalities := func(store *tsdb.Store, series, tseries, measurements, tmeasurements int) error {
+		// Get sketches and check cardinality...
+		sketch, tsketch, err := store.SeriesSketches("db")
+		if err != nil {
+			return err
+		}
+
+		// delta calculates a rough 10% delta. If i is small then a minimum value
+		// of 2 is used.
+		delta := func(i int) int {
+			v := i / 10
+			if v == 0 {
+				v = 2
+			}
+			return v
+		}
+
+		// series cardinality should be well within 10%.
+		if got, exp := int(sketch.Count()), series; got-exp < -delta(series) || got-exp > delta(series) {
+			return fmt.Errorf("got series cardinality %d, expected ~%d", got, exp)
+		}
+
+		// check series tombstones
+		if got, exp := int(tsketch.Count()), tseries; got-exp < -delta(tseries) || got-exp > delta(tseries) {
+			return fmt.Errorf("got series tombstone cardinality %d, expected ~%d", got, exp)
+		}
+
+		// Check measurement cardinality.
+		if sketch, tsketch, err = store.MeasurementsSketches("db"); err != nil {
+			return err
+		}
+
+		if got, exp := int(sketch.Count()), measurements; got-exp < -delta(measurements) || got-exp > delta(measurements) {
+			return fmt.Errorf("got measurement cardinality %d, expected ~%d", got, exp)
+		}
+
+		if got, exp := int(tsketch.Count()), tmeasurements; got-exp < -delta(tmeasurements) || got-exp > delta(tmeasurements) {
+			return fmt.Errorf("got measurement tombstone cardinality %d, expected ~%d", got, exp)
+		}
+		return nil
+	}
+
+	test := func(index string) error {
+		store := MustOpenStore(index)
+		defer store.Close()
+
+		// Generate point data to write to the shards.
+		series := genTestSeries(10, 2, 4) // 160 series
+
+		points := make([]models.Point, 0, len(series))
+		for _, s := range series {
+			points = append(points, models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
+		}
+
+		// Create requested number of shards in the store & write points across
+		// shards such that we never write the same series to multiple shards.
+		for shardID := 0; shardID < 4; shardID++ {
+			if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+				return fmt.Errorf("create shard: %s", err)
+			}
+
+			if err := store.BatchWrite(shardID, points[shardID*40:(shardID+1)*40]); err != nil {
+				return fmt.Errorf("batch write: %s", err)
+			}
+		}
+
+		// Check cardinalities
+		if err := checkCardinalities(store.Store, 160, 0, 10, 0); err != nil {
+			return fmt.Errorf("[initial] %v", err)
+		}
+
+		// Reopen the store.
+		if err := store.Reopen(); err != nil {
+			return err
+		}
+
+		// Check cardinalities
+		if err := checkCardinalities(store.Store, 160, 0, 10, 0); err != nil {
+			return fmt.Errorf("[initial|re-open] %v", err)
+		}
+
+		// Delete half the the measurements data
+		mnames, err := store.MeasurementNames(nil, "db", nil)
+		if err != nil {
+			return err
+		}
+
+		for _, name := range mnames[:len(mnames)/2] {
+			if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
+				return err
+			}
+		}
+
+		// Check cardinalities - tombstones should be in
+		if err := checkCardinalities(store.Store, 160, 80, 10, 5); err != nil {
+			return fmt.Errorf("[initial|re-open|delete] %v", err)
+		}
+
+		// Reopen the store.
+		if err := store.Reopen(); err != nil {
+			return err
+		}
+
+		// Check cardinalities. In this case, the indexes behave differently.
+		//
+		// - The inmem index will report that there are 80 series and no tombstones.
+		// - The tsi1 index will report that there are 160 series and 80 tombstones.
+		//
+		// The result is the same, but the implementation differs.
+		expS, expTS, expM, expTM := 160, 80, 10, 5
+		if index == inmem.IndexName {
+			expS, expTS, expM, expTM = 80, 0, 5, 0
+		}
+
+		if err := checkCardinalities(store.Store, expS, expTS, expM, expTM); err != nil {
+			return fmt.Errorf("[initial|re-open|delete|re-open] %v", err)
+		}
+		return nil
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
