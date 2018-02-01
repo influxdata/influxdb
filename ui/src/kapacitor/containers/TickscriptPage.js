@@ -29,6 +29,7 @@ class TickscriptPage extends Component {
       logs: [],
       areLogsEnabled: false,
       failStr: '',
+      unsavedChanges: false,
     }
   }
 
@@ -172,7 +173,40 @@ class TickscriptPage extends Component {
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
       }
+      if (response && response.code === 500) {
+        // check responses on failing??!
+        return this.setState({validation: response.message})
+      }
+      this.setState({unsavedChanges: false})
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
 
+  handleSaveAndExit = async () => {
+    const {kapacitor, task} = this.state
+    const {
+      source: {id: sourceID},
+      router,
+      kapacitorActions: {createTaskExit, updateTaskExit},
+      params: {ruleID},
+    } = this.props
+
+    let response
+
+    try {
+      if (this._isEditing()) {
+        response = await updateTaskExit(
+          kapacitor,
+          task,
+          ruleID,
+          router,
+          sourceID
+        )
+      } else {
+        response = await createTaskExit(kapacitor, task, router, sourceID)
+      }
       if (response && response.code === 500) {
         return this.setState({validation: response.message})
       }
@@ -183,7 +217,10 @@ class TickscriptPage extends Component {
   }
 
   handleChangeScript = tickscript => {
-    this.setState({task: {...this.state.task, tickscript}})
+    this.setState({
+      task: {...this.state.task, tickscript},
+      unsavedChanges: true,
+    })
   }
 
   handleSelectDbrps = dbrps => {
@@ -204,7 +241,14 @@ class TickscriptPage extends Component {
 
   render() {
     const {source} = this.props
-    const {task, validation, logs, areLogsVisible, areLogsEnabled} = this.state
+    const {
+      task,
+      validation,
+      logs,
+      areLogsVisible,
+      areLogsEnabled,
+      unsavedChanges,
+    } = this.state
 
     return (
       <Tickscript
@@ -213,6 +257,8 @@ class TickscriptPage extends Component {
         source={source}
         validation={validation}
         onSave={this.handleSave}
+        unsavedChanges={unsavedChanges}
+        onSaveAndExit={this.handleSaveAndExit}
         isNewTickscript={!this._isEditing()}
         onSelectDbrps={this.handleSelectDbrps}
         onChangeScript={this.handleChangeScript}
@@ -243,6 +289,8 @@ TickscriptPage.propTypes = {
   kapacitorActions: shape({
     updateTask: func.isRequired,
     createTask: func.isRequired,
+    updateTaskExit: func.isRequired,
+    createTaskExit: func.isRequired,
     getRule: func.isRequired,
   }),
   router: shape({

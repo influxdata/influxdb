@@ -2,10 +2,13 @@ import React, {PropTypes} from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 const TickscriptHeader = ({
   task: {id},
   onSave,
+  onSaveAndExit,
+  unsavedChanges,
   areLogsVisible,
   areLogsEnabled,
   isNewTickscript,
@@ -24,14 +27,36 @@ const TickscriptHeader = ({
         />}
       <div className="page-header__right">
         <SourceIndicator />
-        <button
-          className="btn btn-success btn-sm"
-          title={id ? '' : 'ID your TICKscript to save'}
-          onClick={onSave}
-          disabled={!id}
-        >
-          {isNewTickscript ? 'Save New TICKscript' : 'Save TICKscript'}
-        </button>
+        {isNewTickscript
+          ? <button
+              className="btn btn-success btn-sm"
+              title="ID your TICKscript to save"
+              onClick={onSave}
+              disabled={!id}
+            >
+              Save New TICKscript
+            </button>
+          : <button
+              className="btn btn-success btn-sm"
+              title="You have unsaved changes"
+              onClick={onSave}
+              disabled={!unsavedChanges}
+            >
+              Save Changes
+            </button>}
+        {unsavedChanges
+          ? <ConfirmButton
+              text="Exit"
+              confirmText="This will discard unsaved changes"
+              confirmAction={onSaveAndExit}
+            />
+          : <button
+              className="btn btn-default btn-sm"
+              title="Return to Alert Rules Page"
+              onClick={onSaveAndExit}
+            >
+              Exit
+            </button>}
       </div>
     </div>
   </div>

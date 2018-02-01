@@ -8,6 +8,7 @@ import LogsTable from 'src/kapacitor/components/LogsTable'
 
 const Tickscript = ({
   onSave,
+  onSaveAndExit,
   task,
   logs,
   validation,
@@ -15,6 +16,7 @@ const Tickscript = ({
   onChangeScript,
   onChangeType,
   onChangeID,
+  unsavedChanges,
   isNewTickscript,
   areLogsVisible,
   areLogsEnabled,
@@ -24,6 +26,8 @@ const Tickscript = ({
     <TickscriptHeader
       task={task}
       onSave={onSave}
+      unsavedChanges={unsavedChanges}
+      onSaveAndExit={onSaveAndExit}
       areLogsVisible={areLogsVisible}
       areLogsEnabled={areLogsEnabled}
       onToggleLogsVisibility={onToggleLogsVisibility}

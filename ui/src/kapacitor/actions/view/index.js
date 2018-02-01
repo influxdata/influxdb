@@ -203,7 +203,6 @@ export const createTask = (
 ) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    router.push(`/sources/${sourceID}/alert-rules`)
     dispatch(publishNotification('success', 'You made a TICKscript!'))
     return data
   } catch (error) {
@@ -217,6 +216,48 @@ export const createTask = (
 }
 
 export const updateTask = (
+  kapacitor,
+  task,
+  ruleID,
+  router,
+  sourceID
+) => async dispatch => {
+  try {
+    const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
+    dispatch(publishNotification('success', 'TICKscript updated successully'))
+    return data
+  } catch (error) {
+    if (!error) {
+      dispatch(errorThrown('Could not communicate with server'))
+      return
+    }
+
+    return error.data
+  }
+}
+
+export const createTaskExit = (
+  kapacitor,
+  task,
+  router,
+  sourceID
+) => async dispatch => {
+  try {
+    const {data} = await createTaskAJAX(kapacitor, task)
+    router.push(`/sources/${sourceID}/alert-rules`)
+    dispatch(publishNotification('success', 'TICKscript successfully created.'))
+    return data
+  } catch (error) {
+    if (!error) {
+      dispatch(errorThrown('Could not communicate with server'))
+      return
+    }
+
+    return error.data
+  }
+}
+
+export const updateTaskExit = (
   kapacitor,
   task,
   ruleID,
