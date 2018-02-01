@@ -16,6 +16,8 @@
   }
 }
 .confirm-button--confirmation {
+  white-space: pre;
+  max-width: 200px;
   border-radius: 3px;
   background-color: $c-curacao;
   opacity: 0;

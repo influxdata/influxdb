@@ -39,8 +39,8 @@ const AllUsersTableRow = ({
   const wrappedDelete = () => onDelete(user)
 
   const removeWarning = userIsMe
-    ? 'WARNING: this will remove your user record entirely and log you out'
-    : 'Remove from all Orgs'
+    ? 'Delete your user record\nand log yourself out?'
+    : 'Delete this user?'
 
   return (
     <tr className={'chronograf-admin-table--user'}>
