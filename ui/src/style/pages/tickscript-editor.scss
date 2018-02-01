@@ -3,28 +3,26 @@
     ----------------------------------------------------------------------------
 */
 
-$tickscript-console-height: 60px;
+$tickscript-controls-height: 60px;
 
 .tickscript {
   flex: 1 0 0;
+  position: relative;
 }
 .tickscript-controls,
 .tickscript-console,
 .tickscript-editor {
-  padding: 0;
-  margin: 0;
   width: 100%;
-  position: relative;
 }
-.tickscript-controls,
-.tickscript-console {
-  height: $tickscript-console-height;
+.tickscript-console,
+.tickscript-controls {
+  padding: 0 60px;
+  display: flex;
 }
 .tickscript-controls {
-  display: flex;
   align-items: center;
+  height: $tickscript-controls-height;
   justify-content: space-between;
-  padding: 0 60px;
   background-color: $g3-castle;
 }
 .tickscript-controls--name {
@@ -42,29 +40,42 @@ $tickscript-console-height: 60px;
 
   > * {margin-left: 8px;}
 }
-.tickscript-console--output {
-  padding: 0 60px;
-  font-family: $code-font;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  background-color: $g2-kevlar;
-  border-bottom: 2px solid $g3-castle;
-  position: relative;
-  height: 100%;
-  width: 100%;
-  border-radius: $radius $radius 0 0;
+.tickscript-console {
+  align-items: flex-start;
+  height: $tickscript-controls-height * 2.25;
+  border-top: 2px solid $g3-castle;
+  background-color: $g0-obsidian;
+  overflow-y: scroll;
+  @include custom-scrollbar($g0-obsidian,$g4-onyx);
 
   > p {
-    margin: 0;
+    position: relative;
+    padding-left: 16px;
+    font-family: $code-font;
+    margin: 11px 0;
+    font-weight: 700;
+    word-wrap: break-word;
+    word-break: break-word;
+
+    &:before {
+      content: '>';
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
   }
 }
 .tickscript-console--default {
-  color: $g10-wolf;
-  font-style: italic;
+  color: $g13-mist;
+}
+.tickscript-console--valid {
+  color: $c-rainforest;
+}
+.tickscript-console--error {
+  color: $c-dreamsicle;
 }
 .tickscript-editor {
-  height: calc(100% - #{$tickscript-console-height * 2});
+  height: calc(100% - #{$tickscript-controls-height * 3.25});
 }
 
 /*
