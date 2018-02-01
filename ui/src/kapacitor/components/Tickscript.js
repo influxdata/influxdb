@@ -18,7 +18,7 @@ const Tickscript = ({
   isNewTickscript,
   areLogsVisible,
   areLogsEnabled,
-  onToggleLogsVisbility,
+  onToggleLogsVisibility,
 }) =>
   <div className="page">
     <TickscriptHeader
@@ -26,7 +26,7 @@ const Tickscript = ({
       onSave={onSave}
       areLogsVisible={areLogsVisible}
       areLogsEnabled={areLogsEnabled}
-      onToggleLogsVisbility={onToggleLogsVisbility}
+      onToggleLogsVisibility={onToggleLogsVisibility}
       isNewTickscript={isNewTickscript}
     />
     <div className="page-contents--split">
@@ -58,7 +58,7 @@ Tickscript.propTypes = {
   }),
   areLogsVisible: bool,
   areLogsEnabled: bool,
-  onToggleLogsVisbility: func.isRequired,
+  onToggleLogsVisibility: func.isRequired,
   task: shape({
     id: string,
     script: string,

@@ -198,7 +198,7 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, id: e.target.value}})
   }
 
-  handleToggleLogsVisbility = () => {
+  handleToggleLogsVisibility = () => {
     this.setState({areLogsVisible: !this.state.areLogsVisible})
   }
 
@@ -220,7 +220,7 @@ class TickscriptPage extends Component {
         onChangeID={this.handleChangeID}
         areLogsVisible={areLogsVisible}
         areLogsEnabled={areLogsEnabled}
-        onToggleLogsVisbility={this.handleToggleLogsVisbility}
+        onToggleLogsVisibility={this.handleToggleLogsVisibility}
       />
     )
   }
