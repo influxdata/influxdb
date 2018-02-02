@@ -35,6 +35,14 @@ class ProvidersTable extends Component {
     const tableTitle =
       mappings.length === 1 ? '1 Map' : `${mappings.length} Maps`
 
+    // define scheme options
+    const schemes = [
+      {text: '*'},
+      {text: 'oauth2'},
+      {text: 'option2'},
+      {text: 'option3'},
+    ]
+
     return (
       <div className="panel panel-default">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -49,38 +57,55 @@ class ProvidersTable extends Component {
             <span className="icon plus" /> Create Map
           </button>
         </div>
-        <div className="panel-body">
-          <div className="fancytable--labels">
-            <div className="fancytable--th provider--id">ID</div>
-            <div className="fancytable--th provider--scheme">Scheme</div>
-            <div className="fancytable--th provider--provider">Provider</div>
-            <div className="fancytable--th provider--providerorg">
-              Provider Org
+        {(mappings && mappings.length) || isCreatingMap
+          ? <div className="panel-body">
+              <div className="fancytable--labels">
+                <div className="fancytable--th provider--id">ID</div>
+                <div className="fancytable--th provider--scheme">Scheme</div>
+                <div className="fancytable--th provider--provider">
+                  Provider
+                </div>
+                <div className="fancytable--th provider--providerorg">
+                  Provider Org
+                </div>
+                <div className="fancytable--th provider--arrow" />
+                <div className="fancytable--th provider--redirect">
+                  Organization
+                </div>
+                <div className="fancytable--th" />
+                <div className="fancytable--th provider--delete" />
+              </div>
+              {mappings.map(mapping =>
+                <ProvidersTableRow
+                  key={mapping.id}
+                  mapping={mapping}
+                  organizations={organizations}
+                  schemes={schemes}
+                  onDelete={onDeleteMap}
+                  onUpdate={onUpdateMap}
+                />
+              )}
+              {isCreatingMap
+                ? <ProvidersTableRowNew
+                    organizations={organizations}
+                    schemes={schemes}
+                    onCreate={this.handleCreateMap}
+                    onCancel={this.handleCancelCreateMap}
+                  />
+                : null}
             </div>
-            <div className="fancytable--th provider--arrow" />
-            <div className="fancytable--th provider--redirect">
-              Organization
-            </div>
-            <div className="fancytable--th" />
-            <div className="fancytable--th provider--delete" />
-          </div>
-          {mappings.map(mapping =>
-            <ProvidersTableRow
-              key={mapping.id}
-              mapping={mapping}
-              organizations={organizations}
-              onDelete={onDeleteMap}
-              onUpdate={onUpdateMap}
-            />
-          )}
-          {isCreatingMap
-            ? <ProvidersTableRowNew
-                organizations={organizations}
-                onCreate={this.handleCreateMap}
-                onCancel={this.handleCancelCreateMap}
-              />
-            : null}
-        </div>
+          : <div className="generic-empty-state">
+              <h4 style={{margin: '90px 0'}}>
+                Looks like you don’t have any mappings
+              </h4>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={this.handleClickCreateMap}
+                disabled={isCreatingMap}
+              >
+                <span className="icon plus" /> Create Map
+              </button>
+            </div>}
       </div>
     )
   }

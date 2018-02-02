@@ -9,15 +9,15 @@ class ProvidersTableRowNew extends Component {
     super(props)
 
     this.state = {
-      scheme: null,
+      scheme: '*',
       provider: null,
       providerOrganization: null,
       organizationId: 'default',
     }
   }
 
-  handleChangeScheme = scheme => {
-    this.setState({scheme})
+  handleChooseScheme = scheme => {
+    this.setState({scheme: scheme.text})
   }
 
   handleChangeProvider = provider => {
@@ -42,7 +42,7 @@ class ProvidersTableRowNew extends Component {
   render() {
     const {scheme, provider, providerOrganization, organizationId} = this.state
 
-    const {organizations, onCancel} = this.props
+    const {organizations, onCancel, schemes} = this.props
 
     const selectedOrg = organizations.find(o => o.id === organizationId)
 
@@ -54,10 +54,12 @@ class ProvidersTableRowNew extends Component {
     return (
       <div className="fancytable--row">
         <div className="fancytable--td provider--id">--</div>
-        <InputClickToEdit
-          value={scheme}
-          wrapperClass="fancytable--td provider--scheme"
-          onUpdate={this.handleChangeScheme}
+
+        <Dropdown
+          items={schemes}
+          onChoose={this.handleChooseScheme}
+          selected={scheme}
+          className={'fancytable--td provider--scheme'}
         />
         <InputClickToEdit
           value={provider}
@@ -98,6 +100,11 @@ ProvidersTableRowNew.propTypes = {
       name: string.isRequired,
     })
   ).isRequired,
+  schemes: arrayOf(
+    shape({
+      text: string.isRequired,
+    })
+  ),
   onCreate: func.isRequired,
   onCancel: func.isRequired,
 }

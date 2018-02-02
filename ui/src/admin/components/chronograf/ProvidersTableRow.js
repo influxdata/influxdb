@@ -33,30 +33,68 @@ class ProvidersTableRow extends Component {
     onDelete(mapping)
   }
 
-  handleChangeScheme = scheme => {
-    this.setState({scheme})
-    this.handleUpdateMapping()
-  }
-
   handleChangeProvider = provider => {
     this.setState({provider})
-    this.handleUpdateMapping()
+    const {scheme, organizationId, providerOrganization} = this.state
+    const {onUpdate, mapping: {id}} = this.props
+    const updatedMap = {
+      id,
+      scheme,
+      provider,
+      providerOrganization,
+      organizationId,
+    }
+    onUpdate(updatedMap)
   }
 
   handleChangeProviderOrg = providerOrganization => {
     this.setState({providerOrganization})
-    this.handleUpdateMapping()
+    const {onUpdate, mapping: {id}} = this.props
+    const {scheme, provider, organizationId} = this.state
+    const updatedMap = {
+      id,
+      scheme,
+      provider,
+      providerOrganization,
+      organizationId,
+    }
+    onUpdate(updatedMap)
   }
 
   handleChooseOrganization = org => {
-    this.setState({organizationId: org.id})
-    this.handleUpdateMapping()
+    const organizationId = org.id
+    this.setState({organizationId})
+    const {onUpdate, mapping: {id}} = this.props
+    const {scheme, provider, providerOrganization} = this.state
+    const updatedMap = {
+      id,
+      scheme,
+      provider,
+      providerOrganization,
+      organizationId,
+    }
+    onUpdate(updatedMap)
+  }
+
+  handleChooseScheme = s => {
+    const scheme = s.text
+    this.setState({scheme})
+    const {onUpdate, mapping: {id}} = this.props
+    const {provider, providerOrganization, organizationId} = this.state
+    const updatedMap = {
+      id,
+      scheme,
+      provider,
+      providerOrganization,
+      organizationId,
+    }
+    onUpdate(updatedMap)
   }
 
   handleUpdateMapping = () => {
+    // this was getting called by all the handlers for input/dropdown changes but it meant the state was not getting updated so the updated map was stale
     const {onUpdate, mapping: {id}} = this.props
     const {scheme, provider, providerOrganization, organizationId} = this.state
-
     const updatedMap = {
       id,
       scheme,
@@ -75,11 +113,10 @@ class ProvidersTableRow extends Component {
       organizationId,
       isDeleting,
     } = this.state
-    const {organizations, mapping} = this.props
+    const {organizations, mapping, schemes} = this.props
 
     const selectedOrg = organizations.find(o => o.id === organizationId)
-
-    const dropdownItems = organizations.map(role => ({
+    const orgDropdownItems = organizations.map(role => ({
       ...role,
       text: role.name,
     }))
@@ -95,11 +132,11 @@ class ProvidersTableRow extends Component {
         <div className="fancytable--td provider--id">
           {mapping.id}
         </div>
-        <InputClickToEdit
-          value={scheme}
-          wrapperClass="fancytable--td provider--scheme"
-          onUpdate={this.handleChangeScheme}
-          disabled={isDefaultMapping}
+        <Dropdown
+          items={schemes}
+          onChoose={this.handleChooseScheme}
+          selected={scheme}
+          className="fancytable--td provider--scheme"
         />
         <InputClickToEdit
           value={provider}
@@ -118,7 +155,7 @@ class ProvidersTableRow extends Component {
         </div>
         <div className={organizationIdClassName}>
           <Dropdown
-            items={dropdownItems}
+            items={orgDropdownItems}
             onChoose={this.handleChooseOrganization}
             selected={selectedOrg.name}
             className="dropdown-stretch"
@@ -156,6 +193,11 @@ ProvidersTableRow.propTypes = {
     shape({
       id: string.isRequired,
       name: string.isRequired,
+    })
+  ),
+  schemes: arrayOf(
+    shape({
+      text: string.isRequired,
     })
   ),
   onDelete: func.isRequired,

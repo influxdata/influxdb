@@ -37,7 +37,6 @@ class ProvidersPage extends Component {
   handleUpdateMap = updatedMap => {
     // update the redux store
     this.props.actions.updateMappingAsync(updatedMap)
-
     // update the server
     /*
     const {actionsAdmin: {updateMappingAsync}} = this.props
