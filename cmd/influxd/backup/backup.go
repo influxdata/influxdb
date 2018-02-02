@@ -231,10 +231,10 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 
 	if cmd.isBackup {
 		cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s since %s",
-			db, rp, sid, shardArchivePath, cmd.since)
+			db, rp, sid, shardArchivePath, cmd.since.Format(time.RFC3339))
 	} else {
 		cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s with boundaries start=%s, end=%s",
-			db, rp, sid, shardArchivePath, cmd.start, cmd.end)
+			db, rp, sid, shardArchivePath, cmd.start.Format(time.RFC3339), cmd.end.Format(time.RFC3339))
 	}
 	req := &snapshotter.Request{
 		Type:                  reqType,
@@ -344,10 +344,10 @@ func (cmd *Command) backupDatabase() error {
 // every shard in the retention policy. Each shard will be written to a separate file.
 func (cmd *Command) backupRetentionPolicy() error {
 	if cmd.isBackup {
-		cmd.StdoutLogger.Printf("backing up rp=%s since %s", cmd.retentionPolicy, cmd.since)
+		cmd.StdoutLogger.Printf("backing up rp=%s since %s", cmd.retentionPolicy, cmd.since.Format(time.RFC3339))
 	} else {
 		cmd.StdoutLogger.Printf("backing up rp=%s with boundaries start=%s, end=%s",
-			cmd.retentionPolicy, cmd.start, cmd.end)
+			cmd.retentionPolicy, cmd.start.Format(time.RFC3339), cmd.end.Format(time.RFC3339))
 	}
 
 	req := &snapshotter.Request{
