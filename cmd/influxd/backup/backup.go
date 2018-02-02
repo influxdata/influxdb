@@ -168,8 +168,8 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	// for portable saving, if needed
 	cmd.portableFileBase = time.Now().UTC().Format(backup_util.PortableFileNamePattern)
 
-	// if startArg and endArg are unspecified, then assume we are doing a full backup of the DB
-	cmd.isBackup = startArg == "" && endArg == ""
+	// if startArg and endArg are unspecified, or if we are using -since then assume we are doing a full backup of the shards
+	cmd.isBackup = (startArg == "" && endArg == "") || sinceArg != ""
 
 	if sinceArg != "" {
 		cmd.since, err = time.Parse(time.RFC3339, sinceArg)
@@ -229,9 +229,13 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 		return err
 	}
 
-	cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s since %s",
-		db, rp, sid, shardArchivePath, cmd.since)
-
+	if cmd.isBackup {
+		cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s since %s",
+			db, rp, sid, shardArchivePath, cmd.since.Format(time.RFC3339))
+	} else {
+		cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s with boundaries start=%s, end=%s",
+			db, rp, sid, shardArchivePath, cmd.start.Format(time.RFC3339), cmd.end.Format(time.RFC3339))
+	}
 	req := &snapshotter.Request{
 		Type:                  reqType,
 		BackupDatabase:        db,
@@ -339,7 +343,12 @@ func (cmd *Command) backupDatabase() error {
 // backupRetentionPolicy will request the retention policy information from the server and then backup
 // every shard in the retention policy. Each shard will be written to a separate file.
 func (cmd *Command) backupRetentionPolicy() error {
-	cmd.StdoutLogger.Printf("backing up rp=%s since %s", cmd.retentionPolicy, cmd.since)
+	if cmd.isBackup {
+		cmd.StdoutLogger.Printf("backing up rp=%s since %s", cmd.retentionPolicy, cmd.since.Format(time.RFC3339))
+	} else {
+		cmd.StdoutLogger.Printf("backing up rp=%s with boundaries start=%s, end=%s",
+			cmd.retentionPolicy, cmd.start.Format(time.RFC3339), cmd.end.Format(time.RFC3339))
+	}
 
 	req := &snapshotter.Request{
 		Type:                  snapshotter.RequestRetentionPolicyInfo,
