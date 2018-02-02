@@ -173,11 +173,10 @@ class TickscriptPage extends Component {
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
       }
-      if (response && !response.code) {
-        this.setState({unsavedChanges: false, consoleMessage: ''})
-      }
       if (response.code) {
         this.setState({unsavedChanges: true, consoleMessage: response.message})
+      } else {
+        this.setState({unsavedChanges: false, consoleMessage: ''})
       }
     } catch (error) {
       console.error(error)
