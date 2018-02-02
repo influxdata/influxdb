@@ -8,7 +8,7 @@ const linksGetRequested = () => ({
   type: 'LINKS_GET_REQUESTED',
 })
 
-const linksGetCompleted = links => ({
+export const linksGetCompleted = links => ({
   type: 'LINKS_GET_COMPLETED',
   payload: {links},
 })

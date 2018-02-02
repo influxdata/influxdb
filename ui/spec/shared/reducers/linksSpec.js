@@ -29,7 +29,6 @@ describe('Shared.Reducers.linksReducer', () => {
     const initial = linksReducer(undefined, noop())
     const actual = linksReducer(initial, linksGetCompleted(links))
     const expected = links
-
     expect(_.isEqual(actual, expected)).to.equal(true)
   })
 })
