@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
+
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/slices"
@@ -55,7 +57,7 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 	// Setup indexes
 	indexes := map[string]*Index{}
 	for _, name := range tsdb.RegisteredIndexes() {
-		idx := MustNewIndex(name)
+		idx := MustOpenNewIndex(name)
 		idx.AddSeries("cpu", map[string]string{"region": "east"})
 		idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"})
 		idx.AddSeries("disk", map[string]string{"secret": "foo"})
@@ -131,17 +133,134 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 	}
 }
 
-type Index struct {
-	tsdb.Index
-	rootPath string
-	sfile    *tsdb.SeriesFile
+func TestIndex_Sketches(t *testing.T) {
+	checkCardinalities := func(t *testing.T, index *Index, state string, series, tseries, measurements, tmeasurements int) {
+		// Get sketches and check cardinality...
+		sketch, tsketch, err := index.SeriesSketches()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// delta calculates a rough 10% delta. If i is small then a minimum value
+		// of 2 is used.
+		delta := func(i int) int {
+			v := i / 10
+			if v == 0 {
+				v = 2
+			}
+			return v
+		}
+
+		// series cardinality should be well within 10%.
+		if got, exp := int(sketch.Count()), series; got-exp < -delta(series) || got-exp > delta(series) {
+			t.Errorf("[%s] got series cardinality %d, expected ~%d", state, got, exp)
+		}
+
+		// check series tombstones
+		if got, exp := int(tsketch.Count()), tseries; got-exp < -delta(tseries) || got-exp > delta(tseries) {
+			t.Errorf("[%s] got series tombstone cardinality %d, expected ~%d", state, got, exp)
+		}
+
+		// Check measurement cardinality.
+		if sketch, tsketch, err = index.MeasurementsSketches(); err != nil {
+			t.Fatal(err)
+		}
+
+		if got, exp := int(sketch.Count()), measurements; got != exp { //got-exp < -delta(measurements) || got-exp > delta(measurements) {
+			t.Errorf("[%s] got measurement cardinality %d, expected ~%d", state, got, exp)
+		}
+
+		if got, exp := int(tsketch.Count()), tmeasurements; got != exp { //got-exp < -delta(tmeasurements) || got-exp > delta(tmeasurements) {
+			t.Errorf("[%s] got measurement tombstone cardinality %d, expected ~%d", state, got, exp)
+		}
+	}
+
+	test := func(t *testing.T, index string) error {
+		idx := MustNewIndex(index)
+		if index, ok := idx.Index.(*tsi1.Index); ok {
+			// Override the log file max size to force a log file compaction sooner.
+			// This way, we will test the sketches are correct when they have been
+			// compacted into IndexFiles, and also when they're loaded from
+			// IndexFiles after a re-open.
+			tsi1.WithMaximumLogFileSize(1 << 10)(index)
+		}
+
+		// Open the index
+		idx.MustOpen()
+		defer idx.Close()
+
+		series := genTestSeries(10, 5, 3)
+		// Add series to index.
+		for _, serie := range series {
+			if err := idx.AddSeries(serie.Measurement, serie.Tags.Map()); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// Check cardinalities after adding series.
+		checkCardinalities(t, idx, "initial", 2430, 0, 10, 0)
+
+		// Re-open step only applies to the TSI index.
+		if _, ok := idx.Index.(*tsi1.Index); ok {
+			// Re-open the index.
+			if err := idx.Reopen(); err != nil {
+				panic(err)
+			}
+
+			// Check cardinalities after the reopen
+			checkCardinalities(t, idx, "initial|reopen", 2430, 0, 10, 0)
+		}
+
+		// Drop some series
+		if err := idx.DropMeasurement([]byte("measurement2")); err != nil {
+			return err
+		} else if err := idx.DropMeasurement([]byte("measurement5")); err != nil {
+			return err
+		}
+
+		// Check cardinalities after the delete
+		checkCardinalities(t, idx, "initial|reopen|delete", 2430, 486, 10, 2)
+
+		// Re-open step only applies to the TSI index.
+		if _, ok := idx.Index.(*tsi1.Index); ok {
+			// Re-open the index.
+			if err := idx.Reopen(); err != nil {
+				panic(err)
+			}
+
+			// Check cardinalities after the reopen
+			checkCardinalities(t, idx, "initial|reopen", 1944, 486, 8, 2)
+		}
+		return nil
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			if err := test(t, index); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
+// Index wraps a series file and index.
+type Index struct {
+	tsdb.Index
+	rootPath  string
+	indexType string
+	sfile     *tsdb.SeriesFile
+}
+
+// MustNewIndex will initialize a new index using the provide type. It creates
+// everything under the same root directory so it can be cleanly removed on Close.
+//
+// The index will not be opened.
 func MustNewIndex(index string) *Index {
 	opts := tsdb.NewEngineOptions()
 	opts.IndexVersion = index
 
 	rootPath, err := ioutil.TempDir("", "influxdb-tsdb")
+	fmt.Println(rootPath)
 	if err != nil {
 		panic(err)
 	}
@@ -160,12 +279,33 @@ func MustNewIndex(index string) *Index {
 		opts.InmemIndex = inmem.NewIndex("db0", sfile)
 	}
 
+	i, err := tsdb.NewIndex(0, "db0", filepath.Join(rootPath, "index"), tsdb.NewSeriesIDSet(), sfile, opts)
+	if err != nil {
+		panic(err)
+	}
+
 	idx := &Index{
-		Index:    tsdb.MustOpenIndex(0, "db0", filepath.Join(rootPath, "index"), tsdb.NewSeriesIDSet(), sfile, opts),
-		rootPath: rootPath,
-		sfile:    sfile,
+		Index:     i,
+		indexType: index,
+		rootPath:  rootPath,
+		sfile:     sfile,
 	}
 	return idx
+}
+
+// MustOpenNewIndex will initialize a new index using the provide type and opens
+// it.
+func MustOpenNewIndex(index string) *Index {
+	idx := MustNewIndex(index)
+	idx.MustOpen()
+	return idx
+}
+
+// MustOpen opens the underlying index or panics.
+func (i *Index) MustOpen() {
+	if err := i.Index.Open(); err != nil {
+		panic(err)
+	}
 }
 
 func (idx *Index) IndexSet() *tsdb.IndexSet {
@@ -178,6 +318,36 @@ func (idx *Index) AddSeries(name string, tags map[string]string) error {
 	return idx.CreateSeriesIfNotExists([]byte(key), []byte(name), t)
 }
 
+// Reopen closes and re-opens the underlying index, without removing any data.
+func (i *Index) Reopen() error {
+	if err := i.Index.Close(); err != nil {
+		return err
+	}
+
+	if err := i.sfile.Close(); err != nil {
+		return err
+	}
+
+	i.sfile = tsdb.NewSeriesFile(i.sfile.Path())
+	if err := i.sfile.Open(); err != nil {
+		return err
+	}
+
+	opts := tsdb.NewEngineOptions()
+	opts.IndexVersion = i.indexType
+	if i.indexType == inmem.IndexName {
+		opts.InmemIndex = inmem.NewIndex("db0", i.sfile)
+	}
+
+	idx, err := tsdb.NewIndex(0, "db0", filepath.Join(i.rootPath, "index"), tsdb.NewSeriesIDSet(), i.sfile, opts)
+	if err != nil {
+		return err
+	}
+	i.Index = idx
+	return i.Index.Open()
+}
+
+// Close closes the index cleanly and removes all on-disk data.
 func (i *Index) Close() error {
 	if err := i.Index.Close(); err != nil {
 		return err

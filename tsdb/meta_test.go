@@ -148,7 +148,7 @@ type TestSeries struct {
 func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
 	measurements := genStrList("measurement", mCnt)
 	tagSets := NewTagSetGenerator(tCnt, vCnt).AllSets()
-	var series []*TestSeries
+	series := make([]*TestSeries, 0, mCnt*len(tagSets))
 	for _, m := range measurements {
 		for _, ts := range tagSets {
 			series = append(series, &TestSeries{
