@@ -141,6 +141,10 @@ const Root = React.createClass({
               <Route path="tickscript/:ruleID" component={TickscriptPage} />
               <Route path="kapacitors/new" component={KapacitorPage} />
               <Route path="kapacitors/:id/edit" component={KapacitorPage} />
+              <Route
+                path="kapacitors/:id/edit:hash"
+                component={KapacitorPage}
+              />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="admin-chronograf" component={AdminChronografPage} />
               <Route path="admin-influxdb" component={AdminInfluxDBPage} />

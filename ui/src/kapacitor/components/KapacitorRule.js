@@ -3,12 +3,14 @@ import React, {PropTypes, Component} from 'react'
 import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
+import RuleHandlers from 'src/kapacitor/components/RuleHandlers'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {createRule, editRule} from 'src/kapacitor/apis'
 import buildInfluxQLQuery from 'utils/influxql'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 
 class KapacitorRule extends Component {
   constructor(props) {
@@ -23,7 +25,7 @@ class KapacitorRule extends Component {
     this.setState({timeRange})
   }
 
-  handleCreate = () => {
+  handleCreate = link => {
     const {
       addFlashMessage,
       queryConfigs,
@@ -40,7 +42,7 @@ class KapacitorRule extends Component {
 
     createRule(kapacitor, newRule)
       .then(() => {
-        router.push(`/sources/${source.id}/alert-rules`)
+        router.push(link || `/sources/${source.id}/alert-rules`)
         addFlashMessage({type: 'success', text: 'Rule successfully created'})
       })
       .catch(() => {
@@ -51,7 +53,7 @@ class KapacitorRule extends Component {
       })
   }
 
-  handleEdit = () => {
+  handleEdit = link => {
     const {addFlashMessage, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -59,18 +61,31 @@ class KapacitorRule extends Component {
 
     editRule(updatedRule)
       .then(() => {
-        router.push(`/sources/${source.id}/alert-rules`)
+        router.push(link || `/sources/${source.id}/alert-rules`)
         addFlashMessage({
           type: 'success',
           text: `${rule.name} successfully saved!`,
         })
       })
-      .catch(() => {
+      .catch(e => {
         addFlashMessage({
           type: 'error',
-          text: `There was a problem saving ${rule.name}`,
+          text: `There was a problem saving ${rule.name}: ${e.data.message}`,
         })
       })
+  }
+
+  handleSaveToConfig = configName => () => {
+    const {rule, configLink, router} = this.props
+    if (this.validationError()) {
+      router.push({
+        pathname: `${configLink}#${configName}`,
+      })
+    } else if (rule.id === DEFAULT_RULE_ID) {
+      this.handleCreate(configLink)
+    } else {
+      this.handleEdit(configLink)
+    }
   }
 
   handleAddEvery = frequency => {
@@ -137,20 +152,20 @@ class KapacitorRule extends Component {
     const {
       rule,
       source,
-      isEditing,
       ruleActions,
       queryConfigs,
-      enabledAlerts,
+      handlersFromConfig,
       queryConfigActions,
     } = this.props
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
-
     return (
       <div className="page">
         <RuleHeader
           source={source}
-          onSave={isEditing ? this.handleEdit : this.handleCreate}
+          onSave={
+            rule.id === DEFAULT_RULE_ID ? this.handleCreate : this.handleEdit
+          }
           validationError={this.validationError()}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
@@ -159,10 +174,9 @@ class KapacitorRule extends Component {
               <div className="col-xs-12">
                 <div className="rule-builder">
                   <NameSection
-                    isEditing={isEditing}
+                    rule={rule}
                     defaultName={rule.name}
                     onRuleRename={ruleActions.updateRuleName}
-                    ruleID={rule.id}
                   />
                   <ValuesSection
                     rule={rule}
@@ -179,11 +193,14 @@ class KapacitorRule extends Component {
                     onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
                     onChooseTimeRange={this.handleChooseTimeRange}
                   />
-                  <RuleMessage
+                  <RuleHandlers
                     rule={rule}
-                    actions={ruleActions}
-                    enabledAlerts={enabledAlerts}
+                    ruleActions={ruleActions}
+                    handlersFromConfig={handlersFromConfig}
+                    onGoToConfig={this.handleSaveToConfig}
+                    validationError={this.validationError()}
                   />
+                  <RuleMessage rule={rule} ruleActions={ruleActions} />
                 </div>
               </div>
             </div>
@@ -194,22 +211,25 @@ class KapacitorRule extends Component {
   }
 }
 
+const {arrayOf, func, shape, string} = PropTypes
+
 KapacitorRule.propTypes = {
-  source: PropTypes.shape({}).isRequired,
-  rule: PropTypes.shape({
-    values: PropTypes.shape({}),
+  source: shape({}).isRequired,
+  rule: shape({
+    values: shape({}),
   }).isRequired,
-  query: PropTypes.shape({}).isRequired,
-  queryConfigs: PropTypes.shape({}).isRequired,
-  queryConfigActions: PropTypes.shape({}).isRequired,
-  ruleActions: PropTypes.shape({}).isRequired,
-  addFlashMessage: PropTypes.func.isRequired,
-  isEditing: PropTypes.bool.isRequired,
-  enabledAlerts: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
-  router: PropTypes.shape({
-    push: PropTypes.func.isRequired,
+  query: shape({}).isRequired,
+  queryConfigs: shape({}).isRequired,
+  queryConfigActions: shape({}).isRequired,
+  ruleActions: shape({}).isRequired,
+  addFlashMessage: func.isRequired,
+  ruleID: string.isRequired,
+  handlersFromConfig: arrayOf(shape({})).isRequired,
+  router: shape({
+    push: func.isRequired,
   }).isRequired,
-  kapacitor: PropTypes.shape({}).isRequired,
+  kapacitor: shape({}).isRequired,
+  configLink: string.isRequired,
 }
 
 export default KapacitorRule

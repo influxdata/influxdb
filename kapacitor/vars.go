@@ -123,7 +123,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		%s
 
 		var name = '%s'
-		var idVar = name + ':{{.Group}}'
+		var idVar = %s
 		var message = '%s'
 		var idTag = '%s'
 		var levelTag = '%s'
@@ -143,6 +143,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		whereFilter(rule.Query),
 		wind,
 		Escape(rule.Name),
+		idVar(rule.Query),
 		Escape(rule.Message),
 		IDTag,
 		LevelTag,
@@ -195,6 +196,13 @@ func groupBy(q *chronograf.QueryConfig) string {
 		}
 	}
 	return "[" + strings.Join(groups, ",") + "]"
+}
+
+func idVar(q *chronograf.QueryConfig) string {
+	if len(q.GroupBy.Tags) > 0 {
+		return `name + ':{{.Group}}'`
+	}
+	return "name"
 }
 
 func field(q *chronograf.QueryConfig) (string, error) {

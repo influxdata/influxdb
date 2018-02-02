@@ -15,6 +15,7 @@ class TagInput extends Component {
 
       this.input.value = ''
       onAddTag(newItem)
+      this.props.disableTest()
     }
   }
 
@@ -56,6 +57,7 @@ TagInput.propTypes = {
   onDeleteTag: func.isRequired,
   tags: arrayOf(string).isRequired,
   title: string.isRequired,
+  disableTest: func,
 }
 
 export default TagInput

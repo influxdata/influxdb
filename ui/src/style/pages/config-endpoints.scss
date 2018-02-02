@@ -37,12 +37,13 @@ $config-endpoint-tab-bg-active: $g3-castle;
       border-radius: 0;
       height: $config-endpoint-tab-height;
       border: 0;
-      padding: 0 40px 0 15px;
+      padding: 0 50px 0 15px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       font-weight: 500;
       font-size: 16px;
+      position: relative;
 
       &:first-child {border-top-left-radius: $radius;}
 
@@ -53,6 +54,22 @@ $config-endpoint-tab-bg-active: $g3-castle;
       &.active {
         color: $config-endpoint-tab-text-active;
         background-color: $config-endpoint-tab-bg-active;
+      }
+
+      // Checkmark for configured state, hidden by default
+      &:after {
+        content: "\e918";
+        font-family: 'icomoon';
+        color: $c-rainforest;
+        position: absolute;
+        top: 50%;
+        right: 14px;
+        transform: translateY(-50%);
+        opacity: 0;
+        transition: opacity 0.25s ease;
+      }
+      &.configured:after {
+        opacity: 1;
       }
     }
   }

@@ -126,6 +126,7 @@ $rule-builder--radius-lg: 5px;
     display: none;
   }
 }
+
 // Generic re-usable classes for rule builder sections
 .rule-section--border-top {
   border-top: 2px solid $rule-builder--section-border;
@@ -260,7 +261,7 @@ $rule-builder--radius-lg: 5px;
     top: ($rule-builder--padding-lg * 2);
     left: $rule-builder--padding-sm;
     width: calc(100% - #{$rule-builder--padding-sm * 2});
-    height: calc(100% - #{$rule-builder--padding-lg * 2}) !important;;
+    height: calc(100% - #{$rule-builder--padding-lg * 2}) !important;
   }
   > .dygraph > .dygraph-child {
     position: absolute;
@@ -290,7 +291,10 @@ $rule-builder--radius-lg: 5px;
 }
 .rule-builder--graph-options {
   width: 100%;
-  padding: $rule-builder--padding-sm ($rule-builder--padding-lg - $rule-builder--padding-sm);
+  padding: $rule-builder--padding-sm
+    (
+      $rule-builder--padding-lg - $rule-builder--padding-sm
+    );
   display: flex;
   align-items: center;
   height: ($rule-builder--padding-lg * 2);
@@ -309,7 +313,9 @@ $rule-builder--radius-lg: 5px;
 */
 .rule-builder--message {
   background-color: $rule-builder--section-bg;
-  padding: $rule-builder--padding-sm ($rule-builder--padding-lg - 2px);
+  padding: $rule-builder--padding-lg - 2px;
+  padding-bottom: 0;
+  border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
 }
 .rule-builder--message textarea {
   height: 100px;
@@ -402,5 +408,218 @@ $rule-builder--radius-lg: 5px;
   &,
   &:hover {
     color: $c-dreamsicle !important;
+  }
+}
+
+/*
+  Styles for Endpoints section
+  -----------------------------------------------------------------------------
+*/
+.rule-message--endpoints {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
+.rule-message--add-endpoint {
+  margin-left: 4px;
+}
+.rule-message--add-endpoint .dropdown-menu {
+  max-height: 233px;
+}
+
+.rule-message--add-endpoint .dropdown-menu.dropdown-malachite li.dropdown-divider {
+  background: linear-gradient(to right, #a8e1cf 0%, #23adf6 100%) !important;
+}
+
+.endpoint-tabs {
+  width: 150px;
+  background-color: $rule-builder--section-border;
+  border-bottom-left-radius: $rule-builder--radius-lg;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.endpoint-tab {
+  display: block;
+  list-style: none;
+  @include no-user-select();
+  position: relative;
+  height: 40px;
+  line-height: 40px;
+  padding: 0 $rule-builder--padding-lg;
+  margin: 0 0 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: $g9-mountain;
+  font-size: 14.5px;
+  font-weight: 600;
+  border-right: 2px solid $rule-builder--section-border;
+  transition: color 0.25s ease, background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  &:last-child {
+    margin-bottom: 0px;
+  }
+
+  &:hover {
+    cursor: pointer;
+    background-color: $rule-builder--section-bg;
+    color: $g15-platinum;
+  }
+
+  &.active {
+    color: $c-rainforest;
+    background-color: $rule-builder--section-bg;
+    border-color: $rule-builder--section-bg;
+  }
+}
+.endpoint-tab--delete {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  transition: background-color 0.25s ease;
+  outline: none;
+  background-color: transparent;
+  border: none;
+
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background-color: $g8-storm;
+    border-radius: 1px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    transition: background-color 0.25s ease;
+  }
+  &:before {
+    width: 12px;
+    height: 2px;
+  }
+  &:after {
+    width: 2px;
+    height: 12px;
+  }
+
+  &:hover {
+    background-color: $g5-pepper;
+    cursor: pointer;
+    &:before,
+    &:after {
+      background-color: $g20-white;
+    }
+  }
+  &:hover:active {
+    background-color: $c-curacao;
+  }
+}
+.endpoint-tab-contents {
+  flex: 1 0 0;
+  background-color: $rule-builder--section-bg;
+  border-bottom-right-radius: $rule-builder--radius-lg;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 350px;
+
+  h4 {
+    width: 100%;
+    margin: 0;
+    margin-bottom: 8px;
+    @include no-user-select();
+    font-size: 14.5px;
+    font-weight: 600;
+    color: $g15-platinum;
+  }
+}
+.endpoint-tab--parameters {
+  padding: $rule-builder--padding-lg;
+  padding-bottom: 0;
+
+  &:last-child {
+    padding-bottom: $rule-builder--padding-lg;
+  }
+}
+.endpoint-tab--parameters .faux-form {
+  margin-left: -6px;
+  margin-right: -6px;
+  width: calc(100% + 12px);
+  display: inline-block;
+}
+.endpoint-tab--parameters--empty {
+  align-items: center;
+  justify-content: center;
+  @include no-user-select();
+
+  p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 23px;
+    text-align: center;
+    color: $g12-forge;
+
+    strong {
+      color: $g18-cloud;
+      font-weight: 900;
+    }
+  }
+}
+.endpoint-tab--parameters .form-control-static {
+  min-height: 30px;
+  height: 30px;
+}
+.endpoint-tab--parameters .handler-checkbox {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+.redacted-handler {
+  height: 30px;
+  align-items: center;
+  justify-content: space-between;
+}
+.endpoint-tab--parameters h4 .btn {
+  margin-left: 6px;
+}
+
+/*
+ Rule Details
+  -----------------------------------------------------------------------------
+*/
+.rule-builder--details {
+  background-color: $rule-builder--section-bg;
+  padding-top: $rule-builder--padding-lg - 2px;
+  padding-left: 6px;
+  padding-right: 6px;
+  padding-bottom: 0;
+  border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
+}
+.rule-builder--details textarea {
+  height: 100px;
+  min-width: 100%;
+  max-width: 100%;
+  width: 100% !important;
+  @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
+}
+.rule-builder--details-template {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 ($rule-builder--padding-sm - 2px);
+  margin: 2px;
+  transition: color 0.25s ease;
+  @include no-user-select();
+
+  &:hover {
+    color: $rule-builder--accent-color;
+    cursor: pointer;
   }
 }

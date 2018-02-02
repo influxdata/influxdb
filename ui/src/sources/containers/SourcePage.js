@@ -131,7 +131,7 @@ class SourcePage extends Component {
       .catch(err => {
         // dont want to flash this until they submit
         const error = this._parseError(err)
-        console.error('Error on source creation: ', error)
+        console.error('Error creating InfluxDB connection: ', error)
       })
   }
 
@@ -142,10 +142,10 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.addSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', `New source ${source.name} added`)
+        notify('success', `InfluxDB ${source.name} available as a connection`)
       })
       .catch(error => {
-        this.handleError('Unable to create source', error)
+        this.handleError('Unable to create InfluxDB connection', error)
       })
   }
 
@@ -156,10 +156,10 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.updateSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', `Source ${source.name} updated`)
+        notify('success', `InfluxDB connection ${source.name} updated`)
       })
       .catch(error => {
-        this.handleError('Unable to update source', error)
+        this.handleError('Unable to update InfluxDB connection', error)
       })
   }
 
@@ -208,7 +208,9 @@ class SourcePage extends Component {
             <div className="page-header__col-md-8">
               <div className="page-header__left">
                 <h1 className="page-header__title">
-                  {editMode ? 'Edit Source' : 'Add a New Source'}
+                  {editMode
+                    ? 'Configure InfluxDB Connection'
+                    : 'Add a New InfluxDB Connection'}
                 </h1>
               </div>
               {isInitialSource

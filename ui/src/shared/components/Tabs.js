@@ -9,6 +9,7 @@ export const Tab = React.createClass({
     isDisabled: bool,
     isActive: bool,
     isKapacitorTab: bool,
+    isConfigured: bool,
   },
 
   render() {
@@ -24,7 +25,10 @@ export const Tab = React.createClass({
     }
     return (
       <div
-        className={classnames('btn tab', {active: this.props.isActive})}
+        className={classnames('btn tab', {
+          active: this.props.isActive,
+          configured: this.props.isConfigured,
+        })}
         onClick={this.props.isDisabled ? null : this.props.onClick}
       >
         {this.props.children}
