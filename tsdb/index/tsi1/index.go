@@ -39,8 +39,7 @@ func init() {
 	}
 
 	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, _ tsdb.EngineOptions) tsdb.Index {
-		idx := NewIndex(sfile, WithPath(path))
-		idx.database = db
+		idx := NewIndex(sfile, db, WithPath(path))
 		return idx
 	})
 }
@@ -77,36 +76,46 @@ var WithLogger = func(l zap.Logger) IndexOption {
 	}
 }
 
+// WithMaximumLogFileSize sets the maximum size of LogFiles before they're
+// compacted into IndexFiles.
+var WithMaximumLogFileSize = func(size int64) IndexOption {
+	return func(i *Index) {
+		i.maxLogFileSize = size
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
 	opened     bool
 
-	// The following can be set when initialising an Index.
+	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
 	disableCompactions bool        // Initially disables compactions on the index.
+	maxLogFileSize     int64       // Maximum size of a LogFile before it's compacted.
 	logger             *zap.Logger // Index's logger.
 
-	sfile *tsdb.SeriesFile // series lookup file
+	// The following must be set when initializing an Index.
+	sfile    *tsdb.SeriesFile // series lookup file
+	database string           // Name of database.
 
 	// Index's version.
 	version int
-
-	// Name of database.
-	database string
 
 	// Number of partitions used by the index.
 	PartitionN uint64
 }
 
 // NewIndex returns a new instance of Index.
-func NewIndex(sfile *tsdb.SeriesFile, options ...IndexOption) *Index {
+func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		logger:     zap.NewNop(),
-		version:    Version,
-		sfile:      sfile,
-		PartitionN: DefaultPartitionN,
+		maxLogFileSize: DefaultMaxLogFileSize,
+		logger:         zap.NewNop(),
+		version:        Version,
+		sfile:          sfile,
+		database:       database,
+		PartitionN:     DefaultPartitionN,
 	}
 
 	for _, option := range options {
@@ -128,10 +137,6 @@ func (i *Index) Database() string {
 func (i *Index) WithLogger(l *zap.Logger) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-
-	for i, p := range i.partitions {
-		p.logger = l.With(zap.String("index", "tsi"), zap.String("partition", fmt.Sprint(i+1)))
-	}
 	i.logger = l.With(zap.String("index", "tsi"))
 }
 
@@ -167,12 +172,13 @@ func (i *Index) Open() error {
 		return err
 	}
 
-	// Inititalise index partitions.
+	// Initialize index partitions.
 	i.partitions = make([]*Partition, i.PartitionN)
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
+		p.MaxLogFileSize = i.maxLogFileSize
 		p.Database = i.database
-		p.logger = i.logger.With(zap.String("partition", fmt.Sprint(j+1)))
+		p.logger = i.logger.With(zap.String("index", "tsi"), zap.String("partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
 
@@ -251,6 +257,8 @@ func (i *Index) Close() error {
 		}
 	}
 
+	// Mark index as closed.
+	i.opened = false
 	return nil
 }
 
