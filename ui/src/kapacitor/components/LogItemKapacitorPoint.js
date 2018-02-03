@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 class LogItemKapacitorPoint extends Component {
-  renderKeysAndValues = (object, name) => {
+  renderKeysAndValues = (object, name, expanded) => {
     if (!object) {
       return <span className="logs-table--empty-cell">--</span>
     }
@@ -9,19 +9,39 @@ class LogItemKapacitorPoint extends Component {
     const objValues = Object.values(object)
 
     if (objKeys.length > 2) {
-      return (
-        <div className="logs-table--many-keys">
-          {`${objKeys.length} ${name}...`}
-        </div>
-      )
+      return expanded
+        ? <div className="logs-table--key-values">
+            <h1>
+              {`${objKeys.length} ${name}`}
+            </h1>
+            <div className="logs-table--keys-scrollbox">
+              {objKeys.map((objKey, i) =>
+                <div key={i} className="logs-table--key-value">
+                  {objKey}: <span>{objValues[i]}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        : <div className="logs-table--key-values">
+            <h1>
+              {`${objKeys.length} ${name}`}
+            </h1>
+            <div className="logs-table--many-keys">Click to expand...</div>
+          </div>
     }
 
-    const objElements = objKeys.map((objKey, i) =>
-      <div key={i} className="logs-table--key-value">
-        {objKey}: <span>{objValues[i]}</span>
+    return (
+      <div className="logs-table--key-values">
+        <h1>
+          {`${objKeys.length} ${name}`}
+        </h1>
+        {objKeys.map((objKey, i) =>
+          <div key={i} className="logs-table--key-value">
+            {objKey}: <span>{objValues[i]}</span>
+          </div>
+        )}
       </div>
     )
-    return objElements
   }
 
   handleToggleExpand = () => {
@@ -53,10 +73,6 @@ class LogItemKapacitorPoint extends Component {
 
     return (
       <div className={rowClass} onClick={this.handleToggleExpand}>
-        {this.isExpandable() &&
-          <div className="logs-table--row-expander">
-            Click to show all items
-          </div>}
         <div className="logs-table--divider">
           <div className={`logs-table--level ${logItem.lvl}`} />
           <div className="logs-table--timestamp">
@@ -66,14 +82,12 @@ class LogItemKapacitorPoint extends Component {
         <div className="logs-table--details">
           <div className="logs-table--service">Kapacitor Point</div>
           <div className="logs-table--blah">
-            <div className="logs-table--key-values">
-              <h1>TAGS</h1>
-              {this.renderKeysAndValues(logItem.tag, 'Tags')}
-            </div>
-            <div className="logs-table--key-values">
-              <h1>FIELDS</h1>
-              {this.renderKeysAndValues(logItem.field, 'Fields')}
-            </div>
+            {this.renderKeysAndValues(logItem.tag, 'Tags', logItem.expanded)}
+            {this.renderKeysAndValues(
+              logItem.field,
+              'Fields',
+              logItem.expanded
+            )}
           </div>
         </div>
       </div>
