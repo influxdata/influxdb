@@ -36,7 +36,7 @@ class ProvidersTable extends Component {
       mappings.length === 1 ? '1 Map' : `${mappings.length} Maps`
 
     // define scheme options
-    const schemes = [
+    const SCHEMES = [
       {text: '*'},
       {text: 'oauth2'},
       {text: 'option2'},
@@ -80,7 +80,7 @@ class ProvidersTable extends Component {
                   key={mapping.id}
                   mapping={mapping}
                   organizations={organizations}
-                  schemes={schemes}
+                  schemes={SCHEMES}
                   onDelete={onDeleteMap}
                   onUpdate={onUpdateMap}
                 />
@@ -88,7 +88,7 @@ class ProvidersTable extends Component {
               {isCreatingMap
                 ? <ProvidersTableRowNew
                     organizations={organizations}
-                    schemes={schemes}
+                    schemes={SCHEMES}
                     onCreate={this.handleCreateMap}
                     onCancel={this.handleCancelCreateMap}
                   />

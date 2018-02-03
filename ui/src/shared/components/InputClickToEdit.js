@@ -54,7 +54,7 @@ class InputClickToEdit extends Component {
             {value}
           </div>
         </div>
-      : <div className={wrapperClass} tabIndex={tabIndex}>
+      : <div className={wrapperClass}>
           {isEditing
             ? <input
                 type="text"
@@ -65,8 +65,14 @@ class InputClickToEdit extends Component {
                 autoFocus={true}
                 onFocus={this.handleFocus}
                 ref={r => (this.inputRef = r)}
+                tabIndex={tabIndex}
               />
-            : <div className="input-cte" onClick={this.handleInputClick}>
+            : <div
+                className="input-cte"
+                onClick={this.handleInputClick}
+                onFocus={this.handleInputClick}
+                tabIndex={tabIndex}
+              >
                 {value}
                 <span className="icon pencil" />
               </div>}
