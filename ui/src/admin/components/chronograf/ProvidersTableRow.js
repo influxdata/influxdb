@@ -33,77 +33,22 @@ class ProvidersTableRow extends Component {
     onDelete(mapping)
   }
 
-  handleChangeProvider = provider => {
-    this.setState({provider})
-    const {scheme, organizationId, providerOrganization} = this.state
+  handleUpdateMapping = changes => {
     const {onUpdate, mapping: {id}} = this.props
-    const updatedMap = {
-      id,
-      scheme,
-      provider,
-      providerOrganization,
-      organizationId,
-    }
-    onUpdate(updatedMap)
+    const newState = {...this.state, ...changes, id}
+    this.setState(newState)
+    onUpdate(newState)
   }
 
-  handleChangeProviderOrg = providerOrganization => {
-    this.setState({providerOrganization})
-    const {onUpdate, mapping: {id}} = this.props
-    const {scheme, provider, organizationId} = this.state
-    const updatedMap = {
-      id,
-      scheme,
-      provider,
-      providerOrganization,
-      organizationId,
-    }
-    onUpdate(updatedMap)
-  }
+  handleChangeProvider = provider => this.handleUpdateMapping({provider})
 
-  handleChooseOrganization = org => {
-    const organizationId = org.id
-    this.setState({organizationId})
-    const {onUpdate, mapping: {id}} = this.props
-    const {scheme, provider, providerOrganization} = this.state
-    const updatedMap = {
-      id,
-      scheme,
-      provider,
-      providerOrganization,
-      organizationId,
-    }
-    onUpdate(updatedMap)
-  }
+  handleChangeProviderOrg = providerOrganization =>
+    this.handleUpdateMapping({providerOrganization})
 
-  handleChooseScheme = s => {
-    const scheme = s.text
-    this.setState({scheme})
-    const {onUpdate, mapping: {id}} = this.props
-    const {provider, providerOrganization, organizationId} = this.state
-    const updatedMap = {
-      id,
-      scheme,
-      provider,
-      providerOrganization,
-      organizationId,
-    }
-    onUpdate(updatedMap)
-  }
+  handleChooseOrganization = ({id: organizationId}) =>
+    this.handleUpdateMapping({organizationId})
 
-  handleUpdateMapping = () => {
-    // this was getting called by all the handlers for input/dropdown changes but it meant the state was not getting updated so the updated map was stale
-    const {onUpdate, mapping: {id}} = this.props
-    const {scheme, provider, providerOrganization, organizationId} = this.state
-    const updatedMap = {
-      id,
-      scheme,
-      provider,
-      providerOrganization,
-      organizationId,
-    }
-    onUpdate(updatedMap)
-  }
+  handleChooseScheme = ({text: scheme}) => this.handleUpdateMapping({scheme})
 
   render() {
     const {
@@ -143,12 +88,14 @@ class ProvidersTableRow extends Component {
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
           disabled={isDefaultMapping}
+          tabIndex="1"
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
           disabled={isDefaultMapping}
+          tabIndex="2"
         />
         <div className="fancytable--td provider--arrow">
           <span />

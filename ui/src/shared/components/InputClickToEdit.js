@@ -46,7 +46,7 @@ class InputClickToEdit extends Component {
 
   render() {
     const {isEditing, value} = this.state
-    const {wrapperClass, disabled} = this.props
+    const {wrapperClass, disabled, tabIndex} = this.props
 
     return disabled
       ? <div className={wrapperClass}>
@@ -54,7 +54,7 @@ class InputClickToEdit extends Component {
             {value}
           </div>
         </div>
-      : <div className={wrapperClass}>
+      : <div className={wrapperClass} tabIndex={tabIndex}>
           {isEditing
             ? <input
                 type="text"
@@ -81,6 +81,7 @@ InputClickToEdit.propTypes = {
   value: string,
   onUpdate: func.isRequired,
   disabled: bool,
+  tabIndex: string,
 }
 
 export default InputClickToEdit
