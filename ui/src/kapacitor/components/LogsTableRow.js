@@ -8,31 +8,37 @@ import LogItemKapacitorError from 'src/kapacitor/components/LogItemKapacitorErro
 import LogItemKapacitorDebug from 'src/kapacitor/components/LogItemKapacitorDebug'
 import LogItemInfluxDBDebug from 'src/kapacitor/components/LogItemInfluxDBDebug'
 
-const LogsTableRow = ({logItem, index}) => {
+const LogsTableRow = ({logItem, index, onToggleExpandLog}) => {
   if (logItem.service === 'sessions') {
-    return <LogItemSession logItem={logItem} key={index} />
+    return <LogItemSession logItem={logItem} logIndex={index} />
   }
   if (logItem.service === 'http' && logItem.msg === 'http request') {
-    return <LogItemHTTP logItem={logItem} key={index} />
+    return <LogItemHTTP logItem={logItem} logIndex={index} />
   }
   if (logItem.service === 'kapacitor' && logItem.msg === 'point') {
-    return <LogItemKapacitorPoint logItem={logItem} key={index} />
+    return (
+      <LogItemKapacitorPoint
+        logItem={logItem}
+        logIndex={index}
+        onToggleExpandLog={onToggleExpandLog}
+      />
+    )
   }
   if (logItem.service === 'httpd_server_errors' && logItem.lvl === 'error') {
-    return <LogItemHTTPError logItem={logItem} key={index} />
+    return <LogItemHTTPError logItem={logItem} logIndex={index} />
   }
   if (logItem.service === 'kapacitor' && logItem.lvl === 'error') {
-    return <LogItemKapacitorError logItem={logItem} key={index} />
+    return <LogItemKapacitorError logItem={logItem} logIndex={index} />
   }
   if (logItem.service === 'kapacitor' && logItem.lvl === 'debug') {
-    return <LogItemKapacitorDebug logItem={logItem} key={index} />
+    return <LogItemKapacitorDebug logItem={logItem} logIndex={index} />
   }
   if (logItem.service === 'influxdb' && logItem.lvl === 'debug') {
-    return <LogItemInfluxDBDebug logItem={logItem} key={index} />
+    return <LogItemInfluxDBDebug logItem={logItem} logIndex={index} />
   }
 
   return (
-    <div className="logs-table--row" key={index}>
+    <div className="logs-table--row" logIndex={index}>
       <div className="logs-table--divider">
         <div className={`logs-table--level ${logItem.lvl}`} />
         <div className="logs-table--timestamp">
@@ -53,7 +59,7 @@ const LogsTableRow = ({logItem, index}) => {
   )
 }
 
-const {number, shape, string} = PropTypes
+const {func, number, shape, string} = PropTypes
 
 LogsTableRow.propTypes = {
   logItem: shape({
@@ -62,7 +68,8 @@ LogsTableRow.propTypes = {
     lvl: string.isRequired,
     msg: string.isRequired,
   }).isRequired,
-  index: number,
+  index: number.isRequired,
+  onToggleExpandLog: func.isRequired,
 }
 
 export default LogsTableRow

@@ -2,6 +2,7 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import uuid from 'node-uuid'
+import _ from 'lodash'
 
 import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
@@ -156,6 +157,13 @@ class TickscriptPage extends Component {
     })
   }
 
+  handleToggleExpandLog = logIndex => {
+    const {logs} = this.state
+    logs[logIndex].expanded = !_.get(logs[logIndex], 'expanded', false)
+
+    this.setState({logs})
+  }
+
   handleSave = async () => {
     const {kapacitor, task} = this.state
     const {
@@ -243,6 +251,7 @@ class TickscriptPage extends Component {
         areLogsVisible={areLogsVisible}
         areLogsEnabled={areLogsEnabled}
         onToggleLogsVisibility={this.handleToggleLogsVisibility}
+        onToggleExpandLog={this.handleToggleExpandLog}
       />
     )
   }

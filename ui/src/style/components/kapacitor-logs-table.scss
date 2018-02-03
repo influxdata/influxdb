@@ -36,14 +36,13 @@ $logs-margin: 4px;
   height: 100%;
 }
 .logs-table--row {
-  height: 87px; // Fixed height, required for Infinite Scroll, allows for 2 tags / fields per line  
+  position: relative;
+  overflow: hidden;
+  height: 87px; // Fixed height, required for Infinite Scroll, allows for 2 tags / fields per line
   padding: 8px ($logs-table-padding - 16px) 8px ($logs-table-padding / 2);
   border-bottom: 2px solid $g3-castle;
   transition: background-color 0.25s ease;
 
-  &:hover {
-    background-color: $g4-onyx;
-  }
   &:first-child {
     border-bottom: none;
   }
@@ -100,8 +99,54 @@ $logs-margin: 4px;
   color: $g11-sidewalk;
   flex: 1 0 50%;
 }
+.logs-table--key-values h1 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: normal;
+  line-height: 1.42857143em;
+}
 .logs-table--key-value {
 }
 .logs-table--key-value span {
   color: $c-pool;
+}
+
+.logs-table--many-keys {
+    color: $c-pool;
+    width: 100%;
+    display: inline-block;
+    font-style: italic;
+}
+
+.logs-table--row-expander {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: rgba(255,255,255,0.5);
+  color: $g20-white;
+  padding: 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  transition: transform 0.25s ease;
+  transform: translateY(100%);
+}
+.logs-table--row:hover .logs-table--row-expander {
+  transform: translateY(0);
+}
+
+// Styles for Expandable Log Items
+.logs-table--row.logs-table--row__expandable {
+  &:hover {
+    background-color: $g4-onyx;
+    cursor: zoom-in;
+  }
+  &.expanded {
+    height: 240px;
+    &:hover {
+      cursor: zoom-out;
+    }
+  }
 }

@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import InfiniteScroll from 'shared/components/InfiniteScroll'
 import LogsTableRow from 'src/kapacitor/components/LogsTableRow'
 
-const LogsTable = ({logs}) =>
+const LogsTable = ({logs, onToggleExpandLog}) =>
   <div className="logs-table--container">
     <div className="logs-table--header">
       <h2 className="panel-title">Logs</h2>
@@ -14,14 +14,19 @@ const LogsTable = ({logs}) =>
             className="logs-table"
             itemHeight={87}
             items={logs.map((log, i) =>
-              <LogsTableRow key={log.key} logItem={log} index={i} />
+              <LogsTableRow
+                key={log.key}
+                logItem={log}
+                index={i}
+                onToggleExpandLog={onToggleExpandLog}
+              />
             )}
           />
         : <div className="page-spinner" />}
     </div>
   </div>
 
-const {arrayOf, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 LogsTable.propTypes = {
   logs: arrayOf(
@@ -32,6 +37,7 @@ LogsTable.propTypes = {
       msg: string.isRequired,
     })
   ).isRequired,
+  onToggleExpandLog: func.isRequired,
 }
 
 export default LogsTable
