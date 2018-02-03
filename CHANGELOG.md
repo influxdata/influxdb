@@ -7,8 +7,8 @@
 ### Features
 
 - [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
-- [#3019](https://github.com/influxdata/influxdb/issues/3019): Backup utility prints a list of backup files. 
-- [#9146](https://github.com/influxdata/influxdb/issues/9146): Backup/Restore can produce/consume data in the same format as the enterprise backup/restore tool. 
+- [#3019](https://github.com/influxdata/influxdb/issues/3019): Backup utility prints a list of backup files.
+- [#9146](https://github.com/influxdata/influxdb/issues/9146): Backup/Restore can produce/consume data in the same format as the enterprise backup/restore tool.
 - [#8880](https://github.com/influxdata/influxdb/issues/8879): Restore runs in online mode, does not delete existing databases
 - [#8879](https://github.com/influxdata/influxdb/issues/8879): Export functionality using start/end to filter exported data by timestamp
 - [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
@@ -128,8 +128,9 @@ refuse to open, and will most likely see the following error message:
 - [#8897](https://github.com/influxdata/influxdb/pull/8897): Add message pack format for query responses.
 - [#8886](https://github.com/influxdata/influxdb/pull/8886): Improved compaction scheduling
 - [#8690](https://github.com/influxdata/influxdb/issues/8690): Implicitly decide on a lower limit for fill queries when none is present.
-- [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
-- [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion. 
+- [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.
+- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
+- [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion.
 - [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs. Thanks @darkliquid!
 - [#8984](https://github.com/influxdata/influxdb/pull/8984): EXACT and estimated CARDINALITY queries.
 - [#8893](https://github.com/influxdata/influxdb/pull/8893): Handle nil MeasurementIterator.
@@ -1581,7 +1582,7 @@ This released introduced an updated write path and clustering design. The data f
 ### Bugfixes
 - [#2776](https://github.com/influxdata/influxdb/issues/2776): Re-implement retention policy enforcement.
 - [#2635](https://github.com/influxdata/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
-- [#2644](https://github.com/influxdata/influxdb/issues/2644): Make SHOW queries work with FROM /<regex>/.
+- [#2644](https://github.com/influxdata/influxdb/issues/2644): Make SHOW queries work with FROM /\<regex\>/.
 - [#2501](https://github.com/influxdata/influxdb/issues/2501): Name the FlagSet for the shell and add a version flag. Thanks @neonstalwart
 - [#2647](https://github.com/influxdata/influxdb/issues/2647): Fixes typos in sample config file - thanks @claws!
 
