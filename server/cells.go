@@ -28,37 +28,31 @@ type dashboardCellResponse struct {
 
 func newCellResponse(dID chronograf.DashboardID, cell chronograf.DashboardCell) dashboardCellResponse {
 	base := "/chronograf/v1/dashboards"
-	newCell := chronograf.DashboardCell{}
-	newCell.Queries = make([]chronograf.DashboardQuery, len(cell.Queries))
-	copy(newCell.Queries, cell.Queries)
-
-	newCell.CellColors = make([]chronograf.CellColor, len(cell.CellColors))
-	copy(newCell.CellColors, cell.CellColors)
-
-	// ensure x, y, and y2 axes always returned
-	labels := []string{"x", "y", "y2"}
-	newCell.Axes = make(map[string]chronograf.Axis, len(labels))
-
-	newCell.X = cell.X
-	newCell.Y = cell.Y
-	newCell.W = cell.W
-	newCell.H = cell.H
-	newCell.Name = cell.Name
-	newCell.ID = cell.ID
-	newCell.Type = cell.Type
-
-	for _, lbl := range labels {
-		if axis, found := cell.Axes[lbl]; !found {
-			newCell.Axes[lbl] = chronograf.Axis{
-				Bounds: []string{},
-			}
-		} else {
-			newCell.Axes[lbl] = axis
-		}
+	if cell.Queries == nil {
+		cell.Queries = []chronograf.DashboardQuery{}
+	}
+	if cell.CellColors == nil {
+		cell.CellColors = []chronograf.CellColor{}
 	}
 
+	// Copy to handle race condition
+	newAxes := make(map[string]chronograf.Axis, len(cell.Axes))
+	for k, v := range cell.Axes {
+		newAxes[k] = v
+	}
+
+	// ensure x, y, and y2 axes always returned
+	for _, lbl := range []string{"x", "y", "y2"} {
+		if _, found := newAxes[lbl]; !found {
+			newAxes[lbl] = chronograf.Axis{
+				Bounds: []string{},
+			}
+		}
+	}
+	cell.Axes = newAxes
+
 	return dashboardCellResponse{
-		DashboardCell: newCell,
+		DashboardCell: cell,
 		Links: dashboardCellLinks{
 			Self: fmt.Sprintf("%s/%d/cells/%s", base, dID, cell.ID),
 		},
@@ -91,7 +85,10 @@ func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 	if err != nil {
 		return err
 	}
-	return HasCorrectColors(c)
+	if err = HasCorrectColors(c); err != nil {
+		return err
+	}
+	return HasCorrectLegend(c)
 }
 
 // HasCorrectAxes verifies that only permitted axes exist within a DashboardCell
@@ -122,6 +119,27 @@ func HasCorrectColors(c *chronograf.DashboardCell) error {
 		if len(color.Hex) != 7 {
 			return chronograf.ErrInvalidColor
 		}
+	}
+	return nil
+}
+
+// HasCorrectLegend verifies that the format of the legend is correct
+func HasCorrectLegend(c *chronograf.DashboardCell) error {
+	// No legend set
+	if c.Legend.Type == "" && c.Legend.Orientation == "" {
+		return nil
+	}
+
+	if c.Legend.Type == "" || c.Legend.Orientation == "" {
+		return chronograf.ErrInvalidLegend
+	}
+	if !oneOf(c.Legend.Orientation, "top", "bottom", "right", "left") {
+		return chronograf.ErrInvalidLegendOrient
+	}
+
+	// Remember! if we add other types, update ErrInvalidLegendType
+	if !oneOf(c.Legend.Type, "static") {
+		return chronograf.ErrInvalidLegendType
 	}
 	return nil
 }
