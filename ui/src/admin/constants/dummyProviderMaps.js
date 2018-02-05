@@ -14,6 +14,6 @@ export const PROVIDER_MAPS = [
     scheme: 'oauth2',
     provider: 'github',
     providerOrganization: null,
-    organizationId: '2',
+    organizationId: '1',
   },
 ]
