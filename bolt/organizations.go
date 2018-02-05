@@ -29,14 +29,6 @@ const (
 	DefaultOrganizationPublic bool = true
 )
 
-// DefaultOrganizationMapping is the mapping for the default organization
-var DefaultOrganizationMapping = chronograf.Mapping{
-	Provider:    chronograf.MappingWildcard,
-	Scheme:      chronograf.MappingWildcard,
-	Group:       chronograf.MappingWildcard,
-	GrantedRole: DefaultOrganizationRole,
-}
-
 // OrganizationsStore uses bolt to store and retrieve Organizations
 type OrganizationsStore struct {
 	client *Client
@@ -54,9 +46,14 @@ func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 		Name:        DefaultOrganizationName,
 		DefaultRole: DefaultOrganizationRole,
 		Public:      DefaultOrganizationPublic,
-		Mappings: []chronograf.Mapping{
-			DefaultOrganizationMapping,
-		},
+	}
+
+	m := chronograf.Mapping{
+		ID:           string(DefaultOrganizationID),
+		Organization: string(DefaultOrganizationID),
+		Provider:     chronograf.MappingWildcard,
+		Scheme:       chronograf.MappingWildcard,
+		Group:        chronograf.MappingWildcard,
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
@@ -65,6 +62,17 @@ func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 			return nil
 		}
 		if v, err := internal.MarshalOrganization(&o); err != nil {
+			return err
+		} else if err := b.Put(DefaultOrganizationID, v); err != nil {
+			return err
+		}
+
+		b = tx.Bucket(MappingsBucket)
+		v = b.Get(DefaultOrganizationID)
+		if v != nil {
+			return nil
+		}
+		if v, err := internal.MarshalMapping(&m); err != nil {
 			return err
 		} else if err := b.Put(DefaultOrganizationID, v); err != nil {
 			return err

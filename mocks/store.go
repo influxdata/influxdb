@@ -9,6 +9,7 @@ import (
 // Store is a server.DataStore
 type Store struct {
 	SourcesStore       chronograf.SourcesStore
+	MappingsStore      chronograf.MappingsStore
 	ServersStore       chronograf.ServersStore
 	LayoutsStore       chronograf.LayoutsStore
 	UsersStore         chronograf.UsersStore
@@ -35,6 +36,9 @@ func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
 
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {
 	return s.OrganizationsStore
+}
+func (s *Store) Mappings(ctx context.Context) chronograf.MappingsStore {
+	return s.MappingsStore
 }
 
 func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {

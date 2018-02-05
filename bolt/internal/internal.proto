@@ -161,7 +161,8 @@ message Mapping {
 	string Provider         = 1; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
 	string Scheme           = 2; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
 	string Group            = 3; // Group is the group or organizations that you are a part of in an auth provider
-	string GrantedRole      = 4; // GrantedRole is the name of the role that you will be granted if you match the mapping
+	string ID               = 4; // ID is the unique ID for the mapping
+	string Organization     = 5; // Organization is the organization ID that resource belongs to
 }
 
 message Organization {
@@ -169,7 +170,6 @@ message Organization {
 	string Name                = 2; // Name is the organization's name
 	string DefaultRole         = 3; // DefaultRole is the name of the role that is the default for any users added to the organization
 	bool Public                = 4; // Public specifies that users must be explicitly added to the organization
-	repeated Mapping Mappings  = 5; // Mappings is set of mappings a organization has
 }
 
 message Config {
