@@ -550,7 +550,8 @@
       "patch": {
         "tags": ["sources", "users"],
         "summary": "Update user configuration",
-        "description": "Update one parameter at a time (one of password, permissions or roles)",
+        "description":
+          "Update one parameter at a time (one of password, permissions or roles)",
         "parameters": [
           {
             "name": "id",
@@ -3962,6 +3963,24 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/definitions/DashboardColor"
+                }
+              },
+              "legend": {
+                "description":
+                  "Legend define encoding of the data into a cell's legend",
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "description": "type is the style of the legend",
+                    "type": "string",
+                    "enum": ["static"]
+                  },
+                  "orientation": {
+                    "description":
+                      "orientation is the location of the legend with respect to the cell graph",
+                    "type": "string",
+                    "enum": ["top", "bottom", "left", "right"]
+                  }
                 }
               },
               "links": {
