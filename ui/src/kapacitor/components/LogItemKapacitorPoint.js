@@ -4,7 +4,8 @@ const renderKeysAndValues = (object, name) => {
   if (!object) {
     return <span className="logs-table--empty-cell">--</span>
   }
-  const objKeys = Object.keys(object)
+
+  const objKeys = Object.keys(object).sort()
   const objValues = Object.values(object)
 
   return (
