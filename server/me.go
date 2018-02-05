@@ -270,6 +270,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO(desa) get rid of this
 	// If users must be explicitly added to the default organization, respond with 403
 	// forbidden
 	if !defaultOrg.Public {
@@ -288,17 +289,10 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		SuperAdmin: s.newUsersAreSuperAdmin(),
 	}
 
-	allOrgs, err := s.Store.Organizations(serverCtx).All(serverCtx)
+	roles, err := s.mapPrincipalToRoles(serverCtx, p)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 		return
-	}
-	roles := []chronograf.Role{}
-	for _, org := range allOrgs {
-		role := MappedRole(org, p)
-		if role != nil {
-			roles = append(roles, *role)
-		}
 	}
 
 	user.Roles = roles

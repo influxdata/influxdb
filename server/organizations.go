@@ -13,10 +13,9 @@ import (
 )
 
 type organizationRequest struct {
-	Name        string               `json:"name"`
-	DefaultRole string               `json:"defaultRole"`
-	Public      *bool                `json:"public"`
-	Mappings    []chronograf.Mapping `json:"mappings"`
+	Name        string `json:"name"`
+	DefaultRole string `json:"defaultRole"`
+	Public      *bool  `json:"public"`
 }
 
 func (r *organizationRequest) ValidCreate() error {
@@ -24,47 +23,16 @@ func (r *organizationRequest) ValidCreate() error {
 		return fmt.Errorf("Name required on Chronograf Organization request body")
 	}
 
-	if len(r.Mappings) > 0 {
-		if err := r.ValidMappings(); err != nil {
-			return err
-		}
-	}
-
 	return r.ValidDefaultRole()
 }
 
-func (r *organizationRequest) ValidMappings() error {
-	for _, m := range r.Mappings {
-		if m.Provider == "" {
-			return fmt.Errorf("mapping must specify provider")
-		}
-		if m.Scheme == "" {
-			return fmt.Errorf("mapping must specify scheme")
-		}
-		if m.Group == "" {
-			return fmt.Errorf("mapping must specify group")
-		}
-		if m.GrantedRole == "" {
-			return fmt.Errorf("mapping must specify grantedRole")
-		}
-	}
-
-	return nil
-}
-
 func (r *organizationRequest) ValidUpdate() error {
-	if r.Name == "" && r.DefaultRole == "" && r.Public == nil && len(r.Mappings) == 0 {
+	if r.Name == "" && r.DefaultRole == "" && r.Public == nil {
 		return fmt.Errorf("No fields to update")
 	}
 
 	if r.DefaultRole != "" {
 		return r.ValidDefaultRole()
-	}
-
-	if len(r.Mappings) > 0 {
-		if err := r.ValidMappings(); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -91,12 +59,6 @@ type organizationResponse struct {
 func newOrganizationResponse(o *chronograf.Organization) *organizationResponse {
 	if o == nil {
 		o = &chronograf.Organization{}
-	}
-	// This ensures that any user response with no roles returns an empty array instead of
-	// null when marshaled into JSON. That way, JavaScript doesn't need any guard on the
-	// key existing and it can simply be iterated over.
-	if o.Mappings == nil {
-		o.Mappings = []chronograf.Mapping{}
 	}
 	return &organizationResponse{
 		Organization: *o,
@@ -247,10 +209,6 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 
 	if req.Public != nil {
 		org.Public = *req.Public
-	}
-
-	if req.Mappings != nil {
-		org.Mappings = req.Mappings
 	}
 
 	err = s.Store.Organizations(ctx).Update(ctx, org)

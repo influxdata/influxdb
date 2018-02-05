@@ -578,23 +578,12 @@ func UnmarshalRolePB(data []byte, r *Role) error {
 
 // MarshalOrganization encodes a organization to binary protobuf format.
 func MarshalOrganization(o *chronograf.Organization) ([]byte, error) {
-	mappings := make([]*Mapping, len(o.Mappings))
-
-	for i, m := range o.Mappings {
-		mappings[i] = &Mapping{
-			Provider:    m.Provider,
-			Scheme:      m.Scheme,
-			Group:       m.Group,
-			GrantedRole: m.GrantedRole,
-		}
-	}
 
 	return MarshalOrganizationPB(&Organization{
 		ID:          o.ID,
 		Name:        o.Name,
 		DefaultRole: o.DefaultRole,
 		Public:      o.Public,
-		Mappings:    mappings,
 	})
 }
 
@@ -613,19 +602,6 @@ func UnmarshalOrganization(data []byte, o *chronograf.Organization) error {
 	o.Name = pb.Name
 	o.DefaultRole = pb.DefaultRole
 	o.Public = pb.Public
-
-	mappings := make([]chronograf.Mapping, len(pb.Mappings))
-
-	for i, m := range pb.Mappings {
-		mappings[i] = chronograf.Mapping{
-			Provider:    m.Provider,
-			Scheme:      m.Scheme,
-			Group:       m.Group,
-			GrantedRole: m.GrantedRole,
-		}
-	}
-
-	o.Mappings = mappings
 
 	return nil
 }
@@ -672,4 +648,42 @@ func UnmarshalConfigPB(data []byte, c *Config) error {
 		return err
 	}
 	return nil
+}
+
+// MarshalMapping encodes a mapping to binary protobuf format.
+func MarshalMapping(m *chronograf.Mapping) ([]byte, error) {
+
+	return MarshalMappingPB(&Mapping{
+		Provider:     m.Provider,
+		Scheme:       m.Scheme,
+		Group:        m.Group,
+		ID:           m.ID,
+		Organization: m.Organization,
+	})
+}
+
+// MarshalMappingPB encodes a mapping to binary protobuf format.
+func MarshalMappingPB(m *Mapping) ([]byte, error) {
+	return proto.Marshal(m)
+}
+
+// UnmarshalMapping decodes a mapping from binary protobuf data.
+func UnmarshalMapping(data []byte, m *chronograf.Mapping) error {
+	var pb Mapping
+	if err := UnmarshalMappingPB(data, &pb); err != nil {
+		return err
+	}
+
+	m.Provider = pb.Provider
+	m.Scheme = pb.Scheme
+	m.Group = pb.Group
+	m.Organization = pb.Organization
+	m.ID = pb.ID
+
+	return nil
+}
+
+// UnmarshalMappingPB decodes a mapping from binary protobuf data.
+func UnmarshalMappingPB(data []byte, m *Mapping) error {
+	return proto.Unmarshal(data, m)
 }

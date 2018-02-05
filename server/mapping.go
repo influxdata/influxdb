@@ -1,56 +1,63 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"strings"
 
+	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/oauth2"
-	"github.com/influxdata/chronograf/roles"
 )
 
-func MappedRole(o chronograf.Organization, p oauth2.Principal) *chronograf.Role {
-	roles := []*chronograf.Role{}
-	for _, mapping := range o.Mappings {
-		role := applyMapping(mapping, p)
-		if role != nil {
-			role.Organization = o.ID
-			roles = append(roles, role)
+func (s *Service) mapPrincipalToRoles(ctx context.Context, p oauth2.Principal) ([]chronograf.Role, error) {
+	mappings, err := s.Store.Mappings(ctx).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	roles := []chronograf.Role{}
+MappingsLoop:
+	for _, mapping := range mappings {
+		if applyMapping(mapping, p) {
+			org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &mapping.Organization})
+			if err != nil {
+				continue MappingsLoop
+			}
+
+			for _, role := range roles {
+				if role.Organization == org.ID {
+					continue MappingsLoop
+				}
+			}
+			roles = append(roles, chronograf.Role{Organization: org.ID, Name: org.DefaultRole})
 		}
 	}
 
-	return maxRole(roles)
+	return roles, nil
 }
 
-func applyMapping(m chronograf.Mapping, p oauth2.Principal) *chronograf.Role {
+func applyMapping(m chronograf.Mapping, p oauth2.Principal) bool {
 	switch m.Provider {
 	case chronograf.MappingWildcard, p.Issuer:
 	default:
-		return nil
+		return false
 	}
 
 	switch m.Scheme {
 	case chronograf.MappingWildcard, "oauth2":
 	default:
-		return nil
+		return false
 	}
 
 	if m.Group == chronograf.MappingWildcard {
-		return &chronograf.Role{
-			Name: m.GrantedRole,
-		}
+		return true
 	}
 
 	groups := strings.Split(p.Group, ",")
 
-	match := matchGroup(m.Group, groups)
-
-	if match {
-		return &chronograf.Role{
-			Name: m.GrantedRole,
-		}
-	}
-
-	return nil
+	return matchGroup(m.Group, groups)
 }
 
 func matchGroup(match string, groups []string) bool {
@@ -63,49 +70,180 @@ func matchGroup(match string, groups []string) bool {
 	return false
 }
 
-func maxRole(roles []*chronograf.Role) *chronograf.Role {
-	var max *chronograf.Role
-	for _, role := range roles {
-		max = maximumRole(max, role)
-	}
+type mappingsRequest chronograf.Mapping
 
-	return max
-}
-
-func maximumRole(r1, r2 *chronograf.Role) *chronograf.Role {
-	if r1 == nil {
-		return r2
+// Valid determines if a mapping request is valid
+func (m *mappingsRequest) Valid() error {
+	if m.Provider == "" {
+		return fmt.Errorf("mapping must specify provider")
 	}
-	if r2 == nil {
-		return r2
+	if m.Scheme == "" {
+		return fmt.Errorf("mapping must specify scheme")
 	}
-	if r1.Name == roles.AdminRoleName {
-		return r1
-	}
-	if r2.Name == roles.AdminRoleName {
-		return r2
-	}
-
-	if r1.Name == roles.EditorRoleName {
-		return r1
-	}
-	if r2.Name == roles.EditorRoleName {
-		return r2
-	}
-
-	if r1.Name == roles.ViewerRoleName {
-		return r1
-	}
-	if r2.Name == roles.ViewerRoleName {
-		return r2
-	}
-
-	if r1.Name == roles.MemberRoleName {
-		return r1
-	}
-	if r2.Name == roles.MemberRoleName {
-		return r2
+	if m.Group == "" {
+		return fmt.Errorf("mapping must specify group")
 	}
 
 	return nil
+}
+
+type mappingResponse struct {
+	Links selfLinks `json:"links"`
+	*chronograf.Mapping
+}
+
+func newMappingResponse(m *chronograf.Mapping) *mappingResponse {
+	id := "unknown"
+	if m != nil {
+		id = m.ID
+	}
+	return &mappingResponse{
+		Links: selfLinks{
+			Self: fmt.Sprintf("/chronograf/v1/mappings/%s", id),
+		},
+		Mapping: m,
+	}
+}
+
+type mappingsResponse struct {
+	Links    selfLinks          `json:"links"`
+	Mappings []*mappingResponse `json:"mappings"`
+}
+
+func newMappingsResponse(ms []chronograf.Mapping) *mappingsResponse {
+	mappings := []*mappingResponse{}
+	for _, m := range ms {
+		mappings = append(mappings, newMappingResponse(&m))
+	}
+	return &mappingsResponse{
+		Links: selfLinks{
+			Self: "/chronograf/v1/mappings",
+		},
+		Mappings: mappings,
+	}
+}
+
+// Mappings retrives all mappings
+func (s *Service) Mappings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	mappings, err := s.Store.Mappings(ctx).All(ctx)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to retrieve mappings from database", s.Logger)
+		return
+	}
+
+	res := newMappingsResponse(mappings)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+// NewMapping adds a new mapping
+func (s *Service) NewMapping(w http.ResponseWriter, r *http.Request) {
+	var req mappingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		invalidJSON(w, s.Logger)
+		return
+	}
+
+	if err := req.Valid(); err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+
+	ctx := r.Context()
+
+	// validate that the organization exists
+	if !s.organizationExists(ctx, req.Organization) {
+		invalidData(w, fmt.Errorf("organization does not exist"), s.Logger)
+		return
+	}
+
+	mapping := &chronograf.Mapping{
+		Organization: req.Organization,
+		Scheme:       req.Scheme,
+		Provider:     req.Provider,
+		Group:        req.Group,
+	}
+
+	m, err := s.Store.Mappings(ctx).Add(ctx, mapping)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to add mapping to database", s.Logger)
+		return
+	}
+
+	cu := newMappingResponse(m)
+	location(w, cu.Links.Self)
+	encodeJSON(w, http.StatusCreated, cu, s.Logger)
+}
+
+// UpdateMapping updates a mapping
+func (s *Service) UpdateMapping(w http.ResponseWriter, r *http.Request) {
+	var req mappingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		invalidJSON(w, s.Logger)
+		return
+	}
+
+	if err := req.Valid(); err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+
+	ctx := r.Context()
+
+	// validate that the organization exists
+	if !s.organizationExists(ctx, req.Organization) {
+		invalidData(w, fmt.Errorf("organization does not exist"), s.Logger)
+		return
+	}
+
+	mapping := &chronograf.Mapping{
+		ID:           req.ID,
+		Organization: req.Organization,
+		Scheme:       req.Scheme,
+		Provider:     req.Provider,
+		Group:        req.Group,
+	}
+
+	err := s.Store.Mappings(ctx).Update(ctx, mapping)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to update mapping in database", s.Logger)
+		return
+	}
+
+	cu := newMappingResponse(mapping)
+	location(w, cu.Links.Self)
+	encodeJSON(w, http.StatusOK, cu, s.Logger)
+}
+
+// RemoveMapping removes a mapping
+func (s *Service) RemoveMapping(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := httprouter.GetParamFromContext(ctx, "id")
+
+	m, err := s.Store.Mappings(ctx).Get(ctx, id)
+	if err == chronograf.ErrMappingNotFound {
+		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
+	}
+
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to retrieve mapping from database", s.Logger)
+		return
+	}
+
+	if err := s.Store.Mappings(ctx).Delete(ctx, m); err != nil {
+		Error(w, http.StatusInternalServerError, "failed to remove mapping from database", s.Logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Service) organizationExists(ctx context.Context, orgID string) bool {
+	if _, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID}); err != nil {
+		return false
+	}
+
+	return true
 }
