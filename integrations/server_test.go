@@ -1102,7 +1102,7 @@ func TestServer(t *testing.T) {
   "name": "user",
   "provider": "provider",
   "scheme": "oauth2",
-  "superAdmin": true,
+  "superAdmin": false,
   "roles": [
     {
       "name": "member",
@@ -1163,7 +1163,7 @@ func TestServer(t *testing.T) {
   "name": "user",
   "provider": "provider",
   "scheme": "oauth2",
-  "superAdmin": true,
+  "superAdmin": false,
   "roles": []
 }
 `,
