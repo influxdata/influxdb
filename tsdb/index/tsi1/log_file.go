@@ -822,6 +822,30 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	}
 	t.TombstoneSeriesIDSet.Size = n - t.TombstoneSeriesIDSet.Offset
 
+	// Write series sketches. TODO(edd): Implement WriterTo on HLL++.
+	t.SeriesSketch.Offset = n
+	data, err := f.sSketch.MarshalBinary()
+	if err != nil {
+		return n, err
+	} else if wrote, err := bw.Write(data); err != nil {
+		return n, err
+	} else if wrote != len(data) {
+		return n, fmt.Errorf("wrote %d bytes of sketch. Should have written %d bytes", wrote, len(data))
+	}
+	t.SeriesSketch.Size = int64(len(data))
+	n += t.SeriesSketch.Size
+
+	t.TombstoneSeriesSketch.Offset = n
+	if data, err = f.sTSketch.MarshalBinary(); err != nil {
+		return n, err
+	} else if wrote, err := bw.Write(data); err != nil {
+		return n, err
+	} else if wrote != len(data) {
+		return n, fmt.Errorf("wrote %d bytes of tombstone sketch. Should have written %d bytes", wrote, len(data))
+	}
+	t.TombstoneSeriesSketch.Size = int64(len(data))
+	n += t.TombstoneSeriesSketch.Size
+
 	// Write trailer.
 	nn, err = t.WriteTo(bw)
 	n += nn

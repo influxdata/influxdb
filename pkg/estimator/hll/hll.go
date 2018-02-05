@@ -279,13 +279,16 @@ func (h *Plus) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 func (h *Plus) UnmarshalBinary(data []byte) error {
+	if len(data) < 12 {
+		return fmt.Errorf("provided buffer %v too short for initializing HLL sketch", data)
+	}
+
 	// Unmarshal version. We may need this in the future if we make
 	// non-compatible changes.
 	_ = data[0]
 
 	// Unmarshal precision.
 	p := uint8(data[1])
-
 	newh, err := NewPlus(p)
 	if err != nil {
 		return err

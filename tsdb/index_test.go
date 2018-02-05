@@ -8,13 +8,13 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb/index/tsi1"
-
 	"github.com/influxdata/influxdb/internal"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 )
 
@@ -284,6 +284,10 @@ func MustNewIndex(index string) *Index {
 		panic(err)
 	}
 
+	if testing.Verbose() {
+		i.WithLogger(logger.New(os.Stderr))
+	}
+
 	idx := &Index{
 		Index:     i,
 		indexType: index,
@@ -356,5 +360,6 @@ func (i *Index) Close() error {
 	if err := i.sfile.Close(); err != nil {
 		return err
 	}
-	return os.RemoveAll(i.rootPath)
+	//return os.RemoveAll(i.rootPath)
+	return nil
 }
