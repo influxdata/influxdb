@@ -9,15 +9,25 @@
     visibility: hidden;
     transition: all;
     position: absolute;
-    top: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
     z-index: 1;
+
+
+    &.bottom {
+      top: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    &.left {
+      top: 50%;
+      right: calc(100% + 4px);
+      transform: translateY(-50%);
+    }
   }
 }
 .confirm-button--confirmation {
   white-space: pre;
-  max-width: 210px;
+  max-width: 210px;  
   border-radius: 3px;
   background-color: $c-curacao;
   opacity: 0;
@@ -50,7 +60,29 @@
     border-bottom-color: $c-dreamsicle;
   }
 }
-.confirm-button.expanded {
+
+.confirm-button--tooltip.bottom .confirm-button--confirmation:after {
+  bottom: 100%;
+  left: 50%;
+  border-bottom-color: $c-curacao;
+  transform: translateX(-50%);
+}
+.confirm-button--tooltip.bottom .confirm-button--confirmation:hover:after {
+  border-bottom-color: $c-dreamsicle;
+}
+.confirm-button--tooltip.left .confirm-button--confirmation:after {
+  left: 100%;
+  top: 50%;
+  border-left-color: $c-curacao;
+  transform: translateY(-50%);
+}
+.confirm-button--tooltip.left .confirm-button--confirmation:hover:after {
+  border-left-color: $c-dreamsicle;
+}
+
+.confirm-button.active {
+  z-index: 999;
+
   .confirm-button--tooltip {
     visibility: visible;
   }
@@ -63,8 +95,8 @@
   margin-top: -1px;
 
   &:hover {
-    background-color: #383846;
-    color: #c6cad3;
+    background-color:$g5-pepper;
+    color: $g14-chromium;
   }
 
   span.icon.remove {

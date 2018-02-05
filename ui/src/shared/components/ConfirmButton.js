@@ -27,6 +27,24 @@ class ConfirmButton extends Component {
     this.setState({expanded: false})
   }
 
+  calculatePosition = () => {
+    if (!this.buttonDiv || !this.tooltipDiv) {
+      return ''
+    }
+
+    const windowWidth = window.innerWidth
+    const buttonRect = this.buttonDiv.getBoundingClientRect()
+    const tooltipRect = this.tooltipDiv.getBoundingClientRect()
+
+    const rightGap = windowWidth - buttonRect.right
+
+    if (tooltipRect.width / 2 > rightGap) {
+      return 'left'
+    }
+
+    return 'bottom'
+  }
+
   render() {
     const {
       text,
@@ -42,19 +60,24 @@ class ConfirmButton extends Component {
 
     const customClassString = customClass ? ` ${customClass}` : ''
     const squareString = square ? ' btn-square' : ''
-    const expandedString = expanded ? ' expanded' : ''
+    const expandedString = expanded ? ' active' : ''
     const disabledString = disabled ? ' disabled' : ''
 
     const classname = `confirm-button btn ${type} ${size}${customClassString}${squareString}${expandedString}${disabledString}`
 
     return (
-      <div className={classname} onClick={this.handleButtonClick}>
+      <div
+        className={classname}
+        onClick={this.handleButtonClick}
+        ref={r => (this.buttonDiv = r)}
+      >
         {icon && <span className={`icon ${icon}`} />}
         {text && text}
-        <div className="confirm-button--tooltip">
+        <div className={`confirm-button--tooltip ${this.calculatePosition()}`}>
           <div
             className="confirm-button--confirmation"
             onClick={this.handleConfirmClick}
+            ref={r => (this.tooltipDiv = r)}
           >
             {confirmText}
           </div>
