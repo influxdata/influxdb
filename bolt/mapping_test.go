@@ -128,12 +128,6 @@ func TestMappingStore_All(t *testing.T) {
 			fields: fields{
 				mappings: []*chronograf.Mapping{
 					&chronograf.Mapping{
-						Organization: "default",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "*",
-					},
-					&chronograf.Mapping{
 						Organization: "0",
 						Provider:     "google",
 						Scheme:       "ldap",
@@ -144,15 +138,15 @@ func TestMappingStore_All(t *testing.T) {
 			wants: wants{
 				mappings: []chronograf.Mapping{
 					chronograf.Mapping{
-						Organization: "default",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "*",
-					},
-					chronograf.Mapping{
 						Organization: "0",
 						Provider:     "google",
 						Scheme:       "ldap",
+						Group:        "*",
+					},
+					chronograf.Mapping{
+						Organization: "default",
+						Provider:     "*",
+						Scheme:       "*",
 						Group:        "*",
 					},
 				},

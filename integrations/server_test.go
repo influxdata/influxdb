@@ -1580,6 +1580,371 @@ func TestServer(t *testing.T) {
 `,
 			},
 		},
+		{
+			name:    "GET /mappings",
+			subName: "get all mappings",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{
+					{
+						ID:           "1",
+						Organization: "1",
+						Provider:     "*",
+						Scheme:       "*",
+						Group:        "influxdata",
+					},
+					{
+						ID:           "1",
+						Organization: "1",
+						Provider:     "*",
+						Scheme:       "*",
+						Group:        "*",
+					},
+					{
+						ID:           "2",
+						Organization: "2",
+						Provider:     "github",
+						Scheme:       "*",
+						Group:        "*",
+					},
+					{
+						ID:           "3",
+						Organization: "3",
+						Provider:     "auth0",
+						Scheme:       "ldap",
+						Group:        "*",
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+					{
+						ID:          "2",
+						Name:        "What",
+						DefaultRole: roles.EditorRoleName,
+					},
+					{
+						ID:          "3",
+						Name:        "Okay",
+						DefaultRole: roles.AdminRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/mappings",
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/mappings"
+  },
+  "mappings": [
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/1"
+      },
+      "id": "default",
+      "organization": "default",
+      "provider": "*",
+      "scheme": "*",
+      "group": "*"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/2"
+      },
+      "id": "default",
+      "organization": "default",
+      "provider": "*",
+      "scheme": "*",
+      "group": "*"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/3"
+      },
+      "id": "default",
+      "organization": "default",
+      "provider": "*",
+      "scheme": "*",
+      "group": "*"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/4"
+      },
+      "id": "default",
+      "organization": "default",
+      "provider": "*",
+      "scheme": "*",
+      "group": "*"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/default"
+      },
+      "id": "default",
+      "organization": "default",
+      "provider": "*",
+      "scheme": "*",
+      "group": "*"
+    }
+  ]
+}
+`,
+			},
+		},
+		{
+			name:    "GET /mappings",
+			subName: "get all mappings - user is not super admin",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{
+					{
+						ID:           "1",
+						Organization: "1",
+						Provider:     "*",
+						Scheme:       "*",
+						Group:        "influxdata",
+					},
+					{
+						ID:           "1",
+						Organization: "1",
+						Provider:     "*",
+						Scheme:       "*",
+						Group:        "*",
+					},
+					{
+						ID:           "2",
+						Organization: "2",
+						Provider:     "github",
+						Scheme:       "*",
+						Group:        "*",
+					},
+					{
+						ID:           "3",
+						Organization: "3",
+						Provider:     "auth0",
+						Scheme:       "ldap",
+						Group:        "*",
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+					{
+						ID:          "2",
+						Name:        "What",
+						DefaultRole: roles.EditorRoleName,
+					},
+					{
+						ID:          "3",
+						Name:        "Okay",
+						DefaultRole: roles.AdminRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/mappings",
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 403,
+				body: `
+{
+  "code": 403,
+  "message": "User is not authorized"
+}
+`,
+			},
+		},
+		{
+			name:    "POST /mappings",
+			subName: "create new mapping",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/mappings",
+				payload: &chronograf.Mapping{
+					ID:           "1",
+					Organization: "1",
+					Provider:     "*",
+					Scheme:       "*",
+					Group:        "influxdata",
+				},
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/mappings/1"
+  },
+  "id": "1",
+  "organization": "1",
+  "provider": "*",
+  "scheme": "*",
+  "group": "influxdata"
+}
+`,
+			},
+		},
+		{
+			name:    "PUT /mappings",
+			subName: "update new mapping",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{
+					chronograf.Mapping{
+						ID:           "1",
+						Organization: "1",
+						Provider:     "*",
+						Scheme:       "*",
+						Group:        "influxdata",
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PUT",
+				path:   "/chronograf/v1/mappings/1",
+				payload: &chronograf.Mapping{
+					ID:           "1",
+					Organization: "1",
+					Provider:     "*",
+					Scheme:       "*",
+					Group:        "*",
+				},
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/mappings/1"
+  },
+  "id": "1",
+  "organization": "1",
+  "provider": "*",
+  "scheme": "*",
+  "group": "*"
+}
+`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -1,381 +1,362 @@
-package server_test
+package server
 
-//func TestMappedRole(t *testing.T) {
-//	type args struct {
-//		org       chronograf.Organization
-//		principal oauth2.Principal
-//	}
-//	type wants struct {
-//		role *chronograf.Role
-//	}
-//
-//	tests := []struct {
-//		name  string
-//		args  args
-//		wants wants
-//	}{
-//		{
-//			name: "single mapping all wildcards",
-//			args: args{
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.ViewerRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.ViewerRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "two mapping all wildcards",
-//			args: args{
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.ViewerRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.EditorRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.EditorRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "two mapping all wildcards, different order",
-//			args: args{
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.EditorRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.ViewerRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.EditorRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "two mappings with explicit principal",
-//			args: args{
-//				principal: oauth2.Principal{
-//					Subject: "billieta@influxdata.com",
-//					Issuer:  "google",
-//					Group:   "influxdata.com",
-//				},
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      "oauth2",
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.MemberRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.MemberRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.MemberRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "different two mapping all wildcards",
-//			args: args{
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.ViewerRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.MemberRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.ViewerRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "different two mapping all wildcards, different ordering",
-//			args: args{
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.MemberRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.ViewerRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.ViewerRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "three mapping all wildcards",
-//			args: args{
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.EditorRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.ViewerRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.AdminRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.AdminRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "three mapping only one match",
-//			args: args{
-//				principal: oauth2.Principal{
-//					Subject: "billieta@influxdata.com",
-//					Issuer:  "google",
-//					Group:   "influxdata.com",
-//				},
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    "google",
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       "influxdata.com",
-//							GrantedRole: roles.EditorRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    "google",
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       "not_influxdata",
-//							GrantedRole: roles.AdminRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      "ldap",
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.AdminRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.EditorRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "three mapping only two matches",
-//			args: args{
-//				principal: oauth2.Principal{
-//					Subject: "billieta@influxdata.com",
-//					Issuer:  "google",
-//					Group:   "influxdata.com",
-//				},
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    "google",
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       "influxdata.com",
-//							GrantedRole: roles.AdminRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    "google",
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.EditorRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    chronograf.MappingWildcard,
-//							Scheme:      "ldap",
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.AdminRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.AdminRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//		{
-//			name: "missing provider",
-//			args: args{
-//				principal: oauth2.Principal{
-//					Subject: "billieta@influxdata.com",
-//					Issuer:  "google",
-//					Group:   "influxdata.com",
-//				},
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    "",
-//							Scheme:      "ldap",
-//							Group:       chronograf.MappingWildcard,
-//							GrantedRole: roles.AdminRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: nil,
-//			},
-//		},
-//		{
-//			name: "user is in multiple github groups",
-//			args: args{
-//				principal: oauth2.Principal{
-//					Subject: "billieta@influxdata.com",
-//					Issuer:  "github",
-//					Group:   "influxdata,another,mimi",
-//				},
-//				org: chronograf.Organization{
-//					ID:   "cool",
-//					Name: "Cool Org",
-//					Mappings: []chronograf.Mapping{
-//						chronograf.Mapping{
-//							Provider:    "github",
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       "influxdata",
-//							GrantedRole: roles.MemberRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    "github",
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       "mimi",
-//							GrantedRole: roles.EditorRoleName,
-//						},
-//						chronograf.Mapping{
-//							Provider:    "github",
-//							Scheme:      chronograf.MappingWildcard,
-//							Group:       "another",
-//							GrantedRole: roles.AdminRoleName,
-//						},
-//					},
-//				},
-//			},
-//			wants: wants{
-//				role: &chronograf.Role{
-//					Name:         roles.AdminRoleName,
-//					Organization: "cool",
-//				},
-//			},
-//		},
-//	}
-//
-//	for _, tt := range tests {
-//		t.Run(tt.name, func(t *testing.T) {
-//			role := server.MappedRole(tt.args.org, tt.args.principal)
-//
-//			if diff := cmp.Diff(role, tt.wants.role); diff != "" {
-//				t.Errorf("%q. MappedRole():\n-got/+want\ndiff %s", tt.name, diff)
-//			}
-//		})
-//	}
-//}
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io/ioutil"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/bouk/httprouter"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/log"
+	"github.com/influxdata/chronograf/mocks"
+	"github.com/influxdata/chronograf/roles"
+)
+
+func TestMappings_All(t *testing.T) {
+	type fields struct {
+		MappingsStore chronograf.MappingsStore
+	}
+	type args struct {
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "get all mappings",
+			fields: fields{
+				MappingsStore: &mocks.MappingsStore{
+					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
+						return []chronograf.Mapping{
+							{
+								Organization: "0",
+								Provider:     chronograf.MappingWildcard,
+								Scheme:       chronograf.MappingWildcard,
+								Group:        chronograf.MappingWildcard,
+							},
+						}, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  200,
+				contentType: "application/json",
+				body:        `{"links":{"self":"/chronograf/v1/mappings"},"mappings":[{"links":{"self":"/chronograf/v1/mappings/"},"id":"","organization":"0","provider":"*","scheme":"*","group":"*"}]}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					MappingsStore: tt.fields.MappingsStore,
+				},
+				Logger: log.New(log.DebugLevel),
+			}
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "http://any.url", nil)
+			s.Mappings(w, r)
+
+			resp := w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. Mappings() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. Mappings() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. Mappings() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			}
+		})
+	}
+}
+
+func TestMappings_Add(t *testing.T) {
+	type fields struct {
+		MappingsStore      chronograf.MappingsStore
+		OrganizationsStore chronograf.OrganizationsStore
+	}
+	type args struct {
+		mapping *chronograf.Mapping
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "create new mapping",
+			fields: fields{
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          "0",
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
+						}, nil
+					},
+				},
+				MappingsStore: &mocks.MappingsStore{
+					AddF: func(ctx context.Context, m *chronograf.Mapping) (*chronograf.Mapping, error) {
+						m.ID = "0"
+						return m, nil
+					},
+				},
+			},
+			args: args{
+				mapping: &chronograf.Mapping{
+					Organization: "0",
+					Provider:     "*",
+					Scheme:       "*",
+					Group:        "*",
+				},
+			},
+			wants: wants{
+				statusCode:  201,
+				contentType: "application/json",
+				body:        `{"links":{"self":"/chronograf/v1/mappings/0"},"id":"0","organization":"0","provider":"*","scheme":"*","group":"*"}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					MappingsStore:      tt.fields.MappingsStore,
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
+				Logger: log.New(log.DebugLevel),
+			}
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "http://any.url", nil)
+
+			buf, _ := json.Marshal(tt.args.mapping)
+			r.Body = ioutil.NopCloser(bytes.NewReader(buf))
+
+			s.NewMapping(w, r)
+
+			resp := w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. Add() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. Add() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. Add() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			}
+		})
+	}
+}
+
+func TestMappings_Update(t *testing.T) {
+	type fields struct {
+		MappingsStore      chronograf.MappingsStore
+		OrganizationsStore chronograf.OrganizationsStore
+	}
+	type args struct {
+		mapping *chronograf.Mapping
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "update new mapping",
+			fields: fields{
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          "0",
+							Name:        "The Gnarly Default",
+							DefaultRole: roles.ViewerRoleName,
+							Public:      true,
+						}, nil
+					},
+				},
+				MappingsStore: &mocks.MappingsStore{
+					UpdateF: func(ctx context.Context, m *chronograf.Mapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				mapping: &chronograf.Mapping{
+					ID:           "1",
+					Organization: "0",
+					Provider:     "*",
+					Scheme:       "*",
+					Group:        "*",
+				},
+			},
+			wants: wants{
+				statusCode:  200,
+				contentType: "application/json",
+				body:        `{"links":{"self":"/chronograf/v1/mappings/1"},"id":"1","organization":"0","provider":"*","scheme":"*","group":"*"}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					MappingsStore:      tt.fields.MappingsStore,
+					OrganizationsStore: tt.fields.OrganizationsStore,
+				},
+				Logger: log.New(log.DebugLevel),
+			}
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "http://any.url", nil)
+
+			buf, _ := json.Marshal(tt.args.mapping)
+			r.Body = ioutil.NopCloser(bytes.NewReader(buf))
+			r = r.WithContext(httprouter.WithParams(
+				context.Background(),
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.mapping.ID,
+					},
+				}))
+
+			s.UpdateMapping(w, r)
+
+			resp := w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. Add() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. Add() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. Add() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			}
+		})
+	}
+}
+
+func TestMappings_Remove(t *testing.T) {
+	type fields struct {
+		MappingsStore chronograf.MappingsStore
+	}
+	type args struct {
+		id string
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "remove mapping",
+			fields: fields{
+				MappingsStore: &mocks.MappingsStore{
+					GetF: func(ctx context.Context, id string) (*chronograf.Mapping, error) {
+						return &chronograf.Mapping{
+							ID:           "1",
+							Organization: "0",
+							Provider:     "*",
+							Scheme:       "*",
+							Group:        "*",
+						}, nil
+					},
+					DeleteF: func(ctx context.Context, m *chronograf.Mapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{},
+			wants: wants{
+				statusCode: 204,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				Store: &mocks.Store{
+					MappingsStore: tt.fields.MappingsStore,
+				},
+				Logger: log.New(log.DebugLevel),
+			}
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "http://any.url", nil)
+
+			r = r.WithContext(httprouter.WithParams(
+				context.Background(),
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.id,
+					},
+				}))
+
+			s.RemoveMapping(w, r)
+
+			resp := w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. Remove() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. Remove() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. Remove() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			}
+		})
+	}
+}

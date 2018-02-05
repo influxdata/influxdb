@@ -119,11 +119,11 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/organizations/:id", EnsureSuperAdmin(service.RemoveOrganization))
 
 	// Mappings
-	//router.GET("/chronograf/v1/mappings", EnsureSuperAdmin(service.Mappings))
-	//router.POST("/chronograf/v1/mappings", EnsureSuperAdmin(service.NewMapping))
+	router.GET("/chronograf/v1/mappings", EnsureSuperAdmin(service.Mappings))
+	router.POST("/chronograf/v1/mappings", EnsureSuperAdmin(service.NewMapping))
 
-	//router.PUT("/chronograf/v1/mappings/:id", EnsureSuperAdmin(service.UpdateMappings))
-	//router.DELETE("/chronograf/v1/mappings/:id", EnsureSuperAdmin(service.RemoveMappings))
+	router.PUT("/chronograf/v1/mappings/:id", EnsureSuperAdmin(service.UpdateMapping))
+	router.DELETE("/chronograf/v1/mappings/:id", EnsureSuperAdmin(service.RemoveMapping))
 
 	// Sources
 	router.GET("/chronograf/v1/sources", EnsureViewer(service.Sources))

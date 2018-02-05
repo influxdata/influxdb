@@ -208,6 +208,18 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 		}
 	}
 
+	mappings, err := s.client.MappingsStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, mapping := range mappings {
+		if mapping.Organization == o.ID {
+			if err := s.client.MappingsStore.Delete(ctx, &mapping); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
