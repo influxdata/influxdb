@@ -10,6 +10,7 @@
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
 1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
+1. [#2756](https://github.com/influxdata/chronograf/pull/2756): Display only 200 most recent TICKscript log messages and prevent overlapping
 
 ## v1.4.0.1 [2017-1-9]
 ### Features
