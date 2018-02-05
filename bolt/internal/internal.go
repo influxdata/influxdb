@@ -685,8 +685,5 @@ func UnmarshalMapping(data []byte, m *chronograf.Mapping) error {
 
 // UnmarshalMappingPB decodes a mapping from binary protobuf data.
 func UnmarshalMappingPB(data []byte, m *Mapping) error {
-	if err := proto.Unmarshal(data, m); err != nil {
-		return err
-	}
-	return nil
+	return proto.Unmarshal(data, m)
 }

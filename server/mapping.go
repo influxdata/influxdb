@@ -23,7 +23,7 @@ MappingsLoop:
 		if applyMapping(mapping, p) {
 			org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &mapping.Organization})
 			if err != nil {
-				return nil, err
+				continue MappingsLoop
 			}
 
 			for _, role := range roles {
