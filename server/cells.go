@@ -35,17 +35,21 @@ func newCellResponse(dID chronograf.DashboardID, cell chronograf.DashboardCell) 
 		cell.CellColors = make([]chronograf.CellColor, 0)
 	}
 
-	if cell.Axes == nil {
-		cell.Axes = make(map[string]chronograf.Axis)
+	// Copy to handle race condition
+	newAxes := make(map[string]chronograf.Axis, len(cell.Axes))
+	for k, v := range cell.Axes {
+		newAxes[k] = v
 	}
+
 	// ensure x, y, and y2 axes always returned
 	for _, lbl := range []string{"x", "y", "y2"} {
-		if _, found := cell.Axes[lbl]; !found {
-			cell.Axes[lbl] = chronograf.Axis{
+		if _, found := newAxes[lbl]; !found {
+			newAxes[lbl] = chronograf.Axis{
 				Bounds: []string{},
 			}
 		}
 	}
+	cell.Axes = newAxes
 
 	return dashboardCellResponse{
 		DashboardCell: cell,
