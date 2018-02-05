@@ -29,10 +29,10 @@ type dashboardCellResponse struct {
 func newCellResponse(dID chronograf.DashboardID, cell chronograf.DashboardCell) dashboardCellResponse {
 	base := "/chronograf/v1/dashboards"
 	if cell.Queries == nil {
-		cell.Queries = make([]chronograf.DashboardQuery, 0)
+		cell.Queries = []chronograf.DashboardQuery{}
 	}
 	if cell.CellColors == nil {
-		cell.CellColors = make([]chronograf.CellColor, 0)
+		cell.CellColors = []chronograf.CellColor{}
 	}
 
 	// Copy to handle race condition
