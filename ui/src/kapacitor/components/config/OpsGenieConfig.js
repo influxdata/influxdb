@@ -16,7 +16,7 @@ class OpsGenieConfig extends Component {
     }
   }
 
-  handleSubmit = e => {
+  handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
@@ -25,8 +25,10 @@ class OpsGenieConfig extends Component {
       recipients: this.state.currentRecipients,
     }
 
-    this.props.onSave(properties)
-    this.setState({testEnabled: true})
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
   }
 
   disableTest = () => {
