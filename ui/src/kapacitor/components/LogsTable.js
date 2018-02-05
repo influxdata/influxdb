@@ -5,29 +5,24 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const numLogsToRender = 200
 
-const LogsTable = ({logs, onToggleExpandLog}) =>
-  <div className="logs-table--container">
+const LogsTable = ({logs}) =>
+  <div className="logs-table">
     <div className="logs-table--header">
-      <h2 className="panel-title">{`${numLogsToRender} Most Recent Logs`}</h2>
+      {`${numLogsToRender} Most Recent Logs`}
     </div>
     <FancyScrollbar
       autoHide={false}
-      className="logs-table--panel fancy-scroll--kapacitor"
+      className="logs-table--container fancy-scroll--kapacitor"
     >
       {logs
         .slice(0, numLogsToRender)
         .map((log, i) =>
-          <LogsTableRow
-            key={log.key}
-            logItem={log}
-            index={i}
-            onToggleExpandLog={onToggleExpandLog}
-          />
+          <LogsTableRow key={log.key} logItem={log} index={i} />
         )}
     </FancyScrollbar>
   </div>
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, shape, string} = PropTypes
 
 LogsTable.propTypes = {
   logs: arrayOf(
@@ -38,7 +33,6 @@ LogsTable.propTypes = {
       msg: string.isRequired,
     })
   ).isRequired,
-  onToggleExpandLog: func.isRequired,
 }
 
 export default LogsTable

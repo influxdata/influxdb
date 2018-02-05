@@ -8,7 +8,7 @@ import LogItemKapacitorError from 'src/kapacitor/components/LogItemKapacitorErro
 import LogItemKapacitorDebug from 'src/kapacitor/components/LogItemKapacitorDebug'
 import LogItemInfluxDBDebug from 'src/kapacitor/components/LogItemInfluxDBDebug'
 
-const LogsTableRow = ({logItem, index, onToggleExpandLog}) => {
+const LogsTableRow = ({logItem, index}) => {
   if (logItem.service === 'sessions') {
     return <LogItemSession logItem={logItem} logIndex={index} />
   }
@@ -16,13 +16,7 @@ const LogsTableRow = ({logItem, index, onToggleExpandLog}) => {
     return <LogItemHTTP logItem={logItem} logIndex={index} />
   }
   if (logItem.service === 'kapacitor' && logItem.msg === 'point') {
-    return (
-      <LogItemKapacitorPoint
-        logItem={logItem}
-        logIndex={index}
-        onToggleExpandLog={onToggleExpandLog}
-      />
-    )
+    return <LogItemKapacitorPoint logItem={logItem} logIndex={index} />
   }
   if (logItem.service === 'httpd_server_errors' && logItem.lvl === 'error') {
     return <LogItemHTTPError logItem={logItem} logIndex={index} />
@@ -59,7 +53,7 @@ const LogsTableRow = ({logItem, index, onToggleExpandLog}) => {
   )
 }
 
-const {func, number, shape, string} = PropTypes
+const {number, shape, string} = PropTypes
 
 LogsTableRow.propTypes = {
   logItem: shape({
@@ -69,7 +63,6 @@ LogsTableRow.propTypes = {
     msg: string.isRequired,
   }).isRequired,
   index: number.isRequired,
-  onToggleExpandLog: func.isRequired,
 }
 
 export default LogsTableRow

@@ -20,7 +20,6 @@ const Tickscript = ({
   isNewTickscript,
   areLogsVisible,
   areLogsEnabled,
-  onToggleExpandLog,
   onToggleLogsVisibility,
 }) =>
   <div className="page">
@@ -52,9 +51,7 @@ const Tickscript = ({
           unsavedChanges={unsavedChanges}
         />
       </div>
-      {areLogsVisible
-        ? <LogsTable logs={logs} onToggleExpandLog={onToggleExpandLog} />
-        : null}
+      {areLogsVisible ? <LogsTable logs={logs} /> : null}
     </div>
   </div>
 
@@ -82,7 +79,6 @@ Tickscript.propTypes = {
   onChangeID: func.isRequired,
   isNewTickscript: bool.isRequired,
   unsavedChanges: bool,
-  onToggleExpandLog: func.isRequired,
 }
 
 export default Tickscript
