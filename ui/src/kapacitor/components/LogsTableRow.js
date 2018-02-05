@@ -43,7 +43,7 @@ const LogsTableRow = ({logItem, index}) => {
         <div className="logs-table--service">
           {logItem.service || '--'}
         </div>
-        <div className="logs-table--blah">
+        <div className="logs-table--columns">
           <div className="logs-table--key-values">
             {logItem.msg || '--'}
           </div>

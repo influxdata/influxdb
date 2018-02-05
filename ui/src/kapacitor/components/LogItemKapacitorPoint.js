@@ -8,11 +8,11 @@ const renderKeysAndValues = (object, name) => {
   const objValues = Object.values(object)
 
   return (
-    <div className="logs-table--key-values">
+    <div className="logs-table--column">
       <h1>
         {`${objKeys.length} ${name}`}
       </h1>
-      <div className="logs-table--keys-scrollbox">
+      <div className="logs-table--scrollbox">
         {objKeys.map((objKey, i) =>
           <div key={i} className="logs-table--key-value">
             {objKey}: <span>{objValues[i]}</span>
@@ -32,7 +32,7 @@ const LogItemKapacitorPoint = ({logItem}) =>
     </div>
     <div className="logs-table--details">
       <div className="logs-table--service">Kapacitor Point</div>
-      <div className="logs-table--blah">
+      <div className="logs-table--columns">
         {renderKeysAndValues(logItem.tag, 'Tags')}
         {renderKeysAndValues(logItem.field, 'Fields')}
       </div>

@@ -74,17 +74,21 @@ $logs-margin: 4px;
 .logs-table--details {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   font-size: 13px;
   color: $g11-sidewalk;
   font-weight: 600;
   padding-left: ($logs-level-dot + $logs-row-indent);
-  margin-top: 1px;
 
   .error {color: $c-dreamsicle;}
   .debug {color: $c-comet;}
 }
 
 /* Logs Table Item Types */
+.logs-table--service,
+.logs-table--column h1 {
+  margin-top: 2px;
+}
 .logs-table--session {
   text-transform: capitalize;
   font-style: italic;
@@ -92,15 +96,16 @@ $logs-margin: 4px;
 .logs-table--service {
   width: 140px;
 }
-.logs-table--blah {
+.logs-table--columns {
   display: flex;
   flex: 1 0 0;
+  flex-wrap: wrap;
 }
-.logs-table--key-values {
+.logs-table--column {
   color: $g11-sidewalk;
   flex: 1 0 50%;
 }
-.logs-table--key-values h1 {
+.logs-table--column h1 {
   font-size: 13px;
   font-weight: 700;
   margin: 0;
@@ -111,11 +116,11 @@ $logs-margin: 4px;
 }
 .logs-table--key-value {
   white-space: nowrap;
+  span {
+    color: $c-rainforest;
+  }
 }
-.logs-table--key-value span {
-  color: $c-rainforest;
-}
-.logs-table--keys-scrollbox {
+.logs-table--scrollbox {
   width: 100%;
   max-height: 300px;
   overflow-y: auto;
