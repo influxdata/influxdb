@@ -10,9 +10,9 @@ RUN apk add --no-cache \
       tar \
       xmlto
 
-# Build the gdm binary and then clean out /go.
-RUN go get github.com/sparrc/gdm && \
-      mv /go/bin/gdm /usr/local/bin/gdm && \
+# Build the dep binary and then clean out /go.
+RUN go get github.com/golang/dep/cmd/dep && \
+      mv /go/bin/dep /usr/local/bin/dep && \
       rm -rf /go/*
 
 COPY fs/ /
