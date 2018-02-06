@@ -9,5 +9,5 @@ export const fetchJSONFeed = url =>
       // https://stackoverflow.com/questions/22968406/how-to-skip-the-options-preflight-request-in-angularjs
       headers: {'Content-Type': 'text/plain; charset=UTF-8'},
     },
-    true // don't prefix route of external link with basepath
+    {excludeBasepath: true} // don't prefix route of external link with basepath
   )

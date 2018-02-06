@@ -176,7 +176,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
 		},
 		{
 			name: "Existing user - private default org",
@@ -306,7 +306,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"viewer","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"Default","defaultRole":"viewer","public":true}}`,
 		},
 		{
 			name: "Existing user - organization doesn't exist",
@@ -423,7 +423,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}}
+			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}],"currentOrganization":{"id":"0","name":"The Gnarly Default","defaultRole":"viewer","public":true}}
 `,
 		},
 		{
@@ -485,7 +485,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
+			wantBody: `{"name":"secret","roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
 `,
 		},
 		{
@@ -547,7 +547,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
+			wantBody: `{"name":"secret","superAdmin":true,"roles":[{"name":"viewer","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}],"currentOrganization":{"id":"0","name":"The Gnarly Default","public":true,"defaultRole":"viewer"}}
 `,
 		},
 		{
@@ -624,7 +624,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"links":{"self":"/chronograf/v1/users/me"}}
+			wantBody: `{"links":{"self":"/chronograf/v1/me"}}
 `,
 		},
 		{
@@ -824,7 +824,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"admin","public":true},{"id":"1337","name":"The ShillBillThrilliettas","public":true}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"admin","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/1337/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"admin","public":true},{"id":"1337","name":"The ShillBillThrilliettas","public":true}],"currentOrganization":{"id":"1337","name":"The ShillBillThrilliettas","public":true}}`,
 		},
 		{
 			name: "Change the current User's organization",
@@ -899,7 +899,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"editor","public":true},{"id":"1337","name":"The ThrillShilliettos","public":false}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false}}`,
+			wantBody:        `{"name":"me","roles":[{"name":"admin","organization":"1337"},{"name":"editor","organization":"0"}],"provider":"github","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/1337/users/0"},"organizations":[{"id":"0","name":"Default","defaultRole":"editor","public":true},{"id":"1337","name":"The ThrillShilliettos","public":false}],"currentOrganization":{"id":"1337","name":"The ThrillShilliettos","public":false}}`,
 		},
 		{
 			name: "Unable to find requested user in valid organization",
