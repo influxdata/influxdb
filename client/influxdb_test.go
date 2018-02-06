@@ -746,6 +746,61 @@ func TestClient_NoTimeout(t *testing.T) {
 	}
 }
 
+func TestClient_ParseConnectionString(t *testing.T) {
+	for _, tt := range []struct {
+		addr string
+		ssl  bool
+		exp  string
+	}{
+		{
+			addr: "localhost",
+			exp:  "http://localhost:8086",
+		},
+		{
+			addr: "localhost:8086",
+			exp:  "http://localhost:8086",
+		},
+		{
+			addr: "localhost:80",
+			exp:  "http://localhost",
+		},
+		{
+			addr: "localhost",
+			exp:  "https://localhost:8086",
+			ssl:  true,
+		},
+		{
+			addr: "localhost:443",
+			exp:  "https://localhost",
+			ssl:  true,
+		},
+		{
+			addr: "localhost:80",
+			exp:  "https://localhost:80",
+			ssl:  true,
+		},
+		{
+			addr: "localhost:443",
+			exp:  "http://localhost:443",
+		},
+	} {
+		name := tt.addr
+		if tt.ssl {
+			name += "+ssl"
+		}
+		t.Run(name, func(t *testing.T) {
+			u, err := client.ParseConnectionString(tt.addr, tt.ssl)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if got, want := u.String(), tt.exp; got != want {
+				t.Fatalf("unexpected connection string: got=%s want=%s", got, want)
+			}
+		})
+	}
+}
+
 func TestClient_ParseConnectionString_IPv6(t *testing.T) {
 	path := "[fdf5:9ede:1875:0:a9ee:a600:8fe3:d495]:8086"
 	u, err := client.ParseConnectionString(path, false)

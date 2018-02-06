@@ -83,12 +83,16 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 
 	u := url.URL{
 		Scheme: "http",
+		Host:   host,
 	}
 	if ssl {
 		u.Scheme = "https"
+		if port != 443 {
+			u.Host = net.JoinHostPort(host, strconv.Itoa(port))
+		}
+	} else if port != 80 {
+		u.Host = net.JoinHostPort(host, strconv.Itoa(port))
 	}
-
-	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
 
 	return u, nil
 }
