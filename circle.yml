@@ -21,20 +21,3 @@ test:
             parallel: true
             # Race tests using 960s timeout
             timeout: 1500
-
-deployment:
-  release:
-    tag: /^v[0-9]+(\.[0-9]+)*(\S*)$/
-    commands:
-      - >
-        docker run
-        -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
-        -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
-        -v $(pwd):/root/go/src/github.com/influxdata/influxdb
-        influxdb_build_ubuntu64
-        --release
-        --package
-        --platform all
-        --arch all
-        --upload
-        --bucket dl.influxdata.com/influxdb/releases
