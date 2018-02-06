@@ -60,6 +60,8 @@ class CellEditorOverlay extends Component {
       axes,
       colorSingleStatText: colorsTypeContainsText,
       colors: validateColors(colors, type, colorsTypeContainsText),
+      metaKeyDown: false,
+      enterKeyDown: false,
     }
   }
 
@@ -446,7 +448,30 @@ class CellEditorOverlay extends Component {
     return prevQuery.source
   }
 
-  handleKeyEscape = e => {
+  handleHotKeyDown = e => {
+    if (e.key === 'Meta') {
+      this.setState({metaKeyDown: true})
+    }
+    if (e.key === 'Enter') {
+      this.setState({enterKeyDown: true})
+    }
+  }
+
+  handleHotKeyUp = e => {
+    if (e.key === 'Meta') {
+      this.setState({metaKeyDown: false})
+
+      if (this.state.enterKeyDown === true && e.target === this.overlayRef) {
+        this.handleSaveCell()
+      }
+    }
+    if (e.key === 'Enter') {
+      this.setState({enterKeyDown: false})
+
+      if (this.state.metaKeyDown === true && e.target === this.overlayRef) {
+        this.handleSaveCell()
+      }
+    }
     if (e.key === 'Escape' && e.target === this.overlayRef) {
       this.props.onCancel()
     }
@@ -484,7 +509,8 @@ class CellEditorOverlay extends Component {
     return (
       <div
         className={OVERLAY_TECHNOLOGY}
-        onKeyDown={this.handleKeyEscape}
+        onKeyDown={this.handleHotKeyDown}
+        onKeyUp={this.handleHotKeyUp}
         tabIndex="0"
         ref={r => (this.overlayRef = r)}
       >
