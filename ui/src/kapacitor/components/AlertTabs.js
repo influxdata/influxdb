@@ -85,10 +85,11 @@ class AlertTabs extends Component {
           text: `Alert configuration for ${section} successfully saved.`,
         })
         return true
-      } catch (error) {
+      } catch ({data: {error}}) {
+        const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
         this.props.addFlashMessage({
           type: 'error',
-          text: `There was an error saving the alert configuration for ${section}.`,
+          text: `There was an error saving the alert configuration for ${section}. ${errorMsg}`,
         })
         return false
       }
