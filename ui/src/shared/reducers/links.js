@@ -1,5 +1,3 @@
-import * as actionTypes from 'shared/constants/actionTypes'
-
 const initialState = {
   external: {statusFeed: ''},
   custom: [],
@@ -7,16 +5,13 @@ const initialState = {
 
 const linksReducer = (state = initialState, action) => {
   switch (action.type) {
-    case actionTypes.LINKS_RECEIVED: {
+    case 'LINKS_GET_COMPLETED': {
       const {links} = action.payload
-
-      return links
-    }
-
-    default: {
-      return state
+      return {...links}
     }
   }
+
+  return state
 }
 
 export default linksReducer

@@ -26,10 +26,11 @@ type meResponse struct {
 
 // If new user response is nil, return an empty meResponse because it
 // indicates authentication is not needed
-func newMeResponse(usr *chronograf.User) meResponse {
-	base := "/chronograf/v1/users"
+func newMeResponse(usr *chronograf.User, org string) meResponse {
+	base := "/chronograf/v1"
 	name := "me"
 	if usr != nil {
+		base = fmt.Sprintf("/chronograf/v1/organizations/%s/users", org)
 		name = PathEscape(fmt.Sprintf("%d", usr.ID))
 	}
 
@@ -181,7 +182,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !s.UseAuth {
 		// If there's no authentication, return an empty user
-		res := newMeResponse(nil)
+		res := newMeResponse(nil, "")
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
@@ -264,7 +265,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
-		res := newMeResponse(usr)
+		res := newMeResponse(usr, currentOrg.ID)
 		res.Organizations = orgs
 		res.CurrentOrganization = currentOrg
 		encodeJSON(w, http.StatusOK, res, s.Logger)
@@ -314,7 +315,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
-	res := newMeResponse(newUser)
+	res := newMeResponse(newUser, currentOrg.ID)
 	res.Organizations = orgs
 	res.CurrentOrganization = currentOrg
 	encodeJSON(w, http.StatusOK, res, s.Logger)

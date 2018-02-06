@@ -82,7 +82,7 @@ func TestService_OrganizationID(t *testing.T) {
 				context.Background(),
 				httprouter.Params{
 					{
-						Key:   "id",
+						Key:   "oid",
 						Value: tt.id,
 					},
 				}))
@@ -411,7 +411,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(context.Background(),
 				httprouter.Params{
 					{
-						Key:   "id",
+						Key:   "oid",
 						Value: tt.id,
 					},
 				}))
@@ -503,7 +503,7 @@ func TestService_RemoveOrganization(t *testing.T) {
 			tt.args.r = tt.args.r.WithContext(httprouter.WithParams(context.Background(),
 				httprouter.Params{
 					{
-						Key:   "id",
+						Key:   "oid",
 						Value: tt.id,
 					},
 				}))
