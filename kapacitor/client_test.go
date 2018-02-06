@@ -1293,7 +1293,157 @@ func TestClient_Create(t *testing.T) {
 		createTaskOptions *client.CreateTaskOptions
 	}{
 		{
-			name: "create alert rule",
+			name: "create alert rule with tags",
+			fields: fields{
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+				ID: &MockID{
+					ID: "howdy",
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				rule: chronograf.AlertRule{
+					ID:   "howdy",
+					Name: "myname's",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+						Measurement:     "meas",
+						GroupBy: chronograf.GroupBy{
+							Tags: []string{
+								"tag1",
+								"tag2",
+							},
+						},
+					},
+					Trigger: Deadman,
+					TriggerValues: chronograf.TriggerValues{
+						Period: "1d",
+					},
+				},
+			},
+			resTask: client.Task{
+				ID:     "chronograf-v1-howdy",
+				Status: client.Enabled,
+				Type:   client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+				Link: client.Link{
+					Href: "/kapacitor/v1/tasks/chronograf-v1-howdy",
+				},
+			},
+			createTaskOptions: &client.CreateTaskOptions{
+				TICKscript: `var db = 'db'
+
+var rp = 'rp'
+
+var measurement = 'meas'
+
+var groupBy = ['tag1', 'tag2']
+
+var whereFilter = lambda: TRUE
+
+var period = 1d
+
+var name = 'myname\'s'
+
+var idVar = name + ':{{.Group}}'
+
+var message = ''
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'deadman'
+
+var threshold = 0.0
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+
+var trigger = data
+    |deadman(threshold, period)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+
+trigger
+    |eval(lambda: "emitted")
+        .as('value')
+        .keep('value', messageField, durationField)
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+
+				ID:     "chronograf-v1-howdy",
+				Type:   client.StreamTask,
+				Status: client.Enabled,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			want: &Task{
+				ID:         "chronograf-v1-howdy",
+				Href:       "/kapacitor/v1/tasks/chronograf-v1-howdy",
+				HrefOutput: "/kapacitor/v1/tasks/chronograf-v1-howdy/output",
+				Rule: chronograf.AlertRule{
+					Type: "stream",
+					DBRPs: []chronograf.DBRP{
+						{
+
+							DB: "db",
+							RP: "rp",
+						},
+					},
+					Status: "enabled",
+					ID:     "chronograf-v1-howdy",
+					Name:   "chronograf-v1-howdy",
+				},
+			},
+		},
+		{
+			name: "create alert rule with no tags",
 			fields: fields{
 				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
@@ -1348,7 +1498,7 @@ var period = 1d
 
 var name = 'myname\'s'
 
-var idVar = name + ':{{.Group}}'
+var idVar = name
 
 var message = ''
 

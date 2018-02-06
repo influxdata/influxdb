@@ -3,7 +3,7 @@
   "info": {
     "title": "Chronograf",
     "description": "API endpoints for Chronograf",
-    "version": "1.4.0.0"
+    "version": "1.4.0.1"
   },
   "schemes": ["http"],
   "basePath": "/chronograf/v1",
@@ -3968,6 +3968,24 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/definitions/DashboardColor"
+                }
+              },
+              "legend": {
+                "description":
+                  "Legend define encoding of the data into a cell's legend",
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "description": "type is the style of the legend",
+                    "type": "string",
+                    "enum": ["static"]
+                  },
+                  "orientation": {
+                    "description":
+                      "orientation is the location of the legend with respect to the cell graph",
+                    "type": "string",
+                    "enum": ["top", "bottom", "left", "right"]
+                  }
                 }
               },
               "links": {

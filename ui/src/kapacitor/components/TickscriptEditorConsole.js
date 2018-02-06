@@ -1,22 +1,31 @@
 import React, {PropTypes} from 'react'
 
-const TickscriptEditorConsole = ({validation}) =>
-  <div className="tickscript-console">
-    <div className="tickscript-console--output">
-      {validation
-        ? <p>
-            {validation}
-          </p>
-        : <p className="tickscript-console--default">
-            Save your TICKscript to validate it
-          </p>}
-    </div>
-  </div>
+const TickscriptEditorConsole = ({consoleMessage, unsavedChanges}) => {
+  let consoleOutput = 'TICKscript is valid'
+  let consoleClass = 'tickscript-console--valid'
 
-const {string} = PropTypes
+  if (consoleMessage) {
+    consoleOutput = consoleMessage
+    consoleClass = 'tickscript-console--error'
+  } else if (unsavedChanges) {
+    consoleOutput = 'You have unsaved changes, save to validate TICKscript'
+    consoleClass = 'tickscript-console--default'
+  }
+
+  return (
+    <div className="tickscript-console">
+      <p className={consoleClass}>
+        {consoleOutput}
+      </p>
+    </div>
+  )
+}
+
+const {bool, string} = PropTypes
 
 TickscriptEditorConsole.propTypes = {
-  validation: string,
+  consoleMessage: string,
+  unsavedChanges: bool,
 }
 
 export default TickscriptEditorConsole

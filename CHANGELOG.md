@@ -1,13 +1,24 @@
 ## v1.4.1.0 [unreleased]
 ### Features
+1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Allow adding multiple event handlers to a rule
+1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations
+1. [#2708](https://github.com/influxdata/chronograf/pull/2708): Link to specified kapacitor config panel from rule builder alert handlers
+1. [#2722](https://github.com/influxdata/chronograf/pull/2722): Add auto refresh widget to hosts list page
 ### UI Improvements
+1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
+1. [#2746](https://github.com/influxdata/chronograf/pull/2746): Separate saving TICKscript from exiting editor page
+### Bug Fixes
+1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
+1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
+
+## v1.4.0.1 [2017-1-9]
+### Features
+1. [#2690](https://github.com/influxdata/chronograf/pull/2690): Add separate CLI flag for canned sources, kapacitors, dashboards, and organizations
+1. [#2672](https://github.com/influxdata/chronograf/pull/2672): Add telegraf interval configuration
+
 ### Bug Fixes
 1. [#2689](https://github.com/influxdata/chronograf/pull/2689): Allow insecure (self-signed) certificates for kapacitor and influxdb
-
-
-## v1.4.0.1 [unreleased]
-### UI Improvements
-1. [#2690](https://github.com/influxdata/chronograf/pull/2690): Add separate CLI flag for canned sources, kapacitors, dashboards, and organizations
+1. [#2664](https://github.com/influxdata/chronograf/pull/2664): Fix positioning of custom time indicator
 
 ## v1.4.0.0 [2017-12-22]
 ### UI Improvements
@@ -103,7 +114,6 @@
 1. [#2460](https://github.com/influxdata/chronograf/pull/2460): Update kapacitor alerts to cast to float before sending to influx
 1. [#2479](https://github.com/influxdata/chronograf/pull/2479): Support authentication for Enterprise Meta Nodes
 1. [#2477](https://github.com/influxdata/chronograf/pull/2477): Improve performance of hoverline rendering
-1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Add multiple event handlers to rules
 
 ### UI Improvements
 
