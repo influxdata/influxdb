@@ -47,6 +47,15 @@ class OrganizationsTable extends Component {
       ? ''
       : 's'}`
 
+    if (!organizations.length) {
+      return (
+        <div className="panel panel-default">
+          <div className="panel-body">
+            <div className="page-spinner" />
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="panel panel-default">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">

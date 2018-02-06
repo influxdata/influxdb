@@ -58,18 +58,18 @@ class OrganizationsPage extends Component {
       o => o.id === meCurrentOrganization.id
     )
 
-    return organizations.length
-      ? <OrganizationsTable
-          organizations={organizations}
-          currentOrganization={organization}
-          onCreateOrg={this.handleCreateOrganization}
-          onDeleteOrg={this.handleDeleteOrganization}
-          onRenameOrg={this.handleRenameOrganization}
-          onTogglePublic={this.handleTogglePublic}
-          onChooseDefaultRole={this.handleChooseDefaultRole}
-          me={me}
-        />
-      : <div className="page-spinner" />
+    return (
+      <OrganizationsTable
+        organizations={organizations}
+        currentOrganization={organization}
+        onCreateOrg={this.handleCreateOrganization}
+        onDeleteOrg={this.handleDeleteOrganization}
+        onRenameOrg={this.handleRenameOrganization}
+        onTogglePublic={this.handleTogglePublic}
+        onChooseDefaultRole={this.handleChooseDefaultRole}
+        me={me}
+      />
+    )
   }
 }
 

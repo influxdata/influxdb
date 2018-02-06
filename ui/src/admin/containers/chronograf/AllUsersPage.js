@@ -6,7 +6,6 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import * as configActionCreators from 'shared/actions/config'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import AllUsersTableEmpty from 'src/admin/components/chronograf/AllUsersTableEmpty'
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
 
 class AllUsersPage extends Component {
@@ -75,11 +74,6 @@ class AllUsersPage extends Component {
       links,
       notify,
     } = this.props
-    const {isLoading} = this.state
-
-    if (isLoading) {
-      return <AllUsersTableEmpty />
-    }
 
     return (
       <AllUsersTable
@@ -94,6 +88,7 @@ class AllUsersPage extends Component {
         authConfig={authConfig}
         actionsConfig={actionsConfig}
         notify={notify}
+        isLoading={this.state.isLoading}
       />
     )
   }

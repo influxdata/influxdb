@@ -52,7 +52,7 @@ class AllUsersTable extends Component {
 
   handleRemoveFromOrganization = user => role => {
     const newRoles = user.roles.filter(
-      r => r.organization !== role.organization // TODO: the organization upstream of this should use .id instead of .organization for this property
+      r => r.organization !== role.organization
     )
     const {name} = this.props.organizations.find(
       o => o.id === role.organization
@@ -66,10 +66,6 @@ class AllUsersTable extends Component {
 
   handleChangeSuperAdmin = user => newStatus => {
     this.props.onUpdateUserSuperAdmin(user, newStatus)
-  }
-
-  handleDeleteUser = user => {
-    this.props.onDeleteUser(user)
   }
 
   handleClickCreateUser = () => {
@@ -88,10 +84,20 @@ class AllUsersTable extends Component {
       authConfig,
       meID,
       notify,
+      onDeleteUser,
+      isLoading,
     } = this.props
 
     const {isCreatingUser} = this.state
-
+    if (isLoading) {
+      return (
+        <div className="panel panel-default">
+          <div className="panel-body">
+            <div className="page-spinner" />
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="panel panel-default">
         <AllUsersTableHeader
@@ -130,7 +136,7 @@ class AllUsersTable extends Component {
                     notify={notify}
                   />
                 : null}
-              {users.length || !isCreatingUser
+              {users.length
                 ? users.map(user =>
                     <AllUsersTableRow
                       user={user}
@@ -141,7 +147,7 @@ class AllUsersTable extends Component {
                         this.handleRemoveFromOrganization
                       }
                       onChangeSuperAdmin={this.handleChangeSuperAdmin}
-                      onDelete={this.handleDeleteUser}
+                      onDelete={onDeleteUser}
                       meID={meID}
                     />
                   )
@@ -203,6 +209,7 @@ AllUsersTable.propTypes = {
   }),
   meID: string.isRequired,
   notify: func.isRequired,
+  isLoading: bool.isRequired,
 }
 
 export default AllUsersTable

@@ -34,11 +34,27 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {organization, users, onCreateUser, meID, notify} = this.props
+    const {
+      organization,
+      users,
+      onCreateUser,
+      meID,
+      notify,
+      isLoading,
+    } = this.props
 
     const {isCreatingUser} = this.state
     const {colRole, colProvider, colScheme, colActions} = USERS_TABLE
 
+    if (isLoading) {
+      return (
+        <div className="panel panel-default">
+          <div className="panel-body">
+            <div className="page-spinner" />
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="panel panel-default">
         <UsersTableHeader
@@ -69,7 +85,7 @@ class UsersTable extends Component {
                     notify={notify}
                   />
                 : null}
-              {users.length || !isCreatingUser
+              {users.length
                 ? users.map(user =>
                     <UsersTableRow
                       user={user}
@@ -93,7 +109,7 @@ class UsersTable extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 UsersTable.propTypes = {
   users: arrayOf(
@@ -122,6 +138,7 @@ UsersTable.propTypes = {
   onDeleteUser: func.isRequired,
   meID: string.isRequired,
   notify: func.isRequired,
+  isLoading: bool.isRequired,
 }
 
 export default UsersTable
