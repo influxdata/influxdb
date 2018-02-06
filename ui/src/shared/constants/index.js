@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 export const PERMISSIONS = {
   ViewAdmin: {
     description: 'Can view or edit admin screens',
@@ -424,3 +426,6 @@ export const DEFAULT_SOURCE = {
   insecureSkipVerify: false,
   metaUrl: '',
 }
+
+export const GET_STATIC_LEGEND = legend =>
+  _.get(legend, 'type', false) === 'static'

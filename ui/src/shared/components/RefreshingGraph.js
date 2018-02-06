@@ -95,7 +95,7 @@ const RefreshingGraph = ({
   )
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 RefreshingGraph.propTypes = {
   timeRange: shape({
@@ -111,7 +111,7 @@ RefreshingGraph.propTypes = {
   axes: shape(),
   queries: arrayOf(shape()).isRequired,
   editQueryStatus: func,
-  staticLegend: shape({}).isRequired,
+  staticLegend: bool,
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
@@ -128,6 +128,7 @@ RefreshingGraph.propTypes = {
 
 RefreshingGraph.defaultProps = {
   manualRefresh: 0,
+  staticLegend: false,
 }
 
 export default RefreshingGraph

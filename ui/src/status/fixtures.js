@@ -6,6 +6,7 @@ export const fixtureStatusPageCells = [
     y: 0,
     w: 12,
     h: 4,
+    legend: {},
     name: 'Alert Events per Day – Last 30 Days',
     queries: [
       {
@@ -54,6 +55,7 @@ export const fixtureStatusPageCells = [
     y: 5,
     w: 6.5,
     h: 6,
+    legend: {},
     queries: [
       {
         query: '',
@@ -80,6 +82,7 @@ export const fixtureStatusPageCells = [
     y: 5,
     w: 3,
     h: 6,
+    legend: {},
     queries: [
       {
         query: '',
@@ -106,6 +109,7 @@ export const fixtureStatusPageCells = [
     y: 5,
     w: 2.5,
     h: 6,
+    legend: {},
     queries: [
       {
         query: '',

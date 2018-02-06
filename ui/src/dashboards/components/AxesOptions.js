@@ -7,7 +7,6 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {DISPLAY_OPTIONS, TOOLTIP_CONTENT} from 'src/dashboards/constants'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
-import {STATIC_LEGEND_SHOW, STATIC_LEGEND_HIDE} from 'src/dashboards/constants'
 
 const {LINEAR, LOG, BASE_2, BASE_10} = DISPLAY_OPTIONS
 const getInputMin = scale => (scale === LOG ? '0' : null)
@@ -114,12 +113,12 @@ const AxesOptions = ({
           <Tabber labelText="Static Legend">
             <Tab
               text="Show"
-              isActive={staticLegend.type === STATIC_LEGEND_SHOW}
+              isActive={staticLegend}
               onClickTab={onToggleStaticLegend(true)}
             />
             <Tab
               text="Hide"
-              isActive={staticLegend.type === STATIC_LEGEND_HIDE}
+              isActive={!staticLegend}
               onClickTab={onToggleStaticLegend(false)}
             />
           </Tabber>
@@ -129,7 +128,7 @@ const AxesOptions = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 AxesOptions.defaultProps = {
   axes: {
@@ -160,7 +159,7 @@ AxesOptions.propTypes = {
     }),
   }).isRequired,
   onToggleStaticLegend: func.isRequired,
-  staticLegend: shape({}).isRequired,
+  staticLegend: bool,
 }
 
 export default AxesOptions

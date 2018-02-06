@@ -37,7 +37,7 @@ const DashVisualization = (
     </div>
   </div>
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DashVisualization.defaultProps = {
   name: '',
@@ -71,7 +71,7 @@ DashVisualization.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
-  staticLegend: shape({}).isRequired,
+  staticLegend: bool,
 }
 
 DashVisualization.contextTypes = {

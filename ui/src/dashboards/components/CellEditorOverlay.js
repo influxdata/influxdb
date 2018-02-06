@@ -14,12 +14,11 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
+import {GET_STATIC_LEGEND} from 'src/shared/constants'
 
 import {
   removeUnselectedTemplateValues,
   TYPE_QUERY_CONFIG,
-  STATIC_LEGEND_SHOW,
-  STATIC_LEGEND_HIDE,
 } from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -35,10 +34,6 @@ import {
   validateColors,
 } from 'src/dashboards/constants/gaugeColors'
 
-const FAKE_LEGEND_OPTS = {
-  type: null,
-  orient: 'bottom',
-}
 class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
@@ -66,7 +61,7 @@ class CellEditorOverlay extends Component {
       axes,
       colorSingleStatText: colorsTypeContainsText,
       colors: validateColors(colors, type, colorsTypeContainsText),
-      staticLegend: legend || FAKE_LEGEND_OPTS,
+      staticLegend: GET_STATIC_LEGEND(legend),
     }
   }
 
@@ -302,6 +297,7 @@ class CellEditorOverlay extends Component {
       cellWorkingName: name,
       axes,
       colors,
+      staticLegend,
     } = this.state
 
     const {cell} = this.props
@@ -324,6 +320,12 @@ class CellEditorOverlay extends Component {
       queries,
       axes,
       colors,
+      legend: staticLegend
+        ? {
+            type: 'static',
+            orientation: 'bottom',
+          }
+        : {},
     })
   }
 
@@ -377,10 +379,7 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleToggleStaticLegend = newState => () => {
-    const type = newState ? STATIC_LEGEND_SHOW : STATIC_LEGEND_HIDE
-    const staticLegend = {...this.state.staticLegend, type}
-
+  handleToggleStaticLegend = staticLegend => () => {
     this.setState({staticLegend})
   }
 

@@ -14,7 +14,6 @@ import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
 
-import {STATIC_LEGEND_SHOW} from 'src/dashboards/constants'
 import {
   OPTIONS,
   LINE_COLORS,
@@ -306,7 +305,7 @@ export default class Dygraph extends Component {
     const {staticLegend} = this.props
 
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
-    if (staticLegend.type === STATIC_LEGEND_SHOW) {
+    if (staticLegend) {
       const cellVerticalPadding = 16
 
       dygraphStyle = {
@@ -337,7 +336,7 @@ export default class Dygraph extends Component {
           className="dygraph-child-container"
           style={dygraphStyle}
         />
-        {staticLegend.type === STATIC_LEGEND_SHOW
+        {staticLegend
           ? <StaticLegend
               dygraph={this.dygraph}
               handleReceiveStaticLegendHeight={
@@ -393,7 +392,7 @@ Dygraph.propTypes = {
   containerStyle: shape({}),
   isGraphFilled: bool,
   isBarGraph: bool,
-  staticLegend: shape({}).isRequired,
+  staticLegend: bool,
   overrideLineColors: array,
   dygraphSeries: shape({}).isRequired,
   ruleValues: shape({

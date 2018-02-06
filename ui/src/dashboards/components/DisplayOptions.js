@@ -146,7 +146,7 @@ DisplayOptions.propTypes = {
   colorSingleStatText: bool.isRequired,
   onToggleSingleStatText: func.isRequired,
   onToggleStaticLegend: func.isRequired,
-  staticLegend: shape({}).isRequired,
+  staticLegend: bool,
 }
 
 export default DisplayOptions

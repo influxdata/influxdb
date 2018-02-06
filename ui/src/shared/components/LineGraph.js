@@ -141,6 +141,7 @@ LineGraph.defaultProps = {
   underlayCallback: () => {},
   isGraphFilled: true,
   overrideLineColors: null,
+  staticLegend: false,
 }
 
 LineGraph.propTypes = {
@@ -160,7 +161,7 @@ LineGraph.propTypes = {
   underlayCallback: func,
   isGraphFilled: bool,
   isBarGraph: bool,
-  staticLegend: shape({}).isRequired,
+  staticLegend: bool,
   overrideLineColors: array,
   showSingleStat: bool,
   displayOptions: shape({
