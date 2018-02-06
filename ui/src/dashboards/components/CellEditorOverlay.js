@@ -76,6 +76,10 @@ class CellEditorOverlay extends Component {
     }
   }
 
+  componentDidMount = () => {
+    this.overlayRef.focus()
+  }
+
   handleAddThreshold = () => {
     const {colors, cellWorkingType} = this.state
     const sortedColors = _.sortBy(colors, color => Number(color.value))
@@ -442,6 +446,12 @@ class CellEditorOverlay extends Component {
     return prevQuery.source
   }
 
+  handleKeyEscape = e => {
+    if (e.key === 'Escape' && e.target === this.overlayRef) {
+      this.props.onCancel()
+    }
+  }
+
   render() {
     const {
       onCancel,
@@ -472,7 +482,12 @@ class CellEditorOverlay extends Component {
       !!query.rawText
 
     return (
-      <div className={OVERLAY_TECHNOLOGY}>
+      <div
+        className={OVERLAY_TECHNOLOGY}
+        onKeyDown={this.handleKeyEscape}
+        tabIndex="0"
+        ref={r => (this.overlayRef = r)}
+      >
         <ResizeContainer
           containerClass="resizer--full-size"
           minTopHeight={MINIMUM_HEIGHTS.visualization}
