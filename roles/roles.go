@@ -38,6 +38,9 @@ const (
 	EditorRoleName   = "editor"
 	AdminRoleName    = "admin"
 	SuperAdminStatus = "superadmin"
+
+	// Indicatior that the server should retrieve the default role for the organization.
+	WildcardRoleName = "*"
 )
 
 var (

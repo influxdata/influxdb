@@ -26,7 +26,7 @@ class UsersTableHeader extends Component {
           disabled={isCreatingUser || !onClickCreateUser}
         >
           <span className="icon plus" />
-          Create User
+          Add User
         </button>
       </div>
     )

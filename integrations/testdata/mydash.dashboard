@@ -86,7 +86,11 @@
                         "name": "comet",
                         "value": "100"
                     }
-                ]
+                ],
+                "legend": {
+                    "type": "static",
+                    "orientation": "bottom"
+                }
             }
         ],
         "templates": [

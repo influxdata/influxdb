@@ -109,6 +109,7 @@ table.table.chronograf-admin-table tbody tr.chronograf-admin-table--new-user {
 /* Highlight "Me" in the users table */
 .chronograf-user--me {
   color: $c-rainforest;
+  white-space: nowrap;
 
   > span.icon {
     display: inline-block;

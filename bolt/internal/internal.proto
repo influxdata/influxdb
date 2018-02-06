@@ -36,6 +36,7 @@ message DashboardCell {
 	string ID                   = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
 	map<string, Axis> axes      = 9; // Axes represent the graphical viewport for a cell's visualizations
 	repeated Color colors       = 10; // Colors represent encoding data values to color
+	Legend legend               = 11; // Legend is summary information for a cell
 }
 
 message Color {
@@ -44,6 +45,11 @@ message Color {
 	string Hex                  = 3; // Hex is the hex number of the color
 	string Name                 = 4; // Name is the user-facing name of the hex color
 	string Value                = 5; // Value is the data value mapped to this color
+}
+
+message Legend {
+	string Type                 = 1; // Type is how the legend is used
+	string Orientation          = 2; // Orientation is the location of the legend on the cell
 }
 
 message Axis {

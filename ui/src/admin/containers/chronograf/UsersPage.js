@@ -5,7 +5,6 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import EmptyUsersTable from 'src/admin/components/chronograf/EmptyUsersTable'
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 
 class UsersPage extends Component {
@@ -28,18 +27,16 @@ class UsersPage extends Component {
     const newRoles = user.roles.map(
       r => (r.organization === currentRole.organization ? updatedRole : r)
     )
-    updateUserAsync(user, {...user, roles: newRoles})
-  }
-
-  handleUpdateUserSuperAdmin = (user, superAdmin) => {
-    const {actions: {updateUserAsync}} = this.props
-    const updatedUser = {...user, superAdmin}
-    updateUserAsync(user, updatedUser)
+    updateUserAsync(
+      user,
+      {...user, roles: newRoles},
+      `${user.name} is now a ${name}`
+    )
   }
 
   handleDeleteUser = user => {
     const {actions: {deleteUserAsync}} = this.props
-    deleteUserAsync(user)
+    deleteUserAsync(user, {isAbsoluteDelete: false})
   }
 
   async componentWillMount() {
@@ -68,10 +65,6 @@ class UsersPage extends Component {
     } = this.props
     const {isLoading} = this.state
 
-    if (isLoading) {
-      return <EmptyUsersTable />
-    }
-
     const organization = organizations.find(
       o => o.id === meCurrentOrganization.id
     )
@@ -83,9 +76,9 @@ class UsersPage extends Component {
         organization={organization}
         onCreateUser={this.handleCreateUser}
         onUpdateUserRole={this.handleUpdateUserRole}
-        onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
         onDeleteUser={this.handleDeleteUser}
         notify={notify}
+        isLoading={isLoading}
       />
     )
   }
