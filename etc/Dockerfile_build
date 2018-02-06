@@ -12,7 +12,9 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
     ruby-dev \
     rpm \
     zip \
-    python-pip
+    python-pip \
+    autoconf \
+    libtool
 
 RUN pip install boto requests python-jose --upgrade
 RUN gem install fpm
