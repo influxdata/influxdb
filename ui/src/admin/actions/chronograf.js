@@ -1,8 +1,6 @@
 import _ from 'lodash'
 import uuid from 'node-uuid'
 
-import {PROVIDER_MAPS} from 'src/admin/constants/dummyProviderMaps'
-
 import {
   getUsers as getUsersAJAX,
   getOrganizations as getOrganizationsAJAX,
@@ -12,6 +10,10 @@ import {
   createOrganization as createOrganizationAJAX,
   updateOrganization as updateOrganizationAJAX,
   deleteOrganization as deleteOrganizationAJAX,
+  getMappings as getMappingsAJAX,
+  createMapping as createMappingAJAX,
+  updateMapping as updateMappingAJAX,
+  deleteMapping as deleteMappingAJAX,
 } from 'src/admin/apis/chronograf'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -96,17 +98,18 @@ export const removeOrganization = organization => ({
   },
 })
 
-export const loadMappings = mappings => ({
+export const loadMappings = ({mappings}) => ({
   type: 'CHRONOGRAF_LOAD_MAPPINGS',
   payload: {
     mappings,
   },
 })
 
-export const updateMapping = mapping => ({
+export const updateMapping = (staleMapping, updatedMapping) => ({
   type: 'CHRONOGRAF_UPDATE_MAPPING',
   payload: {
-    mapping,
+    staleMapping,
+    updatedMapping,
   },
 })
 
@@ -143,31 +146,28 @@ export const loadOrganizationsAsync = url => async dispatch => {
   }
 }
 
-export const loadMappingsAsync = () => async dispatch => {
+export const loadMappingsAsync = url => async dispatch => {
   try {
-    // awaiting backend changes
-    // todo: change to below instead of starting from provider maps data
-    // const {data} await getOrganizationsAJAX(url);
-    dispatch(loadMappings(PROVIDER_MAPS))
+    const {data} = await getMappingsAJAX(url)
+    dispatch(loadMappings(data))
   } catch (error) {
     dispatch(errorThrown(error))
   }
 }
 
 export const createMappingAsync = (url, mapping) => async dispatch => {
-  const mappingWithTempID = {...mapping, _tempID: uuid.v4()}
-  dispatch(addMapping(mappingWithTempID))
+  const mappingWithTempId = {...mapping, _tempID: uuid.v4()}
+  dispatch(addMapping(mappingWithTempId))
   try {
-    /* const {data} = await createMappingAJAX(url, mapping)
-    dispatch(updateMapping(data))
-    */
+    const {data} = await createMappingAJAX(url, mapping)
+    dispatch(updateMapping(mappingWithTempId, data))
   } catch (error) {
     const message = `${_.upperFirst(
       _.toLower(error.data.message)
     )}: Scheme: ${mapping.scheme} Provider: ${mapping.provider}`
     dispatch(errorThrown(error, message))
     setTimeout(
-      () => dispatch(removeMapping(mappingWithTempID)),
+      () => dispatch(removeMapping(mappingWithTempId)),
       REVERT_STATE_DELAY
     )
   }
@@ -176,7 +176,7 @@ export const createMappingAsync = (url, mapping) => async dispatch => {
 export const deleteMappingAsync = mapping => async dispatch => {
   dispatch(removeMapping(mapping))
   try {
-    // await deleteMappingAJAX(mapping)
+    await deleteMappingAJAX(mapping)
     dispatch(
       publishAutoDismissingNotification(
         'success',
@@ -189,13 +189,16 @@ export const deleteMappingAsync = mapping => async dispatch => {
   }
 }
 
-export const updateMappingAsync = mapping => async dispatch => {
-  dispatch(updateMapping(mapping))
+export const updateMappingAsync = (
+  staleMapping,
+  updatedMapping
+) => async dispatch => {
+  dispatch(updateMapping(staleMapping, updatedMapping))
   try {
-    // const {data} = await updateMappingAJAX(mapping)
+    await updateMappingAJAX(updatedMapping)
   } catch (error) {
     dispatch(errorThrown(error))
-    dispatch(updateMapping(mapping))
+    dispatch(updateMapping(updatedMapping, staleMapping))
   }
 }
 

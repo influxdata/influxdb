@@ -23,33 +23,15 @@ class ProvidersPage extends Component {
   }
 
   handleCreateMap = mapping => {
-    this.props.actions.createMappingAsync('', mapping)
-    /*
-    const {
-      links,
-      actions: {createMappingAsync}
-    } = this.props
-    await createMappingAsync(links.mappings, mapping)
-    // this.refreshMe()? -- why
-    */
+    this.props.actions.createMappingAsync(this.props.links.mappings, mapping)
   }
 
-  handleUpdateMap = updatedMap => {
-    // update the redux store
-    this.props.actions.updateMappingAsync(updatedMap)
-    // update the server
-    /*
-    const {actionsAdmin: {updateMappingAsync}} = this.props
-    await updateMappingAsync(mapping)
-    */
+  handleUpdateMap = (staleMap, updatedMap) => {
+    this.props.actions.updateMappingAsync(staleMap, updatedMap)
   }
 
   handleDeleteMap = mapping => {
     this.props.actions.deleteMappingAsync(mapping)
-    /*
-    const {actionsAdmin: {deleteOrganizationAsync}} = this.props
-    deleteMappingAsync(mapping) // why no await?
-    */
   }
 
   render() {

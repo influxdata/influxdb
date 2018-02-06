@@ -107,11 +107,11 @@ const adminChronograf = (state = initialState, action) => {
     }
 
     case 'CHRONOGRAF_UPDATE_MAPPING': {
-      const {mapping} = action.payload
+      const {staleMapping, updatedMapping} = action.payload
       return {
         ...state,
-        mappings: state.mappings.map(
-          m => (m.id === mapping.id ? {...mapping} : m)
+        mappings: state.mappings.map(m =>
+          replaceMapping(m, staleMapping, updatedMapping)
         ),
       }
     }
@@ -139,6 +139,15 @@ const adminChronograf = (state = initialState, action) => {
   }
 
   return state
+}
+
+function replaceMapping(m, staleMapping, updatedMapping) {
+  if (staleMapping._tempID && m._tempID === staleMapping._tempID) {
+    return {...updatedMapping}
+  } else if (m.id === staleMapping.id) {
+    return {...updatedMapping}
+  }
+  return m
 }
 
 export default adminChronograf

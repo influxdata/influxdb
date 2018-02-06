@@ -4,7 +4,7 @@ import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
 import InputClickToEdit from 'shared/components/InputClickToEdit'
 
-import {DEFAULT_PROVIDER_MAP_ID} from 'src/admin/constants/dummyProviderMaps'
+import {DEFAULT_MAPPING_ID} from 'src/admin/constants/chronografAdmin'
 
 class ProvidersTableRow extends Component {
   constructor(props) {
@@ -37,7 +37,7 @@ class ProvidersTableRow extends Component {
     const {onUpdate, mapping: {id}} = this.props
     const newState = {...this.state, ...changes, id}
     this.setState(newState)
-    onUpdate(newState)
+    onUpdate(this.props.mapping, newState)
   }
 
   handleChangeProvider = provider => this.handleUpdateMapping({provider})
@@ -70,7 +70,7 @@ class ProvidersTableRow extends Component {
       ? 'fancytable--td provider--redirect deleting'
       : 'fancytable--td provider--redirect'
 
-    const isDefaultMapping = DEFAULT_PROVIDER_MAP_ID === mapping.id
+    const isDefaultMapping = DEFAULT_MAPPING_ID === mapping.id
     return (
       <div className="fancytable--row">
         <div className="fancytable--td provider--id">
