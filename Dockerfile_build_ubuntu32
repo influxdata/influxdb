@@ -10,6 +10,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ruby \
     ruby-dev \
     rubygems \
+    autoconf \
+    libtool \
     build-essential \
     rpm \
     zip \
