@@ -133,8 +133,6 @@ type Shard struct {
 	mu      sync.RWMutex
 	_engine Engine
 	index   Index
-
-	closing chan struct{}
 	enabled bool
 
 	// expvar-based stats.
@@ -158,7 +156,6 @@ func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt Eng
 		walPath: walPath,
 		sfile:   sfile,
 		options: opt,
-		closing: make(chan struct{}),
 
 		stats: &ShardStatistics{},
 		defaultTags: models.StatisticTags{
@@ -356,13 +353,6 @@ func (s *Shard) Close() error {
 func (s *Shard) close() error {
 	if s._engine == nil {
 		return nil
-	}
-
-	// Close the closing channel at most once.
-	select {
-	case <-s.closing:
-	default:
-		close(s.closing)
 	}
 
 	err := s._engine.Close()
