@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -198,9 +199,20 @@ func (c *CommandLine) Run() error {
 	c.Version()
 
 	// Only load/write history if HOME environment variable is set.
+	var historyDir string
+	if runtime.GOOS == "windows" {
+		if userDir := os.Getenv("USERPROFILE"); userDir != "" {
+			historyDir = userDir
+		}
+	}
+
 	if homeDir := os.Getenv("HOME"); homeDir != "" {
-		// Attempt to load the history file.
-		c.historyFilePath = filepath.Join(homeDir, ".influx_history")
+		historyDir = homeDir
+	}
+
+	// Attempt to load the history file.
+	if historyDir != "" {
+		c.historyFilePath = filepath.Join(historyDir, ".influx_history")
 		if historyFile, err := os.Open(c.historyFilePath); err == nil {
 			c.Line.ReadHistory(historyFile)
 			historyFile.Close()
@@ -1054,6 +1066,9 @@ func (c *CommandLine) history() {
 }
 
 func (c *CommandLine) saveHistory() {
+	if c.historyFilePath == "" {
+		return
+	}
 	if historyFile, err := os.Create(c.historyFilePath); err != nil {
 		fmt.Printf("There was an error writing history file: %s\n", err)
 	} else {
