@@ -76,6 +76,7 @@ class SMTPConfig extends Component {
           <input
             className="form-control"
             id="smtp-to"
+            placeholder="email@domain.com"
             type="text"
             ref={r => (this.to = r)}
             defaultValue={to || ''}
