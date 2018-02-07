@@ -22,18 +22,21 @@
   border-radius: 50%;
   background-color: $g20-white;
 }
-.static-legend--item {
+.static-legend--item,
+.static-legend--single {
   height: 22px;
   line-height: 22px;
   white-space: nowrap;
   background-color: $g4-onyx;
   border-radius: 3px;
-  transition: background-color 0.25s ease, color 0.25s ease;
   color: $g20-white;
   font-size: 12px;
   font-weight: 600;
   padding: 0 7px;
   margin: 1px;
+}
+.static-legend--item {
+  transition: background-color 0.25s ease, color 0.25s ease;
 
   span,
   .static-legend--dot {

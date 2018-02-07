@@ -15,9 +15,11 @@ const removeMeasurement = (label = '') => {
   return label.replace(measurement, '')
 }
 
-const staticLegendItemClassname = (visibilities, i) => {
+const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
   if (visibilities.length) {
-    return `static-legend--item${visibilities[i] ? '' : ' disabled'}`
+    return `${hoverEnabled
+      ? 'static-legend--item'
+      : 'static-legend--single'}${visibilities[i] ? '' : ' disabled'}`
   }
 
   // all series are visible to match expected initial state
@@ -77,6 +79,8 @@ class StaticLegend extends Component {
         })
       : []
 
+    const hoverEnabled = labels.length > 1
+
     return (
       <div
         className="static-legend"
@@ -87,7 +91,7 @@ class StaticLegend extends Component {
       >
         {_.map(labels, (v, i) =>
           <div
-            className={staticLegendItemClassname(visibilities, i)}
+            className={staticLegendItemClassname(visibilities, i, hoverEnabled)}
             key={uuid.v4()}
             onMouseDown={this.handleClick(i)}
           >
