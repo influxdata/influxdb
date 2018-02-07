@@ -564,6 +564,22 @@ func (i *Partition) DropMeasurement(name []byte) error {
 		}
 	}
 
+	// Delete all series.
+	if itr := fs.MeasurementSeriesIDIterator(name); itr != nil {
+		defer itr.Close()
+		for {
+			elem, err := itr.Next()
+			if err != nil {
+				return err
+			} else if elem.SeriesID == 0 {
+				break
+			}
+			if err := i.activeLogFile.DeleteSeriesID(elem.SeriesID); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Mark measurement as deleted.
 	if err := func() error {
 		i.mu.RLock()

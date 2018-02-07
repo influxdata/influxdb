@@ -8,10 +8,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
-
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
 )

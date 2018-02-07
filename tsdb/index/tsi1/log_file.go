@@ -827,10 +827,8 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	data, err := f.sSketch.MarshalBinary()
 	if err != nil {
 		return n, err
-	} else if wrote, err := bw.Write(data); err != nil {
+	} else if _, err := bw.Write(data); err != nil {
 		return n, err
-	} else if wrote != len(data) {
-		return n, fmt.Errorf("wrote %d bytes of sketch. Should have written %d bytes", wrote, len(data))
 	}
 	t.SeriesSketch.Size = int64(len(data))
 	n += t.SeriesSketch.Size
@@ -838,10 +836,8 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	t.TombstoneSeriesSketch.Offset = n
 	if data, err = f.sTSketch.MarshalBinary(); err != nil {
 		return n, err
-	} else if wrote, err := bw.Write(data); err != nil {
+	} else if _, err := bw.Write(data); err != nil {
 		return n, err
-	} else if wrote != len(data) {
-		return n, fmt.Errorf("wrote %d bytes of tombstone sketch. Should have written %d bytes", wrote, len(data))
 	}
 	t.TombstoneSeriesSketch.Size = int64(len(data))
 	n += t.TombstoneSeriesSketch.Size

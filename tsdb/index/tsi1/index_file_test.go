@@ -114,11 +114,11 @@ func CreateIndexFile(sfile *tsdb.SeriesFile, series []Series) (*tsi1.IndexFile, 
 	}
 
 	// Load index file from buffer.
-	var f tsi1.IndexFile
+	f := tsi1.NewIndexFile(sfile)
 	if err := f.UnmarshalBinary(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return &f, nil
+	return f, nil
 }
 
 // GenerateIndexFile generates an index file from a set of series based on the count arguments.
@@ -137,11 +137,11 @@ func GenerateIndexFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (
 	}
 
 	// Load index file from buffer.
-	var f tsi1.IndexFile
+	f := tsi1.NewIndexFile(sfile)
 	if err := f.UnmarshalBinary(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return &f, nil
+	return f, nil
 }
 
 func MustGenerateIndexFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) *tsi1.IndexFile {

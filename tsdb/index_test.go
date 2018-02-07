@@ -229,7 +229,7 @@ func TestIndex_Sketches(t *testing.T) {
 			}
 
 			// Check cardinalities after the reopen
-			checkCardinalities(t, idx, "initial|reopen", 1944, 486, 8, 2)
+			checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2430, 486, 10, 2)
 		}
 		return nil
 	}
