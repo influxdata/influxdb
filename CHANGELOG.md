@@ -4,6 +4,8 @@
 1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations
 1. [#2708](https://github.com/influxdata/chronograf/pull/2708): Link to specified kapacitor config panel from rule builder alert handlers
 1. [#2722](https://github.com/influxdata/chronograf/pull/2722): Add auto refresh widget to hosts list page
+1. [#2765](https://github.com/influxdata/chronograf/pull/2765): Update to go 1.9.3 and node 6.12.3 for releases
+1. [#2703](https://github.com/influxdata/chronograf/pull/2703): Add global users page visible only to super admins 
 
 ### UI Improvements
 1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
@@ -13,6 +15,7 @@
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
 1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
+1. [#2761](https://github.com/influxdata/chronograf/pull/2761): Remove cli options from sysvinit service file
 
 ## v1.4.0.1 [2017-1-9]
 ### Features

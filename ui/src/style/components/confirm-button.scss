@@ -9,6 +9,8 @@
     visibility: hidden;
     transition: all;
     position: absolute;
+    z-index: 1;
+
 
     &.bottom {
       top: calc(100% + 4px);
@@ -24,6 +26,8 @@
   }
 }
 .confirm-button--confirmation {
+  white-space: pre;
+  max-width: 210px;  
   border-radius: 3px;
   background-color: $c-curacao;
   opacity: 0;
@@ -32,12 +36,18 @@
   font-size: 13px;
   font-weight: 600;
   text-align: center;
-  transition: opacity 0.25s ease, background-color 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    background-color 0.25s ease;
 
   &:after {
     content: '';
     border: 8px solid transparent;
+    border-bottom-color: $c-curacao;
     position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
     transition: border-color 0.25s ease;
     z-index: 100;
   }
@@ -45,6 +55,9 @@
   &:hover {
     background-color: $c-dreamsicle;
     cursor: pointer;
+  }
+  &:hover:after {
+    border-bottom-color: $c-dreamsicle;
   }
 }
 
@@ -75,5 +88,18 @@
   }
   .confirm-button--confirmation {
     opacity: 1;
+  }
+}
+.confirm-button.btn.btn-default.btn-xs.btn-xxs {
+  padding-right: 0;
+  margin-top: -1px;
+
+  &:hover {
+    background-color:$g5-pepper;
+    color: $g14-chromium;
+  }
+
+  span.icon.remove {
+    margin-right: 0;
   }
 }
