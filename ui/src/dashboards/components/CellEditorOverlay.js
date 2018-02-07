@@ -453,6 +453,10 @@ class CellEditorOverlay extends Component {
     if (e.key === 'Escape' && e.target === this.overlayRef) {
       this.props.onCancel()
     }
+    if (e.key === 'Escape' && e.target !== this.overlayRef) {
+      e.target.blur()
+      this.overlayRef.focus()
+    }
   }
 
   render() {
