@@ -25,7 +25,7 @@ class KapacitorRule extends Component {
     this.setState({timeRange})
   }
 
-  handleCreate = link => {
+  handleCreate = pathname => {
     const {
       addFlashMessage,
       queryConfigs,
@@ -42,7 +42,7 @@ class KapacitorRule extends Component {
 
     createRule(kapacitor, newRule)
       .then(() => {
-        router.push(link || `/sources/${source.id}/alert-rules`)
+        router.push(pathname || `/sources/${source.id}/alert-rules`)
         addFlashMessage({type: 'success', text: 'Rule successfully created'})
       })
       .catch(() => {
@@ -53,7 +53,7 @@ class KapacitorRule extends Component {
       })
   }
 
-  handleEdit = link => {
+  handleEdit = pathname => {
     const {addFlashMessage, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -61,7 +61,7 @@ class KapacitorRule extends Component {
 
     editRule(updatedRule)
       .then(() => {
-        router.push(link || `/sources/${source.id}/alert-rules`)
+        router.push(pathname || `/sources/${source.id}/alert-rules`)
         addFlashMessage({
           type: 'success',
           text: `${rule.name} successfully saved!`,
