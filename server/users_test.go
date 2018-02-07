@@ -663,8 +663,8 @@ func TestService_RemoveUser(t *testing.T) {
 				},
 				id: "1339",
 			},
-			wantStatus: http.StatusForbidden,
-			wantBody:   `{"code":403,"message":"user cannot delete themselves"}`,
+			wantStatus: http.StatusNoContent,
+			wantBody:   ``,
 		},
 	}
 	for _, tt := range tests {

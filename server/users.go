@@ -225,15 +225,6 @@ func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 		return
 	}
-	ctxUser, ok := hasUserContext(ctx)
-	if !ok {
-		Error(w, http.StatusBadRequest, "failed to retrieve user from context", s.Logger)
-		return
-	}
-	if ctxUser.ID == u.ID {
-		Error(w, http.StatusForbidden, "user cannot delete themselves", s.Logger)
-		return
-	}
 	if err := s.Store.Users(ctx).Delete(ctx, u); err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
