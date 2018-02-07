@@ -159,13 +159,20 @@ class KapacitorRule extends Component {
     } = this.props
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
+
+    const onSave = () => {
+      if (rule.id === DEFAULT_RULE_ID) {
+        this.handleCreate()
+      } else {
+        this.handleEdit()
+      }
+    }
+
     return (
       <div className="page">
         <RuleHeader
           source={source}
-          onSave={
-            rule.id === DEFAULT_RULE_ID ? this.handleCreate : this.handleEdit
-          }
+          onSave={onSave}
           validationError={this.validationError()}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
