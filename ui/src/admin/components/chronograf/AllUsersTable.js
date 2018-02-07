@@ -128,14 +128,6 @@ class AllUsersTable extends Component {
               </tr>
             </thead>
             <tbody>
-              {isCreatingUser
-                ? <AllUsersTableRowNew
-                    organizations={organizations}
-                    onBlur={this.handleBlurCreateUserRow}
-                    onCreateUser={onCreateUser}
-                    notify={notify}
-                  />
-                : null}
               {users.length
                 ? users.map(user =>
                     <AllUsersTableRow
@@ -156,6 +148,14 @@ class AllUsersTable extends Component {
                       <p>No Users to display</p>
                     </th>
                   </tr>}
+              {isCreatingUser
+                ? <AllUsersTableRowNew
+                    organizations={organizations}
+                    onBlur={this.handleBlurCreateUserRow}
+                    onCreateUser={onCreateUser}
+                    notify={notify}
+                  />
+                : null}
             </tbody>
           </table>
         </div>

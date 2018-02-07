@@ -11,7 +11,7 @@ const {
   colActions,
 } = ALL_USERS_TABLE
 
-const nullOrganization = {id: null, name: 'None'}
+const undefinedOrganization = {id: undefined, name: 'None'}
 
 class AllUsersTableRowNew extends Component {
   constructor(props) {
@@ -23,7 +23,7 @@ class AllUsersTableRowNew extends Component {
       scheme: 'oauth2',
       roles: [
         {
-          ...nullOrganization,
+          ...undefinedOrganization,
         },
       ],
     }
@@ -36,7 +36,6 @@ class AllUsersTableRowNew extends Component {
   handleConfirmCreateUser = () => {
     const {onBlur, onCreateUser} = this.props
     const {name, provider, scheme, roles, superAdmin} = this.state
-
     const newUser = {
       name,
       provider,
@@ -44,7 +43,6 @@ class AllUsersTableRowNew extends Component {
       superAdmin,
       roles: roles[0].id === null ? [] : roles,
     }
-
     onCreateUser(newUser)
     onBlur()
   }
@@ -57,10 +55,10 @@ class AllUsersTableRowNew extends Component {
     const newRoles = [
       newOrganization.id === null
         ? {
-            ...nullOrganization,
+            ...undefinedOrganization,
           }
         : {
-            id: newOrganization.id,
+            organization: newOrganization.id,
             name: '*', // '*' causes the server to determine the current defaultRole of the selected organization
           },
     ]
@@ -91,14 +89,14 @@ class AllUsersTableRowNew extends Component {
     const {name, provider, scheme, roles} = this.state
 
     const dropdownOrganizationsItems = [
-      {...nullOrganization},
+      {...undefinedOrganization},
       ...organizations,
     ].map(o => ({
       ...o,
       text: o.name,
     }))
     const selectedRole = dropdownOrganizationsItems.find(
-      o => roles[0].id === o.id
+      o => roles[0].organization === o.id
     )
 
     const preventCreate = !name || !provider

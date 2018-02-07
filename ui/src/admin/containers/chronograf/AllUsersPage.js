@@ -24,7 +24,7 @@ class AllUsersPage extends Component {
 
   handleCreateUser = user => {
     const {links, actionsAdmin: {createUserAsync}} = this.props
-    createUserAsync(links.users, user)
+    createUserAsync(links.allUsers, user)
   }
 
   handleUpdateUserRoles = (user, roles, successMessage) => {
