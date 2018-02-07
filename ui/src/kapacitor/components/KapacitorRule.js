@@ -77,14 +77,15 @@ class KapacitorRule extends Component {
 
   handleSaveToConfig = configName => () => {
     const {rule, configLink, router} = this.props
+    const pathname = `${configLink}#${configName}`
     if (this.validationError()) {
       router.push({
-        pathname: `${configLink}#${configName}`,
+        pathname,
       })
     } else if (rule.id === DEFAULT_RULE_ID) {
-      this.handleCreate(configLink)
+      this.handleCreate(pathname)
     } else {
-      this.handleEdit(configLink)
+      this.handleEdit(pathname)
     }
   }
 
