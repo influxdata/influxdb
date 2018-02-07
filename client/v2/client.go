@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -119,8 +120,9 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 // Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
 func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
 	now := time.Now()
+
 	u := c.url
-	u.Path = "ping"
+	u.Path = path.Join(u.Path, "ping")
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -367,7 +369,8 @@ func (c *client) Write(bp BatchPoints) error {
 	}
 
 	u := c.url
-	u.Path = "write"
+	u.Path = path.Join(u.Path, "write")
+
 	req, err := http.NewRequest("POST", u.String(), &b)
 	if err != nil {
 		return err
@@ -473,7 +476,7 @@ type Result struct {
 // Query sends a command to the server and returns the Response.
 func (c *client) Query(q Query) (*Response, error) {
 	u := c.url
-	u.Path = "query"
+	u.Path = path.Join(u.Path, "query")
 
 	jsonParameters, err := json.Marshal(q.Parameters)
 
