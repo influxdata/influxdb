@@ -38,6 +38,11 @@ class StaticLegend extends Component {
     this.props.handleReceiveStaticLegendHeight(height)
   }
 
+  componentDidUpdate = () => {
+    const {height} = this.staticLegendRef.getBoundingClientRect()
+    this.props.handleReceiveStaticLegendHeight(height)
+  }
+
   componentWillUnmount = () => {
     this.props.handleReceiveStaticLegendHeight(null)
   }
