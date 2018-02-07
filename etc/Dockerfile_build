@@ -37,7 +37,7 @@ RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
 
 # Install go
 ENV GOPATH /root/go
-ENV GO_VERSION 1.9.3
+ENV GO_VERSION 1.9.4
 ENV GO_ARCH amd64
 RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz; \
    tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz ; \
