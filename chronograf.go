@@ -581,12 +581,11 @@ const MappingWildcard string = "*"
 //     github:oauth2:* -> MyOrg
 //     *:*:* -> AllOrg
 type Mapping struct {
-	ID           string `json:"id"`
-	Organization string `json:"organization"`
-
-	Provider string `json:"provider"`
-	Scheme   string `json:"scheme"`
-	Group    string `json:"group"`
+	ID                   string `json:"id"`
+	Organization         string `json:"organizationId"`
+	Provider             string `json:"provider"`
+	Scheme               string `json:"scheme"`
+	ProviderOrganization string `json:"providerOrganization"`
 }
 
 // MappingsStore is the storage and retrieval of Mappings

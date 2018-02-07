@@ -49,11 +49,11 @@ func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 	}
 
 	m := chronograf.Mapping{
-		ID:           string(DefaultOrganizationID),
-		Organization: string(DefaultOrganizationID),
-		Provider:     chronograf.MappingWildcard,
-		Scheme:       chronograf.MappingWildcard,
-		Group:        chronograf.MappingWildcard,
+		ID:                   string(DefaultOrganizationID),
+		Organization:         string(DefaultOrganizationID),
+		Provider:             chronograf.MappingWildcard,
+		Scheme:               chronograf.MappingWildcard,
+		ProviderOrganization: chronograf.MappingWildcard,
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)

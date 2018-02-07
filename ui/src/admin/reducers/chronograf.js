@@ -3,6 +3,7 @@ import {isSameUser} from 'shared/reducers/helpers/auth'
 const initialState = {
   users: [],
   organizations: [],
+  mappings: [],
   authConfig: {
     superAdminNewUsers: true,
   },

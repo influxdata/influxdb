@@ -40,10 +40,10 @@ func TestMappings_All(t *testing.T) {
 					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
 						return []chronograf.Mapping{
 							{
-								Organization: "0",
-								Provider:     chronograf.MappingWildcard,
-								Scheme:       chronograf.MappingWildcard,
-								Group:        chronograf.MappingWildcard,
+								Organization:         "0",
+								Provider:             chronograf.MappingWildcard,
+								Scheme:               chronograf.MappingWildcard,
+								ProviderOrganization: chronograf.MappingWildcard,
 							},
 						}, nil
 					},
@@ -52,7 +52,7 @@ func TestMappings_All(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/mappings"},"mappings":[{"links":{"self":"/chronograf/v1/mappings/"},"id":"","organization":"0","provider":"*","scheme":"*","group":"*"}]}`,
+				body:        `{"links":{"self":"/chronograf/v1/mappings"},"mappings":[{"links":{"self":"/chronograf/v1/mappings/"},"id":"","organizationId":"0","provider":"*","scheme":"*","providerOrganization":"*"}]}`,
 			},
 		},
 	}
@@ -129,16 +129,16 @@ func TestMappings_Add(t *testing.T) {
 			},
 			args: args{
 				mapping: &chronograf.Mapping{
-					Organization: "0",
-					Provider:     "*",
-					Scheme:       "*",
-					Group:        "*",
+					Organization:         "0",
+					Provider:             "*",
+					Scheme:               "*",
+					ProviderOrganization: "*",
 				},
 			},
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/mappings/0"},"id":"0","organization":"0","provider":"*","scheme":"*","group":"*"}`,
+				body:        `{"links":{"self":"/chronograf/v1/mappings/0"},"id":"0","organizationId":"0","provider":"*","scheme":"*","providerOrganization":"*"}`,
 			},
 		},
 	}
@@ -219,17 +219,17 @@ func TestMappings_Update(t *testing.T) {
 			},
 			args: args{
 				mapping: &chronograf.Mapping{
-					ID:           "1",
-					Organization: "0",
-					Provider:     "*",
-					Scheme:       "*",
-					Group:        "*",
+					ID:                   "1",
+					Organization:         "0",
+					Provider:             "*",
+					Scheme:               "*",
+					ProviderOrganization: "*",
 				},
 			},
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/mappings/1"},"id":"1","organization":"0","provider":"*","scheme":"*","group":"*"}`,
+				body:        `{"links":{"self":"/chronograf/v1/mappings/1"},"id":"1","organizationId":"0","provider":"*","scheme":"*","providerOrganization":"*"}`,
 			},
 		},
 	}
@@ -302,11 +302,11 @@ func TestMappings_Remove(t *testing.T) {
 				MappingsStore: &mocks.MappingsStore{
 					GetF: func(ctx context.Context, id string) (*chronograf.Mapping, error) {
 						return &chronograf.Mapping{
-							ID:           "1",
-							Organization: "0",
-							Provider:     "*",
-							Scheme:       "*",
-							Group:        "*",
+							ID:                   "1",
+							Organization:         "0",
+							Provider:             "*",
+							Scheme:               "*",
+							ProviderOrganization: "*",
 						}, nil
 					},
 					DeleteF: func(ctx context.Context, m *chronograf.Mapping) error {

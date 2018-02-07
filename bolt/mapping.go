@@ -54,16 +54,16 @@ func (s *MappingsStore) Add(ctx context.Context, o *chronograf.Mapping) (*chrono
 
 // All returns all known organizations
 func (s *MappingsStore) All(ctx context.Context) ([]chronograf.Mapping, error) {
-	var orgs []chronograf.Mapping
-	err := s.each(ctx, func(o *chronograf.Mapping) {
-		orgs = append(orgs, *o)
+	var mappings []chronograf.Mapping
+	err := s.each(ctx, func(m *chronograf.Mapping) {
+		mappings = append(mappings, *m)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	return orgs, nil
+	return mappings, nil
 }
 
 // Delete the organization from MappingsStore
@@ -100,11 +100,11 @@ func (s *MappingsStore) get(ctx context.Context, id string) (*chronograf.Mapping
 func (s *MappingsStore) each(ctx context.Context, fn func(*chronograf.Mapping)) error {
 	return s.client.db.View(func(tx *bolt.Tx) error {
 		return tx.Bucket(MappingsBucket).ForEach(func(k, v []byte) error {
-			var org chronograf.Mapping
-			if err := internal.UnmarshalMapping(v, &org); err != nil {
+			var m chronograf.Mapping
+			if err := internal.UnmarshalMapping(v, &m); err != nil {
 				return err
 			}
-			fn(&org)
+			fn(&m)
 			return nil
 		})
 	})

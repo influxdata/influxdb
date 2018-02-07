@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -51,13 +52,13 @@ func applyMapping(m chronograf.Mapping, p oauth2.Principal) bool {
 		return false
 	}
 
-	if m.Group == chronograf.MappingWildcard {
+	if m.ProviderOrganization == chronograf.MappingWildcard {
 		return true
 	}
 
 	groups := strings.Split(p.Group, ",")
 
-	return matchGroup(m.Group, groups)
+	return matchGroup(m.ProviderOrganization, groups)
 }
 
 func matchGroup(match string, groups []string) bool {
@@ -80,7 +81,7 @@ func (m *mappingsRequest) Valid() error {
 	if m.Scheme == "" {
 		return fmt.Errorf("mapping must specify scheme")
 	}
-	if m.Group == "" {
+	if m.ProviderOrganization == "" {
 		return fmt.Errorf("mapping must specify group")
 	}
 
@@ -89,7 +90,7 @@ func (m *mappingsRequest) Valid() error {
 
 type mappingResponse struct {
 	Links selfLinks `json:"links"`
-	*chronograf.Mapping
+	chronograf.Mapping
 }
 
 func newMappingResponse(m *chronograf.Mapping) *mappingResponse {
@@ -97,11 +98,12 @@ func newMappingResponse(m *chronograf.Mapping) *mappingResponse {
 	if m != nil {
 		id = m.ID
 	}
+
 	return &mappingResponse{
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/mappings/%s", id),
 		},
-		Mapping: m,
+		Mapping: *m,
 	}
 }
 
@@ -134,6 +136,7 @@ func (s *Service) Mappings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newMappingsResponse(mappings)
+
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -159,10 +162,10 @@ func (s *Service) NewMapping(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mapping := &chronograf.Mapping{
-		Organization: req.Organization,
-		Scheme:       req.Scheme,
-		Provider:     req.Provider,
-		Group:        req.Group,
+		Organization:         req.Organization,
+		Scheme:               req.Scheme,
+		Provider:             req.Provider,
+		ProviderOrganization: req.ProviderOrganization,
 	}
 
 	m, err := s.Store.Mappings(ctx).Add(ctx, mapping)
@@ -198,11 +201,11 @@ func (s *Service) UpdateMapping(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mapping := &chronograf.Mapping{
-		ID:           req.ID,
-		Organization: req.Organization,
-		Scheme:       req.Scheme,
-		Provider:     req.Provider,
-		Group:        req.Group,
+		ID:                   req.ID,
+		Organization:         req.Organization,
+		Scheme:               req.Scheme,
+		Provider:             req.Provider,
+		ProviderOrganization: req.ProviderOrganization,
 	}
 
 	err := s.Store.Mappings(ctx).Update(ctx, mapping)

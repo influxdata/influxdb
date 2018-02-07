@@ -11,10 +11,7 @@ class ProvidersTableRow extends Component {
     super(props)
 
     this.state = {
-      scheme: this.props.mapping.scheme,
-      provider: this.props.mapping.provider,
-      providerOrganization: this.props.mapping.providerOrganization,
-      organizationId: this.props.mapping.organizationId,
+      ...this.props.mapping,
       isDeleting: false,
     }
   }
@@ -34,10 +31,10 @@ class ProvidersTableRow extends Component {
   }
 
   handleUpdateMapping = changes => {
-    const {onUpdate, mapping: {id}} = this.props
-    const newState = {...this.state, ...changes, id}
+    const {onUpdate, mapping} = this.props
+    const newState = {...mapping, ...changes}
     this.setState(newState)
-    onUpdate(this.props.mapping, newState)
+    onUpdate(mapping, newState)
   }
 
   handleChangeProvider = provider => this.handleUpdateMapping({provider})
@@ -73,9 +70,6 @@ class ProvidersTableRow extends Component {
     const isDefaultMapping = DEFAULT_MAPPING_ID === mapping.id
     return (
       <div className="fancytable--row">
-        <div className="fancytable--td provider--id">
-          {mapping.id}
-        </div>
         <Dropdown
           items={schemes}
           onChoose={this.handleChooseScheme}

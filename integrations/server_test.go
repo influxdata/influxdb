@@ -1456,32 +1456,32 @@ func TestServer(t *testing.T) {
 				},
 				Mappings: []chronograf.Mapping{
 					{
-						ID:           "1",
-						Organization: "1",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "influxdata",
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
 					},
 					{
-						ID:           "1",
-						Organization: "1",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "*",
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "*",
 					},
 					{
-						ID:           "2",
-						Organization: "2",
-						Provider:     "github",
-						Scheme:       "*",
-						Group:        "*",
+						ID:                   "2",
+						Organization:         "2",
+						Provider:             "github",
+						Scheme:               "*",
+						ProviderOrganization: "*",
 					},
 					{
-						ID:           "3",
-						Organization: "3",
-						Provider:     "auth0",
-						Scheme:       "ldap",
-						Group:        "*",
+						ID:                   "3",
+						Organization:         "3",
+						Provider:             "auth0",
+						Scheme:               "ldap",
+						ProviderOrganization: "*",
 					},
 				},
 				Organizations: []chronograf.Organization{
@@ -1591,32 +1591,32 @@ func TestServer(t *testing.T) {
 				},
 				Mappings: []chronograf.Mapping{
 					{
-						ID:           "1",
-						Organization: "1",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "influxdata",
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
 					},
 					{
-						ID:           "1",
-						Organization: "1",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "*",
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "*",
 					},
 					{
-						ID:           "2",
-						Organization: "2",
-						Provider:     "github",
-						Scheme:       "*",
-						Group:        "*",
+						ID:                   "2",
+						Organization:         "2",
+						Provider:             "github",
+						Scheme:               "*",
+						ProviderOrganization: "*",
 					},
 					{
-						ID:           "3",
-						Organization: "3",
-						Provider:     "auth0",
-						Scheme:       "ldap",
-						Group:        "*",
+						ID:                   "3",
+						Organization:         "3",
+						Provider:             "auth0",
+						Scheme:               "ldap",
+						ProviderOrganization: "*",
 					},
 				},
 				Organizations: []chronograf.Organization{
@@ -1672,50 +1672,50 @@ func TestServer(t *testing.T) {
         "self": "/chronograf/v1/mappings/1"
       },
       "id": "default",
-      "organization": "default",
+      "organizationId": "default",
       "provider": "*",
       "scheme": "*",
-      "group": "*"
+      "providerOrganization": "*"
     },
     {
       "links": {
         "self": "/chronograf/v1/mappings/2"
       },
       "id": "default",
-      "organization": "default",
+      "organizationId": "default",
       "provider": "*",
       "scheme": "*",
-      "group": "*"
+      "providerOrganization": "*"
     },
     {
       "links": {
         "self": "/chronograf/v1/mappings/3"
       },
       "id": "default",
-      "organization": "default",
+      "organizationId": "default",
       "provider": "*",
       "scheme": "*",
-      "group": "*"
+      "providerOrganization": "*"
     },
     {
       "links": {
         "self": "/chronograf/v1/mappings/4"
       },
       "id": "default",
-      "organization": "default",
+      "organizationId": "default",
       "provider": "*",
       "scheme": "*",
-      "group": "*"
+      "providerOrganization": "*"
     },
     {
       "links": {
         "self": "/chronograf/v1/mappings/default"
       },
       "id": "default",
-      "organization": "default",
+      "organizationId": "default",
       "provider": "*",
       "scheme": "*",
-      "group": "*"
+      "providerOrganization": "*"
     }
   ]
 }
@@ -1733,32 +1733,32 @@ func TestServer(t *testing.T) {
 				},
 				Mappings: []chronograf.Mapping{
 					{
-						ID:           "1",
-						Organization: "1",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "influxdata",
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
 					},
 					{
-						ID:           "1",
-						Organization: "1",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "*",
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "*",
 					},
 					{
-						ID:           "2",
-						Organization: "2",
-						Provider:     "github",
-						Scheme:       "*",
-						Group:        "*",
+						ID:                   "2",
+						Organization:         "2",
+						Provider:             "github",
+						Scheme:               "*",
+						ProviderOrganization: "*",
 					},
 					{
-						ID:           "3",
-						Organization: "3",
-						Provider:     "auth0",
-						Scheme:       "ldap",
-						Group:        "*",
+						ID:                   "3",
+						Organization:         "3",
+						Provider:             "auth0",
+						Scheme:               "ldap",
+						ProviderOrganization: "*",
 					},
 				},
 				Organizations: []chronograf.Organization{
@@ -1846,11 +1846,11 @@ func TestServer(t *testing.T) {
 				method: "POST",
 				path:   "/chronograf/v1/mappings",
 				payload: &chronograf.Mapping{
-					ID:           "1",
-					Organization: "1",
-					Provider:     "*",
-					Scheme:       "*",
-					Group:        "influxdata",
+					ID:                   "1",
+					Organization:         "1",
+					Provider:             "*",
+					Scheme:               "*",
+					ProviderOrganization: "influxdata",
 				},
 				principal: oauth2.Principal{
 					Subject: "billibob",
@@ -1866,10 +1866,10 @@ func TestServer(t *testing.T) {
     "self": "/chronograf/v1/mappings/1"
   },
   "id": "1",
-  "organization": "1",
+  "organizationId": "1",
   "provider": "*",
   "scheme": "*",
-  "group": "influxdata"
+  "providerOrganization": "influxdata"
 }
 `,
 			},
@@ -1885,11 +1885,11 @@ func TestServer(t *testing.T) {
 				},
 				Mappings: []chronograf.Mapping{
 					chronograf.Mapping{
-						ID:           "1",
-						Organization: "1",
-						Provider:     "*",
-						Scheme:       "*",
-						Group:        "influxdata",
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
 					},
 				},
 				Organizations: []chronograf.Organization{
@@ -1917,11 +1917,11 @@ func TestServer(t *testing.T) {
 				method: "PUT",
 				path:   "/chronograf/v1/mappings/1",
 				payload: &chronograf.Mapping{
-					ID:           "1",
-					Organization: "1",
-					Provider:     "*",
-					Scheme:       "*",
-					Group:        "*",
+					ID:                   "1",
+					Organization:         "1",
+					Provider:             "*",
+					Scheme:               "*",
+					ProviderOrganization: "*",
 				},
 				principal: oauth2.Principal{
 					Subject: "billibob",
@@ -1937,10 +1937,10 @@ func TestServer(t *testing.T) {
     "self": "/chronograf/v1/mappings/1"
   },
   "id": "1",
-  "organization": "1",
+  "organizationId": "1",
   "provider": "*",
   "scheme": "*",
-  "group": "*"
+  "providerOrganization": "*"
 }
 `,
 			},

@@ -117,7 +117,7 @@ export const createMapping = async (url, mapping) => {
   }
 }
 
-export const getMappings = async url => {
+export const getMappings = async () => {
   try {
     return await AJAX({
       method: 'GET',

@@ -61,10 +61,10 @@ func TestService_Me(t *testing.T) {
 					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
 						return []chronograf.Mapping{
 							{
-								Organization: "0",
-								Provider:     chronograf.MappingWildcard,
-								Scheme:       chronograf.MappingWildcard,
-								Group:        chronograf.MappingWildcard,
+								Organization:         "0",
+								Provider:             chronograf.MappingWildcard,
+								Scheme:               chronograf.MappingWildcard,
+								ProviderOrganization: chronograf.MappingWildcard,
 							},
 						}, nil
 					},
@@ -417,10 +417,10 @@ func TestService_Me(t *testing.T) {
 					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
 						return []chronograf.Mapping{
 							{
-								Organization: "0",
-								Provider:     chronograf.MappingWildcard,
-								Scheme:       chronograf.MappingWildcard,
-								Group:        chronograf.MappingWildcard,
+								Organization:         "0",
+								Provider:             chronograf.MappingWildcard,
+								Scheme:               chronograf.MappingWildcard,
+								ProviderOrganization: chronograf.MappingWildcard,
 							},
 						}, nil
 					},
@@ -500,10 +500,10 @@ func TestService_Me(t *testing.T) {
 					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
 						return []chronograf.Mapping{
 							{
-								Organization: "0",
-								Provider:     chronograf.MappingWildcard,
-								Scheme:       chronograf.MappingWildcard,
-								Group:        chronograf.MappingWildcard,
+								Organization:         "0",
+								Provider:             chronograf.MappingWildcard,
+								Scheme:               chronograf.MappingWildcard,
+								ProviderOrganization: chronograf.MappingWildcard,
 							},
 						}, nil
 					},
@@ -583,10 +583,10 @@ func TestService_Me(t *testing.T) {
 					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
 						return []chronograf.Mapping{
 							{
-								Organization: "0",
-								Provider:     chronograf.MappingWildcard,
-								Scheme:       chronograf.MappingWildcard,
-								Group:        chronograf.MappingWildcard,
+								Organization:         "0",
+								Provider:             chronograf.MappingWildcard,
+								Scheme:               chronograf.MappingWildcard,
+								ProviderOrganization: chronograf.MappingWildcard,
 							},
 						}, nil
 					},

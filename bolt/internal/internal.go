@@ -654,11 +654,11 @@ func UnmarshalConfigPB(data []byte, c *Config) error {
 func MarshalMapping(m *chronograf.Mapping) ([]byte, error) {
 
 	return MarshalMappingPB(&Mapping{
-		Provider:     m.Provider,
-		Scheme:       m.Scheme,
-		Group:        m.Group,
-		ID:           m.ID,
-		Organization: m.Organization,
+		Provider:             m.Provider,
+		Scheme:               m.Scheme,
+		ProviderOrganization: m.ProviderOrganization,
+		ID:                   m.ID,
+		Organization:         m.Organization,
 	})
 }
 
@@ -676,7 +676,7 @@ func UnmarshalMapping(data []byte, m *chronograf.Mapping) error {
 
 	m.Provider = pb.Provider
 	m.Scheme = pb.Scheme
-	m.Group = pb.Group
+	m.ProviderOrganization = pb.ProviderOrganization
 	m.Organization = pb.Organization
 	m.ID = pb.ID
 

@@ -158,11 +158,11 @@ message Role {
 }
 
 message Mapping {
-	string Provider         = 1; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
-	string Scheme           = 2; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
-	string Group            = 3; // Group is the group or organizations that you are a part of in an auth provider
-	string ID               = 4; // ID is the unique ID for the mapping
-	string Organization     = 5; // Organization is the organization ID that resource belongs to
+	string Provider              = 1; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
+	string Scheme                = 2; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
+	string ProviderOrganization  = 3; // ProviderOrganization is the group or organizations that you are a part of in an auth provider
+	string ID                    = 4; // ID is the unique ID for the mapping
+	string Organization          = 5; // Organization is the organization ID that resource belongs to
 }
 
 message Organization {

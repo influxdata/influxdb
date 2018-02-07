@@ -10,16 +10,22 @@ import ProvidersTable from 'src/admin/components/chronograf/ProvidersTable'
 class ProvidersPage extends Component {
   constructor(props) {
     super(props)
+
+    this.state = {isLoading: true}
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     const {
       links,
       actions: {loadOrganizationsAsync, loadMappingsAsync},
     } = this.props
 
-    loadOrganizationsAsync(links.organizations)
-    loadMappingsAsync(links.mappings)
+    await Promise.all([
+      loadOrganizationsAsync(links.organizations),
+      loadMappingsAsync(links.mappings),
+    ])
+
+    this.setState({isLoading: false})
   }
 
   handleCreateMap = mapping => {
@@ -36,16 +42,18 @@ class ProvidersPage extends Component {
 
   render() {
     const {organizations, mappings = []} = this.props
+    const {isLoading} = this.state
 
-    return organizations
-      ? <ProvidersTable
-          mappings={mappings}
-          organizations={organizations}
-          onCreateMap={this.handleCreateMap}
-          onUpdateMap={this.handleUpdateMap}
-          onDeleteMap={this.handleDeleteMap}
-        />
-      : <div className="page-spinner" />
+    return (
+      <ProvidersTable
+        mappings={mappings}
+        organizations={organizations}
+        onCreateMap={this.handleCreateMap}
+        onUpdateMap={this.handleUpdateMap}
+        onDeleteMap={this.handleDeleteMap}
+        isLoading={isLoading}
+      />
+    )
   }
 }
 

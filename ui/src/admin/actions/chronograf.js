@@ -146,9 +146,9 @@ export const loadOrganizationsAsync = url => async dispatch => {
   }
 }
 
-export const loadMappingsAsync = url => async dispatch => {
+export const loadMappingsAsync = () => async dispatch => {
   try {
-    const {data} = await getMappingsAJAX(url)
+    const {data} = await getMappingsAJAX()
     dispatch(loadMappings(data))
   } catch (error) {
     dispatch(errorThrown(error))

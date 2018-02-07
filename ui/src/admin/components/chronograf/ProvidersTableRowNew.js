@@ -33,10 +33,8 @@ class ProvidersTableRowNew extends Component {
   }
 
   handleSaveNewMapping = () => {
-    const {scheme, provider, providerOrganization, organizationId} = this.state
     const {onCreate} = this.props
-    // id is calculated in providers table
-    onCreate({id: '', scheme, provider, providerOrganization, organizationId})
+    onCreate(this.state)
   }
 
   render() {
@@ -65,11 +63,13 @@ class ProvidersTableRowNew extends Component {
           value={provider}
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
+          tabIndex="1"
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
+          tabIndex="2"
         />
         <div className="fancytable--td provider--arrow">
           <span />

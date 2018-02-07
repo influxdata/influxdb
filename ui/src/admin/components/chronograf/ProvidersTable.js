@@ -20,16 +20,18 @@ class ProvidersTable extends Component {
   }
 
   handleCreateMap = newMap => {
-    const {onCreateMap} = this.props
-    // todo: better way of getting mapping id
+    this.props.onCreateMap(newMap)
     this.setState({isCreatingMap: false})
-    const newMapID = this.props.mappings.length.toString()
-    newMap.id = newMapID
-    onCreateMap(newMap)
   }
 
   render() {
-    const {mappings = [], organizations, onUpdateMap, onDeleteMap} = this.props
+    const {
+      mappings = [],
+      organizations,
+      onUpdateMap,
+      onDeleteMap,
+      isLoading,
+    } = this.props
     const {isCreatingMap} = this.state
 
     const tableTitle =
@@ -43,6 +45,16 @@ class ProvidersTable extends Component {
       {text: 'option3'},
     ]
 
+    if (isLoading) {
+      return (
+        <div className="panel panel-default">
+          <div className="panel-body">
+            <div className="page-spinner" />
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="panel panel-default">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -54,10 +66,10 @@ class ProvidersTable extends Component {
             onClick={this.handleClickCreateMap}
             disabled={isCreatingMap}
           >
-            <span className="icon plus" /> Create Map
+            <span className="icon plus" /> Create Mapping
           </button>
         </div>
-        {(mappings && mappings.length) || isCreatingMap
+        {mappings.length || isCreatingMap
           ? <div className="panel-body">
               <div className="fancytable--labels">
                 <div className="fancytable--th provider--id">ID</div>
@@ -94,24 +106,26 @@ class ProvidersTable extends Component {
                   />
                 : null}
             </div>
-          : <div className="generic-empty-state">
-              <h4 style={{margin: '90px 0'}}>
-                Looks like you don’t have any mappings
-              </h4>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={this.handleClickCreateMap}
-                disabled={isCreatingMap}
-              >
-                <span className="icon plus" /> Create Map
-              </button>
+          : <div className="panel-body">
+              <div className="generic-empty-state">
+                <h4 style={{margin: '50px 0'}}>
+                  Looks like you have no mappings
+                </h4>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={this.handleClickCreateMap}
+                  disabled={isCreatingMap}
+                >
+                  <span className="icon plus" /> Create Mapping
+                </button>
+              </div>
             </div>}
       </div>
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 ProvidersTable.propTypes = {
   mappings: arrayOf(
@@ -132,5 +146,6 @@ ProvidersTable.propTypes = {
   onCreateMap: func.isRequired,
   onUpdateMap: func.isRequired,
   onDeleteMap: func.isRequired,
+  isLoading: bool.isRequired,
 }
 export default ProvidersTable
