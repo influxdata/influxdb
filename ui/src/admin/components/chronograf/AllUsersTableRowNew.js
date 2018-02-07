@@ -11,7 +11,8 @@ const {
   colActions,
 } = ALL_USERS_TABLE
 
-const undefinedOrganization = {id: undefined, name: 'None'}
+const nullOrganization = {id: undefined, name: 'None'}
+const nullRole = {name: '*', organization: undefined}
 
 class AllUsersTableRowNew extends Component {
   constructor(props) {
@@ -23,7 +24,7 @@ class AllUsersTableRowNew extends Component {
       scheme: 'oauth2',
       roles: [
         {
-          ...undefinedOrganization,
+          ...nullRole,
         },
       ],
     }
@@ -41,7 +42,7 @@ class AllUsersTableRowNew extends Component {
       provider,
       scheme,
       superAdmin,
-      roles: roles[0].id === null ? [] : roles,
+      roles: roles[0].organization === undefined ? [] : roles,
     }
     onCreateUser(newUser)
     onBlur()
@@ -53,9 +54,9 @@ class AllUsersTableRowNew extends Component {
 
   handleSelectOrganization = newOrganization => {
     const newRoles = [
-      newOrganization.id === null
+      newOrganization.id === undefined
         ? {
-            ...undefinedOrganization,
+            ...nullRole,
           }
         : {
             organization: newOrganization.id,
@@ -89,7 +90,7 @@ class AllUsersTableRowNew extends Component {
     const {name, provider, scheme, roles} = this.state
 
     const dropdownOrganizationsItems = [
-      {...undefinedOrganization},
+      {...nullOrganization},
       ...organizations,
     ].map(o => ({
       ...o,
