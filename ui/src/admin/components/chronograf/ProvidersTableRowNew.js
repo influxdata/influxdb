@@ -51,8 +51,6 @@ class ProvidersTableRowNew extends Component {
 
     return (
       <div className="fancytable--row">
-        <div className="fancytable--td provider--id">--</div>
-
         <Dropdown
           items={schemes}
           onChoose={this.handleChooseScheme}

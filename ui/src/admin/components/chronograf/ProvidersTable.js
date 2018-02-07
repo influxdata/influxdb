@@ -72,7 +72,6 @@ class ProvidersTable extends Component {
         {mappings.length || isCreatingMap
           ? <div className="panel-body">
               <div className="fancytable--labels">
-                <div className="fancytable--th provider--id">ID</div>
                 <div className="fancytable--th provider--scheme">Scheme</div>
                 <div className="fancytable--th provider--provider">
                   Provider
