@@ -84,7 +84,7 @@ class StaticLegend extends Component {
           <div
             className={staticLegendItemClassname(visibilities, i)}
             key={uuid.v4()}
-            onClick={this.handleClick(i)}
+            onMouseDown={this.handleClick(i)}
           >
             <div
               className="static-legend--dot"
