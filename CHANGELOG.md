@@ -7,6 +7,8 @@
 ### UI Improvements
 1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
 1. [#2746](https://github.com/influxdata/chronograf/pull/2746): Separate saving TICKscript from exiting editor page
+1. [#2774](https://github.com/influxdata/chronograf/pull/2774): Enable Save (⌘ + Enter) and Cancel (Escape) hotkeys in Cell Editor Overlay
+
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
 1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
