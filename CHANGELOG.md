@@ -8,6 +8,8 @@
 1. [#2703](https://github.com/influxdata/chronograf/pull/2703): Add global users page visible only to super admins
 1. [#2777](https://github.com/influxdata/chronograf/pull/2777): Allow user to delete themselves
  
+1. [#2703](https://github.com/influxdata/chronograf/pull/2703): Add global users page visible only to super admins
+1. [#2781](https://github.com/influxdata/chronograf/pull/2781): Add commands to users & create super admin
 ### UI Improvements
 1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
 1. [#2746](https://github.com/influxdata/chronograf/pull/2746): Separate saving TICKscript from exiting editor page
