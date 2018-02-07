@@ -446,7 +446,7 @@ class CellEditorOverlay extends Component {
     return prevQuery.source
   }
 
-  handleHotKeyDown = e => {
+  handleKeyDown = e => {
     if (e.key === 'Enter' && e.metaKey && e.target === this.overlayRef) {
       this.handleSaveCell()
     }
@@ -487,7 +487,7 @@ class CellEditorOverlay extends Component {
     return (
       <div
         className={OVERLAY_TECHNOLOGY}
-        onKeyDown={this.handleHotKeyDown}
+        onKeyDown={this.handleKeyDown}
         tabIndex="0"
         ref={r => (this.overlayRef = r)}
       >
