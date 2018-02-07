@@ -450,6 +450,10 @@ class CellEditorOverlay extends Component {
     if (e.key === 'Enter' && e.metaKey && e.target === this.overlayRef) {
       this.handleSaveCell()
     }
+    if (e.key === 'Enter' && e.metaKey && e.target !== this.overlayRef) {
+      e.target.blur()
+      setTimeout(this.handleSaveCell, 50)
+    }
     if (e.key === 'Escape' && e.target === this.overlayRef) {
       this.props.onCancel()
     }
