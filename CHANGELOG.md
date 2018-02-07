@@ -4,6 +4,7 @@
 1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations
 1. [#2708](https://github.com/influxdata/chronograf/pull/2708): Link to specified kapacitor config panel from rule builder alert handlers
 1. [#2722](https://github.com/influxdata/chronograf/pull/2722): Add auto refresh widget to hosts list page
+
 ### UI Improvements
 1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
 1. [#2746](https://github.com/influxdata/chronograf/pull/2746): Separate saving TICKscript from exiting editor page
