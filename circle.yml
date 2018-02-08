@@ -3,7 +3,7 @@ machine:
   services:
     - docker
   environment:
-    DOCKER_TAG: chronograf-20180206
+    DOCKER_TAG: chronograf-20180207
 
 dependencies:
   override:
