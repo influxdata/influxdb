@@ -388,7 +388,7 @@ class CellEditorOverlay extends Component {
     let colors = []
     if (type === 'gauge') {
       colors = gaugeColors
-    } else if (type === 'single-stat') {
+    } else if (type === 'single-stat' || type === 'line-plus-single-stat') {
       colors = singleStatColors
     }
 
