@@ -200,12 +200,41 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 	serverCtx := serverContext(ctx)
 
-	if p.Organization == "" {
-		defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
+	/* ALTERNATE 1
+		If existing
+			If roles, let them in
+			If no roles, purgatory
+
+		If new
+			Build new user
+			Generate roles for user based on defined mappings
+			If roles, save and let them in
+			If no roles, tell them box is private
+	*/
+
+	/* ALTERNATE 2
+		Find user => (existing)
+		If no user => (new)
+			Build new user, with superadmin based on setting
+			Generate roles for user based on defined mappings
+
+		If roles,
+			(existing) => let them in
+			(new) => save, let them in
+
+		If no roles,
+			(existing) => purgatory
+			(new) => tell them box is private
+	*/
+
+
+	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 		if err != nil {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
-		}
+		
+
+	if p.Organization == "" {
 		p.Organization = defaultOrg.ID
 	}
 
@@ -219,11 +248,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
-	if err != nil {
-		unknownErrorWithMessage(w, err, s.Logger)
-		return
-	}
 	if usr != nil {
 
 		if defaultOrg.Public || usr.SuperAdmin == true {
