@@ -43,6 +43,7 @@ v1.5.0 [unreleased]
 -	[#9336](https://github.com/influxdata/influxdb/issues/9336): Fix `influx -import` importing to incorrect databases when export file had multiple databases. Thanks @wwilfinger!
 -	[#9401](https://github.com/influxdata/influxdb/pull/9401): Fix windows history file location.
 -	[#9403](https://github.com/influxdata/influxdb/pull/9403): Do not explicitly specify ports 80 or 443 when they are the default port.
+-	[#8878](https://github.com/influxdata/influxdb/pull/8878): Do not report an error when dropping a CQ on a non-existent DB/RP.
 
 v1.4.3 [unreleased]
 -------------------
