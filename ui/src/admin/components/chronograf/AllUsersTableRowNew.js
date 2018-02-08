@@ -42,6 +42,9 @@ class AllUsersTableRowNew extends Component {
       provider,
       scheme,
       superAdmin,
+      // since you can only choose one organization, there is only one role in a new row
+      // if no organization is selected ie the "None" organization,
+      // then set roles to an empty array instead of sending the null role to the server
       roles: roles[0].organization === undefined ? [] : roles,
     }
     onCreateUser(newUser)
@@ -54,6 +57,8 @@ class AllUsersTableRowNew extends Component {
 
   handleSelectOrganization = newOrganization => {
     const newRoles = [
+      // if "None" was selected for organization, create a "null role" from the predefined null role
+      // else create a new role with the organization as the newOrganization's id
       newOrganization.id === undefined
         ? {
             ...nullRole,
