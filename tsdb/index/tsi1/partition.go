@@ -564,6 +564,22 @@ func (i *Partition) DropMeasurement(name []byte) error {
 		}
 	}
 
+	// Delete all series.
+	if itr := fs.MeasurementSeriesIDIterator(name); itr != nil {
+		defer itr.Close()
+		for {
+			elem, err := itr.Next()
+			if err != nil {
+				return err
+			} else if elem.SeriesID == 0 {
+				break
+			}
+			if err := i.activeLogFile.DeleteSeriesID(elem.SeriesID); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Mark measurement as deleted.
 	if err := func() error {
 		i.mu.RLock()
@@ -622,7 +638,7 @@ func (i *Partition) DropSeries(seriesID uint64) error {
 	return i.CheckLogFile()
 }
 
-// MeasurementsSketches returns the two sketches for the index by merging all
+// MeasurementsSketches returns the two sketches for the partition by merging all
 // instances of the type sketch types in all the index files.
 func (i *Partition) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	fs, err := i.RetainFileSet()
@@ -631,6 +647,17 @@ func (i *Partition) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, 
 	}
 	defer fs.Release()
 	return fs.MeasurementsSketches()
+}
+
+// SeriesSketches returns the two sketches for the partition by merging all
+// instances of the type sketch types in all the index files.
+func (i *Partition) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer fs.Release()
+	return fs.SeriesSketches()
 }
 
 // HasTagKey returns true if tag key exists.

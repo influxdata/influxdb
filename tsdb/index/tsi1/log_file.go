@@ -162,7 +162,6 @@ func (f *LogFile) Close() error {
 	}
 
 	f.mms = make(logMeasurements)
-
 	return nil
 }
 
@@ -658,15 +657,13 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		mm.tagSet[string(k)] = ts
 	}
 
-	// TODO(edd) increment series count....
-	f.sSketch.Add(seriesKey) // Add series to sketch.
-	f.mSketch.Add(name)      // Add measurement to sketch as this may be the fist series for the measurement.
-
 	// Add/remove from appropriate series id sets.
 	if !deleted {
+		f.sSketch.Add(seriesKey) // Add series to sketch - key in series file format.
 		f.seriesIDSet.Add(e.SeriesID)
 		f.tombstoneSeriesIDSet.Remove(e.SeriesID)
 	} else {
+		f.sTSketch.Add(seriesKey) // Add series to tombstone sketch - key in series file format.
 		f.seriesIDSet.Remove(e.SeriesID)
 		f.tombstoneSeriesIDSet.Add(e.SeriesID)
 	}
@@ -732,6 +729,9 @@ func (f *LogFile) createMeasurementIfNotExists(name []byte) *logMeasurement {
 			series: make(map[uint64]struct{}),
 		}
 		f.mms[string(name)] = mm
+
+		// Add measurement to sketch.
+		f.mSketch.Add(name)
 	}
 	return mm
 }
@@ -821,6 +821,26 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 		return n, err
 	}
 	t.TombstoneSeriesIDSet.Size = n - t.TombstoneSeriesIDSet.Offset
+
+	// Write series sketches. TODO(edd): Implement WriterTo on HLL++.
+	t.SeriesSketch.Offset = n
+	data, err := f.sSketch.MarshalBinary()
+	if err != nil {
+		return n, err
+	} else if _, err := bw.Write(data); err != nil {
+		return n, err
+	}
+	t.SeriesSketch.Size = int64(len(data))
+	n += t.SeriesSketch.Size
+
+	t.TombstoneSeriesSketch.Offset = n
+	if data, err = f.sTSketch.MarshalBinary(); err != nil {
+		return n, err
+	} else if _, err := bw.Write(data); err != nil {
+		return n, err
+	}
+	t.TombstoneSeriesSketch.Size = int64(len(data))
+	n += t.TombstoneSeriesSketch.Size
 
 	// Write trailer.
 	nn, err = t.WriteTo(bw)
@@ -966,6 +986,20 @@ func (f *LogFile) MergeMeasurementsSketches(sketch, tsketch estimator.Sketch) er
 		return err
 	}
 	return tsketch.Merge(f.mTSketch)
+}
+
+// MergeSeriesSketches merges the series sketches belonging to this
+// LogFile into the provided sketches.
+//
+// MergeSeriesSketches is safe for concurrent use by multiple goroutines.
+func (f *LogFile) MergeSeriesSketches(sketch, tsketch estimator.Sketch) error {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	if err := sketch.Merge(f.sSketch); err != nil {
+		return err
+	}
+	return tsketch.Merge(f.sTSketch)
 }
 
 // LogEntry represents a single log entry in the write-ahead log.

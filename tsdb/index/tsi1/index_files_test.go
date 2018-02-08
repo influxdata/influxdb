@@ -42,7 +42,7 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 	}
 
 	// Unmarshal buffer into a new index file.
-	var f tsi1.IndexFile
+	f := tsi1.NewIndexFile(sfile.SeriesFile)
 	if err := f.UnmarshalBinary(buf.Bytes()); err != nil {
 		t.Fatal(err)
 	}

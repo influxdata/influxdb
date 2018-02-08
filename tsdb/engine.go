@@ -57,6 +57,7 @@ type Engine interface {
 	DeleteSeriesRange(itr SeriesIterator, min, max int64) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
+	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
 
 	MeasurementExists(name []byte) (bool, error)

@@ -532,8 +532,18 @@ func (e *Engine) SeriesN() int64 {
 	return e.index.SeriesN()
 }
 
+// MeasurementsSketches returns sketches that describe the cardinality of the
+// measurements in this shard and measurements that were in this shard, but have
+// been tombstoned.
 func (e *Engine) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	return e.index.MeasurementsSketches()
+}
+
+// SeriesSketches returns sketches that describe the cardinality of the
+// series in this shard and series that were in this shard, but have
+// been tombstoned.
+func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	return e.index.SeriesSketches()
 }
 
 // LastModified returns the time when this shard was last modified.

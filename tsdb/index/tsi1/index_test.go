@@ -317,7 +317,7 @@ type Index struct {
 // NewIndex returns a new instance of Index at a temporary path.
 func NewIndex(partitionN uint64) *Index {
 	idx := &Index{SeriesFile: NewSeriesFile()}
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, tsi1.WithPath(MustTempDir()))
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()))
 	idx.Index.PartitionN = partitionN
 	return idx
 }
@@ -361,7 +361,7 @@ func (idx *Index) Reopen() error {
 	}
 
 	partitionN := idx.Index.PartitionN // Remember how many partitions to use.
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, tsi1.WithPath(idx.Index.Path()))
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(idx.Index.Path()))
 	idx.Index.PartitionN = partitionN
 	return idx.Open()
 }

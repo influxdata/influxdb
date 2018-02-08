@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -25,10 +26,13 @@ const (
 	// IndexFile trailer fields
 	IndexFileVersionSize = 2
 
+	// IndexFileTrailerSize is the size of the trailer. Currently 82 bytes.
 	IndexFileTrailerSize = IndexFileVersionSize +
 		8 + 8 + // measurement block offset + size
 		8 + 8 + // series id set offset + size
 		8 + 8 + // tombstone series id set offset + size
+		8 + 8 + // series sketch offset + size
+		8 + 8 + // tombstone series sketch offset + size
 		0
 )
 
@@ -52,6 +56,9 @@ type IndexFile struct {
 	seriesIDSetData          []byte
 	tombstoneSeriesIDSetData []byte
 
+	// Series sketches
+	sketch, tSketch estimator.Sketch
+
 	// Sortable identifier & filepath to the log file.
 	level int
 	id    int
@@ -66,11 +73,22 @@ type IndexFile struct {
 
 // NewIndexFile returns a new instance of IndexFile.
 func NewIndexFile(sfile *tsdb.SeriesFile) *IndexFile {
-	return &IndexFile{sfile: sfile}
+	return &IndexFile{
+		sfile:   sfile,
+		sketch:  hll.NewDefaultPlus(),
+		tSketch: hll.NewDefaultPlus(),
+	}
 }
 
 // Open memory maps the data file at the file's path.
 func (f *IndexFile) Open() error {
+	defer func() {
+		if err := recover(); err != nil {
+			err = fmt.Errorf("[Index file: %s] %v", f.path, err)
+			panic(err)
+		}
+	}()
+
 	// Extract identifier from path name.
 	f.id, f.level = ParseFilename(f.Path())
 
@@ -138,12 +156,23 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 		return err
 	}
 
+	// Slice series sketch data.
+	buf := data[t.SeriesSketch.Offset : t.SeriesSketch.Offset+t.SeriesSketch.Size]
+	if err := f.sketch.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+
+	buf = data[t.TombstoneSeriesSketch.Offset : t.TombstoneSeriesSketch.Offset+t.TombstoneSeriesSketch.Size]
+	if err := f.tSketch.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+
 	// Slice series set data.
 	f.seriesIDSetData = data[t.SeriesIDSet.Offset : t.SeriesIDSet.Offset+t.SeriesIDSet.Size]
 	f.tombstoneSeriesIDSetData = data[t.TombstoneSeriesIDSet.Offset : t.TombstoneSeriesIDSet.Offset+t.TombstoneSeriesIDSet.Size]
 
 	// Slice measurement block data.
-	buf := data[t.MeasurementBlock.Offset:]
+	buf = data[t.MeasurementBlock.Offset:]
 	buf = buf[:t.MeasurementBlock.Size]
 
 	// Unmarshal measurement block.
@@ -340,13 +369,22 @@ func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterat
 	return f.mblk.SeriesIDIterator(name)
 }
 
-// MergeMeasurementsSketches merges the index file's series sketches into the provided
-// sketches.
+// MergeMeasurementsSketches merges the index file's measurements sketches into
+// the provided sketches.
 func (f *IndexFile) MergeMeasurementsSketches(s, t estimator.Sketch) error {
 	if err := s.Merge(f.mblk.sketch); err != nil {
 		return err
 	}
 	return t.Merge(f.mblk.tSketch)
+}
+
+// MergeSeriesSketches merges the index file's series sketches into the provided
+// sketches.
+func (f *IndexFile) MergeSeriesSketches(s, t estimator.Sketch) error {
+	if err := s.Merge(f.sketch); err != nil {
+		return err
+	}
+	return t.Merge(f.tSketch)
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.
@@ -370,10 +408,21 @@ func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 	t.SeriesIDSet.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.SeriesIDSet.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Read series id set info.
+	// Read series tombstone id set info.
 	t.TombstoneSeriesIDSet.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TombstoneSeriesIDSet.Size = int64(binary.BigEndian.Uint64(buf[0:8]))
+	t.TombstoneSeriesIDSet.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
+	// Read series sketch set info.
+	t.SeriesSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.SeriesSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	// Read series tombstone sketch info.
+	t.TombstoneSeriesSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TombstoneSeriesSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	if len(buf) != 2 { // Version field still in buffer.
+		return t, fmt.Errorf("unread %d bytes left unread in trailer", len(buf)-2)
+	}
 	return t, nil
 }
 
@@ -392,6 +441,16 @@ type IndexFileTrailer struct {
 	}
 
 	TombstoneSeriesIDSet struct {
+		Offset int64
+		Size   int64
+	}
+
+	SeriesSketch struct {
+		Offset int64
+		Size   int64
+	}
+
+	TombstoneSeriesSketch struct {
 		Offset int64
 		Size   int64
 	}
@@ -417,6 +476,20 @@ func (t *IndexFileTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	if err := writeUint64To(w, uint64(t.TombstoneSeriesIDSet.Offset), &n); err != nil {
 		return n, err
 	} else if err := writeUint64To(w, uint64(t.TombstoneSeriesIDSet.Size), &n); err != nil {
+		return n, err
+	}
+
+	// Write series sketch info.
+	if err := writeUint64To(w, uint64(t.SeriesSketch.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.SeriesSketch.Size), &n); err != nil {
+		return n, err
+	}
+
+	// Write series tombstone sketch info.
+	if err := writeUint64To(w, uint64(t.TombstoneSeriesSketch.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.TombstoneSeriesSketch.Size), &n); err != nil {
 		return n, err
 	}
 
