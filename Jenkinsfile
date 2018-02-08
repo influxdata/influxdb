@@ -36,7 +36,7 @@ pipeline {
           sh """
           set -e
           if ! git diff --quiet; then
-            git config remote.origin.pushurl=git@github.com:influxdata/influxdb.git
+            git config remote.origin.pushurl git@github.com:influxdata/influxdb.git
             git commit -am 'Update changelog'
             git push origin HEAD:${BRANCH_NAME}
           fi
