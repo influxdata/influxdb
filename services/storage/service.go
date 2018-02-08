@@ -1,9 +1,17 @@
 package storage
 
 import (
+	"time"
+
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
+
+type StorageMetaClient interface {
+	Database(name string) *meta.DatabaseInfo
+	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+}
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
@@ -12,8 +20,9 @@ type Service struct {
 	loggingEnabled bool
 	logger         *zap.Logger
 
-	Store     *Store
-	TSDBStore *tsdb.Store
+	Store      *Store
+	TSDBStore  *tsdb.Store
+	MetaClient StorageMetaClient
 }
 
 // NewService returns a new instance of Service.
@@ -38,6 +47,7 @@ func (s *Service) Open() error {
 
 	store := NewStore()
 	store.TSDBStore = s.TSDBStore
+	store.MetaClient = s.MetaClient
 	store.Logger = s.logger
 
 	yarpc := &yarpcServer{
