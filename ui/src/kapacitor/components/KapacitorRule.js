@@ -75,6 +75,15 @@ class KapacitorRule extends Component {
       })
   }
 
+  handleSave = () => {
+    const {rule} = this.props
+    if (rule.id === DEFAULT_RULE_ID) {
+      this.handleCreate()
+    } else {
+      this.handleEdit()
+    }
+  }
+
   handleSaveToConfig = configName => () => {
     const {rule, configLink, router} = this.props
     const pathname = `${configLink}#${configName}`
@@ -161,19 +170,11 @@ class KapacitorRule extends Component {
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
 
-    const onSave = () => {
-      if (rule.id === DEFAULT_RULE_ID) {
-        this.handleCreate()
-      } else {
-        this.handleEdit()
-      }
-    }
-
     return (
       <div className="page">
         <RuleHeader
           source={source}
-          onSave={onSave}
+          onSave={this.handleSave}
           validationError={this.validationError()}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
