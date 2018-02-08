@@ -37,7 +37,6 @@ class SingleStat extends PureComponent {
     let bgColor = null
     let textColor = null
 
-    console.log(colors)
     if (colors.length === 1) {
       if (colors[0].type === SINGLE_STAT_TEXT) {
         textColor = colors[0].hex
