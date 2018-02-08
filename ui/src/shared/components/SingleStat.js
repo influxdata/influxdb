@@ -12,7 +12,14 @@ const lightText = '#ffffff'
 
 class SingleStat extends PureComponent {
   render() {
-    const {data, cellHeight, isFetchingInitially, colors, suffix} = this.props
+    const {
+      data,
+      cellHeight,
+      isFetchingInitially,
+      colors,
+      suffix,
+      lineGraph,
+    } = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -70,6 +77,7 @@ class SingleStat extends PureComponent {
         >
           {roundedValue}
           {suffix}
+          {lineGraph && <div className="single-stat--shadow" />}
         </span>
       </div>
     )
@@ -92,6 +100,7 @@ SingleStat.propTypes = {
     }).isRequired
   ),
   suffix: string,
+  lineGraph: bool,
 }
 
 export default SingleStat

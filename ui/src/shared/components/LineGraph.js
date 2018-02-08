@@ -107,7 +107,12 @@ class LineGraph extends Component {
           options={options}
         />
         {showSingleStat
-          ? <SingleStat data={data} colors={colors} cellHeight={cellHeight} />
+          ? <SingleStat
+              data={data}
+              lineGraph={true}
+              colors={colors}
+              cellHeight={cellHeight}
+            />
           : null}
       </div>
     )
