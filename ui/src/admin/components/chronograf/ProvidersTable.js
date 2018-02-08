@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
+import uuid from 'node-uuid'
 import ProvidersTableRow from 'src/admin/components/chronograf/ProvidersTableRow'
 import ProvidersTableRowNew from 'src/admin/components/chronograf/ProvidersTableRowNew'
 
@@ -88,7 +89,7 @@ class ProvidersTable extends Component {
               </div>
               {mappings.map(mapping =>
                 <ProvidersTableRow
-                  key={mapping.id}
+                  key={uuid.v4()}
                   mapping={mapping}
                   organizations={organizations}
                   schemes={SCHEMES}
