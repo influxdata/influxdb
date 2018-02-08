@@ -122,31 +122,35 @@ export const validateSingleStatColors = (colors, coloration) => {
 
   let containsBaseColor = false
 
-  const filteredColors = colors.map(color => {
+  const formattedColors = colors.map(color => {
     if (color.id === SINGLE_STAT_BASE) {
       // Check for existance of base color
       containsBaseColor = true
-      return color
+      return {...color, type: coloration}
     }
     // Single stat colors should all have type of 'text' or 'background'
     return {...color, type: coloration}
   })
 
-  const filteredColorsWithBase = [
-    ...filteredColors,
+  const formattedColorsWithBase = [
+    ...formattedColors,
     DEFAULT_SINGLESTAT_COLORS[0],
   ]
 
-  return containsBaseColor ? filteredColors : filteredColorsWithBase
+  return containsBaseColor ? formattedColors : formattedColorsWithBase
 }
 
 export const getSingleStatColoration = colors => {
-  if (!colors || colors.length === 0) {
+  if (!colors.length) {
     return SINGLE_STAT_TEXT
-  } else if (colors[0].type === (SINGLE_STAT_TEXT || SINGLE_STAT_BG)) {
-    return colors[0].type
   }
 
+  if (
+    colors[0].type === SINGLE_STAT_TEXT ||
+    colors[0].type === SINGLE_STAT_BG
+  ) {
+    return colors[0].type
+  }
   return SINGLE_STAT_TEXT
 }
 

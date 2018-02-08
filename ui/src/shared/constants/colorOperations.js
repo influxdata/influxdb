@@ -48,12 +48,15 @@ export const generateSingleStatHexs = (
   lastValue
 ) => {
   const defaultColoring = {bgColor: null, textColor: GAUGE_COLORS[11].hex}
-  if (!colors.length) {
+
+  if (!colors.length || !lastValue) {
     return defaultColoring
   }
 
   // baseColor is expected in all cases
-  const baseColor = colors.find(color => (color.id = SINGLE_STAT_BASE))
+  const baseColor = colors.find(color => (color.id = SINGLE_STAT_BASE)) || {
+    hex: defaultColoring.textColor,
+  }
 
   // If the single stat is above a line graph never have a background color
   if (containsLineGraph) {

@@ -1,5 +1,4 @@
 import React, {PropTypes, PureComponent} from 'react'
-import _ from 'lodash'
 import classnames from 'classnames'
 import lastValues from 'shared/parsing/lastValues'
 
@@ -31,7 +30,7 @@ class SingleStat extends PureComponent {
     const lastValue = lastValues(data)[1]
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
-    const colorizeText = _.some(colors, {type: SINGLE_STAT_TEXT})
+    const colorizeText = !!colors.find(color => color.type === SINGLE_STAT_TEXT)
 
     const {bgColor, textColor} = generateSingleStatHexs(
       colors,

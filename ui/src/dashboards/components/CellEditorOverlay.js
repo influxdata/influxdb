@@ -61,11 +61,7 @@ class CellEditorOverlay extends Component {
       axes,
       singleStatColoration,
       gaugeColors: validateGaugeColors(colors, type),
-      singleStatColors: validateSingleStatColors(
-        colors,
-        type,
-        singleStatColoration
-      ),
+      singleStatColors: validateSingleStatColors(colors, singleStatColoration),
     }
   }
 
