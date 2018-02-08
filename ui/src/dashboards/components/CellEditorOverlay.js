@@ -565,12 +565,8 @@ class CellEditorOverlay extends Component {
       (!!query.measurement && !!query.database && !!query.fields.length) ||
       !!query.rawText
 
-    let visualizationColors
-    if (cellWorkingType === 'gauge') {
-      visualizationColors = gaugeColors
-    } else if (cellWorkingType === 'single-stat') {
-      visualizationColors = singleStatColors
-    }
+    const visualizationColors =
+      cellWorkingType === 'gauge' ? gaugeColors : singleStatColors
 
     return (
       <div

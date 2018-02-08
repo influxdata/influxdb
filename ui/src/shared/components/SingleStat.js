@@ -29,10 +29,16 @@ class SingleStat extends PureComponent {
     const roundedValue = Math.round(+lastValue * precision) / precision
     let bgColor = null
     let textColor = null
-    let className = 'single-stat'
 
-    if (colors && colors.length > 0) {
-      className = 'single-stat single-stat--colored'
+    console.log(colors)
+    if (colors.length === 1) {
+      if (colors[0].type === SINGLE_STAT_TEXT) {
+        textColor = colors[0].hex
+      } else {
+        bgColor = colors[0].hex
+        textColor = isBackgroundLight(bgColor) ? darkText : lightText
+      }
+    } else if (colors.length > 1) {
       const sortedColors = _.sortBy(colors, color => Number(color.value))
       const nearestCrossedThreshold = sortedColors
         .filter(color => lastValue > color.value)
@@ -54,7 +60,7 @@ class SingleStat extends PureComponent {
 
     return (
       <div
-        className={className}
+        className="single-stat"
         style={{backgroundColor: bgColor, color: textColor}}
       >
         <span

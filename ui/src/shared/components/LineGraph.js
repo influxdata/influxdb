@@ -40,6 +40,7 @@ class LineGraph extends Component {
       axes,
       cell,
       title,
+      colors,
       onZoom,
       queries,
       timeRange,
@@ -106,7 +107,7 @@ class LineGraph extends Component {
           options={options}
         />
         {showSingleStat
-          ? <SingleStat data={data} cellHeight={cellHeight} />
+          ? <SingleStat data={data} colors={colors} cellHeight={cellHeight} />
           : null}
       </div>
     )
@@ -170,6 +171,15 @@ LineGraph.propTypes = {
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
 }
 
 export default LineGraph

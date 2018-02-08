@@ -80,6 +80,7 @@
   height: calc(100% - 2px);
   pointer-events: none;
   border-radius: 3px;
+  transition: background-color 0.25s ease, color 0.25s ease;
   @include no-user-select();
   color: $c-laser;
 
@@ -91,9 +92,6 @@
     width: 100% !important;
     height: 100% !important;
   }
-}
-.single-stat.single-stat--colored {
-  transition: background-color 0.25s ease, color 0.25s ease;
 }
 .single-stat--value {
   position: absolute;

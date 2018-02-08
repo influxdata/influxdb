@@ -67,7 +67,7 @@ DashVisualization.propTypes = {
       id: string.isRequired,
       name: string.isRequired,
       value: string.isRequired,
-    }).isRequired
+    })
   ),
 }
 
