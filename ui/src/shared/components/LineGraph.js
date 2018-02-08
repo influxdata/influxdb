@@ -84,6 +84,14 @@ class LineGraph extends Component {
       ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
 
+    let prefix
+    let suffix
+
+    if (axes) {
+      prefix = axes.y.prefix
+      suffix = axes.y.suffix
+    }
+
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? <GraphLoadingDots /> : null}
@@ -108,6 +116,8 @@ class LineGraph extends Component {
         />
         {showSingleStat
           ? <SingleStat
+              prefix={prefix}
+              suffix={suffix}
               data={data}
               lineGraph={true}
               colors={colors}

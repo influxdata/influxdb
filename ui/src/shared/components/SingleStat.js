@@ -17,6 +17,7 @@ class SingleStat extends PureComponent {
       cellHeight,
       isFetchingInitially,
       colors,
+      prefix,
       suffix,
       lineGraph,
     } = this.props
@@ -74,6 +75,7 @@ class SingleStat extends PureComponent {
             'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
           })}
         >
+          {prefix}
           {roundedValue}
           {suffix}
           {lineGraph && <div className="single-stat--shadow" />}
@@ -98,6 +100,7 @@ SingleStat.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  prefix: string,
   suffix: string,
   lineGraph: bool,
 }
