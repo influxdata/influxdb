@@ -242,8 +242,16 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
 
 .gauge-controls--input {
   flex: 1 0 0;
-  margin: 0 4px;
+  margin: 0 0 0 4px;
 }
+.gauge-controls--section .color-dropdown {
+  margin-left: 4px;
+}
+.gauge-controls--section .color-dropdown.color-dropdown--stretch {
+  width: auto;
+  flex: 1 0 0;
+}
+
 
 /*
   Cell Editor Overlay - Single-Stat Controls

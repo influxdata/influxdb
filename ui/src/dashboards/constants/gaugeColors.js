@@ -11,6 +11,7 @@ export const COLOR_TYPE_THRESHOLD = 'threshold'
 
 export const SINGLE_STAT_TEXT = 'text'
 export const SINGLE_STAT_BG = 'background'
+export const SINGLE_STAT_BASE = 'base'
 
 export const GAUGE_COLORS = [
   {
@@ -81,9 +82,13 @@ export const GAUGE_COLORS = [
     hex: '#545667',
     name: 'graphite',
   },
+  {
+    hex: '#ffffff',
+    name: 'white',
+  },
 ]
 
-export const DEFAULT_COLORS = [
+export const DEFAULT_GAUGE_COLORS = [
   {
     type: COLOR_TYPE_MIN,
     hex: GAUGE_COLORS[11].hex,
@@ -100,27 +105,60 @@ export const DEFAULT_COLORS = [
   },
 ]
 
-export const validateColors = (colors, type, colorSingleStatText) => {
-  if (type === 'single-stat') {
-    // Single stat colors should all have type of 'text' or 'background'
-    const colorType = colorSingleStatText ? SINGLE_STAT_TEXT : SINGLE_STAT_BG
-    return colors ? colors.map(color => ({...color, type: colorType})) : null
-  }
+export const DEFAULT_SINGLESTAT_COLORS = [
+  {
+    type: SINGLE_STAT_TEXT,
+    hex: GAUGE_COLORS[11].hex,
+    id: SINGLE_STAT_BASE,
+    name: GAUGE_COLORS[11].name,
+    value: '0',
+  },
+]
+
+export const validateSingleStatColors = (colors, coloration) => {
   if (!colors || colors.length === 0) {
-    return DEFAULT_COLORS
-  }
-  if (type === 'gauge') {
-    // Gauge colors should have a type of min, any number of thresholds, and a max
-    const formatttedColors = _.sortBy(colors, color =>
-      Number(color.value)
-    ).map(c => ({
-      ...c,
-      type: COLOR_TYPE_THRESHOLD,
-    }))
-    formatttedColors[0].type = COLOR_TYPE_MIN
-    formatttedColors[formatttedColors.length - 1].type = COLOR_TYPE_MAX
-    return formatttedColors
+    return DEFAULT_SINGLESTAT_COLORS
   }
 
-  return colors.length >= MIN_THRESHOLDS ? colors : DEFAULT_COLORS
+  const containsBaseColor = !!colors.filter(
+    color => color.id === SINGLE_STAT_BASE
+  )
+
+  const filteredColors = colors.map(c => {
+    if (c.id !== SINGLE_STAT_BASE) {
+      // Single stat colors should all have type of 'text' or 'background'
+      c.type = coloration
+    }
+  })
+
+  return containsBaseColor
+    ? filteredColors
+    : [...filteredColors, DEFAULT_SINGLESTAT_COLORS[0]]
+}
+
+export const getSingleStatColoration = colors => {
+  if (!colors || colors.length === 0) {
+    return SINGLE_STAT_TEXT
+  }
+
+  return colors[0].type
+}
+
+export const validateGaugeColors = colors => {
+  if (!colors || colors.length < MIN_THRESHOLDS) {
+    return DEFAULT_GAUGE_COLORS
+  }
+
+  // Gauge colors should have a type of min, any number of thresholds, and a max
+  const formatttedColors = _.sortBy(colors, color =>
+    Number(color.value)
+  ).map(color => ({
+    ...color,
+    type: COLOR_TYPE_THRESHOLD,
+  }))
+
+  formatttedColors[0].type = COLOR_TYPE_MIN
+  formatttedColors[formatttedColors.length - 1].type = COLOR_TYPE_MAX
+
+  return formatttedColors
 }

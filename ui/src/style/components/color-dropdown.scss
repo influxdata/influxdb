@@ -11,6 +11,10 @@ $color-dropdown--circle: 14px;
   position: relative;
 }
 
+.color-dropdown.color-dropdown--stretch {
+  width: 100%;
+}
+
 .color-dropdown--toggle {
   width: 100%;
   position: relative;

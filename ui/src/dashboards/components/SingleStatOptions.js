@@ -3,9 +3,20 @@ import _ from 'lodash'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
+import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
+import {
+  GAUGE_COLORS,
+  MAX_THRESHOLDS,
+  SINGLE_STAT_BASE,
+  SINGLE_STAT_TEXT,
+  SINGLE_STAT_BG,
+} from 'src/dashboards/constants/gaugeColors'
 
+const formatColor = color => {
+  const {hex, name} = color
+  return {hex, name}
+}
 const SingleStatOptions = ({
   suffix,
   onSetSuffix,
@@ -15,8 +26,8 @@ const SingleStatOptions = ({
   onChooseColor,
   onValidateColorValue,
   onUpdateColorValue,
-  colorSingleStatText,
-  onToggleSingleStatText,
+  singleStatColoration,
+  onToggleSingleStatColoration,
 }) => {
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
 
@@ -37,16 +48,27 @@ const SingleStatOptions = ({
           >
             <span className="icon plus" /> Add Threshold
           </button>
-          {sortedColors.map(color =>
-            <Threshold
-              visualizationType="single-stat"
-              threshold={color}
-              key={color.id}
-              onChooseColor={onChooseColor}
-              onValidateColorValue={onValidateColorValue}
-              onUpdateColorValue={onUpdateColorValue}
-              onDeleteThreshold={onDeleteThreshold}
-            />
+          {sortedColors.map(
+            color =>
+              color.id === SINGLE_STAT_BASE
+                ? <div className="gauge-controls--section" key={color.id}>
+                    <div className="gauge-controls--label">Base Color</div>
+                    <ColorDropdown
+                      colors={GAUGE_COLORS}
+                      selected={formatColor(color)}
+                      onChoose={onChooseColor(color)}
+                      stretchToFit={true}
+                    />
+                  </div>
+                : <Threshold
+                    visualizationType="single-stat"
+                    threshold={color}
+                    key={color.id}
+                    onChooseColor={onChooseColor}
+                    onValidateColorValue={onValidateColorValue}
+                    onUpdateColorValue={onUpdateColorValue}
+                    onDeleteThreshold={onDeleteThreshold}
+                  />
           )}
         </div>
         <div className="single-stat-controls">
@@ -54,14 +76,18 @@ const SingleStatOptions = ({
             <label>Coloring</label>
             <ul className="nav nav-tablist nav-tablist-sm">
               <li
-                className={colorSingleStatText ? null : 'active'}
-                onClick={onToggleSingleStatText}
+                className={
+                  singleStatColoration === SINGLE_STAT_BG ? 'active' : null
+                }
+                onClick={onToggleSingleStatColoration(SINGLE_STAT_BG)}
               >
                 Background
               </li>
               <li
-                className={colorSingleStatText ? 'active' : null}
-                onClick={onToggleSingleStatText}
+                className={
+                  singleStatColoration === SINGLE_STAT_TEXT ? 'active' : null
+                }
+                onClick={onToggleSingleStatColoration(SINGLE_STAT_TEXT)}
               >
                 Text
               </li>
@@ -83,7 +109,7 @@ const SingleStatOptions = ({
   )
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 SingleStatOptions.defaultProps = {
   colors: [],
@@ -104,8 +130,8 @@ SingleStatOptions.propTypes = {
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
-  colorSingleStatText: bool.isRequired,
-  onToggleSingleStatText: func.isRequired,
+  singleStatColoration: string.isRequired,
+  onToggleSingleStatColoration: func.isRequired,
   onSetSuffix: func.isRequired,
   suffix: string.isRequired,
 }

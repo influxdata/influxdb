@@ -28,9 +28,9 @@ import {
   DEFAULT_VALUE_MIN,
   DEFAULT_VALUE_MAX,
   GAUGE_COLORS,
-  SINGLE_STAT_TEXT,
-  SINGLE_STAT_BG,
-  validateColors,
+  validateGaugeColors,
+  validateSingleStatColors,
+  getSingleStatColoration,
 } from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
@@ -49,7 +49,8 @@ class CellEditorOverlay extends Component {
         source,
       }))
     )
-    const colorsTypeContainsText = _.some(colors, {type: SINGLE_STAT_TEXT})
+
+    const singleStatColoration = getSingleStatColoration(colors)
 
     this.state = {
       cellWorkingName: name,
@@ -58,8 +59,13 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
-      colorSingleStatText: colorsTypeContainsText,
-      colors: validateColors(colors, type, colorsTypeContainsText),
+      singleStatColoration,
+      gaugeColors: validateGaugeColors(colors, type),
+      singleStatColors: validateSingleStatColors(
+        colors,
+        type,
+        singleStatColoration
+      ),
     }
   }
 
@@ -80,23 +86,17 @@ class CellEditorOverlay extends Component {
     this.overlayRef.focus()
   }
 
-  handleAddThreshold = () => {
-    const {colors, cellWorkingType} = this.state
-    const sortedColors = _.sortBy(colors, color => Number(color.value))
+  handleAddGaugeThreshold = () => {
+    const {gaugeColors} = this.state
+    const sortedColors = _.sortBy(gaugeColors, color => Number(color.value))
 
     if (sortedColors.length <= MAX_THRESHOLDS) {
       const randomColor = _.random(0, GAUGE_COLORS.length - 1)
 
-      const maxValue =
-        cellWorkingType === 'gauge'
-          ? Number(sortedColors[sortedColors.length - 1].value)
-          : DEFAULT_VALUE_MAX
-      const minValue =
-        cellWorkingType === 'gauge'
-          ? Number(sortedColors[0].value)
-          : DEFAULT_VALUE_MIN
+      const maxValue = Number(sortedColors[sortedColors.length - 1].value)
+      const minValue = Number(sortedColors[0].value)
 
-      const colorsValues = _.mapValues(colors, 'value')
+      const colorsValues = _.mapValues(gaugeColors, 'value')
       let randomValue
 
       do {
@@ -111,50 +111,121 @@ class CellEditorOverlay extends Component {
         name: GAUGE_COLORS[randomColor].name,
       }
 
-      this.setState({colors: [...colors, newThreshold]})
+      this.setState({gaugeColors: [...gaugeColors, newThreshold]})
     }
   }
 
+  handleAddSingleStatThreshold = () => {
+    const {singleStatColors, singleStatColoration} = this.state
+
+    const randomColor = _.random(0, GAUGE_COLORS.length - 1)
+
+    const maxValue = Number(DEFAULT_VALUE_MIN)
+    const minValue = Number(DEFAULT_VALUE_MAX)
+
+    let randomValue = _.round(_.random(minValue, maxValue, true), 2)
+
+    if (singleStatColors.length > 0) {
+      const colorsValues = _.mapValues(singleStatColors, 'value')
+      do {
+        randomValue = `${_.round(_.random(minValue, maxValue, true), 2)}`
+      } while (_.includes(colorsValues, randomValue))
+    }
+
+    const newThreshold = {
+      type: singleStatColoration,
+      id: uuid.v4(),
+      value: randomValue,
+      hex: GAUGE_COLORS[randomColor].hex,
+      name: GAUGE_COLORS[randomColor].name,
+    }
+
+    this.setState({singleStatColors: [...singleStatColors, newThreshold]})
+  }
+
   handleDeleteThreshold = threshold => () => {
-    const {colors} = this.state
+    const {cellWorkingType} = this.state
 
-    const newColors = colors.filter(color => color.id !== threshold.id)
+    if (cellWorkingType === 'gauge') {
+      const gaugeColors = this.state.gaugeColors.filter(
+        color => color.id !== threshold.id
+      )
 
-    this.setState({colors: newColors})
+      this.setState({gaugeColors})
+    }
+
+    if (cellWorkingType === 'single-stat') {
+      const singleStatColors = this.state.singleStatColors.filter(
+        color => color.id !== threshold.id
+      )
+
+      this.setState({singleStatColors})
+    }
   }
 
   handleChooseColor = threshold => chosenColor => {
-    const {colors} = this.state
+    const {cellWorkingType} = this.state
 
-    const newColors = colors.map(
-      color =>
-        color.id === threshold.id
-          ? {...color, hex: chosenColor.hex, name: chosenColor.name}
-          : color
-    )
+    if (cellWorkingType === 'gauge') {
+      const gaugeColors = this.state.gaugeColors.map(
+        color =>
+          color.id === threshold.id
+            ? {...color, hex: chosenColor.hex, name: chosenColor.name}
+            : color
+      )
 
-    this.setState({colors: newColors})
+      this.setState({gaugeColors})
+    }
+
+    if (cellWorkingType === 'single-stat') {
+      const singleStatColors = this.state.singleStatColors.map(
+        color =>
+          color.id === threshold.id
+            ? {...color, hex: chosenColor.hex, name: chosenColor.name}
+            : color
+      )
+
+      this.setState({singleStatColors})
+    }
   }
 
   handleUpdateColorValue = (threshold, newValue) => {
-    const {colors} = this.state
-    const newColors = colors.map(
-      color => (color.id === threshold.id ? {...color, value: newValue} : color)
-    )
-    this.setState({colors: newColors})
+    const {cellWorkingType} = this.state
+
+    if (cellWorkingType === 'gauge') {
+      const gaugeColors = this.state.gaugeColors.map(
+        color =>
+          color.id === threshold.id ? {...color, value: newValue} : color
+      )
+
+      this.setState({gaugeColors})
+    }
+
+    if (cellWorkingType === 'single-stat') {
+      const singleStatColors = this.state.singleStatColors.map(
+        color =>
+          color.id === threshold.id ? {...color, value: newValue} : color
+      )
+
+      this.setState({singleStatColors})
+    }
   }
 
   handleValidateColorValue = (threshold, e) => {
-    const {colors, cellWorkingType} = this.state
-    const sortedColors = _.sortBy(colors, color => Number(color.value))
+    const {gaugeColors, singleStatColors, cellWorkingType} = this.state
     const thresholdValue = Number(threshold.value)
     const targetValueNumber = Number(e.target.value)
     let allowedToUpdate = false
 
     if (cellWorkingType === 'single-stat') {
       // If type is single-stat then value only has to be unique
+      const sortedColors = _.sortBy(singleStatColors, color =>
+        Number(color.value)
+      )
       return !sortedColors.some(color => color.value === e.target.value)
     }
+
+    const sortedColors = _.sortBy(gaugeColors, color => Number(color.value))
 
     const minValue = Number(sortedColors[0].value)
     const maxValue = Number(sortedColors[sortedColors.length - 1].value)
@@ -189,16 +260,15 @@ class CellEditorOverlay extends Component {
     return allowedToUpdate
   }
 
-  handleToggleSingleStatText = () => {
-    const {colors, colorSingleStatText} = this.state
-    const formattedColors = colors.map(color => ({
+  handleToggleSingleStatColoration = newColoration => () => {
+    const singleStatColors = this.state.singleStatColors.map(color => ({
       ...color,
-      type: colorSingleStatText ? SINGLE_STAT_BG : SINGLE_STAT_TEXT,
+      type: newColoration,
     }))
 
     this.setState({
-      colorSingleStatText: !colorSingleStatText,
-      colors: formattedColors,
+      singleStatColoration: newColoration,
+      singleStatColors,
     })
   }
 
@@ -298,7 +368,8 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       cellWorkingName: name,
       axes,
-      colors,
+      gaugeColors,
+      singleStatColors,
     } = this.state
 
     const {cell} = this.props
@@ -314,6 +385,13 @@ class CellEditorOverlay extends Component {
       }
     })
 
+    let colors = []
+    if (type === 'gauge') {
+      colors = gaugeColors
+    } else if (type === 'single-stat') {
+      colors = singleStatColors
+    }
+
     this.props.onSave({
       ...cell,
       name,
@@ -324,14 +402,8 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleSelectGraphType = graphType => () => {
-    const {colors, colorSingleStatText} = this.state
-    const validatedColors = validateColors(
-      colors,
-      graphType,
-      colorSingleStatText
-    )
-    this.setState({cellWorkingType: graphType, colors: validatedColors})
+  handleSelectGraphType = cellWorkingType => () => {
+    this.setState({cellWorkingType})
   }
 
   handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
@@ -474,13 +546,14 @@ class CellEditorOverlay extends Component {
 
     const {
       axes,
-      colors,
+      gaugeColors,
+      singleStatColors,
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
-      colorSingleStatText,
+      singleStatColoration,
     } = this.state
 
     const queryActions = {
@@ -491,6 +564,13 @@ class CellEditorOverlay extends Component {
     const isQuerySavable = query =>
       (!!query.measurement && !!query.database && !!query.fields.length) ||
       !!query.rawText
+
+    let visualizationColors
+    if (cellWorkingType === 'gauge') {
+      visualizationColors = gaugeColors
+    } else if (cellWorkingType === 'single-stat') {
+      visualizationColors = singleStatColors
+    }
 
     return (
       <div
@@ -508,7 +588,7 @@ class CellEditorOverlay extends Component {
         >
           <Visualization
             axes={axes}
-            colors={colors}
+            colors={visualizationColors}
             type={cellWorkingType}
             name={cellWorkingName}
             timeRange={timeRange}
@@ -533,14 +613,18 @@ class CellEditorOverlay extends Component {
             {isDisplayOptionsTabActive
               ? <DisplayOptions
                   axes={axes}
-                  colors={colors}
+                  gaugeColors={gaugeColors}
+                  singleStatColors={singleStatColors}
                   onChooseColor={this.handleChooseColor}
                   onValidateColorValue={this.handleValidateColorValue}
                   onUpdateColorValue={this.handleUpdateColorValue}
-                  onAddThreshold={this.handleAddThreshold}
+                  onAddGaugeThreshold={this.handleAddGaugeThreshold}
+                  onAddSingleStatThreshold={this.handleAddSingleStatThreshold}
                   onDeleteThreshold={this.handleDeleteThreshold}
-                  onToggleSingleStatText={this.handleToggleSingleStatText}
-                  colorSingleStatText={colorSingleStatText}
+                  onToggleSingleStatColoration={
+                    this.handleToggleSingleStatColoration
+                  }
+                  singleStatColoration={singleStatColoration}
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
