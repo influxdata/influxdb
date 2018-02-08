@@ -5,10 +5,7 @@ import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
 import {SINGLE_STAT_TEXT} from 'src/dashboards/constants/gaugeColors'
-import {isBackgroundLight} from 'shared/constants/colorOperations'
-
-const darkText = '#292933'
-const lightText = '#ffffff'
+import {generateSingleStatHexs} from 'shared/constants/colorOperations'
 
 class SingleStat extends PureComponent {
   render() {
@@ -32,38 +29,16 @@ class SingleStat extends PureComponent {
     }
 
     const lastValue = lastValues(data)[1]
-
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
-    let bgColor = null
-    let textColor = null
+    const colorizeText = _.some(colors, {type: SINGLE_STAT_TEXT})
 
-    if (colors.length === 1) {
-      if (colors[0].type === SINGLE_STAT_TEXT) {
-        textColor = colors[0].hex
-      } else {
-        bgColor = colors[0].hex
-        textColor = isBackgroundLight(bgColor) ? darkText : lightText
-      }
-    } else if (colors.length > 1) {
-      const sortedColors = _.sortBy(colors, color => Number(color.value))
-      const nearestCrossedThreshold = sortedColors
-        .filter(color => lastValue > color.value)
-        .pop()
-
-      const colorizeText = _.some(colors, {type: SINGLE_STAT_TEXT})
-
-      if (colorizeText) {
-        textColor = nearestCrossedThreshold
-          ? nearestCrossedThreshold.hex
-          : '#292933'
-      } else {
-        bgColor = nearestCrossedThreshold
-          ? nearestCrossedThreshold.hex
-          : '#292933'
-        textColor = isBackgroundLight(bgColor) ? darkText : lightText
-      }
-    }
+    const {bgColor, textColor} = generateSingleStatHexs(
+      colors,
+      lineGraph,
+      colorizeText,
+      lastValue
+    )
 
     return (
       <div
