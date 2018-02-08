@@ -10,7 +10,7 @@ class TalkConfig extends Component {
     }
   }
 
-  handleSubmit = e => {
+  handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
@@ -18,8 +18,10 @@ class TalkConfig extends Component {
       author_name: this.author.value,
     }
 
-    this.props.onSave(properties)
-    this.setState({testEnabled: true})
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
   }
 
   disableTest = () => {

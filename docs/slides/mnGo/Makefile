@@ -3,7 +3,7 @@
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
 GDM := $(shell command -v gdm 2> /dev/null)
-GOBINDATA := $(shell go list -f {{.Root}}  github.com/jteeuwen/go-bindata 2> /dev/null)
+GOBINDATA := $(shell go list -f {{.Root}}  github.com/kevinburke/go-bindata 2> /dev/null)
 YARN := $(shell command -v yarn 2> /dev/null)
 
 SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go')
@@ -63,7 +63,7 @@ ifndef GDM
 endif
 ifndef GOBINDATA
 	@echo "Installing go-bindata"
-	go get -u github.com/jteeuwen/go-bindata/...
+	go get -u github.com/kevinburke/go-bindata/...
 endif
 	gdm restore
 	@touch .godep

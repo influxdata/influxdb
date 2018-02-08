@@ -5,6 +5,7 @@
 1. [#2708](https://github.com/influxdata/chronograf/pull/2708): Link to specified kapacitor config panel from rule builder alert handlers
 1. [#2722](https://github.com/influxdata/chronograf/pull/2722): Add auto refresh widget to hosts list page
 1. [#2765](https://github.com/influxdata/chronograf/pull/2765): Update to go 1.9.3 and node 6.12.3 for releases
+1. [#2784](https://github.com/influxdata/chronograf/pull/2784): Update to go 1.9.4
 1. [#2703](https://github.com/influxdata/chronograf/pull/2703): Add global users page visible only to super admins
 1. [#2777](https://github.com/influxdata/chronograf/pull/2777): Allow user to delete themselves
  
@@ -17,8 +18,10 @@
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
 1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
+1. [#2757](https://github.com/influxdata/chronograf/pull/2757): Added "TO" field to kapacitor SMTP config, and improved error messages for config saving and testing
 1. [#2761](https://github.com/influxdata/chronograf/pull/2761): Remove cli options from sysvinit service file
 1. [#2788](https://github.com/influxdata/chronograf/pull/2788): Fix disappearance of text in Single Stat graphs during editing
+1. [#2780](https://github.com/influxdata/chronograf/pull/2780): Fix routing on alert save
 
 ## v1.4.0.1 [2017-1-9]
 ### Features

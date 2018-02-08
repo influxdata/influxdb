@@ -11,7 +11,8 @@ const {
   colActions,
 } = ALL_USERS_TABLE
 
-const nullOrganization = {id: null, name: 'None'}
+const nullOrganization = {id: undefined, name: 'None'}
+const nullRole = {name: '*', organization: undefined}
 
 class AllUsersTableRowNew extends Component {
   constructor(props) {
@@ -21,11 +22,9 @@ class AllUsersTableRowNew extends Component {
       name: '',
       provider: '',
       scheme: 'oauth2',
-      roles: [
-        {
-          ...nullOrganization,
-        },
-      ],
+      role: {
+        ...nullRole,
+      },
     }
   }
 
@@ -35,16 +34,17 @@ class AllUsersTableRowNew extends Component {
 
   handleConfirmCreateUser = () => {
     const {onBlur, onCreateUser} = this.props
-    const {name, provider, scheme, roles, superAdmin} = this.state
-
+    const {name, provider, scheme, role, superAdmin} = this.state
     const newUser = {
       name,
       provider,
       scheme,
       superAdmin,
-      roles: roles[0].id === null ? [] : roles,
+      // since you can only choose one organization, there is only one role in a new row
+      // if no organization is selected ie the "None" organization,
+      // then set roles to an empty array
+      roles: role.organization === undefined ? [] : [role],
     }
-
     onCreateUser(newUser)
     onBlur()
   }
@@ -54,17 +54,18 @@ class AllUsersTableRowNew extends Component {
   }
 
   handleSelectOrganization = newOrganization => {
-    const newRoles = [
-      newOrganization.id === null
+    // if "None" was selected for organization, create a "null role" from the predefined null role
+    // else create a new role with the organization as the newOrganization's id
+    const newRole =
+      newOrganization.id === undefined
         ? {
-            ...nullOrganization,
+            ...nullRole,
           }
         : {
-            id: newOrganization.id,
+            organization: newOrganization.id,
             name: '*', // '*' causes the server to determine the current defaultRole of the selected organization
-          },
-    ]
-    this.setState({roles: newRoles})
+          }
+    this.setState({role: newRole})
   }
 
   handleKeyDown = e => {
@@ -88,7 +89,7 @@ class AllUsersTableRowNew extends Component {
 
   render() {
     const {organizations, onBlur} = this.props
-    const {name, provider, scheme, roles} = this.state
+    const {name, provider, scheme, role} = this.state
 
     const dropdownOrganizationsItems = [
       {...nullOrganization},
@@ -98,7 +99,7 @@ class AllUsersTableRowNew extends Component {
       text: o.name,
     }))
     const selectedRole = dropdownOrganizationsItems.find(
-      o => roles[0].id === o.id
+      o => role.organization === o.id
     )
 
     const preventCreate = !name || !provider
