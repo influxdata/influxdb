@@ -91,7 +91,9 @@ class KapacitorRule extends Component {
       router.push({
         pathname,
       })
-    } else if (rule.id === DEFAULT_RULE_ID) {
+      return
+    }
+    if (rule.id === DEFAULT_RULE_ID) {
       this.handleCreate(pathname)
     } else {
       this.handleEdit(pathname)
