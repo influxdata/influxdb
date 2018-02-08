@@ -128,9 +128,7 @@
   width: 90%;
   height: 0;
   transform: translate(-50%,-50%);
-  box-shadow:
-    $g2-kevlar 0 0 30px 10px,
-    fade-out($g2-kevlar, 0.3) 0 0 50px 30px;
+  box-shadow: fade-out($g2-kevlar, 0.3) 0 0 50px 30px;
   z-index: -1;
 }
 .single-stat--small .single-stat--shadow:after {
