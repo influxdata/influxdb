@@ -41,6 +41,7 @@ v1.5.0 [unreleased]
 -	[#9335](https://github.com/influxdata/influxdb/pull/9335): Prevent race condition caused by WaitGroup re-use
 -	[#9386](https://github.com/influxdata/influxdb/issues/9386): Fix stddev() call to report itself as always returning a float.
 -	[#9336](https://github.com/influxdata/influxdb/issues/9336): Fix `influx -import` importing to incorrect databases when export file had multiple databases. Thanks @wwilfinger!
+-	[#9401](https://github.com/influxdata/influxdb/pull/9401): Fix windows history file location.
 
 v1.4.3 [unreleased]
 -------------------
@@ -810,7 +811,6 @@ With this release the systemd configuration files for InfluxDB will use the syst
 -	[#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
 -	[#5501](https://github.com/influxdata/influxdb/issues/5501): Queries against files that have just been compacted need to point to new files
 -	[#2048](https://github.com/influxdata/influxdb/issues/2048): Check that retention policies exist before creating CQ
--	[#9401](https://github.com/influxdata/influxdb/pull/9401): Fix windows history file location.
 
 v0.13.0 [2016-05-12]
 --------------------
