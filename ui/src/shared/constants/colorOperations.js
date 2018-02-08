@@ -48,8 +48,7 @@ export const generateSingleStatHexs = (
   lastValue
 ) => {
   const defaultColoring = {bgColor: null, textColor: GAUGE_COLORS[11].hex}
-
-  if (!colors & containsLineGraph) {
+  if (!colors.length) {
     return defaultColoring
   }
 
