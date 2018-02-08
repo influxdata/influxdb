@@ -143,9 +143,11 @@ export const validateSingleStatColors = (colors, coloration) => {
 export const getSingleStatColoration = colors => {
   if (!colors || colors.length === 0) {
     return SINGLE_STAT_TEXT
+  } else if (colors[0].type === (SINGLE_STAT_TEXT || SINGLE_STAT_BG)) {
+    return colors[0].type
   }
 
-  return colors[0].type
+  return SINGLE_STAT_TEXT
 }
 
 export const validateGaugeColors = colors => {
