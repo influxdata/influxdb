@@ -1,7 +1,4 @@
 ###### Required for all non-trivial PRs
-- [ ] Rebased/mergable
-- [ ] Tests pass
-- [ ] CHANGELOG.md updated
 - [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
 
 ###### Required only if applicable
