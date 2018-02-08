@@ -1,4 +1,4 @@
-required = ["github.com/jteeuwen/go-bindata","github.com/gogo/protobuf/proto","github.com/gogo/protobuf/jsonpb","github.com/gogo/protobuf/protoc-gen-gogo","github.com/gogo/protobuf/gogoproto"]
+required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto","github.com/gogo/protobuf/jsonpb","github.com/gogo/protobuf/protoc-gen-gogo","github.com/gogo/protobuf/gogoproto"]
 
 [[constraint]]
   name = "github.com/NYTimes/gziphandler"
@@ -41,8 +41,8 @@ required = ["github.com/jteeuwen/go-bindata","github.com/gogo/protobuf/proto","g
   revision = "4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa"
 
 [[constraint]]
-  name = "github.com/jteeuwen/go-bindata"
-  revision = "a0ff2567cfb70903282db057e799fd826784d41d"
+  name = "github.com/kevinburke/go-bindata"
+  revision = "46eb4c183bfc1ebb527d9d19bcded39476302eb8"
 
 [[constraint]]
   name = "github.com/satori/go.uuid"
