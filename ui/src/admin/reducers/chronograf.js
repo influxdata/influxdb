@@ -5,7 +5,7 @@ const initialState = {
   organizations: [],
   mappings: [],
   authConfig: {
-    superAdminNewUsers: true,
+    superAdminNewUsers: false,
   },
 }
 
@@ -21,7 +21,7 @@ const adminChronograf = (state = initialState, action) => {
 
     case 'CHRONOGRAF_ADD_USER': {
       const {user} = action.payload
-      return {...state, users: [user, ...state.users]}
+      return {...state, users: [...state.users, user]}
     }
 
     case 'CHRONOGRAF_UPDATE_USER': {

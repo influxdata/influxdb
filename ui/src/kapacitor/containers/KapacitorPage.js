@@ -55,7 +55,7 @@ class KapacitorPage extends Component {
     const {value, name} = e.target
 
     this.setState(prevState => {
-      const update = {[name]: value.trim()}
+      const update = {[name]: value}
       return {kapacitor: {...prevState.kapacitor, ...update}}
     })
   }
@@ -70,7 +70,7 @@ class KapacitorPage extends Component {
       router,
     } = this.props
     const {kapacitor} = this.state
-
+    kapacitor.name = kapacitor.name.trim()
     const isNameTaken = kapacitors.some(k => k.name === kapacitor.name)
     const isNew = !params.id
 
@@ -136,9 +136,9 @@ class KapacitorPage extends Component {
   }
 
   render() {
-    const {source, addFlashMessage} = this.props
+    const {source, addFlashMessage, location, params} = this.props
+    const hash = (location && location.hash) || (params && params.hash) || ''
     const {kapacitor, exists} = this.state
-
     return (
       <KapacitorForm
         onSubmit={this.handleSubmit}
@@ -148,6 +148,7 @@ class KapacitorPage extends Component {
         source={source}
         addFlashMessage={addFlashMessage}
         exists={exists}
+        hash={hash}
       />
     )
   }
@@ -168,6 +169,7 @@ KapacitorPage.propTypes = {
     url: string.isRequired,
     kapacitors: array,
   }),
+  location: shape({pathname: string, hash: string}).isRequired,
 }
 
 export default withRouter(KapacitorPage)

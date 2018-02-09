@@ -5,7 +5,7 @@ import {
 import {delayEnablePresentationMode} from 'shared/actions/app'
 
 import {PRESENTATION_MODE_NOTIFICATION_DELAY} from 'shared/constants'
-import {SHORT_NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
+import {NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
 
 export function delayDismissNotification(type, delay) {
   return dispatch => {
@@ -16,7 +16,7 @@ export function delayDismissNotification(type, delay) {
 export const publishAutoDismissingNotification = (
   type,
   message,
-  delay = SHORT_NOTIFICATION_DISMISS_DELAY
+  delay = NOTIFICATION_DISMISS_DELAY
 ) => dispatch => {
   dispatch(publishNotification(type, message))
   dispatch(delayDismissNotification(type, delay))

@@ -1,9 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-
 import Dropdown from 'shared/components/Dropdown'
-import SlideToggle from 'shared/components/SlideToggle'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
@@ -13,11 +10,10 @@ const UsersTableRow = ({
   user,
   organization,
   onChangeUserRole,
-  onChangeSuperAdmin,
   onDelete,
   meID,
 }) => {
-  const {colRole, colSuperAdmin, colProvider, colScheme} = USERS_TABLE
+  const {colRole, colProvider, colScheme} = USERS_TABLE
 
   const dropdownRolesItems = USER_ROLES.map(r => ({
     ...r,
@@ -53,16 +49,6 @@ const UsersTableRow = ({
           />
         </span>
       </td>
-      <Authorized requiredRole={SUPERADMIN_ROLE}>
-        <td style={{width: colSuperAdmin}} className="text-center">
-          <SlideToggle
-            active={user.superAdmin}
-            onToggle={onChangeSuperAdmin(user)}
-            size="xs"
-            disabled={userIsMe}
-          />
-        </td>
-      </Authorized>
       <td style={{width: colProvider}}>
         {user.provider}
       </td>
@@ -89,7 +75,6 @@ UsersTableRow.propTypes = {
     id: string.isRequired,
   }),
   onChangeUserRole: func.isRequired,
-  onChangeSuperAdmin: func.isRequired,
   onDelete: func.isRequired,
   meID: string.isRequired,
 }

@@ -93,17 +93,13 @@ type mappingResponse struct {
 	chronograf.Mapping
 }
 
-func newMappingResponse(m *chronograf.Mapping) *mappingResponse {
-	id := "unknown"
-	if m != nil {
-		id = m.ID
-	}
+func newMappingResponse(m chronograf.Mapping) *mappingResponse {
 
 	return &mappingResponse{
 		Links: selfLinks{
-			Self: fmt.Sprintf("/chronograf/v1/mappings/%s", id),
+			Self: fmt.Sprintf("/chronograf/v1/mappings/%s", m.ID),
 		},
-		Mapping: *m,
+		Mapping: m,
 	}
 }
 
@@ -115,7 +111,7 @@ type mappingsResponse struct {
 func newMappingsResponse(ms []chronograf.Mapping) *mappingsResponse {
 	mappings := []*mappingResponse{}
 	for _, m := range ms {
-		mappings = append(mappings, newMappingResponse(&m))
+		mappings = append(mappings, newMappingResponse(m))
 	}
 	return &mappingsResponse{
 		Links: selfLinks{
@@ -134,6 +130,8 @@ func (s *Service) Mappings(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusInternalServerError, "failed to retrieve mappings from database", s.Logger)
 		return
 	}
+
+	fmt.Printf("mappings: %#v\n", mappings)
 
 	res := newMappingsResponse(mappings)
 
@@ -174,7 +172,7 @@ func (s *Service) NewMapping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newMappingResponse(m)
+	cu := newMappingResponse(*m)
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusCreated, cu, s.Logger)
 }
@@ -214,7 +212,7 @@ func (s *Service) UpdateMapping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newMappingResponse(mapping)
+	cu := newMappingResponse(*mapping)
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusOK, cu, s.Logger)
 }

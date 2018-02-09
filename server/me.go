@@ -24,12 +24,25 @@ type meResponse struct {
 	CurrentOrganization *chronograf.Organization  `json:"currentOrganization,omitempty"`
 }
 
+type noAuthMeResponse struct {
+	Links meLinks `json:"links"`
+}
+
+func newNoAuthMeResponse() noAuthMeResponse {
+	return noAuthMeResponse{
+		Links: meLinks{
+			Self: "/chronograf/v1/me",
+		},
+	}
+}
+
 // If new user response is nil, return an empty meResponse because it
 // indicates authentication is not needed
-func newMeResponse(usr *chronograf.User) meResponse {
-	base := "/chronograf/v1/users"
+func newMeResponse(usr *chronograf.User, org string) meResponse {
+	base := "/chronograf/v1"
 	name := "me"
 	if usr != nil {
+		base = fmt.Sprintf("/chronograf/v1/organizations/%s/users", org)
 		name = PathEscape(fmt.Sprintf("%d", usr.ID))
 	}
 
@@ -181,7 +194,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !s.UseAuth {
 		// If there's no authentication, return an empty user
-		res := newMeResponse(nil)
+		res := newNoAuthMeResponse()
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
@@ -199,33 +212,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 	serverCtx := serverContext(ctx)
-
-	/* ALTERNATE 1
-	If existing
-		If roles, let them in
-		If no roles, purgatory
-
-	If new
-		Build new user
-		Generate roles for user based on defined mappings
-		If roles, save and let them in
-		If no roles, tell them box is private
-	*/
-
-	/* ALTERNATE 2
-	Find user => (existing)
-	If no user => (new)
-		Build new user, with superadmin based on setting
-		Generate roles for user based on defined mappings
-
-	If roles,
-		(existing) => let them in
-		(new) => save, let them in
-
-	If no roles,
-		(existing) => purgatory
-		(new) => tell them box is private
-	*/
 
 	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
 	if err != nil {
@@ -266,7 +252,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		res := newMeResponse(usr)
+		res := newMeResponse(usr, currentOrg.ID)
 		res.Organizations = orgs
 		res.CurrentOrganization = currentOrg
 		encodeJSON(w, http.StatusOK, res, s.Logger)
@@ -292,7 +278,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(roles) == 0 {
-		Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
+		Error(w, http.StatusForbidden, "This Chronograf is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
 	}
 
@@ -315,7 +301,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
-	res := newMeResponse(newUser)
+	res := newMeResponse(newUser, currentOrg.ID)
 	res.Organizations = orgs
 	res.CurrentOrganization = currentOrg
 	encodeJSON(w, http.StatusOK, res, s.Logger)

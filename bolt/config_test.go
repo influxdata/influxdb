@@ -22,7 +22,7 @@ func TestConfig_Get(t *testing.T) {
 			wants: wants{
 				config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
-						SuperAdminNewUsers: true,
+						SuperAdminNewUsers: false,
 					},
 				},
 			},

@@ -532,7 +532,7 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 					}
 				  }
 				  `))),
-			want: `{"i":"3c5c4102-fa40-4585-a8f9-917c77e37192","x":0,"y":0,"w":4,"h":4,"name":"Untitled Cell","queries":[{"query":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","queryConfig":{"id":"3cd3eaa4-a4b8-44b3-b69e-0c7bf6b91d9e","database":"telegraf","measurement":"cpu","retentionPolicy":"autogen","fields":[{"value":"mean","type":"func","alias":"mean_usage_user","args":[{"value":"usage_user","type":"field","alias":""}]}],"tags":{"cpu":["ChristohersMBP2.lan"]},"groupBy":{"time":"2s","tags":[]},"areTagsAccepted":true,"fill":"null","rawText":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","range":{"upper":"","lower":"now() - 15m"},"shifts":[]},"source":""}],"axes":{"x":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y2":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""}},"type":"line","colors":[{"id":"0","type":"min","hex":"#00C9FF","name":"laser","value":"0"},{"id":"1","type":"max","hex":"#9394FF","name":"comet","value":"100"}],"links":{"self":"/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192"}}
+			want: `{"i":"3c5c4102-fa40-4585-a8f9-917c77e37192","x":0,"y":0,"w":4,"h":4,"name":"Untitled Cell","queries":[{"query":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","queryConfig":{"id":"3cd3eaa4-a4b8-44b3-b69e-0c7bf6b91d9e","database":"telegraf","measurement":"cpu","retentionPolicy":"autogen","fields":[{"value":"mean","type":"func","alias":"mean_usage_user","args":[{"value":"usage_user","type":"field","alias":""}]}],"tags":{"cpu":["ChristohersMBP2.lan"]},"groupBy":{"time":"2s","tags":[]},"areTagsAccepted":true,"fill":"null","rawText":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","range":{"upper":"","lower":"now() - 15m"},"shifts":[]},"source":""}],"axes":{"x":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y2":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""}},"type":"line","colors":[{"id":"0","type":"min","hex":"#00C9FF","name":"laser","value":"0"},{"id":"1","type":"max","hex":"#9394FF","name":"comet","value":"100"}],"legend":{},"links":{"self":"/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192"}}
 `,
 		},
 		{
@@ -695,7 +695,7 @@ func Test_newCellResponses(t *testing.T) {
 		want   []dashboardCellResponse
 	}{
 		{
-			name: "foo",
+			name: "all fields set",
 			dID:  chronograf.DashboardID(1),
 			dcells: []chronograf.DashboardCell{
 				chronograf.DashboardCell{
@@ -751,6 +751,10 @@ func Test_newCellResponses(t *testing.T) {
 					CellColors: []chronograf.CellColor{
 						chronograf.CellColor{ID: "0", Type: "min", Hex: "#00C9FF", Name: "laser", Value: "0"},
 						chronograf.CellColor{ID: "1", Type: "max", Hex: "#9394FF", Name: "comet", Value: "100"},
+					},
+					Legend: chronograf.Legend{
+						Type:        "static",
+						Orientation: "bottom",
 					},
 				},
 			},
@@ -817,6 +821,50 @@ func Test_newCellResponses(t *testing.T) {
 								Value: "100",
 							},
 						},
+						Legend: chronograf.Legend{
+							Type:        "static",
+							Orientation: "bottom",
+						},
+					},
+					Links: dashboardCellLinks{
+						Self: "/chronograf/v1/dashboards/1/cells/445f8dc0-4d73-4168-8477-f628690d18a3"},
+				},
+			},
+		},
+		{
+			name: "nothing set",
+			dID:  chronograf.DashboardID(1),
+			dcells: []chronograf.DashboardCell{
+				chronograf.DashboardCell{
+					ID:   "445f8dc0-4d73-4168-8477-f628690d18a3",
+					X:    0,
+					Y:    0,
+					W:    4,
+					H:    4,
+					Name: "Untitled Cell",
+				},
+			},
+			want: []dashboardCellResponse{
+				{
+					DashboardCell: chronograf.DashboardCell{
+						ID:      "445f8dc0-4d73-4168-8477-f628690d18a3",
+						W:       4,
+						H:       4,
+						Name:    "Untitled Cell",
+						Queries: []chronograf.DashboardQuery{},
+						Axes: map[string]chronograf.Axis{
+							"x": chronograf.Axis{
+								Bounds: []string{},
+							},
+							"y": chronograf.Axis{
+								Bounds: []string{},
+							},
+							"y2": chronograf.Axis{
+								Bounds: []string{},
+							},
+						},
+						CellColors: []chronograf.CellColor{},
+						Legend:     chronograf.Legend{},
 					},
 					Links: dashboardCellLinks{
 						Self: "/chronograf/v1/dashboards/1/cells/445f8dc0-4d73-4168-8477-f628690d18a3"},
@@ -828,6 +876,100 @@ func Test_newCellResponses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := newCellResponses(tt.dID, tt.dcells); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("newCellResponses() = got-/want+ %s", cmp.Diff(got, tt.want))
+			}
+		})
+	}
+}
+
+func TestHasCorrectLegend(t *testing.T) {
+	tests := []struct {
+		name    string
+		c       *chronograf.DashboardCell
+		wantErr bool
+	}{
+		{
+			name: "empty legend is ok",
+			c:    &chronograf.DashboardCell{},
+		},
+		{
+			name: "must have both an orientation and type",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Type: "static",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "must have both a type and orientation",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Orientation: "bottom",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid types",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Type:        "no such type",
+					Orientation: "bottom",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid orientation",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Type:        "static",
+					Orientation: "no such orientation",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "orientation bottom valid",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Type:        "static",
+					Orientation: "bottom",
+				},
+			},
+		},
+		{
+			name: "orientation top valid",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Type:        "static",
+					Orientation: "top",
+				},
+			},
+		},
+		{
+			name: "orientation right valid",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Type:        "static",
+					Orientation: "right",
+				},
+			},
+		},
+		{
+			name: "orientation left valid",
+			c: &chronograf.DashboardCell{
+				Legend: chronograf.Legend{
+					Type:        "static",
+					Orientation: "left",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := HasCorrectLegend(tt.c); (err != nil) != tt.wantErr {
+				t.Errorf("HasCorrectLegend() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

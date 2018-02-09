@@ -1,0 +1,105 @@
+/*
+    Confirm Button
+    ----------------------------------------------------------------------------
+    This button requires a second click to confirm the action
+*/
+
+.confirm-button {
+  .confirm-button--tooltip {
+    visibility: hidden;
+    transition: all;
+    position: absolute;
+    z-index: 1;
+
+
+    &.bottom {
+      top: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    &.left {
+      top: 50%;
+      right: calc(100% + 4px);
+      transform: translateY(-50%);
+    }
+  }
+}
+.confirm-button--confirmation {
+  white-space: pre;
+  max-width: 210px;  
+  border-radius: 3px;
+  background-color: $c-curacao;
+  opacity: 0;
+  padding: 0 7px;
+  color: $g20-white;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  transition:
+    opacity 0.25s ease,
+    background-color 0.25s ease;
+
+  &:after {
+    content: '';
+    border: 8px solid transparent;
+    border-bottom-color: $c-curacao;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    transition: border-color 0.25s ease;
+    z-index: 100;
+  }
+
+  &:hover {
+    background-color: $c-dreamsicle;
+    cursor: pointer;
+  }
+  &:hover:after {
+    border-bottom-color: $c-dreamsicle;
+  }
+}
+
+.confirm-button--tooltip.bottom .confirm-button--confirmation:after {
+  bottom: 100%;
+  left: 50%;
+  border-bottom-color: $c-curacao;
+  transform: translateX(-50%);
+}
+.confirm-button--tooltip.bottom .confirm-button--confirmation:hover:after {
+  border-bottom-color: $c-dreamsicle;
+}
+.confirm-button--tooltip.left .confirm-button--confirmation:after {
+  left: 100%;
+  top: 50%;
+  border-left-color: $c-curacao;
+  transform: translateY(-50%);
+}
+.confirm-button--tooltip.left .confirm-button--confirmation:hover:after {
+  border-left-color: $c-dreamsicle;
+}
+
+.confirm-button.active {
+  z-index: 999;
+
+  .confirm-button--tooltip {
+    visibility: visible;
+  }
+  .confirm-button--confirmation {
+    opacity: 1;
+  }
+}
+.confirm-button.btn.btn-default.btn-xs.btn-xxs {
+  padding-right: 0;
+  margin-top: -1px;
+
+  &:hover {
+    background-color:$g5-pepper;
+    color: $g14-chromium;
+  }
+
+  span.icon.remove {
+    margin-right: 0;
+  }
+}

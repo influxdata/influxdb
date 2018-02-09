@@ -1,9 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 // AuthRoute are the routes for each type of OAuth2 provider
@@ -31,6 +33,7 @@ func (r *AuthRoutes) Lookup(provider string) (AuthRoute, bool) {
 type getRoutesResponse struct {
 	Layouts       string                   `json:"layouts"`          // Location of the layouts endpoint
 	Users         string                   `json:"users"`            // Location of the users endpoint
+	AllUsers      string                   `json:"allUsers"`         // Location of the raw users endpoint
 	Organizations string                   `json:"organizations"`    // Location of the organizations endpoint
 	Mappings      string                   `json:"mappings"`         // Location of the application mappings endpoint
 	Sources       string                   `json:"sources"`          // Location of the sources endpoint
@@ -47,14 +50,15 @@ type getRoutesResponse struct {
 // external links for the client to know about, such as for JSON feeds or custom side nav buttons.
 // Optionally, routes for authentication can be returned.
 type AllRoutes struct {
-	AuthRoutes  []AuthRoute       // Location of all auth routes. If no auth, this can be empty.
-	LogoutLink  string            // Location of the logout route for all auth routes. If no auth, this can be empty.
-	StatusFeed  string            // External link to the JSON Feed for the News Feed on the client's Status Page
-	CustomLinks map[string]string // Custom external links for client's User menu, as passed in via CLI/ENV
-	Logger      chronograf.Logger
+	GetPrincipal func(r *http.Request) oauth2.Principal // GetPrincipal is used to retrieve the principal on http request.
+	AuthRoutes   []AuthRoute                            // Location of all auth routes. If no auth, this can be empty.
+	LogoutLink   string                                 // Location of the logout route for all auth routes. If no auth, this can be empty.
+	StatusFeed   string                                 // External link to the JSON Feed for the News Feed on the client's Status Page
+	CustomLinks  map[string]string                      // Custom external links for client's User menu, as passed in via CLI/ENV
+	Logger       chronograf.Logger
 }
 
-// ServeHTTP returns all top level routes and external links within chronograf
+// serveHTTP returns all top level routes and external links within chronograf
 func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	customLinks, err := NewCustomLinks(a.CustomLinks)
 	if err != nil {
@@ -62,10 +66,20 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	org := "default"
+	if a.GetPrincipal != nil {
+		// If there is a principal, use the organization to populate the users routes
+		// otherwise use the default organization
+		if p := a.GetPrincipal(r); p.Organization != "" {
+			org = p.Organization
+		}
+	}
+
 	routes := getRoutesResponse{
 		Sources:       "/chronograf/v1/sources",
 		Layouts:       "/chronograf/v1/layouts",
-		Users:         "/chronograf/v1/users",
+		Users:         fmt.Sprintf("/chronograf/v1/organizations/%s/users", org),
+		AllUsers:      "/chronograf/v1/users",
 		Organizations: "/chronograf/v1/organizations",
 		Me:            "/chronograf/v1/me",
 		Environment:   "/chronograf/v1/env",

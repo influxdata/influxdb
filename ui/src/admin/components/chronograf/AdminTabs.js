@@ -9,11 +9,23 @@ import {
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
 import OrganizationsPage from 'src/admin/containers/chronograf/OrganizationsPage'
 import UsersPage from 'src/admin/containers/chronograf/UsersPage'
+<<<<<<< HEAD
 import ProvidersPage from 'src/admin/containers/ProvidersPage'
+||||||| merged common ancestors
+=======
+import AllUsersPage from 'src/admin/containers/chronograf/AllUsersPage'
+>>>>>>> master
 
 const ORGANIZATIONS_TAB_NAME = 'Organizations'
+<<<<<<< HEAD
 const USERS_TAB_NAME = 'Users'
 const PROVIDERS_TAB_NAME = 'Providers'
+||||||| merged common ancestors
+const USERS_TAB_NAME = 'Users'
+=======
+const CURRENT_ORG_USERS_TAB_NAME = 'Current Org Users'
+const ALL_USERS_TAB_NAME = 'All Users'
+>>>>>>> master
 
 const AdminTabs = ({
   me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
@@ -28,16 +40,25 @@ const AdminTabs = ({
     },
     {
       requiredRole: ADMIN_ROLE,
-      type: USERS_TAB_NAME,
+      type: CURRENT_ORG_USERS_TAB_NAME,
       component: (
         <UsersPage meID={meID} meCurrentOrganization={meCurrentOrganization} />
       ),
     },
+<<<<<<< HEAD
     {
       requiredRole: SUPERADMIN_ROLE,
       type: PROVIDERS_TAB_NAME,
       component: <ProvidersPage />,
     },
+||||||| merged common ancestors
+=======
+    {
+      requiredRole: SUPERADMIN_ROLE,
+      type: ALL_USERS_TAB_NAME,
+      component: <AllUsersPage meID={meID} />,
+    },
+>>>>>>> master
   ].filter(t => isUserAuthorized(meRole, t.requiredRole))
 
   return (
