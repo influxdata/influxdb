@@ -75,6 +75,7 @@ for f in CONFIGURATION_FILES:
 
 targets = {
     'chronograf' : './cmd/chronograf',
+    'chronoctl' : './cmd/chronoctl',
 }
 
 supported_builds = {
