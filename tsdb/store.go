@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
+
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
@@ -860,6 +862,12 @@ func (s *Store) sketchesForDatabase(dbName string, getSketches func(*Shard) (est
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(dbName))
 	s.mu.RUnlock()
+
+	// Never return nil sketches. In the case that db exists but no data written
+	// return empty sketches.
+	if len(shards) == 0 {
+		ss, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	}
 
 	// Iterate over all shards for the database and combine all of the sketches.
 	for _, shard := range shards {
