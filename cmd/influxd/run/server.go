@@ -271,6 +271,7 @@ func (s *Server) appendStorageService(c storage.Config) {
 		return
 	}
 	srv := storage.NewService(c)
+	srv.MetaClient = s.MetaClient
 	srv.TSDBStore = s.TSDBStore
 
 	s.Services = append(s.Services, srv)

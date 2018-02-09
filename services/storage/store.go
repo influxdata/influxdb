@@ -14,14 +14,9 @@ import (
 )
 
 type Store struct {
-	TSDBStore *tsdb.Store
-
-	MetaClient interface {
-		Database(name string) *meta.DatabaseInfo
-		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-	}
-
-	Logger *zap.Logger
+	TSDBStore  *tsdb.Store
+	MetaClient StorageMetaClient
+	Logger     *zap.Logger
 }
 
 func NewStore() *Store {
