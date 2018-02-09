@@ -16,9 +16,7 @@ const LogsTable = ({logs}) =>
     >
       {logs
         .slice(0, numLogsToRender)
-        .map((log, i) =>
-          <LogsTableRow key={log.key} logItem={log} index={i} />
-        )}
+        .map(log => <LogsTableRow key={log.key} logItem={log} />)}
     </FancyScrollbar>
   </div>
 
