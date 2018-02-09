@@ -42,7 +42,6 @@ type Importer struct {
 	failedInserts         int
 	totalCommands         int
 	throttlePointsWritten int
-	startTime             time.Time
 	lastWrite             time.Time
 	throttle              *time.Ticker
 
@@ -168,7 +167,7 @@ func (i *Importer) processDDL(scanner *bufio.Reader) error {
 }
 
 func (i *Importer) processDML(scanner *bufio.Reader) error {
-	i.startTime = time.Now()
+	start := time.Now()
 	for {
 		line, err := scanner.ReadString(byte('\n'))
 		if err != nil && err != io.EOF {
@@ -179,11 +178,9 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 			return nil
 		}
 		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
-			i.batchWrite()
 			i.database = strings.TrimSpace(strings.Split(line, ":")[1])
 		}
 		if strings.HasPrefix(line, "# CONTEXT-RETENTION-POLICY:") {
-			i.batchWrite()
 			i.retentionPolicy = strings.TrimSpace(strings.Split(line, ":")[1])
 		}
 		if strings.HasPrefix(line, "#") {
@@ -193,7 +190,7 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		i.batchAccumulator(line)
+		i.batchAccumulator(line, start)
 	}
 }
 
@@ -213,10 +210,18 @@ func (i *Importer) queryExecutor(command string) {
 	i.execute(command)
 }
 
-func (i *Importer) batchAccumulator(line string) {
+func (i *Importer) batchAccumulator(line string, start time.Time) {
 	i.batch = append(i.batch, line)
 	if len(i.batch) == batchSize {
 		i.batchWrite()
+		i.batch = i.batch[:0]
+		// Give some status feedback every 100000 lines processed
+		processed := i.totalInserts + i.failedInserts
+		if processed%100000 == 0 {
+			since := time.Since(start)
+			pps := float64(processed) / since.Seconds()
+			i.stdoutLogger.Printf("Processed %d lines.  Time elapsed: %s.  Points per second (PPS): %d", processed, since.String(), int64(pps))
+		}
 	}
 }
 
@@ -254,16 +259,6 @@ func (i *Importer) batchWrite() {
 	} else {
 		i.totalInserts += len(i.batch)
 	}
-
-	// Give some status feedback every 100000 lines processed
-	processed := i.totalInserts + i.failedInserts
-	if processed%100000 == 0 {
-		since := time.Since(i.startTime)
-		pps := float64(processed) / since.Seconds()
-		i.stdoutLogger.Printf("Processed %d lines.  Time elapsed: %s.  Points per second (PPS): %d", processed, since.String(), int64(pps))
-	}
-
-	i.batch = i.batch[:0]
 	i.throttlePointsWritten = 0
 	i.lastWrite = time.Now()
 }
