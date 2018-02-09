@@ -20,12 +20,12 @@
   transition:
     background-color 0.25s ease,
     transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  background-color: $g4-onyx;
+  background-color: $g6-smoke;
   transform: translate(0,-50%);
   border-radius: 50%;
 
   .slide-toggle:hover & {
-    background-color: $g6-smoke;
+    background-color: $g8-storm;
   }
 }
 
@@ -44,14 +44,22 @@
   &:hover,
   &.active,
   &.active:hover {
-    background-color: $g6-smoke;
+    background-color: $g2-kevlar;
     cursor: not-allowed;
   }
   .slide-toggle--knob,
   &:hover .slide-toggle--knob,
   &.active .slide-toggle--knob,
   &.active:hover .slide-toggle--knob {
-    background-color: $g3-castle;
+    opacity: 0.25;
+  }
+  .slide-toggle--knob,
+  &:hover .slide-toggle--knob {
+    background-color: $g6-smoke;
+  }
+  &.active .slide-toggle--knob,
+  &.active:hover .slide-toggle--knob {
+    background-color: $c-rainforest;
   }
 }
 

@@ -55,7 +55,7 @@ class KapacitorPage extends Component {
     const {value, name} = e.target
 
     this.setState(prevState => {
-      const update = {[name]: value.trim()}
+      const update = {[name]: value}
       return {kapacitor: {...prevState.kapacitor, ...update}}
     })
   }
@@ -70,7 +70,7 @@ class KapacitorPage extends Component {
       router,
     } = this.props
     const {kapacitor} = this.state
-
+    kapacitor.name = kapacitor.name.trim()
     const isNameTaken = kapacitors.some(k => k.name === kapacitor.name)
     const isNew = !params.id
 

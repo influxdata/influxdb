@@ -179,3 +179,27 @@ pre.admin-table--query {
 
   .table-highlight > tbody > tr:hover {background-color: $g5-pepper;}
 }
+
+/*
+    Chronograf Admin
+    ----------------------------------------------------------------------------
+*/
+.all-users-admin-toggle {
+  display: flex;
+  align-items: center;
+  margin-right: 30px;
+
+  span {
+    display: inline-block;
+    margin-left: 8px;
+    font-weight: 500;
+    font-style: italic;
+    color: $g10-wolf;
+    transition: color 0.25s ease;
+    @include no-user-select();
+  }
+  .slide-toggle.active + span {
+    font-style: normal;
+    color: $g15-platinum;
+  }
+}

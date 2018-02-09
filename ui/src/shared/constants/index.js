@@ -388,8 +388,7 @@ export const HEARTBEAT_INTERVAL = 10000 // ms
 export const PRESENTATION_MODE_ANIMATION_DELAY = 0 // In milliseconds.
 export const PRESENTATION_MODE_NOTIFICATION_DELAY = 2000 // In milliseconds.
 
-export const SHORT_NOTIFICATION_DISMISS_DELAY = 2000 // in milliseconds
-export const LONG_NOTIFICATION_DISMISS_DELAY = 4000 // in milliseconds
+export const NOTIFICATION_DISMISS_DELAY = 4000 // in milliseconds
 
 export const REVERT_STATE_DELAY = 1500 // ms
 
@@ -429,3 +428,5 @@ export const DEFAULT_SOURCE = {
 
 export const GET_STATIC_LEGEND = legend =>
   _.get(legend, 'type', false) === 'static'
+
+export const linksLink = '/chronograf/v1'
