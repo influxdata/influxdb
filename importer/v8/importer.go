@@ -221,6 +221,11 @@ func (i *Importer) batchAccumulator(line string) {
 }
 
 func (i *Importer) batchWrite() {
+	// Exit early if there are no points in the batch.
+	if len(i.batch) == 0 {
+		return
+	}
+
 	// Accumulate the batch size to see how many points we have written this second
 	i.throttlePointsWritten += len(i.batch)
 
@@ -254,7 +259,11 @@ func (i *Importer) batchWrite() {
 	} else {
 		i.totalInserts += len(i.batch)
 	}
+	i.throttlePointsWritten = 0
+	i.lastWrite = time.Now()
 
+	// Clear the batch and record the number of processed points.
+	i.batch = i.batch[:0]
 	// Give some status feedback every 100000 lines processed
 	processed := i.totalInserts + i.failedInserts
 	if processed%100000 == 0 {
@@ -262,8 +271,4 @@ func (i *Importer) batchWrite() {
 		pps := float64(processed) / since.Seconds()
 		i.stdoutLogger.Printf("Processed %d lines.  Time elapsed: %s.  Points per second (PPS): %d", processed, since.String(), int64(pps))
 	}
-
-	i.batch = i.batch[:0]
-	i.throttlePointsWritten = 0
-	i.lastWrite = time.Now()
 }
