@@ -12,7 +12,7 @@ class HipchatConfig extends Component {
     }
   }
 
-  handleSubmit = e => {
+  handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
@@ -21,8 +21,10 @@ class HipchatConfig extends Component {
       token: this.token.value,
     }
 
-    this.props.onSave(properties)
-    this.setState({testEnabled: true})
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
   }
 
   disableTest = () => {
