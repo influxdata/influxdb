@@ -6,25 +6,23 @@ class SlackConfig extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      testEnabled: !!this.props.config.options.url,
+      testEnabled: this.props.enabled,
     }
   }
 
-  componentWillReceiveProps(nextProps) {
-    this.setState({
-      testEnabled: !!nextProps.config.options.url,
-    })
-  }
-
-  handleSaveAlert = e => {
+  handleSubmit = async e => {
     e.preventDefault()
-
     const properties = {
       url: this.url.value,
       channel: this.channel.value,
     }
-
-    this.props.onSave(properties)
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   handleUrlRef = r => (this.url = r)
@@ -33,7 +31,7 @@ class SlackConfig extends Component {
     const {url, channel} = this.props.config.options
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <label htmlFor="slack-url">
             Slack Webhook URL (
@@ -46,6 +44,7 @@ class SlackConfig extends Component {
             defaultValue={url}
             id="url"
             refFunc={this.handleUrlRef}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -58,14 +57,30 @@ class SlackConfig extends Component {
             placeholder="#alerts"
             ref={r => (this.channel = r)}
             defaultValue={channel || ''}
+            onChange={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update Slack Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
+        <br />
+        <br />
       </form>
     )
   }
@@ -81,6 +96,8 @@ SlackConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default SlackConfig

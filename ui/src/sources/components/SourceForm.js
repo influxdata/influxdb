@@ -23,13 +23,14 @@ const SourceForm = ({
       ? <div className="text-center">
           {me.role === SUPERADMIN_ROLE
             ? <h3>
-                <strong>{me.currentOrganization.name}</strong> has no sources
+                <strong>{me.currentOrganization.name}</strong> has no
+                connections
               </h3>
             : <h3>
-                <strong>{me.currentOrganization.name}</strong> has no sources
-                available to <em>{me.role}s</em>
+                <strong>{me.currentOrganization.name}</strong> has no
+                connections available to <em>{me.role}s</em>
               </h3>}
-          <h6>Add a Source below:</h6>
+          <h6>Add a Connection below:</h6>
         </div>
       : null}
 
@@ -112,13 +113,13 @@ const SourceForm = ({
         <div className="form-control-static">
           <input
             type="checkbox"
-            id="defaultSourceCheckbox"
+            id="defaultConnectionCheckbox"
             name="default"
             checked={source.default}
             onChange={onInputChange}
           />
-          <label htmlFor="defaultSourceCheckbox">
-            Make this the default source
+          <label htmlFor="defaultConnectionCheckbox">
+            Make this the default connection
           </label>
         </div>
       </div>
@@ -148,7 +149,7 @@ const SourceForm = ({
           type="submit"
         >
           <span className={`icon ${editMode ? 'checkmark' : 'plus'}`} />
-          {editMode ? 'Save Changes' : 'Add Source'}
+          {editMode ? 'Save Changes' : 'Add Connection'}
         </button>
 
         <br />

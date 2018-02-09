@@ -136,7 +136,7 @@ option.
 ## Versions
 
 The most recent version of Chronograf is
-[v1.4.0.0](https://www.influxdata.com/downloads/).
+[v1.4.0.1](https://www.influxdata.com/downloads/).
 
 Spotted a bug or have a feature request? Please open
 [an issue](https://github.com/influxdata/chronograf/issues/new)!
@@ -156,7 +156,7 @@ The Chronograf team has identified and is working on the following issues:
 ## Installation
 
 Check out the
-[INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/installation/)
+[INSTALLATION](https://docs.influxdata.com/chronograf/v1.4/introduction/installation/)
 guide to get up and running with Chronograf with as little configuration and
 code as possible.
 
@@ -178,7 +178,7 @@ By default, chronograf runs on port `8888`.
 To get started right away with Docker, you can pull down our latest release:
 
 ```sh
-docker pull chronograf:1.4.0.0
+docker pull chronograf:1.4.0.1
 ```
 
 ### From Source
@@ -198,10 +198,10 @@ docker pull chronograf:1.4.0.0
 
 ## Documentation
 
-[Getting Started](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/)
+[Getting Started](https://docs.influxdata.com/chronograf/v1.4/introduction/getting-started/)
 will get you up and running with Chronograf with as little configuration and
 code as possible. See our
-[guides](https://docs.influxdata.com/chronograf/v1.3/guides/) to get familiar
+[guides](https://docs.influxdata.com/chronograf/v1.4/guides/) to get familiar
 with Chronograf's main features.
 
 Documentation for Telegraf, InfluxDB, and Kapacitor are available at

@@ -5,9 +5,12 @@ import RedactedInput from './RedactedInput'
 class TalkConfig extends Component {
   constructor(props) {
     super(props)
+    this.state = {
+      testEnabled: this.props.enabled,
+    }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
@@ -15,7 +18,14 @@ class TalkConfig extends Component {
       author_name: this.author.value,
     }
 
-    this.props.onSave(properties)
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   handleUrlRef = r => (this.url = r)
@@ -24,13 +34,14 @@ class TalkConfig extends Component {
     const {url, author_name: author} = this.props.config.options
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <label htmlFor="url">URL</label>
           <RedactedInput
             defaultValue={url}
             id="url"
             refFunc={this.handleUrlRef}
+            disableTest={this.disableTest}
           />
         </div>
 
@@ -42,12 +53,26 @@ class TalkConfig extends Component {
             type="text"
             ref={r => (this.author = r)}
             defaultValue={author || ''}
+            onChange={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update Talk Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -65,6 +90,8 @@ TalkConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default TalkConfig

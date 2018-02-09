@@ -31,7 +31,7 @@ class SlideToggle extends Component {
 
     const className = `slide-toggle slide-toggle__${size} ${active
       ? 'active'
-      : null} ${disabled ? 'disabled' : null}`
+      : ''} ${disabled ? 'disabled' : ''}`
 
     return (
       <div className={className} onClick={this.handleClick}>

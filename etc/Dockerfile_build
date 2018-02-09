@@ -12,13 +12,15 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
     ruby-dev \
     rpm \
     zip \
-    python-pip
+    python-pip \
+    autoconf \
+    libtool
 
 RUN pip install boto requests python-jose --upgrade
 RUN gem install fpm
 
 # Install node
-ENV NODE_VERSION v6.11.5
+ENV NODE_VERSION v6.12.3
 RUN wget -q https://nodejs.org/dist/latest-v6.x/node-${NODE_VERSION}-linux-x64.tar.gz; \
    tar -xvf node-${NODE_VERSION}-linux-x64.tar.gz -C / --strip-components=1; \
    rm -f node-${NODE_VERSION}-linux-x64.tar.gz
@@ -35,7 +37,7 @@ RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
 
 # Install go
 ENV GOPATH /root/go
-ENV GO_VERSION 1.9.2
+ENV GO_VERSION 1.9.4
 ENV GO_ARCH amd64
 RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz; \
    tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz ; \

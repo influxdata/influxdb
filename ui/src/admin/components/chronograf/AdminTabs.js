@@ -9,9 +9,11 @@ import {
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
 import OrganizationsPage from 'src/admin/containers/chronograf/OrganizationsPage'
 import UsersPage from 'src/admin/containers/chronograf/UsersPage'
+import AllUsersPage from 'src/admin/containers/chronograf/AllUsersPage'
 
 const ORGANIZATIONS_TAB_NAME = 'Organizations'
-const USERS_TAB_NAME = 'Users'
+const CURRENT_ORG_USERS_TAB_NAME = 'Current Org Users'
+const ALL_USERS_TAB_NAME = 'All Users'
 
 const AdminTabs = ({
   me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
@@ -26,10 +28,15 @@ const AdminTabs = ({
     },
     {
       requiredRole: ADMIN_ROLE,
-      type: USERS_TAB_NAME,
+      type: CURRENT_ORG_USERS_TAB_NAME,
       component: (
         <UsersPage meID={meID} meCurrentOrganization={meCurrentOrganization} />
       ),
+    },
+    {
+      requiredRole: SUPERADMIN_ROLE,
+      type: ALL_USERS_TAB_NAME,
+      component: <AllUsersPage meID={meID} />,
     },
   ].filter(t => isUserAuthorized(meRole, t.requiredRole))
 

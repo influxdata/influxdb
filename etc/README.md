@@ -10,3 +10,6 @@ After updating the Dockerfile_build run
 
 and push to quay with:
 `docker push quay.io/influxdb/builder:chronograf-$(date "+%Y%m%d")`
+
+### Update circle
+Update DOCKER_TAG in circle.yml to the new container.

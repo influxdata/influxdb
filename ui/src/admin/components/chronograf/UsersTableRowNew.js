@@ -1,7 +1,5 @@
 import React, {Component, PropTypes} from 'react'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-
 import Dropdown from 'shared/components/Dropdown'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -25,13 +23,12 @@ class UsersTableRowNew extends Component {
 
   handleConfirmCreateUser = () => {
     const {onBlur, onCreateUser, organization} = this.props
-    const {name, provider, scheme, role, superAdmin} = this.state
+    const {name, provider, scheme, role} = this.state
 
     const newUser = {
       name,
       provider,
       scheme,
-      superAdmin,
       roles: [
         {
           name: role,
@@ -72,13 +69,7 @@ class UsersTableRowNew extends Component {
   }
 
   render() {
-    const {
-      colRole,
-      colProvider,
-      colScheme,
-      colSuperAdmin,
-      colActions,
-    } = USERS_TABLE
+    const {colRole, colProvider, colScheme, colActions} = USERS_TABLE
     const {onBlur} = this.props
     const {name, provider, scheme, role} = this.state
 
@@ -108,11 +99,6 @@ class UsersTableRowNew extends Component {
             className="dropdown-stretch"
           />
         </td>
-        <Authorized requiredRole={SUPERADMIN_ROLE}>
-          <td style={{width: colSuperAdmin}} className="text-center">
-            &mdash;
-          </td>
-        </Authorized>
         <td style={{width: colProvider}}>
           <input
             className="form-control input-xs"

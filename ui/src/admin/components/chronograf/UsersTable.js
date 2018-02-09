@@ -2,8 +2,6 @@ import React, {Component, PropTypes} from 'react'
 
 import uuid from 'node-uuid'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTableRowNew from 'src/admin/components/chronograf/UsersTableRowNew'
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
@@ -23,10 +21,6 @@ class UsersTable extends Component {
     this.props.onUpdateUserRole(user, currentRole, newRole)
   }
 
-  handleChangeSuperAdmin = user => newStatus => {
-    this.props.onUpdateUserSuperAdmin(user, newStatus)
-  }
-
   handleDeleteUser = user => {
     this.props.onDeleteUser(user)
   }
@@ -40,17 +34,27 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {organization, users, onCreateUser, meID, notify} = this.props
+    const {
+      organization,
+      users,
+      onCreateUser,
+      meID,
+      notify,
+      isLoading,
+    } = this.props
 
     const {isCreatingUser} = this.state
-    const {
-      colRole,
-      colSuperAdmin,
-      colProvider,
-      colScheme,
-      colActions,
-    } = USERS_TABLE
+    const {colRole, colProvider, colScheme, colActions} = USERS_TABLE
 
+    if (isLoading) {
+      return (
+        <div className="panel panel-default">
+          <div className="panel-body">
+            <div className="page-spinner" />
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="panel panel-default">
         <UsersTableHeader
@@ -67,11 +71,6 @@ class UsersTable extends Component {
                 <th style={{width: colRole}} className="align-with-col-text">
                   Role
                 </th>
-                <Authorized requiredRole={SUPERADMIN_ROLE}>
-                  <th style={{width: colSuperAdmin}} className="text-center">
-                    SuperAdmin
-                  </th>
-                </Authorized>
                 <th style={{width: colProvider}}>Provider</th>
                 <th style={{width: colScheme}}>Scheme</th>
                 <th className="text-right" style={{width: colActions}} />
@@ -86,31 +85,21 @@ class UsersTable extends Component {
                     notify={notify}
                   />
                 : null}
-              {users.length || !isCreatingUser
+              {users.length
                 ? users.map(user =>
                     <UsersTableRow
                       user={user}
                       key={uuid.v4()}
                       organization={organization}
                       onChangeUserRole={this.handleChangeUserRole}
-                      onChangeSuperAdmin={this.handleChangeSuperAdmin}
                       onDelete={this.handleDeleteUser}
                       meID={meID}
                     />
                   )
                 : <tr className="table-empty-state">
-                    <Authorized
-                      requiredRole={SUPERADMIN_ROLE}
-                      replaceWithIfNotAuthorized={
-                        <th colSpan="5">
-                          <p>No Users to display</p>
-                        </th>
-                      }
-                    >
-                      <th colSpan="6">
-                        <p>No Users to display</p>
-                      </th>
-                    </Authorized>
+                    <th colSpan="5">
+                      <p>No Users to display</p>
+                    </th>
                   </tr>}
             </tbody>
           </table>
@@ -138,7 +127,6 @@ UsersTable.propTypes = {
         })
       ),
       scheme: string.isRequired,
-      superAdmin: bool,
     })
   ).isRequired,
   organization: shape({
@@ -147,10 +135,10 @@ UsersTable.propTypes = {
   }),
   onCreateUser: func.isRequired,
   onUpdateUserRole: func.isRequired,
-  onUpdateUserSuperAdmin: func.isRequired,
   onDeleteUser: func.isRequired,
   meID: string.isRequired,
   notify: func.isRequired,
+  isLoading: bool.isRequired,
 }
 
 export default UsersTable

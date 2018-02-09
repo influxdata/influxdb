@@ -25,7 +25,7 @@ class KapacitorRule extends Component {
     this.setState({timeRange})
   }
 
-  handleCreate = link => {
+  handleCreate = pathname => {
     const {
       addFlashMessage,
       queryConfigs,
@@ -42,7 +42,7 @@ class KapacitorRule extends Component {
 
     createRule(kapacitor, newRule)
       .then(() => {
-        router.push(link || `/sources/${source.id}/alert-rules`)
+        router.push(pathname || `/sources/${source.id}/alert-rules`)
         addFlashMessage({type: 'success', text: 'Rule successfully created'})
       })
       .catch(() => {
@@ -53,7 +53,7 @@ class KapacitorRule extends Component {
       })
   }
 
-  handleEdit = link => {
+  handleEdit = pathname => {
     const {addFlashMessage, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -61,7 +61,7 @@ class KapacitorRule extends Component {
 
     editRule(updatedRule)
       .then(() => {
-        router.push(link || `/sources/${source.id}/alert-rules`)
+        router.push(pathname || `/sources/${source.id}/alert-rules`)
         addFlashMessage({
           type: 'success',
           text: `${rule.name} successfully saved!`,
@@ -75,14 +75,28 @@ class KapacitorRule extends Component {
       })
   }
 
-  handleSaveToConfig = () => {
-    const {rule, configLink, router} = this.props
-    if (this.validationError()) {
-      router.push(configLink)
-    } else if (rule.id === DEFAULT_RULE_ID) {
-      this.handleCreate(configLink)
+  handleSave = () => {
+    const {rule} = this.props
+    if (rule.id === DEFAULT_RULE_ID) {
+      this.handleCreate()
     } else {
-      this.handleEdit(configLink)
+      this.handleEdit()
+    }
+  }
+
+  handleSaveToConfig = configName => () => {
+    const {rule, configLink, router} = this.props
+    const pathname = `${configLink}#${configName}`
+    if (this.validationError()) {
+      router.push({
+        pathname,
+      })
+      return
+    }
+    if (rule.id === DEFAULT_RULE_ID) {
+      this.handleCreate(pathname)
+    } else {
+      this.handleEdit(pathname)
     }
   }
 
@@ -157,13 +171,12 @@ class KapacitorRule extends Component {
     } = this.props
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
+
     return (
       <div className="page">
         <RuleHeader
           source={source}
-          onSave={
-            rule.id === DEFAULT_RULE_ID ? this.handleCreate : this.handleEdit
-          }
+          onSave={this.handleSave}
           validationError={this.validationError()}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">

@@ -35,6 +35,7 @@ import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
 
+import {getLinksAsync} from 'shared/actions/links'
 import {getMeAsync} from 'shared/actions/auth'
 
 import {disablePresentationMode} from 'shared/actions/app'
@@ -73,10 +74,19 @@ window.addEventListener('keyup', event => {
 const history = syncHistoryWithStore(browserHistory, store)
 
 const Root = React.createClass({
-  componentWillMount() {
+  async componentWillMount() {
     this.flushErrorsQueue()
-    this.checkAuth()
+
+    try {
+      await this.getLinks()
+      this.checkAuth()
+    } catch (error) {
+      dispatch(errorThrown(error))
+    }
   },
+
+  getLinks: bindActionCreators(getLinksAsync, dispatch),
+  getMe: bindActionCreators(getMeAsync, dispatch),
 
   async checkAuth() {
     try {
@@ -85,8 +95,6 @@ const Root = React.createClass({
       dispatch(errorThrown(error))
     }
   },
-
-  getMe: bindActionCreators(getMeAsync, dispatch),
 
   async performHeartbeat({shouldResetMe = false} = {}) {
     await this.getMe({shouldResetMe})
@@ -133,6 +141,10 @@ const Root = React.createClass({
               <Route path="tickscript/:ruleID" component={TickscriptPage} />
               <Route path="kapacitors/new" component={KapacitorPage} />
               <Route path="kapacitors/:id/edit" component={KapacitorPage} />
+              <Route
+                path="kapacitors/:id/edit:hash"
+                component={KapacitorPage}
+              />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="admin-chronograf" component={AdminChronografPage} />
               <Route path="admin-influxdb" component={AdminInfluxDBPage} />

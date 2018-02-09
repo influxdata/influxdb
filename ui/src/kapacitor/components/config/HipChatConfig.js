@@ -7,9 +7,12 @@ import RedactedInput from './RedactedInput'
 class HipchatConfig extends Component {
   constructor(props) {
     super(props)
+    this.state = {
+      testEnabled: this.props.enabled,
+    }
   }
 
-  handleSaveAlert = e => {
+  handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
@@ -18,7 +21,14 @@ class HipchatConfig extends Component {
       token: this.token.value,
     }
 
-    this.props.onSave(properties)
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  disableTest = () => {
+    this.setState({testEnabled: false})
   }
 
   handleTokenRef = r => (this.token = r)
@@ -32,7 +42,7 @@ class HipchatConfig extends Component {
       .replace('.hipchat.com/v2/room', '')
 
     return (
-      <form onSubmit={this.handleSaveAlert}>
+      <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
           <label htmlFor="url">Subdomain</label>
           <input
@@ -42,6 +52,7 @@ class HipchatConfig extends Component {
             placeholder="your-subdomain"
             ref={r => (this.url = r)}
             defaultValue={subdomain && subdomain.length ? subdomain : ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -54,6 +65,7 @@ class HipchatConfig extends Component {
             placeholder="your-hipchat-room"
             ref={r => (this.room = r)}
             defaultValue={room || ''}
+            onChange={this.disableTest}
           />
         </div>
 
@@ -66,12 +78,26 @@ class HipchatConfig extends Component {
             defaultValue={token}
             id="token"
             refFunc={this.handleTokenRef}
+            disableTest={this.disableTest}
           />
         </div>
 
         <div className="form-group-submit col-xs-12 text-center">
-          <button className="btn btn-primary" type="submit">
-            Update HipChat Config
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={this.state.testEnabled}
+          >
+            <span className="icon checkmark" />
+            Save Changes
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!this.state.testEnabled}
+            onClick={this.props.onTest}
+          >
+            <span className="icon pulse-c" />
+            Send Test Alert
           </button>
         </div>
       </form>
@@ -90,6 +116,8 @@ HipchatConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
+  onTest: func.isRequired,
+  enabled: bool.isRequired,
 }
 
 export default HipchatConfig

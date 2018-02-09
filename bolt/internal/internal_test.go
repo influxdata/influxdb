@@ -251,6 +251,10 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 						Value: "100",
 					},
 				},
+				Legend: chronograf.Legend{
+					Type:        "static",
+					Orientation: "bottom",
+				},
 				Type: "line",
 			},
 		},
@@ -300,6 +304,10 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 						Name:  "Solitude",
 						Value: "100",
 					},
+				},
+				Legend: chronograf.Legend{
+					Type:        "static",
+					Orientation: "bottom",
 				},
 				Type: "line",
 			},

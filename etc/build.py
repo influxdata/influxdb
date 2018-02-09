@@ -24,6 +24,7 @@ DATA_DIR = "/var/lib/chronograf"
 SCRIPT_DIR = "/usr/lib/chronograf/scripts"
 LOGROTATE_DIR = "/etc/logrotate.d"
 CANNED_DIR = "/usr/share/chronograf/canned"
+RESOURCES_DIR = "/usr/share/chronograf/resources"
 
 INIT_SCRIPT = "etc/scripts/init.sh"
 SYSTEMD_SCRIPT = "etc/scripts/chronograf.service"
@@ -115,7 +116,8 @@ def create_package_fs(build_root):
         DATA_DIR[1:],
         SCRIPT_DIR[1:],
         LOGROTATE_DIR[1:],
-        CANNED_DIR[1:]
+        CANNED_DIR[1:],
+        RESOURCES_DIR[1:]
     ]
     for d in dirs:
         os.makedirs(os.path.join(build_root, d))

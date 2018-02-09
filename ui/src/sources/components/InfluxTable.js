@@ -21,7 +21,7 @@ const kapacitorDropdown = (
           to={`/sources/${source.id}/kapacitors/new`}
           className="btn btn-xs btn-default"
         >
-          <span className="icon plus" /> Add Config
+          <span className="icon plus" /> Add Kapacitor Connection
         </Link>
       </Authorized>
     )
@@ -62,7 +62,7 @@ const kapacitorDropdown = (
         onChoose={setActiveKapacitor}
         addNew={{
           url: `/sources/${source.id}/kapacitors/new`,
-          text: 'Add Kapacitor',
+          text: 'Add Kapacitor Connection',
         }}
         actions={[
           {
@@ -105,16 +105,16 @@ const InfluxTable = ({
           <h2 className="panel-title">
             {isUsingAuth
               ? <span>
-                  InfluxDB Sources for <em>{me.currentOrganization.name}</em>
+                  Connections for <em>{me.currentOrganization.name}</em>
                 </span>
-              : <span>InfluxDB Sources</span>}
+              : <span>Connections</span>}
           </h2>
           <Authorized requiredRole={EDITOR_ROLE}>
             <Link
               to={`/sources/${source.id}/manage-sources/new`}
               className="btn btn-sm btn-primary"
             >
-              <span className="icon plus" /> Add Source
+              <span className="icon plus" /> Add Connection
             </Link>
           </Authorized>
         </div>
@@ -123,14 +123,14 @@ const InfluxTable = ({
             <thead>
               <tr>
                 <th className="source-table--connect-col" />
-                <th>Source Name & Host</th>
+                <th>InfluxDB Connection</th>
                 <th className="text-right" />
                 <th>
-                  Active Kapacitor{' '}
+                  Kapacitor Connection{' '}
                   <QuestionMarkTooltip
                     tipID="kapacitor-node-helper"
                     tipContent={
-                      '<p>Kapacitor Configurations are<br/>scoped per InfluxDB Source.<br/>Only one can be active at a time.</p>'
+                      '<p>Kapacitor Connections are<br/>scoped per InfluxDB Connection.<br/>Only one can be active at a time.</p>'
                     }
                   />
                 </th>
@@ -189,7 +189,7 @@ const InfluxTable = ({
                           href="#"
                           onClick={handleDeleteSource(s)}
                         >
-                          Delete Source
+                          Delete Connection
                         </a>
                       </Authorized>
                     </td>

@@ -11,6 +11,13 @@ import (
 	"github.com/influxdata/chronograf/roles"
 )
 
+// HasAuthorizedToken extracts the token from a request and validates it using the authenticator.
+// It is used by routes that need access to the token to populate links request.
+func HasAuthorizedToken(auth oauth2.Authenticator, r *http.Request) (oauth2.Principal, error) {
+	ctx := r.Context()
+	return auth.Validate(ctx, r)
+}
+
 // AuthorizedToken extracts the token and validates; if valid the next handler
 // will be run.  The principal will be sent to the next handler via the request's
 // Context.  It is up to the next handler to determine if the principal has access.
@@ -47,6 +54,33 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 		next.ServeHTTP(w, r.WithContext(ctx))
 		return
 	})
+}
+
+// RawStoreAccess gives a super admin access to the data store without a facade.
+func RawStoreAccess(logger chronograf.Logger, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if isServer := hasServerContext(ctx); isServer {
+			next(w, r)
+			return
+		}
+
+		log := logger.
+			WithField("component", "raw_store").
+			WithField("remote_addr", r.RemoteAddr).
+			WithField("method", r.Method).
+			WithField("url", r.URL)
+
+		if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+			r = r.WithContext(serverContext(ctx))
+		} else {
+			log.Error("User making request is not a SuperAdmin")
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
+			return
+		}
+
+		next(w, r)
+	}
 }
 
 // AuthorizedUser extracts the user name and provider from context. If the
@@ -181,6 +215,13 @@ func hasAuthorizedRole(u *chronograf.User, role string) bool {
 	}
 
 	switch role {
+	case roles.MemberRoleName:
+		for _, r := range u.Roles {
+			switch r.Name {
+			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
+				return true
+			}
+		}
 	case roles.ViewerRoleName:
 		for _, r := range u.Roles {
 			switch r.Name {

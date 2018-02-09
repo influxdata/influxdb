@@ -2,14 +2,17 @@ import React, {PropTypes} from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 const TickscriptHeader = ({
   task: {id},
   onSave,
+  onExit,
+  unsavedChanges,
   areLogsVisible,
   areLogsEnabled,
   isNewTickscript,
-  onToggleLogsVisbility,
+  onToggleLogsVisibility,
 }) =>
   <div className="page-header full-width">
     <div className="page-header__container">
@@ -20,18 +23,40 @@ const TickscriptHeader = ({
         <LogsToggle
           areLogsVisible={areLogsVisible}
           areLogsEnabled={areLogsEnabled}
-          onToggleLogsVisbility={onToggleLogsVisbility}
+          onToggleLogsVisibility={onToggleLogsVisibility}
         />}
       <div className="page-header__right">
         <SourceIndicator />
-        <button
-          className="btn btn-success btn-sm"
-          title={id ? '' : 'ID your TICKscript to save'}
-          onClick={onSave}
-          disabled={!id}
-        >
-          {isNewTickscript ? 'Save New TICKscript' : 'Save TICKscript'}
-        </button>
+        {isNewTickscript
+          ? <button
+              className="btn btn-success btn-sm"
+              title="Name your TICKscript to save"
+              onClick={onSave}
+              disabled={!id}
+            >
+              Save New TICKscript
+            </button>
+          : <button
+              className="btn btn-success btn-sm"
+              title="You have unsaved changes"
+              onClick={onSave}
+              disabled={!unsavedChanges}
+            >
+              Save Changes
+            </button>}
+        {unsavedChanges
+          ? <ConfirmButton
+              text="Exit"
+              confirmText="Discard unsaved changes?"
+              confirmAction={onExit}
+            />
+          : <button
+              className="btn btn-default btn-sm"
+              title="Return to Alert Rules"
+              onClick={onExit}
+            >
+              Exit
+            </button>}
       </div>
     </div>
   </div>
@@ -41,9 +66,10 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 TickscriptHeader.propTypes = {
   isNewTickscript: bool,
   onSave: func,
+  onExit: func.isRequired,
   areLogsVisible: bool,
   areLogsEnabled: bool,
-  onToggleLogsVisbility: func.isRequired,
+  onToggleLogsVisibility: func.isRequired,
   task: shape({
     dbrps: arrayOf(
       shape({
@@ -52,6 +78,7 @@ TickscriptHeader.propTypes = {
       })
     ),
   }),
+  unsavedChanges: bool,
 }
 
 export default TickscriptHeader
