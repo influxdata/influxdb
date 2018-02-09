@@ -82,14 +82,14 @@ class ProvidersTableRow extends Component {
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
           disabled={isDefaultMapping}
-          tabIndex={rowIndex + '1'}
+          tabIndex={rowIndex}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
           disabled={isDefaultMapping}
-          tabIndex={rowIndex + '2'}
+          tabIndex={rowIndex}
         />
         <div className="fancytable--td provider--arrow">
           <span />
@@ -121,7 +121,7 @@ class ProvidersTableRow extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 ProvidersTableRow.propTypes = {
   mapping: shape({
@@ -142,7 +142,7 @@ ProvidersTableRow.propTypes = {
       text: string.isRequired,
     })
   ),
-  rowIndex: string,
+  rowIndex: number,
   onDelete: func.isRequired,
   onUpdate: func.isRequired,
 }

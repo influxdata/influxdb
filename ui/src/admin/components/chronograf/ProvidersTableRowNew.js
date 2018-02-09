@@ -61,13 +61,13 @@ class ProvidersTableRowNew extends Component {
           value={provider}
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
-          tabIndex={rowIndex + '1'}
+          tabIndex={rowIndex}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
-          tabIndex={rowIndex + '2'}
+          tabIndex={rowIndex}
         />
         <div className="fancytable--td provider--arrow">
           <span />
@@ -89,7 +89,7 @@ class ProvidersTableRowNew extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 ProvidersTableRowNew.propTypes = {
   organizations: arrayOf(
@@ -103,7 +103,7 @@ ProvidersTableRowNew.propTypes = {
       text: string.isRequired,
     })
   ),
-  rowIndex: string,
+  rowIndex: number,
   onCreate: func.isRequired,
   onCancel: func.isRequired,
 }

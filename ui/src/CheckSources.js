@@ -81,6 +81,14 @@ class CheckSources extends Component {
       return router.push('/')
     }
 
+    if (!organizations.length) {
+      notify(
+        'error',
+        'You have been removed from all organizations. Please contact your administrator.'
+      )
+      return router.push('/purgatory')
+    }
+
     if (
       me.superAdmin &&
       !organizations.find(o => o.id === currentOrganization.id)

@@ -20,7 +20,7 @@ type meLinks struct {
 type meResponse struct {
 	*chronograf.User
 	Links               meLinks                   `json:"links"`
-	Organizations       []chronograf.Organization `json:"organizations,omitempty"`
+	Organizations       []chronograf.Organization `json:"organizations"`
 	CurrentOrganization *chronograf.Organization  `json:"currentOrganization,omitempty"`
 }
 
@@ -249,12 +249,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	// user exists
 	if usr != nil {
-		// user has no roles
-		if len(usr.Roles) == 0 {
-			Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
-			return
-		}
-
 		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 		if err == chronograf.ErrOrganizationNotFound {
 			// The intent is to force a the user to go through another auth flow
@@ -271,6 +265,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
+
 		res := newMeResponse(usr)
 		res.Organizations = orgs
 		res.CurrentOrganization = currentOrg

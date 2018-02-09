@@ -95,7 +95,7 @@ class ProvidersTable extends Component {
                   schemes={SCHEMES}
                   onDelete={onDeleteMap}
                   onUpdate={onUpdateMap}
-                  rowIndex={i.toString()}
+                  rowIndex={i + 1}
                 />
               )}
               {isCreatingMap
@@ -104,7 +104,7 @@ class ProvidersTable extends Component {
                     schemes={SCHEMES}
                     onCreate={this.handleCreateMap}
                     onCancel={this.handleCancelCreateMap}
-                    rowIndex={mappings.length.toString()}
+                    rowIndex={mappings.length + 1}
                   />
                 : null}
             </div>

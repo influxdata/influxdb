@@ -399,7 +399,7 @@ type User struct {
 	Name        string      `json:"name"`
 	Passwd      string      `json:"password,omitempty"`
 	Permissions Permissions `json:"permissions,omitempty"`
-	Roles       []Role      `json:"roles,omitempty"`
+	Roles       []Role      `json:"roles"`
 	Provider    string      `json:"provider,omitempty"`
 	Scheme      string      `json:"scheme,omitempty"`
 	SuperAdmin  bool        `json:"superAdmin,omitempty"`

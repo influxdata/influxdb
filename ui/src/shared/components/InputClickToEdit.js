@@ -80,14 +80,14 @@ class InputClickToEdit extends Component {
   }
 }
 
-const {func, bool, string} = PropTypes
+const {func, bool, number, string} = PropTypes
 
 InputClickToEdit.propTypes = {
   wrapperClass: string.isRequired,
   value: string,
   onUpdate: func.isRequired,
   disabled: bool,
-  tabIndex: string,
+  tabIndex: number,
 }
 
 export default InputClickToEdit
