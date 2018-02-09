@@ -1,18 +1,26 @@
 import React, {PropTypes} from 'react'
 
-const renderKeysAndValues = object => {
+const renderKeysAndValues = (object, name) => {
   if (!object) {
     return <span className="logs-table--empty-cell">--</span>
   }
-  const objKeys = Object.keys(object)
-  const objValues = Object.values(object)
 
-  const objElements = objKeys.map((objKey, i) =>
-    <div key={i} className="logs-table--key-value">
-      {objKey}: <span>{objValues[i]}</span>
+  const sortedObjKeys = Object.keys(object).sort()
+
+  return (
+    <div className="logs-table--column">
+      <h1>
+        {`${sortedObjKeys.length} ${name}`}
+      </h1>
+      <div className="logs-table--scrollbox">
+        {sortedObjKeys.map(objKey =>
+          <div key={objKey} className="logs-table--key-value">
+            {objKey}: <span>{object[objKey]}</span>
+          </div>
+        )}
+      </div>
     </div>
   )
-  return objElements
 }
 const LogItemKapacitorPoint = ({logItem}) =>
   <div className="logs-table--row">
@@ -24,15 +32,9 @@ const LogItemKapacitorPoint = ({logItem}) =>
     </div>
     <div className="logs-table--details">
       <div className="logs-table--service">Kapacitor Point</div>
-      <div className="logs-table--blah">
-        <div className="logs-table--key-values">
-          TAGS<br />
-          {renderKeysAndValues(logItem.tag)}
-        </div>
-        <div className="logs-table--key-values">
-          FIELDS<br />
-          {renderKeysAndValues(logItem.field)}
-        </div>
+      <div className="logs-table--columns">
+        {renderKeysAndValues(logItem.tag, 'Tags')}
+        {renderKeysAndValues(logItem.field, 'Fields')}
       </div>
     </div>
   </div>

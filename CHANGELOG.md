@@ -19,6 +19,7 @@
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
 1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
+1. [#2756](https://github.com/influxdata/chronograf/pull/2756): Display only 200 most recent TICKscript log messages and prevent overlapping
 1. [#2757](https://github.com/influxdata/chronograf/pull/2757): Added "TO" field to kapacitor SMTP config, and improved error messages for config saving and testing
 1. [#2761](https://github.com/influxdata/chronograf/pull/2761): Remove cli options from sysvinit service file
 1. [#2780](https://github.com/influxdata/chronograf/pull/2780): Fix routing on alert save

@@ -10,7 +10,7 @@ const LogItemKapacitorError = ({logItem}) =>
     </div>
     <div className="logs-table--details">
       <div className="logs-table--service error">Kapacitor</div>
-      <div className="logs-table--blah">
+      <div className="logs-table--columns">
         <div className="logs-table--key-values error">
           ERROR: {logItem.msg}
         </div>
