@@ -201,38 +201,37 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	serverCtx := serverContext(ctx)
 
 	/* ALTERNATE 1
-		If existing
-			If roles, let them in
-			If no roles, purgatory
+	If existing
+		If roles, let them in
+		If no roles, purgatory
 
-		If new
-			Build new user
-			Generate roles for user based on defined mappings
-			If roles, save and let them in
-			If no roles, tell them box is private
+	If new
+		Build new user
+		Generate roles for user based on defined mappings
+		If roles, save and let them in
+		If no roles, tell them box is private
 	*/
 
 	/* ALTERNATE 2
-		Find user => (existing)
-		If no user => (new)
-			Build new user, with superadmin based on setting
-			Generate roles for user based on defined mappings
+	Find user => (existing)
+	If no user => (new)
+		Build new user, with superadmin based on setting
+		Generate roles for user based on defined mappings
 
-		If roles,
-			(existing) => let them in
-			(new) => save, let them in
+	If roles,
+		(existing) => let them in
+		(new) => save, let them in
 
-		If no roles,
-			(existing) => purgatory
-			(new) => tell them box is private
+	If no roles,
+		(existing) => purgatory
+		(new) => tell them box is private
 	*/
 
-
 	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
-		if err != nil {
-			unknownErrorWithMessage(w, err, s.Logger)
-			return
-		
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
 
 	if p.Organization == "" {
 		p.Organization = defaultOrg.ID
@@ -248,29 +247,14 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// user exists
 	if usr != nil {
-
-		if defaultOrg.Public || usr.SuperAdmin == true {
-			// If the default organization is public, or the user is a super admin
-			// they will always have a role in the default organization
-			defaultOrgID := defaultOrg.ID
-			if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
-				usr.Roles = append(usr.Roles, chronograf.Role{
-					Organization: defaultOrgID,
-					Name:         defaultOrg.DefaultRole,
-				})
-				if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
-					unknownErrorWithMessage(w, err, s.Logger)
-					return
-				}
-			}
-		}
-
-		// If the default org is private and the user has no roles, they should not have access
-		if !defaultOrg.Public && len(usr.Roles) == 0 {
+		// user has no roles
+		if len(usr.Roles) == 0 {
 			Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 			return
 		}
+
 		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 		if err == chronograf.ErrOrganizationNotFound {
 			// The intent is to force a the user to go through another auth flow
@@ -294,13 +278,6 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(desa) get rid of this
-	// If users must be explicitly added to the default organization, respond with 403
-	// forbidden
-	if !defaultOrg.Public {
-		Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
-		return
-	}
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
 		Name:     p.Subject,
@@ -316,6 +293,11 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	roles, err := s.mapPrincipalToRoles(serverCtx, p)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		return
+	}
+
+	if len(roles) == 0 {
+		Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
 	}
 

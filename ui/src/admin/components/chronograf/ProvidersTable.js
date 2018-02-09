@@ -87,7 +87,7 @@ class ProvidersTable extends Component {
                 <div className="fancytable--th" />
                 <div className="fancytable--th provider--delete" />
               </div>
-              {mappings.map(mapping =>
+              {mappings.map((mapping, i) =>
                 <ProvidersTableRow
                   key={uuid.v4()}
                   mapping={mapping}
@@ -95,6 +95,7 @@ class ProvidersTable extends Component {
                   schemes={SCHEMES}
                   onDelete={onDeleteMap}
                   onUpdate={onUpdateMap}
+                  rowIndex={i.toString()}
                 />
               )}
               {isCreatingMap
@@ -103,13 +104,15 @@ class ProvidersTable extends Component {
                     schemes={SCHEMES}
                     onCreate={this.handleCreateMap}
                     onCancel={this.handleCancelCreateMap}
+                    rowIndex={mappings.length.toString()}
                   />
                 : null}
             </div>
           : <div className="panel-body">
               <div className="generic-empty-state">
                 <h4 style={{margin: '50px 0'}}>
-                  Looks like you have no mappings
+                  Looks like you have no mappings<br />
+                  New users will not be able to sign in
                 </h4>
                 <button
                   className="btn btn-sm btn-primary"

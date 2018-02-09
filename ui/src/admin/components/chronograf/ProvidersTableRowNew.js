@@ -40,7 +40,7 @@ class ProvidersTableRowNew extends Component {
   render() {
     const {scheme, provider, providerOrganization, organizationId} = this.state
 
-    const {organizations, onCancel, schemes} = this.props
+    const {organizations, onCancel, schemes, rowIndex} = this.props
 
     const selectedOrg = organizations.find(o => o.id === organizationId)
 
@@ -61,13 +61,13 @@ class ProvidersTableRowNew extends Component {
           value={provider}
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
-          tabIndex="1"
+          tabIndex={rowIndex + '1'}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
-          tabIndex="2"
+          tabIndex={rowIndex + '2'}
         />
         <div className="fancytable--td provider--arrow">
           <span />
@@ -103,6 +103,7 @@ ProvidersTableRowNew.propTypes = {
       text: string.isRequired,
     })
   ),
+  rowIndex: string,
   onCreate: func.isRequired,
   onCancel: func.isRequired,
 }

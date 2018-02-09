@@ -55,7 +55,7 @@ class ProvidersTableRow extends Component {
       organizationId,
       isDeleting,
     } = this.state
-    const {organizations, mapping, schemes} = this.props
+    const {organizations, mapping, schemes, rowIndex} = this.props
 
     const selectedOrg = organizations.find(o => o.id === organizationId)
     const orgDropdownItems = organizations.map(role => ({
@@ -82,14 +82,14 @@ class ProvidersTableRow extends Component {
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
           disabled={isDefaultMapping}
-          tabIndex="1"
+          tabIndex={rowIndex + '1'}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
           disabled={isDefaultMapping}
-          tabIndex="2"
+          tabIndex={rowIndex + '2'}
         />
         <div className="fancytable--td provider--arrow">
           <span />
@@ -142,6 +142,7 @@ ProvidersTableRow.propTypes = {
       text: string.isRequired,
     })
   ),
+  rowIndex: string,
   onDelete: func.isRequired,
   onUpdate: func.isRequired,
 }
