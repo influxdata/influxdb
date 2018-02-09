@@ -53,7 +53,7 @@ const LogsTableRow = ({logItem}) => {
   )
 }
 
-const {number, shape, string} = PropTypes
+const {shape, string} = PropTypes
 
 LogsTableRow.propTypes = {
   logItem: shape({
