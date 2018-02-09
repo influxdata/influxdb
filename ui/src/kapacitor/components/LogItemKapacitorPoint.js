@@ -5,18 +5,17 @@ const renderKeysAndValues = (object, name) => {
     return <span className="logs-table--empty-cell">--</span>
   }
 
-  const objKeys = Object.keys(object).sort()
-  const objValues = Object.values(object)
+  const sortedObjKeys = Object.keys(object).sort()
 
   return (
     <div className="logs-table--column">
       <h1>
-        {`${objKeys.length} ${name}`}
+        {`${sortedObjKeys.length} ${name}`}
       </h1>
       <div className="logs-table--scrollbox">
-        {objKeys.map((objKey, i) =>
-          <div key={i} className="logs-table--key-value">
-            {objKey}: <span>{objValues[i]}</span>
+        {sortedObjKeys.map(objKey =>
+          <div key={objKey} className="logs-table--key-value">
+            {objKey}: <span>{object[objKey]}</span>
           </div>
         )}
       </div>
