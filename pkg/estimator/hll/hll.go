@@ -232,6 +232,10 @@ func (h *Plus) Merge(s estimator.Sketch) error {
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (h *Plus) MarshalBinary() (data []byte, err error) {
+	if h == nil {
+		return nil, nil
+	}
+
 	// Marshal a version marker.
 	data = append(data, version)
 
