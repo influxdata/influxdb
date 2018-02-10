@@ -45,6 +45,9 @@ type HTTPConfig struct {
 	// TLSConfig allows the user to set their own TLS config for the HTTP
 	// Client. If set, this option overrides InsecureSkipVerify.
 	TLSConfig *tls.Config
+
+	// HttpProxy can be set to create http.Transport. "" for none-proxy
+	HttpProxy string
 }
 
 // BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct.
@@ -103,6 +106,14 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	if conf.TLSConfig != nil {
 		tr.TLSClientConfig = conf.TLSConfig
 	}
+	if conf.HttpProxy != "" {
+		proxyUrl, err := url.Parse(conf.HttpProxy)
+		if err != nil {
+			return nil, err
+		}
+		tr.Proxy = http.ProxyURL(proxyUrl)
+	}
+
 	return &client{
 		url:       *u,
 		username:  conf.Username,
