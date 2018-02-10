@@ -39,12 +39,7 @@ class ProvidersTable extends Component {
       mappings.length === 1 ? '1 Map' : `${mappings.length} Maps`
 
     // define scheme options
-    const SCHEMES = [
-      {text: '*'},
-      {text: 'oauth2'},
-      {text: 'option2'},
-      {text: 'option3'},
-    ]
+    const SCHEMES = [{text: '*'}, {text: 'oauth2'}]
 
     if (isLoading) {
       return (
