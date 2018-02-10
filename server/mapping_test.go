@@ -116,7 +116,6 @@ func TestMappings_Add(t *testing.T) {
 							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
-							Public:      true,
 						}, nil
 					},
 				},
@@ -207,7 +206,6 @@ func TestMappings_Update(t *testing.T) {
 							ID:          "0",
 							Name:        "The Gnarly Default",
 							DefaultRole: roles.ViewerRoleName,
-							Public:      true,
 						}, nil
 					},
 				},

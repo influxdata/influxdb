@@ -12,22 +12,15 @@ import UsersPage from 'src/admin/containers/chronograf/UsersPage'
 import ProvidersPage from 'src/admin/containers/ProvidersPage'
 import AllUsersPage from 'src/admin/containers/chronograf/AllUsersPage'
 
-const ORGANIZATIONS_TAB_NAME = 'Organizations'
-const PROVIDERS_TAB_NAME = 'Providers'
-const CURRENT_ORG_USERS_TAB_NAME = 'Current Org Users'
+const ORGANIZATIONS_TAB_NAME = 'All Orgs'
+const PROVIDERS_TAB_NAME = 'Org Mappings'
+const CURRENT_ORG_USERS_TAB_NAME = 'Current Org'
 const ALL_USERS_TAB_NAME = 'All Users'
 
 const AdminTabs = ({
   me: {currentOrganization: meCurrentOrganization, role: meRole, id: meID},
 }) => {
   const tabs = [
-    {
-      requiredRole: SUPERADMIN_ROLE,
-      type: ORGANIZATIONS_TAB_NAME,
-      component: (
-        <OrganizationsPage meCurrentOrganization={meCurrentOrganization} />
-      ),
-    },
     {
       requiredRole: ADMIN_ROLE,
       type: CURRENT_ORG_USERS_TAB_NAME,
@@ -37,13 +30,20 @@ const AdminTabs = ({
     },
     {
       requiredRole: SUPERADMIN_ROLE,
-      type: PROVIDERS_TAB_NAME,
-      component: <ProvidersPage />,
+      type: ALL_USERS_TAB_NAME,
+      component: <AllUsersPage meID={meID} />,
     },
     {
       requiredRole: SUPERADMIN_ROLE,
-      type: ALL_USERS_TAB_NAME,
-      component: <AllUsersPage meID={meID} />,
+      type: ORGANIZATIONS_TAB_NAME,
+      component: (
+        <OrganizationsPage meCurrentOrganization={meCurrentOrganization} />
+      ),
+    },
+    {
+      requiredRole: SUPERADMIN_ROLE,
+      type: PROVIDERS_TAB_NAME,
+      component: <ProvidersPage />,
     },
   ].filter(t => isUserAuthorized(meRole, t.requiredRole))
 

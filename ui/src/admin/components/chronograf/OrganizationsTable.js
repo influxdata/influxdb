@@ -4,9 +4,6 @@ import uuid from 'node-uuid'
 
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
-import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
-
-import {PUBLIC_TOOLTIP} from 'src/admin/constants/index'
 
 class OrganizationsTable extends Component {
   constructor(props) {
@@ -37,7 +34,6 @@ class OrganizationsTable extends Component {
       onDeleteOrg,
       onRenameOrg,
       onChooseDefaultRole,
-      onTogglePublic,
       currentOrganization,
     } = this.props
     const {isCreatingOrganization} = this.state
@@ -74,10 +70,6 @@ class OrganizationsTable extends Component {
           <div className="fancytable--labels">
             <div className="fancytable--th orgs-table--active" />
             <div className="fancytable--th orgs-table--name">Name</div>
-            <div className="fancytable--th orgs-table--public">
-              Public{' '}
-              <QuestionMarkTooltip tipID="public" tipContent={PUBLIC_TOOLTIP} />
-            </div>
             <div className="fancytable--th orgs-table--default-role">
               Default Role
             </div>
@@ -93,7 +85,6 @@ class OrganizationsTable extends Component {
             <OrganizationsTableRow
               key={uuid.v4()}
               organization={org}
-              onTogglePublic={onTogglePublic}
               onDelete={onDeleteOrg}
               onRename={onRenameOrg}
               onChooseDefaultRole={onChooseDefaultRole}
@@ -122,7 +113,6 @@ OrganizationsTable.propTypes = {
   onCreateOrg: func.isRequired,
   onDeleteOrg: func.isRequired,
   onRenameOrg: func.isRequired,
-  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
 }
 export default OrganizationsTable

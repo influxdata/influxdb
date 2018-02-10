@@ -591,7 +591,6 @@ func MarshalOrganization(o *chronograf.Organization) ([]byte, error) {
 		ID:          o.ID,
 		Name:        o.Name,
 		DefaultRole: o.DefaultRole,
-		Public:      o.Public,
 	})
 }
 
@@ -609,7 +608,6 @@ func UnmarshalOrganization(data []byte, o *chronograf.Organization) error {
 	o.ID = pb.ID
 	o.Name = pb.Name
 	o.DefaultRole = pb.DefaultRole
-	o.Public = pb.Public
 
 	return nil
 }

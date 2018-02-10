@@ -351,8 +351,7 @@ func TestServer(t *testing.T) {
       },
       "id": "default",
       "name": "Default",
-      "defaultRole": "member",
-      "public": true
+      "defaultRole": "member"
     },
     {
       "links": {
@@ -360,8 +359,7 @@ func TestServer(t *testing.T) {
       },
       "id": "howdy",
       "name": "An Organization",
-      "defaultRole": "viewer",
-      "public": false
+      "defaultRole": "viewer"
     }
   ]
 }`,
@@ -409,8 +407,7 @@ func TestServer(t *testing.T) {
   },
   "id": "howdy",
   "name": "An Organization",
-  "defaultRole": "viewer",
-  "public": false
+  "defaultRole": "viewer"
 }`,
 			},
 		},
@@ -2047,21 +2044,18 @@ func TestServer(t *testing.T) {
       {
         "id": "1",
         "name": "Sweet",
-        "defaultRole": "viewer",
-        "public": false
+        "defaultRole": "viewer"
       },
       {
         "id": "default",
         "name": "Default",
-        "defaultRole": "member",
-        "public": true
+        "defaultRole": "member"
       }
   ],
   "currentOrganization": {
     "id": "1",
     "name": "Sweet",
-    "defaultRole": "viewer",
-    "public": false
+    "defaultRole": "viewer"
   }
 }`,
 			},
@@ -2232,27 +2226,23 @@ func TestServer(t *testing.T) {
     {
       "id": "1",
       "name": "Sweet",
-      "defaultRole": "viewer",
-      "public": false
+      "defaultRole": "viewer"
     },
     {
       "id": "2",
       "name": "What",
-      "defaultRole": "editor",
-      "public": false
+      "defaultRole": "editor"
     },
     {
       "id": "default",
       "name": "Default",
-      "defaultRole": "member",
-      "public": true
+      "defaultRole": "member"
     }
   ],
   "currentOrganization": {
     "id": "default",
     "name": "Default",
-    "defaultRole": "member",
-    "public": true
+    "defaultRole": "member"
   }
 }
 `,

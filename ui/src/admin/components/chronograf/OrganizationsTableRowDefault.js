@@ -7,11 +7,6 @@ import {USER_ROLES} from 'src/admin/constants/dummyUsers'
 
 // This is a non-editable organization row, used currently for DEFAULT_ORG
 class OrganizationsTableRowDefault extends Component {
-  togglePublic = () => {
-    const {organization, onTogglePublic} = this.props
-    onTogglePublic(organization)
-  }
-
   handleChooseDefaultRole = role => {
     const {organization, onChooseDefaultRole} = this.props
     onChooseDefaultRole(organization, role.name)
@@ -32,15 +27,6 @@ class OrganizationsTableRowDefault extends Component {
         </div>
         <div className="fancytable--td orgs-table--name">
           {organization.name}
-        </div>
-        <div className="fancytable--td orgs-table--public">
-          <div className="orgs-table--public-toggle">
-            <SlideToggle
-              size="xs"
-              active={organization.public}
-              onToggle={this.togglePublic}
-            />
-          </div>
         </div>
         <div className="fancytable--td orgs-table--default-role">
           <Dropdown
@@ -68,7 +54,6 @@ OrganizationsTableRowDefault.propTypes = {
     id: string,
     name: string.isRequired,
   }).isRequired,
-  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
 }
 

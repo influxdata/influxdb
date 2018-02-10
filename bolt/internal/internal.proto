@@ -175,7 +175,6 @@ message Organization {
 	string ID                  = 1; // ID is the unique ID of the organization
 	string Name                = 2; // Name is the organization's name
 	string DefaultRole         = 3; // DefaultRole is the name of the role that is the default for any users added to the organization
-	bool Public                = 4; // Public specifies that users must be explicitly added to the organization
 }
 
 message Config {

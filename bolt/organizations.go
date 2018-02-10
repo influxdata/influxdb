@@ -25,8 +25,6 @@ const (
 	DefaultOrganizationName string = "Default"
 	// DefaultOrganizationRole is the DefaultRole for the Default organization
 	DefaultOrganizationRole string = "member"
-	// DefaultOrganizationPublic is the Public setting for the Default organization.
-	DefaultOrganizationPublic bool = true
 )
 
 // OrganizationsStore uses bolt to store and retrieve Organizations
@@ -45,7 +43,6 @@ func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 		ID:          string(DefaultOrganizationID),
 		Name:        DefaultOrganizationName,
 		DefaultRole: DefaultOrganizationRole,
-		Public:      DefaultOrganizationPublic,
 	}
 
 	m := chronograf.Mapping{

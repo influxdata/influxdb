@@ -3,7 +3,6 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter} from 'react-router'
 
-import SlideToggle from 'shared/components/SlideToggle'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
 import InputClickToEdit from 'shared/components/InputClickToEdit'
@@ -60,11 +59,6 @@ class OrganizationsTableRow extends Component {
     onDelete(organization)
   }
 
-  handleTogglePublic = () => {
-    const {organization, onTogglePublic} = this.props
-    onTogglePublic(organization)
-  }
-
   handleChooseDefaultRole = role => {
     const {organization, onChooseDefaultRole} = this.props
     onChooseDefaultRole(organization, role.name)
@@ -102,17 +96,6 @@ class OrganizationsTableRow extends Component {
           wrapperClass="fancytable--td orgs-table--name"
           onUpdate={this.handleUpdateOrgName}
         />
-        <div className="fancytable--td orgs-table--public">
-          {organization.id === DEFAULT_ORG_ID
-            ? <div className="orgs-table--public-toggle">
-                <SlideToggle
-                  size="xs"
-                  active={organization.public}
-                  onToggle={this.handleTogglePublic}
-                />
-              </div>
-            : <div className="orgs-table--public-toggle disabled">&mdash;</div>}
-        </div>
         <div className={defaultRoleClassName}>
           <Dropdown
             items={dropdownRolesItems}
@@ -148,7 +131,6 @@ OrganizationsTableRow.propTypes = {
   }).isRequired,
   onDelete: func.isRequired,
   onRename: func.isRequired,
-  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
   currentOrganization: shape({
     name: string.isRequired,
