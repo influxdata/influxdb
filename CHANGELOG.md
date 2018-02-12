@@ -16,6 +16,7 @@
 1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
 1. [#2746](https://github.com/influxdata/chronograf/pull/2746): Separate saving TICKscript from exiting editor page
 1. [#2774](https://github.com/influxdata/chronograf/pull/2774): Enable Save (⌘ + Enter) and Cancel (Escape) hotkeys in Cell Editor Overlay
+1. [#2788](https://github.com/influxdata/chronograf/pull/2788): Enable customization of Single Stat graph's "Base Color"
 
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
@@ -23,6 +24,7 @@
 1. [#2756](https://github.com/influxdata/chronograf/pull/2756): Display only 200 most recent TICKscript log messages and prevent overlapping
 1. [#2757](https://github.com/influxdata/chronograf/pull/2757): Added "TO" field to kapacitor SMTP config, and improved error messages for config saving and testing
 1. [#2761](https://github.com/influxdata/chronograf/pull/2761): Remove cli options from sysvinit service file
+1. [#2788](https://github.com/influxdata/chronograf/pull/2788): Fix disappearance of text in Single Stat graphs during editing
 1. [#2780](https://github.com/influxdata/chronograf/pull/2780): Fix routing on alert save
 
 ## v1.4.0.1 [2017-1-9]

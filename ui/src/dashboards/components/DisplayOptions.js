@@ -35,7 +35,8 @@ class DisplayOptions extends Component {
 
   renderOptions = () => {
     const {
-      colors,
+      gaugeColors,
+      singleStatColors,
       onSetBase,
       onSetScale,
       onSetLabel,
@@ -43,13 +44,14 @@ class DisplayOptions extends Component {
       onSetPrefixSuffix,
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
-      onAddThreshold,
+      onAddGaugeThreshold,
+      onAddSingleStatThreshold,
       onDeleteThreshold,
       onChooseColor,
       onValidateColorValue,
       onUpdateColorValue,
-      colorSingleStatText,
-      onToggleSingleStatText,
+      singleStatType,
+      onToggleSingleStatType,
       onSetSuffix,
     } = this.props
     const {axes, axes: {y: {suffix}}} = this.state
@@ -58,27 +60,27 @@ class DisplayOptions extends Component {
       case 'gauge':
         return (
           <GaugeOptions
-            colors={colors}
+            colors={gaugeColors}
             onChooseColor={onChooseColor}
             onValidateColorValue={onValidateColorValue}
             onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddThreshold}
+            onAddThreshold={onAddGaugeThreshold}
             onDeleteThreshold={onDeleteThreshold}
           />
         )
       case 'single-stat':
         return (
           <SingleStatOptions
-            colors={colors}
+            colors={singleStatColors}
             suffix={suffix}
             onSetSuffix={onSetSuffix}
             onChooseColor={onChooseColor}
             onValidateColorValue={onValidateColorValue}
             onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddThreshold}
+            onAddThreshold={onAddSingleStatThreshold}
             onDeleteThreshold={onDeleteThreshold}
-            colorSingleStatText={colorSingleStatText}
-            onToggleSingleStatText={onToggleSingleStatText}
+            singleStatType={singleStatType}
+            onToggleSingleStatType={onToggleSingleStatType}
           />
         )
       default:
@@ -111,10 +113,11 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
-  onAddThreshold: func.isRequired,
+  onAddGaugeThreshold: func.isRequired,
+  onAddSingleStatThreshold: func.isRequired,
   onDeleteThreshold: func.isRequired,
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
@@ -129,18 +132,27 @@ DisplayOptions.propTypes = {
   onSetLabel: func.isRequired,
   onSetBase: func.isRequired,
   axes: shape({}).isRequired,
-  colors: arrayOf(
+  gaugeColors: arrayOf(
     shape({
       type: string.isRequired,
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
-      value: string.isRequired,
+      value: number.isRequired,
+    }).isRequired
+  ),
+  singleStatColors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: number.isRequired,
     }).isRequired
   ),
   queryConfigs: arrayOf(shape()).isRequired,
-  colorSingleStatText: bool.isRequired,
-  onToggleSingleStatText: func.isRequired,
+  singleStatType: string.isRequired,
+  onToggleSingleStatType: func.isRequired,
 }
 
 export default DisplayOptions
