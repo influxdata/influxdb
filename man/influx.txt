@@ -81,4 +81,17 @@ OPTIONS
 -version::
   Outputs the version of the influx client.
 
+ENVIRONMENT
+-----------
+The environment variables can be specified in lower case or upper case. The upper case version has precedence.
+
+HTTP_PROXY [protocol://]<host>[:port]::
+  Sets the proxy server to use for HTTP.
+
+HTTPS_PROXY [protocol://]<host>[:port]::
+  Sets the proxy server to use for HTTPS. Takes precedence over HTTP_PROXY for HTTPS.
+
+NO_PROXY <comma-separated list of hosts>::
+  List of host names that shouldn't go through any proxy. If set to an asterisk \'*' only, it matches all hosts.
+
 include::footer.txt[]

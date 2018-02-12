@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -333,6 +334,7 @@ func (c *CommandLine) Connect(cmd string) error {
 	ClientConfig := c.ClientConfig
 	ClientConfig.UserAgent = "InfluxDBShell/" + c.ClientVersion
 	ClientConfig.URL = URL
+	ClientConfig.Proxy = http.ProxyFromEnvironment
 
 	client, err := client.NewClient(ClientConfig)
 	if err != nil {
