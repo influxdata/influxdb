@@ -12,7 +12,7 @@ type AddCommand struct {
 	ID            *uint64 `short:"i" long:"id" description:"Users ID. Must be id for existing user"`
 	Username      string  `short:"n" long:"name" description:"Users name. Must be Oauth-able email address or username"`
 	Provider      string  `short:"p" long:"provider" description:"Name of the Auth provider (e.g. google, github, auth0, or generic)"`
-	Scheme        string  `short:"s" long:"scheme" description:"Authentication scheme that matches auth provider (e.g. oauth or ldap)"`
+	Scheme        string  `short:"s" long:"scheme" description:"Authentication scheme that matches auth provider (e.g. oauth2)" default:"oauth2"`
 	Organizations string  `short:"o" long:"orgs" description:"A comma separated list of organizations that the user should be added to" default:"default"`
 }
 
