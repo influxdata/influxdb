@@ -115,7 +115,7 @@ export const DEFAULT_SINGLESTAT_COLORS = [
   },
 ]
 
-export const validateSingleStatColors = (colors, coloration) => {
+export const validateSingleStatColors = (colors, type) => {
   if (!colors || colors.length === 0) {
     return DEFAULT_SINGLESTAT_COLORS
   }
@@ -126,10 +126,10 @@ export const validateSingleStatColors = (colors, coloration) => {
     if (color.id === SINGLE_STAT_BASE) {
       // Check for existance of base color
       containsBaseColor = true
-      return {...color, type: coloration}
+      return {...color, type}
     }
     // Single stat colors should all have type of 'text' or 'background'
-    return {...color, type: coloration}
+    return {...color, type}
   })
 
   const formattedColorsWithBase = [
@@ -140,18 +140,28 @@ export const validateSingleStatColors = (colors, coloration) => {
   return containsBaseColor ? formattedColors : formattedColorsWithBase
 }
 
-export const getSingleStatColoration = colors => {
-  if (!colors.length) {
-    return SINGLE_STAT_TEXT
+export const getSingleStatType = colors => {
+  const type = _.get(colors, ['0', 'type'], false)
+
+  if (type) {
+    if (_.includes([SINGLE_STAT_TEXT, SINGLE_STAT_BG], type)) {
+      return type
+    }
   }
 
-  if (
-    colors[0].type === SINGLE_STAT_TEXT ||
-    colors[0].type === SINGLE_STAT_BG
-  ) {
-    return colors[0].type
-  }
   return SINGLE_STAT_TEXT
+  // if (!colors.length) {
+  //   return SINGLE_STAT_TEXT
+  // }
+  //
+  // if (
+  //   colors[0].type === SINGLE_STAT_TEXT ||
+  //   colors[0].type === SINGLE_STAT_BG
+  // ) {
+  //   return colors[0].type
+  // }
+  //
+  // return SINGLE_STAT_TEXT
 }
 
 export const validateGaugeColors = colors => {

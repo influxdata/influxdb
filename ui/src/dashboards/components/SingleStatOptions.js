@@ -26,8 +26,8 @@ const SingleStatOptions = ({
   onChooseColor,
   onValidateColorValue,
   onUpdateColorValue,
-  singleStatColoration,
-  onToggleSingleStatColoration,
+  singleStatType,
+  onToggleSingleStatType,
 }) => {
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
 
@@ -76,18 +76,18 @@ const SingleStatOptions = ({
             <label>Coloring</label>
             <ul className="nav nav-tablist nav-tablist-sm">
               <li
-                className={
-                  singleStatColoration === SINGLE_STAT_BG ? 'active' : null
-                }
-                onClick={onToggleSingleStatColoration(SINGLE_STAT_BG)}
+                className={`${singleStatType === SINGLE_STAT_BG
+                  ? 'active'
+                  : ''}`}
+                onClick={onToggleSingleStatType(SINGLE_STAT_BG)}
               >
                 Background
               </li>
               <li
-                className={
-                  singleStatColoration === SINGLE_STAT_TEXT ? 'active' : null
-                }
-                onClick={onToggleSingleStatColoration(SINGLE_STAT_TEXT)}
+                className={`${singleStatType === SINGLE_STAT_TEXT
+                  ? 'active'
+                  : ''}`}
+                onClick={onToggleSingleStatType(SINGLE_STAT_TEXT)}
               >
                 Text
               </li>
@@ -130,8 +130,8 @@ SingleStatOptions.propTypes = {
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
-  singleStatColoration: string.isRequired,
-  onToggleSingleStatColoration: func.isRequired,
+  singleStatType: string.isRequired,
+  onToggleSingleStatType: func.isRequired,
   onSetSuffix: func.isRequired,
   suffix: string.isRequired,
 }

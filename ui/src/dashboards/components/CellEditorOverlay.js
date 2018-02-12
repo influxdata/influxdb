@@ -30,7 +30,7 @@ import {
   GAUGE_COLORS,
   validateGaugeColors,
   validateSingleStatColors,
-  getSingleStatColoration,
+  getSingleStatType,
 } from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
@@ -50,7 +50,7 @@ class CellEditorOverlay extends Component {
       }))
     )
 
-    const singleStatColoration = getSingleStatColoration(colors)
+    const singleStatType = getSingleStatType(colors)
 
     this.state = {
       cellWorkingName: name,
@@ -59,9 +59,9 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
-      singleStatColoration,
+      singleStatType,
       gaugeColors: validateGaugeColors(colors, type),
-      singleStatColors: validateSingleStatColors(colors, singleStatColoration),
+      singleStatColors: validateSingleStatColors(colors, singleStatType),
     }
   }
 
@@ -112,7 +112,7 @@ class CellEditorOverlay extends Component {
   }
 
   handleAddSingleStatThreshold = () => {
-    const {singleStatColors, singleStatColoration} = this.state
+    const {singleStatColors, singleStatType} = this.state
 
     const randomColor = _.random(0, GAUGE_COLORS.length - 1)
 
@@ -129,7 +129,7 @@ class CellEditorOverlay extends Component {
     }
 
     const newThreshold = {
-      type: singleStatColoration,
+      type: singleStatType,
       id: uuid.v4(),
       value: randomValue,
       hex: GAUGE_COLORS[randomColor].hex,
@@ -256,14 +256,14 @@ class CellEditorOverlay extends Component {
     return allowedToUpdate
   }
 
-  handleToggleSingleStatColoration = newColoration => () => {
+  handleToggleSingleStatType = type => () => {
     const singleStatColors = this.state.singleStatColors.map(color => ({
       ...color,
-      type: newColoration,
+      type,
     }))
 
     this.setState({
-      singleStatColoration: newColoration,
+      singleStatType: type,
       singleStatColors,
     })
   }
@@ -549,7 +549,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
-      singleStatColoration,
+      singleStatType,
     } = this.state
 
     const queryActions = {
@@ -613,10 +613,8 @@ class CellEditorOverlay extends Component {
                   onAddGaugeThreshold={this.handleAddGaugeThreshold}
                   onAddSingleStatThreshold={this.handleAddSingleStatThreshold}
                   onDeleteThreshold={this.handleDeleteThreshold}
-                  onToggleSingleStatColoration={
-                    this.handleToggleSingleStatColoration
-                  }
-                  singleStatColoration={singleStatColoration}
+                  onToggleSingleStatType={this.handleToggleSingleStatType}
+                  singleStatType={singleStatType}
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
