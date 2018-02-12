@@ -46,7 +46,9 @@ class InputClickToEdit extends Component {
 
   render() {
     const {isEditing, value} = this.state
-    const {wrapperClass, disabled, tabIndex} = this.props
+    const {wrapperClass, disabled, tabIndex, placeholder} = this.props
+
+    const divStyle = value ? 'input-cte' : 'input-cte__empty'
 
     return disabled
       ? <div className={wrapperClass}>
@@ -66,14 +68,15 @@ class InputClickToEdit extends Component {
                 onFocus={this.handleFocus}
                 ref={r => (this.inputRef = r)}
                 tabIndex={tabIndex}
+                placeholder={placeholder}
               />
             : <div
-                className="input-cte"
+                className={divStyle}
                 onClick={this.handleInputClick}
                 onFocus={this.handleInputClick}
                 tabIndex={tabIndex}
               >
-                {value}
+                {value || placeholder}
                 <span className="icon pencil" />
               </div>}
         </div>
@@ -88,6 +91,7 @@ InputClickToEdit.propTypes = {
   onUpdate: func.isRequired,
   disabled: bool,
   tabIndex: number,
+  placeholder: string,
 }
 
 export default InputClickToEdit

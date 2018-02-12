@@ -51,3 +51,13 @@
   font-style: italic;
   color: $g9-mountain;
 }
+
+.input-cte__empty {
+  @extend .input-cte;
+  font-style: italic;
+  color: $g9-mountain;
+
+  &:hover {
+    color: $g9-mountain;
+  }  
+}

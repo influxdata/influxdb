@@ -62,12 +62,14 @@ class ProvidersTableRowNew extends Component {
           wrapperClass="fancytable--td provider--provider"
           onUpdate={this.handleChangeProvider}
           tabIndex={rowIndex}
+          placeholder="google"
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
           onUpdate={this.handleChangeProviderOrg}
           tabIndex={rowIndex}
+          placeholder="*"
         />
         <div className="fancytable--td provider--arrow">
           <span />
