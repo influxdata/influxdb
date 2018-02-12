@@ -122,7 +122,7 @@ const Root = React.createClass({
   },
 
   render() {
-    return !this.state.ready
+    return !this.state.ready // eslint-disable-line no-negated-condition
       ? <div className="page-spinner" />
       : <Provider store={store}>
           <Router history={history}>
