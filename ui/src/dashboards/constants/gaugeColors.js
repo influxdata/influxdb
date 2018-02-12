@@ -150,18 +150,6 @@ export const getSingleStatType = colors => {
   }
 
   return SINGLE_STAT_TEXT
-  // if (!colors.length) {
-  //   return SINGLE_STAT_TEXT
-  // }
-  //
-  // if (
-  //   colors[0].type === SINGLE_STAT_TEXT ||
-  //   colors[0].type === SINGLE_STAT_BG
-  // ) {
-  //   return colors[0].type
-  // }
-  //
-  // return SINGLE_STAT_TEXT
 }
 
 export const validateGaugeColors = colors => {
