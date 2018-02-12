@@ -36,13 +36,15 @@ class CheckSources extends Component {
   }
 
   async componentWillMount() {
-    const {auth: {isUsingAuth, me}} = this.props
+    const {router, auth: {isUsingAuth, me}} = this.props
 
     if (!isUsingAuth || isUserAuthorized(me.role, VIEWER_ROLE)) {
       await this.props.getSources()
+      this.setState({isFetching: false})
+    } else {
+      router.push('/purgatory')
+      return
     }
-
-    this.setState({isFetching: false})
   }
 
   shouldComponentUpdate(nextProps) {
@@ -79,6 +81,14 @@ class CheckSources extends Component {
       !isUserAuthorized(nextProps.auth.me.role, ADMIN_ROLE)
     ) {
       return router.push('/')
+    }
+
+    if (!organizations.length) {
+      notify(
+        'error',
+        'You have been removed from all organizations. Please contact your administrator.'
+      )
+      return router.push('/purgatory')
     }
 
     if (

@@ -19,7 +19,7 @@ const AllUsersTableHeader = ({
   return (
     <div className="panel-heading u-flex u-ai-center u-jc-space-between">
       <h2 className="panel-title">
-        {numUsersString} in {numOrganizationsString}
+        {numUsersString} across {numOrganizationsString}
       </h2>
       <div style={{display: 'flex', alignItems: 'center'}}>
         <div className="all-users-admin-toggle">

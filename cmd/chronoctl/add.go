@@ -42,9 +42,15 @@ func (l *AddCommand) Execute(args []string) error {
 		return err
 	} else if err == chronograf.ErrUserNotFound {
 		user = &chronograf.User{
-			Name:       l.Username,
-			Provider:   l.Provider,
-			Scheme:     l.Scheme,
+			Name:     l.Username,
+			Provider: l.Provider,
+			Scheme:   l.Scheme,
+			Roles: []chronograf.Role{
+				{
+					Name:         "member",
+					Organization: "default",
+				},
+			},
 			SuperAdmin: true,
 		}
 
@@ -54,6 +60,14 @@ func (l *AddCommand) Execute(args []string) error {
 		}
 	} else {
 		user.SuperAdmin = true
+		if len(user.Roles) == 0 {
+			user.Roles = []chronograf.Role{
+				{
+					Name:         "member",
+					Organization: "default",
+				},
+			}
+		}
 		if err = c.UsersStore.Update(ctx, user); err != nil {
 			return err
 		}

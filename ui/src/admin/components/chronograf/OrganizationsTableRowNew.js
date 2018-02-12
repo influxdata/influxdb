@@ -58,20 +58,22 @@ class OrganizationsTableRowNew extends Component {
     }))
 
     return (
-      <div className="orgs-table--org orgs-table--new-org">
-        <div className="orgs-table--active">&mdash;</div>
-        <input
-          type="text"
-          className="form-control input-sm orgs-table--input"
-          value={name}
-          onKeyDown={this.handleKeyDown}
-          onChange={this.handleInputChange}
-          onFocus={this.handleInputFocus}
-          placeholder="Name this Organization..."
-          autoFocus={true}
-          ref={r => (this.inputRef = r)}
-        />
-        <div className="orgs-table--default-role editing">
+      <div className="fancytable--row">
+        <div className="fancytable--td orgs-table--active">&mdash;</div>
+        <div className="fancytable--td orgs-table--name">
+          <input
+            type="text"
+            className="form-control input-sm"
+            value={name}
+            onKeyDown={this.handleKeyDown}
+            onChange={this.handleInputChange}
+            onFocus={this.handleInputFocus}
+            placeholder="Name this Organization..."
+            autoFocus={true}
+            ref={r => (this.inputRef = r)}
+          />
+        </div>
+        <div className="fancytable--td orgs-table--default-role deleting">
           <Dropdown
             items={dropdownRolesItems}
             onChoose={this.handleChooseDefaultRole}
