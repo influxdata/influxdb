@@ -158,15 +158,15 @@ export const validateGaugeColors = colors => {
   }
 
   // Gauge colors should have a type of min, any number of thresholds, and a max
-  const formatttedColors = _.sortBy(colors, color =>
+  const formattedColors = _.sortBy(colors, color =>
     Number(color.value)
   ).map(color => ({
     ...color,
     type: COLOR_TYPE_THRESHOLD,
   }))
 
-  formatttedColors[0].type = COLOR_TYPE_MIN
-  formatttedColors[formatttedColors.length - 1].type = COLOR_TYPE_MAX
+  formattedColors[0].type = COLOR_TYPE_MIN
+  formattedColors[formattedColors.length - 1].type = COLOR_TYPE_MAX
 
-  return formatttedColors
+  return formattedColors
 }
