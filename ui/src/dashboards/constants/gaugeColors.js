@@ -4,9 +4,9 @@ export const MAX_THRESHOLDS = 5
 export const MIN_THRESHOLDS = 2
 
 export const COLOR_TYPE_MIN = 'min'
-export const DEFAULT_VALUE_MIN = '0'
+export const DEFAULT_VALUE_MIN = 0
 export const COLOR_TYPE_MAX = 'max'
-export const DEFAULT_VALUE_MAX = '100'
+export const DEFAULT_VALUE_MAX = 100
 export const COLOR_TYPE_THRESHOLD = 'threshold'
 
 export const SINGLE_STAT_TEXT = 'text'
@@ -111,7 +111,7 @@ export const DEFAULT_SINGLESTAT_COLORS = [
     hex: GAUGE_COLORS[11].hex,
     id: SINGLE_STAT_BASE,
     name: GAUGE_COLORS[11].name,
-    value: '0',
+    value: 0,
   },
 ]
 
@@ -126,10 +126,10 @@ export const validateSingleStatColors = (colors, type) => {
     if (color.id === SINGLE_STAT_BASE) {
       // Check for existance of base color
       containsBaseColor = true
-      return {...color, type}
+      return {...color, value: Number(color.value), type}
     }
     // Single stat colors should all have type of 'text' or 'background'
-    return {...color, type}
+    return {...color, value: Number(color.value), type}
   })
 
   const formattedColorsWithBase = [
@@ -162,6 +162,7 @@ export const validateGaugeColors = colors => {
     Number(color.value)
   ).map(color => ({
     ...color,
+    value: Number(color.value),
     type: COLOR_TYPE_THRESHOLD,
   }))
 
@@ -169,4 +170,8 @@ export const validateGaugeColors = colors => {
   formattedColors[formattedColors.length - 1].type = COLOR_TYPE_MAX
 
   return formattedColors
+}
+
+export const stringifyColorValues = colors => {
+  return colors.map(color => ({...color, value: `${color.value}`}))
 }

@@ -31,6 +31,7 @@ import {
   validateGaugeColors,
   validateSingleStatColors,
   getSingleStatType,
+  stringifyColorValues,
 } from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
@@ -60,7 +61,7 @@ class CellEditorOverlay extends Component {
       isDisplayOptionsTabActive: false,
       axes,
       singleStatType,
-      gaugeColors: validateGaugeColors(colors, type),
+      gaugeColors: validateGaugeColors(colors),
       singleStatColors: validateSingleStatColors(colors, singleStatType),
     }
   }
@@ -84,19 +85,19 @@ class CellEditorOverlay extends Component {
 
   handleAddGaugeThreshold = () => {
     const {gaugeColors} = this.state
-    const sortedColors = _.sortBy(gaugeColors, color => Number(color.value))
+    const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     if (sortedColors.length <= MAX_THRESHOLDS) {
       const randomColor = _.random(0, GAUGE_COLORS.length - 1)
 
-      const maxValue = Number(sortedColors[sortedColors.length - 1].value)
-      const minValue = Number(sortedColors[0].value)
+      const maxValue = sortedColors[sortedColors.length - 1].value
+      const minValue = sortedColors[0].value
 
       const colorsValues = _.mapValues(gaugeColors, 'value')
       let randomValue
 
       do {
-        randomValue = `${_.round(_.random(minValue, maxValue, true), 2)}`
+        randomValue = _.round(_.random(minValue, maxValue, true), 2)
       } while (_.includes(colorsValues, randomValue))
 
       const newThreshold = {
@@ -116,15 +117,15 @@ class CellEditorOverlay extends Component {
 
     const randomColor = _.random(0, GAUGE_COLORS.length - 1)
 
-    const maxValue = Number(DEFAULT_VALUE_MIN)
-    const minValue = Number(DEFAULT_VALUE_MAX)
+    const maxValue = DEFAULT_VALUE_MIN
+    const minValue = DEFAULT_VALUE_MAX
 
     let randomValue = _.round(_.random(minValue, maxValue, true), 2)
 
     if (singleStatColors.length > 0) {
       const colorsValues = _.mapValues(singleStatColors, 'value')
       do {
-        randomValue = `${_.round(_.random(minValue, maxValue, true), 2)}`
+        randomValue = _.round(_.random(minValue, maxValue, true), 2)
       } while (_.includes(colorsValues, randomValue))
     }
 
@@ -185,13 +186,12 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  handleUpdateColorValue = (threshold, newValue) => {
+  handleUpdateColorValue = (threshold, value) => {
     const {cellWorkingType} = this.state
 
     if (cellWorkingType === 'gauge') {
       const gaugeColors = this.state.gaugeColors.map(
-        color =>
-          color.id === threshold.id ? {...color, value: newValue} : color
+        color => (color.id === threshold.id ? {...color, value} : color)
       )
 
       this.setState({gaugeColors})
@@ -199,47 +199,43 @@ class CellEditorOverlay extends Component {
 
     if (cellWorkingType === 'single-stat') {
       const singleStatColors = this.state.singleStatColors.map(
-        color =>
-          color.id === threshold.id ? {...color, value: newValue} : color
+        color => (color.id === threshold.id ? {...color, value} : color)
       )
 
       this.setState({singleStatColors})
     }
   }
 
-  handleValidateColorValue = (threshold, e) => {
+  handleValidateColorValue = (threshold, targetValue) => {
     const {gaugeColors, singleStatColors, cellWorkingType} = this.state
-    const thresholdValue = Number(threshold.value)
-    const targetValueNumber = Number(e.target.value)
+    const thresholdValue = threshold.value
     let allowedToUpdate = false
 
     if (cellWorkingType === 'single-stat') {
       // If type is single-stat then value only has to be unique
-      const sortedColors = _.sortBy(singleStatColors, color =>
-        Number(color.value)
-      )
-      return !sortedColors.some(color => color.value === e.target.value)
+      const sortedColors = _.sortBy(singleStatColors, color => color.value)
+      return !sortedColors.some(color => color.value === targetValue)
     }
 
-    const sortedColors = _.sortBy(gaugeColors, color => Number(color.value))
+    const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
-    const minValue = Number(sortedColors[0].value)
-    const maxValue = Number(sortedColors[sortedColors.length - 1].value)
+    const minValue = sortedColors[0].value
+    const maxValue = sortedColors[sortedColors.length - 1].value
 
     // If lowest value, make sure it is less than the next threshold
     if (thresholdValue === minValue) {
-      const nextValue = Number(sortedColors[1].value)
-      allowedToUpdate = targetValueNumber < nextValue
+      const nextValue = sortedColors[1].value
+      allowedToUpdate = targetValue < nextValue
     }
     // If highest value, make sure it is greater than the previous threshold
     if (thresholdValue === maxValue) {
-      const previousValue = Number(sortedColors[sortedColors.length - 2].value)
-      allowedToUpdate = previousValue < targetValueNumber
+      const previousValue = sortedColors[sortedColors.length - 2].value
+      allowedToUpdate = previousValue < targetValue
     }
     // If not min or max, make sure new value is greater than min, less than max, and unique
     if (thresholdValue !== minValue && thresholdValue !== maxValue) {
-      const greaterThanMin = targetValueNumber > minValue
-      const lessThanMax = targetValueNumber < maxValue
+      const greaterThanMin = targetValue > minValue
+      const lessThanMax = targetValue < maxValue
 
       const colorsWithoutMinOrMax = sortedColors.slice(
         1,
@@ -247,7 +243,7 @@ class CellEditorOverlay extends Component {
       )
 
       const isUnique = !colorsWithoutMinOrMax.some(
-        color => color.value === e.target.value
+        color => color.value === targetValue
       )
 
       allowedToUpdate = greaterThanMin && lessThanMax && isUnique
@@ -383,9 +379,9 @@ class CellEditorOverlay extends Component {
 
     let colors = []
     if (type === 'gauge') {
-      colors = gaugeColors
+      colors = stringifyColorValues(gaugeColors)
     } else if (type === 'single-stat' || type === 'line-plus-single-stat') {
-      colors = singleStatColors
+      colors = stringifyColorValues(singleStatColors)
     }
 
     this.props.onSave({

@@ -2,7 +2,10 @@ import React, {PropTypes, PureComponent} from 'react'
 import lastValues from 'shared/parsing/lastValues'
 import Gauge from 'shared/components/Gauge'
 
-import {DEFAULT_GAUGE_COLORS} from 'src/dashboards/constants/gaugeColors'
+import {
+  DEFAULT_GAUGE_COLORS,
+  stringifyColorValues,
+} from 'src/dashboards/constants/gaugeColors'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 
 class GaugeChart extends PureComponent {
@@ -60,7 +63,7 @@ class GaugeChart extends PureComponent {
 const {arrayOf, bool, number, shape, string} = PropTypes
 
 GaugeChart.defaultProps = {
-  colors: DEFAULT_GAUGE_COLORS,
+  colors: stringifyColorValues(DEFAULT_GAUGE_COLORS),
 }
 
 GaugeChart.propTypes = {

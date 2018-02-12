@@ -113,7 +113,7 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
   onAddGaugeThreshold: func.isRequired,
@@ -138,7 +138,7 @@ DisplayOptions.propTypes = {
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
-      value: string.isRequired,
+      value: number.isRequired,
     }).isRequired
   ),
   singleStatColors: arrayOf(
@@ -147,7 +147,7 @@ DisplayOptions.propTypes = {
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
-      value: string.isRequired,
+      value: number.isRequired,
     }).isRequired
   ),
   queryConfigs: arrayOf(shape()).isRequired,
