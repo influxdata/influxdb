@@ -49,6 +49,8 @@ class ProvidersTableRowNew extends Component {
       text: role.name,
     }))
 
+    const preventCreate = !provider || !providerOrganization
+
     return (
       <div className="fancytable--row">
         <Dropdown
@@ -85,6 +87,7 @@ class ProvidersTableRowNew extends Component {
         <ConfirmButtons
           onCancel={onCancel}
           onConfirm={this.handleSaveNewMapping}
+          isDisabled={preventCreate}
         />
       </div>
     )
