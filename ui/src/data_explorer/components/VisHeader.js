@@ -5,10 +5,15 @@ import _ from 'lodash'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {resultsToCSV} from 'src/shared/parsing/resultsToCSV.js'
 import download from 'src/external/download.js'
+import {TEMPLATES} from 'src/data_explorer/constants'
 
 const getCSV = (query, errorThrown) => async () => {
   try {
-    const {results} = await fetchTimeSeriesAsync({source: query.host, query})
+    const {results} = await fetchTimeSeriesAsync({
+      source: query.host,
+      query,
+      tempVars: TEMPLATES,
+    })
     const {flag, name, CSVString} = resultsToCSV(results)
     if (flag === 'no_data') {
       errorThrown('no data', 'There are no data to download.')
