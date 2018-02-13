@@ -3,7 +3,7 @@
 ### UI Improvements
 ### Bug Fixes
 
-## v1.4.1.0 [2018-02-12]
+## v1.4.1.1 [2018-02-12]
 ### Features
 1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Allow multiple event handlers per rule
 1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations
