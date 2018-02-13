@@ -1,8 +1,11 @@
+## v1.4.2.0 [unreleased]
+
+
 ## v1.4.1.2 [2018-02-13]
-### Features
-### UI Improvements
 ### Bug Fixes
+1. [9321336](https://github.com/influxdata/chronograf/commit/9321336): Respect basepath when fetching server api routes
 1. [#2812](https://github.com/influxdata/chronograf/pull/2812): Set default tempVar :interval: with data explorer csv download call.
+1. [#2811](https://github.com/influxdata/chronograf/pull/2811): Display series with value of 0 in a cell legend
 
 ## v1.4.1.1 [2018-02-12]
 ### Features
