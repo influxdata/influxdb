@@ -1,7 +1,8 @@
-## v1.4.2.x [unreleased]
+## v1.4.1.2 [2018-02-13]
 ### Features
 ### UI Improvements
 ### Bug Fixes
+1. [#2812](https://github.com/influxdata/chronograf/pull/2812): Set default tempVar :interval: with data explorer csv download call.
 
 ## v1.4.1.1 [2018-02-12]
 ### Features
