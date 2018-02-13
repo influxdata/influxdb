@@ -779,6 +779,10 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 }
 
 func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCardinalityStatement) (models.Rows, error) {
+	if stmt.Database == "" {
+		return nil, ErrDatabaseNameRequired
+	}
+
 	n, err := e.TSDBStore.MeasurementsCardinality(stmt.Database)
 	if err != nil {
 		return nil, err
@@ -846,6 +850,10 @@ func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShards
 }
 
 func (e *StatementExecutor) executeShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityStatement) (models.Rows, error) {
+	if stmt.Database == "" {
+		return nil, ErrDatabaseNameRequired
+	}
+
 	n, err := e.TSDBStore.SeriesCardinality(stmt.Database)
 	if err != nil {
 		return nil, err
