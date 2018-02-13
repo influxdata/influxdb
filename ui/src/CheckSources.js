@@ -68,7 +68,7 @@ class CheckSources extends Component {
       params,
       errorThrown,
       sources,
-      auth: {isUsingAuth, me, me: {organizations, currentOrganization}},
+      auth: {isUsingAuth, me, me: {organizations = [], currentOrganization}},
       notify,
       getSources,
     } = nextProps
@@ -83,7 +83,7 @@ class CheckSources extends Component {
       return router.push('/')
     }
 
-    if (!organizations.length) {
+    if (!isFetching && isUsingAuth && !organizations.length) {
       notify(
         'error',
         'You have been removed from all organizations. Please contact your administrator.'
