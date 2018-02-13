@@ -8,7 +8,23 @@ import download from 'src/external/download.js'
 
 const getCSV = (query, errorThrown) => async () => {
   try {
-    const {results} = await fetchTimeSeriesAsync({source: query.host, query})
+    const tempVars = [
+      {
+        id: 'interval',
+        type: 'autoGroupBy',
+        tempVar: ':interval:',
+        label: 'automatically determine the best group by time',
+        values: [
+          {value: '1000', type: 'resolution', selected: true},
+          {value: '3', type: 'pointsPerPixel', selected: true},
+        ],
+      },
+    ]
+    const {results} = await fetchTimeSeriesAsync({
+      source: query.host,
+      query,
+      tempVars,
+    })
     const {flag, name, CSVString} = resultsToCSV(results)
     if (flag === 'no_data') {
       errorThrown('no data', 'There are no data to download.')
