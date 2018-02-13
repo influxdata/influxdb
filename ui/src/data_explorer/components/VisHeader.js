@@ -5,25 +5,14 @@ import _ from 'lodash'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {resultsToCSV} from 'src/shared/parsing/resultsToCSV.js'
 import download from 'src/external/download.js'
+import {TEMPLATES} from 'src/data_explorer/constants'
 
 const getCSV = (query, errorThrown) => async () => {
   try {
-    const tempVars = [
-      {
-        id: 'interval',
-        type: 'autoGroupBy',
-        tempVar: ':interval:',
-        label: 'automatically determine the best group by time',
-        values: [
-          {value: '1000', type: 'resolution', selected: true},
-          {value: '3', type: 'pointsPerPixel', selected: true},
-        ],
-      },
-    ]
     const {results} = await fetchTimeSeriesAsync({
       source: query.host,
       query,
-      tempVars,
+      tempVars: TEMPLATES,
     })
     const {flag, name, CSVString} = resultsToCSV(results)
     if (flag === 'no_data') {
