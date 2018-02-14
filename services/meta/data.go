@@ -1579,15 +1579,10 @@ type UserInfo struct {
 type User interface {
 	query.Authorizer
 	ID() string
-	IsAdmin() bool
 }
 
 func (u *UserInfo) ID() string {
 	return u.Name
-}
-
-func (u *UserInfo) IsAdmin() bool {
-	return u.Admin
 }
 
 // AuthorizeDatabase returns true if the user is authorized for the given privilege on the given database.

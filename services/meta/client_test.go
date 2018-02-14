@@ -599,7 +599,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if exp, got := "fred", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if !u.IsAdmin() {
+	if !isAdmin(u) {
 		t.Fatalf("expected user to be admin")
 	}
 
@@ -650,7 +650,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if exp, got := "wilma", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if u.IsAdmin() {
+	if isAdmin(u) {
 		t.Fatalf("expected user not to be an admin")
 	}
 
@@ -670,7 +670,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if exp, got := "wilma", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if !u.IsAdmin() {
+	if !isAdmin(u) {
 		t.Fatalf("expected user to be an admin")
 	}
 
@@ -686,7 +686,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if exp, got := "wilma", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if u.IsAdmin() {
+	if isAdmin(u) {
 		t.Fatalf("expected user not to be an admin")
 	}
 
@@ -1162,4 +1162,9 @@ func testTempDir(skip int) string {
 		panic(err)
 	}
 	return dir
+}
+
+func isAdmin(u meta.User) bool {
+	ui := u.(*meta.UserInfo)
+	return ui.Admin
 }
