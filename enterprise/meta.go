@@ -3,6 +3,7 @@ package enterprise
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,14 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
+)
+
+// Shared transports for all clients to prevent leaking connections
+var (
+	skipVerifyTransport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	defaultTransport = &http.Transport{}
 )
 
 type client interface {
@@ -26,10 +35,12 @@ type MetaClient struct {
 }
 
 // NewMetaClient represents a meta node in an Influx Enterprise cluster
-func NewMetaClient(url *url.URL, authorizer influx.Authorizer) *MetaClient {
+func NewMetaClient(url *url.URL, InsecureSkipVerify bool, authorizer influx.Authorizer) *MetaClient {
 	return &MetaClient{
-		URL:        url,
-		client:     &defaultClient{},
+		URL: url,
+		client: &defaultClient{
+			InsecureSkipVerify: InsecureSkipVerify,
+		},
 		authorizer: authorizer,
 	}
 }
@@ -399,7 +410,8 @@ func (m *MetaClient) Post(ctx context.Context, path string, action interface{}, 
 }
 
 type defaultClient struct {
-	Leader string
+	Leader             string
+	InsecureSkipVerify bool
 }
 
 // Do is a helper function to interface with Influx Enterprise's Meta API
@@ -436,6 +448,12 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, authorizer influx.
 	// special handling to preserve authentication headers.
 	client := &http.Client{
 		CheckRedirect: d.AuthedCheckRedirect,
+	}
+
+	if d.InsecureSkipVerify {
+		client.Transport = skipVerifyTransport
+	} else {
+		client.Transport = defaultTransport
 	}
 
 	res, err := client.Do(req)
