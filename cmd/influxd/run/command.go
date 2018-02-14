@@ -94,7 +94,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Print sweet InfluxDB logo.
-	if !suppressLogo {
+	if !suppressLogo && logger.IsTerminal(cmd.Stdout) {
 		fmt.Fprint(cmd.Stdout, logo)
 	}
 
