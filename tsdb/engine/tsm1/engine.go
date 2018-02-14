@@ -1900,15 +1900,7 @@ type compactionStrategy struct {
 // Apply concurrently compacts all the groups in a compaction strategy.
 func (s *compactionStrategy) Apply() {
 	start := time.Now()
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		s.compactGroup()
-	}()
-	wg.Wait()
-
+	s.compactGroup()
 	atomic.AddInt64(s.durationStat, time.Since(start).Nanoseconds())
 }
 
