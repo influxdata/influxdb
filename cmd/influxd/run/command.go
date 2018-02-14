@@ -73,15 +73,23 @@ func (cmd *Command) Run(args ...string) error {
 
 	// Attempt to parse the config once in advance. If this fails, use the
 	// default logging configuration.
-	var suppressLogo bool
+	var (
+		suppressLogo bool
+		logErr       error
+	)
 	if config, err := cmd.ParseConfig(options.GetConfigPath()); err == nil {
 		suppressLogo = config.Logging.SuppressLogo
 		if l, err := config.Logging.New(cmd.Stderr); err == nil {
 			cmd.Logger = l
+		} else {
+			logErr = err
 		}
+	} else {
+		logErr = err
 	}
+
 	// We were unable to read the configuration file. Use the default logging format.
-	if cmd.Logger == nil {
+	if logErr != nil {
 		cmd.Logger = logger.New(cmd.Stderr)
 	}
 
@@ -94,6 +102,11 @@ func (cmd *Command) Run(args ...string) error {
 	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
 		cmd.Version, cmd.Branch, cmd.Commit))
 	cmd.Logger.Info(fmt.Sprintf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0)))
+
+	// If there was an error on startup when creating the logger, output it now.
+	if logErr != nil {
+		cmd.Logger.Error("Unable to configure logger", zap.Error(logErr))
+	}
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {

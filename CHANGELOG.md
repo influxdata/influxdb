@@ -3,7 +3,7 @@ v1.5.0 [unreleased]
 
 ### Breaking changes
 
--	The default logging format has been changed. See [#9055](https://github.com/influxdata/influxdb/pull/9055) for details.
+-	The default logging format has been changed. See [#9055](https://github.com/influxdata/influxdb/pull/9055) and [#9066](https://github.com/influxdata/influxdb/pull/9056) for details.
 
 ### Features
 
