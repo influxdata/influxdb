@@ -41,7 +41,7 @@ func (c *Config) New(defaultOutput io.Writer) (*zap.Logger, error) {
 	}
 	return zap.New(zapcore.NewCore(
 		encoder,
-		zapcore.AddSync(w),
+		zapcore.Lock(zapcore.AddSync(w)),
 		c.Level,
 	)), nil
 }
