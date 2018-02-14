@@ -19,6 +19,7 @@ v1.5.0 [unreleased]
 -	[#9218](https://github.com/influxdata/influxdb/pull/9218): Add Prometheus `/metrics` endpoint.
 -	[#9213](https://github.com/influxdata/influxdb/pull/9213): Add ability to generate shard digests.
 -	[#9184](https://github.com/influxdata/influxdb/pull/9184): Allow setting the node id in the influx cli program.
+-	[#9056](https://github.com/influxdata/influxdb/pull/9056): Add logging configuration to the main configuration file.
 
 ### Bugfixes
 
