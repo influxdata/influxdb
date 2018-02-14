@@ -81,6 +81,7 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT value FROM cpu WHERE time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T01:00:00Z'`,
 		`SELECT value FROM (SELECT value FROM cpu) ORDER BY time DESC`,
 		`SELECT count(distinct(value)), max(value) FROM cpu`,
+		`SELECT last(value) / (1 - 0) FROM cpu`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
