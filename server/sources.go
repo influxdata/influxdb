@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/influxdata/chronograf/organizations"
+
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
@@ -340,6 +342,7 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 		return err
 	}
 
+	ctx = context.WithValue(ctx, organizations.ContextKey, "default")
 	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
 	if err != nil {
 		return err
