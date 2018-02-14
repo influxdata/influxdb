@@ -286,6 +286,7 @@
   # level = "info"
 
   # Suppresses the logo output that is printed when the program is started.
+  # The logo is always suppressed if STDOUT is not a TTY.
   # suppress-logo = false
 
 ###
