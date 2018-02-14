@@ -1,6 +1,12 @@
 ## v1.4.2.0 [unreleased]
 1. [#2818](https://github.com/influxdata/chronograf/pull/2818): Allow self-signed certificates for Enterprise InfluxDB Meta nodes
+### Features
+### UI Improvements
+### Bug Fixes
 
+## v1.4.1.3 [2018-02-14]
+### Bug Fixes
+1. [#2818](https://github.com/influxdata/chronograf/pull/2818): Allow self-signed certificates for Enterprise InfluxDB Meta nodes
 
 ## v1.4.1.2 [2018-02-13]
 ### Bug Fixes
