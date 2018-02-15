@@ -30,7 +30,7 @@ do
     if [ $mine -eq $CIRCLE_NODE_INDEX ]
     then
         echo "Running test env index: $i"
-        ./test.sh $i
+        ./test.sh $i | cat && test ${PIPESTATUS} -eq 0
     fi
 done
 
