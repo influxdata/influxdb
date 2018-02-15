@@ -217,6 +217,14 @@
   # Determines whether HTTP request logging is enabled.
   # log-enabled = true
 
+  # When HTTP request logging is enabled, this option specifies the path where
+  # log entries should be written. If unspecified, the default is to write to stderr, which
+  # intermingles HTTP logs with internal InfluxDB logging.
+  #
+  # If influxd is unable to access the specified path, it will log an error and fall back to writing
+  # the request log to stderr.
+  # access-log-path = ""
+
   # Determines whether detailed write logging is enabled.
   # write-tracing = false
 

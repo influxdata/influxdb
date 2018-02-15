@@ -89,6 +89,8 @@ func (s *Service) Open() error {
 	s.Logger.Info("Starting HTTP service")
 	s.Logger.Info(fmt.Sprint("Authentication enabled:", s.Handler.Config.AuthEnabled))
 
+	s.Handler.Open()
+
 	// Open listener.
 	if s.https {
 		cert, err := tls.LoadX509KeyPair(s.cert, s.key)
@@ -163,6 +165,8 @@ func (s *Service) Open() error {
 
 // Close closes the underlying listener.
 func (s *Service) Close() error {
+	s.Handler.Close()
+
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err
