@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-func TestConcurrentServer_WriteValues(t *testing.T) {
+func TestConcurrentServer_WriteValues_DropDatabase(t *testing.T) {
 	t.Parallel()
 
 	if testing.Short() {
@@ -25,13 +25,11 @@ func TestConcurrentServer_WriteValues(t *testing.T) {
 		t.Skip("Skipping.  Not implemented on remote server")
 	}
 
-	// The first %%d becomes a %d once fmt is done, so we can then inject new
-	// measurement names later on.
 	write := strings.Join([]string{
-		fmt.Sprintf(`a%%[1]d val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`b%%[1]d val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`c%%[1]d val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`d%%[1]d val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`a1,host=foo val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`b1,host=foo val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`c1,host=foo val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`d1,host=foo val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
 	}, "\n")
 
 	var i int64
@@ -40,6 +38,41 @@ func TestConcurrentServer_WriteValues(t *testing.T) {
 	}
 
 	var f2 = func() { s.DropDatabase("db0") }
+	runTest(10*time.Second, f1, f2)
+}
+
+func TestConcurrentServer_WriteValues_DropMeasurement(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("Skipping in short mode")
+	}
+
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Not implemented on remote server")
+	}
+
+	write := strings.Join([]string{
+		fmt.Sprintf(`b1,host=foo val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+	}, "\n")
+
+	srv, ok := s.(*LocalServer)
+	if !ok {
+		t.Fatal("Not a local server")
+	}
+
+	var f1 = func() {
+		s.Write("db0", "rp0", write, nil)
+		srv.TSDBStore.DeleteMeasurement("db0", "b1")
+	}
+
+	var f2 = func() {
+		s.Write("db0", "rp0", write, nil)
+		srv.TSDBStore.DeleteMeasurement("db0", "b1")
+	}
 	runTest(10*time.Second, f1, f2)
 }
 
