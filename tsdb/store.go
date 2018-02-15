@@ -760,8 +760,9 @@ func byDatabase(name string) func(sh *Shard) bool {
 	}
 }
 
-// walkShards apply a function to each shard in parallel.  If any of the
-// functions return an error, the first error is returned.
+// walkShards apply a function to each shard in parallel. fn must be safe for
+// concurrent use. If any of the functions return an error, the first error is
+// returned.
 func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 	// struct to hold the result of opening each reader in a goroutine
 	type res struct {
@@ -898,7 +899,9 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	var setMu sync.Mutex
 	others := make([]*SeriesIDSet, 0, len(shards))
+
 	s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
 		if err != nil {
@@ -908,7 +911,10 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 		if i, ok := index.(interface {
 			SeriesIDSet() *SeriesIDSet
 		}); ok {
-			others = append(others, i.SeriesIDSet())
+			seriesIDs := i.SeriesIDSet()
+			setMu.Lock()
+			others = append(others, seriesIDs)
+			setMu.Unlock()
 		} else {
 			return fmt.Errorf("unable to get series id set for index in shard at %s", sh.Path())
 		}
