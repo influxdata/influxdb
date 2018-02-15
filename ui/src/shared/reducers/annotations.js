@@ -132,7 +132,7 @@ const annotationsReducer = (state = initialState, action) => {
         ...state.annotations,
         {
           ...annotation,
-          id: `${DEFAULT_ANNOTATION_ID + uuid.v4()}`,
+          id: DEFAULT_ANNOTATION_ID,
         },
       ]
 
