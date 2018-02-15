@@ -34,6 +34,7 @@ type Config struct {
 	UnixSocketEnabled  bool   `toml:"unix-socket-enabled"`
 	BindSocket         string `toml:"bind-socket"`
 	MaxBodySize        int    `toml:"max-body-size"`
+	AccessLogPath      string `toml:"access-log-path"`
 }
 
 // NewConfig returns a new Config with default settings.
@@ -67,5 +68,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"https-enabled":        c.HTTPSEnabled,
 		"max-row-limit":        c.MaxRowLimit,
 		"max-connection-limit": c.MaxConnectionLimit,
+		"access-log-path":      c.AccessLogPath,
 	}), nil
 }

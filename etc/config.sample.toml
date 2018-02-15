@@ -217,6 +217,10 @@
   # Determines whether HTTP request logging is enabled.
   # log-enabled = true
 
+  # Specifies whether HTTP request logging is written to the specified path when enabled.
+  # If influxd is unable to access the specified path, it will log an error and fall back to stderr.
+  # access-log-path = ""
+
   # Determines whether detailed write logging is enabled.
   # write-tracing = false
 
