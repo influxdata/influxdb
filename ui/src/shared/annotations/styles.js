@@ -161,6 +161,7 @@ export const annotationStyle = (
   isDragging,
   staticLegendHeight
 ) => {
+export const annotationStyle = ({time}, dygraph, isMouseOver, isDragging) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   let visibility = 'visible'
@@ -176,7 +177,7 @@ export const annotationStyle = (
   const height = staticLegendHeight
     ? `calc(100% - ${staticLegendHeight + 36}px)`
     : 'calc(100% - 36px)'
-
+  
   return {
     left,
     position: 'absolute',
@@ -239,7 +240,7 @@ export const annotationWindowStyle = (
     position: 'absolute',
     top: '8px',
     background: `linear-gradient(to bottom, ${gradientStartColor} 0%,${gradientEndColor} 100%)`,
-    height,
+    height: 'calc(100% - 36px)',
     borderTop: `2px dotted rgba(${annotationColor},0.35)`,
     width,
     zIndex: zIndexWindow,

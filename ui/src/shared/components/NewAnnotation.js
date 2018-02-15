@@ -113,6 +113,7 @@ class NewAnnotation extends Component {
       tempAnnotation: {time},
       staticLegendHeight,
     } = this.props
+
     const {isMouseOver, mouseAction} = this.state
 
     const timestamp = `${new Date(+time)}`
@@ -171,7 +172,7 @@ class NewAnnotation extends Component {
   }
 }
 
-const {bool, func, number, shape} = PropTypes
+const {bool, func, number, shape} = P
 
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,

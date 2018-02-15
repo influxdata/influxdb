@@ -57,7 +57,7 @@ class AnnotationTooltip extends Component {
                   className="btn btn-sm btn-danger btn-square"
                   onClick={this.props.onDelete}
                 >
-                  <span className="icon trash" />
+                  <span className="icon trash" />r
                 </button>}
               {isEditing
                 ? <AnnotationInput
