@@ -330,6 +330,8 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 		return nil
 	}
 
+	s.Logger.Error("--new-sources is depracated. To preconfigure a source, see this link. www.example.com")
+
 	var srcsKaps []struct {
 		Source    chronograf.Source `json:"influxdb"`
 		Kapacitor chronograf.Server `json:"kapacitor"`
