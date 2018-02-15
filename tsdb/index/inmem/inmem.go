@@ -752,11 +752,6 @@ func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
 		return nil
 	}
 
-	// Series was recently created, we can't drop it.
-	if series.LastModified() >= ts {
-		return nil
-	}
-
 	// Update the tombstone sketch.
 	i.seriesTSSketch.Add([]byte(k))
 
@@ -766,7 +761,7 @@ func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
 	// Remove the measurement's reference.
 	series.Measurement.DropSeries(series)
 	// Mark the series as deleted.
-	series.Delete(ts)
+	series.Delete()
 
 	// If the measurement no longer has any series, remove it as well.
 	if !series.Measurement.HasSeries() {

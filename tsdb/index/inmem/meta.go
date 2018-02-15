@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -1052,12 +1050,8 @@ func (a measurements) Union(other measurements) measurements {
 
 // series belong to a Measurement and represent unique time series in a database.
 type series struct {
-	mu sync.RWMutex
-	// lastModified tracks the last time the series was created.  If the series
-	// already exists and a request to create is received (a no-op), lastModified
-	// is increased to track that it is still in use.
-	lastModified int64
-	deleted      bool
+	mu      sync.RWMutex
+	deleted bool
 
 	// immutable
 	ID          uint64
@@ -1069,24 +1063,17 @@ type series struct {
 // newSeries returns an initialized series struct
 func newSeries(id uint64, m *measurement, key string, tags models.Tags) *series {
 	return &series{
-		ID:           id,
-		Measurement:  m,
-		Key:          key,
-		Tags:         tags,
-		lastModified: time.Now().UTC().UnixNano(),
+		ID:          id,
+		Measurement: m,
+		Key:         key,
+		Tags:        tags,
 	}
-}
-
-func (s *series) LastModified() int64 {
-	return atomic.LoadInt64(&s.lastModified)
 }
 
 // Delete marks this series as deleted.  A deleted series should not be returned for queries.
-func (s *series) Delete(ts int64) {
+func (s *series) Delete() {
 	s.mu.Lock()
-	if s.LastModified() < ts {
-		s.deleted = true
-	}
+	s.deleted = true
 	s.mu.Unlock()
 }
 
