@@ -16,14 +16,15 @@ class Threshold extends Component {
 
   handleChangeWorkingValue = e => {
     const {threshold, onValidateColorValue, onUpdateColorValue} = this.props
+    const targetValue = Number(e.target.value)
 
-    const valid = onValidateColorValue(threshold, e)
+    const valid = onValidateColorValue(threshold, targetValue)
 
     if (valid) {
-      onUpdateColorValue(threshold, e.target.value)
+      onUpdateColorValue(threshold, targetValue)
     }
 
-    this.setState({valid, workingValue: e.target.value})
+    this.setState({valid, workingValue: targetValue})
   }
 
   handleBlur = () => {
@@ -98,7 +99,7 @@ class Threshold extends Component {
   }
 }
 
-const {bool, func, shape, string} = PropTypes
+const {bool, func, number, shape, string} = PropTypes
 
 Threshold.propTypes = {
   visualizationType: string.isRequired,
@@ -107,7 +108,7 @@ Threshold.propTypes = {
     hex: string.isRequired,
     id: string.isRequired,
     name: string.isRequired,
-    value: string.isRequired,
+    value: number.isRequired,
   }).isRequired,
   disableMaxColor: bool,
   onChooseColor: func.isRequired,

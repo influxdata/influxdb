@@ -13,3 +13,4 @@ export const USER_ROLES = [
 ]
 
 export const DEFAULT_ORG_ID = 'default'
+export const DEFAULT_MAPPING_ID = 'default'

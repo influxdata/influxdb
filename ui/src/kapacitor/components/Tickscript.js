@@ -34,7 +34,10 @@ const Tickscript = ({
       isNewTickscript={isNewTickscript}
     />
     <div className="page-contents--split">
-      <div className="tickscript">
+      <div
+        className="tickscript"
+        style={areLogsVisible ? {maxWidth: '50%'} : null}
+      >
         <TickscriptEditorControls
           isNewTickscript={isNewTickscript}
           onSelectDbrps={onSelectDbrps}

@@ -71,16 +71,18 @@ $scrollbar-offset: 3px;
     width: $scrollbar-width;
     border-top-right-radius: $radius;
     border-top-left-radius: $radius;
-    border-bottom-right-radius: $radius;
     border-bottom-left-radius: $radius;
+    border-bottom-right-radius: $radius;
 
     &-button {
       background-color: $trackColor;
     }
     &-track {
       background-color: $trackColor;
-      border-top-right-radius: $radius;
-      border-bottom-right-radius: $radius;
+      border-top-right-radius: ($scrollbar-width / 2);
+      border-top-left-radius: ($scrollbar-width / 2);
+      border-bottom-left-radius: ($scrollbar-width / 2);
+      border-bottom-right-radius: ($scrollbar-width / 2);
     }
     &-track-piece {
       background-color: $trackColor;

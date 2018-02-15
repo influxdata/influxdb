@@ -36,14 +36,6 @@ class OrganizationsPage extends Component {
     getMe({shouldResetMe: false})
   }
 
-  handleTogglePublic = organization => {
-    const {actionsAdmin: {updateOrganizationAsync}} = this.props
-    updateOrganizationAsync(organization, {
-      ...organization,
-      public: !organization.public,
-    })
-  }
-
   handleChooseDefaultRole = (organization, defaultRole) => {
     const {actionsAdmin: {updateOrganizationAsync}} = this.props
     updateOrganizationAsync(organization, {...organization, defaultRole})
@@ -65,7 +57,6 @@ class OrganizationsPage extends Component {
         onCreateOrg={this.handleCreateOrganization}
         onDeleteOrg={this.handleDeleteOrganization}
         onRenameOrg={this.handleRenameOrganization}
-        onTogglePublic={this.handleTogglePublic}
         onChooseDefaultRole={this.handleChooseDefaultRole}
         me={me}
       />

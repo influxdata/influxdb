@@ -4,9 +4,6 @@ import uuid from 'node-uuid'
 
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
-import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
-
-import {PUBLIC_TOOLTIP} from 'src/admin/constants/index'
 
 class OrganizationsTable extends Component {
   constructor(props) {
@@ -37,7 +34,6 @@ class OrganizationsTable extends Component {
       onDeleteOrg,
       onRenameOrg,
       onChooseDefaultRole,
-      onTogglePublic,
       currentOrganization,
     } = this.props
     const {isCreatingOrganization} = this.state
@@ -71,15 +67,13 @@ class OrganizationsTable extends Component {
           </button>
         </div>
         <div className="panel-body">
-          <div className="orgs-table--org-labels">
-            <div className="orgs-table--active" />
-            <div className="orgs-table--name">Name</div>
-            <div className="orgs-table--public">
-              Public{' '}
-              <QuestionMarkTooltip tipID="public" tipContent={PUBLIC_TOOLTIP} />
+          <div className="fancytable--labels">
+            <div className="fancytable--th orgs-table--active" />
+            <div className="fancytable--th orgs-table--name">Name</div>
+            <div className="fancytable--th orgs-table--default-role">
+              Default Role
             </div>
-            <div className="orgs-table--default-role">Default Role</div>
-            <div className="orgs-table--delete" />
+            <div className="fancytable--th orgs-table--delete" />
           </div>
           {isCreatingOrganization
             ? <OrganizationsTableRowNew
@@ -91,7 +85,6 @@ class OrganizationsTable extends Component {
             <OrganizationsTableRow
               key={uuid.v4()}
               organization={org}
-              onTogglePublic={onTogglePublic}
               onDelete={onDeleteOrg}
               onRename={onRenameOrg}
               onChooseDefaultRole={onChooseDefaultRole}
@@ -120,7 +113,6 @@ OrganizationsTable.propTypes = {
   onCreateOrg: func.isRequired,
   onDeleteOrg: func.isRequired,
   onRenameOrg: func.isRequired,
-  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
 }
 export default OrganizationsTable

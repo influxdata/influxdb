@@ -23,8 +23,8 @@ func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chr
 		Tokens:     t,
 		SuccessURL: path.Join(basepath, "/"),
 		FailureURL: path.Join(basepath, "/login"),
-		Now:    DefaultNowTime,
-		Logger: l,
+		Now:        DefaultNowTime,
+		Logger:     l,
 	}
 }
 
@@ -125,9 +125,17 @@ func (j *AuthMux) Callback() http.Handler {
 			return
 		}
 
+		group, err := j.Provider.Group(oauthClient)
+		if err != nil {
+			log.Error("Unable to get OAuth Group", err.Error())
+			http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+			return
+		}
+
 		p := Principal{
 			Subject: id,
 			Issuer:  j.Provider.Name(),
+			Group:   group,
 		}
 		ctx := r.Context()
 		err = j.Auth.Authorize(ctx, w, p)

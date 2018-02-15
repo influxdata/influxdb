@@ -51,13 +51,13 @@ type Client struct {
 }
 
 // NewClientWithTimeSeries initializes a Client with a known set of TimeSeries.
-func NewClientWithTimeSeries(lg chronograf.Logger, mu string, authorizer influx.Authorizer, tls bool, series ...chronograf.TimeSeries) (*Client, error) {
+func NewClientWithTimeSeries(lg chronograf.Logger, mu string, authorizer influx.Authorizer, tls, insecure bool, series ...chronograf.TimeSeries) (*Client, error) {
 	metaURL, err := parseMetaURL(mu, tls)
 	if err != nil {
 		return nil, err
 	}
 
-	ctrl := NewMetaClient(metaURL, authorizer)
+	ctrl := NewMetaClient(metaURL, insecure, authorizer)
 	c := &Client{
 		Ctrl: ctrl,
 		UsersStore: &UserStore{
@@ -85,13 +85,13 @@ func NewClientWithTimeSeries(lg chronograf.Logger, mu string, authorizer influx.
 // varieties. TLS is used when the URL contains "https" or when the TLS
 // parameter is set.  authorizer will add the correct `Authorization` headers
 // on the out-bound request.
-func NewClientWithURL(mu string, authorizer influx.Authorizer, tls bool, lg chronograf.Logger) (*Client, error) {
+func NewClientWithURL(mu string, authorizer influx.Authorizer, tls bool, insecure bool, lg chronograf.Logger) (*Client, error) {
 	metaURL, err := parseMetaURL(mu, tls)
 	if err != nil {
 		return nil, err
 	}
 
-	ctrl := NewMetaClient(metaURL, authorizer)
+	ctrl := NewMetaClient(metaURL, insecure, authorizer)
 	return &Client{
 		Ctrl: ctrl,
 		UsersStore: &UserStore{

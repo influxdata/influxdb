@@ -1,24 +1,23 @@
 import React, {PropTypes} from 'react'
 
-import InfiniteScroll from 'shared/components/InfiniteScroll'
 import LogsTableRow from 'src/kapacitor/components/LogsTableRow'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+
+const numLogsToRender = 200
 
 const LogsTable = ({logs}) =>
-  <div className="logs-table--container">
+  <div className="logs-table">
     <div className="logs-table--header">
-      <h2 className="panel-title">Logs</h2>
+      {`${numLogsToRender} Most Recent Logs`}
     </div>
-    <div className="logs-table--panel fancy-scroll--kapacitor">
-      {logs.length
-        ? <InfiniteScroll
-            className="logs-table"
-            itemHeight={87}
-            items={logs.map((log, i) =>
-              <LogsTableRow key={log.key} logItem={log} index={i} />
-            )}
-          />
-        : <div className="page-spinner" />}
-    </div>
+    <FancyScrollbar
+      autoHide={false}
+      className="logs-table--container fancy-scroll--kapacitor"
+    >
+      {logs
+        .slice(0, numLogsToRender)
+        .map(log => <LogsTableRow key={log.key} logItem={log} />)}
+    </FancyScrollbar>
   </div>
 
 const {arrayOf, shape, string} = PropTypes

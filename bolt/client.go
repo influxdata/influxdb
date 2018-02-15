@@ -41,6 +41,7 @@ type Client struct {
 	UsersStore         *UsersStore
 	OrganizationsStore *OrganizationsStore
 	ConfigStore        *ConfigStore
+	MappingsStore      *MappingsStore
 }
 
 // NewClient initializes all stores
@@ -60,6 +61,7 @@ func NewClient() *Client {
 	c.UsersStore = &UsersStore{client: c}
 	c.OrganizationsStore = &OrganizationsStore{client: c}
 	c.ConfigStore = &ConfigStore{client: c}
+	c.MappingsStore = &MappingsStore{client: c}
 	return c
 }
 
@@ -151,6 +153,10 @@ func (c *Client) initialize(ctx context.Context) error {
 		if _, err := tx.CreateBucketIfNotExists(BuildBucket); err != nil {
 			return err
 		}
+		// Always create Mapping bucket.
+		if _, err := tx.CreateBucketIfNotExists(MappingsBucket); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -182,6 +188,9 @@ func (c *Client) migrate(ctx context.Context, build chronograf.BuildInfo) error 
 			return err
 		}
 		if err := c.BuildStore.Migrate(ctx, build); err != nil {
+			return err
+		}
+		if err := c.MappingsStore.Migrate(ctx); err != nil {
 			return err
 		}
 	}

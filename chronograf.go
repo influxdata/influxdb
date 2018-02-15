@@ -30,6 +30,7 @@ const (
 	ErrInvalidLegendOrient             = Error("Invalid orientation type. Valid orientation types are 'top', 'bottom', 'right', 'left'")
 	ErrUserAlreadyExists               = Error("user already exists")
 	ErrOrganizationNotFound            = Error("organization not found")
+	ErrMappingNotFound                 = Error("mapping not found")
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
 	ErrConfigNotFound                  = Error("cannot find configuration")
@@ -415,7 +416,7 @@ type User struct {
 	Name        string      `json:"name"`
 	Passwd      string      `json:"password,omitempty"`
 	Permissions Permissions `json:"permissions,omitempty"`
-	Roles       []Role      `json:"roles,omitempty"`
+	Roles       []Role      `json:"roles"`
 	Provider    string      `json:"provider,omitempty"`
 	Scheme      string      `json:"scheme,omitempty"`
 	SuperAdmin  bool        `json:"superAdmin,omitempty"`
@@ -605,15 +606,52 @@ type LayoutsStore interface {
 	Update(context.Context, Layout) error
 }
 
+// MappingWildcard is the wildcard value for mappings
+const MappingWildcard string = "*"
+
+// A Mapping is the structure that is used to determine a users
+// role within an organization. The high level idea is to grant
+// certain roles to certain users without them having to be given
+// explicit role within the organization.
+//
+// One can think of a mapping like so:
+//     Provider:Scheme:Group -> Organization
+//     github:oauth2:influxdata -> Happy
+//     beyondcorp:ldap:influxdata -> TheBillHilliettas
+//
+// Any of Provider, Scheme, or Group may be provided as a wildcard *
+//     github:oauth2:* -> MyOrg
+//     *:*:* -> AllOrg
+type Mapping struct {
+	ID                   string `json:"id"`
+	Organization         string `json:"organizationId"`
+	Provider             string `json:"provider"`
+	Scheme               string `json:"scheme"`
+	ProviderOrganization string `json:"providerOrganization"`
+}
+
+// MappingsStore is the storage and retrieval of Mappings
+type MappingsStore interface {
+	// Add creates a new Mapping.
+	// The Created mapping is returned back to the user with the
+	// ID field populated.
+	Add(context.Context, *Mapping) (*Mapping, error)
+	// All lists all Mapping in the MappingsStore
+	All(context.Context) ([]Mapping, error)
+	// Delete removes an Mapping from the MappingsStore
+	Delete(context.Context, *Mapping) error
+	// Get retrieves an Mapping from the MappingsStore
+	Get(context.Context, string) (*Mapping, error)
+	// Update updates an Mapping in the MappingsStore
+	Update(context.Context, *Mapping) error
+}
+
 // Organization is a group of resources under a common name
 type Organization struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	// DefaultRole is the name of the role that is the default for any users added to the organization
 	DefaultRole string `json:"defaultRole,omitempty"`
-	// Public specifies whether users must be explicitly added to the organization.
-	// It is currently only used by the default organization, but that may change in the future.
-	Public bool `json:"public"`
 }
 
 // OrganizationQuery represents the attributes that a organization may be retrieved by.

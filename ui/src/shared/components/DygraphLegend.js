@@ -132,7 +132,7 @@ class DygraphLegend extends Component {
       isFilterVisible,
     } = this.state
 
-    const withValues = legend.series.filter(s => s.y)
+    const withValues = legend.series.filter(s => !_.isNil(s.y))
     const sorted = _.sortBy(
       withValues,
       ({y, label}) => (sortType === 'numeric' ? y : label)
@@ -158,6 +158,7 @@ class DygraphLegend extends Component {
         <div className="sort-btn--bottom">Z</div>
       </div>
     )
+
     const renderSortNum = (
       <button
         className={classnames('sort-btn btn btn-sm btn-square', {

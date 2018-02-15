@@ -33,11 +33,12 @@ class ColorDropdown extends Component {
 
   render() {
     const {visible} = this.state
-    const {colors, selected, disabled} = this.props
+    const {colors, selected, disabled, stretchToFit} = this.props
 
-    const dropdownClassNames = visible
-      ? 'color-dropdown open'
-      : 'color-dropdown'
+    const dropdownClassNames = classnames('color-dropdown', {
+      open: visible,
+      'color-dropdown--stretch': stretchToFit,
+    })
     const toggleClassNames = classnames(
       'btn btn-sm btn-default color-dropdown--toggle',
       {active: visible, 'color-dropdown__disabled': disabled}
@@ -103,6 +104,7 @@ ColorDropdown.propTypes = {
       name: string.isRequired,
     })
   ).isRequired,
+  stretchToFit: bool,
   disabled: bool,
 }
 

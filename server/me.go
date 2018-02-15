@@ -20,8 +20,20 @@ type meLinks struct {
 type meResponse struct {
 	*chronograf.User
 	Links               meLinks                   `json:"links"`
-	Organizations       []chronograf.Organization `json:"organizations,omitempty"`
+	Organizations       []chronograf.Organization `json:"organizations"`
 	CurrentOrganization *chronograf.Organization  `json:"currentOrganization,omitempty"`
+}
+
+type noAuthMeResponse struct {
+	Links meLinks `json:"links"`
+}
+
+func newNoAuthMeResponse() noAuthMeResponse {
+	return noAuthMeResponse{
+		Links: meLinks{
+			Self: "/chronograf/v1/me",
+		},
+	}
 }
 
 // If new user response is nil, return an empty meResponse because it
@@ -182,7 +194,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !s.UseAuth {
 		// If there's no authentication, return an empty user
-		res := newMeResponse(nil, "")
+		res := newNoAuthMeResponse()
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
@@ -201,12 +213,13 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, organizations.ContextKey, p.Organization)
 	serverCtx := serverContext(ctx)
 
+	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
+	if err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
 	if p.Organization == "" {
-		defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
-		if err != nil {
-			unknownErrorWithMessage(w, err, s.Logger)
-			return
-		}
 		p.Organization = defaultOrg.ID
 	}
 
@@ -220,35 +233,8 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultOrg, err := s.Store.Organizations(serverCtx).DefaultOrganization(serverCtx)
-	if err != nil {
-		unknownErrorWithMessage(w, err, s.Logger)
-		return
-	}
-
+	// user exists
 	if usr != nil {
-
-		if defaultOrg.Public || usr.SuperAdmin == true {
-			// If the default organization is public, or the user is a super admin
-			// they will always have a role in the default organization
-			defaultOrgID := defaultOrg.ID
-			if !hasRoleInDefaultOrganization(usr, defaultOrgID) {
-				usr.Roles = append(usr.Roles, chronograf.Role{
-					Organization: defaultOrgID,
-					Name:         defaultOrg.DefaultRole,
-				})
-				if err := s.Store.Users(serverCtx).Update(serverCtx, usr); err != nil {
-					unknownErrorWithMessage(w, err, s.Logger)
-					return
-				}
-			}
-		}
-
-		// If the default org is private and the user has no roles, they should not have access
-		if !defaultOrg.Public && len(usr.Roles) == 0 {
-			Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
-			return
-		}
 		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 		if err == chronograf.ErrOrganizationNotFound {
 			// The intent is to force a the user to go through another auth flow
@@ -265,17 +251,11 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 			unknownErrorWithMessage(w, err, s.Logger)
 			return
 		}
+
 		res := newMeResponse(usr, currentOrg.ID)
 		res.Organizations = orgs
 		res.CurrentOrganization = currentOrg
 		encodeJSON(w, http.StatusOK, res, s.Logger)
-		return
-	}
-
-	// If users must be explicitly added to the default organization, respond with 403
-	// forbidden
-	if !defaultOrg.Public {
-		Error(w, http.StatusForbidden, "This organization is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
 	}
 
@@ -287,16 +267,22 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		// support OAuth2. This hard-coding should be removed whenever we add
 		// support for other authentication schemes.
 		Scheme: scheme,
-		Roles: []chronograf.Role{
-			{
-				Name: defaultOrg.DefaultRole,
-				// This is the ID of the default organization
-				Organization: defaultOrg.ID,
-			},
-		},
 		// TODO(desa): this needs a better name
 		SuperAdmin: s.newUsersAreSuperAdmin(),
 	}
+
+	roles, err := s.mapPrincipalToRoles(serverCtx, p)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		return
+	}
+
+	if len(roles) == 0 {
+		Error(w, http.StatusForbidden, "This Chronograf is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
+		return
+	}
+
+	user.Roles = roles
 
 	newUser, err := s.Store.Users(serverCtx).Add(serverCtx, user)
 	if err != nil {

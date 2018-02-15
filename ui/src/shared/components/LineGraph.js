@@ -40,6 +40,7 @@ class LineGraph extends Component {
       axes,
       cell,
       title,
+      colors,
       onZoom,
       queries,
       timeRange,
@@ -91,6 +92,14 @@ class LineGraph extends Component {
       top: '8px',
     }
 
+    let prefix
+    let suffix
+
+    if (axes) {
+      prefix = axes.y.prefix
+      suffix = axes.y.suffix
+    }
+
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? <GraphLoadingDots /> : null}
@@ -114,7 +123,14 @@ class LineGraph extends Component {
           isGraphFilled={showSingleStat ? false : isGraphFilled}
         />
         {showSingleStat
-          ? <SingleStat data={data} cellHeight={cellHeight} />
+          ? <SingleStat
+              prefix={prefix}
+              suffix={suffix}
+              data={data}
+              lineGraph={true}
+              colors={colors}
+              cellHeight={cellHeight}
+            />
           : null}
       </div>
     )
@@ -178,6 +194,15 @@ LineGraph.propTypes = {
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
 }
 
 export default LineGraph
