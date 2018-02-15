@@ -222,7 +222,7 @@ func (i *Index) CreateSeriesListIfNotExists(shardID uint64, seriesIDSet *tsdb.Se
 	// Verify that the series will not exceed limit.
 	if !ignoreLimits {
 		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+len(keys) > max {
-			return errMaxSeriesPerDatabaseExceeded
+			return errMaxSeriesPerDatabaseExceeded{limit: opt.Config.MaxSeriesPerDatabase}
 		}
 	}
 
@@ -752,11 +752,6 @@ func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
 		return nil
 	}
 
-	// Series was recently created, we can't drop it.
-	if series.LastModified() >= ts {
-		return nil
-	}
-
 	// Update the tombstone sketch.
 	i.seriesTSSketch.Add([]byte(k))
 
@@ -766,7 +761,7 @@ func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
 	// Remove the measurement's reference.
 	series.Measurement.DropSeries(series)
 	// Mark the series as deleted.
-	series.Delete(ts)
+	series.Delete()
 
 	// If the measurement no longer has any series, remove it as well.
 	if !series.Measurement.HasSeries() {
@@ -1133,29 +1128,9 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 		keys, names, tagsSlice = keys[:n], names[:n], tagsSlice[:n]
 	}
 
-	// Write entire batch at once if we are well below the max series threshold.
-	// Otherwise, insert one at a time until we reach an error.
-	idx.mu.RLock()
-	seriesN := len(idx.series)
-	idx.mu.RUnlock()
-
-	if max := idx.opt.Config.MaxSeriesPerDatabase; max > 0 && seriesN+len(keys) <= max {
-		if err := idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, keys, names, tagsSlice, &idx.opt, false); err != nil {
-			return err
-		}
-	} else {
-		for i := range keys {
-			if err := idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, keys[i:i+1], names[i:i+1], tagsSlice[i:i+1], &idx.opt, false); err == errMaxSeriesPerDatabaseExceeded {
-				if reason == "" {
-					reason = fmt.Sprintf("max-series-per-database limit exceeded: (%d)", idx.opt.Config.MaxSeriesPerDatabase)
-				}
-
-				droppedKeys = append(droppedKeys, keys[i])
-				continue
-			} else if err != nil {
-				return err
-			}
-		}
+	if err := idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, keys, names, tagsSlice, &idx.opt, idx.opt.Config.MaxSeriesPerDatabase == 0); err != nil {
+		reason = err.Error()
+		droppedKeys = append(droppedKeys, keys...)
 	}
 
 	// Report partial writes back to shard.
@@ -1286,4 +1261,10 @@ func (itr *seriesIDIterator) nextKeys() error {
 
 // errMaxSeriesPerDatabaseExceeded is a marker error returned during series creation
 // to indicate that a new series would exceed the limits of the database.
-var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceeded")
+type errMaxSeriesPerDatabaseExceeded struct {
+	limit int
+}
+
+func (e errMaxSeriesPerDatabaseExceeded) Error() string {
+	return fmt.Sprintf("max-series-per-database limit exceeded: (%d)", e.limit)
+}

@@ -130,7 +130,7 @@ func (s *SeriesSegment) InitForWrite() (err error) {
 	} else if _, err := s.file.Seek(int64(s.size), io.SeekStart); err != nil {
 		return err
 	}
-	s.w = bufio.NewWriter(s.file)
+	s.w = bufio.NewWriterSize(s.file, 32*1024)
 
 	return nil
 }
