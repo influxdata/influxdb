@@ -3,7 +3,6 @@ package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -92,28 +91,30 @@ func (s *Service) Open() (err error) {
 
 	s.addr, err = net.ResolveUDPAddr("udp", s.config.BindAddress)
 	if err != nil {
-		s.Logger.Info(fmt.Sprintf("Failed to resolve UDP address %s: %s", s.config.BindAddress, err))
+		s.Logger.Info("Failed to resolve UDP address",
+			zap.String("bind_address", s.config.BindAddress), zap.Error(err))
 		return err
 	}
 
 	s.conn, err = net.ListenUDP("udp", s.addr)
 	if err != nil {
-		s.Logger.Info(fmt.Sprintf("Failed to set up UDP listener at address %s: %s", s.addr, err))
+		s.Logger.Info("Failed to set up UDP listener",
+			zap.Stringer("addr", s.addr), zap.Error(err))
 		return err
 	}
 
 	if s.config.ReadBuffer != 0 {
 		err = s.conn.SetReadBuffer(s.config.ReadBuffer)
 		if err != nil {
-			s.Logger.Info(fmt.Sprintf("Failed to set UDP read buffer to %d: %s",
-				s.config.ReadBuffer, err))
+			s.Logger.Info("Failed to set UDP read buffer",
+				zap.Int("buffer_size", s.config.ReadBuffer), zap.Error(err))
 			return err
 		}
 	}
 	s.batcher = tsdb.NewPointBatcher(s.config.BatchSize, s.config.BatchPending, time.Duration(s.config.BatchTimeout))
 	s.batcher.Start()
 
-	s.Logger.Info(fmt.Sprintf("Started listening on UDP: %s", s.config.BindAddress))
+	s.Logger.Info("Started listening on UDP", zap.String("addr", s.config.BindAddress))
 
 	s.wg.Add(3)
 	go s.serve()
@@ -159,7 +160,8 @@ func (s *Service) writer() {
 		case batch := <-s.batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
-				s.Logger.Info(fmt.Sprintf("Required database %s does not yet exist: %s", s.config.Database, err.Error()))
+				s.Logger.Info("Required database does not yet exist",
+					zap.String("db", s.config.Database), zap.Error(err))
 				continue
 			}
 
@@ -167,7 +169,8 @@ func (s *Service) writer() {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				s.Logger.Info(fmt.Sprintf("failed to write point batch to database %q: %s", s.config.Database, err))
+				s.Logger.Info("Failed to write point batch to database",
+					zap.String("db", s.config.Database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 
@@ -191,7 +194,7 @@ func (s *Service) serve() {
 			n, _, err := s.conn.ReadFromUDP(buf)
 			if err != nil {
 				atomic.AddInt64(&s.stats.ReadFail, 1)
-				s.Logger.Info(fmt.Sprintf("Failed to read UDP message: %s", err))
+				s.Logger.Info("Failed to read UDP message", zap.Error(err))
 				continue
 			}
 			atomic.AddInt64(&s.stats.BytesReceived, int64(n))
@@ -214,7 +217,7 @@ func (s *Service) parser() {
 			points, err := models.ParsePointsWithPrecision(buf, time.Now().UTC(), s.config.Precision)
 			if err != nil {
 				atomic.AddInt64(&s.stats.PointsParseFail, 1)
-				s.Logger.Info(fmt.Sprintf("Failed to parse points: %s", err))
+				s.Logger.Info("Failed to parse points", zap.Error(err))
 				continue
 			}
 

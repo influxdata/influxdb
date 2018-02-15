@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -380,7 +379,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	if err == tsdb.ErrShardNotFound {
 		err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID, true)
 		if err != nil {
-			w.Logger.Info(fmt.Sprintf("write failed for shard %d: %v", shard.ID, err))
+			w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
 
 			atomic.AddInt64(&w.stats.WriteErr, 1)
 			return err
@@ -388,7 +387,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	}
 	err = w.TSDBStore.WriteToShard(shard.ID, points)
 	if err != nil {
-		w.Logger.Info(fmt.Sprintf("write failed for shard %d: %v", shard.ID, err))
+		w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
 		atomic.AddInt64(&w.stats.WriteErr, 1)
 		return err
 	}

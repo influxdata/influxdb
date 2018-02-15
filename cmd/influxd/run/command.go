@@ -99,9 +99,13 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Mark start-up in log.
-	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
-		cmd.Version, cmd.Branch, cmd.Commit))
-	cmd.Logger.Info(fmt.Sprintf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0)))
+	cmd.Logger.Info("InfluxDB starting",
+		zap.String("version", cmd.Version),
+		zap.String("branch", cmd.Branch),
+		zap.String("commit", cmd.Commit))
+	cmd.Logger.Info("Go runtime",
+		zap.String("version", runtime.Version()),
+		zap.Int("maxprocs", runtime.GOMAXPROCS(0)))
 
 	// If there was an error on startup when creating the logger, output it now.
 	if logErr != nil {
@@ -187,7 +191,7 @@ func (cmd *Command) monitorServerErrors() {
 func (cmd *Command) removePIDFile() {
 	if cmd.pidfile != "" {
 		if err := os.Remove(cmd.pidfile); err != nil {
-			cmd.Logger.Error("unable to remove pidfile", zap.Error(err))
+			cmd.Logger.Error("Unable to remove pidfile", zap.Error(err))
 		}
 	}
 }
@@ -235,11 +239,11 @@ func (cmd *Command) writePIDFile(path string) error {
 func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	// Use demo configuration if no config path is specified.
 	if path == "" {
-		cmd.Logger.Info("no configuration provided, using default settings")
+		cmd.Logger.Info("No configuration provided, using default settings")
 		return NewDemoConfig()
 	}
 
-	cmd.Logger.Info(fmt.Sprintf("Using configuration at: %s", path))
+	cmd.Logger.Info("Loading configuration file", zap.String("path", path))
 
 	config := NewConfig()
 	if err := config.FromTomlFile(path); err != nil {

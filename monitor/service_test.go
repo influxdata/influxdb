@@ -61,7 +61,7 @@ func TestMonitor_SetPointsWriter_StoreEnabled(t *testing.T) {
 	defer s.Close()
 
 	// Verify that the monitor was opened by looking at the log messages.
-	if logs.FilterMessage("Starting monitor system").Len() == 0 {
+	if logs.FilterMessage("Starting monitor service").Len() == 0 {
 		t.Errorf("monitor system was never started")
 	}
 }

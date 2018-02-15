@@ -392,7 +392,10 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
-				h.Logger.Info(fmt.Sprintf("Unauthorized request | user: %q | query: %q | database %q", err.User, err.Query.String(), err.Database))
+				h.Logger.Info("Unauthorized request",
+					zap.String("user", err.User),
+					zap.Stringer("query", err.Query),
+					zap.String("db", err.Database))
 			}
 			h.httpError(rw, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
@@ -598,7 +601,9 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 			if r.Err == query.ErrNotExecuted {
 				continue
 			}
-			h.Logger.Info(fmt.Sprintf("error while running async query: %s: %s", q, r.Err))
+			h.Logger.Info("Error while running async query",
+				zap.Stringer("query", q),
+				zap.Error(r.Err))
 		}
 	}
 }
@@ -681,7 +686,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
-		h.Logger.Info(fmt.Sprintf("Write body received by handler: %s", buf.Bytes()))
+		h.Logger.Info("Write body received by handler", zap.ByteString("body", buf.Bytes()))
 	}
 
 	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), r.URL.Query().Get("precision"))
@@ -851,7 +856,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
-		h.Logger.Info(fmt.Sprintf("Prom write body received by handler: %s", buf.Bytes()))
+		h.Logger.Info("Prom write body received by handler", zap.ByteString("body", buf.Bytes()))
 	}
 
 	reqBuf, err := snappy.Decode(nil, buf.Bytes())
@@ -870,7 +875,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	points, err := prometheus.WriteRequestToPoints(&req)
 	if err != nil {
 		if h.Config.WriteTracing {
-			h.Logger.Info(fmt.Sprintf("Prom write handler: %s", err.Error()))
+			h.Logger.Info("Prom write handler", zap.Error(err))
 		}
 
 		if err != prometheus.ErrNaNDropped {
@@ -947,7 +952,10 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
-				h.Logger.Info(fmt.Sprintf("Unauthorized request | user: %q | query: %q | database %q", err.User, err.Query.String(), err.Database))
+				h.Logger.Info("Unauthorized request",
+					zap.String("user", err.User),
+					zap.Stringer("query", err.Query),
+					zap.String("db", err.Database))
 			}
 			h.httpError(w, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return

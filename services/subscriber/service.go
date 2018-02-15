@@ -101,7 +101,7 @@ func (s *Service) Open() error {
 		s.waitForMetaUpdates()
 	}()
 
-	s.Logger.Info("opened service")
+	s.Logger.Info("Opened service")
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (s *Service) Close() error {
 	close(s.closing)
 
 	s.wg.Wait()
-	s.Logger.Info("closed service")
+	s.Logger.Info("Closed service")
 	return nil
 }
 
@@ -165,7 +165,7 @@ func (s *Service) waitForMetaUpdates() {
 		case <-ch:
 			err := s.Update()
 			if err != nil {
-				s.Logger.Info(fmt.Sprint("error updating subscriptions: ", err))
+				s.Logger.Info("Error updating subscriptions", zap.Error(err))
 			}
 		case <-s.closing:
 			return
@@ -296,7 +296,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
 				if err != nil {
 					atomic.AddInt64(&s.stats.CreateFailures, 1)
-					s.Logger.Info(fmt.Sprintf("Subscription creation failed for '%s' with error: %s", si.Name, err))
+					s.Logger.Info("Subscription creation failed", zap.String("name", si.Name), zap.Error(err))
 					continue
 				}
 				cw := chanWriter{
@@ -314,7 +314,9 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 					}()
 				}
 				s.subs[se] = cw
-				s.Logger.Info(fmt.Sprintf("added new subscription for %s %s", se.db, se.rp))
+				s.Logger.Info("Added new subscription",
+					zap.String("db", se.db),
+					zap.String("rp", se.rp))
 			}
 		}
 	}
@@ -327,7 +329,9 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 
 			// Remove it from the set
 			delete(s.subs, se)
-			s.Logger.Info(fmt.Sprintf("deleted old subscription for %s %s", se.db, se.rp))
+			s.Logger.Info("Deleted old subscription",
+				zap.String("db", se.db),
+				zap.String("rp", se.rp))
 		}
 	}
 }
@@ -341,7 +345,7 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
 	case "https":
 		if s.conf.InsecureSkipVerify {
-			s.Logger.Info("WARNING: 'insecure-skip-verify' is true. This will skip all certificate verifications.")
+			s.Logger.Warn("'insecure-skip-verify' is true. This will skip all certificate verifications.")
 		}
 		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts)
 	default:

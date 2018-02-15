@@ -100,13 +100,13 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	for _, database := range databases {
 		sc, err := s.SeriesCardinality(database)
 		if err != nil {
-			s.Logger.Error("cannot retrieve series cardinality", zap.Error(err))
+			s.Logger.Info("Cannot retrieve series cardinality", zap.Error(err))
 			continue
 		}
 
 		mc, err := s.MeasurementsCardinality(database)
 		if err != nil {
-			s.Logger.Error("cannot retrieve measurement cardinality", zap.Error(err))
+			s.Logger.Info("Cannot retrieve measurement cardinality", zap.Error(err))
 			continue
 		}
 
@@ -144,7 +144,7 @@ func (s *Store) Open() error {
 	s.closing = make(chan struct{})
 	s.shards = map[uint64]*Shard{}
 
-	s.Logger.Info(fmt.Sprintf("Using data dir: %v", s.Path()))
+	s.Logger.Info("Using data dir", zap.String("path", s.Path()))
 
 	// Create directory.
 	if err := os.MkdirAll(s.path, 0777); err != nil {
@@ -210,7 +210,7 @@ func (s *Store) loadShards() error {
 
 	for _, db := range dbDirs {
 		if !db.IsDir() {
-			s.Logger.Info("Not loading. Not a database directory.", zap.String("name", db.Name()))
+			s.Logger.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "not a directory"))
 			continue
 		}
 
@@ -234,7 +234,7 @@ func (s *Store) loadShards() error {
 
 		for _, rp := range rpDirs {
 			if !rp.IsDir() {
-				s.Logger.Info(fmt.Sprintf("Skipping retention policy dir: %s. Not a directory", rp.Name()))
+				s.Logger.Info("Skipping retention policy dir", zap.String("name", rp.Name()), zap.String("reason", "not a directory"))
 				continue
 			}
 
@@ -291,7 +291,7 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Since(start)))
+					s.Logger.Info("Opened shard", zap.String("path", path), zap.Duration("duration", time.Since(start)))
 				}(db.Name(), rp.Name(), sh.Name())
 			}
 		}
@@ -1652,7 +1652,7 @@ func (s *Store) monitorShards() {
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
 					if err := sh.Free(); err != nil {
-						s.Logger.Warn("error free cold shard resources:", zap.Error(err))
+						s.Logger.Warn("Error while freeing cold shard resources", zap.Error(err))
 					}
 				} else {
 					sh.SetCompactionsEnabled(true)
@@ -1710,7 +1710,7 @@ func (s *Store) monitorShards() {
 				indexSet := IndexSet{Indexes: []Index{firstShardIndex}, SeriesFile: sfile}
 				names, err := indexSet.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
-					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
+					s.Logger.Warn("Cannot retrieve measurement names", zap.Error(err))
 					return nil
 				}
 
@@ -1725,8 +1725,13 @@ func (s *Store) monitorShards() {
 
 						// Log at 80, 85, 90-100% levels
 						if perc == 80 || perc == 85 || perc >= 90 {
-							s.Logger.Info(fmt.Sprintf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s measurement=%s tag=%s",
-								perc, n, s.EngineOptions.Config.MaxValuesPerTag, db, name, k))
+							s.Logger.Warn("max-values-per-tag limit may be exceeded soon",
+								zap.String("perc", fmt.Sprintf("%d%%", perc)),
+								zap.Int("n", n),
+								zap.Int("max", s.EngineOptions.Config.MaxValuesPerTag),
+								zap.String("db", db),
+								zap.ByteString("measurement", name),
+								zap.ByteString("tag", k))
 						}
 						return nil
 					})
