@@ -21,6 +21,7 @@ v1.5.0 [unreleased]
 -	[#9184](https://github.com/influxdata/influxdb/pull/9184): Allow setting the node id in the influx cli program.
 -	[#9056](https://github.com/influxdata/influxdb/pull/9056): Add logging configuration to the main configuration file.
 -	[#9445](https://github.com/influxdata/influxdb/pull/9445): Suppress the InfluxDB banner if the log output is not a TTY.
+-	[#9449](https://github.com/influxdata/influxdb/pull/9449): Added option to write HTTP request logs to separate file.
 
 ### Bugfixes
 
