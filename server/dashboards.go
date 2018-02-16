@@ -161,6 +161,14 @@ func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.ID = id
+	for i := 0; i < len(req.Templates); i++ {
+		tv := req.Templates[i]
+		if tv.Type != "csv" {
+			tv.Values = []chronograf.TemplateValue{}
+			fmt.Println(tv.Values)
+		}
+		req.Templates[i] = tv
+	}
 
 	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
 	if err != nil {
