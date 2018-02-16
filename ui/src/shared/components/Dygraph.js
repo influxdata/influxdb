@@ -25,7 +25,6 @@ import {
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
-import {ADDING, EDITING} from 'src/shared/annotations/helpers'
 
 class Dygraph extends Component {
   constructor(props) {
@@ -304,8 +303,7 @@ class Dygraph extends Component {
 
   render() {
     const {isHidden, staticLegendHeight} = this.state
-    const {staticLegend,mode} = this.props
-    const hideLegend = mode === EDITING || mode === ADDING ? true : isHidden
+    const {staticLegend} = this.props
 
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
     if (staticLegend) {

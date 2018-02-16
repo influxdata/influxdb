@@ -172,7 +172,7 @@ class NewAnnotation extends Component {
   }
 }
 
-const {bool, func, number, shape} = P
+const {bool, func, number, shape} = PropTypes
 
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
