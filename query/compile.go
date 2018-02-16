@@ -782,6 +782,14 @@ func (c *compiledStatement) subquery(stmt *influxql.SelectStatement) error {
 	// null values with a redundant fill iterator.
 	if !subquery.Interval.IsZero() && subquery.FillOption == influxql.NullFill {
 		subquery.FillOption = influxql.NoFill
+		// TODO(jsternberg): The query engine should use the compiled data we
+		// retrieve during compilation and not require setting the fill option
+		// on the statement, but it currently doesn't so set the original
+		// statement to fill(none). This makes the previous statement useless,
+		// but we want to eventually use that information instead of this for
+		// the actual execution.
+		// See https://github.com/influxdata/influxdb/issues/9271.
+		stmt.Fill = influxql.NoFill
 	}
 
 	// Inherit the grouping interval if the subquery has none.
