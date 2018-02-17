@@ -198,7 +198,9 @@ export const getDashboardsAsync = () => async dispatch => {
 export const putDashboard = dashboard => async dispatch => {
   try {
     const {data} = await updateDashboardAJAX(dashboard)
-    dispatch(updateDashboard(data))
+    // updateDashboardAJAX removed the values for the template variables
+    // when saving to the server
+    dispatch(updateDashboard({...data, templates: dashboard.templates}))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
