@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/influxdata/chronograf/id"
@@ -255,6 +256,10 @@ func (r *influxResults) Annotations() (res []chronograf.Annotation, err error) {
 	for _, a := range annos {
 		res = append(res, a.Annotation)
 	}
+
+	sort.Slice(res, func(i int, j int) bool {
+		return res[i].StartTime.Before(res[j].StartTime) || res[i].ID < res[j].ID
+	})
 
 	return res, err
 }

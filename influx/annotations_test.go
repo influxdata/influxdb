@@ -376,16 +376,16 @@ func TestAnnotationStore_queryAnnotations(t *testing.T) {
 				{
 					EndTime:   time.Unix(0, 1516920177345000000),
 					StartTime: time.Unix(0, 0),
-					Text:      "mytext",
-					Type:      "mytype",
-					ID:        "ecf3a75d-f1c0-40e8-9790-902701467e92",
+					Text:      "mytext2",
+					Type:      "mytype2",
+					ID:        "ea0aa94b-969a-4cd5-912a-5db61d502268",
 				},
 				{
 					EndTime:   time.Unix(0, 1516920177345000000),
 					StartTime: time.Unix(0, 0),
-					Text:      "mytext2",
-					Type:      "mytype2",
-					ID:        "ea0aa94b-969a-4cd5-912a-5db61d502268",
+					Text:      "mytext",
+					Type:      "mytype",
+					ID:        "ecf3a75d-f1c0-40e8-9790-902701467e92",
 				},
 			},
 		},
@@ -462,6 +462,203 @@ func TestAnnotationStore_queryAnnotations(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("AnnotationStore.queryAnnotations() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAnnotationStore_Update(t *testing.T) {
+	type fields struct {
+		client chronograf.TimeSeries
+		now    Now
+	}
+	type args struct {
+		ctx  context.Context
+		anno *chronograf.Annotation
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "no responses returns error",
+			fields: fields{
+				client: &mocks.TimeSeries{
+					QueryF: func(context.Context, chronograf.Query) (chronograf.Response, error) {
+						return mocks.NewResponse(`[ { } ]`, nil), nil
+					},
+					WriteF: func(context.Context, *chronograf.Point) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				anno: &chronograf.Annotation{
+					ID: "1",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "error writing returns error",
+			fields: fields{
+				now: func() time.Time { return time.Time{} },
+				client: &mocks.TimeSeries{
+					QueryF: func(context.Context, chronograf.Query) (chronograf.Response, error) {
+						return mocks.NewResponse(`[
+							{
+								"series": [
+									{
+										"name": "annotations",
+										"columns": [
+											"time",
+											"start_time",
+											"modified_time_ns",
+											"text",
+											"type",
+											"id"
+										],
+										"values": [
+											[
+												1516920177345000000,
+												0,
+												1516989242129417403,
+												"mytext",
+												"mytype",
+												"ecf3a75d-f1c0-40e8-9790-902701467e92"
+											],
+											[
+												1516920177345000000,
+												0,
+												1517425914433539296,
+												"mytext2",
+												"mytype2",
+												"ea0aa94b-969a-4cd5-912a-5db61d502268"
+											]
+										]
+									}
+								]
+							}
+						]`, nil), nil
+					},
+					WriteF: func(context.Context, *chronograf.Point) error {
+						return fmt.Errorf("error")
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				anno: &chronograf.Annotation{
+					ID: "1",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Update with delete",
+			fields: fields{
+				now: func() time.Time { return time.Time{} },
+				client: &mocks.TimeSeries{
+					QueryF: func(context.Context, chronograf.Query) (chronograf.Response, error) {
+						return mocks.NewResponse(`[
+							{
+								"series": [
+									{
+										"name": "annotations",
+										"columns": [
+											"time",
+											"start_time",
+											"modified_time_ns",
+											"text",
+											"type",
+											"id"
+										],
+										"values": [
+											[
+												1516920177345000000,
+												0,
+												1516989242129417403,
+												"mytext",
+												"mytype",
+												"ecf3a75d-f1c0-40e8-9790-902701467e92"
+											]
+										]
+									}
+								]
+							}
+						]`, nil), nil
+					},
+					WriteF: func(context.Context, *chronograf.Point) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				anno: &chronograf.Annotation{
+					ID: "1",
+				},
+			},
+		},
+		{
+			name: "Update with delete no delete",
+			fields: fields{
+				now: func() time.Time { return time.Time{} },
+				client: &mocks.TimeSeries{
+					QueryF: func(context.Context, chronograf.Query) (chronograf.Response, error) {
+						return mocks.NewResponse(`[
+							{
+								"series": [
+									{
+										"name": "annotations",
+										"columns": [
+											"time",
+											"start_time",
+											"modified_time_ns",
+											"text",
+											"type",
+											"id"
+										],
+										"values": [
+											[
+												1516920177345000000,
+												0,
+												1516989242129417403,
+												"mytext",
+												"mytype",
+												"ecf3a75d-f1c0-40e8-9790-902701467e92"
+											]
+										]
+									}
+								]
+							}
+						]`, nil), nil
+					},
+					WriteF: func(context.Context, *chronograf.Point) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				anno: &chronograf.Annotation{
+					ID:      "ecf3a75d-f1c0-40e8-9790-902701467e92",
+					EndTime: time.Unix(0, 1516920177345000000),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &AnnotationStore{
+				client: tt.fields.client,
+				now:    tt.fields.now,
+			}
+			if err := a.Update(tt.args.ctx, tt.args.anno); (err != nil) != tt.wantErr {
+				t.Errorf("AnnotationStore.Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
