@@ -32,7 +32,7 @@ type annotationResponse struct {
 
 func newAnnotationResponse(src chronograf.Source, a *chronograf.Annotation) annotationResponse {
 	base := "/chronograf/v1/sources"
-	return annotationResponse{
+	res := annotationResponse{
 		ID:        a.ID,
 		StartTime: a.StartTime.UTC().Format(timeMilliFormat),
 		EndTime:   a.EndTime.UTC().Format(timeMilliFormat),
@@ -42,6 +42,12 @@ func newAnnotationResponse(src chronograf.Source, a *chronograf.Annotation) anno
 			Self: fmt.Sprintf("%s/%d/annotations/%s", base, src.ID, a.ID),
 		},
 	}
+
+	if a.EndTime.IsZero() {
+		res.EndTime = ""
+	}
+
+	return res
 }
 
 type annotationsResponse struct {
@@ -204,9 +210,11 @@ func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	ar.EndTime, err = time.Parse(timeMilliFormat, aux.EndTime)
-	if err != nil {
-		return err
+	if aux.EndTime != "" {
+		ar.EndTime, err = time.Parse(timeMilliFormat, aux.EndTime)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

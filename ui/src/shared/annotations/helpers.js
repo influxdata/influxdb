@@ -18,14 +18,13 @@ export const getAnnotations = (graph, annotations = []) => {
   const [xStart, xEnd] = graph.xAxisRange()
   return annotations.reduce((acc, a) => {
     // Don't render if annotation.time is outside the graph
-    const time = +a.time
-    const duration = +a.duration
-    const endTime = time + duration
+    const time = +a.startTime
+    const endTime = +a.endTime
     const endAnnotation = {
       ...a,
       id: `${a.id}-end`,
-      time: `${endTime}`,
-      duration: '',
+      startTime: `${endTime}`,
+      endTime: '',
     }
 
     if (time < xStart) {
@@ -41,7 +40,7 @@ export const getAnnotations = (graph, annotations = []) => {
     }
 
     // If annotation does not have duration, include in array
-    if (!duration) {
+    if (!endTime) {
       return [...acc, a]
     }
 

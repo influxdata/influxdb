@@ -1,3 +1,5 @@
+import * as api from 'shared/apis/annotation'
+
 export const editingAnnotation = () => ({
   type: 'EDITING_ANNOTATION',
 })
@@ -53,3 +55,10 @@ export const addAnnotation = annotation => ({
     annotation,
   },
 })
+
+export const addAnnotationAsync = (createUrl, annotation) => async dispatch => {
+  dispatch(addAnnotation(annotation))
+  const savedAnnotation = await api.createAnnotation(createUrl, annotation)
+  dispatch(addAnnotation(savedAnnotation))
+  dispatch(deleteAnnotation(annotation))
+}

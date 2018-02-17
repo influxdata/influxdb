@@ -1,9 +1,12 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 import uuid from 'node-uuid'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
 import * as schema from 'shared/schemas'
+import * as actions from 'shared/actions/annotations'
 
 import {
   circleFlagStyle,
@@ -30,23 +33,27 @@ class NewAnnotation extends Component {
 
   handleMouseUp = () => {
     const {
-      onAddAnnotation,
+      addAnnotation,
       onAddingAnnotationSuccess,
       tempAnnotation,
       onMouseLeaveTempAnnotation,
       dygraph,
     } = this.props
+    const createUrl = this.context.source.links.annotations
+
     // time on mouse down
-    const startTime = dygraph.toDataXCoord(this.state.trueGraphX)
+    const startTime = `${dygraph.toDataXCoord(this.state.trueGraphX)}`
 
     if (this.state.mouseAction === 'dragging') {
       // time on mouse up
-      const endTime = Number(tempAnnotation.startTime)
+      const endTime = tempAnnotation.startTime
 
-      onAddAnnotation({
+      addAnnotation(createUrl, {
         ...tempAnnotation,
-        startTime: `${startTime}`,
-        endTime: `${endTime}`,
+        startTime,
+        endTime,
+        text: 'hi',
+        type: 'hi',
       })
       onAddingAnnotationSuccess()
 
@@ -57,14 +64,18 @@ class NewAnnotation extends Component {
       })
     }
 
+    onAddingAnnotationSuccess()
     onMouseLeaveTempAnnotation()
-    onAddAnnotation({
+
+    addAnnotation(createUrl, {
       ...tempAnnotation,
       id: uuid.v4(),
-      startTime: `${startTime}`,
+      startTime,
       endTime: '',
+      text: 'hi',
+      type: 'hi',
     })
-    onAddingAnnotationSuccess()
+
     return this.setState({
       isMouseOver: false,
       mouseAction: null,
@@ -171,13 +182,21 @@ class NewAnnotation extends Component {
   }
 }
 
-const {bool, func, shape} = PropTypes
+const {bool, func, shape, string} = PropTypes
+
+NewAnnotation.contextTypes = {
+  source: shape({
+    links: shape({
+      annotations: string,
+    }),
+  }),
+}
 
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
   isTempHovering: bool,
   tempAnnotation: schema.annotation.isRequired,
-  onAddAnnotation: func.isRequired,
+  addAnnotation: func.isRequired,
   onDismissAddingAnnotation: func.isRequired,
   onAddingAnnotationSuccess: func.isRequired,
   onUpdateAnnotation: func.isRequired,
@@ -185,4 +204,8 @@ NewAnnotation.propTypes = {
   onMouseLeaveTempAnnotation: func.isRequired,
 }
 
-export default OnClickOutside(NewAnnotation)
+const mdtp = dispatch => ({
+  addAnnotation: bindActionCreators(actions.addAnnotationAsync, dispatch),
+})
+
+export default connect(null, mdtp)(OnClickOutside(NewAnnotation))
