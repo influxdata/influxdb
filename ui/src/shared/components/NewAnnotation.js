@@ -1,7 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 import uuid from 'node-uuid'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
@@ -33,7 +32,7 @@ class NewAnnotation extends Component {
 
   handleMouseUp = () => {
     const {
-      addAnnotation,
+      addAnnotationAsync,
       onAddingAnnotationSuccess,
       tempAnnotation,
       onMouseLeaveTempAnnotation,
@@ -48,7 +47,7 @@ class NewAnnotation extends Component {
       // time on mouse up
       const endTime = tempAnnotation.startTime
 
-      addAnnotation(createUrl, {
+      addAnnotationAsync(createUrl, {
         ...tempAnnotation,
         startTime,
         endTime,
@@ -67,7 +66,7 @@ class NewAnnotation extends Component {
     onAddingAnnotationSuccess()
     onMouseLeaveTempAnnotation()
 
-    addAnnotation(createUrl, {
+    addAnnotationAsync(createUrl, {
       ...tempAnnotation,
       id: uuid.v4(),
       startTime,
@@ -196,7 +195,7 @@ NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
   isTempHovering: bool,
   tempAnnotation: schema.annotation.isRequired,
-  addAnnotation: func.isRequired,
+  addAnnotationAsync: func.isRequired,
   onDismissAddingAnnotation: func.isRequired,
   onAddingAnnotationSuccess: func.isRequired,
   onUpdateAnnotation: func.isRequired,
@@ -204,8 +203,8 @@ NewAnnotation.propTypes = {
   onMouseLeaveTempAnnotation: func.isRequired,
 }
 
-const mdtp = dispatch => ({
-  addAnnotation: bindActionCreators(actions.addAnnotationAsync, dispatch),
-})
+const mdtp = {
+  addAnnotationAsync: actions.addAnnotationAsync,
+}
 
 export default connect(null, mdtp)(OnClickOutside(NewAnnotation))

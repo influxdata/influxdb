@@ -10,7 +10,6 @@ import * as schema from 'src/shared/schemas'
 import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
 import {
-  addAnnotation,
   updateAnnotation,
   deleteAnnotation,
   addingAnnotationSuccess,
@@ -34,7 +33,6 @@ class Annotations extends Component {
     const {
       mode,
       isTempHovering,
-      handleAddAnnotation,
       handleUpdateAnnotation,
       handleDeleteAnnotation,
       handleDismissAddingAnnotation,
@@ -59,7 +57,6 @@ class Annotations extends Component {
           <NewAnnotation
             dygraph={dygraph}
             tempAnnotation={tempAnnotation}
-            onAddAnnotation={handleAddAnnotation}
             onDismissAddingAnnotation={handleDismissAddingAnnotation}
             onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
             onUpdateAnnotation={handleUpdateAnnotation}
@@ -97,7 +94,6 @@ Annotations.propTypes = {
   annotationsRef: func,
   handleDeleteAnnotation: func.isRequired,
   handleUpdateAnnotation: func.isRequired,
-  handleAddAnnotation: func.isRequired,
   handleDismissAddingAnnotation: func.isRequired,
   handleAddingAnnotationSuccess: func.isRequired,
   handleMouseEnterTempAnnotation: func.isRequired,
@@ -129,7 +125,6 @@ const mapDispatchToProps = dispatch => ({
     mouseLeaveTempAnnotation,
     dispatch
   ),
-  handleAddAnnotation: bindActionCreators(addAnnotation, dispatch),
   handleUpdateAnnotation: bindActionCreators(updateAnnotation, dispatch),
   handleDeleteAnnotation: bindActionCreators(deleteAnnotation, dispatch),
 })
