@@ -195,6 +195,17 @@ export const getDashboardsAsync = () => async dispatch => {
   }
 }
 
+const dashboardWithOnlySelectedTemplateValues = dashboard => {
+  const templates = dashboard.templates.map(template => {
+    const values =
+      template.type === 'csv'
+        ? template.values
+        : [template.values.find(val => val.selected)] || []
+    return {...template, values}
+  })
+  return templates
+}
+
 export const putDashboard = dashboard => async dispatch => {
   try {
     // for server, template var values should be all values for csv
@@ -208,17 +219,6 @@ export const putDashboard = dashboard => async dispatch => {
     console.error(error)
     dispatch(errorThrown(error))
   }
-}
-
-const dashboardWithOnlySelectedTemplateValues = dashboard => {
-  const templates = dashboard.templates.map(template => {
-    const values =
-      template.type === 'csv'
-        ? template.values
-        : [template.values.find(val => val.selected)] || []
-    return {...template, values}
-  })
-  return templates
 }
 
 export const putDashboardByID = dashboardID => async (dispatch, getState) => {
