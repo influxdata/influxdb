@@ -199,13 +199,7 @@ export const putDashboard = dashboard => async dispatch => {
   try {
     // for server, template var values should be all values for csv
     // and should be only the selected value for non csv types
-    const templates = dashboard.templates.map(template => {
-      const values =
-        template.type === 'csv'
-          ? template.values
-          : [template.values.find(val => val.selected)] || []
-      return {...template, values}
-    })
+    const templates = dashboardWithOnlySelectedTemplateValues(dashboard)
     const {data} = await updateDashboardAJAX({...dashboard, templates})
     // updateDashboardAJAX removed the values for the template variables
     // when saving to the server
@@ -216,11 +210,23 @@ export const putDashboard = dashboard => async dispatch => {
   }
 }
 
+const dashboardWithOnlySelectedTemplateValues = dashboard => {
+  const templates = dashboard.templates.map(template => {
+    const values =
+      template.type === 'csv'
+        ? template.values
+        : [template.values.find(val => val.selected)] || []
+    return {...template, values}
+  })
+  return templates
+}
+
 export const putDashboardByID = dashboardID => async (dispatch, getState) => {
   try {
     const {dashboardUI: {dashboards}} = getState()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
-    await updateDashboardAJAX(dashboard)
+    const templates = dashboardWithOnlySelectedTemplateValues(dashboard)
+    await updateDashboardAJAX({...dashboard, templates})
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
