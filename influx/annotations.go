@@ -31,6 +31,7 @@ var _ chronograf.AnnotationStore = &AnnotationStore{}
 type AnnotationStore struct {
 	client chronograf.TimeSeries
 	id     chronograf.ID
+	now    Now
 }
 
 // NewAnnotationStore constructs an annoation store with a client
@@ -38,6 +39,7 @@ func NewAnnotationStore(client chronograf.TimeSeries) *AnnotationStore {
 	return &AnnotationStore{
 		client: client,
 		id:     &id.UUID{},
+		now:    time.Now,
 	}
 }
 
@@ -65,7 +67,7 @@ func (a *AnnotationStore) Add(ctx context.Context, anno *chronograf.Annotation) 
 	if err != nil {
 		return nil, err
 	}
-	return anno, a.client.Write(ctx, toPoint(anno))
+	return anno, a.client.Write(ctx, toPoint(anno, a.now()))
 }
 
 // Delete removes the annotation from the store
@@ -74,7 +76,7 @@ func (a *AnnotationStore) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return a.client.Write(ctx, toDeletedPoint(cur))
+	return a.client.Write(ctx, toDeletedPoint(cur, a.now()))
 }
 
 // Update replaces annotation; if the annotation's time is different, it
@@ -85,14 +87,14 @@ func (a *AnnotationStore) Update(ctx context.Context, anno *chronograf.Annotatio
 		return err
 	}
 
-	if err := a.client.Write(ctx, toPoint(anno)); err != nil {
+	if err := a.client.Write(ctx, toPoint(anno, a.now())); err != nil {
 		return err
 	}
 
 	// If the updated annotation has a different time, then, we must
 	// delete the previous annotation
 	if !cur.EndTime.Equal(anno.EndTime) {
-		return a.client.Write(ctx, toDeletedPoint(cur))
+		return a.client.Write(ctx, toDeletedPoint(cur, a.now()))
 	}
 	return nil
 }
@@ -121,7 +123,7 @@ func (a *AnnotationStore) queryAnnotations(ctx context.Context, query string) ([
 	return results.Annotations()
 }
 
-func toPoint(anno *chronograf.Annotation) *chronograf.Point {
+func toPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
 	return &chronograf.Point{
 		Database:        DefaultDB,
 		RetentionPolicy: DefaultRP,
@@ -133,14 +135,14 @@ func toPoint(anno *chronograf.Annotation) *chronograf.Point {
 		Fields: map[string]interface{}{
 			"deleted":          false,
 			"start_time":       anno.StartTime.UnixNano(),
-			"modified_time_ns": int64(time.Now().UnixNano()),
+			"modified_time_ns": int64(now.UnixNano()),
 			"text":             anno.Text,
 			"type":             anno.Type,
 		},
 	}
 }
 
-func toDeletedPoint(anno *chronograf.Annotation) *chronograf.Point {
+func toDeletedPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
 	return &chronograf.Point{
 		Database:        DefaultDB,
 		RetentionPolicy: DefaultRP,
@@ -152,7 +154,7 @@ func toDeletedPoint(anno *chronograf.Annotation) *chronograf.Point {
 		Fields: map[string]interface{}{
 			"deleted":          true,
 			"start_time":       int64(0),
-			"modified_time_ns": int64(time.Now().UnixNano()),
+			"modified_time_ns": int64(now.UnixNano()),
 			"text":             "",
 			"type":             "",
 		},
@@ -241,7 +243,7 @@ func (r *influxResults) Annotations() (res []chronograf.Annotation, err error) {
 				// If there are two annotations with the same id, take
 				// the annotation with the latest modification time
 				// This is to prevent issues when an update or delete fails.
-				// Updates and delets are multiple step queries.
+				// Updates and deletes are multiple step queries.
 				prev, ok := annos[anno.ID]
 				if !ok || anno.modTime > prev.modTime {
 					annos[anno.ID] = anno

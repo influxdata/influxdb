@@ -77,9 +77,6 @@ func (b *BearerJWT) Token(username string) (string, error) {
 	return JWT(username, b.SharedSecret, b.Now)
 }
 
-// Now returns the current time
-type Now func() time.Time
-
 // JWT returns a token string accepted by InfluxDB using the sharedSecret as an Authorization: Bearer header
 func JWT(username, sharedSecret string, now Now) (string, error) {
 	token := &jwt.Token{
