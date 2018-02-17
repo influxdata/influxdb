@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 
+import * as schema from 'shared/schemas'
 import {annotationWindowStyle} from 'src/shared/annotations/styles'
 
 const AnnotationWindow = ({annotation, dygraph}) =>
@@ -8,13 +9,10 @@ const AnnotationWindow = ({annotation, dygraph}) =>
     style={annotationWindowStyle(annotation, dygraph)}
   />
 
-const {shape, string} = PropTypes
+const {shape} = PropTypes
 
 AnnotationWindow.propTypes = {
-  annotation: shape({
-    time: string.isRequired,
-    duration: string.isRequired,
-  }).isRequired,
+  annotation: schema.annotation.isRequired,
   dygraph: shape({}).isRequired,
 }
 

@@ -5,6 +5,7 @@ import {bindActionCreators} from 'redux'
 import Annotation from 'src/shared/components/Annotation'
 import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 import NewAnnotation from 'src/shared/components/NewAnnotation'
+import * as schema from 'src/shared/schemas'
 
 import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
@@ -87,10 +88,10 @@ class Annotations extends Component {
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, bool, func, string} = PropTypes
 
 Annotations.propTypes = {
-  annotations: arrayOf(shape({})),
+  annotations: arrayOf(schema.annotation),
   mode: string,
   isTempHovering: bool,
   annotationsRef: func,

@@ -1,27 +1,9 @@
-import {DEFAULT_ANNOTATION_ID} from 'src/shared/constants/annotations'
 import {ADDING, EDITING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
 const initialState = {
   mode: null,
   isTempHovering: false,
-  annotations: [
-    {
-      id: '0',
-      group: '',
-      name: 'anno1',
-      time: '1515716169000',
-      duration: '33600000', // 1 hour
-      text: 'you have no swoggels',
-    },
-    {
-      id: '1',
-      group: '',
-      name: 'anno2',
-      time: '1515772377000',
-      duration: '',
-      text: 'another annotation',
-    },
-  ],
+  annotations: [],
 }
 
 const annotationsReducer = (state = initialState, action) => {
@@ -127,13 +109,7 @@ const annotationsReducer = (state = initialState, action) => {
 
     case 'ADD_ANNOTATION': {
       const {annotation} = action.payload
-      const annotations = [
-        ...state.annotations,
-        {
-          ...annotation,
-          id: DEFAULT_ANNOTATION_ID,
-        },
-      ]
+      const annotations = [...state.annotations, annotation]
 
       return {
         ...state,

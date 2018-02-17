@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import moment from 'moment'
 
 import AnnotationInput from 'src/shared/components/AnnotationInput'
+import * as schema from 'shared/schemas'
 
 import {
   tooltipStyle,
@@ -51,7 +52,7 @@ class AnnotationTooltip extends Component {
         className="annotation-tooltip"
       >
         {isDragging
-          ? <TimeStamp time={this.props.annotation.time} />
+          ? <TimeStamp time={this.props.annotation.startTime} />
           : <div style={tooltipItemsStyle}>
               {isEditing &&
                 <button
@@ -70,7 +71,7 @@ class AnnotationTooltip extends Component {
                 : <div>
                     {annotation.name}
                   </div>}
-              <TimeStamp time={this.props.annotation.time} />
+              <TimeStamp time={this.props.annotation.startTime} />
             </div>}
       </div>
     )
@@ -84,7 +85,7 @@ TimeStamp.propTypes = {
 }
 AnnotationTooltip.propTypes = {
   isEditing: bool,
-  annotation: shape({}).isRequired,
+  annotation: schema.annotation.isRequired,
   onMouseLeave: func.isRequired,
   annotationState: shape({}),
   onConfirmUpdate: func.isRequired,

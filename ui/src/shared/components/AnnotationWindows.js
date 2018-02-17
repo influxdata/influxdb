@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import AnnotationWindow from 'src/shared/components/AnnotationWindow'
+import * as schema from 'shared/schemas'
 
 const style = {
   position: 'absolute',
@@ -18,7 +19,7 @@ const AnnotationWindows = ({annotations, dygraph}) => {
   return (
     <div className="annotation-windows-container" style={style}>
       {annotations.map((a, i) => {
-        return a.duration
+        return a.endTime
           ? <AnnotationWindow key={i} annotation={a} dygraph={dygraph} />
           : null
       })}
@@ -29,7 +30,7 @@ const AnnotationWindows = ({annotations, dygraph}) => {
 const {arrayOf, shape} = PropTypes
 
 AnnotationWindows.propTypes = {
-  annotations: arrayOf(shape({})),
+  annotations: arrayOf(schema.annotation),
   dygraph: shape({}),
 }
 

@@ -154,17 +154,22 @@ export const tooltipFormStyle = {
 export const tooltipInputButton = {marginLeft: '2px'}
 export const tooltipInput = {flex: '1 0 0'}
 
-export const annotationStyle = ({time}, dygraph, isMouseOver, isDragging) => {
+export const annotationStyle = (
+  {startTime},
+  dygraph,
+  isMouseOver,
+  isDragging
+) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   let visibility = 'visible'
 
-  if (time < startX || time > endX) {
+  if (startTime < startX || startTime > endX) {
     visibility = 'hidden'
   }
 
   const containerLeftPadding = 16
-  const left = `${dygraph.toDomXCoord(time) + containerLeftPadding}px`
+  const left = `${dygraph.toDomXCoord(startTime) + containerLeftPadding}px`
   const width = 2
 
   return {

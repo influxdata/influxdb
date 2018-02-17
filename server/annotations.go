@@ -178,18 +178,18 @@ func (s *Service) Annotation(w http.ResponseWriter, r *http.Request) {
 }
 
 type newAnnotationRequest struct {
-	StartTime time.Time `json:"startTime"`      // StartTime is the time in rfc3339 milliseconds
-	EndTime   time.Time `json:"endTime"`        // EndTime is the time in rfc3339 milliseconds
-	Text      string    `json:"text,omitempty"` // Text is the associated user-facing text describing the annotation
-	Type      string    `json:"type,omitempty"` // Type describes the kind of annotation
+	StartTime time.Time
+	EndTime   time.Time
+	Text      string `json:"text,omitempty"` // Text is the associated user-facing text describing the annotation
+	Type      string `json:"type,omitempty"` // Type describes the kind of annotation
 }
 
 // TODO: check that the endtime is after the starttime
 func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	type Alias newAnnotationRequest
 	aux := &struct {
-		StartTime string `json:"startTime"`
-		EndTime   string `json:"endTime"`
+		StartTime string `json:"startTime"` // StartTime is the time in rfc3339 milliseconds
+		EndTime   string `json:"endTime"`   // EndTime is the time in rfc3339 milliseconds
 		*Alias
 	}{
 		Alias: (*Alias)(ar),

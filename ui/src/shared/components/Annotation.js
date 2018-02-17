@@ -3,6 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import AnnotationTooltip from 'src/shared/components/AnnotationTooltip'
 
 import {ADDING, EDITING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
+import * as schema from 'shared/schemas'
 
 import {
   flagStyle,
@@ -63,13 +64,13 @@ class Annotation extends Component {
 
     const {pageX} = e
     const {annotation, annotations, dygraph, onUpdateAnnotation} = this.props
-    const {time, duration} = annotation
+    const {startTime} = annotation
     const {left} = dygraph.graphDiv.getBoundingClientRect()
     const [startX, endX] = dygraph.xAxisRange()
 
     const graphX = pageX - left
     let newTime = dygraph.toDataXCoord(graphX)
-    const oldTime = +time
+    const oldTime = +startTime
 
     const minPercentChange = 0.5
 
@@ -97,27 +98,14 @@ class Annotation extends Component {
         return console.error('Start annotation does not exist')
       }
 
-      const newDuration = newTime - oldTime + Number(startAnnotation.duration)
-
       this.counter = this.counter + 1
       return onUpdateAnnotation({
         ...startAnnotation,
-        duration: `${newDuration}`,
+        endTime: newTime,
       })
     }
 
-    if (duration) {
-      const differenceInTimes = oldTime - newTime
-      const newDuration = Number(duration) + differenceInTimes
-
-      return onUpdateAnnotation({
-        ...annotation,
-        time: `${newTime}`,
-        duration: `${newDuration}`,
-      })
-    }
-
-    onUpdateAnnotation({...annotation, time: `${newTime}`})
+    onUpdateAnnotation({...annotation, startTime: `${newTime}`})
 
     e.preventDefault()
     e.stopPropagation()
@@ -150,8 +138,8 @@ class Annotation extends Component {
     const {dygraph, annotation, mode} = this.props
     const {isDragging, isMouseOver} = this.state
 
-    const humanTime = `${new Date(+annotation.time)}`
-    const hasDuration = !!annotation.duration
+    const humanTime = `${new Date(+annotation.startTime)}`
+    const hasDuration = !!annotation.endTime
 
     if (annotation.id === TEMP_ANNOTATION.id) {
       return null
@@ -163,7 +151,7 @@ class Annotation extends Component {
       <div
         className="dygraph-annotation"
         style={annotationStyle(annotation, dygraph, isMouseOver, isDragging)}
-        data-time-ms={annotation.time}
+        data-time-ms={annotation.startTime}
         data-time-local={humanTime}
       >
         <div
@@ -199,12 +187,8 @@ const {arrayOf, func, shape, string} = PropTypes
 
 Annotation.propTypes = {
   mode: string,
-  annotations: arrayOf(shape({})),
-  annotation: shape({
-    id: string.isRequired,
-    time: string.isRequired,
-    duration: string,
-  }).isRequired,
+  annotations: arrayOf(schema.annotation).isRequired,
+  annotation: schema.annotation.isRequired,
   dygraph: shape({}).isRequired,
   onUpdateAnnotation: func.isRequired,
   onDeleteAnnotation: func.isRequired,

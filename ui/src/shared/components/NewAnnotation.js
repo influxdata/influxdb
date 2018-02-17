@@ -1,7 +1,9 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
+import uuid from 'node-uuid'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
+import * as schema from 'shared/schemas'
 
 import {
   circleFlagStyle,
@@ -34,19 +36,17 @@ class NewAnnotation extends Component {
       onMouseLeaveTempAnnotation,
       dygraph,
     } = this.props
-    const {trueGraphX} = this.state
+    // time on mouse down
+    const startTime = dygraph.toDataXCoord(this.state.trueGraphX)
 
     if (this.state.mouseAction === 'dragging') {
-      // time on mouse down
-      const staticTime = dygraph.toDataXCoord(trueGraphX)
       // time on mouse up
-      const draggingTime = Number(tempAnnotation.time)
-      const duration = draggingTime - staticTime
+      const endTime = Number(tempAnnotation.startTime)
 
       onAddAnnotation({
         ...tempAnnotation,
-        time: `${staticTime}`,
-        duration: `${duration}`,
+        startTime: `${startTime}`,
+        endTime: `${endTime}`,
       })
       onAddingAnnotationSuccess()
 
@@ -58,7 +58,12 @@ class NewAnnotation extends Component {
     }
 
     onMouseLeaveTempAnnotation()
-    onAddAnnotation(tempAnnotation)
+    onAddAnnotation({
+      ...tempAnnotation,
+      id: uuid.v4(),
+      startTime: `${startTime}`,
+      endTime: '',
+    })
     onAddingAnnotationSuccess()
     return this.setState({
       isMouseOver: false,
@@ -81,9 +86,9 @@ class NewAnnotation extends Component {
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
 
-    const time = `${dygraph.toDataXCoord(trueGraphX)}`
+    const startTime = `${dygraph.toDataXCoord(trueGraphX)}`
 
-    onUpdateAnnotation({...tempAnnotation, time})
+    onUpdateAnnotation({...tempAnnotation, startTime})
   }
 
   handleMouseLeave = () => {
@@ -107,12 +112,12 @@ class NewAnnotation extends Component {
   }
 
   render() {
-    const {dygraph, isTempHovering, tempAnnotation: {time}} = this.props
+    const {dygraph, isTempHovering, tempAnnotation: {startTime}} = this.props
     const {isMouseOver, mouseAction} = this.state
 
-    const timestamp = `${new Date(+time)}`
+    const timestamp = `${new Date(+startTime)}`
 
-    const crosshairLeft = dygraph.toDomXCoord(time)
+    const crosshairLeft = dygraph.toDomXCoord(startTime)
     const staticCrosshairLeft = this.state.trueGraphX
 
     const isDragging = mouseAction === 'dragging'
@@ -171,7 +176,7 @@ const {bool, func, shape} = PropTypes
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
   isTempHovering: bool,
-  tempAnnotation: shape({}).isRequired,
+  tempAnnotation: schema.annotation.isRequired,
   onAddAnnotation: func.isRequired,
   onDismissAddingAnnotation: func.isRequired,
   onAddingAnnotationSuccess: func.isRequired,

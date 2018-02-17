@@ -3,11 +3,11 @@ export const EDITING = 'editing'
 
 export const TEMP_ANNOTATION = {
   id: 'tempAnnotation',
-  group: '',
   name: 'New Annotation',
-  time: '',
-  duration: '',
   text: '',
+  type: '',
+  startTime: '',
+  endTime: '',
 }
 
 export const getAnnotations = (graph, annotations = []) => {
