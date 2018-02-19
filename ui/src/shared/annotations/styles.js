@@ -304,7 +304,7 @@ export const circleFlagStyle = {
   transition: 'background-color 0.25s ease, transform 0.25s ease',
 }
 
-export const staticFlagStyle = {
+export const leftFlagStyle = {
   position: 'absolute',
   zIndex: '2',
   top: '-6px',
@@ -313,12 +313,13 @@ export const staticFlagStyle = {
   left: '0',
   border: '6px solid transparent',
   borderLeftColor: `rgb(${annotationDragColor})`,
+  borderRightColor: 'transparent',
   borderRadius: '0',
   background: 'none',
   transition: 'border-left-color 0.25s ease, transform 0.25s ease',
   transformOrigin: '0% 50%',
 }
-export const draggingFlagStyle = {
+export const rightFlagStyle = {
   position: 'absolute',
   zIndex: '2',
   top: '-6px',
@@ -328,13 +329,14 @@ export const draggingFlagStyle = {
   right: '0',
   border: '6px solid transparent',
   borderRightColor: `rgb(${annotationDragColor})`,
+  borderLeftColor: 'transparent',
   borderRadius: '0',
   background: 'none',
   transition: 'border-right-color 0.25s ease, transform 0.25s ease',
   transformOrigin: '100% 50%',
 }
 
-export const newAnnotationWindowStyle = (isDragging, staticX, draggingX) => {
+export const newAnnotationWindowStyle = (staticX, draggingX) => {
   // TODO: export and test this function
 
   const width = `${Math.abs(Number(draggingX) - Number(staticX))}px`
@@ -359,6 +361,6 @@ export const newAnnotationWindowStyle = (isDragging, staticX, draggingX) => {
     borderTop: `2px dotted rgba(${annotationDragColor},0.35)`,
     width,
     zIndex: '3',
-    visibility: isDragging ? 'visible' : 'hidden',
+    visibility: 'visible',
   }
 }

@@ -9,8 +9,8 @@ import * as actions from 'shared/actions/annotations'
 
 import {
   circleFlagStyle,
-  staticFlagStyle,
-  draggingFlagStyle,
+  leftFlagStyle,
+  rightFlagStyle,
   newAnnotationContainer,
   newAnnotationCrosshairStyle,
   newAnnotationTooltipStyle,
@@ -41,11 +41,12 @@ class NewAnnotation extends Component {
     const createUrl = this.context.source.links.annotations
 
     // time on mouse down
-    const startTime = `${dygraph.toDataXCoord(this.state.trueGraphX)}`
+    const downTime = `${dygraph.toDataXCoord(this.state.trueGraphX)}`
 
     if (this.state.mouseAction === 'dragging') {
       // time on mouse up
-      const endTime = tempAnnotation.startTime
+      const upTime = tempAnnotation.startTime
+      const [startTime, endTime] = [downTime, upTime].sort()
 
       addAnnotationAsync(createUrl, {
         ...tempAnnotation,
@@ -69,8 +70,8 @@ class NewAnnotation extends Component {
     addAnnotationAsync(createUrl, {
       ...tempAnnotation,
       id: uuid.v4(),
-      startTime,
-      endTime: startTime,
+      startTime: downTime,
+      endTime: downTime,
       text: 'hi',
       type: 'hi',
     })
@@ -131,6 +132,10 @@ class NewAnnotation extends Component {
     const staticCrosshairLeft = this.state.trueGraphX
 
     const isDragging = mouseAction === 'dragging'
+    const staticFlagStyle =
+      staticCrosshairLeft < crosshairLeft ? leftFlagStyle : rightFlagStyle
+    const draggingFlagStyle =
+      staticCrosshairLeft < crosshairLeft ? rightFlagStyle : leftFlagStyle
 
     return (
       <div
@@ -148,16 +153,13 @@ class NewAnnotation extends Component {
             className="new-annotation--crosshair__static"
             style={newAnnotationCrosshairStyle(staticCrosshairLeft)}
           >
-            <div style={isDragging ? staticFlagStyle : circleFlagStyle} />
+            <div style={staticFlagStyle} />
           </div>}
-        <div
-          className="new-annotation--window"
-          style={newAnnotationWindowStyle(
-            isDragging,
-            staticCrosshairLeft,
-            crosshairLeft
-          )}
-        />
+        {isDragging &&
+          <div
+            className="new-annotation--window"
+            style={newAnnotationWindowStyle(staticCrosshairLeft, crosshairLeft)}
+          />}
         <div
           className="new-annotation--crosshair"
           style={newAnnotationCrosshairStyle(crosshairLeft)}

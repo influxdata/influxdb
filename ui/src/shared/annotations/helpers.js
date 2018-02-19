@@ -40,7 +40,7 @@ export const getAnnotations = (graph, annotations = []) => {
     }
 
     // If annotation does not have duration, include in array
-    if (!annoEnd) {
+    if (annoStart === annoEnd) {
       return [...acc, a]
     }
 
