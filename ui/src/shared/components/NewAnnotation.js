@@ -70,7 +70,7 @@ class NewAnnotation extends Component {
       ...tempAnnotation,
       id: uuid.v4(),
       startTime,
-      endTime: '',
+      endTime: startTime,
       text: 'hi',
       type: 'hi',
     })

@@ -139,7 +139,7 @@ class Annotation extends Component {
     const {isDragging, isMouseOver} = this.state
 
     const humanTime = `${new Date(+annotation.startTime)}`
-    const hasDuration = !!annotation.endTime
+    const hasDuration = annotation.starTime !== annotation.endTime
 
     if (annotation.id === TEMP_ANNOTATION.id) {
       return null

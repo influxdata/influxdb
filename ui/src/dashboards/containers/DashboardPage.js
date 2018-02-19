@@ -20,6 +20,7 @@ import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
+import * as annotationActions from 'shared/actions/annotations'
 
 import {
   setAutoRefresh,
@@ -61,7 +62,11 @@ class DashboardPage extends Component {
       isUsingAuth,
       router,
       notify,
+      getAnnotationsAsync,
     } = this.props
+
+    const fifteenMinutes = Date.now() - 15 * 60 * 1000
+    getAnnotationsAsync(source.links.annotations, fifteenMinutes)
 
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
@@ -516,6 +521,10 @@ const mapDispatchToProps = dispatch => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(publishNotification, dispatch),
+  getAnnotationsAsync: bindActionCreators(
+    annotationActions.getAnnotationsAsync,
+    dispatch
+  ),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(

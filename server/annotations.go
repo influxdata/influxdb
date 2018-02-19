@@ -210,11 +210,9 @@ func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if aux.EndTime != "" {
-		ar.EndTime, err = time.Parse(timeMilliFormat, aux.EndTime)
-		if err != nil {
-			return err
-		}
+	ar.EndTime, err = time.Parse(timeMilliFormat, aux.EndTime)
+	if err != nil {
+		return err
 	}
 
 	return nil
