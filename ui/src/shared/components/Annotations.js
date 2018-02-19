@@ -75,10 +75,11 @@ class Annotations extends Component {
             onDeleteAnnotation={handleDeleteAnnotation}
           />
         )}
-        {annotations.map((a, i) => {
-          return a.duration
-            ? <AnnotationWindow key={i} annotation={a} dygraph={dygraph} />
-            : null
+        {annotations.filter(a => !a.id.includes('-end')).map((a, i) => {
+          return (
+            a.startTime !== a.endTime &&
+            <AnnotationWindow key={i} annotation={a} dygraph={dygraph} />
+          )
         })}
       </div>
     )

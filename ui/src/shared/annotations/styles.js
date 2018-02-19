@@ -193,21 +193,22 @@ export const annotationWindowStyle = (annotation, dygraph) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   const containerLeftPadding = 16
-  const windowEnd = Number(annotation.time) + Number(annotation.duration)
+  const startTime = +annotation.startTime
+  const endTime = +annotation.endTime
 
-  let windowStartXCoord = dygraph.toDomXCoord(annotation.time)
-  let windowEndXCoord = dygraph.toDomXCoord(windowEnd)
+  let windowStartXCoord = dygraph.toDomXCoord(startTime)
+  let windowEndXCoord = dygraph.toDomXCoord(endTime)
   let visibility = 'visible'
 
-  if (annotation.time < startX) {
+  if (startTime < startX) {
     windowStartXCoord = dygraph.toDomXCoord(startX)
   }
 
-  if (windowEnd > endX) {
+  if (endTime > endX) {
     windowEndXCoord = dygraph.toDomXCoord(endX)
   }
 
-  if (windowEnd < startX || annotation.time > endX) {
+  if (endTime < startX || startTime > endX) {
     visibility = 'hidden'
   }
 
