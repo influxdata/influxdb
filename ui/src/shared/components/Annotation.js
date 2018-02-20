@@ -91,7 +91,12 @@ class Annotation extends Component {
     return (
       <div
         className="dygraph-annotation"
-        style={style.annotation(annotation, dygraph, isMouseOver, isDragging)}
+        style={style.annotation(
+          annotation.startTime,
+          dygraph,
+          isMouseOver,
+          isDragging
+        )}
         data-time-ms={annotation.startTime}
         data-time-local={humanTime}
       >
@@ -182,12 +187,6 @@ class Annotation extends Component {
           onMouseLeave={this.handleMouseLeave}
         />
         <div style={style.flag(isMouseOver, isDragging, true, true)} />
-        <AnnotationTooltip
-          isEditing={isEditing}
-          annotation={annotation}
-          onMouseLeave={this.handleMouseLeave}
-          annotationState={this.state}
-        />
       </div>
     )
   }
