@@ -19,7 +19,8 @@
     "test:lint": "yarn run lint; yarn run test",
     "test:dev": "karma start --auto-watch",
     "clean": "rm -rf build/*",
-    "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix"
+    "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix",
+    "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check"
   },
   "author": "",
   "eslintConfig": {
@@ -28,7 +29,6 @@
     }
   },
   "devDependencies": {
-    "@kadira/storybook": "^2.21.0",
     "@types/chai": "^4.1.2",
     "@types/lodash": "^4.14.104",
     "@types/mocha": "^2.2.48",
