@@ -177,12 +177,12 @@ export const annotation = (time, dygraph, isMouseOver, isDragging) => {
   }
 }
 
-export const window = (annotation, dygraph) => {
+export const window = (anno, dygraph) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   const containerLeftPadding = 16
-  const startTime = +annotation.startTime
-  const endTime = +annotation.endTime
+  const startTime = +anno.startTime
+  const endTime = +anno.endTime
 
   let windowStartXCoord = dygraph.toDomXCoord(startTime)
   let windowEndXCoord = dygraph.toDomXCoord(endTime)

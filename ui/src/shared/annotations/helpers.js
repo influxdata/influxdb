@@ -17,5 +17,11 @@ export const getAnnotations = (graph, annotations = []) => {
 
   const [xStart, xEnd] = graph.xAxisRange()
 
-  return annotations.filter(a => +a.endTime >= xStart || +a.startTime <= xEnd)
+  return annotations.filter(a => {
+    if (a.endTime === a.startTime) {
+      return xStart <= +a.startTime && +a.startTime <= xEnd
+    }
+
+    return xStart < +a.endTime || +a.startTime < xEnd
+  })
 }

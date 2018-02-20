@@ -5,15 +5,10 @@ import moment from 'moment'
 import AnnotationInput from 'src/shared/components/AnnotationInput'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
-
-import {
-  tooltipStyle,
-  tooltipItemsStyle,
-  tooltipTimestampStyle,
-} from 'src/shared/annotations/styles'
+import * as style from 'src/shared/annotations/styles'
 
 const TimeStamp = ({time}) =>
-  <div style={tooltipTimestampStyle}>
+  <div style={style.tooltipTimestamp}>
     {`${moment(+time).format('YYYY/DD/MM HH:mm:ss.SS')}`}
   </div>
 
@@ -54,12 +49,12 @@ class AnnotationTooltip extends Component {
       <div
         id={`tooltip-${annotation.id}`}
         onMouseLeave={onMouseLeave}
-        style={tooltipStyle(annotationState)}
+        style={style.tooltip(annotationState)}
         className="annotation-tooltip"
       >
         {isDragging
           ? <TimeStamp time={this.props.annotation.startTime} />
-          : <div style={tooltipItemsStyle}>
+          : <div style={style.tooltipItems}>
               {isEditing &&
                 <button
                   className="annotation-tooltip--delete"

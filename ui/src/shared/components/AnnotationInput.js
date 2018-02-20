@@ -1,12 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import onClickOutside from 'react-onclickoutside'
 
-import {
-  tooltipInputContainer,
-  tooltipFormStyle,
-  tooltipInputButton,
-  tooltipInput,
-} from 'src/shared/annotations/styles'
+import * as style from 'src/shared/annotations/styles'
 
 class AnnotationInput extends Component {
   state = {
@@ -62,13 +57,16 @@ class AnnotationInput extends Component {
     const {value} = this.props
 
     return (
-      <div className="annotation-tooltip-input" style={tooltipInputContainer}>
+      <div
+        className="annotation-tooltip-input"
+        style={style.tooltipInputContainer}
+      >
         {isEditing
-          ? <form onSubmit={this.handleFormSubmit} style={tooltipFormStyle}>
+          ? <form onSubmit={this.handleFormSubmit} style={style.tooltipForm}>
               <input
                 type="text"
                 className="form-control input-xs"
-                style={tooltipInput}
+                style={style.tooltipInput}
                 value={value}
                 onChange={this.handleChange}
                 onKeyDown={this.handleKeyDown}
@@ -77,7 +75,7 @@ class AnnotationInput extends Component {
               />
               <button
                 className="btn btn-square btn-xs btn-default"
-                style={tooltipInputButton}
+                style={style.tooltipInputButton}
                 type="button"
                 onClick={this.handleClickOutside}
               >
@@ -85,7 +83,7 @@ class AnnotationInput extends Component {
               </button>
               <button
                 className="btn btn-square btn-xs btn-success"
-                style={tooltipInputButton}
+                style={style.tooltipInputButton}
                 type="submit"
               >
                 <span className="icon checkmark" />

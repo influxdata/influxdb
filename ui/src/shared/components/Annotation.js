@@ -5,12 +5,7 @@ import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 
 import {ADDING, EDITING} from 'src/shared/annotations/helpers'
 import * as schema from 'shared/schemas'
-
-import {
-  flagStyle,
-  clickAreaStyle,
-  annotationStyle,
-} from 'src/shared/annotations/styles'
+import * as style from 'src/shared/annotations/styles'
 
 class Annotation extends Component {
   state = {
@@ -96,19 +91,19 @@ class Annotation extends Component {
     return (
       <div
         className="dygraph-annotation"
-        style={annotationStyle(annotation, dygraph, isMouseOver, isDragging)}
+        style={style.annotation(annotation, dygraph, isMouseOver, isDragging)}
         data-time-ms={annotation.startTime}
         data-time-local={humanTime}
       >
         <div
-          style={clickAreaStyle(isDragging, isEditing)}
+          style={style.clickArea(isDragging, isEditing)}
           onMouseMove={this.handleDrag}
           onMouseDown={this.handleStartDrag}
           onMouseUp={this.handleStopDrag}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={flagStyle(isMouseOver, isDragging, false, false)} />
+        <div style={style.flag(isMouseOver, isDragging, false, false)} />
         <AnnotationTooltip
           isEditing={isEditing}
           annotation={annotation}
@@ -130,7 +125,7 @@ class Annotation extends Component {
     return (
       <div
         className="dygraph-annotation"
-        style={annotationStyle(
+        style={style.annotation(
           annotation.startTime,
           dygraph,
           isMouseOver,
@@ -140,14 +135,14 @@ class Annotation extends Component {
         data-time-local={humanTime}
       >
         <div
-          style={clickAreaStyle(isDragging, isEditing)}
+          style={style.clickArea(isDragging, isEditing)}
           onMouseMove={this.handleDrag}
           onMouseDown={this.handleStartDrag}
           onMouseUp={this.handleStopDrag}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={flagStyle(isMouseOver, isDragging, true, false)} />
+        <div style={style.flag(isMouseOver, isDragging, true, false)} />
         <AnnotationTooltip
           isEditing={isEditing}
           annotation={annotation}
@@ -169,7 +164,7 @@ class Annotation extends Component {
     return (
       <div
         className="dygraph-annotation"
-        style={annotationStyle(
+        style={style.annotation(
           annotation.endTime,
           dygraph,
           isMouseOver,
@@ -179,14 +174,14 @@ class Annotation extends Component {
         data-time-local={humanTime}
       >
         <div
-          style={clickAreaStyle(isDragging, isEditing)}
+          style={style.clickArea(isDragging, isEditing)}
           onMouseMove={this.handleDrag}
           onMouseDown={this.handleStartDrag}
           onMouseUp={this.handleStopDrag}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={flagStyle(isMouseOver, isDragging, true, true)} />
+        <div style={style.flag(isMouseOver, isDragging, true, true)} />
         <AnnotationTooltip
           isEditing={isEditing}
           annotation={annotation}

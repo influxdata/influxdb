@@ -6,18 +6,7 @@ import uuid from 'node-uuid'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
-
-import {
-  circleFlagStyle,
-  leftFlagStyle,
-  rightFlagStyle,
-  newAnnotationContainer,
-  newAnnotationCrosshairStyle,
-  newAnnotationTooltipStyle,
-  newAnnotationHelperStyle,
-  newAnnotationTimestampStyle,
-  newAnnotationWindowStyle,
-} from 'src/shared/annotations/styles'
+import * as style from 'src/shared/annotations/styles'
 
 class NewAnnotation extends Component {
   state = {
@@ -133,9 +122,9 @@ class NewAnnotation extends Component {
 
     const isDragging = mouseAction === 'dragging'
     const staticFlagStyle =
-      staticCrosshairLeft < crosshairLeft ? leftFlagStyle : rightFlagStyle
+      staticCrosshairLeft < crosshairLeft ? style.leftFlag : style.rightFlag
     const draggingFlagStyle =
-      staticCrosshairLeft < crosshairLeft ? rightFlagStyle : leftFlagStyle
+      staticCrosshairLeft < crosshairLeft ? style.rightFlag : style.leftFlag
 
     return (
       <div
@@ -146,34 +135,34 @@ class NewAnnotation extends Component {
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleMouseUp}
         onMouseDown={this.handleMouseDown}
-        style={newAnnotationContainer}
+        style={style.newContainer}
       >
         {isDragging &&
           <div
             className="new-annotation--crosshair__static"
-            style={newAnnotationCrosshairStyle(staticCrosshairLeft)}
+            style={style.newCrosshair(staticCrosshairLeft)}
           >
             <div style={staticFlagStyle} />
           </div>}
         {isDragging &&
           <div
             className="new-annotation--window"
-            style={newAnnotationWindowStyle(staticCrosshairLeft, crosshairLeft)}
+            style={style.newWindow(staticCrosshairLeft, crosshairLeft)}
           />}
         <div
           className="new-annotation--crosshair"
-          style={newAnnotationCrosshairStyle(crosshairLeft)}
+          style={style.newCrosshair(crosshairLeft)}
         >
           <div
             className="new-annotation--flag"
-            style={isDragging ? draggingFlagStyle : circleFlagStyle}
+            style={isDragging ? draggingFlagStyle : style.circleFlag}
           />
           <div
             className="new-annotation--tooltip"
-            style={newAnnotationTooltipStyle(isMouseOver)}
+            style={style.newTooltip(isMouseOver)}
           >
-            <span style={newAnnotationHelperStyle}>Click to Annotate</span>
-            <span style={newAnnotationTimestampStyle}>
+            <span style={style.newHelper}>Click to Annotate</span>
+            <span style={style.newTimestamp}>
               {timestamp}
             </span>
           </div>
