@@ -41,7 +41,8 @@ module.exports = {
         'memoizerific.js'
       ),
     ],
-    loaders: [{
+    loaders: [
+      {
         test: /\.js$/,
         exclude: /node_modules/,
         loader: 'eslint-loader',
@@ -141,7 +142,7 @@ module.exports = {
     historyApiFallback: true,
     clientLogLevel: 'info',
     stats: {
-      colors: true
+      colors: true,
     },
     contentBase: 'build',
     quiet: false,
