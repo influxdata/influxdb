@@ -58,7 +58,6 @@ func newAnnotationsResponse(src chronograf.Source, as []chronograf.Annotation) a
 	}
 }
 
-// TODO: check that start time is before stop time
 func validAnnotationQuery(query url.Values) (startTime, stopTime time.Time, err error) {
 	start := query.Get(since)
 	if start == "" {
@@ -71,15 +70,18 @@ func validAnnotationQuery(query url.Values) (startTime, stopTime time.Time, err 
 	}
 
 	// if until isn't stated, the default time is now
+	stopTime = time.Now()
 	stop := query.Get(until)
 	if stop != "" {
-		stopTime, err := time.Parse(timeMilliFormat, stop)
+		stopTime, err = time.Parse(timeMilliFormat, stop)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
-		return startTime, stopTime, nil
 	}
-	return startTime, time.Now().UTC(), nil
+	if startTime.After(stopTime) {
+		startTime, stopTime = stopTime, startTime
+	}
+	return startTime, stopTime, nil
 }
 
 // Annotations returns all annotations within the annotations store
@@ -184,7 +186,6 @@ type newAnnotationRequest struct {
 	Type      string    `json:"type,omitempty"` // Type describes the kind of annotation
 }
 
-// TODO: check that the endtime is after the starttime
 func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	type Alias newAnnotationRequest
 	aux := &struct {
@@ -207,6 +208,10 @@ func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	ar.EndTime, err = time.Parse(timeMilliFormat, aux.EndTime)
 	if err != nil {
 		return err
+	}
+
+	if ar.StartTime.After(ar.EndTime) {
+		ar.StartTime, ar.EndTime = ar.EndTime, ar.StartTime
 	}
 
 	return nil
