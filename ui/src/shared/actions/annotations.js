@@ -72,3 +72,8 @@ export const deleteAnnotationAsync = annotation => async dispatch => {
   await api.deleteAnnotation(annotation)
   dispatch(deleteAnnotation(annotation))
 }
+
+export const updateAnnotationAsync = annotation => async dispatch => {
+  await api.updateAnnotation(annotation)
+  dispatch(updateAnnotation(annotation))
+}

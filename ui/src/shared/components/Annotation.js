@@ -15,7 +15,6 @@ class Annotation extends Component {
           ? <AnnotationPoint
               annotation={annotation}
               mode={mode}
-              onUpdateAnnotation={onUpdateAnnotation}
               dygraph={dygraph}
             />
           : <AnnotationSpan

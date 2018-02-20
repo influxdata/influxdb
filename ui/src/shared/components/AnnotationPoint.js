@@ -1,8 +1,10 @@
 import React, {PropTypes} from 'react'
+import {connect} from 'react-redux'
 
 import {EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as style from 'shared/annotations/styles'
+import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
 
 class AnnotationPoint extends React.Component {
@@ -29,6 +31,8 @@ class AnnotationPoint extends React.Component {
   }
 
   handleDragStop = () => {
+    const {annotation, updateAnnotationAsync} = this.props
+    updateAnnotationAsync(annotation)
     this.setState({isDragging: false})
   }
 
@@ -38,7 +42,7 @@ class AnnotationPoint extends React.Component {
     }
 
     const {pageX} = e
-    const {annotation, dygraph, onUpdateAnnotation} = this.props
+    const {annotation, dygraph, updateAnnotation} = this.props
 
     if (pageX === 0) {
       return
@@ -72,7 +76,7 @@ class AnnotationPoint extends React.Component {
       newTime = startX
     }
 
-    onUpdateAnnotation({
+    updateAnnotation({
       ...annotation,
       startTime: `${newTime}`,
       endTime: `${newTime}`,
@@ -126,7 +130,13 @@ AnnotationPoint.propTypes = {
   annotation: schema.annotation.isRequired,
   mode: PropTypes.string.isRequired,
   dygraph: PropTypes.shape({}).isRequired,
-  onUpdateAnnotation: PropTypes.func.isRequired,
+  updateAnnotation: PropTypes.func.isRequired,
+  updateAnnotationAsync: PropTypes.func.isRequired,
 }
 
-export default AnnotationPoint
+const mdtp = {
+  updateAnnotationAsync: actions.updateAnnotationAsync,
+  updateAnnotation: actions.updateAnnotation,
+}
+
+export default connect(null, mdtp)(AnnotationPoint)

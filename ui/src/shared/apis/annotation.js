@@ -13,8 +13,8 @@ const annoToRFC = anno => ({
   endTime: msToRFC(anno.endTime),
 })
 
-export const createAnnotation = async (url, newAnno) => {
-  const data = annoToRFC(newAnno)
+export const createAnnotation = async (url, annotation) => {
+  const data = annoToRFC(annotation)
   const response = await AJAX({method: 'POST', url, data})
   return annoToMillisecond(response.data)
 }
@@ -31,4 +31,10 @@ export const getAnnotations = async (url, since) => {
 export const deleteAnnotation = async annotation => {
   const url = annotation.links.self
   await AJAX({method: 'DELETE', url})
+}
+
+export const updateAnnotation = async annotation => {
+  const url = annotation.links.self
+  const data = annoToRFC(annotation)
+  await AJAX({method: 'PATCH', url, data})
 }
