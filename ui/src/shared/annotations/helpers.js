@@ -16,40 +16,21 @@ export const getAnnotations = (graph, annotations = []) => {
   }
 
   const [xStart, xEnd] = graph.xAxisRange()
-  return annotations.reduce((acc, a) => {
-    // Don't render if annotation.time is outside the graph
+
+  return annotations.filter(a => {
     const annoStart = +a.startTime
     const annoEnd = +a.endTime
-    const endAnnotation = {
-      ...a,
-      id: `${a.id}-end`,
-      startTime: `${annoEnd}`,
-      endTime: `${annoEnd}`,
+
+    // If annotation is too far left
+    if (annoEnd < xStart) {
+      return false
     }
 
-    if (annoStart < xStart) {
-      if (annoEnd > xStart) {
-        return [...acc, a, endAnnotation]
-      }
-
-      return acc
-    }
-
+    // If annotation is too far right
     if (annoStart > xEnd) {
-      return acc
+      return false
     }
 
-    // If annotation does not have duration, include in array
-    if (annoStart === annoEnd) {
-      return [...acc, a]
-    }
-
-    // If annoEnd is out of bounds, just render the start point
-    if (annoEnd > xEnd) {
-      return [...acc, a]
-    }
-
-    // Render both the start and end point
-    return [...acc, a, endAnnotation]
-  }, [])
+    return true
+  })
 }

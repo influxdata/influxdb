@@ -30,7 +30,7 @@ class AnnotationTooltip extends Component {
   }
 
   handleConfirmUpdate = () => {
-    this.props.onConfirmUpdate(this.state.annotation)
+    this.props.updateAnnotation(this.state.annotation)
   }
 
   handleRejectUpdate = () => {
@@ -94,10 +94,11 @@ AnnotationTooltip.propTypes = {
   annotation: schema.annotation.isRequired,
   onMouseLeave: func.isRequired,
   annotationState: shape({}),
-  onConfirmUpdate: func.isRequired,
   deleteAnnotationAsync: func.isRequired,
+  updateAnnotation: func.isRequired,
 }
 
 export default connect(null, {
   deleteAnnotationAsync: actions.deleteAnnotationAsync,
+  updateAnnotation: actions.updateAnnotation,
 })(AnnotationTooltip)

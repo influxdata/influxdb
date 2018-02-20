@@ -3,7 +3,6 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import Annotation from 'src/shared/components/Annotation'
-import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 import NewAnnotation from 'src/shared/components/NewAnnotation'
 import * as schema from 'src/shared/schemas'
 
@@ -68,16 +67,9 @@ class Annotations extends Component {
             mode={mode}
             annotation={a}
             dygraph={dygraph}
-            annotations={annotations}
             onUpdateAnnotation={handleUpdateAnnotation}
           />
         )}
-        {annotations.filter(a => !a.id.includes('-end')).map((a, i) => {
-          return (
-            a.startTime !== a.endTime &&
-            <AnnotationWindow key={i} annotation={a} dygraph={dygraph} />
-          )
-        })}
       </div>
     )
   }
