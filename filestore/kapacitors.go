@@ -59,6 +59,8 @@ func (d *Kapacitors) All(ctx context.Context) ([]chronograf.Server, error) {
 		}
 		var kapacitor chronograf.Server
 		if err := d.Load(path.Join(d.Dir, file.Name()), &kapacitor); err != nil {
+			var fmtErr = fmt.Errorf("Error loading kapacitor configuration from %v:\n%v", path.Join(d.Dir, file.Name()), err)
+			d.Logger.Error(fmtErr)
 			continue // We want to load all files we can.
 		} else {
 			kapacitors = append(kapacitors, kapacitor)

@@ -1,6 +1,6 @@
 {
-  "id": 5000,
-  "srcID": 5000,
+  "id": "5000",
+  "srcID": "5000",
   "name": "Kapa 1",
   "url": "http://localhost:9092",
   "active": true,
