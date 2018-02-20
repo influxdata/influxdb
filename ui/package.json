@@ -15,7 +15,6 @@
     "start:hmr": "webpack-dev-server --open --config ./webpack/devConfig.js",
     "lint": "esw src/",
     "test": "karma start --single-run",
-    "test:integration": "nightwatch tests --skip",
     "test:lint": "yarn run lint; yarn run test",
     "test:dev": "karma start --auto-watch",
     "clean": "rm -rf build/*",
