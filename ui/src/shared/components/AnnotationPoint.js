@@ -7,21 +7,8 @@ import AnnotationTooltip from 'shared/components/AnnotationTooltip'
 
 class AnnotationPoint extends React.Component {
   state = {
-    isDragging: false,
     isMouseOver: false,
-  }
-
-  handleStartDrag = () => {
-    const {mode} = this.props
-    if (mode !== EDITING) {
-      return
-    }
-
-    this.setState({isDragging: true})
-  }
-
-  handleStopDrag = () => {
-    this.setState({isDragging: false})
+    isDragging: false,
   }
 
   handleMouseEnter = () => {
@@ -37,13 +24,26 @@ class AnnotationPoint extends React.Component {
     this.setState({isDragging: false, isMouseOver: false})
   }
 
+  handleDragStart = () => {
+    this.setState({isDragging: true})
+  }
+
+  handleDragStop = () => {
+    this.setState({isDragging: false})
+  }
+
   handleDrag = e => {
-    if (!this.state.isDragging) {
+    if (this.props.mode !== EDITING) {
       return
     }
 
     const {pageX} = e
     const {annotation, dygraph, onUpdateAnnotation} = this.props
+
+    if (pageX === 0) {
+      return
+    }
+
     const {startTime} = annotation
     const {left} = dygraph.graphDiv.getBoundingClientRect()
     const [startX, endX] = dygraph.xAxisRange()
@@ -72,7 +72,11 @@ class AnnotationPoint extends React.Component {
       newTime = startX
     }
 
-    onUpdateAnnotation({...annotation, startTime: `${newTime}`})
+    onUpdateAnnotation({
+      ...annotation,
+      startTime: `${newTime}`,
+      endTime: `${newTime}`,
+    })
 
     e.preventDefault()
     e.stopPropagation()
@@ -99,9 +103,10 @@ class AnnotationPoint extends React.Component {
       >
         <div
           style={style.clickArea(isDragging, isEditing)}
-          onMouseMove={this.handleDrag}
-          onMouseDown={this.handleStartDrag}
-          onMouseUp={this.handleStopDrag}
+          draggable={true}
+          onDrag={this.handleDrag}
+          onDragStart={this.handleDragStart}
+          onDragEnd={this.handleDragStop}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
