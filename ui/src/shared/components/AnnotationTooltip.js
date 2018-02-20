@@ -1,8 +1,10 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
 import moment from 'moment'
 
 import AnnotationInput from 'src/shared/components/AnnotationInput'
 import * as schema from 'shared/schemas'
+import * as actions from 'shared/actions/annotations'
 
 import {
   tooltipStyle,
@@ -35,6 +37,10 @@ class AnnotationTooltip extends Component {
     this.setState({annotation: this.props.annotation})
   }
 
+  handleDelete = () => {
+    this.props.deleteAnnotationAsync(this.props.annotation)
+  }
+
   render() {
     const {annotation} = this.state
     const {
@@ -57,7 +63,7 @@ class AnnotationTooltip extends Component {
               {isEditing &&
                 <button
                   className="annotation-tooltip--delete"
-                  onClick={this.props.onDelete}
+                  onClick={this.handleDelete}
                 >
                   <span className="icon remove" />
                 </button>}
@@ -89,7 +95,9 @@ AnnotationTooltip.propTypes = {
   onMouseLeave: func.isRequired,
   annotationState: shape({}),
   onConfirmUpdate: func.isRequired,
-  onDelete: func.isRequired,
+  deleteAnnotationAsync: func.isRequired,
 }
 
-export default AnnotationTooltip
+export default connect(null, {
+  deleteAnnotationAsync: actions.deleteAnnotationAsync,
+})(AnnotationTooltip)

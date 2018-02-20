@@ -27,3 +27,8 @@ export const getAnnotations = async (url, since) => {
   })
   return data.annotations.map(annoToMillisecond)
 }
+
+export const deleteAnnotation = async annotation => {
+  const url = annotation.links.self
+  await AJAX({method: 'DELETE', url})
+}

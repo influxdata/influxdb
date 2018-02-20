@@ -122,18 +122,6 @@ class Annotation extends Component {
     onUpdateAnnotation(annotation)
   }
 
-  handleDeleteAnnotation = () => {
-    const {annotation, annotations, onDeleteAnnotation} = this.props
-
-    if (this.isEndpoint()) {
-      const startAnnotation = annotations.find(a => a.id === this.getStartID())
-
-      return onDeleteAnnotation(startAnnotation)
-    }
-
-    return onDeleteAnnotation(annotation)
-  }
-
   render() {
     const {dygraph, annotation, mode} = this.props
     const {isDragging, isMouseOver} = this.state
@@ -176,7 +164,6 @@ class Annotation extends Component {
           onMouseLeave={this.handleMouseLeave}
           annotationState={this.state}
           onConfirmUpdate={this.handleConfirmUpdate}
-          onDelete={this.handleDeleteAnnotation}
         />
       </div>
     )
@@ -191,7 +178,6 @@ Annotation.propTypes = {
   annotation: schema.annotation.isRequired,
   dygraph: shape({}).isRequired,
   onUpdateAnnotation: func.isRequired,
-  onDeleteAnnotation: func.isRequired,
 }
 
 export default Annotation
