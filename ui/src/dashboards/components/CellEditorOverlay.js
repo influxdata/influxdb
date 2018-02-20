@@ -61,8 +61,9 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
-      colorSingleStatText: colorsTypeContainsText,
-      colors: validateColors(colors, type, colorsTypeContainsText),
+      singleStatType,
+      gaugeColors: validateGaugeColors(colors),
+      singleStatColors: validateSingleStatColors(colors, singleStatType),
       staticLegend: GET_STATIC_LEGEND(legend),
     }
   }
@@ -361,7 +362,8 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       cellWorkingName: name,
       axes,
-      colors,
+      gaugeColors,
+      singleStatColors,
       staticLegend,
     } = this.state
 
@@ -556,7 +558,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
-      colorSingleStatText,
+      singleStatType,
       staticLegend,
     } = this.state
 

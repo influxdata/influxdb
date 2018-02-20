@@ -117,7 +117,7 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string, bool} = PropTypes
 
 DisplayOptions.propTypes = {
   onAddGaugeThreshold: func.isRequired,
@@ -159,6 +159,8 @@ DisplayOptions.propTypes = {
   onToggleSingleStatText: func.isRequired,
   onToggleStaticLegend: func.isRequired,
   staticLegend: bool,
+  onToggleSingleStatType: func,
+  singleStatType: string,
 }
 
 export default DisplayOptions
