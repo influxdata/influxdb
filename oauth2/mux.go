@@ -169,6 +169,13 @@ func (j *AuthMux) Callback() http.Handler {
 			}
 		}
 
+		group, err := j.Provider.Group(oauthClient)
+		if err != nil {
+			log.Error("Unable to get OAuth Group", err.Error())
+			http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+			return
+		}
+
 		p := Principal{
 			Subject: id,
 			Issuer:  j.Provider.Name(),
