@@ -286,9 +286,11 @@
 
 [logging]
   # Determines which log encoder to use for logs. Available options
-  # are logfmt, console, and json. console is a more user-friendly
-  # output format, but not as easily machine-readable.
-  # format = "logfmt"
+  # are auto, logfmt, and json. auto will use a more a more user-friendly
+  # output format if the output terminal is a TTY, but the format is not as
+  # easily machine-readable. When the output is a non-TTY, auto will use
+  # logfmt.
+  # format = "auto"
 
   # Determines which level of logs will be emitted.
   # level = "info"
