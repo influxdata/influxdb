@@ -2,16 +2,21 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 
 const {colID, colType, colEnabled, colActions} = TASKS_TABLE
 
+const checkForName = task => {
+  return task.id.slice(0, 10) === 'chronograf' ? task.name : task.id
+}
+
 const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
-    <table className="table v-center">
+    <table className="table v-center table-highlight">
       <thead>
         <tr>
-          <th style={{width: colID}}>ID</th>
+          <th style={{minWidth: colID}}>ID</th>
           <th style={{width: colType}}>Type</th>
           <th style={{width: colEnabled}} className="text-center">
             Enabled
@@ -39,7 +44,6 @@ const handleDelete = (task, onDelete) => onDelete(task)
 
 const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
   <tr key={task.id}>
-    <td style={{width: colID}} className="monotype">
     <td style={{minWidth: colID}}>
       <Link
         className="link-success"
@@ -48,10 +52,10 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
         {checkForName(task)}
       </Link>
     </td>
-    <td style={{width: colType}} className="monotype">
+    <td style={{width: colType, textTransform: 'capitalize'}}>
       {task.type}
     </td>
-    <td style={{width: colEnabled}} className="monotype text-center">
+    <td style={{width: colEnabled}} className="text-center">
       <div className="dark-checkbox">
         <input
           id={`kapacitor-enabled ${task.id}`}
@@ -63,13 +67,14 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
         <label htmlFor={`kapacitor-enabled ${task.id}`} />
       </div>
     </td>
-    <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <button
-        className="btn btn-danger btn-xs"
-        onClick={handleDelete(task, onDelete)}
-      >
-        Delete
-      </button>
+    <td style={{width: colActions}} className="text-right">
+      <ConfirmButton
+        text="Delete"
+        type="btn-danger"
+        size="btn-xs"
+        customClass="table--show-on-row-hover"
+        confirmAction={handleDelete(task, onDelete)}
+      />
     </td>
   </tr>
 

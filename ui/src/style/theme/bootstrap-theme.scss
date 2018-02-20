@@ -4807,7 +4807,8 @@ p .label {
 .table .table--show-on-row-hover {
   visibility: hidden;
 }
-.table > tbody > tr:hover .table--show-on-row-hover {
+.table > tbody > tr:hover .table--show-on-row-hover,
+.table > tbody > tr .active.table--show-on-row-hover {
   visibility: visible;
 }
 .table-responsive {
