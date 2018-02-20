@@ -472,6 +472,7 @@ DashboardPage.propTypes = {
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
   notify: func.isRequired,
+  getAnnotationsAsync: func.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
