@@ -3,6 +3,7 @@ import {isSameUser} from 'shared/reducers/helpers/auth'
 const initialState = {
   users: [],
   organizations: [],
+  mappings: [],
   authConfig: {
     superAdminNewUsers: false,
   },
@@ -58,7 +59,10 @@ const adminChronograf = (state = initialState, action) => {
 
     case 'CHRONOGRAF_ADD_ORGANIZATION': {
       const {organization} = action.payload
-      return {...state, organizations: [organization, ...state.organizations]}
+      return {
+        ...state,
+        organizations: [organization, ...state.organizations],
+      }
     }
 
     case 'CHRONOGRAF_RENAME_ORGANIZATION': {
@@ -94,9 +98,57 @@ const adminChronograf = (state = initialState, action) => {
         ),
       }
     }
+
+    case 'CHRONOGRAF_LOAD_MAPPINGS': {
+      const {mappings} = action.payload
+      return {
+        ...state,
+        mappings,
+      }
+    }
+
+    case 'CHRONOGRAF_UPDATE_MAPPING': {
+      const {staleMapping, updatedMapping} = action.payload
+      return {
+        ...state,
+        mappings: state.mappings.map(m =>
+          replaceMapping(m, staleMapping, updatedMapping)
+        ),
+      }
+    }
+
+    case 'CHRONOGRAF_ADD_MAPPING': {
+      const {mapping} = action.payload
+      return {
+        ...state,
+        mappings: [...state.mappings, mapping],
+      }
+    }
+
+    case 'CHRONOGRAF_REMOVE_MAPPING': {
+      const {mapping} = action.payload
+      return {
+        ...state,
+        mappings: state.mappings.filter(
+          m =>
+            mapping._tempID
+              ? m._tempID !== mapping._tempID
+              : m.id !== mapping.id
+        ),
+      }
+    }
   }
 
   return state
+}
+
+function replaceMapping(m, staleMapping, updatedMapping) {
+  if (staleMapping._tempID && m._tempID === staleMapping._tempID) {
+    return {...updatedMapping}
+  } else if (m.id === staleMapping.id) {
+    return {...updatedMapping}
+  }
+  return m
 }
 
 export default adminChronograf

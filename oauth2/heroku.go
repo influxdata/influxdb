@@ -88,6 +88,34 @@ func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
 	return account.Email, nil
 }
 
+// Group returns the Heroku organization that user belongs to.
+func (h *Heroku) Group(provider *http.Client) (string, error) {
+	type DefaultOrg struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	type Account struct {
+		Email               string     `json:"email"`
+		DefaultOrganization DefaultOrg `json:"default_organization"`
+	}
+
+	resp, err := provider.Get(HerokuAccountRoute)
+	if err != nil {
+		h.Logger.Error("Unable to communicate with Heroku. err:", err)
+		return "", err
+	}
+	defer resp.Body.Close()
+	d := json.NewDecoder(resp.Body)
+
+	var account Account
+	if err := d.Decode(&account); err != nil {
+		h.Logger.Error("Unable to decode response from Heroku. err:", err)
+		return "", err
+	}
+
+	return account.DefaultOrganization.Name, nil
+}
+
 // Scopes for heroku is "identity" which grants access to user account
 // information. This will grant us access to the user's email address which is
 // used as the Principal's identifier.

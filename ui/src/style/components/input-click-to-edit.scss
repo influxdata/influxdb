@@ -45,9 +45,20 @@
     > span.icon {opacity: 1;}
   }
 }
+
 .input-cte__disabled {
   border-color: $g4-onyx;
   background-color: $g4-onyx;
   font-style: italic;
   color: $g9-mountain;
+}
+
+.input-cte__empty {
+  @extend .input-cte;
+  font-style: italic;
+  color: $g9-mountain;
+
+  &:hover {
+    color: $g9-mountain;
+  }  
 }

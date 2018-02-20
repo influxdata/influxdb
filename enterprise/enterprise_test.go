@@ -84,6 +84,7 @@ func Test_Enterprise_AdvancesDataNodes(t *testing.T) {
 			Password: "thelake",
 		},
 		false,
+		false,
 		chronograf.TimeSeries(m1),
 		chronograf.TimeSeries(m2))
 	if err != nil {
@@ -114,23 +115,53 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 	t.Parallel()
 
 	urls := []struct {
-		url       string
-		username  string
-		password  string
-		tls       bool
-		shouldErr bool
+		name               string
+		url                string
+		username           string
+		password           string
+		tls                bool
+		insecureSkipVerify bool
+		wantErr            bool
 	}{
-		{"http://localhost:8086", "", "", false, false},
-		{"https://localhost:8086", "", "", false, false},
-		{"http://localhost:8086", "username", "password", false, false},
-
-		{"http://localhost:8086", "", "", true, false},
-		{"https://localhost:8086", "", "", true, false},
-
-		{"localhost:8086", "", "", false, false},
-		{"localhost:8086", "", "", true, false},
-
-		{":http", "", "", false, true},
+		{
+			name: "no tls should have no error",
+			url:  "http://localhost:8086",
+		},
+		{
+			name: "tls sholuld have no error",
+			url:  "https://localhost:8086",
+		},
+		{
+			name:     "no tls but with basic auth",
+			url:      "http://localhost:8086",
+			username: "username",
+			password: "password",
+		},
+		{
+			name: "tls request but url is not tls should not error",
+			url:  "http://localhost:8086",
+			tls:  true,
+		},
+		{
+			name:               "https with tls and with insecureSkipVerify should not error",
+			url:                "https://localhost:8086",
+			tls:                true,
+			insecureSkipVerify: true,
+		},
+		{
+			name: "URL does not require http or https",
+			url:  "localhost:8086",
+		},
+		{
+			name: "URL with TLS request should not error",
+			url:  "localhost:8086",
+			tls:  true,
+		},
+		{
+			name:    "invalid URL causes error",
+			url:     ":http",
+			wantErr: true,
+		},
 	}
 
 	for _, testURL := range urls {
@@ -141,10 +172,11 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 				Password: testURL.password,
 			},
 			testURL.tls,
+			testURL.insecureSkipVerify,
 			log.New(log.DebugLevel))
-		if err != nil && !testURL.shouldErr {
+		if err != nil && !testURL.wantErr {
 			t.Errorf("Unexpected error creating Client with URL %s and TLS preference %t. err: %s", testURL.url, testURL.tls, err.Error())
-		} else if err == nil && testURL.shouldErr {
+		} else if err == nil && testURL.wantErr {
 			t.Errorf("Expected error creating Client with URL %s and TLS preference %t", testURL.url, testURL.tls)
 		}
 	}
@@ -159,7 +191,7 @@ func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
 			Username: "docbrown",
 			Password: "1.21 gigawatts",
 		},
-		false, chronograf.TimeSeries(m1))
+		false, false, chronograf.TimeSeries(m1))
 	if err != nil {
 		t.Error("Expected ErrUnitialized, but was this err:", err)
 	}

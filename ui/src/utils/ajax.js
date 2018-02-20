@@ -82,7 +82,7 @@ export const getAJAX = async url => {
   try {
     return await axios({
       method: 'GET',
-      url,
+      url: addBasepath(url),
     })
   } catch (error) {
     console.error(error)

@@ -19,7 +19,7 @@ const GaugeOptions = ({
 }) => {
   const disableMaxColor = colors.length > MIN_THRESHOLDS
   const disableAddThreshold = colors.length > MAX_THRESHOLDS
-  const sortedColors = _.sortBy(colors, color => Number(color.value))
+  const sortedColors = _.sortBy(colors, color => color.value)
 
   return (
     <FancyScrollbar
@@ -58,7 +58,7 @@ const GaugeOptions = ({
   )
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 GaugeOptions.propTypes = {
   colors: arrayOf(
@@ -67,7 +67,7 @@ GaugeOptions.propTypes = {
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
-      value: string.isRequired,
+      value: number.isRequired,
     }).isRequired
   ),
   onAddThreshold: func.isRequired,

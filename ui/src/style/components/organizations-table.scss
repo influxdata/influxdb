@@ -4,91 +4,45 @@
   Is not actually a table
 */
 
-.orgs-table--org {
+$orgs-table--active-width: 102px;
+$orgs-table--public-width: 90px;
+$orgs-table--default-role-width: 130px;
+$orgs-table--delete-width: 30px;
+
+.orgs-table--name {
+  flex: 1 0 0;
+}
+.orgs-table--public {
+  width: $orgs-table--public-width;
+  text-align: center;
+}
+.orgs-table--default-role {
+  width: $orgs-table--default-role-width;
+}
+.orgs-table--delete {
+  width: $orgs-table--delete-width;
+}
+.orgs-table--active {
+  width: $orgs-table--active-width;
+  justify-content: center;
+  @include no-user-select();
+  
+  .btn {width: 100%;}
+}
+.orgs-table--default-role.deleting {
+  width: (
+    $orgs-table--default-role-width - $fancytable--table--margin -
+      $orgs-table--delete-width
+  );
+}
+.orgs-table--public-toggle {
+  height: 30px;
   width: 100%;
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-  position: relative;
-
-  &:last-of-type {
-    margin-bottom: 0;
-  }
-}
-.orgs-table--id {
-  padding: 0 11px;
-  width: 60px;
-  height: 30px;
-  line-height: 30px;
-  font-size: 13px;
-  color: $g13-mist;
-  font-weight: 500;
-}
-.orgs-table--active {
-  padding: 0 4px 0 0;
-  width: 102px;
-  height: 30px;
-
-  button.btn {
-    width: 100%;
-  }
-}
-.orgs-table--name,
-.orgs-table--name-disabled,
-input[type="text"].form-control.orgs-table--input {
-  flex: 1 0 0;
-  font-weight: 600;
-  font-size: 13px;
-  margin-right: 4px;
-}
-.orgs-table--name,
-.orgs-table--name-disabled {
-  @include no-user-select();
-  padding: 0 11px;
-  border-radius: 4px;
-  height: 30px;
-  line-height: 28px;
-  border-style: solid;
-  border-width: 2px;
-}
-.orgs-table--name {
-  border-color: $g2-kevlar;
-  background-color: $g2-kevlar;
-  color: $g13-mist;
-  position: relative;
-  transition: color 0.4s ease, background-color 0.4s ease,
-    border-color 0.4s ease;
-
-  > span.icon {
-    position: absolute;
-    top: 50%;
-    right: 11px;
-    transform: translateY(-50%);
-    color: $g8-storm;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-
-  &:hover {
-    color: $g20-white;
-    background-color: $g5-pepper;
-    border-color: $g5-pepper;
-    cursor: text;
-
-    > span.icon {
-      opacity: 1;
-    }
-  }
-}
-
-.orgs-table--public {
-  height: 30px;
-  margin-right: 4px;
-  text-align: center;
-  width: 88px;
+  justify-content: center;
   background-color: $g4-onyx;
   border-radius: 4px;
-  line-height: 30px;
   position: relative;
 
   > .slide-toggle {
@@ -102,70 +56,4 @@ input[type="text"].form-control.orgs-table--input {
     color: $g9-mountain;
     @include no-user-select();
   }
-}
-
-.orgs-table--default-role,
-.orgs-table--default-role-disabled {
-  width: 100px;
-  height: 30px;
-  margin-right: 4px;
-}
-.orgs-table--default-role.editing {
-  width: 96px;
-}
-.orgs-table--default-role-disabled {
-  background-color: $g4-onyx;
-  font-style: italic;
-  color: $g9-mountain;
-  padding: 0 11px;
-  line-height: 30px;
-  font-size: 13px;
-  font-weight: 600;
-  @include no-user-select();
-}
-.orgs-table--delete {
-  height: 30px;
-  width: 30px;
-}
-
-/* Table Headers */
-.orgs-table--org-labels {
-  display: flex;
-  align-items: center;
-  border-bottom: 2px solid $g5-pepper;
-  margin-bottom: 10px;
-  width: 100%;
-  @include no-user-select();
-
-  > .orgs-table--name,
-  > .orgs-table--name:hover,
-  > .orgs-table--public,
-  > .orgs-table--active {
-    transition: none;
-    background-color: transparent;
-    border-color: transparent;
-  }
-
-  > .orgs-table--id,
-  > .orgs-table--name,
-  > .orgs-table--name:hover,
-  > .orgs-table--default-role,
-  > .orgs-table--public,
-  > .orgs-table--active {
-    color: $g17-whisper;
-    font-weight: 500;
-  }
-  > .orgs-table--default-role,
-  > .orgs-table--public,
-  > .orgs-table--active {
-    line-height: 30px;
-    font-size: 13px;
-    padding: 0 11px;
-  }
-}
-
-
-/* Config table beneath organizations table */
-.panel .panel-body table.table.superadmin-config {
-  margin-top: 60px;
 }

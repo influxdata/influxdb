@@ -14,9 +14,9 @@ import (
 
 const (
 	// AllAnnotations returns all annotations from the chronograf database
-	AllAnnotations = `SELECT "duration_ns", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "deleted"=false AND time > %dns and time < %dns ORDER BY time DESC`
+	AllAnnotations = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "deleted"=false AND time >= %dns and "start_time" <= %d ORDER BY time DESC`
 	// GetAnnotationID returns all annotations from the chronograf database where id is %s
-	GetAnnotationID = `SELECT "duration_ns", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "id"='%s' AND "deleted"=false ORDER BY time DESC`
+	GetAnnotationID = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "id"='%s' AND "deleted"=false ORDER BY time DESC`
 	// DefaultDB is chronograf.  Perhaps later we allow this to be changed
 	DefaultDB = "chronograf"
 	// DefaultRP is autogen. Perhaps later we allow this to be changed
@@ -91,7 +91,7 @@ func (a *AnnotationStore) Update(ctx context.Context, anno *chronograf.Annotatio
 
 	// If the updated annotation has a different time, then, we must
 	// delete the previous annotation
-	if cur.Time != anno.Time {
+	if !cur.EndTime.Equal(anno.EndTime) {
 		return a.client.Write(ctx, toDeletedPoint(cur))
 	}
 	return nil
@@ -126,13 +126,13 @@ func toPoint(anno *chronograf.Annotation) *chronograf.Point {
 		Database:        DefaultDB,
 		RetentionPolicy: DefaultRP,
 		Measurement:     DefaultMeasurement,
-		Time:            anno.Time.UnixNano(),
+		Time:            anno.EndTime.UnixNano(),
 		Tags: map[string]string{
 			"id": anno.ID,
 		},
 		Fields: map[string]interface{}{
 			"deleted":          false,
-			"duration_ns":      int64(anno.Duration),
+			"start_time":       anno.StartTime.UnixNano(),
 			"modified_time_ns": int64(time.Now().UnixNano()),
 			"text":             anno.Text,
 			"type":             anno.Type,
@@ -145,13 +145,13 @@ func toDeletedPoint(anno *chronograf.Annotation) *chronograf.Point {
 		Database:        DefaultDB,
 		RetentionPolicy: DefaultRP,
 		Measurement:     DefaultMeasurement,
-		Time:            anno.Time.UnixNano(),
+		Time:            anno.EndTime.UnixNano(),
 		Tags: map[string]string{
 			"id": anno.ID,
 		},
 		Fields: map[string]interface{}{
 			"deleted":          true,
-			"duration_ns":      0,
+			"start_time":       int64(0),
 			"modified_time_ns": int64(time.Now().UnixNano()),
 			"text":             "",
 			"type":             "",
@@ -178,14 +178,6 @@ func (v value) Time(idx int) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.Unix(0, tm), nil
-}
-
-func (v value) Duration(idx int) (time.Duration, error) {
-	dur, err := v.Int64(idx)
-	if err != nil {
-		return 0, err
-	}
-	return time.Duration(dur), nil
 }
 
 func (v value) String(idx int) (string, error) {
@@ -222,11 +214,11 @@ func (r *influxResults) Annotations() (res []chronograf.Annotation, err error) {
 			for _, v := range s.Values {
 				anno := annotationResult{}
 
-				if anno.Time, err = v.Time(0); err != nil {
+				if anno.EndTime, err = v.Time(0); err != nil {
 					return
 				}
 
-				if anno.Duration, err = v.Duration(1); err != nil {
+				if anno.StartTime, err = v.Time(1); err != nil {
 					return
 				}
 

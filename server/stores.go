@@ -88,6 +88,7 @@ type DataStore interface {
 	Layouts(ctx context.Context) chronograf.LayoutsStore
 	Users(ctx context.Context) chronograf.UsersStore
 	Organizations(ctx context.Context) chronograf.OrganizationsStore
+	Mappings(ctx context.Context) chronograf.MappingsStore
 	Dashboards(ctx context.Context) chronograf.DashboardsStore
 	Config(ctx context.Context) chronograf.ConfigStore
 }
@@ -102,6 +103,7 @@ type Store struct {
 	LayoutsStore       chronograf.LayoutsStore
 	UsersStore         chronograf.UsersStore
 	DashboardsStore    chronograf.DashboardsStore
+	MappingsStore      chronograf.MappingsStore
 	OrganizationsStore chronograf.OrganizationsStore
 	ConfigStore        chronograf.ConfigStore
 }
@@ -190,4 +192,15 @@ func (s *Store) Config(ctx context.Context) chronograf.ConfigStore {
 		return s.ConfigStore
 	}
 	return &noop.ConfigStore{}
+}
+
+// Mappings returns the underlying MappingsStore.
+func (s *Store) Mappings(ctx context.Context) chronograf.MappingsStore {
+	if isServer := hasServerContext(ctx); isServer {
+		return s.MappingsStore
+	}
+	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
+		return s.MappingsStore
+	}
+	return &noop.MappingsStore{}
 }

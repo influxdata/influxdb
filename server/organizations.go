@@ -15,7 +15,6 @@ import (
 type organizationRequest struct {
 	Name        string `json:"name"`
 	DefaultRole string `json:"defaultRole"`
-	Public      *bool  `json:"public"`
 }
 
 func (r *organizationRequest) ValidCreate() error {
@@ -27,7 +26,7 @@ func (r *organizationRequest) ValidCreate() error {
 }
 
 func (r *organizationRequest) ValidUpdate() error {
-	if r.Name == "" && r.DefaultRole == "" && r.Public == nil {
+	if r.Name == "" && r.DefaultRole == "" {
 		return fmt.Errorf("No fields to update")
 	}
 
@@ -119,10 +118,6 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 		DefaultRole: req.DefaultRole,
 	}
 
-	if req.Public != nil {
-		org.Public = *req.Public
-	}
-
 	res, err := s.Store.Organizations(ctx).Add(ctx, org)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
@@ -205,10 +200,6 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 
 	if req.DefaultRole != "" {
 		org.DefaultRole = req.DefaultRole
-	}
-
-	if req.Public != nil {
-		org.Public = *req.Public
 	}
 
 	err = s.Store.Organizations(ctx).Update(ctx, org)

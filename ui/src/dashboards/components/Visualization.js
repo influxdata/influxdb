@@ -3,6 +3,8 @@ import RefreshingGraph from 'shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
 
+import {stringifyColorValues} from 'src/dashboards/constants/gaugeColors'
+
 const DashVisualization = (
   {
     axes,
@@ -24,7 +26,7 @@ const DashVisualization = (
     <VisualizationName defaultName={name} onCellRename={onCellRename} />
     <div className="graph-container">
       <RefreshingGraph
-        colors={colors}
+        colors={stringifyColorValues(colors)}
         axes={axes}
         type={type}
         queries={buildQueries(proxy, queryConfigs, timeRange)}
@@ -68,8 +70,8 @@ DashVisualization.propTypes = {
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
+      value: number.isRequired,
+    })
   ),
   staticLegend: bool,
 }

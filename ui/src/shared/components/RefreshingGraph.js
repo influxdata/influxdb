@@ -77,6 +77,7 @@ const RefreshingGraph = ({
   return (
     <RefreshingLineGraph
       axes={axes}
+      colors={colors}
       onZoom={onZoom}
       queries={queries}
       key={manualRefresh}

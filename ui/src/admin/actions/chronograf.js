@@ -10,6 +10,10 @@ import {
   createOrganization as createOrganizationAJAX,
   updateOrganization as updateOrganizationAJAX,
   deleteOrganization as deleteOrganizationAJAX,
+  getMappings as getMappingsAJAX,
+  createMapping as createMappingAJAX,
+  updateMapping as updateMappingAJAX,
+  deleteMapping as deleteMappingAJAX,
 } from 'src/admin/apis/chronograf'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -94,6 +98,35 @@ export const removeOrganization = organization => ({
   },
 })
 
+export const loadMappings = ({mappings}) => ({
+  type: 'CHRONOGRAF_LOAD_MAPPINGS',
+  payload: {
+    mappings,
+  },
+})
+
+export const updateMapping = (staleMapping, updatedMapping) => ({
+  type: 'CHRONOGRAF_UPDATE_MAPPING',
+  payload: {
+    staleMapping,
+    updatedMapping,
+  },
+})
+
+export const addMapping = mapping => ({
+  type: 'CHRONOGRAF_ADD_MAPPING',
+  payload: {
+    mapping,
+  },
+})
+
+export const removeMapping = mapping => ({
+  type: 'CHRONOGRAF_REMOVE_MAPPING',
+  payload: {
+    mapping,
+  },
+})
+
 // async actions (thunks)
 export const loadUsersAsync = url => async dispatch => {
   try {
@@ -110,6 +143,62 @@ export const loadOrganizationsAsync = url => async dispatch => {
     dispatch(loadOrganizations(data))
   } catch (error) {
     dispatch(errorThrown(error))
+  }
+}
+
+export const loadMappingsAsync = () => async dispatch => {
+  try {
+    const {data} = await getMappingsAJAX()
+    dispatch(loadMappings(data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
+}
+
+export const createMappingAsync = (url, mapping) => async dispatch => {
+  const mappingWithTempId = {...mapping, _tempID: uuid.v4()}
+  dispatch(addMapping(mappingWithTempId))
+  try {
+    const {data} = await createMappingAJAX(url, mapping)
+    dispatch(updateMapping(mappingWithTempId, data))
+  } catch (error) {
+    const message = `${_.upperFirst(
+      _.toLower(error.data.message)
+    )}: Scheme: ${mapping.scheme} Provider: ${mapping.provider}`
+    dispatch(errorThrown(error, message))
+    setTimeout(
+      () => dispatch(removeMapping(mappingWithTempId)),
+      REVERT_STATE_DELAY
+    )
+  }
+}
+
+export const deleteMappingAsync = mapping => async dispatch => {
+  dispatch(removeMapping(mapping))
+  try {
+    await deleteMappingAJAX(mapping)
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        `Mapping deleted: ${mapping.id} ${mapping.scheme}`
+      )
+    )
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(addMapping(mapping))
+  }
+}
+
+export const updateMappingAsync = (
+  staleMapping,
+  updatedMapping
+) => async dispatch => {
+  dispatch(updateMapping(staleMapping, updatedMapping))
+  try {
+    await updateMappingAJAX(updatedMapping)
+  } catch (error) {
+    dispatch(errorThrown(error))
+    dispatch(updateMapping(updatedMapping, staleMapping))
   }
 }
 

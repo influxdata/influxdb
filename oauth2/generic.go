@@ -111,6 +111,31 @@ func (g *Generic) PrincipalID(provider *http.Client) (string, error) {
 	return email, nil
 }
 
+// Group returns the domain that a user belongs to in the
+// the generic OAuth.
+func (g *Generic) Group(provider *http.Client) (string, error) {
+	res := struct {
+		Email string `json:"email"`
+	}{}
+
+	r, err := provider.Get(g.APIURL)
+	if err != nil {
+		return "", err
+	}
+
+	defer r.Body.Close()
+	if err = json.NewDecoder(r.Body).Decode(&res); err != nil {
+		return "", err
+	}
+
+	email := strings.Split(res.Email, "@")
+	if len(email) != 2 {
+		return "", fmt.Errorf("malformed email address, expected %q to contain @ symbol", res.Email)
+	}
+
+	return email[1], nil
+}
+
 // UserEmail represents user's email address
 type UserEmail struct {
 	Email    *string `json:"email,omitempty"`

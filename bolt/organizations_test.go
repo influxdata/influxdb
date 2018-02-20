@@ -170,12 +170,10 @@ func TestOrganizationsStore_All(t *testing.T) {
 					{
 						Name:        "EE - Evil Empire",
 						DefaultRole: roles.MemberRoleName,
-						Public:      true,
 					},
 					{
 						Name:        "The Good Place",
 						DefaultRole: roles.EditorRoleName,
-						Public:      true,
 					},
 				},
 			},
@@ -183,17 +181,14 @@ func TestOrganizationsStore_All(t *testing.T) {
 				{
 					Name:        "EE - Evil Empire",
 					DefaultRole: roles.MemberRoleName,
-					Public:      true,
 				},
 				{
 					Name:        "The Good Place",
 					DefaultRole: roles.EditorRoleName,
-					Public:      true,
 				},
 				{
 					Name:        bolt.DefaultOrganizationName,
 					DefaultRole: bolt.DefaultOrganizationRole,
-					Public:      bolt.DefaultOrganizationPublic,
 				},
 			},
 			addFirst: true,
@@ -316,52 +311,63 @@ func TestOrganizationsStore_Update(t *testing.T) {
 			addFirst: true,
 		},
 		{
-			name:   "Update organization name, role, public",
+			name:   "Update organization name, role",
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
 				initial: &chronograf.Organization{
 					Name:        "The Good Place",
 					DefaultRole: roles.ViewerRoleName,
-					Public:      false,
 				},
 				updates: &chronograf.Organization{
 					Name:        "The Bad Place",
-					Public:      true,
 					DefaultRole: roles.AdminRoleName,
 				},
 			},
 			want: &chronograf.Organization{
 				Name:        "The Bad Place",
-				Public:      true,
 				DefaultRole: roles.AdminRoleName,
 			},
 			addFirst: true,
 		},
 		{
-			name:   "Update organization name and public",
+			name:   "Update organization name",
 			fields: fields{},
 			args: args{
 				ctx: context.Background(),
 				initial: &chronograf.Organization{
 					Name:        "The Good Place",
 					DefaultRole: roles.EditorRoleName,
-					Public:      false,
 				},
 				updates: &chronograf.Organization{
-					Name:   "The Bad Place",
-					Public: true,
+					Name: "The Bad Place",
 				},
 			},
 			want: &chronograf.Organization{
 				Name:        "The Bad Place",
 				DefaultRole: roles.EditorRoleName,
-				Public:      true,
 			},
 			addFirst: true,
 		},
 		{
-			name: "Update organization name - organization already exists",
+			name:   "Update organization name",
+			fields: fields{},
+			args: args{
+				ctx: context.Background(),
+				initial: &chronograf.Organization{
+					Name: "The Good Place",
+				},
+				updates: &chronograf.Organization{
+					Name: "The Bad Place",
+				},
+			},
+			want: &chronograf.Organization{
+				Name: "The Bad Place",
+			},
+			addFirst: true,
+		},
+		{
+			name: "Update organization name - name already taken",
 			fields: fields{
 				orgs: []chronograf.Organization{
 					{
@@ -407,10 +413,6 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		}
 		if tt.args.updates.DefaultRole != "" {
 			tt.args.initial.DefaultRole = tt.args.updates.DefaultRole
-		}
-
-		if tt.args.updates.Public != tt.args.initial.Public {
-			tt.args.initial.Public = tt.args.updates.Public
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.initial); (err != nil) != tt.wantErr {
@@ -618,7 +620,6 @@ func TestOrganizationsStore_DefaultOrganization(t *testing.T) {
 				ID:          string(bolt.DefaultOrganizationID),
 				Name:        bolt.DefaultOrganizationName,
 				DefaultRole: bolt.DefaultOrganizationRole,
-				Public:      bolt.DefaultOrganizationPublic,
 			},
 			wantErr: false,
 		},

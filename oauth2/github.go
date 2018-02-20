@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/google/go-github/github"
 	"github.com/influxdata/chronograf"
@@ -44,9 +45,9 @@ func (g *Github) Secret() string {
 // we are filtering by organizations.
 func (g *Github) Scopes() []string {
 	scopes := []string{"user:email"}
-	if len(g.Orgs) > 0 {
-		scopes = append(scopes, "read:org")
-	}
+	// In order to access a users orgs, we need the "read:org" scope
+	// even if g.Orgs == 0
+	scopes = append(scopes, "read:org")
 	return scopes
 }
 
@@ -82,6 +83,26 @@ func (g *Github) PrincipalID(provider *http.Client) (string, error) {
 		return "", nil
 	}
 	return email, nil
+}
+
+// Group returns a comma delimited string of Github organizations
+// that a user belongs to in Github
+func (g *Github) Group(provider *http.Client) (string, error) {
+	client := github.NewClient(provider)
+	orgs, err := getOrganizations(client, g.Logger)
+	if err != nil {
+		return "", err
+	}
+
+	groups := []string{}
+	for _, org := range orgs {
+		if org.Login != nil {
+			groups = append(groups, *org.Login)
+			continue
+		}
+	}
+
+	return strings.Join(groups, ","), nil
 }
 
 func randomString(length int) string {

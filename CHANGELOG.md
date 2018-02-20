@@ -1,29 +1,46 @@
-## v1.4.1.0 [unreleased]
+## v1.4.2.0 [unreleased]
 ### Features
-1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Allow adding multiple event handlers to a rule
-1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations
-1. [#2708](https://github.com/influxdata/chronograf/pull/2708): Link to specified kapacitor config panel from rule builder alert handlers
-1. [#2722](https://github.com/influxdata/chronograf/pull/2722): Add auto refresh widget to hosts list page
-1. [#2765](https://github.com/influxdata/chronograf/pull/2765): Update to go 1.9.3 and node 6.12.3 for releases
-1. [#2784](https://github.com/influxdata/chronograf/pull/2784): Update to go 1.9.4
-1. [#2703](https://github.com/influxdata/chronograf/pull/2703): Add global users page visible only to super admins
-1. [#2777](https://github.com/influxdata/chronograf/pull/2777): Allow user to delete themselves
- 
-1. [#2703](https://github.com/influxdata/chronograf/pull/2703): Add global users page visible only to super admins
-1. [#2781](https://github.com/influxdata/chronograf/pull/2781): Add commands to users & create super admin
 ### UI Improvements
-1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Improve clarity of terminology surrounding InfluxDB & Kapacitor connections
+### Bug Fixes
+
+## v1.4.1.3 [2018-02-14]
+### Bug Fixes
+1. [#2818](https://github.com/influxdata/chronograf/pull/2818): Allow self-signed certificates for Enterprise InfluxDB Meta nodes
+
+## v1.4.1.2 [2018-02-13]
+### Bug Fixes
+1. [9321336](https://github.com/influxdata/chronograf/commit/9321336): Respect basepath when fetching server api routes
+1. [#2812](https://github.com/influxdata/chronograf/pull/2812): Set default tempVar :interval: with data explorer csv download call.
+1. [#2811](https://github.com/influxdata/chronograf/pull/2811): Display series with value of 0 in a cell legend
+
+## v1.4.1.1 [2018-02-12]
+### Features
+1. [#2409](https://github.com/influxdata/chronograf/pull/2409): Allow multiple event handlers per rule
+1. [#2709](https://github.com/influxdata/chronograf/pull/2709): Add "send test alert" button to test kapacitor alert configurations
+1. [#2708](https://github.com/influxdata/chronograf/pull/2708): Link to kapacitor config panel from alert rule builder
+1. [#2722](https://github.com/influxdata/chronograf/pull/2722): Add auto refresh widget to hosts list page
+1. [#2784](https://github.com/influxdata/chronograf/pull/2784): Update go from 1.9.3 to 1.9.4
+1. [#2765](https://github.com/influxdata/chronograf/pull/2765): Update to go 1.9.3 and node 6.12.3 for releases
+1. [#2777](https://github.com/influxdata/chronograf/pull/2777): Allow user to delete themselves
+1. [#2703](https://github.com/influxdata/chronograf/pull/2703): Add All Users page, visible only to super admins
+1. [#2781](https://github.com/influxdata/chronograf/pull/2781): Introduce chronoctl binary for user CRUD operations
+1. [#2699](https://github.com/influxdata/chronograf/pull/2699): Introduce Mappings to allow control over new user organization assignments
+### UI Improvements
+1. [#2698](https://github.com/influxdata/chronograf/pull/2698): Clarify terminology surrounding InfluxDB & Kapacitor connections
 1. [#2746](https://github.com/influxdata/chronograf/pull/2746): Separate saving TICKscript from exiting editor page
 1. [#2774](https://github.com/influxdata/chronograf/pull/2774): Enable Save (⌘ + Enter) and Cancel (Escape) hotkeys in Cell Editor Overlay
+1. [#2788](https://github.com/influxdata/chronograf/pull/2788): Enable customization of Single Stat "Base Color"
 
 ### Bug Fixes
 1. [#2684](https://github.com/influxdata/chronograf/pull/2684): Fix TICKscript Sensu alerts when no group by tags selected
-1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
-1. [#2757](https://github.com/influxdata/chronograf/pull/2757): Added "TO" field to kapacitor SMTP config, and improved error messages for config saving and testing
+1. [#2756](https://github.com/influxdata/chronograf/pull/2756): Display 200 most-recent TICKscript log messages; prevent overlapping
+1. [#2757](https://github.com/influxdata/chronograf/pull/2757): Add "TO" to kapacitor SMTP config; improve config update error messages
 1. [#2761](https://github.com/influxdata/chronograf/pull/2761): Remove cli options from sysvinit service file
-1. [#2780](https://github.com/influxdata/chronograf/pull/2780): Fix routing on alert save
+1. [#2735](https://github.com/influxdata/chronograf/pull/2735): Remove cli options from systemd service file
+1. [#2788](https://github.com/influxdata/chronograf/pull/2788): Fix disappearance of text in Single Stat graphs during editing
+1. [#2780](https://github.com/influxdata/chronograf/pull/2780): Redirect to Alerts page after saving Alert Rule
 
-## v1.4.0.1 [2017-1-9]
+## v1.4.0.1 [2018-1-9]
 ### Features
 1. [#2690](https://github.com/influxdata/chronograf/pull/2690): Add separate CLI flag for canned sources, kapacitors, dashboards, and organizations
 1. [#2672](https://github.com/influxdata/chronograf/pull/2672): Add telegraf interval configuration

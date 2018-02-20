@@ -31,9 +31,18 @@ var _ gojwt.Claims = &Claims{}
 // Claims extends jwt.StandardClaims' Valid to make sure claims has a subject.
 type Claims struct {
 	gojwt.StandardClaims
-	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtmldd
+	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtml
 	// that felt appropriate for Organization. As a result, we added a custom `org` field.
 	Organization string `json:"org,omitempty"`
+	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtml
+	// that felt appropriate for a users Group(s). As a result we added a custom `grp` field.
+	// Multiple groups may be specified by comma delimiting the various group.
+	//
+	// The singlular `grp` was chosen over the `grps` to keep consistent with the JWT naming
+	// convention (it is common for singlularly named values to actually be arrays, see `given_name`,
+	// `family_name`, and `middle_name` in the iana link provided above). I should add the discalimer
+	// I'm currently sick, so this thought process might be off.
+	Group string `json:"grp,omitempty"`
 }
 
 // Valid adds an empty subject test to the StandardClaims checks.
@@ -99,6 +108,7 @@ func (j *JWT) ValidClaims(jwtToken Token, lifespan time.Duration, alg gojwt.Keyf
 		Subject:      claims.Subject,
 		Issuer:       claims.Issuer,
 		Organization: claims.Organization,
+		Group:        claims.Group,
 		ExpiresAt:    exp,
 		IssuedAt:     iat,
 	}, nil
@@ -117,6 +127,7 @@ func (j *JWT) Create(ctx context.Context, user Principal) (Token, error) {
 			NotBefore: user.IssuedAt.Unix(),
 		},
 		Organization: user.Organization,
+		Group:        user.Group,
 	}
 	token := gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims)
 	// Sign and get the complete encoded token as a string using the secret

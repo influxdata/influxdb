@@ -102,3 +102,54 @@ export const deleteOrganization = async organization => {
     throw error
   }
 }
+
+// Mappings
+export const createMapping = async (url, mapping) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      resource: 'mappings',
+      data: mapping,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const getMappings = async () => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      resource: 'mappings',
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const updateMapping = async mapping => {
+  try {
+    return await AJAX({
+      method: 'PUT',
+      url: mapping.links.self,
+      data: mapping,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const deleteMapping = async mapping => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url: mapping.links.self,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

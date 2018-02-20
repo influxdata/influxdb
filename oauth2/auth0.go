@@ -8,6 +8,8 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+var _ Provider = &Auth0{}
+
 type Auth0 struct {
 	Generic
 	Organizations map[string]bool // the set of allowed organizations users may belong to
@@ -39,6 +41,26 @@ func (a *Auth0) PrincipalID(provider *http.Client) (string, error) {
 		return "", ErrOrgMembership
 	}
 	return act.Email, nil
+}
+
+func (a *Auth0) Group(provider *http.Client) (string, error) {
+	type Account struct {
+		Email        string `json:"email"`
+		Organization string `json:"organization"`
+	}
+
+	resp, err := provider.Get(a.Generic.APIURL)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	act := Account{}
+	if err = json.NewDecoder(resp.Body).Decode(&act); err != nil {
+		return "", err
+	}
+
+	return act.Organization, nil
 }
 
 func NewAuth0(auth0Domain, clientID, clientSecret, redirectURL string, organizations []string, logger chronograf.Logger) (Auth0, error) {

@@ -88,3 +88,19 @@ func (g *Google) PrincipalID(provider *http.Client) (string, error) {
 	g.Logger.Error("Domain '", info.Hd, "' is not a member of required Google domain(s): ", g.Domains)
 	return "", fmt.Errorf("Not in required domain")
 }
+
+// Group returns the string of domain a user belongs to in Google
+func (g *Google) Group(provider *http.Client) (string, error) {
+	srv, err := goauth2.New(provider)
+	if err != nil {
+		g.Logger.Error("Unable to communicate with Google ", err.Error())
+		return "", err
+	}
+	info, err := srv.Userinfo.Get().Do()
+	if err != nil {
+		g.Logger.Error("Unable to retrieve Google email ", err.Error())
+		return "", err
+	}
+
+	return info.Hd, nil
+}

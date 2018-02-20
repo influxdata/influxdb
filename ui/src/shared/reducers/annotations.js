@@ -1,6 +1,5 @@
 import {DEFAULT_ANNOTATION_ID} from 'src/shared/constants/annotations'
 import {ADDING, EDITING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
-import uuid from 'node-uuid'
 
 const initialState = {
   mode: null,
@@ -132,7 +131,7 @@ const annotationsReducer = (state = initialState, action) => {
         ...state.annotations,
         {
           ...annotation,
-          id: `${DEFAULT_ANNOTATION_ID + uuid.v4()}`,
+          id: DEFAULT_ANNOTATION_ID,
         },
       ]
 

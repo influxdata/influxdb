@@ -25,8 +25,6 @@ const (
 	DefaultOrganizationName string = "Default"
 	// DefaultOrganizationRole is the DefaultRole for the Default organization
 	DefaultOrganizationRole string = "member"
-	// DefaultOrganizationPublic is the Public setting for the Default organization.
-	DefaultOrganizationPublic bool = true
 )
 
 // OrganizationsStore uses bolt to store and retrieve Organizations
@@ -45,7 +43,14 @@ func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 		ID:          string(DefaultOrganizationID),
 		Name:        DefaultOrganizationName,
 		DefaultRole: DefaultOrganizationRole,
-		Public:      DefaultOrganizationPublic,
+	}
+
+	m := chronograf.Mapping{
+		ID:                   string(DefaultOrganizationID),
+		Organization:         string(DefaultOrganizationID),
+		Provider:             chronograf.MappingWildcard,
+		Scheme:               chronograf.MappingWildcard,
+		ProviderOrganization: chronograf.MappingWildcard,
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(OrganizationsBucket)
@@ -54,6 +59,17 @@ func (s *OrganizationsStore) CreateDefault(ctx context.Context) error {
 			return nil
 		}
 		if v, err := internal.MarshalOrganization(&o); err != nil {
+			return err
+		} else if err := b.Put(DefaultOrganizationID, v); err != nil {
+			return err
+		}
+
+		b = tx.Bucket(MappingsBucket)
+		v = b.Get(DefaultOrganizationID)
+		if v != nil {
+			return nil
+		}
+		if v, err := internal.MarshalMapping(&m); err != nil {
 			return err
 		} else if err := b.Put(DefaultOrganizationID, v); err != nil {
 			return err
@@ -186,6 +202,18 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 	for _, user := range users {
 		if err := usersStore.Delete(ctx, &user); err != nil {
 			return err
+		}
+	}
+
+	mappings, err := s.client.MappingsStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, mapping := range mappings {
+		if mapping.Organization == o.ID {
+			if err := s.client.MappingsStore.Delete(ctx, &mapping); err != nil {
+				return err
+			}
 		}
 	}
 
