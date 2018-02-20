@@ -48,8 +48,10 @@ const handleDelete = (rule, onDelete) => onDelete(rule)
 
 const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
   <tr key={rule.id}>
-    <td style={{width: colName}} className="monotype">
-      <RuleTitle rule={rule} source={source} />
+    <td style={{minWidth: colName}}>
+      <Link to={`/sources/${source.id}/alert-rules/${rule.id}`}>
+        {rule.name}
+      </Link>
     </td>
     <td style={{width: colTrigger}} className="monotype">
       {rule.trigger}
@@ -78,12 +80,6 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
       </div>
     </td>
     <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <Link
-        className="btn btn-info btn-xs"
-        to={`/sources/${source.id}/tickscript/${rule.id}`}
-      >
-        Edit TICKscript
-      </Link>
       <button
         className="btn btn-danger btn-xs"
         onClick={handleDelete(rule, onDelete)}
@@ -92,23 +88,6 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
       </button>
     </td>
   </tr>
-
-const RuleTitle = ({rule: {id, name, query}, source}) => {
-  // no queryConfig means the rule was manually created outside of Chronograf
-  if (!query) {
-    return (
-      <i>
-        {name}
-      </i>
-    )
-  }
-
-  return (
-    <Link to={`/sources/${source.id}/alert-rules/${id}`}>
-      {name}
-    </Link>
-  )
-}
 
 const {arrayOf, func, shape, string} = PropTypes
 
@@ -126,19 +105,6 @@ RuleRow.propTypes = {
   source: shape(),
   onChangeRuleStatus: func,
   onDelete: func,
-}
-
-RuleTitle.propTypes = {
-  rule: shape({
-    name: string.isRequired,
-    query: shape(),
-    links: shape({
-      self: string.isRequired,
-    }),
-  }),
-  source: shape({
-    id: string.isRequired,
-  }).isRequired,
 }
 
 export default KapacitorRulesTable

@@ -40,9 +40,13 @@ const handleDelete = (task, onDelete) => onDelete(task)
 const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
   <tr key={task.id}>
     <td style={{width: colID}} className="monotype">
-      <i>
-        {task.id}
-      </i>
+    <td style={{minWidth: colID}}>
+      <Link
+        className="link-success"
+        to={`/sources/${source.id}/tickscript/${task.id}`}
+      >
+        {checkForName(task)}
+      </Link>
     </td>
     <td style={{width: colType}} className="monotype">
       {task.type}
@@ -60,12 +64,6 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
       </div>
     </td>
     <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <Link
-        className="btn btn-info btn-xs"
-        to={`/sources/${source.id}/tickscript/${task.id}`}
-      >
-        Edit TICKscript
-      </Link>
       <button
         className="btn btn-danger btn-xs"
         onClick={handleDelete(task, onDelete)}

@@ -41,17 +41,21 @@ const KapacitorRules = ({
     )
   }
 
-  const rulez = rules.filter(r => r.query)
-  const tasks = rules.filter(r => !r.query)
+  const builderRules = rules.filter(r => r.query)
 
-  const rHeader = `${rulez.length} Alert Rule${rulez.length === 1 ? '' : 's'}`
-  const tHeader = `${tasks.length} TICKscript${tasks.length === 1 ? '' : 's'}`
+  const builderHeader = `${builderRules.length} Alert Rule${builderRules.length ===
+  1
+    ? ''
+    : 's'}`
+  const scriptsHeader = `${rules.length} TICKscript${rules.length === 1
+    ? ''
+    : 's'}`
 
   return (
     <PageContents source={source}>
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">
-          {rHeader}
+          {builderHeader}
         </h2>
         <div className="u-flex u-ai-center u-jc-space-between">
           <Link
@@ -65,7 +69,7 @@ const KapacitorRules = ({
       </div>
       <KapacitorRulesTable
         source={source}
-        rules={rulez}
+        rules={builderRules}
         onDelete={onDelete}
         onChangeRuleStatus={onChangeRuleStatus}
       />
@@ -75,12 +79,12 @@ const KapacitorRules = ({
           <div className="panel panel-minimal">
             <div className="panel-heading u-flex u-ai-center u-jc-space-between">
               <h2 className="panel-title">
-                {tHeader}
+                {scriptsHeader}
               </h2>
               <div className="u-flex u-ai-center u-jc-space-between">
                 <Link
                   to={`/sources/${source.id}/tickscript/new`}
-                  className="btn btn-sm btn-primary"
+                  className="btn btn-sm btn-success"
                   style={{marginRight: '4px'}}
                 >
                   <span className="icon plus" /> Write TICKscript
@@ -89,7 +93,7 @@ const KapacitorRules = ({
             </div>
             <TasksTable
               source={source}
-              tasks={tasks}
+              tasks={rules}
               onDelete={onDelete}
               onChangeRuleStatus={onChangeRuleStatus}
             />
