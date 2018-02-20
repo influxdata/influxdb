@@ -9,7 +9,7 @@ const zIndexAnnotationActive = '4'
 const timestampFontSize = '14px'
 const timestampFontWeight = '600'
 
-export const flagStyle = (mouseOver, dragging, hasDuration, isEndpoint) => {
+export const flag = (mouseOver, dragging, hasDuration, isEndpoint) => {
   const baseStyle = {
     position: 'absolute',
     zIndex: '2',
@@ -89,7 +89,7 @@ export const flagStyle = (mouseOver, dragging, hasDuration, isEndpoint) => {
   return style
 }
 
-export const clickAreaStyle = (dragging, editing) => {
+export const clickArea = (dragging, editing) => {
   const style = {
     position: 'absolute',
     top: '-8px',
@@ -113,7 +113,7 @@ export const clickAreaStyle = (dragging, editing) => {
   return style
 }
 
-export const tooltipStyle = annotationState => {
+export const tooltip = annotationState => {
   const {isDragging, isMouseOver} = annotationState
   const isVisible = isDragging || isMouseOver
 
@@ -133,19 +133,19 @@ export const tooltipStyle = annotationState => {
   }
 }
 
-export const tooltipItemsStyle = {
+export const tooltipItems = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
 }
-export const tooltipTimestampStyle = {
+export const tooltipTimestamp = {
   color: NEUTRALS[20],
   display: 'block',
   fontSize: timestampFontSize,
   fontWeight: timestampFontWeight,
 }
 export const tooltipInputContainer = {width: '100%', marginBottom: '4px'}
-export const tooltipFormStyle = {
+export const tooltipForm = {
   display: 'inline-flex',
   alignItems: 'center',
   flexWrap: 'nowrap',
@@ -154,7 +154,7 @@ export const tooltipFormStyle = {
 export const tooltipInputButton = {marginLeft: '2px'}
 export const tooltipInput = {flex: '1 0 0'}
 
-export const annotationStyle = (time, dygraph, isMouseOver, isDragging) => {
+export const annotation = (time, dygraph, isMouseOver, isDragging) => {
   // TODO: export and test this function
   const containerLeftPadding = 16
   const left = `${dygraph.toDomXCoord(time) + containerLeftPadding}px`
@@ -177,7 +177,7 @@ export const annotationStyle = (time, dygraph, isMouseOver, isDragging) => {
   }
 }
 
-export const annotationWindowStyle = (annotation, dygraph) => {
+export const window = (annotation, dygraph) => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   const containerLeftPadding = 16
@@ -224,7 +224,7 @@ export const annotationWindowStyle = (annotation, dygraph) => {
 }
 
 // Styles for new Annotations
-export const newAnnotationContainer = {
+export const newContainer = {
   position: 'absolute',
   zIndex: '9999',
   top: '8px',
@@ -233,7 +233,7 @@ export const newAnnotationContainer = {
   height: 'calc(100% - 16px)',
   cursor: 'pointer',
 }
-export const newAnnotationCrosshairStyle = left => {
+export const newCrosshair = left => {
   const width = 2
 
   return {
@@ -250,7 +250,7 @@ export const newAnnotationCrosshairStyle = left => {
     cursor: 'pointer',
   }
 }
-export const newAnnotationTooltipStyle = isMouseHovering => {
+export const newTooltip = isMouseHovering => {
   return {
     display: isMouseHovering ? 'flex' : 'none',
     flexDirection: 'column',
@@ -265,7 +265,7 @@ export const newAnnotationTooltipStyle = isMouseHovering => {
     zIndex: '10',
   }
 }
-export const newAnnotationHelperStyle = {
+export const newHelper = {
   whiteSpace: 'nowrap',
   fontSize: '13px',
   lineHeight: '13px',
@@ -273,14 +273,14 @@ export const newAnnotationHelperStyle = {
   color: BLUES.neutrino,
   marginBottom: '4px',
 }
-export const newAnnotationTimestampStyle = {
+export const newTimestamp = {
   whiteSpace: 'nowrap',
   fontSize: timestampFontSize,
   lineHeight: timestampFontSize,
   fontWeight: timestampFontWeight,
   color: NEUTRALS[20],
 }
-export const circleFlagStyle = {
+export const circleFlag = {
   position: 'absolute',
   zIndex: '2',
   top: '-3px',
@@ -292,7 +292,7 @@ export const circleFlagStyle = {
   transition: 'background-color 0.25s ease, transform 0.25s ease',
 }
 
-export const leftFlagStyle = {
+export const leftFlag = {
   position: 'absolute',
   zIndex: '2',
   top: '-6px',
@@ -307,7 +307,7 @@ export const leftFlagStyle = {
   transition: 'border-left-color 0.25s ease, transform 0.25s ease',
   transformOrigin: '0% 50%',
 }
-export const rightFlagStyle = {
+export const rightFlag = {
   position: 'absolute',
   zIndex: '2',
   top: '-6px',
@@ -324,7 +324,7 @@ export const rightFlagStyle = {
   transformOrigin: '100% 50%',
 }
 
-export const newAnnotationWindowStyle = (staticX, draggingX) => {
+export const newWindow = (staticX, draggingX) => {
   // TODO: export and test this function
 
   const width = `${Math.abs(Number(draggingX) - Number(staticX))}px`
