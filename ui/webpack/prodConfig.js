@@ -24,6 +24,10 @@ const babelLoader = {
 }
 
 const config = {
+  node: {
+    fs: "empty",
+    module: "empty"
+ },
   bail: true,
   devtool: 'eval',
   entry: {

@@ -28,6 +28,10 @@ const babelLoader = {
 }
 
 module.exports = {
+  node: {
+    fs: 'empty',
+    module: 'empty',
+  },
   watch: true,
   cache: true,
   devtool: 'inline-eval-cheap-source-map',
