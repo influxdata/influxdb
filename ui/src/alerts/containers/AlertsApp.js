@@ -11,7 +11,7 @@ import AJAX from 'utils/ajax'
 import _ from 'lodash'
 import moment from 'moment'
 
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 
 class AlertsApp extends Component {
   constructor(props) {

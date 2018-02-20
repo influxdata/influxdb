@@ -1,4 +1,4 @@
-[
+const groupByTimes = [
   {defaultTimeBound: ':interval:', seconds: 604800, menuOption: 'auto'},
   {defaultTimeBound: 'now() - 5m', seconds: 10, menuOption: '10s'},
   {defaultTimeBound: 'now() - 15m', seconds: 60, menuOption: '1m'},
@@ -10,3 +10,5 @@
   {defaultTimeBound: 'now() - 7d', seconds: 86400, menuOption: '1d'},
   {defaultTimeBound: 'now() - 30d', seconds: 604800, menuOption: '7d'},
 ]
+
+export default groupByTimes

@@ -11,7 +11,7 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 import {
   getLayouts,
   getAppsForHosts,

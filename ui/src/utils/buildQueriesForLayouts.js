@@ -1,6 +1,6 @@
 import {buildQuery} from 'utils/influxql'
 import {TYPE_SHIFTED, TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 
 const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
   const {defaultGroupBy} = timeRanges.find(range => range.lower === lower) || {
