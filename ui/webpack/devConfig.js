@@ -10,10 +10,27 @@ const package = require('../package.json')
 const dependencies = package.dependencies
 
 const buildDir = path.resolve(__dirname, '../build')
+const babelLoader = {
+  loader: 'babel-loader',
+  options: {
+    cacheDirectory: true,
+    presets: [
+      'react',
+      [
+        'es2015',
+        {
+          modules: false,
+        },
+      ],
+      'es2016',
+    ],
+  },
+}
 
 module.exports = {
   watch: true,
-  devtool: 'source-map',
+  cache: true,
+  devtool: 'inline-eval-cheap-source-map',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
     vendor: Object.keys(dependencies),
@@ -30,6 +47,7 @@ module.exports = {
       style: path.resolve(__dirname, '..', 'src', 'style'),
       utils: path.resolve(__dirname, '..', 'src', 'utils'),
     },
+    extensions: ['.ts', '.tsx', '.js'],
   },
   module: {
     noParse: [
@@ -79,6 +97,16 @@ module.exports = {
           presets: ['es2015', 'react', 'stage-0'],
           cacheDirectory: true, // use a cache directory to speed up compilation
         },
+      },
+      {
+        test: /\.ts(x?)$/,
+        exclude: /node_modules/,
+        use: [
+          babelLoader,
+          {
+            loader: 'ts-loader',
+          },
+        ],
       },
     ],
   },

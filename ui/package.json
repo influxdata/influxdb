@@ -28,6 +28,12 @@
     }
   },
   "devDependencies": {
+    "@kadira/storybook": "^2.21.0",
+    "@types/chai": "^4.1.2",
+    "@types/lodash": "^4.14.104",
+    "@types/mocha": "^2.2.48",
+    "@types/node": "^9.4.6",
+    "@types/react": "^16.0.38",
     "autoprefixer": "^6.3.1",
     "babel-core": "^6.5.1",
     "babel-eslint": "6.1.2",
@@ -91,6 +97,8 @@
     "sinon-chai": "^2.8.0",
     "style-loader": "^0.13.0",
     "testem": "^1.2.1",
+    "ts-loader": "^3.5.0",
+    "tslib": "^1.9.0",
     "uglify-js": "^2.6.1",
     "webpack": "^3.11.0",
     "webpack-dev-server": "^2.11.1"
@@ -131,6 +139,7 @@
     "redux-auth-wrapper": "^1.0.0",
     "redux-thunk": "^1.0.3",
     "rome": "^2.1.22",
+    "typescript": "^2.7.2",
     "updeep": "^0.13.0"
   }
 }
