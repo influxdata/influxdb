@@ -203,6 +203,13 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.Monitor.Branch = s.buildInfo.Branch
 	s.Monitor.BuildTime = s.buildInfo.Time
 	s.Monitor.PointsWriter = (*monitorPointsWriter)(s.PointsWriter)
+
+	// Bootstrap
+	err = c.Bootstrap.Apply(s.MetaClient)
+	if err != nil {
+		return nil, err
+	}
+
 	return s, nil
 }
 

@@ -403,6 +403,8 @@ func TestServer_ShowDatabases_NoAuth(t *testing.T) {
 func TestServer_ShowDatabases_WithAuth(t *testing.T) {
 	t.Parallel()
 	c := NewConfig()
+	c.Bootstrap.AdminUsername = "admin"
+	c.Bootstrap.AdminPassword = "admin"
 	c.HTTPD.AuthEnabled = true
 	s := OpenServer(c)
 	defer s.Close()
@@ -418,11 +420,6 @@ func TestServer_ShowDatabases_WithAuth(t *testing.T) {
 
 	test := Test{
 		queries: []*Query{
-			&Query{
-				name:    "create admin",
-				command: `CREATE USER admin WITH PASSWORD 'admin' WITH ALL PRIVILEGES`,
-				exp:     `{"results":[{"statement_id":0}]}`,
-			},
 			&Query{
 				name:    "create databases",
 				command: "CREATE DATABASE dbR; CREATE DATABASE dbW",

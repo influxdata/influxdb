@@ -85,7 +85,6 @@ type Handler struct {
 		Databases() []meta.DatabaseInfo
 		Authenticate(username, password string) (ui meta.User, err error)
 		User(username string) (meta.User, error)
-		AdminUserExists() bool
 	}
 
 	QueryAuthorizer interface {
@@ -1352,9 +1351,6 @@ func parseCredentials(r *http.Request) (*credentials, error) {
 
 // authenticate wraps a handler and ensures that if user credentials are passed in
 // an attempt is made to authenticate that user. If authentication fails, an error is returned.
-//
-// There is one exception: if there are no users in the system, authentication is not required. This
-// is to facilitate bootstrapping of a system with authentication enabled.
 func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *Handler, requireAuthentication bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Return early if we are not authenticating
@@ -1364,8 +1360,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 		}
 		var user meta.User
 
-		// TODO corylanou: never allow this in the future without users
-		if requireAuthentication && h.MetaClient.AdminUserExists() {
+		if requireAuthentication {
 			creds, err := parseCredentials(r)
 			if err != nil {
 				atomic.AddInt64(&h.stats.AuthenticationFailures, 1)

@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/services/bootstrap"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -57,6 +58,8 @@ type Config struct {
 	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`
 	UDPInputs      []udp.Config      `toml:"udp"`
 
+	Bootstrap bootstrap.Config `toml:"bootstrap"`
+
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
 
 	// Server reporting
@@ -84,6 +87,8 @@ func NewConfig() *Config {
 	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}
 	c.OpenTSDBInputs = []opentsdb.Config{opentsdb.NewConfig()}
 	c.UDPInputs = []udp.Config{udp.NewConfig()}
+
+	c.Bootstrap = bootstrap.NewConfig()
 
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
