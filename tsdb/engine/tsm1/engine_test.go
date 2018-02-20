@@ -1269,7 +1269,6 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 }
 
 func TestEngine_LastModified(t *testing.T) {
-	t.Skip("revisit logic in this test")
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 			// Create a few points.
@@ -1300,6 +1299,11 @@ func TestEngine_LastModified(t *testing.T) {
 			}
 			e.SetEnabled(true)
 
+			// Artificial sleep added due to filesystems caching the mod time
+			// of files.  This prevents the WAL last modified time from being
+			// returned and newer than the filestore's mod time.
+			time.Sleep(400 * time.Millisecond)
+
 			if err := e.WriteSnapshot(); err != nil {
 				t.Fatalf("failed to snapshot: %s", err.Error())
 			}
@@ -1307,7 +1311,7 @@ func TestEngine_LastModified(t *testing.T) {
 			lm2 := e.LastModified()
 
 			if got, exp := lm.Equal(lm2), false; exp != got {
-				t.Fatalf("expected time change, got %v, exp %v", got, exp)
+				t.Fatalf("expected time change, got %v, exp %v: %s == %s", got, exp, lm.String(), lm2.String())
 			}
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}

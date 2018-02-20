@@ -499,7 +499,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting closed segments: %v", err)
 	}
-	if got, exp := len(files), 1; got != exp {
+	if got, exp := len(files), 0; got != exp {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -541,7 +541,7 @@ func TestWAL_Delete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting closed segments: %v", err)
 	}
-	if got, exp := len(files), 1; got != exp {
+	if got, exp := len(files), 0; got != exp {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 }
