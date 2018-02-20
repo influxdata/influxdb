@@ -93,7 +93,7 @@
     "testem": "^1.2.1",
     "uglify-js": "^2.6.1",
     "webpack": "^3.11.0",
-    "webpack-dev-server": "^1.14.1"
+    "webpack-dev-server": "^2.11.1"
   },
   "dependencies": {
     "@skidding/react-codemirror": "^1.0.1",
