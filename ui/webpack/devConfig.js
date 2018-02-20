@@ -41,8 +41,7 @@ module.exports = {
         'memoizerific.js'
       ),
     ],
-    loaders: [
-      {
+    loaders: [{
         test: /\.js$/,
         exclude: /node_modules/,
         loader: 'eslint-loader',
@@ -85,7 +84,6 @@ module.exports = {
   plugins: [
     new webpack.LoaderOptionsPlugin({
       options: {
-        context: path.join(__dirname, '..', 'src'),
         postcss: require('./postcss'),
         sassLoader: {
           includePaths: [path.resolve(__dirname, 'node_modules')],
@@ -142,7 +140,9 @@ module.exports = {
     hot: true,
     historyApiFallback: true,
     clientLogLevel: 'info',
-    stats: {colors: true},
+    stats: {
+      colors: true
+    },
     contentBase: 'build',
     quiet: false,
     watchOptions: {
