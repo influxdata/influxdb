@@ -5,6 +5,10 @@
     'prettier',
     'babel',
   ],
+  extends: [
+    "prettier",
+    "prettier/react"
+  ],
   env: {
     browser: true,
     mocha: true,
@@ -14,7 +18,7 @@
   globals: {
     expect: true,
   },
-  "parserOptions": {
+  parserOptions: {
     ecmaFeatures: {
       arrowFunctions: true,
       binaryLiterals: true,
