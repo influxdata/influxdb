@@ -1,12 +1,29 @@
 /* eslint-disable no-var */
-var webpack = require('webpack')
-var path = require('path')
-var ExtractTextPlugin = require('extract-text-webpack-plugin')
-var HtmlWebpackPlugin = require('html-webpack-plugin')
-var package = require('../package.json')
-var dependencies = package.dependencies
+const webpack = require('webpack')
+const path = require('path')
+const ExtractTextPlugin = require('extract-text-webpack-plugin')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const package = require('../package.json')
+const dependencies = package.dependencies
 
-var config = {
+const babelLoader = {
+  loader: 'babel-loader',
+  options: {
+    cacheDirectory: true,
+    presets: [
+      'react',
+      [
+        'es2015',
+        {
+          modules: false,
+        },
+      ],
+      'es2016',
+    ],
+  },
+}
+
+const config = {
   bail: true,
   devtool: 'eval',
   entry: {
@@ -26,6 +43,7 @@ var config = {
       style: path.resolve(__dirname, '..', 'src', 'style'),
       utils: path.resolve(__dirname, '..', 'src', 'utils'),
     },
+    extensions: ['.ts', '.tsx', '.js'],
   },
   module: {
     noParse: [
@@ -37,7 +55,8 @@ var config = {
         'memoizerific.js'
       ),
     ],
-    loaders: [{
+    loaders: [
+      {
         test: /\.js$/,
         exclude: [/node_modules/, /(_s|S)pec\.js$/],
         loader: 'eslint-loader',
@@ -75,6 +94,16 @@ var config = {
           cacheDirectory: false, // Using the cache directory on production builds has never been helpful.
         },
       },
+      {
+        test: /\.ts(x?)$/,
+        exclude: /node_modules/,
+        use: [
+          babelLoader,
+          {
+            loader: 'ts-loader',
+          },
+        ],
+      },
     ],
   },
   plugins: [
@@ -111,9 +140,9 @@ var config = {
     new webpack.optimize.CommonsChunkPlugin({
       names: ['vendor', 'manifest'],
     }),
-    function () {
+    function() {
       /* Webpack does not exit with non-zero status if error. */
-      this.plugin('done', function (stats) {
+      this.plugin('done', function(stats) {
         if (
           stats.compilation.errors &&
           stats.compilation.errors.length &&
