@@ -212,9 +212,18 @@ func (l *WAL) Open() error {
 		if stat.Size() == 0 {
 			os.Remove(lastSegment)
 			segments = segments[:len(segments)-1]
-		}
-		if err := l.newSegmentFile(); err != nil {
-			return err
+		} else {
+			fd, err := os.OpenFile(lastSegment, os.O_RDWR, 0666)
+			if err != nil {
+				return err
+			}
+			if _, err := fd.Seek(0, io.SeekEnd); err != nil {
+				return err
+			}
+			l.currentSegmentWriter = NewWALSegmentWriter(fd)
+
+			// Reset the current segment size stat
+			atomic.StoreInt64(&l.stats.CurrentBytes, stat.Size())
 		}
 	}
 
@@ -435,7 +444,7 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 		// Update stats for current segment size
 		atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
 
-		l.lastWriteTime = time.Now()
+		l.lastWriteTime = time.Now().UTC()
 
 		return l.currentSegmentID, nil
 

@@ -513,7 +513,7 @@ func (f *FileStore) Open() error {
 		}
 
 	}
-	f.lastModified = time.Unix(0, lm)
+	f.lastModified = time.Unix(0, lm).UTC()
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))
@@ -664,7 +664,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 		// Keep track of the new mod time
 		if stat, err := fd.Stat(); err == nil {
-			if stat.ModTime().UTC().After(maxTime) {
+			if maxTime.IsZero() || stat.ModTime().UTC().After(maxTime) {
 				maxTime = stat.ModTime().UTC()
 			}
 		}
