@@ -1,18 +1,22 @@
 import React, {PropTypes, PureComponent} from 'react'
-import _ from 'lodash'
 import classnames from 'classnames'
 import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
 import {SINGLE_STAT_TEXT} from 'src/dashboards/constants/gaugeColors'
-import {isBackgroundLight} from 'shared/constants/colorOperations'
-
-const darkText = '#292933'
-const lightText = '#ffffff'
+import {generateSingleStatHexs} from 'shared/constants/colorOperations'
 
 class SingleStat extends PureComponent {
   render() {
-    const {data, cellHeight, isFetchingInitially, colors, suffix} = this.props
+    const {
+      data,
+      cellHeight,
+      isFetchingInitially,
+      colors,
+      prefix,
+      suffix,
+      lineGraph,
+    } = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -24,37 +28,20 @@ class SingleStat extends PureComponent {
     }
 
     const lastValue = lastValues(data)[1]
-
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
-    let bgColor = null
-    let textColor = null
-    let className = 'single-stat'
+    const colorizeText = !!colors.find(color => color.type === SINGLE_STAT_TEXT)
 
-    if (colors && colors.length > 0) {
-      className = 'single-stat single-stat--colored'
-      const sortedColors = _.sortBy(colors, color => Number(color.value))
-      const nearestCrossedThreshold = sortedColors
-        .filter(color => lastValue > color.value)
-        .pop()
-
-      const colorizeText = _.some(colors, {type: SINGLE_STAT_TEXT})
-
-      if (colorizeText) {
-        textColor = nearestCrossedThreshold
-          ? nearestCrossedThreshold.hex
-          : '#292933'
-      } else {
-        bgColor = nearestCrossedThreshold
-          ? nearestCrossedThreshold.hex
-          : '#292933'
-        textColor = isBackgroundLight(bgColor) ? darkText : lightText
-      }
-    }
+    const {bgColor, textColor} = generateSingleStatHexs(
+      colors,
+      lineGraph,
+      colorizeText,
+      lastValue
+    )
 
     return (
       <div
-        className={className}
+        className="single-stat"
         style={{backgroundColor: bgColor, color: textColor}}
       >
         <span
@@ -62,8 +49,10 @@ class SingleStat extends PureComponent {
             'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
           })}
         >
+          {prefix}
           {roundedValue}
           {suffix}
+          {lineGraph && <div className="single-stat--shadow" />}
         </span>
       </div>
     )
@@ -85,7 +74,9 @@ SingleStat.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  prefix: string,
   suffix: string,
+  lineGraph: bool,
 }
 
 export default SingleStat

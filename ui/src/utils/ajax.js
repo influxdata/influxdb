@@ -2,6 +2,10 @@ import axios from 'axios'
 
 let links
 
+export const setAJAXLinks = ({updatedLinks}) => {
+  links = updatedLinks
+}
+
 // do not prefix route with basepath, ex. for external links
 const addBasepath = (url, excludeBasepath) => {
   const basepath = window.basepath || ''
@@ -15,6 +19,7 @@ const generateResponseWithLinks = (response, newLinks) => {
     logout,
     external,
     users,
+    allUsers,
     organizations,
     me: meLink,
     config,
@@ -27,6 +32,7 @@ const generateResponseWithLinks = (response, newLinks) => {
     logoutLink: logout,
     external,
     users,
+    allUsers,
     organizations,
     meLink,
     config,
@@ -36,20 +42,16 @@ const generateResponseWithLinks = (response, newLinks) => {
 
 const AJAX = async (
   {url, resource, id, method = 'GET', data = {}, params = {}, headers = {}},
-  excludeBasepath
+  {excludeBasepath} = {}
 ) => {
   try {
-    let response
+    if (!links) {
+      console.error(
+        `AJAX function has no links. Trying to reach url ${url}, resource ${resource}, id ${id}, method ${method}`
+      )
+    }
 
     url = addBasepath(url, excludeBasepath)
-
-    if (!links) {
-      const linksRes = (response = await axios({
-        url: addBasepath('/chronograf/v1', excludeBasepath),
-        method: 'GET',
-      }))
-      links = linksRes.data
-    }
 
     if (resource) {
       url = id
@@ -57,7 +59,7 @@ const AJAX = async (
         : addBasepath(`${links[resource]}`, excludeBasepath)
     }
 
-    response = await axios({
+    const response = await axios({
       url,
       method,
       data,
@@ -65,19 +67,22 @@ const AJAX = async (
       headers,
     })
 
-    return generateResponseWithLinks(response, links)
+    // TODO: Just return the unadulterated response without grafting auth, me,
+    // and logoutLink onto this object, once those are retrieved via their own
+    // AJAX request and action creator.
+    return links ? generateResponseWithLinks(response, links) : response
   } catch (error) {
     const {response} = error
 
-    throw generateResponseWithLinks(response, links) // eslint-disable-line no-throw-literal
+    throw links ? generateResponseWithLinks(response, links) : response // eslint-disable-line no-throw-literal
   }
 }
 
-export const get = async url => {
+export const getAJAX = async url => {
   try {
-    return await AJAX({
+    return await axios({
       method: 'GET',
-      url,
+      url: addBasepath(url),
     })
   } catch (error) {
     console.error(error)

@@ -485,6 +485,7 @@ func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath s
 			OrganizationsStore: organizations,
 			UsersStore:         db.UsersStore,
 			ConfigStore:        db.ConfigStore,
+			MappingsStore:      db.MappingsStore,
 		},
 		Logger:    logger,
 		UseAuth:   useAuth,

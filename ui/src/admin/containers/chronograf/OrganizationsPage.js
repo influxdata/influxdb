@@ -3,20 +3,14 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
-import * as configActionCreators from 'shared/actions/config'
 import {getMeAsync} from 'shared/actions/auth'
 
 import OrganizationsTable from 'src/admin/components/chronograf/OrganizationsTable'
 
 class OrganizationsPage extends Component {
   componentDidMount() {
-    const {
-      links,
-      actionsAdmin: {loadOrganizationsAsync},
-      actionsConfig: {getAuthConfigAsync},
-    } = this.props
+    const {links, actionsAdmin: {loadOrganizationsAsync}} = this.props
     loadOrganizationsAsync(links.organizations)
-    getAuthConfigAsync(links.config.auth)
   }
 
   handleCreateOrganization = async organization => {
@@ -42,14 +36,6 @@ class OrganizationsPage extends Component {
     getMe({shouldResetMe: false})
   }
 
-  handleTogglePublic = organization => {
-    const {actionsAdmin: {updateOrganizationAsync}} = this.props
-    updateOrganizationAsync(organization, {
-      ...organization,
-      public: !organization.public,
-    })
-  }
-
   handleChooseDefaultRole = (organization, defaultRole) => {
     const {actionsAdmin: {updateOrganizationAsync}} = this.props
     updateOrganizationAsync(organization, {...organization, defaultRole})
@@ -57,44 +43,28 @@ class OrganizationsPage extends Component {
     this.refreshMe()
   }
 
-  handleUpdateAuthConfig = fieldName => updatedValue => {
-    const {
-      actionsConfig: {updateAuthConfigAsync},
-      authConfig,
-      links,
-    } = this.props
-    const updatedAuthConfig = {
-      ...authConfig,
-      [fieldName]: updatedValue,
-    }
-    updateAuthConfigAsync(links.config.auth, authConfig, updatedAuthConfig)
-  }
-
   render() {
-    const {meCurrentOrganization, organizations, authConfig, me} = this.props
+    const {meCurrentOrganization, organizations, me} = this.props
 
     const organization = organizations.find(
       o => o.id === meCurrentOrganization.id
     )
 
-    return organizations.length
-      ? <OrganizationsTable
-          organizations={organizations}
-          currentOrganization={organization}
-          onCreateOrg={this.handleCreateOrganization}
-          onDeleteOrg={this.handleDeleteOrganization}
-          onRenameOrg={this.handleRenameOrganization}
-          onTogglePublic={this.handleTogglePublic}
-          onChooseDefaultRole={this.handleChooseDefaultRole}
-          authConfig={authConfig}
-          onChangeAuthConfig={this.handleUpdateAuthConfig}
-          me={me}
-        />
-      : <div className="page-spinner" />
+    return (
+      <OrganizationsTable
+        organizations={organizations}
+        currentOrganization={organization}
+        onCreateOrg={this.handleCreateOrganization}
+        onDeleteOrg={this.handleDeleteOrganization}
+        onRenameOrg={this.handleRenameOrganization}
+        onChooseDefaultRole={this.handleChooseDefaultRole}
+        me={me}
+      />
+    )
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 OrganizationsPage.propTypes = {
   links: shape({
@@ -116,17 +86,10 @@ OrganizationsPage.propTypes = {
     updateOrganizationAsync: func.isRequired,
     deleteOrganizationAsync: func.isRequired,
   }),
-  actionsConfig: shape({
-    getAuthConfigAsync: func.isRequired,
-    updateAuthConfigAsync: func.isRequired,
-  }),
   getMe: func.isRequired,
   meCurrentOrganization: shape({
     name: string.isRequired,
     id: string.isRequired,
-  }),
-  authConfig: shape({
-    superAdminNewUsers: bool,
   }),
   me: shape({
     organizations: arrayOf(
@@ -142,18 +105,15 @@ OrganizationsPage.propTypes = {
 const mapStateToProps = ({
   links,
   adminChronograf: {organizations},
-  config: {auth: authConfig},
   auth: {me},
 }) => ({
   links,
   organizations,
-  authConfig,
   me,
 })
 
 const mapDispatchToProps = dispatch => ({
   actionsAdmin: bindActionCreators(adminChronografActionCreators, dispatch),
-  actionsConfig: bindActionCreators(configActionCreators, dispatch),
   getMe: bindActionCreators(getMeAsync, dispatch),
 })
 

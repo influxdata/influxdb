@@ -40,9 +40,18 @@ var _ gojwt.Claims = &Claims{}
 // Claims extends jwt.StandardClaims' Valid to make sure claims has a subject.
 type Claims struct {
 	gojwt.StandardClaims
-	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtmldd
+	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtml
 	// that felt appropriate for Organization. As a result, we added a custom `org` field.
 	Organization string `json:"org,omitempty"`
+	// We were unable to find a standard claim at https://www.iana.org/assignments/jwt/jwt.xhtml
+	// that felt appropriate for a users Group(s). As a result we added a custom `grp` field.
+	// Multiple groups may be specified by comma delimiting the various group.
+	//
+	// The singlular `grp` was chosen over the `grps` to keep consistent with the JWT naming
+	// convention (it is common for singlularly named values to actually be arrays, see `given_name`,
+	// `family_name`, and `middle_name` in the iana link provided above). I should add the discalimer
+	// I'm currently sick, so this thought process might be off.
+	Group string `json:"grp,omitempty"`
 }
 
 // Valid adds an empty subject test to the StandardClaims checks.
@@ -67,7 +76,7 @@ func (j *JWT) ValidPrincipal(ctx context.Context, jwtToken Token, lifespan time.
 	return j.ValidClaims(jwtToken, lifespan, alg)
 }
 
-// key verification for HMAC an RSA/RS256
+// KeyFunc verifies HMAC or RSA/RS256 signatures
 func (j *JWT) KeyFunc(token *gojwt.Token) (interface{}, error) {
 	if _, ok := token.Method.(*gojwt.SigningMethodHMAC); ok {
 		return []byte(j.Secret), nil
@@ -86,7 +95,7 @@ func (j *JWT) KeyFunc(token *gojwt.Token) (interface{}, error) {
 // OpenID Provider Configuration Information at /.well-known/openid-configuration
 // implements rfc7517 section 4.7 "x5c" (X.509 Certificate Chain) Parameter
 
-// JWKS nested struct
+// JWK defines a JSON Web KEy nested struct
 type JWK struct {
 	Kty string   `json:"kty"`
 	Use string   `json:"use"`
@@ -98,11 +107,12 @@ type JWK struct {
 	X5c []string `json:"x5c"`
 }
 
+// JWKS defines a JKW[]
 type JWKS struct {
 	Keys []JWK `json:"keys"`
 }
 
-// for RS256 signed JWT tokens, lookup the signing key in the key discovery service
+// KeyFuncRS256 verifies RS256 signed JWT tokens, it looks up the signing key in the key discovery service
 func (j *JWT) KeyFuncRS256(token *gojwt.Token) (interface{}, error) {
 	// Don't forget to validate the alg is what you expect:
 	if _, ok := token.Method.(*gojwt.SigningMethodRSA); !ok {
@@ -131,22 +141,22 @@ func (j *JWT) KeyFuncRS256(token *gojwt.Token) (interface{}, error) {
 	}
 
 	// extract cert when kid and alg match
-	var cert_pkix []byte
+	var certPkix []byte
 	for _, jwk := range jwks.Keys {
 		if token.Header["kid"] == jwk.Kid && token.Header["alg"] == jwk.Alg {
 			// FIXME: optionally walk the key chain, see rfc7517 section 4.7
-			cert_pkix, err = base64.StdEncoding.DecodeString(jwk.X5c[0])
+			certPkix, err = base64.StdEncoding.DecodeString(jwk.X5c[0])
 			if err != nil {
 				return nil, fmt.Errorf("base64 decode error for JWK kid %v", token.Header["kid"])
 			}
 		}
 	}
-	if cert_pkix == nil {
+	if certPkix == nil {
 		return nil, fmt.Errorf("no signing key found for kid %v", token.Header["kid"])
 	}
 
 	// parse certificate (from PKIX format) and return signing key
-	cert, err := x509.ParseCertificate(cert_pkix)
+	cert, err := x509.ParseCertificate(certPkix)
 	if err != nil {
 		return nil, err
 	}
@@ -189,12 +199,13 @@ func (j *JWT) ValidClaims(jwtToken Token, lifespan time.Duration, alg gojwt.Keyf
 		Subject:      claims.Subject,
 		Issuer:       claims.Issuer,
 		Organization: claims.Organization,
+		Group:        claims.Group,
 		ExpiresAt:    exp,
 		IssuedAt:     iat,
 	}, nil
 }
 
-// get claims from id_token
+// GetClaims extracts claims from id_token
 func (j *JWT) GetClaims(tokenString string) (gojwt.MapClaims, error) {
 	var claims gojwt.MapClaims
 
@@ -229,6 +240,7 @@ func (j *JWT) Create(ctx context.Context, user Principal) (Token, error) {
 			NotBefore: user.IssuedAt.Unix(),
 		},
 		Organization: user.Organization,
+		Group:        user.Group,
 	}
 	token := gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims)
 	// Sign and get the complete encoded token as a string using the secret

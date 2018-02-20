@@ -15,7 +15,6 @@ import (
 type organizationRequest struct {
 	Name        string `json:"name"`
 	DefaultRole string `json:"defaultRole"`
-	Public      *bool  `json:"public"`
 }
 
 func (r *organizationRequest) ValidCreate() error {
@@ -27,7 +26,7 @@ func (r *organizationRequest) ValidCreate() error {
 }
 
 func (r *organizationRequest) ValidUpdate() error {
-	if r.Name == "" && r.DefaultRole == "" && r.Public == nil {
+	if r.Name == "" && r.DefaultRole == "" {
 		return fmt.Errorf("No fields to update")
 	}
 
@@ -119,10 +118,6 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 		DefaultRole: req.DefaultRole,
 	}
 
-	if req.Public != nil {
-		org.Public = *req.Public
-	}
-
 	res, err := s.Store.Organizations(ctx).Add(ctx, org)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
@@ -165,7 +160,7 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 func (s *Service) OrganizationID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	id := httprouter.GetParamFromContext(ctx, "id")
+	id := httprouter.GetParamFromContext(ctx, "oid")
 
 	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {
@@ -191,7 +186,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	id := httprouter.GetParamFromContext(ctx, "id")
+	id := httprouter.GetParamFromContext(ctx, "oid")
 
 	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {
@@ -205,10 +200,6 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 
 	if req.DefaultRole != "" {
 		org.DefaultRole = req.DefaultRole
-	}
-
-	if req.Public != nil {
-		org.Public = *req.Public
 	}
 
 	err = s.Store.Organizations(ctx).Update(ctx, org)
@@ -226,7 +217,7 @@ func (s *Service) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
 // RemoveOrganization removes an organization in the organizations store
 func (s *Service) RemoveOrganization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id := httprouter.GetParamFromContext(ctx, "id")
+	id := httprouter.GetParamFromContext(ctx, "oid")
 
 	org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &id})
 	if err != nil {

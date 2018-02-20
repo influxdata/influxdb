@@ -47,7 +47,7 @@
     font-size: 17px;
     font-weight: 400 !important;
     color: $g12-forge;
-    padding: 0;
+    padding: 6px 0;
   }
   .panel-body {min-height: 300px;}
   .panel-heading + .panel-body {padding-top: 0;}
@@ -178,4 +178,28 @@ pre.admin-table--query {
   border-radius: 0 0 $radius-small $radius-small;
 
   .table-highlight > tbody > tr:hover {background-color: $g5-pepper;}
+}
+
+/*
+    Chronograf Admin
+    ----------------------------------------------------------------------------
+*/
+.all-users-admin-toggle {
+  display: flex;
+  align-items: center;
+  margin-right: 30px;
+
+  span {
+    display: inline-block;
+    margin-left: 8px;
+    font-weight: 500;
+    font-style: italic;
+    color: $g10-wolf;
+    transition: color 0.25s ease;
+    @include no-user-select();
+  }
+  .slide-toggle.active + span {
+    font-style: normal;
+    color: $g15-platinum;
+  }
 }

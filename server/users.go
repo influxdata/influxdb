@@ -41,15 +41,15 @@ func (r *userRequest) ValidCreate() error {
 }
 
 func (r *userRequest) ValidUpdate() error {
-	if len(r.Roles) == 0 {
+	if r.Roles == nil {
 		return fmt.Errorf("No Roles to update")
 	}
 	return r.ValidRoles()
 }
 
 func (r *userRequest) ValidRoles() error {
-	orgs := map[string]bool{}
 	if len(r.Roles) > 0 {
+		orgs := map[string]bool{}
 		for _, r := range r.Roles {
 			if r.Organization == "" {
 				return fmt.Errorf("no organization was provided")
@@ -59,10 +59,10 @@ func (r *userRequest) ValidRoles() error {
 			}
 			orgs[r.Organization] = true
 			switch r.Name {
-			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName:
+			case roles.MemberRoleName, roles.ViewerRoleName, roles.EditorRoleName, roles.AdminRoleName, roles.WildcardRoleName:
 				continue
 			default:
-				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', and 'admin'", r.Name)
+				return fmt.Errorf("Unknown role %s. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'", r.Name)
 			}
 		}
 	}
@@ -79,12 +79,18 @@ type userResponse struct {
 	Roles      []chronograf.Role `json:"roles"`
 }
 
-func newUserResponse(u *chronograf.User) *userResponse {
+func newUserResponse(u *chronograf.User, org string) *userResponse {
 	// This ensures that any user response with no roles returns an empty array instead of
 	// null when marshaled into JSON. That way, JavaScript doesn't need any guard on the
 	// key existing and it can simply be iterated over.
 	if u.Roles == nil {
 		u.Roles = []chronograf.Role{}
+	}
+	var selfLink string
+	if org != "" {
+		selfLink = fmt.Sprintf("/chronograf/v1/organizations/%s/users/%d", org, u.ID)
+	} else {
+		selfLink = fmt.Sprintf("/chronograf/v1/users/%d", u.ID)
 	}
 	return &userResponse{
 		ID:         u.ID,
@@ -94,7 +100,7 @@ func newUserResponse(u *chronograf.User) *userResponse {
 		Roles:      u.Roles,
 		SuperAdmin: u.SuperAdmin,
 		Links: selfLinks{
-			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
+			Self: selfLink,
 		},
 	}
 }
@@ -104,18 +110,25 @@ type usersResponse struct {
 	Users []*userResponse `json:"users"`
 }
 
-func newUsersResponse(users []chronograf.User) *usersResponse {
+func newUsersResponse(users []chronograf.User, org string) *usersResponse {
 	usersResp := make([]*userResponse, len(users))
 	for i, user := range users {
-		usersResp[i] = newUserResponse(&user)
+		usersResp[i] = newUserResponse(&user, org)
 	}
 	sort.Slice(usersResp, func(i, j int) bool {
 		return usersResp[i].ID < usersResp[j].ID
 	})
+
+	var selfLink string
+	if org != "" {
+		selfLink = fmt.Sprintf("/chronograf/v1/organizations/%s/users", org)
+	} else {
+		selfLink = "/chronograf/v1/users"
+	}
 	return &usersResponse{
 		Users: usersResp,
 		Links: selfLinks{
-			Self: "/chronograf/v1/users",
+			Self: selfLink,
 		},
 	}
 }
@@ -136,7 +149,9 @@ func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newUserResponse(user)
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	res := newUserResponse(user, orgID)
+	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -162,6 +177,11 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.validRoles(serverCtx, req.Roles); err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+
 	user := &chronograf.User{
 		Name:     req.Name,
 		Provider: req.Provider,
@@ -184,7 +204,8 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newUserResponse(res)
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	cu := newUserResponse(res, orgID)
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusCreated, cu, s.Logger)
 }
@@ -202,15 +223,6 @@ func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 	u, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
-		return
-	}
-	ctxUser, ok := hasUserContext(ctx)
-	if !ok {
-		Error(w, http.StatusBadRequest, "failed to retrieve user from context", s.Logger)
-		return
-	}
-	if ctxUser.ID == u.ID {
-		Error(w, http.StatusForbidden, "user cannot delete themselves", s.Logger)
 		return
 	}
 	if err := s.Store.Users(ctx).Delete(ctx, u); err != nil {
@@ -245,6 +257,12 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	u, err := s.Store.Users(ctx).Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
+	}
+
+	serverCtx := serverContext(ctx)
+	if err := s.validRoles(serverCtx, req.Roles); err != nil {
+		invalidData(w, err, s.Logger)
 		return
 	}
 
@@ -299,7 +317,8 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cu := newUserResponse(u)
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	cu := newUserResponse(u, orgID)
 	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusOK, cu, s.Logger)
 }
@@ -314,7 +333,8 @@ func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newUsersResponse(users)
+	orgID := httprouter.GetParamFromContext(ctx, "oid")
+	res := newUsersResponse(users, orgID)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -337,6 +357,22 @@ func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) 
 		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
 		// context, return error
 		return fmt.Errorf("User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information.")
+	}
+
+	return nil
+}
+
+func (s *Service) validRoles(ctx context.Context, rs []chronograf.Role) error {
+	for i, role := range rs {
+		// verify that the organization exists
+		org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &role.Organization})
+		if err != nil {
+			return err
+		}
+		if role.Name == roles.WildcardRoleName {
+			role.Name = org.DefaultRole
+			rs[i] = role
+		}
 	}
 
 	return nil

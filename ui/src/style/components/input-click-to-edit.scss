@@ -1,0 +1,63 @@
+/*
+  Click to Edit Input Styles
+  ------------------------------------------------------------------------------
+*/
+.input-cte,
+.input-cte__disabled {
+  @include no-user-select();
+  height: 30px;
+  width: 100%;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 28px;
+  padding: 0 11px;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 2px;
+}
+
+.input-cte {
+  border-color: $g2-kevlar;
+  background-color: $g2-kevlar;
+  color: $g13-mist;
+  position: relative;
+  transition:
+    color 0.4s ease,
+    background-color 0.4s ease,
+    border-color 0.4s ease;
+
+  > span.icon {
+    position: absolute;
+    top: 50%;
+    right: 11px;
+    transform: translateY(-50%);
+    color: $g8-storm;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  &:hover {
+    color: $g20-white;
+    background-color: $g5-pepper;
+    border-color: $g5-pepper;
+    cursor: text;
+
+    > span.icon {opacity: 1;}
+  }
+}
+.input-cte__disabled {
+  border-color: $g4-onyx;
+  background-color: $g4-onyx;
+  font-style: italic;
+  color: $g9-mountain;
+}
+
+.input-cte__empty {
+  @extend .input-cte;
+  font-style: italic;
+  color: $g9-mountain;
+
+  &:hover {
+    color: $g9-mountain;
+  }  
+}

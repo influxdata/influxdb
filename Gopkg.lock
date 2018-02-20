@@ -30,7 +30,7 @@
   branch = "master"
   name = "github.com/dustin/go-humanize"
   packages = ["."]
-  revision = "259d2a102b871d17f30e3cd9881a642961a1e486"
+  revision = "bb3d318650d48840a39aa21a027c6630e198e626"
 
 [[projects]]
   name = "github.com/elazarl/go-bindata-assetfs"
@@ -39,18 +39,53 @@
 
 [[projects]]
   name = "github.com/gogo/protobuf"
-  packages = ["gogoproto","jsonpb","plugin/compare","plugin/defaultcheck","plugin/description","plugin/embedcheck","plugin/enumstringer","plugin/equal","plugin/face","plugin/gostring","plugin/marshalto","plugin/oneofcheck","plugin/populate","plugin/size","plugin/stringer","plugin/testgen","plugin/union","plugin/unmarshal","proto","protoc-gen-gogo","protoc-gen-gogo/descriptor","protoc-gen-gogo/generator","protoc-gen-gogo/grpc","protoc-gen-gogo/plugin","vanity","vanity/command"]
+  packages = [
+    "gogoproto",
+    "jsonpb",
+    "plugin/compare",
+    "plugin/defaultcheck",
+    "plugin/description",
+    "plugin/embedcheck",
+    "plugin/enumstringer",
+    "plugin/equal",
+    "plugin/face",
+    "plugin/gostring",
+    "plugin/marshalto",
+    "plugin/oneofcheck",
+    "plugin/populate",
+    "plugin/size",
+    "plugin/stringer",
+    "plugin/testgen",
+    "plugin/union",
+    "plugin/unmarshal",
+    "proto",
+    "protoc-gen-gogo",
+    "protoc-gen-gogo/descriptor",
+    "protoc-gen-gogo/generator",
+    "protoc-gen-gogo/grpc",
+    "protoc-gen-gogo/plugin",
+    "vanity",
+    "vanity/command"
+  ]
   revision = "6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b"
 
 [[projects]]
   name = "github.com/golang/protobuf"
   packages = ["proto"]
-  revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
+  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/google/go-cmp"
-  packages = ["cmp","cmp/cmpopts"]
-  revision = "79b2d888f100ec053545168aa94bcfb322e8bfc8"
+  packages = [
+    "cmp",
+    "cmp/cmpopts",
+    "cmp/internal/diff",
+    "cmp/internal/function",
+    "cmp/internal/value"
+  ]
+  revision = "8099a9787ce5dc5984ed879a3bda47dc730a8e97"
+  version = "v0.1.0"
 
 [[projects]]
   name = "github.com/google/go-github"
@@ -58,19 +93,35 @@
   revision = "1bc362c7737e51014af7299e016444b654095ad9"
 
 [[projects]]
+  branch = "master"
   name = "github.com/google/go-querystring"
   packages = ["query"]
-  revision = "9235644dd9e52eeae6fa48efd539fdc351a0af53"
+  revision = "53e6ce116135b80d037921a7fdd5138cf32d7a8a"
 
 [[projects]]
   name = "github.com/influxdata/influxdb"
-  packages = ["influxql","influxql/internal","influxql/neldermead","models","pkg/escape"]
+  packages = [
+    "influxql",
+    "influxql/internal",
+    "influxql/neldermead",
+    "models",
+    "pkg/escape"
+  ]
   revision = "cd9363b52cac452113b95554d98a6be51beda24e"
   version = "v1.1.5"
 
 [[projects]]
   name = "github.com/influxdata/kapacitor"
-  packages = ["client/v1","pipeline","pipeline/tick","services/k8s/client","tick","tick/ast","tick/stateful","udf/agent"]
+  packages = [
+    "client/v1",
+    "pipeline",
+    "pipeline/tick",
+    "services/k8s/client",
+    "tick",
+    "tick/ast",
+    "tick/stateful",
+    "udf/agent"
+  ]
   revision = "6de30070b39afde111fea5e041281126fe8aae31"
 
 [[projects]]
@@ -84,15 +135,15 @@
   revision = "4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa"
 
 [[projects]]
-  name = "github.com/jteeuwen/go-bindata"
+  name = "github.com/kevinburke/go-bindata"
   packages = ["."]
-  revision = "a0ff2567cfb70903282db057e799fd826784d41d"
+  revision = "46eb4c183bfc1ebb527d9d19bcded39476302eb8"
 
 [[projects]]
-  branch = "master"
   name = "github.com/pkg/errors"
   packages = ["."]
-  revision = "ff09b135c25aae272398c51a07235b90a75aa4f0"
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/satori/go.uuid"
@@ -107,39 +158,60 @@
 [[projects]]
   name = "github.com/tylerb/graceful"
   packages = ["."]
-  revision = "50a48b6e73fcc75b45e22c05b79629a67c79e938"
-  version = "v1.2.13"
+  revision = "4654dfbb6ad53cb5e27f37d99b02e16c1872fbbb"
+  version = "v1.2.15"
 
 [[projects]]
   name = "golang.org/x/net"
-  packages = ["context","context/ctxhttp"]
+  packages = [
+    "context",
+    "context/ctxhttp"
+  ]
   revision = "749a502dd1eaf3e5bfd4f8956748c502357c0bbe"
 
 [[projects]]
   name = "golang.org/x/oauth2"
-  packages = [".","github","heroku","internal"]
+  packages = [
+    ".",
+    "github",
+    "heroku",
+    "internal"
+  ]
   revision = "1e695b1c8febf17aad3bfa7bf0a819ef94b98ad5"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "f3918c30c5c2cb527c0b071a27c35120a6c0719a"
+  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
 
 [[projects]]
   name = "google.golang.org/api"
-  packages = ["gensupport","googleapi","googleapi/internal/uritemplates","oauth2/v2"]
+  packages = [
+    "gensupport",
+    "googleapi",
+    "googleapi/internal/uritemplates",
+    "oauth2/v2"
+  ]
   revision = "bc20c61134e1d25265dd60049f5735381e79b631"
 
 [[projects]]
   name = "google.golang.org/appengine"
-  packages = ["internal","internal/base","internal/datastore","internal/log","internal/remote_api","internal/urlfetch","urlfetch"]
+  packages = [
+    "internal",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/remote_api",
+    "internal/urlfetch",
+    "urlfetch"
+  ]
   revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
   version = "v1.0.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a5bd1aa82919723ff8ec5dd9d520329862de8181ca9dba75c6acb3a34df5f1a4"
+  inputs-digest = "11df631364d11bc05c8f71af1aa735360b5a40a793d32d47d1f1d8c694a55f6f"
   solver-name = "gps-cdcl"
   solver-version = 1

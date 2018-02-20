@@ -3,7 +3,7 @@ machine:
   services:
     - docker
   environment:
-    DOCKER_TAG: chronograf-20171027
+    DOCKER_TAG: chronograf-20180207
 
 dependencies:
   override:
@@ -31,6 +31,7 @@ deployment:
         --upload
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
+      - cp build/linux/static_amd64/chronoctl .
       - docker build -t chronograf .
       - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
@@ -52,6 +53,7 @@ deployment:
         --bucket dl.influxdata.com/chronograf/releases
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
+      - cp build/linux/static_amd64/chronoctl .
       - docker build -t chronograf .
       - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
@@ -75,6 +77,7 @@ deployment:
         --bucket dl.influxdata.com/chronograf/releases
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
+      - cp build/linux/static_amd64/chronoctl .
       - docker build -t chronograf .
       - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}

@@ -6,6 +6,7 @@ backup/
 
 # Binaries
 /chronograf
+/chronoctl
 
 # Dotfiles
 .pull-request

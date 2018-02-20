@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"time"
 
 	goauth "golang.org/x/oauth2"
@@ -17,6 +18,7 @@ var _ Provider = &MockProvider{}
 
 type MockProvider struct {
 	Email string
+	Orgs  string
 
 	ProviderURL string
 }
@@ -49,6 +51,20 @@ func (mp *MockProvider) PrincipalIDFromClaims(claims gojwt.MapClaims) (string, e
 	return mp.Email, nil
 }
 
+func (mp *MockProvider) GroupFromClaims(claims gojwt.MapClaims) (string, error) {
+	email := strings.Split(mp.Email, "@")
+	if len(email) != 2 {
+		//g.Logger.Error("malformed email address, expected %q to contain @ symbol", id)
+		return "DEFAULT", nil
+	}
+
+	return email[1], nil
+}
+
+func (mp *MockProvider) Group(provider *http.Client) (string, error) {
+	return mp.Orgs, nil
+}
+
 func (mp *MockProvider) Scopes() []string {
 	return []string{}
 }
@@ -76,7 +92,7 @@ func (y *YesManTokenizer) ExtendedPrincipal(ctx context.Context, p Principal, ex
 	return p, nil
 }
 
-func (m *YesManTokenizer) GetClaims(tokenString string) (gojwt.MapClaims, error) {
+func (y *YesManTokenizer) GetClaims(tokenString string) (gojwt.MapClaims, error) {
 	return gojwt.MapClaims{}, nil
 }
 

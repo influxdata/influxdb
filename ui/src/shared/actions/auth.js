@@ -1,11 +1,11 @@
 import {getMe as getMeAJAX, updateMe as updateMeAJAX} from 'shared/apis/auth'
 
-import {linksReceived} from 'shared/actions/links'
+import {getLinksAsync} from 'shared/actions/links'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
-import {LONG_NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
+import {NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
 
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',
@@ -58,18 +58,8 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
   }
   try {
     // These non-me objects are added to every response by some AJAX trickery
-    const {
-      data: me,
-      auth,
-      users,
-      meLink,
-      config,
-      external,
-      logoutLink,
-      organizations,
-      environment,
-    } = await getMeAJAX()
-
+    const {data: me, auth, logoutLink} = await getMeAJAX()
+    // TODO: eventually, get the links for auth and logout out of here and into linksGetCompleted
     dispatch(
       meGetCompleted({
         me,
@@ -77,23 +67,20 @@ export const getMeAsync = ({shouldResetMe = false} = {}) => async dispatch => {
         logoutLink,
       })
     )
-
-    dispatch(
-      linksReceived({
-        external,
-        users,
-        organizations,
-        me: meLink,
-        config,
-        environment,
-      })
-    ) // TODO: put this before meGetCompleted... though for some reason it doesn't fire the first time then
   } catch (error) {
     dispatch(meGetFailed())
     dispatch(errorThrown(error))
   }
 }
 
+// meChangeOrganizationAsync is for switching the user's current organization.
+//
+// Global links state also needs to be refreshed upon organization change so
+// that Admin Chronograf / Current Org User tab's link is valid, but this is
+// happening automatically because we are using a browser redirect to reload
+// the application. If at some point we stop using a redirect and instead
+// make it a seamless SPA experience, a la issue #2463, we'll need to make sure
+// links are still refreshed.
 export const meChangeOrganizationAsync = (
   url,
   organization
@@ -109,11 +96,15 @@ export const meChangeOrganizationAsync = (
         'success',
         `Now logged in to '${me.currentOrganization
           .name}' as '${currentRole.name}'`,
-        LONG_NOTIFICATION_DISMISS_DELAY
+        NOTIFICATION_DISMISS_DELAY
       )
     )
     dispatch(meChangeOrganizationCompleted())
     dispatch(meGetCompleted({me, auth, logoutLink}))
+
+    // refresh links after every successful meChangeOrganization to refresh
+    // /organizations/:id/users link for Admin / Current Org Users page to load
+    dispatch(getLinksAsync())
     // TODO: reload sources upon me change org if non-refresh behavior preferred
     // instead of current behavior on both invocations of meChangeOrganization,
     // which is to refresh index via router.push('')

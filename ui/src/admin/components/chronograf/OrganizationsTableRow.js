@@ -3,9 +3,9 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter} from 'react-router'
 
-import SlideToggle from 'shared/components/SlideToggle'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
+import InputClickToEdit from 'shared/components/InputClickToEdit'
 
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
@@ -32,9 +32,7 @@ class OrganizationsTableRow extends Component {
     super(props)
 
     this.state = {
-      isEditing: false,
       isDeleting: false,
-      workingName: this.props.organization.name,
     }
   }
 
@@ -44,55 +42,10 @@ class OrganizationsTableRow extends Component {
     await meChangeOrganization(links.me, {organization: organization.id})
     router.push('')
   }
-
-  handleNameClick = () => {
-    this.setState({isEditing: true})
+  handleUpdateOrgName = newName => {
+    const {organization, onRename} = this.props
+    onRename(organization, newName)
   }
-
-  handleConfirmRename = () => {
-    const {onRename, organization} = this.props
-    const {workingName} = this.state
-
-    onRename(organization, workingName)
-    this.setState({workingName, isEditing: false})
-  }
-
-  handleCancelRename = () => {
-    const {organization} = this.props
-
-    this.setState({
-      workingName: organization.name,
-      isEditing: false,
-    })
-  }
-
-  handleInputChange = e => {
-    this.setState({workingName: e.target.value})
-  }
-
-  handleInputBlur = () => {
-    const {organization} = this.props
-    const {workingName} = this.state
-
-    if (organization.name === workingName) {
-      this.handleCancelRename()
-    } else {
-      this.handleConfirmRename()
-    }
-  }
-
-  handleKeyDown = e => {
-    if (e.key === 'Enter') {
-      this.handleInputBlur()
-    } else if (e.key === 'Escape') {
-      this.handleCancelRename()
-    }
-  }
-
-  handleFocus = e => {
-    e.target.select()
-  }
-
   handleDeleteClick = () => {
     this.setState({isDeleting: true})
   }
@@ -106,18 +59,13 @@ class OrganizationsTableRow extends Component {
     onDelete(organization)
   }
 
-  handleTogglePublic = () => {
-    const {organization, onTogglePublic} = this.props
-    onTogglePublic(organization)
-  }
-
   handleChooseDefaultRole = role => {
     const {organization, onChooseDefaultRole} = this.props
     onChooseDefaultRole(organization, role.name)
   }
 
   render() {
-    const {workingName, isEditing, isDeleting} = this.state
+    const {isDeleting} = this.state
     const {organization, currentOrganization} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
@@ -126,12 +74,12 @@ class OrganizationsTableRow extends Component {
     }))
 
     const defaultRoleClassName = isDeleting
-      ? 'orgs-table--default-role editing'
-      : 'orgs-table--default-role'
+      ? 'fancytable--td orgs-table--default-role deleting'
+      : 'fancytable--td orgs-table--default-role'
 
     return (
-      <div className="orgs-table--org">
-        <div className="orgs-table--active">
+      <div className="fancytable--row">
+        <div className="fancytable--td orgs-table--active">
           {organization.id === currentOrganization.id
             ? <button className="btn btn-sm btn-success">
                 <span className="icon checkmark" /> Current
@@ -143,32 +91,11 @@ class OrganizationsTableRow extends Component {
                 <span className="icon shuffle" /> Switch to
               </button>}
         </div>
-        {isEditing
-          ? <input
-              type="text"
-              className="form-control input-sm orgs-table--input"
-              defaultValue={workingName}
-              onChange={this.handleInputChange}
-              onBlur={this.handleInputBlur}
-              onKeyDown={this.handleKeyDown}
-              placeholder="Name this Organization..."
-              autoFocus={true}
-              onFocus={this.handleFocus}
-              ref={r => (this.inputRef = r)}
-            />
-          : <div className="orgs-table--name" onClick={this.handleNameClick}>
-              {workingName}
-              <span className="icon pencil" />
-            </div>}
-        {organization.id === DEFAULT_ORG_ID
-          ? <div className="orgs-table--public">
-              <SlideToggle
-                size="xs"
-                active={organization.public}
-                onToggle={this.handleTogglePublic}
-              />
-            </div>
-          : <div className="orgs-table--public disabled">&mdash;</div>}
+        <InputClickToEdit
+          value={organization.name}
+          wrapperClass="fancytable--td orgs-table--name"
+          onUpdate={this.handleUpdateOrgName}
+        />
         <div className={defaultRoleClassName}>
           <Dropdown
             items={dropdownRolesItems}
@@ -204,7 +131,6 @@ OrganizationsTableRow.propTypes = {
   }).isRequired,
   onDelete: func.isRequired,
   onRename: func.isRequired,
-  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
   currentOrganization: shape({
     name: string.isRequired,

@@ -2,14 +2,8 @@ import React, {Component, PropTypes} from 'react'
 
 import uuid from 'node-uuid'
 
-import Authorized, {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
-import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
-import SlideToggle from 'shared/components/SlideToggle'
-
-import {PUBLIC_TOOLTIP} from 'src/admin/constants/index'
 
 class OrganizationsTable extends Component {
   constructor(props) {
@@ -40,10 +34,7 @@ class OrganizationsTable extends Component {
       onDeleteOrg,
       onRenameOrg,
       onChooseDefaultRole,
-      onTogglePublic,
       currentOrganization,
-      authConfig: {superAdminNewUsers},
-      onChangeAuthConfig,
     } = this.props
     const {isCreatingOrganization} = this.state
 
@@ -52,6 +43,15 @@ class OrganizationsTable extends Component {
       ? ''
       : 's'}`
 
+    if (!organizations.length) {
+      return (
+        <div className="panel panel-default">
+          <div className="panel-body">
+            <div className="page-spinner" />
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="panel panel-default">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -67,15 +67,13 @@ class OrganizationsTable extends Component {
           </button>
         </div>
         <div className="panel-body">
-          <div className="orgs-table--org-labels">
-            <div className="orgs-table--active" />
-            <div className="orgs-table--name">Name</div>
-            <div className="orgs-table--public">
-              Public{' '}
-              <QuestionMarkTooltip tipID="public" tipContent={PUBLIC_TOOLTIP} />
+          <div className="fancytable--labels">
+            <div className="fancytable--th orgs-table--active" />
+            <div className="fancytable--th orgs-table--name">Name</div>
+            <div className="fancytable--th orgs-table--default-role">
+              Default Role
             </div>
-            <div className="orgs-table--default-role">Default Role</div>
-            <div className="orgs-table--delete" />
+            <div className="fancytable--th orgs-table--delete" />
           </div>
           {isCreatingOrganization
             ? <OrganizationsTableRowNew
@@ -87,42 +85,19 @@ class OrganizationsTable extends Component {
             <OrganizationsTableRow
               key={uuid.v4()}
               organization={org}
-              onTogglePublic={onTogglePublic}
               onDelete={onDeleteOrg}
               onRename={onRenameOrg}
               onChooseDefaultRole={onChooseDefaultRole}
               currentOrganization={currentOrganization}
             />
           )}
-          <Authorized requiredRole={SUPERADMIN_ROLE}>
-            <table className="table v-center superadmin-config">
-              <thead>
-                <tr>
-                  <th style={{width: 70}}>Config</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{width: 70}}>
-                    <SlideToggle
-                      size="xs"
-                      active={superAdminNewUsers}
-                      onToggle={onChangeAuthConfig('superAdminNewUsers')}
-                    />
-                  </td>
-                  <td>All new users are SuperAdmins</td>
-                </tr>
-              </tbody>
-            </table>
-          </Authorized>
         </div>
       </div>
     )
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 OrganizationsTable.propTypes = {
   organizations: arrayOf(
@@ -138,11 +113,6 @@ OrganizationsTable.propTypes = {
   onCreateOrg: func.isRequired,
   onDeleteOrg: func.isRequired,
   onRenameOrg: func.isRequired,
-  onTogglePublic: func.isRequired,
   onChooseDefaultRole: func.isRequired,
-  onChangeAuthConfig: func.isRequired,
-  authConfig: shape({
-    superAdminNewUsers: bool,
-  }),
 }
 export default OrganizationsTable

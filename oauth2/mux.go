@@ -118,6 +118,7 @@ func (j *AuthMux) Callback() http.Handler {
 
 		// if we received an extra id_token, inspect it
 		var id string
+		group := "DEFAULT"
 		if token.Extra("id_token") != "" {
 			log.Debug("token provides extra id_token")
 			if provider, ok := j.Provider.(ExtendedProvider); ok {
@@ -140,6 +141,11 @@ func (j *AuthMux) Callback() http.Handler {
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 					return
 				}
+				if group, err = provider.GroupFromClaims(claims); err != nil {
+					log.Error("requested claim not found in id_token:", err)
+					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+					return
+				}
 			} else {
 				log.Debug("provider does not implement PrincipalIDFromClaims()")
 			}
@@ -155,11 +161,18 @@ func (j *AuthMux) Callback() http.Handler {
 				http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 				return
 			}
+			group, err = j.Provider.Group(oauthClient)
+			if err != nil {
+				log.Error("Unable to get OAuth Group", err.Error())
+				http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+				return
+			}
 		}
 
 		p := Principal{
 			Subject: id,
 			Issuer:  j.Provider.Name(),
+			Group:   group,
 		}
 		ctx := r.Context()
 		err = j.Auth.Authorize(ctx, w, p)

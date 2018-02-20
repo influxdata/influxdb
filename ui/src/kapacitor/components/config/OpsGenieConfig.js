@@ -1,7 +1,7 @@
 import React, {PropTypes, Component} from 'react'
-import _ from 'lodash'
 
 import RedactedInput from './RedactedInput'
+import TagInput from 'shared/components/TagInput'
 
 class OpsGenieConfig extends Component {
   constructor(props) {
@@ -16,7 +16,7 @@ class OpsGenieConfig extends Component {
     }
   }
 
-  handleSubmit = e => {
+  handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
@@ -25,8 +25,10 @@ class OpsGenieConfig extends Component {
       recipients: this.state.currentRecipients,
     }
 
-    this.props.onSave(properties)
-    this.setState({testEnabled: true})
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
   }
 
   disableTest = () => {
@@ -43,13 +45,13 @@ class OpsGenieConfig extends Component {
     })
   }
 
-  handleDeleteTeam = team => () => {
+  handleDeleteTeam = team => {
     this.setState({
       currentTeams: this.state.currentTeams.filter(t => t !== team),
     })
   }
 
-  handleDeleteRecipient = recipient => () => {
+  handleDeleteRecipient = recipient => {
     this.setState({
       currentRecipients: this.state.currentRecipients.filter(
         r => r !== recipient
@@ -114,7 +116,7 @@ class OpsGenieConfig extends Component {
   }
 }
 
-const {array, arrayOf, bool, func, shape, string} = PropTypes
+const {array, bool, func, shape} = PropTypes
 
 OpsGenieConfig.propTypes = {
   config: shape({
@@ -127,86 +129,6 @@ OpsGenieConfig.propTypes = {
   onSave: func.isRequired,
   onTest: func.isRequired,
   enabled: bool.isRequired,
-}
-
-class TagInput extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  handleAddTag = e => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      const newItem = e.target.value.trim()
-      const {tags, onAddTag} = this.props
-      if (!this.shouldAddToList(newItem, tags)) {
-        return
-      }
-
-      this.input.value = ''
-      onAddTag(newItem)
-      this.props.disableTest()
-    }
-  }
-
-  shouldAddToList(item, tags) {
-    return !_.isEmpty(item) && !tags.find(l => l === item)
-  }
-
-  render() {
-    const {title, tags, onDeleteTag} = this.props
-
-    return (
-      <div className="form-group col-xs-12">
-        <label htmlFor={title}>
-          {title}
-        </label>
-        <input
-          placeholder={`Type and hit 'Enter' to add to list of ${title}`}
-          autoComplete="off"
-          className="form-control"
-          id={title}
-          type="text"
-          ref={r => (this.input = r)}
-          onKeyDown={this.handleAddTag}
-        />
-        <Tags tags={tags} onDeleteTag={onDeleteTag} />
-      </div>
-    )
-  }
-}
-
-TagInput.propTypes = {
-  onAddTag: func.isRequired,
-  onDeleteTag: func.isRequired,
-  tags: arrayOf(string).isRequired,
-  title: string.isRequired,
-  disableTest: func.isRequired,
-}
-
-const Tags = ({tags, onDeleteTag}) =>
-  <div className="input-tag-list">
-    {tags.map(item => {
-      return <Tag key={item} item={item} onDelete={onDeleteTag} />
-    })}
-  </div>
-
-Tags.propTypes = {
-  tags: arrayOf(string),
-  onDeleteTag: func,
-}
-
-const Tag = ({item, onDelete}) =>
-  <span key={item} className="input-tag-item">
-    <span>
-      {item}
-    </span>
-    <span className="icon remove" onClick={onDelete(item)} />
-  </span>
-
-Tag.propTypes = {
-  item: string,
-  onDelete: func,
 }
 
 export default OpsGenieConfig

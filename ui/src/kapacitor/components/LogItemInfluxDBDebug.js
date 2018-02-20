@@ -10,7 +10,7 @@ const LogItemInfluxDBDebug = ({logItem}) =>
     </div>
     <div className="logs-table--details">
       <div className="logs-table--service debug">InfluxDB</div>
-      <div className="logs-table--blah">
+      <div className="logs-table--columns">
         <div className="logs-table--key-values debug">
           DEBUG: {logItem.msg}
           <br />

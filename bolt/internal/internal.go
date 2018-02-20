@@ -274,6 +274,10 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			Type:    c.Type,
 			Axes:    axes,
 			Colors:  colors,
+			Legend: &Legend{
+				Type:        c.Legend.Type,
+				Orientation: c.Legend.Orientation,
+			},
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -394,6 +398,12 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			}
 		}
 
+		legend := chronograf.Legend{}
+		if c.Legend != nil {
+			legend.Type = c.Legend.Type
+			legend.Orientation = c.Legend.Orientation
+		}
+
 		cells[i] = chronograf.DashboardCell{
 			ID:         c.ID,
 			X:          c.X,
@@ -405,6 +415,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			Type:       c.Type,
 			Axes:       axes,
 			CellColors: colors,
+			Legend:     legend,
 		}
 	}
 
@@ -570,19 +581,16 @@ func UnmarshalRole(data []byte, r *chronograf.Role) error {
 
 // UnmarshalRolePB decodes a role from binary protobuf data.
 func UnmarshalRolePB(data []byte, r *Role) error {
-	if err := proto.Unmarshal(data, r); err != nil {
-		return err
-	}
-	return nil
+	return proto.Unmarshal(data, r)
 }
 
 // MarshalOrganization encodes a organization to binary protobuf format.
 func MarshalOrganization(o *chronograf.Organization) ([]byte, error) {
+
 	return MarshalOrganizationPB(&Organization{
 		ID:          o.ID,
 		Name:        o.Name,
 		DefaultRole: o.DefaultRole,
-		Public:      o.Public,
 	})
 }
 
@@ -600,17 +608,13 @@ func UnmarshalOrganization(data []byte, o *chronograf.Organization) error {
 	o.ID = pb.ID
 	o.Name = pb.Name
 	o.DefaultRole = pb.DefaultRole
-	o.Public = pb.Public
 
 	return nil
 }
 
 // UnmarshalOrganizationPB decodes a organization from binary protobuf data.
 func UnmarshalOrganizationPB(data []byte, o *Organization) error {
-	if err := proto.Unmarshal(data, o); err != nil {
-		return err
-	}
-	return nil
+	return proto.Unmarshal(data, o)
 }
 
 // MarshalConfig encodes a config to binary protobuf format.
@@ -643,8 +647,43 @@ func UnmarshalConfig(data []byte, c *chronograf.Config) error {
 
 // UnmarshalConfigPB decodes a config from binary protobuf data.
 func UnmarshalConfigPB(data []byte, c *Config) error {
-	if err := proto.Unmarshal(data, c); err != nil {
+	return proto.Unmarshal(data, c)
+}
+
+// MarshalMapping encodes a mapping to binary protobuf format.
+func MarshalMapping(m *chronograf.Mapping) ([]byte, error) {
+
+	return MarshalMappingPB(&Mapping{
+		Provider:             m.Provider,
+		Scheme:               m.Scheme,
+		ProviderOrganization: m.ProviderOrganization,
+		ID:                   m.ID,
+		Organization:         m.Organization,
+	})
+}
+
+// MarshalMappingPB encodes a mapping to binary protobuf format.
+func MarshalMappingPB(m *Mapping) ([]byte, error) {
+	return proto.Marshal(m)
+}
+
+// UnmarshalMapping decodes a mapping from binary protobuf data.
+func UnmarshalMapping(data []byte, m *chronograf.Mapping) error {
+	var pb Mapping
+	if err := UnmarshalMappingPB(data, &pb); err != nil {
 		return err
 	}
+
+	m.Provider = pb.Provider
+	m.Scheme = pb.Scheme
+	m.ProviderOrganization = pb.ProviderOrganization
+	m.Organization = pb.Organization
+	m.ID = pb.ID
+
 	return nil
+}
+
+// UnmarshalMappingPB decodes a mapping from binary protobuf data.
+func UnmarshalMappingPB(data []byte, m *Mapping) error {
+	return proto.Unmarshal(data, m)
 }

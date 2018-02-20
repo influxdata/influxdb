@@ -65,7 +65,7 @@ class HandlerOptions extends Component {
           <EmailHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('smtp')}
             validationError={validationError}
             updateDetails={updateDetails}
             rule={rule}
@@ -76,7 +76,7 @@ class HandlerOptions extends Component {
           <AlertaHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('alerta')}
             validationError={validationError}
           />
         )
@@ -85,7 +85,7 @@ class HandlerOptions extends Component {
           <HipchatHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('hipchat')}
             validationError={validationError}
           />
         )
@@ -94,7 +94,7 @@ class HandlerOptions extends Component {
           <OpsgenieHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('opsgenie')}
             validationError={validationError}
           />
         )
@@ -103,7 +103,7 @@ class HandlerOptions extends Component {
           <PagerdutyHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('pagerduty')}
             validationError={validationError}
           />
         )
@@ -112,7 +112,7 @@ class HandlerOptions extends Component {
           <PushoverHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('pushover')}
             validationError={validationError}
           />
         )
@@ -121,7 +121,7 @@ class HandlerOptions extends Component {
           <SensuHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('sensu')}
             validationError={validationError}
           />
         )
@@ -130,7 +130,7 @@ class HandlerOptions extends Component {
           <SlackHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('slack')}
             validationError={validationError}
           />
         )
@@ -139,7 +139,7 @@ class HandlerOptions extends Component {
           <TalkHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('talk')}
             validationError={validationError}
           />
         )
@@ -148,7 +148,7 @@ class HandlerOptions extends Component {
           <TelegramHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('telegram')}
             validationError={validationError}
           />
         )
@@ -157,7 +157,7 @@ class HandlerOptions extends Component {
           <VictoropsHandler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
-            onGoToConfig={onGoToConfig}
+            onGoToConfig={onGoToConfig('victorops')}
             validationError={validationError}
           />
         )

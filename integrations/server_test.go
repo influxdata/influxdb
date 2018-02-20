@@ -26,6 +26,7 @@ import (
 func TestServer(t *testing.T) {
 	type fields struct {
 		Organizations []chronograf.Organization
+		Mappings      []chronograf.Mapping
 		Users         []chronograf.User
 		Sources       []chronograf.Source
 		Servers       []chronograf.Server
@@ -350,8 +351,7 @@ func TestServer(t *testing.T) {
       },
       "id": "default",
       "name": "Default",
-      "defaultRole": "member",
-      "public": true
+      "defaultRole": "member"
     },
     {
       "links": {
@@ -359,8 +359,7 @@ func TestServer(t *testing.T) {
       },
       "id": "howdy",
       "name": "An Organization",
-      "defaultRole": "viewer",
-      "public": false
+      "defaultRole": "viewer"
     }
   ]
 }`,
@@ -408,8 +407,7 @@ func TestServer(t *testing.T) {
   },
   "id": "howdy",
   "name": "An Organization",
-  "defaultRole": "viewer",
-  "public": false
+  "defaultRole": "viewer"
 }`,
 			},
 		},
@@ -537,6 +535,10 @@ func TestServer(t *testing.T) {
           "value": "100"
         }
       ],
+      "legend":{
+          "type": "static",
+          "orientation": "bottom"
+      },
       "links": {
         "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
       }
@@ -776,6 +778,10 @@ func TestServer(t *testing.T) {
               "value": "100"
             }
           ],
+          "legend":{
+              "type": "static",
+              "orientation": "bottom"
+          },
           "links": {
             "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
           }
@@ -899,7 +905,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "GET",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				principal: oauth2.Principal{
 					Organization: "default",
 					Subject:      "billibob",
@@ -926,6 +932,284 @@ func TestServer(t *testing.T) {
 							{
 								Name:         "admin",
 								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/organizations/default/users",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/organizations/default/users"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/organizations/default/users/1"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "default"
+        }
+      ]
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:    "GET /users",
+			subName: "Two users in two organizations; user making request is as SuperAdmin with out raw query param",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+					{
+						ID:         2, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billietta",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "cool",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/organizations/default/users",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/organizations/default/users"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/organizations/default/users/1"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "default"
+        }
+      ]
+    }
+  ]
+}
+`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "User making request is as SuperAdmin with raw query param;  being created has wildcard role",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				payload: &chronograf.User{
+					Name:     "user",
+					Provider: "provider",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         "*",
+							Organization: "default",
+						},
+					},
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/2"
+  },
+  "id": "2",
+  "name": "user",
+  "provider": "provider",
+  "scheme": "oauth2",
+  "superAdmin": false,
+  "roles": [
+    {
+      "name": "member",
+      "organization": "default"
+    }
+  ]
+}
+`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "User making request is as SuperAdmin with raw query param;  being created has no roles",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				payload: &chronograf.User{
+					Name:     "user",
+					Provider: "provider",
+					Scheme:   "oauth2",
+					Roles:    []chronograf.Role{},
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/2"
+  },
+  "id": "2",
+  "name": "user",
+  "provider": "provider",
+  "scheme": "oauth2",
+  "superAdmin": false,
+  "roles": []
+}
+`,
+			},
+		},
+		{
+			name:    "GET /users",
+			subName: "Two users in two organizations; user making request is as SuperAdmin with raw query param",
+			fields: fields{
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+					{
+						ID:         2, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billietta",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "1",
 							},
 						},
 					},
@@ -967,9 +1251,93 @@ func TestServer(t *testing.T) {
           "organization": "default"
         }
       ]
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/users/2"
+      },
+      "id": "2",
+      "name": "billietta",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "1"
+        }
+      ]
     }
   ]
-}`,
+}
+`,
+			},
+		},
+		{
+			name:    "GET /users",
+			subName: "Two users in two organizations; user making request is as not SuperAdmin with raw query param",
+			fields: fields{
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+					{
+						ID:         2, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billietta",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "admin",
+								Organization: "1",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/users",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billieta",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 403,
+				body: `
+{
+  "code": 403,
+  "message": "User is not authorized"
+}
+`,
 			},
 		},
 		{
@@ -1003,7 +1371,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:     "user",
 					Provider: "provider",
@@ -1026,7 +1394,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2"
+    "self": "/chronograf/v1/organizations/default/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1073,7 +1441,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:     "user",
 					Provider: "provider",
@@ -1096,7 +1464,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2"
+    "self": "/chronograf/v1/organizations/default/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1143,7 +1511,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:     "user",
 					Provider: "provider",
@@ -1166,7 +1534,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/chronograf/v1/users/2"
+    "self": "/chronograf/v1/organizations/default/users/2"
   },
   "id": "2",
   "name": "user",
@@ -1213,7 +1581,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "POST",
-				path:   "/chronograf/v1/users",
+				path:   "/chronograf/v1/organizations/default/users",
 				payload: &chronograf.User{
 					Name:       "user",
 					Provider:   "provider",
@@ -1238,6 +1606,246 @@ func TestServer(t *testing.T) {
 {
   "code": 401,
   "message": "User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/chronograf/issues/2601 for more information."
+}`,
+			},
+		},
+		{
+			name:    "POST /users",
+			subName: "Create a New User with in multiple organizations; User on Principal is a SuperAdmin with raw query param",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/users",
+				payload: &chronograf.User{
+					Name:     "user",
+					Provider: "provider",
+					Scheme:   "oauth2",
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "default",
+						},
+						{
+							Name:         roles.EditorRoleName,
+							Organization: "1",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/2"
+  },
+  "id": "2",
+  "name": "user",
+  "provider": "provider",
+  "scheme": "oauth2",
+  "superAdmin": true,
+  "roles": [
+    {
+      "name": "editor",
+      "organization": "default"
+    },
+    {
+      "name": "editor",
+      "organization": "1"
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:    "PATCH /users",
+			subName: "Update user to have no roles",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PATCH",
+				path:   "/chronograf/v1/users/1",
+				payload: map[string]interface{}{
+					"name":       "billibob",
+					"provider":   "github",
+					"scheme":     "oauth2",
+					"superAdmin": true,
+					"roles":      []chronograf.Role{},
+				},
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/1"
+  },
+  "id": "1",
+  "name": "billibob",
+  "provider": "github",
+  "scheme": "oauth2",
+  "superAdmin": true,
+  "roles": [
+  ]
+}`,
+			},
+		},
+		{
+			name:    "PATCH /users",
+			subName: "Update user roles with wildcard",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PATCH",
+				path:   "/chronograf/v1/users/1",
+				payload: &chronograf.User{
+					Name:       "billibob",
+					Provider:   "github",
+					Scheme:     "oauth2",
+					SuperAdmin: true,
+					Roles: []chronograf.Role{
+						{
+							Name:         roles.AdminRoleName,
+							Organization: "default",
+						},
+						{
+							Name:         roles.WildcardRoleName,
+							Organization: "1",
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/users/1"
+  },
+  "id": "1",
+  "name": "billibob",
+  "provider": "github",
+  "scheme": "oauth2",
+  "superAdmin": true,
+  "roles": [
+    {
+      "name": "admin",
+      "organization": "default"
+    },
+    {
+      "name": "viewer",
+      "organization": "1"
+    }
+  ]
 }`,
 			},
 		},
@@ -1267,7 +1875,7 @@ func TestServer(t *testing.T) {
 					GithubClientSecret: "not empty",
 				},
 				method: "PATCH",
-				path:   "/chronograf/v1/users/1",
+				path:   "/chronograf/v1/organizations/default/users/1",
 				payload: map[string]interface{}{
 					"id":         "1",
 					"superAdmin": false,
@@ -1290,6 +1898,74 @@ func TestServer(t *testing.T) {
 {
   "code": 401,
   "message": "user cannot modify their own SuperAdmin status"
+}
+`,
+			},
+		},
+		{
+			name:    "GET /organization/default/users",
+			subName: "Organization not set explicitly on principal",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Organizations: []chronograf.Organization{},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/organizations/default/users",
+				principal: oauth2.Principal{
+					Organization: "",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/organizations/default/users"
+  },
+  "users": [
+    {
+      "links": {
+        "self": "/chronograf/v1/organizations/default/users/1"
+      },
+      "id": "1",
+      "name": "billibob",
+      "provider": "github",
+      "scheme": "oauth2",
+      "superAdmin": true,
+      "roles": [
+        {
+          "name": "admin",
+          "organization": "default"
+        }
+      ]
+    }
+  ]
 }
 `,
 			},
@@ -1362,27 +2038,24 @@ func TestServer(t *testing.T) {
   "scheme": "oauth2",
   "superAdmin": true,
   "links": {
-    "self": "/chronograf/v1/users/1"
+    "self": "/chronograf/v1/organizations/1/users/1"
   },
   "organizations": [
-    {
-      "id": "1",
-      "name": "Sweet",
-      "defaultRole": "viewer",
-      "public": false
-    },
-    {
-      "id": "default",
-      "name": "Default",
-      "defaultRole": "member",
-      "public": true
-    }
+      {
+        "id": "1",
+        "name": "Sweet",
+        "defaultRole": "viewer"
+      },
+      {
+        "id": "default",
+        "name": "Default",
+        "defaultRole": "member"
+      }
   ],
   "currentOrganization": {
     "id": "1",
     "name": "Sweet",
-    "defaultRole": "viewer",
-    "public": false
+    "defaultRole": "viewer"
   }
 }`,
 			},
@@ -1444,6 +2117,664 @@ func TestServer(t *testing.T) {
 }`,
 			},
 		},
+		{
+			name:    "GET /me",
+			subName: "New user hits me for the first time",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{
+					{
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
+					},
+					{
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "*",
+					},
+					{
+						ID:                   "2",
+						Organization:         "2",
+						Provider:             "github",
+						Scheme:               "*",
+						ProviderOrganization: "*",
+					},
+					{
+						ID:                   "3",
+						Organization:         "3",
+						Provider:             "auth0",
+						Scheme:               "ldap",
+						ProviderOrganization: "*",
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+					{
+						ID:          "2",
+						Name:        "What",
+						DefaultRole: roles.EditorRoleName,
+					},
+					{
+						ID:          "3",
+						Name:        "Okay",
+						DefaultRole: roles.AdminRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles:      []chronograf.Role{},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/me",
+				principal: oauth2.Principal{
+					Subject: "billietta",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "id": "2",
+  "name": "billietta",
+  "roles": [
+    {
+      "name": "viewer",
+      "organization": "1"
+    },
+    {
+      "name": "editor",
+      "organization": "2"
+    },
+    {
+      "name": "member",
+      "organization": "default"
+    }
+  ],
+  "provider": "github",
+  "scheme": "oauth2",
+  "links": {
+    "self": "/chronograf/v1/organizations/default/users/2"
+  },
+  "organizations": [
+    {
+      "id": "1",
+      "name": "Sweet",
+      "defaultRole": "viewer"
+    },
+    {
+      "id": "2",
+      "name": "What",
+      "defaultRole": "editor"
+    },
+    {
+      "id": "default",
+      "name": "Default",
+      "defaultRole": "member"
+    }
+  ],
+  "currentOrganization": {
+    "id": "default",
+    "name": "Default",
+    "defaultRole": "member"
+  }
+}
+`,
+			},
+		},
+		{
+			name:    "GET /mappings",
+			subName: "get all mappings",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{
+					{
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
+					},
+					{
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "*",
+					},
+					{
+						ID:                   "2",
+						Organization:         "2",
+						Provider:             "github",
+						Scheme:               "*",
+						ProviderOrganization: "*",
+					},
+					{
+						ID:                   "3",
+						Organization:         "3",
+						Provider:             "auth0",
+						Scheme:               "ldap",
+						ProviderOrganization: "*",
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+					{
+						ID:          "2",
+						Name:        "What",
+						DefaultRole: roles.EditorRoleName,
+					},
+					{
+						ID:          "3",
+						Name:        "Okay",
+						DefaultRole: roles.AdminRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/mappings",
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+	"links": {
+		"self": "/chronograf/v1/mappings"
+	},
+	"mappings": [
+		{
+			"links": {
+				"self": "/chronograf/v1/mappings/1"
+			},
+			"id": "1",
+			"organizationId": "1",
+			"provider": "*",
+			"scheme": "*",
+			"providerOrganization": "influxdata"
+		},
+		{
+			"links": {
+				"self": "/chronograf/v1/mappings/2"
+			},
+			"id": "2",
+			"organizationId": "1",
+			"provider": "*",
+			"scheme": "*",
+			"providerOrganization": "*"
+		},
+		{
+			"links": {
+				"self": "/chronograf/v1/mappings/3"
+			},
+			"id": "3",
+			"organizationId": "2",
+			"provider": "github",
+			"scheme": "*",
+			"providerOrganization": "*"
+		},
+		{
+			"links": {
+				"self": "/chronograf/v1/mappings/4"
+			},
+			"id": "4",
+			"organizationId": "3",
+			"provider": "auth0",
+			"scheme": "ldap",
+			"providerOrganization": "*"
+		},
+		{
+			"links": {
+				"self": "/chronograf/v1/mappings/default"
+			},
+			"id": "default",
+			"organizationId": "default",
+			"provider": "*",
+			"scheme": "*",
+			"providerOrganization": "*"
+		}
+	]
+}
+`,
+			},
+		},
+		{
+			name:    "GET /mappings",
+			subName: "get all mappings - user is not super admin",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{
+					{
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
+					},
+					{
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "*",
+					},
+					{
+						ID:                   "2",
+						Organization:         "2",
+						Provider:             "github",
+						Scheme:               "*",
+						ProviderOrganization: "*",
+					},
+					{
+						ID:                   "3",
+						Organization:         "3",
+						Provider:             "auth0",
+						Scheme:               "ldap",
+						ProviderOrganization: "*",
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+					{
+						ID:          "2",
+						Name:        "What",
+						DefaultRole: roles.EditorRoleName,
+					},
+					{
+						ID:          "3",
+						Name:        "Okay",
+						DefaultRole: roles.AdminRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/mappings",
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 403,
+				body: `
+{
+  "code": 403,
+  "message": "User is not authorized"
+}
+`,
+			},
+		},
+		{
+			name:    "POST /mappings",
+			subName: "create new mapping",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "POST",
+				path:   "/chronograf/v1/mappings",
+				payload: &chronograf.Mapping{
+					ID:                   "1",
+					Organization:         "1",
+					Provider:             "*",
+					Scheme:               "*",
+					ProviderOrganization: "influxdata",
+				},
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 201,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/mappings/1"
+  },
+  "id": "1",
+  "organizationId": "1",
+  "provider": "*",
+  "scheme": "*",
+  "providerOrganization": "influxdata"
+}
+`,
+			},
+		},
+		{
+			name:    "PUT /mappings",
+			subName: "update new mapping",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: false,
+					},
+				},
+				Mappings: []chronograf.Mapping{
+					chronograf.Mapping{
+						ID:                   "1",
+						Organization:         "1",
+						Provider:             "*",
+						Scheme:               "*",
+						ProviderOrganization: "influxdata",
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "Sweet",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PUT",
+				path:   "/chronograf/v1/mappings/1",
+				payload: &chronograf.Mapping{
+					ID:                   "1",
+					Organization:         "1",
+					Provider:             "*",
+					Scheme:               "*",
+					ProviderOrganization: "*",
+				},
+				principal: oauth2.Principal{
+					Subject: "billibob",
+					Issuer:  "github",
+					Group:   "influxdata,idk,mimi",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v1/mappings/1"
+  },
+  "id": "1",
+  "organizationId": "1",
+  "provider": "*",
+  "scheme": "*",
+  "providerOrganization": "*"
+}
+`,
+			},
+		},
+		{
+			name:    "GET /",
+			subName: "signed into default org",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+		{
+		  "layouts": "/chronograf/v1/layouts",
+		  "users": "/chronograf/v1/organizations/default/users",
+		  "allUsers": "/chronograf/v1/users",
+		  "organizations": "/chronograf/v1/organizations",
+		  "mappings": "/chronograf/v1/mappings",
+		  "sources": "/chronograf/v1/sources",
+		  "me": "/chronograf/v1/me",
+		  "environment": "/chronograf/v1/env",
+		  "dashboards": "/chronograf/v1/dashboards",
+		  "config": {
+		    "self": "/chronograf/v1/config",
+		    "auth": "/chronograf/v1/config/auth"
+		  },
+		  "auth": [
+		    {
+		      "name": "github",
+		      "label": "Github",
+		      "login": "/oauth/github/login",
+		      "logout": "/oauth/github/logout",
+		      "callback": "/oauth/github/callback"
+		    }
+		  ],
+		  "logout": "/oauth/logout",
+		  "external": {
+		    "statusFeed": ""
+		  }
+		}
+		`,
+			},
+		},
+		{
+			name:    "GET /",
+			subName: "signed into org 1",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: false,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+							{
+								Name:         "member",
+								Organization: "1",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/",
+				principal: oauth2.Principal{
+					Organization: "1",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+		{
+		  "layouts": "/chronograf/v1/layouts",
+		  "users": "/chronograf/v1/organizations/1/users",
+		  "allUsers": "/chronograf/v1/users",
+		  "organizations": "/chronograf/v1/organizations",
+		  "mappings": "/chronograf/v1/mappings",
+		  "sources": "/chronograf/v1/sources",
+		  "me": "/chronograf/v1/me",
+		  "environment": "/chronograf/v1/env",
+		  "dashboards": "/chronograf/v1/dashboards",
+		  "config": {
+		    "self": "/chronograf/v1/config",
+		    "auth": "/chronograf/v1/config/auth"
+		  },
+		  "auth": [
+		    {
+		      "name": "github",
+		      "label": "Github",
+		      "login": "/oauth/github/login",
+		      "logout": "/oauth/github/logout",
+		      "callback": "/oauth/github/callback"
+		    }
+		  ],
+		  "logout": "/oauth/logout",
+		  "external": {
+		    "statusFeed": ""
+		  }
+		}
+		`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1481,6 +2812,16 @@ func TestServer(t *testing.T) {
 					t.Fatalf("failed to update global application config %v", err)
 					return
 				}
+			}
+
+			// Populate Organizations
+			for i, mapping := range tt.fields.Mappings {
+				o, err := boltdb.MappingsStore.Add(ctx, &mapping)
+				if err != nil {
+					t.Fatalf("failed to add mapping: %v", err)
+					return
+				}
+				tt.fields.Mappings[i] = *o
 			}
 
 			// Populate Organizations

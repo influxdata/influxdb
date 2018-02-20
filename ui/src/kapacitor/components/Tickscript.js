@@ -8,29 +8,36 @@ import LogsTable from 'src/kapacitor/components/LogsTable'
 
 const Tickscript = ({
   onSave,
+  onExit,
   task,
   logs,
-  validation,
+  consoleMessage,
   onSelectDbrps,
   onChangeScript,
   onChangeType,
   onChangeID,
+  unsavedChanges,
   isNewTickscript,
   areLogsVisible,
   areLogsEnabled,
-  onToggleLogsVisbility,
+  onToggleLogsVisibility,
 }) =>
   <div className="page">
     <TickscriptHeader
       task={task}
       onSave={onSave}
+      onExit={onExit}
+      unsavedChanges={unsavedChanges}
       areLogsVisible={areLogsVisible}
       areLogsEnabled={areLogsEnabled}
-      onToggleLogsVisbility={onToggleLogsVisbility}
+      onToggleLogsVisibility={onToggleLogsVisibility}
       isNewTickscript={isNewTickscript}
     />
     <div className="page-contents--split">
-      <div className="tickscript">
+      <div
+        className="tickscript"
+        style={areLogsVisible ? {maxWidth: '50%'} : null}
+      >
         <TickscriptEditorControls
           isNewTickscript={isNewTickscript}
           onSelectDbrps={onSelectDbrps}
@@ -38,10 +45,13 @@ const Tickscript = ({
           onChangeID={onChangeID}
           task={task}
         />
-        <TickscriptEditorConsole validation={validation} />
         <TickscriptEditor
           script={task.tickscript}
           onChangeScript={onChangeScript}
+        />
+        <TickscriptEditorConsole
+          consoleMessage={consoleMessage}
+          unsavedChanges={unsavedChanges}
         />
       </div>
       {areLogsVisible ? <LogsTable logs={logs} /> : null}
@@ -53,12 +63,13 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 Tickscript.propTypes = {
   logs: arrayOf(shape()).isRequired,
   onSave: func.isRequired,
+  onExit: func.isRequired,
   source: shape({
     id: string,
   }),
   areLogsVisible: bool,
   areLogsEnabled: bool,
-  onToggleLogsVisbility: func.isRequired,
+  onToggleLogsVisibility: func.isRequired,
   task: shape({
     id: string,
     script: string,
@@ -66,10 +77,11 @@ Tickscript.propTypes = {
   }).isRequired,
   onChangeScript: func.isRequired,
   onSelectDbrps: func.isRequired,
-  validation: string,
+  consoleMessage: string,
   onChangeType: func.isRequired,
   onChangeID: func.isRequired,
   isNewTickscript: bool.isRequired,
+  unsavedChanges: bool,
 }
 
 export default Tickscript

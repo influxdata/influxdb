@@ -12,11 +12,12 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Provider interface with optional methods
+// ExtendedProvider extendts the base Provider interface with optional methods
 type ExtendedProvider interface {
 	Provider
 	// get PrincipalID from id_token
 	PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error)
+	GroupFromClaims(claims gojwt.MapClaims) (string, error)
 }
 
 var _ ExtendedProvider = &Generic{}
@@ -119,6 +120,31 @@ func (g *Generic) PrincipalID(provider *http.Client) (string, error) {
 	return email, nil
 }
 
+// Group returns the domain that a user belongs to in the
+// the generic OAuth.
+func (g *Generic) Group(provider *http.Client) (string, error) {
+	res := struct {
+		Email string `json:"email"`
+	}{}
+
+	r, err := provider.Get(g.APIURL)
+	if err != nil {
+		return "", err
+	}
+
+	defer r.Body.Close()
+	if err = json.NewDecoder(r.Body).Decode(&res); err != nil {
+		return "", err
+	}
+
+	email := strings.Split(res.Email, "@")
+	if len(email) != 2 {
+		return "", fmt.Errorf("malformed email address, expected %q to contain @ symbol", res.Email)
+	}
+
+	return email[1], nil
+}
+
 // UserEmail represents user's email address
 type UserEmail struct {
 	Email    *string `json:"email,omitempty"`
@@ -168,10 +194,25 @@ func ofDomain(requiredDomains []string, email string) bool {
 	return false
 }
 
-// verify optional id_token and extract email address of the user
+// PrincipalIDFromClaims verifies an optional id_token and extracts email address of the user
 func (g *Generic) PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error) {
 	if id, ok := claims[g.APIKey].(string); ok {
 		return id, nil
 	}
+	return "", fmt.Errorf("no claim for %s", g.APIKey)
+}
+
+// GroupFromClaims verifies an optional id_token, extracts the email address of the user and splits off the domain part
+func (g *Generic) GroupFromClaims(claims gojwt.MapClaims) (string, error) {
+	if id, ok := claims[g.APIKey].(string); ok {
+		email := strings.Split(id, "@")
+		if len(email) != 2 {
+			g.Logger.Error("malformed email address, expected %q to contain @ symbol", id)
+			return "DEFAULT", nil
+		}
+
+		return email[1], nil
+	}
+
 	return "", fmt.Errorf("no claim for %s", g.APIKey)
 }

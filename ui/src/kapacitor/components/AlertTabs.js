@@ -27,7 +27,6 @@ class AlertTabs extends Component {
     super(props)
 
     this.state = {
-      selectedHandler: 'smtp',
       configSections: null,
     }
   }
@@ -42,18 +41,17 @@ class AlertTabs extends Component {
     }
   }
 
-  refreshKapacitorConfig = kapacitor => {
-    getKapacitorConfig(kapacitor)
-      .then(({data: {sections}}) => {
-        this.setState({configSections: sections})
+  refreshKapacitorConfig = async kapacitor => {
+    try {
+      const {data: {sections}} = await getKapacitorConfig(kapacitor)
+      this.setState({configSections: sections})
+    } catch (error) {
+      this.setState({configSections: null})
+      this.props.addFlashMessage({
+        type: 'error',
+        text: 'There was an error getting the Kapacitor config',
       })
-      .catch(() => {
-        this.setState({configSections: null})
-        this.props.addFlashMessage({
-          type: 'error',
-          text: 'There was an error getting the Kapacitor config',
-        })
-      })
+    }
   }
 
   getSection = (sections, section) => {
@@ -72,23 +70,29 @@ class AlertTabs extends Component {
     return this.getSection(sections, section)
   }
 
-  handleSaveConfig = section => properties => {
+  handleSaveConfig = section => async properties => {
     if (section !== '') {
       const propsToSend = this.sanitizeProperties(section, properties)
-      updateKapacitorConfigSection(this.props.kapacitor, section, propsToSend)
-        .then(() => {
-          this.refreshKapacitorConfig(this.props.kapacitor)
-          this.props.addFlashMessage({
-            type: 'success',
-            text: `Alert configuration for ${section} successfully saved.`,
-          })
+      try {
+        await updateKapacitorConfigSection(
+          this.props.kapacitor,
+          section,
+          propsToSend
+        )
+        this.refreshKapacitorConfig(this.props.kapacitor)
+        this.props.addFlashMessage({
+          type: 'success',
+          text: `Alert configuration for ${section} successfully saved.`,
         })
-        .catch(() => {
-          this.props.addFlashMessage({
-            type: 'error',
-            text: `There was an error saving the alert configuration for ${section}.`,
-          })
+        return true
+      } catch ({data: {error}}) {
+        const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
+        this.props.addFlashMessage({
+          type: 'error',
+          text: `There was an error saving the alert configuration for ${section}: ${errorMsg}`,
         })
+        return false
+      }
     }
   }
 
@@ -96,11 +100,18 @@ class AlertTabs extends Component {
     e.preventDefault()
 
     try {
-      await testAlertOutput(this.props.kapacitor, section)
-      this.props.addFlashMessage({
-        type: 'success',
-        text: `Successfully triggered an alert to ${section}. If the alert does not reach its destination, please check your configuration settings.`,
-      })
+      const {data} = await testAlertOutput(this.props.kapacitor, section)
+      if (data.success) {
+        this.props.addFlashMessage({
+          type: 'success',
+          text: `Successfully triggered an alert to ${section}. If the alert does not reach its destination, please check your configuration settings.`,
+        })
+      } else {
+        this.props.addFlashMessage({
+          type: 'error',
+          text: `There was an error sending an alert to ${section}: ${data.message}`,
+        })
+      }
     } catch (error) {
       this.props.addFlashMessage({
         type: 'error',
@@ -123,8 +134,14 @@ class AlertTabs extends Component {
     return cleanProps
   }
 
+  getInitialIndex = (supportedConfigs, hash) => {
+    const index = _.indexOf(_.keys(supportedConfigs), _.replace(hash, '#', ''))
+    return index >= 0 ? index : 0
+  }
+
   render() {
     const {configSections} = this.state
+    const {hash} = this.props
 
     if (!configSections) {
       return null
@@ -252,7 +269,6 @@ class AlertTabs extends Component {
           />,
       },
     }
-
     return (
       <div>
         <div className="panel panel-minimal">
@@ -261,7 +277,10 @@ class AlertTabs extends Component {
           </div>
         </div>
 
-        <Tabs tabContentsClass="config-endpoint">
+        <Tabs
+          tabContentsClass="config-endpoint"
+          initialIndex={this.getInitialIndex(supportedConfigs, hash)}
+        >
           <TabList customClass="config-endpoint--tabs">
             {_.reduce(
               configSections,
@@ -312,6 +331,7 @@ AlertTabs.propTypes = {
     }).isRequired,
   }),
   addFlashMessage: func.isRequired,
+  hash: string.isRequired,
 }
 
 export default AlertTabs

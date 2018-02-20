@@ -28,17 +28,22 @@
 
 // Components
 @import 'components/ceo-display-options';
+@import 'components/confirm-button';
 @import 'components/confirm-buttons';
 @import 'components/code-mirror-theme';
 @import 'components/color-dropdown';
+@import 'components/confirm-button';
+@import 'components/confirm-buttons';
 @import 'components/custom-time-range';
 @import 'components/dygraphs';
 @import 'components/fancy-scrollbars';
+@import 'components/fancy-table';
 @import 'components/fill-query';
 @import 'components/flip-toggle';
 @import 'components/function-selector';
 @import 'components/graph-tips';
 @import 'components/graph';
+@import 'components/input-click-to-edit';
 @import 'components/input-tag-list';
 @import 'components/newsfeed';
 @import 'components/opt-in';
@@ -66,6 +71,7 @@
 @import 'pages/admin';
 @import 'pages/users';
 @import 'pages/tickscript-editor';
+@import 'pages/manage-providers';
 
 // TODO
 @import 'unsorted';

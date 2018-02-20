@@ -24,11 +24,12 @@ class TickscriptPage extends Component {
         dbrps: [],
         type: 'stream',
       },
-      validation: '',
+      consoleMessage: '',
       isEditingID: true,
       logs: [],
       areLogsEnabled: false,
       failStr: '',
+      unsavedChanges: false,
     }
   }
 
@@ -172,9 +173,10 @@ class TickscriptPage extends Component {
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
       }
-
-      if (response && response.code === 500) {
-        return this.setState({validation: response.message})
+      if (response.code) {
+        this.setState({unsavedChanges: true, consoleMessage: response.message})
+      } else {
+        this.setState({unsavedChanges: false, consoleMessage: ''})
       }
     } catch (error) {
       console.error(error)
@@ -182,37 +184,57 @@ class TickscriptPage extends Component {
     }
   }
 
+  handleExit = () => {
+    const {source: {id: sourceID}, router} = this.props
+
+    return router.push(`/sources/${sourceID}/alert-rules`)
+  }
+
   handleChangeScript = tickscript => {
-    this.setState({task: {...this.state.task, tickscript}})
+    this.setState({
+      task: {...this.state.task, tickscript},
+      unsavedChanges: true,
+    })
   }
 
   handleSelectDbrps = dbrps => {
-    this.setState({task: {...this.state.task, dbrps}})
+    this.setState({task: {...this.state.task, dbrps}, unsavedChanges: true})
   }
 
   handleChangeType = type => () => {
-    this.setState({task: {...this.state.task, type}})
+    this.setState({task: {...this.state.task, type}, unsavedChanges: true})
   }
 
   handleChangeID = e => {
-    this.setState({task: {...this.state.task, id: e.target.value}})
+    this.setState({
+      task: {...this.state.task, id: e.target.value},
+      unsavedChanges: true,
+    })
   }
 
-  handleToggleLogsVisbility = () => {
+  handleToggleLogsVisibility = () => {
     this.setState({areLogsVisible: !this.state.areLogsVisible})
   }
 
   render() {
     const {source} = this.props
-    const {task, validation, logs, areLogsVisible, areLogsEnabled} = this.state
-
+    const {
+      task,
+      logs,
+      areLogsVisible,
+      areLogsEnabled,
+      unsavedChanges,
+      consoleMessage,
+    } = this.state
     return (
       <Tickscript
         task={task}
         logs={logs}
         source={source}
-        validation={validation}
+        consoleMessage={consoleMessage}
         onSave={this.handleSave}
+        unsavedChanges={unsavedChanges}
+        onExit={this.handleExit}
         isNewTickscript={!this._isEditing()}
         onSelectDbrps={this.handleSelectDbrps}
         onChangeScript={this.handleChangeScript}
@@ -220,7 +242,7 @@ class TickscriptPage extends Component {
         onChangeID={this.handleChangeID}
         areLogsVisible={areLogsVisible}
         areLogsEnabled={areLogsEnabled}
-        onToggleLogsVisbility={this.handleToggleLogsVisbility}
+        onToggleLogsVisibility={this.handleToggleLogsVisibility}
       />
     )
   }
