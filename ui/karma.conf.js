@@ -1,10 +1,9 @@
-var webpack = require('webpack')
-var path = require('path')
+const webpack = require('webpack')
+const path = require('path')
 
 module.exports = function(config) {
   config.set({
     browsers: ['PhantomJS'],
-    singleRun: true,
     frameworks: ['mocha', 'sinon-chai'],
     files: [
       'node_modules/babel-polyfill/dist/polyfill.js',
@@ -44,7 +43,7 @@ module.exports = function(config) {
           },
           {
             test: /\.json$/,
-            loader: 'json',
+            loader: 'json-loader',
           },
         ],
       },
