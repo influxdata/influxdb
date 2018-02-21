@@ -136,7 +136,6 @@ class LayoutRenderer extends Component {
                     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
                   />
                 </Authorized>
-                }
               </div>
             )}
           </GridLayout>
