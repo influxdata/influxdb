@@ -36,3 +36,10 @@ export const updateSingleStatType = singleStatType => ({
     singleStatType,
   },
 })
+
+export const updateGaugeColors = gaugeColors => ({
+  type: 'UPDATE_GAUGE_COLORS',
+  payload: {
+    gaugeColors,
+  },
+})

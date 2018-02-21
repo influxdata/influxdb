@@ -239,6 +239,7 @@ class DashboardPage extends Component {
       showTemplateControlBar,
       dashboard,
       dashboards,
+      gaugeColors,
       autoRefresh,
       selectedCell,
       manualRefresh,
@@ -352,6 +353,7 @@ class DashboardPage extends Component {
               editQueryStatus={dashboardActions.editCellQueryStatus}
               singleStatType={singleStatType}
               singleStatColors={singleStatColors}
+              gaugeColors={gaugeColors}
             />
           : null}
         <DashboardHeader
@@ -479,6 +481,7 @@ DashboardPage.propTypes = {
   selectedCell: shape({}),
   singleStatType: string.isRequired,
   singleStatColors: arrayOf(shape({}).isRequired).isRequired,
+  gaugeColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -491,7 +494,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
-    cellEditorOverlay: {cell, singleStatType, singleStatColors},
+    cellEditorOverlay: {cell, singleStatType, singleStatColors, gaugeColors},
   } = state
   const meRole = _.get(me, 'role', null)
 
@@ -519,6 +522,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     selectedCell,
     singleStatType,
     singleStatColors,
+    gaugeColors,
   }
 }
 

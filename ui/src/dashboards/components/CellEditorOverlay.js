@@ -22,19 +22,13 @@ import {
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {AUTO_GROUP_BY} from 'shared/constants'
-import {
-  COLOR_TYPE_THRESHOLD,
-  MAX_THRESHOLDS,
-  GAUGE_COLORS,
-  validateGaugeColors,
-  stringifyColorValues,
-} from 'src/dashboards/constants/gaugeColors'
+import {stringifyColorValues} from 'src/dashboards/constants/gaugeColors'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {queries, axes, colors}, sources} = props
+    const {cell: {queries, axes}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -52,7 +46,6 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       axes,
-      gaugeColors: validateGaugeColors(colors),
     }
   }
 
@@ -71,103 +64,6 @@ class CellEditorOverlay extends Component {
 
   componentDidMount = () => {
     this.overlayRef.focus()
-  }
-
-  handleAddGaugeThreshold = () => {
-    const {gaugeColors} = this.state
-    const sortedColors = _.sortBy(gaugeColors, color => color.value)
-
-    if (sortedColors.length <= MAX_THRESHOLDS) {
-      const randomColor = _.random(0, GAUGE_COLORS.length - 1)
-
-      const maxValue = sortedColors[sortedColors.length - 1].value
-      const minValue = sortedColors[0].value
-
-      const colorsValues = _.mapValues(gaugeColors, 'value')
-      let randomValue
-
-      do {
-        randomValue = _.round(_.random(minValue, maxValue, true), 2)
-      } while (_.includes(colorsValues, randomValue))
-
-      const newThreshold = {
-        type: COLOR_TYPE_THRESHOLD,
-        id: uuid.v4(),
-        value: randomValue,
-        hex: GAUGE_COLORS[randomColor].hex,
-        name: GAUGE_COLORS[randomColor].name,
-      }
-
-      this.setState({gaugeColors: [...gaugeColors, newThreshold]})
-    }
-  }
-
-  handleDeleteThreshold = threshold => () => {
-    const gaugeColors = this.state.gaugeColors.filter(
-      color => color.id !== threshold.id
-    )
-
-    this.setState({gaugeColors})
-  }
-
-  handleChooseColor = threshold => chosenColor => {
-    const gaugeColors = this.state.gaugeColors.map(
-      color =>
-        color.id === threshold.id
-          ? {...color, hex: chosenColor.hex, name: chosenColor.name}
-          : color
-    )
-
-    this.setState({gaugeColors})
-  }
-
-  handleUpdateColorValue = (threshold, value) => {
-    const gaugeColors = this.state.gaugeColors.map(
-      color => (color.id === threshold.id ? {...color, value} : color)
-    )
-
-    this.setState({gaugeColors})
-  }
-
-  handleValidateColorValue = (threshold, targetValue) => {
-    const {gaugeColors} = this.state
-
-    const thresholdValue = threshold.value
-    let allowedToUpdate = false
-
-    const sortedColors = _.sortBy(gaugeColors, color => color.value)
-
-    const minValue = sortedColors[0].value
-    const maxValue = sortedColors[sortedColors.length - 1].value
-
-    // If lowest value, make sure it is less than the next threshold
-    if (thresholdValue === minValue) {
-      const nextValue = sortedColors[1].value
-      allowedToUpdate = targetValue < nextValue
-    }
-    // If highest value, make sure it is greater than the previous threshold
-    if (thresholdValue === maxValue) {
-      const previousValue = sortedColors[sortedColors.length - 2].value
-      allowedToUpdate = previousValue < targetValue
-    }
-    // If not min or max, make sure new value is greater than min, less than max, and unique
-    if (thresholdValue !== minValue && thresholdValue !== maxValue) {
-      const greaterThanMin = targetValue > minValue
-      const lessThanMax = targetValue < maxValue
-
-      const colorsWithoutMinOrMax = sortedColors.slice(
-        1,
-        sortedColors.length - 1
-      )
-
-      const isUnique = !colorsWithoutMinOrMax.some(
-        color => color.value === targetValue
-      )
-
-      allowedToUpdate = greaterThanMin && lessThanMax && isUnique
-    }
-
-    return allowedToUpdate
   }
 
   handleSetSuffix = e => {
@@ -261,9 +157,9 @@ class CellEditorOverlay extends Component {
   }
 
   handleSaveCell = () => {
-    const {queriesWorkingDraft, axes, gaugeColors} = this.state
+    const {queriesWorkingDraft, axes} = this.state
 
-    const {cell, singleStatColors} = this.props
+    const {cell, singleStatColors, gaugeColors} = this.props
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
@@ -430,7 +326,6 @@ class CellEditorOverlay extends Component {
 
     const {
       axes,
-      gaugeColors,
       activeQueryIndex,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
@@ -482,7 +377,6 @@ class CellEditorOverlay extends Component {
             {isDisplayOptionsTabActive
               ? <DisplayOptions
                   axes={axes}
-                  gaugeColors={gaugeColors}
                   onChooseColor={this.handleChooseColor}
                   onValidateColorValue={this.handleValidateColorValue}
                   onUpdateColorValue={this.handleUpdateColorValue}
@@ -554,6 +448,7 @@ CellEditorOverlay.propTypes = {
   sources: arrayOf(shape()),
   singleStatType: string.isRequired,
   singleStatColors: arrayOf(shape({}).isRequired).isRequired,
+  gaugeColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
 CEOBottom.propTypes = {

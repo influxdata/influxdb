@@ -14,6 +14,7 @@ const DashVisualization = (
     templates,
     timeRange,
     autoRefresh,
+    gaugeColors,
     queryConfigs,
     editQueryStatus,
     resizerTopHeight,
@@ -21,14 +22,14 @@ const DashVisualization = (
   },
   {source: {links: {proxy}}}
 ) => {
-  // const colors = type === 'gauge' ? gaugeColors : singleStatColors
+  const colors = type === 'gauge' ? gaugeColors : singleStatColors
 
   return (
     <div className="graph">
       <VisualizationName />
       <div className="graph-container">
         <RefreshingGraph
-          colors={stringifyColorValues(singleStatColors)}
+          colors={stringifyColorValues(colors)}
           axes={axes}
           type={type}
           queries={buildQueries(proxy, queryConfigs, timeRange)}
@@ -63,8 +64,21 @@ DashVisualization.propTypes = {
   singleStatColors: arrayOf(
     shape({
       type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: number.isRequired,
     }).isRequired
-  ).isRequired,
+  ),
+  gaugeColors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: number.isRequired,
+    }).isRequired
+  ),
 }
 
 DashVisualization.contextTypes = {
@@ -76,8 +90,9 @@ DashVisualization.contextTypes = {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatColors, cell: {type}},
+  cellEditorOverlay: {singleStatColors, gaugeColors, cell: {type}},
 }) => ({
+  gaugeColors,
   singleStatColors,
   type,
 })

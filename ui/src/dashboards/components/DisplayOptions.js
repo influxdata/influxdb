@@ -37,34 +37,19 @@ class DisplayOptions extends Component {
   renderOptions = () => {
     const {
       cell,
-      gaugeColors,
       onSetBase,
       onSetScale,
       onSetLabel,
       onSetPrefixSuffix,
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
-      onAddGaugeThreshold,
-      onDeleteThreshold,
-      onChooseColor,
-      onValidateColorValue,
-      onUpdateColorValue,
       onSetSuffix,
     } = this.props
     const {axes, axes: {y: {suffix}}} = this.state
 
     switch (cell.type) {
       case 'gauge':
-        return (
-          <GaugeOptions
-            colors={gaugeColors}
-            onChooseColor={onChooseColor}
-            onValidateColorValue={onValidateColorValue}
-            onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddGaugeThreshold}
-            onDeleteThreshold={onDeleteThreshold}
-          />
-        )
+        return <GaugeOptions />
       case 'single-stat':
         return <SingleStatOptions suffix={suffix} onSetSuffix={onSetSuffix} />
       default:
@@ -92,14 +77,9 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
-  onAddGaugeThreshold: func.isRequired,
-  onDeleteThreshold: func.isRequired,
-  onChooseColor: func.isRequired,
-  onValidateColorValue: func.isRequired,
-  onUpdateColorValue: func.isRequired,
   cell: shape({
     type: string.isRequired,
   }).isRequired,
@@ -111,15 +91,6 @@ DisplayOptions.propTypes = {
   onSetLabel: func.isRequired,
   onSetBase: func.isRequired,
   axes: shape({}).isRequired,
-  gaugeColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
   queryConfigs: arrayOf(shape()).isRequired,
 }
 

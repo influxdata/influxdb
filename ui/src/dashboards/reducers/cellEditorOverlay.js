@@ -1,6 +1,8 @@
 import {
   SINGLE_STAT_TEXT,
   DEFAULT_SINGLESTAT_COLORS,
+  DEFAULT_GAUGE_COLORS,
+  validateGaugeColors,
   validateSingleStatColors,
   getSingleStatType,
 } from 'src/dashboards/constants/gaugeColors'
@@ -9,6 +11,7 @@ const initialState = {
   cell: null,
   singleStatType: SINGLE_STAT_TEXT,
   singleStatColors: DEFAULT_SINGLESTAT_COLORS,
+  gaugeColors: DEFAULT_GAUGE_COLORS,
 }
 
 export default function cellEditorOverlay(state = initialState, action) {
@@ -18,8 +21,9 @@ export default function cellEditorOverlay(state = initialState, action) {
 
       const singleStatType = getSingleStatType(colors)
       const singleStatColors = validateSingleStatColors(colors, singleStatType)
+      const gaugeColors = validateGaugeColors(colors)
 
-      return {...state, cell, singleStatType, singleStatColors}
+      return {...state, cell, singleStatType, singleStatColors, gaugeColors}
     }
 
     case 'HIDE_CELL_EDITOR_OVERLAY': {
@@ -57,6 +61,12 @@ export default function cellEditorOverlay(state = initialState, action) {
       }))
 
       return {...state, singleStatType, singleStatColors}
+    }
+
+    case 'UPDATE_GAUGE_COLORS': {
+      const {gaugeColors} = action.payload
+
+      return {...state, gaugeColors}
     }
   }
 
