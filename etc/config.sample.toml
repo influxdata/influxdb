@@ -292,7 +292,9 @@
   # logfmt.
   # format = "auto"
 
-  # Determines which level of logs will be emitted.
+  # Determines which level of logs will be emitted. The available levels
+  # are error, warn, info, and debug. Logs that are equal to or above the
+  # specified level will be emitted.
   # level = "info"
 
   # Suppresses the logo output that is printed when the program is started.
