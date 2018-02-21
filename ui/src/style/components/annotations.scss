@@ -1,0 +1,276 @@
+$annotation-color: $g0-obsidian;
+$annotation-color__drag: $c-hydrogen;
+
+$window0: rgba($annotation-color,0);
+$window15: rgba($annotation-color,0.15);
+$window35: rgba($annotation-color,0.35);
+
+
+$timestamp-font-size: 14px;
+$timestamp-font-weight: 600;
+
+.annotation-point--flag {
+  position: absolute;
+  z-index: 2;
+  top: -3px;
+  left: -2px;
+  width: 6px;
+  height: 6px;
+  background-color: $annotation-color;
+  border-radius: 50%;
+  transition: background-color 0.25s ease, transform 0.25s ease;
+}
+
+.annotation-point--flag__dragging {
+  @extend .annotation-point--flag;
+  transform: scale(1.5,1.5);
+  background-color: rgb($annotation-color__drag);
+}
+
+.annotation-span--flag {
+  position: absolute;
+  z-index: 2;
+  top: -6px;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-radius: 0;
+  background: none;
+  transition: border-color 0.25s ease, transform 0.25s ease;
+
+  &.mouseover {
+    transform: scale(1.5,1.5);
+  }
+}
+
+.annotation-span--left-flag {
+  @extend .annotation-span--flag;
+  transform-origin: 0% 50%;  
+  left: 0;
+  border-left-color: rgb($annotation-color);
+
+  &.dragging {
+    border-left-color: rgb($annotation-color__drag);
+  }
+}
+
+.annotation-span--right-flag {
+  @extend .annotation-span--flag;
+  transform-origin: 100% 50%;  
+  right: 0;
+  border-right-color: rgb($annotation-color);
+
+  &.dragging {
+    border-right-color: rgb($annotation-color__drag);
+  }
+}
+
+
+
+.annotation-tooltip {
+  position: absolute;
+  width: 100%;  
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: $g0-obsidian;
+  z-index: 3;
+  padding: 6px 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  user-select: none;
+  display: flex;
+  flex: 1 0 0;
+  box-shadow: 0 0 10px 2px $g2-kevlar;
+  margin-bottom: 4px;
+
+  &:before {
+    content: '';
+    display: block;
+    position: absolute;
+    width: calc(100% + 16px);
+    height: calc(100% + 28px);
+    top: -14px;
+    left: -8px;
+    z-index: -1;
+  }
+
+  &.hidden {
+    display: none;
+  }
+}
+
+.annotation-tooltip--delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  color: $g20-white;
+  background-color: $c-curacao;
+  transform: translate(50%,-50%);
+  transition:
+    background-color 0.25s ease;
+  z-index: 3;
+  outline: none;
+  border: none;
+
+  &:hover {
+    cursor: pointer;
+    background-color: $c-dreamsicle;
+  }
+
+  > span.icon {
+    position: absolute;
+    top: calc(50% - 1px);
+    left: calc(50% - 1px);
+    font-size: 12px;
+    transform: translate(-50%,-50%);
+  }
+}
+
+.annotation-tooltip--input .input-cte {
+  height: 22px;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 0 7px;
+
+  > span.icon {
+    right: 9px;
+  }
+}
+
+.annotation-tooltip--timestamp {
+  color: $g20-white;
+  display: block;
+  font-size: $timestamp-font-size;
+  font-weight: $timestamp-font-weight;
+}
+.annotation-tooltip--items {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.annotation-tooltip--form {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.annotation-tooltip--input-button {
+  margin-left: 2px;
+}
+
+
+.annotation {
+  position: absolute;
+  top: 8px;
+  background-color: $annotation-color;
+  height: calc(100% - 36px);
+  width: 2px;
+  transform: translateX(-1px); // translate should always be half with width to horizontally center the annotation pos  
+  transition: background-color 0.25s ease;
+  visibility: visible;
+  z-index: 3;
+
+  &.dragging {
+    background-color: $annotation-color__drag;
+    z-index: 4;
+  }
+}
+
+.annotation--click-area {
+  position: absolute;
+  top: -8px;
+  z-index: 4;  
+  left: -7px;
+  width: 16px;
+  height: 16px;
+  cursor: default;
+
+  &.editing {
+    left: -5px;
+    width: 12px;
+    height: calc(100% + 8px);
+    cursor: col-resize;
+  }
+}
+
+.annotation-window {
+  position: absolute;
+  top: 8px;
+  background: linear-gradient(to bottom, $window0 0%, $window15 100%);
+  height: calc(100% - 36px);
+  border-top: 2px dotted $window35;
+  z-index: 1;
+}
+
+
+/*
+  New Annotations
+  ------------------------------------------------------------------------------
+*/
+.new-annotation {
+  position: absolute;
+  z-index: 9999;
+  top: 8px;
+  left: 16px;
+  width: calc(100% - 32px);
+  height: calc(100% - 16px);
+  cursor: pointer;
+}
+
+
+.new-annotation.hover .new-annotation--crosshair {
+  opacity: 1;
+}
+
+.new-annotation--crosshair {
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  height: calc(100% - 20px);
+  width: 2px;
+  transform: translateX(-1px);
+  background: linear-gradient(to bottom, $c-hydrogen 0%, $c-pool 100%);
+  transition: opacity 0.4s ease;
+  z-index: 5;
+  cursor: pointer;
+}
+
+.new-annotation-tooltip {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(to bottom, $c-pool 0%,$c-ocean 100%);
+  border-radius: 4px;
+  padding: 6px 12px;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+
+  &.hover {
+    display: flex;
+  }
+}
+
+.new-annotation-helper {
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 13px;
+  font-weight: 600;
+  color: $c-neutrino;
+  margin-bottom: 4px;
+}
+
+.new-annotation-timestamp {
+  white-space: nowrap;
+  font-size: $timestamp-font-size;
+  line-height: $timestamp-font-size;
+  font-weight: $timestamp-font-weight;
+  color: $g20-white;
+}

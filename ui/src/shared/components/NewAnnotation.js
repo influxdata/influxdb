@@ -113,7 +113,7 @@ class NewAnnotation extends Component {
 
   render() {
     const {dygraph, isTempHovering, tempAnnotation: {startTime}} = this.props
-    const {isMouseOver, mouseAction} = this.state
+    const {mouseAction} = this.state
 
     const timestamp = `${new Date(+startTime)}`
 
@@ -121,48 +121,44 @@ class NewAnnotation extends Component {
     const staticCrosshairLeft = this.state.trueGraphX
 
     const isDragging = mouseAction === 'dragging'
-    const staticFlagStyle =
-      staticCrosshairLeft < crosshairLeft ? style.leftFlag : style.rightFlag
-    const draggingFlagStyle =
-      staticCrosshairLeft < crosshairLeft ? style.rightFlag : style.leftFlag
+    const staticFlagClass =
+      staticCrosshairLeft < crosshairLeft
+        ? 'annotation-span--left-flag dragging'
+        : 'annotation-span--right-flag dragging'
+    const movingFlagClass =
+      staticCrosshairLeft < crosshairLeft
+        ? 'annotation-span--right-flag dragging'
+        : 'annotation-span--left-flag dragging'
+    const pointFlagClass = 'annotation-point--flag__dragging'
 
     return (
       <div
-        className={classnames('new-annotation', {hover: isTempHovering})}
+        className={classnames('new-annotation', {
+          hover: isTempHovering,
+        })}
         ref={el => (this.wrapper = el)}
         onMouseMove={this.handleMouseMove}
         onMouseOver={this.handleMouseOver}
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleMouseUp}
         onMouseDown={this.handleMouseDown}
-        style={style.newContainer}
       >
         {isDragging &&
           <div
             className="new-annotation--crosshair__static"
-            style={style.newCrosshair(staticCrosshairLeft)}
+            style={style.newCrosshairLeft(staticCrosshairLeft)}
           >
-            <div style={staticFlagStyle} />
+            <div className={staticFlagClass} />
           </div>}
-        {isDragging &&
-          <div
-            className="new-annotation--window"
-            style={style.newWindow(staticCrosshairLeft, crosshairLeft)}
-          />}
+        {isDragging && <div className="annotation-window" />}
         <div
           className="new-annotation--crosshair"
-          style={style.newCrosshair(crosshairLeft)}
+          style={style.newCrosshairLeft(crosshairLeft)}
         >
-          <div
-            className="new-annotation--flag"
-            style={isDragging ? draggingFlagStyle : style.circleFlag}
-          />
-          <div
-            className="new-annotation--tooltip"
-            style={style.newTooltip(isMouseOver)}
-          >
-            <span style={style.newHelper}>Click to Annotate</span>
-            <span style={style.newTimestamp}>
+          <div className={isDragging ? movingFlagClass : pointFlagClass} />
+          <div className="new-annotation-tooltip">
+            <span className="new-annotation-helper">Click to Annotate</span>
+            <span classNAme="new-annotation-timestamp">
               {timestamp}
             </span>
           </div>

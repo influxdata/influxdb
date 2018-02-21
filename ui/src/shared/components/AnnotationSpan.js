@@ -95,17 +95,25 @@ class AnnotationSpan extends React.Component {
   renderLeftMarker(startTime, dygraph) {
     const isEditing = this.props.mode === EDITING
     const humanTime = `${new Date(+startTime)}`
-    const {isMouseOver, isDragging} = this.state
+    const {isDragging} = this.state
+
+    const flagClass = isDragging
+      ? 'annotation-span--left-flag dragging'
+      : 'annotation-span--left-flag'
+
+    const clickClass = isEditing
+      ? 'annotation--click-area editing'
+      : 'annotation--click-area'
 
     return (
       <div
-        className="dygraph-annotation"
-        style={style.annotation(startTime, dygraph, isMouseOver, isDragging)}
+        className="annotation"
+        style={style.annotationLeft(startTime, dygraph)}
         data-time-ms={startTime}
         data-time-local={humanTime}
       >
         <div
-          style={style.clickArea(isEditing)}
+          className={clickClass}
           draggable={true}
           onDrag={this.handleDrag('startTime')}
           onDragStart={this.handleDragStart}
@@ -113,7 +121,7 @@ class AnnotationSpan extends React.Component {
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={style.flag(isMouseOver, isDragging, true, false)} />
+        <div className={flagClass} />
       </div>
     )
   }
@@ -121,17 +129,24 @@ class AnnotationSpan extends React.Component {
   renderRightMarker(endTime, dygraph) {
     const isEditing = this.props.mode === EDITING
     const humanTime = `${new Date(+endTime)}`
-    const {isMouseOver, isDragging} = this.state
+    const {isDragging} = this.state
+
+    const flagClass = isDragging
+      ? 'annotation-span--left-flag dragging'
+      : 'annotation-span--left-flag'
+    const clickClass = isEditing
+      ? 'annotation--click-area editing'
+      : 'annotation--click-area'
 
     return (
       <div
-        className="dygraph-annotation"
-        style={style.annotation(endTime, dygraph, isMouseOver, isDragging)}
+        className="annotation"
+        style={style.annotationLeft(endTime, dygraph)}
         data-time-ms={endTime}
         data-time-local={humanTime}
       >
         <div
-          style={style.clickArea(isEditing)}
+          className={clickClass}
           draggable={true}
           onDrag={this.handleDrag('endTime')}
           onDragStart={this.handleDragStart}
@@ -139,7 +154,7 @@ class AnnotationSpan extends React.Component {
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={style.flag(isMouseOver, isDragging, true, true)} />
+        <div className={flagClass} />
       </div>
     )
   }

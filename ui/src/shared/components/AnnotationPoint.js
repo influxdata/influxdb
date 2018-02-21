@@ -91,22 +91,25 @@ class AnnotationPoint extends React.Component {
 
     const isEditing = mode === EDITING
     const humanTime = `${new Date(+annotation.startTime)}`
-    const {isMouseOver, isDragging} = this.state
+    const {isDragging} = this.state
+
+    const flagClass = isDragging
+      ? 'annotation-point--flag dragging'
+      : 'annotation-point--flag'
+
+    const clickClass = isEditing
+      ? 'annotation--click-area editing'
+      : 'annotation--click-area'
 
     return (
       <div
-        className="dygraph-annotation"
-        style={style.annotation(
-          annotation.startTime,
-          dygraph,
-          isMouseOver,
-          isDragging
-        )}
+        className="annotation"
+        style={style.annotationLeft(annotation.startTime, dygraph)}
         data-time-ms={annotation.startTime}
         data-time-local={humanTime}
       >
         <div
-          style={style.clickArea(isEditing)}
+          className={clickClass}
           draggable={true}
           onDrag={this.handleDrag}
           onDragStart={this.handleDragStart}
@@ -114,7 +117,7 @@ class AnnotationPoint extends React.Component {
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
-        <div style={style.flag(isMouseOver, isDragging, false, false)} />
+        <div className={flagClass} />
         <AnnotationTooltip
           isEditing={isEditing}
           annotation={annotation}

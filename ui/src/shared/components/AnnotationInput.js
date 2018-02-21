@@ -1,8 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import onClickOutside from 'react-onclickoutside'
 
-import * as style from 'src/shared/annotations/styles'
-
 class AnnotationInput extends Component {
   state = {
     isEditing: false,
@@ -57,16 +55,15 @@ class AnnotationInput extends Component {
     const {value} = this.props
 
     return (
-      <div
-        className="annotation-tooltip-input"
-        style={style.tooltipInputContainer}
-      >
+      <div className="annotation-tooltip--input">
         {isEditing
-          ? <form onSubmit={this.handleFormSubmit} style={style.tooltipForm}>
+          ? <form
+              onSubmit={this.handleFormSubmit}
+              className="annotation-tooltip--form"
+            >
               <input
                 type="text"
-                className="form-control input-xs"
-                style={style.tooltipInput}
+                className="annotation-tooltip--input form-control input-xs"
                 value={value}
                 onChange={this.handleChange}
                 onKeyDown={this.handleKeyDown}
@@ -74,16 +71,14 @@ class AnnotationInput extends Component {
                 onFocus={this.handleFocus}
               />
               <button
-                className="btn btn-square btn-xs btn-default"
-                style={style.tooltipInputButton}
+                className="annotation-tooltip--input-button btn btn-square btn-xs btn-default"
                 type="button"
                 onClick={this.handleClickOutside}
               >
                 <span className="icon remove" />
               </button>
               <button
-                className="btn btn-square btn-xs btn-success"
-                style={style.tooltipInputButton}
+                className="annotation-tooltip--input-button btn btn-square btn-xs btn-success"
                 type="submit"
               >
                 <span className="icon checkmark" />

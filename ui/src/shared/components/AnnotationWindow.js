@@ -5,8 +5,8 @@ import * as style from 'src/shared/annotations/styles'
 
 const AnnotationWindow = ({annotation, dygraph}) =>
   <div
-    className="dygraph-annotation-window"
-    style={style.window(annotation, dygraph)}
+    className="annotation-window"
+    style={style.windowDimensions(annotation, dygraph)}
   />
 
 const {shape} = PropTypes
