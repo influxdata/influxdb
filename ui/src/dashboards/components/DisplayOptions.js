@@ -35,13 +35,13 @@ class DisplayOptions extends Component {
   }
 
   renderOptions = () => {
-    const {cell, cell: {axes: {y: {suffix}}}, onSetSuffix} = this.props
+    const {cell: {type}} = this.props
 
-    switch (cell.type) {
+    switch (type) {
       case 'gauge':
         return <GaugeOptions />
       case 'single-stat':
-        return <SingleStatOptions suffix={suffix} onSetSuffix={onSetSuffix} />
+        return <SingleStatOptions />
       default:
         return <AxesOptions />
     }
@@ -56,7 +56,7 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
   cell: shape({
@@ -69,7 +69,6 @@ DisplayOptions.propTypes = {
       defaultYLabel: string,
     }),
   }).isRequired,
-  onSetSuffix: func.isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
 }
 

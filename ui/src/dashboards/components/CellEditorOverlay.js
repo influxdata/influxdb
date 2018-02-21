@@ -65,20 +65,6 @@ class CellEditorOverlay extends Component {
     this.overlayRef.focus()
   }
 
-  handleSetSuffix = e => {
-    const {axes} = this.props.cell
-
-    this.setState({
-      axes: {
-        ...axes,
-        y: {
-          ...axes.y,
-          suffix: e.target.value,
-        },
-      },
-    })
-  }
-
   queryStateReducer = queryModifier => (queryID, ...payload) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
@@ -303,10 +289,7 @@ class CellEditorOverlay extends Component {
               onClickDisplayOptions={this.handleClickDisplayOptionsTab}
             />
             {isDisplayOptionsTabActive
-              ? <DisplayOptions
-                  queryConfigs={queriesWorkingDraft}
-                  onSetSuffix={this.handleSetSuffix}
-                />
+              ? <DisplayOptions queryConfigs={queriesWorkingDraft} />
               : <QueryMaker
                   source={this.getSource()}
                   templates={templates}

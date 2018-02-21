@@ -40,6 +40,7 @@ const RefreshingGraph = ({
 
   if (type === 'single-stat') {
     const suffix = axes.y.suffix || ''
+
     return (
       <RefreshingSingleStat
         colors={colors}

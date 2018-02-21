@@ -22,6 +22,7 @@ import {
 import {
   updateSingleStatType,
   updateSingleStatColors,
+  updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
 
 const formatColor = color => {
@@ -108,8 +109,15 @@ class SingleStatOptions extends Component {
     return !sortedColors.some(color => color.value === targetValue)
   }
 
+  handleUpdateSuffix = e => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, suffix: e.target.value}}
+
+    handleUpdateAxes(newAxes)
+  }
+
   render() {
-    const {suffix, onSetSuffix, singleStatColors, singleStatType} = this.props
+    const {singleStatColors, singleStatType, axes: {y: {suffix}}} = this.props
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
 
@@ -181,7 +189,7 @@ class SingleStatOptions extends Component {
                 className="form-control input-sm"
                 placeholder="%, MPH, etc."
                 defaultValue={suffix}
-                onChange={onSetSuffix}
+                onChange={this.handleUpdateSuffix}
                 maxLength="5"
               />
             </div>
@@ -209,17 +217,18 @@ SingleStatOptions.propTypes = {
       value: number.isRequired,
     }).isRequired
   ),
-  onSetSuffix: func.isRequired,
-  suffix: string.isRequired,
   handleUpdateSingleStatType: func.isRequired,
   handleUpdateSingleStatColors: func.isRequired,
+  handleUpdateAxes: func.isRequired,
+  axes: shape({}).isRequired,
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatType, singleStatColors},
+  cellEditorOverlay: {singleStatType, singleStatColors, cell: {axes}},
 }) => ({
   singleStatType,
   singleStatColors,
+  axes,
 })
 
 const mapDispatchToProps = dispatch => ({
@@ -231,6 +240,7 @@ const mapDispatchToProps = dispatch => ({
     updateSingleStatColors,
     dispatch
   ),
+  handleUpdateAxes: bindActionCreators(updateAxes, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(SingleStatOptions)
