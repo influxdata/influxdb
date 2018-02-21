@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
@@ -315,8 +316,8 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 				}
 				s.subs[se] = cw
 				s.Logger.Info("Added new subscription",
-					zap.String("db", se.db),
-					zap.String("rp", se.rp))
+					logger.Database(se.db),
+					logger.RetentionPolicy(se.rp))
 			}
 		}
 	}
@@ -330,8 +331,8 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 			// Remove it from the set
 			delete(s.subs, se)
 			s.Logger.Info("Deleted old subscription",
-				zap.String("db", se.db),
-				zap.String("rp", se.rp))
+				logger.Database(se.db),
+				logger.RetentionPolicy(se.rp))
 		}
 	}
 }

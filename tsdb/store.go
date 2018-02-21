@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 
 	"github.com/influxdata/influxdb/models"
@@ -203,6 +204,9 @@ func (s *Store) loadShards() error {
 		s.Logger.Info("Compaction throughput limit disabled")
 	}
 
+	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb.open")
+	defer logEnd()
+
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 	resC := make(chan *res)
 	var n int
@@ -214,8 +218,9 @@ func (s *Store) loadShards() error {
 	}
 
 	for _, db := range dbDirs {
+		dbPath := filepath.Join(s.path, db.Name())
 		if !db.IsDir() {
-			s.Logger.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "not a directory"))
+			log.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "not a directory"))
 			continue
 		}
 
@@ -232,14 +237,15 @@ func (s *Store) loadShards() error {
 		}
 
 		// Load each retention policy within the database directory.
-		rpDirs, err := ioutil.ReadDir(filepath.Join(s.path, db.Name()))
+		rpDirs, err := ioutil.ReadDir(dbPath)
 		if err != nil {
 			return err
 		}
 
 		for _, rp := range rpDirs {
+			rpPath := filepath.Join(s.path, db.Name(), rp.Name())
 			if !rp.IsDir() {
-				s.Logger.Info("Skipping retention policy dir", zap.String("name", rp.Name()), zap.String("reason", "not a directory"))
+				log.Info("Skipping retention policy dir", zap.String("name", rp.Name()), zap.String("reason", "not a directory"))
 				continue
 			}
 
@@ -248,7 +254,7 @@ func (s *Store) loadShards() error {
 				continue
 			}
 
-			shardDirs, err := ioutil.ReadDir(filepath.Join(s.path, db.Name(), rp.Name()))
+			shardDirs, err := ioutil.ReadDir(rpPath)
 			if err != nil {
 				return err
 			}
@@ -266,6 +272,7 @@ func (s *Store) loadShards() error {
 					// Shard file names are numeric shardIDs
 					shardID, err := strconv.ParseUint(sh, 10, 64)
 					if err != nil {
+						log.Info("invalid shard ID found at path", zap.String("path", path))
 						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
 						return
 					}
@@ -291,12 +298,13 @@ func (s *Store) loadShards() error {
 
 					err = shard.Open()
 					if err != nil {
+						log.Info("Failed to open shard", logger.Shard(shardID), zap.Error(err))
 						resC <- &res{err: fmt.Errorf("Failed to open shard: %d: %s", shardID, err)}
 						return
 					}
 
 					resC <- &res{s: shard}
-					s.Logger.Info("Opened shard", zap.String("path", path), zap.Duration("duration", time.Since(start)))
+					log.Info("Opened shard", zap.String("path", path), zap.Duration("duration", time.Since(start)))
 				}(db.Name(), rp.Name(), sh.Name())
 			}
 		}
@@ -307,7 +315,6 @@ func (s *Store) loadShards() error {
 	for i := 0; i < n; i++ {
 		res := <-resC
 		if res.err != nil {
-			s.Logger.Info(res.err.Error())
 			continue
 		}
 		s.shards[res.s.id] = res.s
@@ -1764,7 +1771,7 @@ func (s *Store) monitorShards() {
 								zap.String("perc", fmt.Sprintf("%d%%", perc)),
 								zap.Int("n", n),
 								zap.Int("max", s.EngineOptions.Config.MaxValuesPerTag),
-								zap.String("db", db),
+								logger.Database(db),
 								zap.ByteString("measurement", name),
 								zap.ByteString("tag", k))
 						}

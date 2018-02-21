@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -1558,23 +1559,21 @@ func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
 
-	var started *time.Time
+	started := time.Now()
 
+	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "cache.snapshot")
 	defer func() {
-		if started != nil {
-			e.Cache.UpdateCompactTime(time.Since(*started))
-			e.logger.Info("Snapshot for path written",
-				zap.String("path", e.path),
-				zap.Duration("duration", time.Since(*started)))
-		}
+		elapsed := time.Since(started)
+		e.Cache.UpdateCompactTime(elapsed)
+		e.logger.Info("Snapshot for path written",
+			zap.String("path", e.path),
+			zap.Duration("duration", elapsed))
+		logEnd()
 	}()
 
 	closedFiles, snapshot, err := func() ([]string, *Cache, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-
-		now := time.Now()
-		started = &now
 
 		if err := e.WAL.CloseSegment(); err != nil {
 			return nil, nil, err
@@ -1611,7 +1610,7 @@ func (e *Engine) WriteSnapshot() error {
 		zap.String("path", e.path),
 		zap.Duration("duration", time.Since(dedup)))
 
-	return e.writeSnapshotAndCommit(closedFiles, snapshot)
+	return e.writeSnapshotAndCommit(log, closedFiles, snapshot)
 }
 
 // CreateSnapshot will create a temp directory that holds
@@ -1633,7 +1632,7 @@ func (e *Engine) CreateSnapshot() (string, error) {
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.
-func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (err error) {
+func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, snapshot *Cache) (err error) {
 	defer func() {
 		if err != nil {
 			e.Cache.ClearSnapshot(false)
@@ -1643,7 +1642,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 	// write the new snapshot files
 	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
 	if err != nil {
-		e.logger.Info("Error writing snapshot from compactor", zap.Error(err))
+		log.Info("Error writing snapshot from compactor", zap.Error(err))
 		return err
 	}
 
@@ -1652,7 +1651,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 
 	// update the file store with these new files
 	if err := e.FileStore.Replace(nil, newFiles); err != nil {
-		e.logger.Info("Error adding new TSM files from snapshot", zap.Error(err))
+		log.Info("Error adding new TSM files from snapshot", zap.Error(err))
 		return err
 	}
 
@@ -1660,7 +1659,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 	e.Cache.ClearSnapshot(true)
 
 	if err := e.WAL.Remove(closedFiles); err != nil {
-		e.logger.Info("Error removing closed WAL segments", zap.Error(err))
+		log.Info("Error removing closed WAL segments", zap.Error(err))
 	}
 
 	return nil
@@ -1913,9 +1912,12 @@ func (s *compactionStrategy) Apply() {
 func (s *compactionStrategy) compactGroup() {
 	group := s.group
 	start := time.Now()
-	s.logger.Info("Beginning compaction", zap.Int("files", len(group)))
+	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1.compact_group")
+	defer logEnd()
+
+	log.Info("Beginning compaction", zap.Int("files", len(group)))
 	for i, f := range group {
-		s.logger.Info("Compacting file", zap.Int("index", i), zap.String("file", f))
+		log.Info("Compacting file", zap.Int("index", i), zap.String("file", f))
 	}
 
 	var (
@@ -1932,7 +1934,7 @@ func (s *compactionStrategy) compactGroup() {
 	if err != nil {
 		_, inProgress := err.(errCompactionInProgress)
 		if err == errCompactionsDisabled || inProgress {
-			s.logger.Info("Aborted compaction", zap.Error(err))
+			log.Info("Aborted compaction", zap.Error(err))
 
 			if _, ok := err.(errCompactionInProgress); ok {
 				time.Sleep(time.Second)
@@ -1940,23 +1942,23 @@ func (s *compactionStrategy) compactGroup() {
 			return
 		}
 
-		s.logger.Info("Error compacting TSM files", zap.Error(err))
+		log.Info("Error compacting TSM files", zap.Error(err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
 		return
 	}
 
 	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
-		s.logger.Info("Error replacing new TSM files", zap.Error(err))
+		log.Info("Error replacing new TSM files", zap.Error(err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
 		return
 	}
 
 	for i, f := range files {
-		s.logger.Info("Compacted file", zap.Int("index", i), zap.String("file", f))
+		log.Info("Compacted file", zap.Int("index", i), zap.String("file", f))
 	}
-	s.logger.Info("Finished compacting files",
+	log.Info("Finished compacting files",
 		zap.Int("groups", len(group)),
 		zap.Int("files", len(files)),
 		zap.Duration("duration", time.Since(start)))

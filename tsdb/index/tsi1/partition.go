@@ -1,7 +1,6 @@
 package tsi1
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -887,12 +887,13 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	assert(level > 0, "cannot compact level zero")
 
 	// Build a logger for this compaction.
-	logger := i.logger.With(zap.String("token", generateCompactionToken()))
+	log, logEnd := logger.NewOperation(i.logger, "TSI level compaction", "index.tsi.compact_to_level", zap.Int("tsi_level", level))
+	defer logEnd()
 
 	// Check for cancellation.
 	select {
 	case <-interrupt:
-		logger.Error("cannot begin compaction", zap.Error(ErrCompactionInterrupted))
+		log.Error("Cannot begin compaction", zap.Error(ErrCompactionInterrupted))
 		return
 	default:
 	}
@@ -909,12 +910,12 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	path := filepath.Join(i.path, FormatIndexFileName(i.NextSequence(), level))
 	f, err := os.Create(path)
 	if err != nil {
-		logger.Error("cannot create compaction files", zap.Error(err))
+		log.Error("Cannot create compaction files", zap.Error(err))
 		return
 	}
 	defer f.Close()
 
-	logger.Info("performing full compaction",
+	log.Info("Performing full compaction",
 		zap.String("src", joinIntSlice(IndexFiles(files).IDs(), ",")),
 		zap.String("dst", path),
 	)
@@ -923,13 +924,13 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	lvl := i.levels[level]
 	n, err := IndexFiles(files).CompactTo(f, i.sfile, lvl.M, lvl.K, interrupt)
 	if err != nil {
-		logger.Error("cannot compact index files", zap.Error(err))
+		log.Error("Cannot compact index files", zap.Error(err))
 		return
 	}
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		logger.Error("error closing index file", zap.Error(err))
+		log.Error("Error closing index file", zap.Error(err))
 		return
 	}
 
@@ -937,7 +938,7 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	file := NewIndexFile(i.sfile)
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		logger.Error("cannot open new index file", zap.Error(err))
+		log.Error("Cannot open new index file", zap.Error(err))
 		return
 	}
 
@@ -958,14 +959,14 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		i.manifestSize = manifestSize
 		return nil
 	}(); err != nil {
-		logger.Error("cannot write manifest", zap.Error(err))
+		log.Error("Cannot write manifest", zap.Error(err))
 		return
 	}
 
 	elapsed := time.Since(start)
-	logger.Info("full compaction complete",
+	log.Info("Full compaction complete",
 		zap.String("path", path),
-		zap.String("elapsed", elapsed.String()),
+		logger.DurationLiteral("elapsed", elapsed),
 		zap.Int64("bytes", n),
 		zap.Int("kb_per_sec", int(float64(n)/elapsed.Seconds())/1024),
 	)
@@ -975,13 +976,13 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 
 	// Close and delete all old index files.
 	for _, f := range files {
-		logger.Info("removing index file", zap.String("path", f.Path()))
+		log.Info("Removing index file", zap.String("path", f.Path()))
 
 		if err := f.Close(); err != nil {
-			logger.Error("cannot close index file", zap.Error(err))
+			log.Error("Cannot close index file", zap.Error(err))
 			return
 		} else if err := os.Remove(f.Path()); err != nil {
-			logger.Error("cannot remove index file", zap.Error(err))
+			log.Error("Cannot remove index file", zap.Error(err))
 			return
 		}
 	}
@@ -1048,16 +1049,14 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Build a logger for this compaction.
-	logger := i.logger.With(
-		zap.String("token", generateCompactionToken()),
-		zap.Int("id", id),
-	)
+	log, logEnd := logger.NewOperation(i.logger, "TSI log compaction", "index.tsi.compact_log_file", zap.Int("log_file_id", id))
+	defer logEnd()
 
 	// Create new index file.
 	path := filepath.Join(i.path, FormatIndexFileName(id, 1))
 	f, err := os.Create(path)
 	if err != nil {
-		logger.Error("cannot create index file", zap.Error(err))
+		log.Error("Cannot create index file", zap.Error(err))
 		return
 	}
 	defer f.Close()
@@ -1066,13 +1065,13 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 	lvl := i.levels[1]
 	n, err := logFile.CompactTo(f, lvl.M, lvl.K, interrupt)
 	if err != nil {
-		logger.Error("cannot compact log file", zap.Error(err), zap.String("path", logFile.Path()))
+		log.Error("Cannot compact log file", zap.Error(err), zap.String("path", logFile.Path()))
 		return
 	}
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		logger.Error("cannot close log file", zap.Error(err))
+		log.Error("Cannot close log file", zap.Error(err))
 		return
 	}
 
@@ -1080,7 +1079,7 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 	file := NewIndexFile(i.sfile)
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		logger.Error("cannot open compacted index file", zap.Error(err), zap.String("path", file.Path()))
+		log.Error("Cannot open compacted index file", zap.Error(err), zap.String("path", file.Path()))
 		return
 	}
 
@@ -1102,23 +1101,23 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 		i.manifestSize = manifestSize
 		return nil
 	}(); err != nil {
-		logger.Error("cannot update manifest", zap.Error(err))
+		log.Error("Cannot update manifest", zap.Error(err))
 		return
 	}
 
 	elapsed := time.Since(start)
-	logger.Info("log file compacted",
-		zap.String("elapsed", elapsed.String()),
+	log.Info("Log file compacted",
+		logger.DurationLiteral("elapsed", elapsed),
 		zap.Int64("bytes", n),
 		zap.Int("kb_per_sec", int(float64(n)/elapsed.Seconds())/1024),
 	)
 
 	// Closing the log file will automatically wait until the ref count is zero.
 	if err := logFile.Close(); err != nil {
-		logger.Error("cannot close log file", zap.Error(err))
+		log.Error("Cannot close log file", zap.Error(err))
 		return
 	} else if err := os.Remove(logFile.Path()); err != nil {
-		logger.Error("cannot remove log file", zap.Error(err))
+		log.Error("Cannot remove log file", zap.Error(err))
 		return
 	}
 }
@@ -1277,11 +1276,3 @@ const MaxIndexMergeCount = 2
 
 // MaxIndexFileSize is the maximum expected size of an index file.
 const MaxIndexFileSize = 4 * (1 << 30)
-
-// generateCompactionToken returns a short token to track an individual compaction.
-// It is only used for logging so it doesn't need strong uniqueness guarantees.
-func generateCompactionToken() string {
-	token := make([]byte, 3)
-	rand.Read(token)
-	return fmt.Sprintf("%x", token)
-}

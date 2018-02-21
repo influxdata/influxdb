@@ -45,7 +45,7 @@ func (c *Config) New(defaultOutput io.Writer) (*zap.Logger, error) {
 		encoder,
 		zapcore.Lock(zapcore.AddSync(w)),
 		c.Level,
-	)), nil
+	), zap.Fields(zap.String("log_id", nextID()))), nil
 }
 
 func newEncoder(format string) (zapcore.Encoder, error) {
