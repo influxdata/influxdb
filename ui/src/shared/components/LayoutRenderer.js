@@ -32,16 +32,19 @@ class LayoutRenderer extends Component {
   }
 
   handleLayoutChange = layout => {
-    // if (!this.props.onPositionChange) {
-    //   return
-    // }
-    // const filteredCells = this.props.cells.filter(this.lazyLoadFilter)
-    // const newCells = filteredCells.map(cell => {
-    //   const l = layout.find(ly => ly.i === cell.i)
-    //   const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
-    //   return {...cell, ...newLayout}
-    // })
-    // this.props.onPositionChange(newCells)
+    console.log('here')
+    if (!this.props.onPositionChange) {
+      return
+    }
+    const newCells = this.props.cells.map(cell => {
+      const l = layout.find(ly => ly.i === cell.i)
+      if (l) {
+        const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
+        return {...cell, ...newLayout}
+      }
+      return cell
+    })
+    this.props.onPositionChange(newCells)
   }
 
   // ensures that Status Page height fits the window
@@ -121,10 +124,8 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
-    console.log(this.state.availableHeight)
-    const {rowHeight, resizeCoords} = this.state
+    const {rowHeight, resizeCoords, availableHeight, scrollTop} = this.state
     const isDashboard = !!this.props.onPositionChange
-    console.log(cells)
     const filteredCells = cells.filter(this.lazyLoadFilter)
 
     return (
@@ -138,7 +139,7 @@ class LayoutRenderer extends Component {
           }}
         >
           <GridLayout
-            layout={filteredCells}
+            layout={cells}
             cols={12}
             rowHeight={rowHeight}
             margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
@@ -150,34 +151,40 @@ class LayoutRenderer extends Component {
             isDraggable={isDashboard}
             isResizable={isDashboard}
           >
-            {filteredCells.map(cell =>
+            {cells.map((cell, i) =>
               <div key={cell.i}>
-                <Authorized
-                  requiredRole={EDITOR_ROLE}
-                  propsOverride={{
-                    isEditable: false,
-                  }}
-                >
-                  <Layout
-                    key={cell.i}
-                    cell={cell}
-                    host={host}
-                    source={source}
-                    onZoom={onZoom}
-                    sources={sources}
-                    templates={templates}
-                    timeRange={timeRange}
-                    isEditable={isEditable}
-                    onEditCell={onEditCell}
-                    resizeCoords={resizeCoords}
-                    autoRefresh={autoRefresh}
-                    manualRefresh={manualRefresh}
-                    onDeleteCell={onDeleteCell}
-                    synchronizer={synchronizer}
-                    onCancelEditCell={onCancelEditCell}
-                    onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-                  />
-                </Authorized>
+                {cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT <
+                  availableHeight + scrollTop &&
+                (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT > scrollTop
+                  ? <Authorized
+                      requiredRole={EDITOR_ROLE}
+                      propsOverride={{
+                        isEditable: false,
+                      }}
+                    >
+                      <Layout
+                        key={cell.i}
+                        cell={cell}
+                        host={host}
+                        source={source}
+                        onZoom={onZoom}
+                        sources={sources}
+                        templates={templates}
+                        timeRange={timeRange}
+                        isEditable={isEditable}
+                        onEditCell={onEditCell}
+                        resizeCoords={resizeCoords}
+                        autoRefresh={autoRefresh}
+                        manualRefresh={manualRefresh}
+                        onDeleteCell={onDeleteCell}
+                        synchronizer={synchronizer}
+                        onCancelEditCell={onCancelEditCell}
+                        onSummonOverlayTechnologies={
+                          onSummonOverlayTechnologies
+                        }
+                      />
+                    </Authorized>
+                  : null}
               </div>
             )}
           </GridLayout>
