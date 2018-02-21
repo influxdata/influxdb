@@ -5,14 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 )
 
+const (
+	limitQuery  = "limit"
+	offsetQuery = "offset"
+)
+
 type dbLinks struct {
-	Self string `json:"self"`              // Self link mapping to this resource
-	RPs  string `json:"retentionPolicies"` // URL for retention policies for this database
+	Self         string `json:"self"`              // Self link mapping to this resource
+	RPs          string `json:"retentionPolicies"` // URL for retention policies for this database
+	Measurements string `json:"measurements"`      // URL for measurements for this database
 }
 
 type dbResponse struct {
@@ -31,8 +39,9 @@ func newDBResponse(srcID int, name string, rps []rpResponse) dbResponse {
 		Name: name,
 		RPs:  rps,
 		Links: dbLinks{
-			Self: fmt.Sprintf("%s/%d/dbs/%s", base, srcID, name),
-			RPs:  fmt.Sprintf("%s/%d/dbs/%s/rps", base, srcID, name),
+			Self:         fmt.Sprintf("%s/%d/dbs/%s", base, srcID, name),
+			RPs:          fmt.Sprintf("%s/%d/dbs/%s/rps", base, srcID, name),
+			Measurements: fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=100&offset=0", base, srcID, name),
 		},
 	}
 }
@@ -64,6 +73,36 @@ func (r *rpResponse) WithLinks(srcID int, dbName string) {
 
 type rpsResponse struct {
 	RetentionPolicies []rpResponse `json:"retentionPolicies"`
+}
+
+type measurementLinks struct {
+	Self  string `json:"self"`
+	First string `json:"first"`
+	Next  string `json:"next,omitempty"`
+	Prev  string `json:"prev,omitempty"`
+}
+
+func newMeasurementLinks(src int, db string, limit, offset int) measurementLinks {
+	if limit <= 0 {
+		limit = 100
+	}
+
+	base := "/chronograf/v1/sources"
+	res := measurementLinks{
+		Self:  fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=%d&offset=%d", base, src, db, limit, offset),
+		First: fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=%d&offset=0", base, src, db, limit),
+		Next:  fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=%d&offset=%d", base, src, db, limit, offset+limit),
+	}
+	if offset-limit > 0 {
+		res.Prev = fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=%d&offset=%d", base, src, db, limit, offset-limit)
+	}
+
+	return res
+}
+
+type measurementsResponse struct {
+	Measurements []chronograf.Measurement `json:"measurements"` // names of all measurements
+	Links        measurementLinks         `json:"links"`        // Links are the URI locations for measurements pages
 }
 
 // GetDatabases queries the list of all databases for a source
@@ -386,6 +425,81 @@ func (s *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Measurements lists measurements within a database
+func (h *Service) Measurements(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	limit, offset, err := validMeasurementQuery(r.URL.Query())
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	src, err := h.Store.Sources(ctx).Get(ctx, srcID)
+	if err != nil {
+		notFound(w, srcID, h.Logger)
+		return
+	}
+
+	db := h.Databases
+	if err = db.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	dbID := httprouter.GetParamFromContext(ctx, "dbid")
+	measurements, err := db.AllMeasurements(ctx, dbID, limit, offset)
+	if err != nil {
+		msg := fmt.Sprintf("Unable to get measurements %d: %v", srcID, err)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	res := measurementsResponse{
+		Measurements: measurements,
+		Links:        newMeasurementLinks(srcID, dbID, limit, offset),
+	}
+
+	encodeJSON(w, http.StatusOK, res, h.Logger)
+}
+
+func validMeasurementQuery(query url.Values) (limit, offset int, err error) {
+	limitParam := query.Get(limitQuery)
+	if limitParam == "" {
+		limit = 100
+	} else {
+		limit, err = strconv.Atoi(limitParam)
+		if err != nil {
+			return
+		}
+		if limit <= 0 {
+			limit = 100
+		}
+	}
+
+	offsetParam := query.Get(offsetQuery)
+	if offsetParam == "" {
+		offset = 0
+	} else {
+		offset, err = strconv.Atoi(offsetParam)
+		if err != nil {
+			return
+		}
+		if offset < 0 {
+			offset = 0
+		}
+	}
+
+	return
 }
 
 // ValidDatabaseRequest checks if the database posted is valid

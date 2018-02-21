@@ -11,12 +11,7 @@ import (
 
 // AllDB returns all databases from within Influx
 func (c *Client) AllDB(ctx context.Context) ([]chronograf.Database, error) {
-	databases, err := c.showDatabases(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return databases, nil
+	return c.showDatabases(ctx)
 }
 
 // CreateDB creates a database within Influx
@@ -47,12 +42,7 @@ func (c *Client) DropDB(ctx context.Context, database string) error {
 
 // AllRP returns all the retention policies for a specific database
 func (c *Client) AllRP(ctx context.Context, database string) ([]chronograf.RetentionPolicy, error) {
-	retentionPolicies, err := c.showRetentionPolicies(ctx, database)
-	if err != nil {
-		return nil, err
-	}
-
-	return retentionPolicies, nil
+	return c.showRetentionPolicies(ctx, database)
 }
 
 func (c *Client) getRP(ctx context.Context, db, name string) (chronograf.RetentionPolicy, error) {
@@ -161,6 +151,11 @@ func (c *Client) DropRP(ctx context.Context, database string, rp string) error {
 	return nil
 }
 
+// AllMeasurements returns all measurements for a specific database
+func (c *Client) AllMeasurements(ctx context.Context, database string, limit, offset int) ([]chronograf.Measurement, error) {
+	return c.showMeasurements(ctx, database, limit, offset)
+}
+
 func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, error) {
 	res, err := c.Query(ctx, chronograf.Query{
 		Command: `SHOW DATABASES`,
@@ -201,4 +196,35 @@ func (c *Client) showRetentionPolicies(ctx context.Context, name string) ([]chro
 	}
 
 	return results.RetentionPolicies(), nil
+}
+
+func (c *Client) showMeasurements(ctx context.Context, name string, limit, offset int) ([]chronograf.Measurement, error) {
+	show := fmt.Sprintf(`SHOW MEASUREMENTS ON "%s"`, name)
+	if limit > 0 {
+		show += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	if offset > 0 {
+		show += fmt.Sprintf(" OFFSET %d", offset)
+	}
+
+	measurements, err := c.Query(ctx, chronograf.Query{
+		Command: show,
+		DB:      name,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	octets, err := measurements.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	results := showResults{}
+	if err := json.Unmarshal(octets, &results); err != nil {
+		return nil, err
+	}
+
+	return results.Measurements(), nil
 }

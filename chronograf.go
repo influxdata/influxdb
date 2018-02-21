@@ -475,6 +475,11 @@ type RetentionPolicy struct {
 	Default       bool   `json:"isDefault,omitempty"`     // whether the RP should be the default
 }
 
+// Measurement represents a measurement in a time series source
+type Measurement struct {
+	Name string `json:"name"` // a unique string identifier for the measurement
+}
+
 // Databases represents a databases in a time series source
 type Databases interface {
 	// All lists all databases
@@ -482,10 +487,13 @@ type Databases interface {
 	Connect(context.Context, *Source) error
 	CreateDB(context.Context, *Database) (*Database, error)
 	DropDB(context.Context, string) error
+
 	AllRP(context.Context, string) ([]RetentionPolicy, error)
 	CreateRP(context.Context, string, *RetentionPolicy) (*RetentionPolicy, error)
 	UpdateRP(context.Context, string, string, *RetentionPolicy) (*RetentionPolicy, error)
 	DropRP(context.Context, string, string) error
+
+	AllMeasurements(ctx context.Context, db string, limit, offset int) ([]Measurement, error)
 }
 
 // Annotation represents a time-based metadata associated with a source
