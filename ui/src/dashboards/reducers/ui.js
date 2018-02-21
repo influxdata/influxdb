@@ -40,7 +40,6 @@ export default function ui(state = initialState, action) {
           d => (d.id === dashboard.id ? dashboard : d)
         ),
       }
-
       return {...state, ...newState}
     }
 
@@ -286,11 +285,11 @@ export default function ui(state = initialState, action) {
                 ...dashboard,
                 templates: dashboard.templates.map(
                   template =>
-                    template.id === templateID
+                    template.id === templateID && template.type !== 'csv'
                       ? {
                           ...template,
-                          values: values.map((value, i) => ({
-                            selected: i === 0,
+                          values: values.map(value => ({
+                            selected: template.values[0].value === value,
                             value,
                             type: TEMPLATE_VARIABLE_TYPES[template.type],
                           })),
