@@ -1743,18 +1743,6 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], int64(len(level2Groups)))
 			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], int64(len(level3Groups)))
 
-			run1 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[0])
-			run2 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[1])
-			run3 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
-			run4 := atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
-
-			e.traceLogger.Info(fmt.Sprintf("compact id=%d (%d/%d) (%d/%d) (%d/%d) (%d/%d)",
-				e.id,
-				run1, len(level1Groups),
-				run2, len(level2Groups),
-				run3, len(level3Groups),
-				run4, len(level4Groups)))
-
 			// Set the queue depths on the scheduler
 			e.scheduler.setDepth(1, len(level1Groups))
 			e.scheduler.setDepth(2, len(level2Groups))
@@ -1763,18 +1751,6 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 
 			// Find the next compaction that can run and try to kick it off
 			if level, runnable := e.scheduler.next(); runnable {
-				run1 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[0])
-				run2 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[1])
-				run3 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
-				run4 := atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
-
-				e.traceLogger.Info(fmt.Sprintf("compact run=%d id=%d (%d/%d) (%d/%d) (%d/%d) (%d/%d)",
-					level, e.id,
-					run1, len(level1Groups),
-					run2, len(level2Groups),
-					run3, len(level3Groups),
-					run4, len(level4Groups)))
-
 				switch level {
 				case 1:
 					if e.compactHiPriorityLevel(level1Groups[0], 1, false, wg) {
