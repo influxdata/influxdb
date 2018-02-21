@@ -106,7 +106,7 @@ class AnnotationPoint extends React.Component {
         data-time-local={humanTime}
       >
         <div
-          style={style.clickArea(isDragging, isEditing)}
+          style={style.clickArea(isEditing)}
           draggable={true}
           onDrag={this.handleDrag}
           onDragStart={this.handleDragStart}

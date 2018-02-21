@@ -12,19 +12,6 @@ class AnnotationSpan extends React.Component {
     isMouseOver: false,
   }
 
-  handleStartDrag = () => {
-    const {mode} = this.props
-    if (mode !== EDITING) {
-      return
-    }
-
-    this.setState({isDragging: true})
-  }
-
-  handleStopDrag = () => {
-    this.setState({isDragging: false})
-  }
-
   handleMouseEnter = () => {
     this.setState({isMouseOver: true})
   }
@@ -38,20 +25,33 @@ class AnnotationSpan extends React.Component {
     this.setState({isDragging: false, isMouseOver: false})
   }
 
-  handleDrag = e => {
-    if (!this.state.isDragging) {
+  handleStartDrag = () => {
+    console.log('??')
+    this.setState({isDragging: true})
+  }
+
+  handleStopDrag = () => {
+    this.setState({isDragging: false})
+  }
+
+  handleDrag = timeProp => e => {
+    if (this.props.mode !== EDITING) {
       return
     }
 
     const {pageX} = e
     const {annotation, dygraph, onUpdateAnnotation} = this.props
-    const {startTime} = annotation
+
+    if (pageX === 0) {
+      return
+    }
+
+    const oldTime = +annotation[timeProp]
     const {left} = dygraph.graphDiv.getBoundingClientRect()
     const [startX, endX] = dygraph.xAxisRange()
 
     const graphX = pageX - left
     let newTime = dygraph.toDataXCoord(graphX)
-    const oldTime = +startTime
 
     const minPercentChange = 0.5
 
@@ -73,70 +73,56 @@ class AnnotationSpan extends React.Component {
       newTime = startX
     }
 
-    onUpdateAnnotation({...annotation, startTime: `${newTime}`})
+    onUpdateAnnotation({...annotation, [timeProp]: `${newTime}`})
 
     e.preventDefault()
     e.stopPropagation()
   }
 
-  renderLeftMarker(annotation, dygraph) {
+  renderLeftMarker(startTime, dygraph) {
     const isEditing = this.props.mode === EDITING
-    const humanTime = `${new Date(+annotation.startTime)}`
+    const humanTime = `${new Date(+startTime)}`
     const {isMouseOver, isDragging} = this.state
 
     return (
       <div
         className="dygraph-annotation"
-        style={style.annotation(
-          annotation.startTime,
-          dygraph,
-          isMouseOver,
-          isDragging
-        )}
-        data-time-ms={annotation.startTime}
+        style={style.annotation(startTime, dygraph, isMouseOver, isDragging)}
+        data-time-ms={startTime}
         data-time-local={humanTime}
       >
         <div
-          style={style.clickArea(isDragging, isEditing)}
-          onMouseMove={this.handleDrag}
-          onMouseDown={this.handleStartDrag}
-          onMouseUp={this.handleStopDrag}
+          style={style.clickArea(isEditing)}
+          draggable={true}
+          onDrag={this.handleDrag('startTime')}
+          onDragStart={this.handleStartDrag}
+          onDragEnd={this.handleStopDrag}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
         <div style={style.flag(isMouseOver, isDragging, true, false)} />
-        <AnnotationTooltip
-          isEditing={isEditing}
-          annotation={annotation}
-          onMouseLeave={this.handleMouseLeave}
-          annotationState={this.state}
-        />
       </div>
     )
   }
 
-  renderRightMarker(annotation, dygraph) {
+  renderRightMarker(endTime, dygraph) {
     const isEditing = this.props.mode === EDITING
-    const humanTime = `${new Date(+annotation.startTime)}`
+    const humanTime = `${new Date(+endTime)}`
     const {isMouseOver, isDragging} = this.state
 
     return (
       <div
         className="dygraph-annotation"
-        style={style.annotation(
-          annotation.endTime,
-          dygraph,
-          isMouseOver,
-          isDragging
-        )}
-        data-time-ms={annotation.endTime}
+        style={style.annotation(endTime, dygraph, isMouseOver, isDragging)}
+        data-time-ms={endTime}
         data-time-local={humanTime}
       >
         <div
-          style={style.clickArea(isDragging, isEditing)}
-          onMouseMove={this.handleDrag}
-          onMouseDown={this.handleStartDrag}
-          onMouseUp={this.handleStopDrag}
+          style={style.clickArea(isEditing)}
+          draggable={true}
+          onDrag={this.handleDrag('endTime')}
+          onDragStart={this.handleStartDrag}
+          onDragEnd={this.handleStopDrag}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
@@ -147,16 +133,23 @@ class AnnotationSpan extends React.Component {
 
   render() {
     const {annotation, dygraph} = this.props
+    const isEditing = this.props.mode === EDITING
 
     return (
       <div>
-        {this.renderLeftMarker(annotation, dygraph)}
-        {this.renderRightMarker(annotation, dygraph)}
         <AnnotationWindow
           key={annotation.id}
           annotation={annotation}
           dygraph={dygraph}
         />
+        <AnnotationTooltip
+          isEditing={isEditing}
+          annotation={annotation}
+          onMouseLeave={this.handleMouseLeave}
+          annotationState={this.state}
+        />
+        {this.renderLeftMarker(annotation.startTime, dygraph)}
+        {this.renderRightMarker(annotation.endTime, dygraph)}
       </div>
     )
   }

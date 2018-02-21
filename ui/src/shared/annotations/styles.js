@@ -34,6 +34,7 @@ export const flag = (mouseOver, dragging, hasDuration, isEndpoint) => {
       left: '0',
       border: '6px solid transparent',
       borderLeftColor: `rgb(${annotationColor})`,
+      borderRightColor: 'transparent',
       borderRadius: '0',
       background: 'none',
       transition: 'border-left-color 0.25s ease, transform 0.25s ease',
@@ -51,6 +52,7 @@ export const flag = (mouseOver, dragging, hasDuration, isEndpoint) => {
       right: '0',
       border: '6px solid transparent',
       borderRightColor: `rgb(${annotationColor})`,
+      borderLeftColor: 'transparent',
       borderRadius: '0',
       background: 'none',
       transition: 'border-right-color 0.25s ease, transform 0.25s ease',
@@ -59,19 +61,21 @@ export const flag = (mouseOver, dragging, hasDuration, isEndpoint) => {
   }
 
   if (dragging) {
-    if (hasDuration) {
-      return {
-        ...style,
-        transform: 'scale(1.5,1.5)',
-        borderLeftColor: `rgb(${annotationDragColor})`,
-      }
-    }
-
     if (isEndpoint) {
       return {
         ...style,
         transform: 'scale(1.5,1.5)',
         borderRightColor: `rgb(${annotationDragColor})`,
+        borderLeftColor: 'transparent',
+      }
+    }
+
+    if (hasDuration) {
+      return {
+        ...style,
+        transform: 'scale(1.5,1.5)',
+        borderLeftColor: `rgb(${annotationDragColor})`,
+        borderRightColor: 'transparent',
       }
     }
 
@@ -89,29 +93,16 @@ export const flag = (mouseOver, dragging, hasDuration, isEndpoint) => {
   return style
 }
 
-export const clickArea = (dragging, editing) => {
-  const style = {
-    position: 'absolute',
-    top: '-8px',
-    left: editing ? '-5px' : '-7px',
-    width: editing ? '12px' : '16px',
-    height: editing ? 'calc(100% + 8px)' : '16px',
-    zIndex: '4',
-    cursor: editing ? 'col-resize' : 'default',
-  }
-
-  if (dragging) {
-    return {
-      ...style,
-      width: '10000px',
-      left: '-5000px',
-      height: '10000px',
-      top: '-5000px',
-    }
-  }
-
-  return style
-}
+export const clickArea = editing => ({
+  position: 'absolute',
+  top: '-8px',
+  left: editing ? '-5px' : '-7px',
+  width: editing ? '12px' : '16px',
+  height: editing ? 'calc(100% + 8px)' : '16px',
+  zIndex: '4',
+  cursor: editing ? 'col-resize' : 'default',
+  border: '1px blue solid',
+})
 
 export const tooltip = annotationState => {
   const {isDragging, isMouseOver} = annotationState
