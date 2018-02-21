@@ -2,6 +2,7 @@
 ### Features
 ### UI Improvements
 ### Bug Fixes
+1. [#2821](https://github.com/influxdata/chronograf/pull/2821): Save only selected template variable values into dashboards for non csv template variables
 
 ## v1.4.1.3 [2018-02-14]
 ### Bug Fixes
