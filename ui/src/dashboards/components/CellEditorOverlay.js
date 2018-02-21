@@ -522,6 +522,13 @@ class CellEditorOverlay extends Component {
       this.props.onCancel()
     }
     if (e.key === 'Escape' && e.target !== this.overlayRef) {
+      const targetIsDropdown = e.target.classList[0] === 'dropdown'
+      const targetIsButton = e.target.tagName === 'BUTTON'
+
+      if (targetIsDropdown || targetIsButton) {
+        return this.props.onCancel()
+      }
+
       e.target.blur()
       this.overlayRef.focus()
     }
