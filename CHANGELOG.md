@@ -50,6 +50,7 @@ v1.5.0 [unreleased]
 -	[#9423](https://github.com/influxdata/influxdb/pull/9423): Fix imports of multiple databases in a single import file from `influx -import`.
 -	[#9443](https://github.com/influxdata/influxdb/pull/9443): Fix regression when math between literals is used in a field.
 -	[#9464](https://github.com/influxdata/influxdb/pull/9464): Re-open last WAL segment.
+-	[#9470](https://github.com/influxdata/influxdb/pull/9470): Make closing TSM cursors idempotent.
 
 v1.4.3 [unreleased]
 -------------------
