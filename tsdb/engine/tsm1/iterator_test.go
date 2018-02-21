@@ -146,3 +146,16 @@ func TestFinalizerIterator(t *testing.T) {
 		timer.Stop()
 	}
 }
+
+func TestBufCursor_DoubleClose(t *testing.T) {
+	c := newBufCursor(nilCursor{}, true)
+	if err := c.close(); err != nil {
+		t.Fatalf("error closing: %v", err)
+	}
+
+	// This shouldn't panic
+	if err := c.close(); err != nil {
+		t.Fatalf("error closing: %v", err)
+	}
+
+}
