@@ -69,14 +69,14 @@ class LayoutRenderer extends Component {
     this.setState({resizeCoords})
   }
 
-  handleWindowResize = () => {
-    this.setState({availableHeight: window.innerHeight})
-  }
-
   handleScroll = event => {
     this.setState({
       scrollTop: event.target.scrollTop,
     })
+  }
+
+  handleWindowResize = () => {
+    this.setState({availableHeight: window.innerHeight})
   }
 
   componentDidMount() {
@@ -90,15 +90,14 @@ class LayoutRenderer extends Component {
     window.removeEventListener('scroll', this.handleScroll, true)
   }
 
-  lazyLoadFilter = (cell, i) => {
-    console.log(cell, i)
+  lazyLoadFilter = cell => {
     const {isStatusPage} = this.props
+    const {availableHeight, scrollTop} = this.state
+
     if (isStatusPage) {
       return true
     }
-    const {availableHeight, scrollTop} = this.state
-    console.log(availableHeight, scrollTop, window.innerHeight)
-    // return true
+
     return (
       cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT < availableHeight + scrollTop &&
       (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT > scrollTop
@@ -128,6 +127,10 @@ class LayoutRenderer extends Component {
     const isDashboard = !!this.props.onPositionChange
     const filteredCells = cells.filter(this.lazyLoadFilter)
 
+    const mappedCells = cells.map(cell => {
+      return {...cell, dontload: !this.lazyLoadFilter(cell)}
+    })
+
     return (
       <Resizeable onResize={this.handleCellResize}>
         <Authorized
@@ -151,7 +154,7 @@ class LayoutRenderer extends Component {
             isDraggable={isDashboard}
             isResizable={isDashboard}
           >
-            {cells.map((cell, i) =>
+            {mappedCells.map(cell =>
               <div key={cell.i}>
                 {cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT <
                   availableHeight + scrollTop &&

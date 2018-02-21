@@ -76,6 +76,7 @@ const Layout = (
       ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
       : <RefreshingGraph
           colors={colors}
+          dontload={cell.dontload}
           axes={axes}
           type={type}
           cellHeight={h}
