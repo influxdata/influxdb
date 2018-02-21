@@ -195,7 +195,7 @@ export const getDashboardsAsync = () => async dispatch => {
   }
 }
 
-const dashboardWithOnlySelectedTemplateValues = dashboard => {
+const removeUnselectedTemplateValues = dashboard => {
   const templates = dashboard.templates.map(template => {
     const values =
       template.type === 'csv'
@@ -208,13 +208,23 @@ const dashboardWithOnlySelectedTemplateValues = dashboard => {
 
 export const putDashboard = dashboard => async dispatch => {
   try {
-    // for server, template var values should be all values for csv
-    // and should be only the selected value for non csv types
-    const templates = dashboardWithOnlySelectedTemplateValues(dashboard)
-    const {data} = await updateDashboardAJAX({...dashboard, templates})
-    // updateDashboardAJAX removed the values for the template variables
-    // when saving to the server
-    dispatch(updateDashboard({...data, templates: dashboard.templates}))
+    // save only selected template values to server
+    const templatesWithOnlySelectedValues = removeUnselectedTemplateValues(
+      dashboard
+    )
+    const {
+      data: dashboardWithOnlySelectedTemplateValues,
+    } = await updateDashboardAJAX({
+      ...dashboard,
+      templates: templatesWithOnlySelectedValues,
+    })
+    // save all template values to redux
+    dispatch(
+      updateDashboard({
+        ...dashboardWithOnlySelectedTemplateValues,
+        templates: dashboard.templates,
+      })
+    )
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -225,7 +235,7 @@ export const putDashboardByID = dashboardID => async (dispatch, getState) => {
   try {
     const {dashboardUI: {dashboards}} = getState()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
-    const templates = dashboardWithOnlySelectedTemplateValues(dashboard)
+    const templates = removeUnselectedTemplateValues(dashboard)
     await updateDashboardAJAX({...dashboard, templates})
   } catch (error) {
     console.error(error)
