@@ -7,7 +7,7 @@ import {
   getSingleStatType,
 } from 'src/dashboards/constants/gaugeColors'
 
-const initialState = {
+export const initialState = {
   cell: null,
   singleStatType: SINGLE_STAT_TEXT,
   singleStatColors: DEFAULT_SINGLESTAT_COLORS,
