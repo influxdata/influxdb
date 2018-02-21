@@ -30,6 +30,7 @@ type cursorAt interface {
 
 type nilCursor struct {}
 func (nilCursor) next() (int64, interface{}) { return tsdb.EOF, nil }
+func (nilCursor) close() error { return nil }
 
 // bufCursor implements a bufferred cursor.
 type bufCursor struct {
@@ -48,6 +49,10 @@ func newBufCursor(cur cursor, ascending bool) *bufCursor {
 }
 
 func (c *bufCursor) close() error {
+	if c.cur == nil {
+		return nil
+	}
+
 	err := c.cur.close()
 	c.cur = nil
 	return err
@@ -409,6 +414,10 @@ func (c *{{.name}}AscendingCursor) peekTSM() (t int64, v {{.Type}}) {
 
 // close closes the cursor and any dependent cursors.
 func (c *{{.name}}AscendingCursor) close() (error) {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -526,6 +535,10 @@ func (c *{{.name}}DescendingCursor) peekTSM() (t int64, v {{.Type}}) {
 
 // close closes the cursor and any dependent cursors.
 func (c *{{.name}}DescendingCursor) close() (error) {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil

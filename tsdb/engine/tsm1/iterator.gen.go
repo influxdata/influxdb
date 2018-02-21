@@ -37,6 +37,7 @@ type cursorAt interface {
 type nilCursor struct{}
 
 func (nilCursor) next() (int64, interface{}) { return tsdb.EOF, nil }
+func (nilCursor) close() error               { return nil }
 
 // bufCursor implements a bufferred cursor.
 type bufCursor struct {
@@ -55,6 +56,10 @@ func newBufCursor(cur cursor, ascending bool) *bufCursor {
 }
 
 func (c *bufCursor) close() error {
+	if c.cur == nil {
+		return nil
+	}
+
 	err := c.cur.close()
 	c.cur = nil
 	return err
@@ -411,6 +416,10 @@ func (c *floatAscendingCursor) peekTSM() (t int64, v float64) {
 
 // close closes the cursor and any dependent cursors.
 func (c *floatAscendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -528,6 +537,10 @@ func (c *floatDescendingCursor) peekTSM() (t int64, v float64) {
 
 // close closes the cursor and any dependent cursors.
 func (c *floatDescendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -875,6 +888,10 @@ func (c *integerAscendingCursor) peekTSM() (t int64, v int64) {
 
 // close closes the cursor and any dependent cursors.
 func (c *integerAscendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -992,6 +1009,10 @@ func (c *integerDescendingCursor) peekTSM() (t int64, v int64) {
 
 // close closes the cursor and any dependent cursors.
 func (c *integerDescendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -1339,6 +1360,10 @@ func (c *unsignedAscendingCursor) peekTSM() (t int64, v uint64) {
 
 // close closes the cursor and any dependent cursors.
 func (c *unsignedAscendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -1456,6 +1481,10 @@ func (c *unsignedDescendingCursor) peekTSM() (t int64, v uint64) {
 
 // close closes the cursor and any dependent cursors.
 func (c *unsignedDescendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -1803,6 +1832,10 @@ func (c *stringAscendingCursor) peekTSM() (t int64, v string) {
 
 // close closes the cursor and any dependent cursors.
 func (c *stringAscendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -1920,6 +1953,10 @@ func (c *stringDescendingCursor) peekTSM() (t int64, v string) {
 
 // close closes the cursor and any dependent cursors.
 func (c *stringDescendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -2267,6 +2304,10 @@ func (c *booleanAscendingCursor) peekTSM() (t int64, v bool) {
 
 // close closes the cursor and any dependent cursors.
 func (c *booleanAscendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
@@ -2384,6 +2425,10 @@ func (c *booleanDescendingCursor) peekTSM() (t int64, v bool) {
 
 // close closes the cursor and any dependent cursors.
 func (c *booleanDescendingCursor) close() error {
+	if c.tsm.keyCursor == nil {
+		return nil
+	}
+
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
 	c.cache.values = nil
