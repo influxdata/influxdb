@@ -244,6 +244,8 @@ class DashboardPage extends Component {
       manualRefresh,
       onManualRefresh,
       cellQueryStatus,
+      singleStatType,
+      singleStatColors,
       dashboardActions,
       inPresentationMode,
       handleChooseAutoRefresh,
@@ -348,6 +350,8 @@ class DashboardPage extends Component {
               onCancel={handleHideCellEditorOverlay}
               templates={templatesIncludingDashTime}
               editQueryStatus={dashboardActions.editCellQueryStatus}
+              singleStatType={singleStatType}
+              singleStatColors={singleStatColors}
             />
           : null}
         <DashboardHeader
@@ -473,6 +477,8 @@ DashboardPage.propTypes = {
   handleShowCellEditorOverlay: func.isRequired,
   handleHideCellEditorOverlay: func.isRequired,
   selectedCell: shape({}),
+  singleStatType: string.isRequired,
+  singleStatColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -485,7 +491,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
-    cellEditorOverlay: {cell},
+    cellEditorOverlay: {cell, singleStatType, singleStatColors},
   } = state
   const meRole = _.get(me, 'role', null)
 
@@ -511,6 +517,8 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     meRole,
     isUsingAuth,
     selectedCell,
+    singleStatType,
+    singleStatColors,
   }
 }
 

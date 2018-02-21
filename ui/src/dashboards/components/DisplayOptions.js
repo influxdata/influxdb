@@ -38,7 +38,6 @@ class DisplayOptions extends Component {
     const {
       cell,
       gaugeColors,
-      singleStatColors,
       onSetBase,
       onSetScale,
       onSetLabel,
@@ -46,13 +45,10 @@ class DisplayOptions extends Component {
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
       onAddGaugeThreshold,
-      onAddSingleStatThreshold,
       onDeleteThreshold,
       onChooseColor,
       onValidateColorValue,
       onUpdateColorValue,
-      singleStatType,
-      onToggleSingleStatType,
       onSetSuffix,
     } = this.props
     const {axes, axes: {y: {suffix}}} = this.state
@@ -70,20 +66,7 @@ class DisplayOptions extends Component {
           />
         )
       case 'single-stat':
-        return (
-          <SingleStatOptions
-            colors={singleStatColors}
-            suffix={suffix}
-            onSetSuffix={onSetSuffix}
-            onChooseColor={onChooseColor}
-            onValidateColorValue={onValidateColorValue}
-            onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddSingleStatThreshold}
-            onDeleteThreshold={onDeleteThreshold}
-            singleStatType={singleStatType}
-            onToggleSingleStatType={onToggleSingleStatType}
-          />
-        )
+        return <SingleStatOptions suffix={suffix} onSetSuffix={onSetSuffix} />
       default:
         return (
           <AxesOptions
@@ -113,7 +96,6 @@ const {arrayOf, func, number, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
   onAddGaugeThreshold: func.isRequired,
-  onAddSingleStatThreshold: func.isRequired,
   onDeleteThreshold: func.isRequired,
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
@@ -138,18 +120,7 @@ DisplayOptions.propTypes = {
       value: number.isRequired,
     }).isRequired
   ),
-  singleStatColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
   queryConfigs: arrayOf(shape()).isRequired,
-  singleStatType: string.isRequired,
-  onToggleSingleStatType: func.isRequired,
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell}}) => ({

@@ -22,3 +22,17 @@ export const renameCell = cellName => ({
     cellName,
   },
 })
+
+export const updateSingleStatColors = singleStatColors => ({
+  type: 'UPDATE_SINGLE_STAT_COLORS',
+  payload: {
+    singleStatColors,
+  },
+})
+
+export const updateSingleStatType = singleStatType => ({
+  type: 'UPDATE_SINGLE_STAT_TYPE',
+  payload: {
+    singleStatType,
+  },
+})

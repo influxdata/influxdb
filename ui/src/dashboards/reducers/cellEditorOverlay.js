@@ -1,13 +1,25 @@
+import {
+  SINGLE_STAT_TEXT,
+  DEFAULT_SINGLESTAT_COLORS,
+  validateSingleStatColors,
+  getSingleStatType,
+} from 'src/dashboards/constants/gaugeColors'
+
 const initialState = {
   cell: null,
+  singleStatType: SINGLE_STAT_TEXT,
+  singleStatColors: DEFAULT_SINGLESTAT_COLORS,
 }
 
 export default function cellEditorOverlay(state = initialState, action) {
   switch (action.type) {
     case 'SHOW_CELL_EDITOR_OVERLAY': {
-      const {cell} = action.payload
+      const {cell, cell: {colors}} = action.payload
 
-      return {...state, cell}
+      const singleStatType = getSingleStatType(colors)
+      const singleStatColors = validateSingleStatColors(colors, singleStatType)
+
+      return {...state, cell, singleStatType, singleStatColors}
     }
 
     case 'HIDE_CELL_EDITOR_OVERLAY': {
@@ -28,6 +40,23 @@ export default function cellEditorOverlay(state = initialState, action) {
       const cell = {...state.cell, name: cellName}
 
       return {...state, cell}
+    }
+
+    case 'UPDATE_SINGLE_STAT_COLORS': {
+      const {singleStatColors} = action.payload
+
+      return {...state, singleStatColors}
+    }
+
+    case 'UPDATE_SINGLE_STAT_TYPE': {
+      const {singleStatType} = action.payload
+
+      const singleStatColors = state.singleStatColors.map(color => ({
+        ...color,
+        type: singleStatType,
+      }))
+
+      return {...state, singleStatType, singleStatColors}
     }
   }
 

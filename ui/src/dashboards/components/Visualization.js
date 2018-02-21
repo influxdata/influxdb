@@ -1,4 +1,6 @@
 import React, {PropTypes} from 'react'
+import {connect} from 'react-redux'
+
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
@@ -9,40 +11,41 @@ const DashVisualization = (
   {
     axes,
     type,
-    colors,
     templates,
     timeRange,
     autoRefresh,
     queryConfigs,
     editQueryStatus,
     resizerTopHeight,
+    singleStatColors,
   },
   {source: {links: {proxy}}}
-) =>
-  <div className="graph">
-    <VisualizationName />
-    <div className="graph-container">
-      <RefreshingGraph
-        colors={stringifyColorValues(colors)}
-        axes={axes}
-        type={type}
-        queries={buildQueries(proxy, queryConfigs, timeRange)}
-        templates={templates}
-        autoRefresh={autoRefresh}
-        editQueryStatus={editQueryStatus}
-        resizerTopHeight={resizerTopHeight}
-      />
+) => {
+  // const colors = type === 'gauge' ? gaugeColors : singleStatColors
+
+  return (
+    <div className="graph">
+      <VisualizationName />
+      <div className="graph-container">
+        <RefreshingGraph
+          colors={stringifyColorValues(singleStatColors)}
+          axes={axes}
+          type={type}
+          queries={buildQueries(proxy, queryConfigs, timeRange)}
+          templates={templates}
+          autoRefresh={autoRefresh}
+          editQueryStatus={editQueryStatus}
+          resizerTopHeight={resizerTopHeight}
+        />
+      </div>
     </div>
-  </div>
+  )
+}
 
 const {arrayOf, func, number, shape, string} = PropTypes
 
-DashVisualization.defaultProps = {
-  type: '',
-}
-
 DashVisualization.propTypes = {
-  type: string,
+  type: string.isRequired,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),
   timeRange: shape({
@@ -57,15 +60,11 @@ DashVisualization.propTypes = {
     }),
   }),
   resizerTopHeight: number,
-  colors: arrayOf(
+  singleStatColors: arrayOf(
     shape({
       type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    })
-  ),
+    }).isRequired
+  ).isRequired,
 }
 
 DashVisualization.contextTypes = {
@@ -76,4 +75,11 @@ DashVisualization.contextTypes = {
   }).isRequired,
 }
 
-export default DashVisualization
+const mapStateToProps = ({
+  cellEditorOverlay: {singleStatColors, cell: {type}},
+}) => ({
+  singleStatColors,
+  type,
+})
+
+export default connect(mapStateToProps, null)(DashVisualization)
