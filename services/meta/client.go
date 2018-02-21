@@ -7,7 +7,6 @@ import (
 	crand "crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -800,16 +799,23 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 				nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
 				// if it already exists, continue
 				if sg, _ := data.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); sg != nil {
-					c.logger.Info(fmt.Sprintf("shard group %d exists for database %s, retention policy %s", sg.ID, di.Name, rp.Name))
+					c.logger.Info("Shard group already exists",
+						zap.Uint64("id", sg.ID),
+						zap.String("db", di.Name),
+						zap.String("rp", rp.Name))
 					continue
 				}
 				newGroup, err := createShardGroup(data, di.Name, rp.Name, nextShardGroupTime)
 				if err != nil {
-					c.logger.Info(fmt.Sprintf("failed to precreate successive shard group for group %d: %s", g.ID, err.Error()))
+					c.logger.Info("Failed to precreate successive shard group",
+						zap.Uint64("group_id", g.ID), zap.Error(err))
 					continue
 				}
 				changed = true
-				c.logger.Info(fmt.Sprintf("new shard group %d successfully precreated for database %s, retention policy %s", newGroup.ID, di.Name, rp.Name))
+				c.logger.Info("New shard group successfully precreated",
+					zap.Uint64("group_id", newGroup.ID),
+					zap.String("db", di.Name),
+					zap.String("rp", rp.Name))
 			}
 		}
 	}

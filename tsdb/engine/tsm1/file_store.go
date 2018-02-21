@@ -483,7 +483,10 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			f.logger.Info(fmt.Sprintf("%s (#%d) opened in %v", file.Name(), idx, time.Since(start)))
+			f.logger.Info("Opened file",
+				zap.String("path", file.Name()),
+				zap.Int("id", idx),
+				zap.Duration("duration", time.Since(start)))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -926,7 +929,7 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
 func (f *FileStore) CreateSnapshot() (string, error) {
-	f.traceLogger.Info(fmt.Sprintf("Creating snapshot in %s", f.dir))
+	f.traceLogger.Info("Creating snapshot", zap.String("dir", f.dir))
 	files := f.Files()
 
 	f.mu.Lock()
@@ -1275,12 +1278,12 @@ func (p *purger) purge() {
 			for k, v := range p.files {
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
-						p.logger.Info(fmt.Sprintf("purge: close file: %v", err))
+						p.logger.Info("Purge: close file", zap.Error(err))
 						continue
 					}
 
 					if err := v.Remove(); err != nil {
-						p.logger.Info(fmt.Sprintf("purge: remove file: %v", err))
+						p.logger.Info("Purge: remove file", zap.Error(err))
 						continue
 					}
 					delete(p.files, k)

@@ -96,11 +96,11 @@ func (m *Main) Run(args ...string) error {
 		cmd.Logger.Info("Waiting for clean shutdown...")
 		select {
 		case <-signalCh:
-			cmd.Logger.Info("second signal received, initializing hard shutdown")
+			cmd.Logger.Info("Second signal received, initializing hard shutdown")
 		case <-time.After(time.Second * 30):
-			cmd.Logger.Info("time limit reached, initializing hard shutdown")
+			cmd.Logger.Info("Time limit reached, initializing hard shutdown")
 		case <-cmd.Closed:
-			cmd.Logger.Info("server shutdown completed")
+			cmd.Logger.Info("Server shutdown completed")
 		}
 
 		// goodbye.

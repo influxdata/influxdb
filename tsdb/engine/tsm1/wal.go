@@ -184,8 +184,8 @@ func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL starting with %d segment size", l.SegmentSize))
-	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL writing to %s", l.path))
+	l.traceLogger.Info("tsm1 WAL starting", zap.Int("segment_size", l.SegmentSize))
+	l.traceLogger.Info("tsm1 WAL writing", zap.String("path", l.path))
 
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
@@ -359,7 +359,7 @@ func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, fn := range files {
-		l.traceLogger.Info(fmt.Sprintf("Removing %s", fn))
+		l.traceLogger.Info("Removing WAL file", zap.String("path", fn))
 		os.RemoveAll(fn)
 	}
 
@@ -532,7 +532,7 @@ func (l *WAL) Close() error {
 
 	l.once.Do(func() {
 		// Close, but don't set to nil so future goroutines can still be signaled
-		l.traceLogger.Info(fmt.Sprintf("Closing %s", l.path))
+		l.traceLogger.Info("Closing WAL file", zap.String("path", l.path))
 		close(l.closing)
 
 		if l.currentSegmentWriter != nil {

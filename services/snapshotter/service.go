@@ -93,10 +93,10 @@ func (s *Service) serve() {
 		// Wait for next connection.
 		conn, err := s.Listener.Accept()
 		if err != nil && strings.Contains(err.Error(), "connection closed") {
-			s.Logger.Info("snapshot listener closed")
+			s.Logger.Info("Listener closed")
 			return
 		} else if err != nil {
-			s.Logger.Info(fmt.Sprint("error accepting snapshot request: ", err.Error()))
+			s.Logger.Info("Error accepting snapshot request", zap.Error(err))
 			continue
 		}
 

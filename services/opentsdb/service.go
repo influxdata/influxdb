@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -134,7 +133,6 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.Logger.Info(fmt.Sprint("Listening on TLS: ", listener.Addr().String()))
 		s.ln = listener
 	} else {
 		listener, err := net.Listen("tcp", s.BindAddress)
@@ -142,9 +140,11 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.Logger.Info(fmt.Sprint("Listening on: ", listener.Addr().String()))
 		s.ln = listener
 	}
+	s.Logger.Info("Listening on TCP",
+		zap.Stringer("addr", s.ln.Addr()),
+		zap.Bool("tls", s.tls))
 	s.httpln = newChanListener(s.ln.Addr())
 
 	// Begin listening for connections.
@@ -294,10 +294,10 @@ func (s *Service) serve() {
 		// Wait for next connection.
 		conn, err := s.ln.Accept()
 		if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
-			s.Logger.Info("openTSDB TCP listener closed")
+			s.Logger.Info("OpenTSDB TCP listener closed")
 			return
 		} else if err != nil {
-			s.Logger.Info(fmt.Sprint("error accepting openTSDB: ", err.Error()))
+			s.Logger.Info("Error accepting OpenTSDB", zap.Error(err))
 			continue
 		}
 
@@ -355,7 +355,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		if err != nil {
 			if err != io.EOF {
 				atomic.AddInt64(&s.stats.TelnetReadError, 1)
-				s.Logger.Info(fmt.Sprint("error reading from openTSDB connection ", err.Error()))
+				s.Logger.Info("Error reading from OpenTSDB connection", zap.Error(err))
 			}
 			return
 		}
@@ -372,7 +372,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		if len(inputStrs) < 4 || inputStrs[0] != "put" {
 			atomic.AddInt64(&s.stats.TelnetBadLine, 1)
 			if s.LogPointErrors {
-				s.Logger.Info(fmt.Sprintf("malformed line '%s' from %s", line, remoteAddr))
+				s.Logger.Info("Malformed line", zap.String("line", line), zap.String("remote_addr", remoteAddr))
 			}
 			continue
 		}
@@ -387,7 +387,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		if err != nil {
 			atomic.AddInt64(&s.stats.TelnetBadTime, 1)
 			if s.LogPointErrors {
-				s.Logger.Info(fmt.Sprintf("malformed time '%s' from %s", tsStr, remoteAddr))
+				s.Logger.Info("Malformed time", zap.String("time", tsStr), zap.String("remote_addr", remoteAddr))
 			}
 		}
 
@@ -399,7 +399,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		default:
 			atomic.AddInt64(&s.stats.TelnetBadTime, 1)
 			if s.LogPointErrors {
-				s.Logger.Info(fmt.Sprintf("bad time '%s' must be 10 or 13 chars, from %s ", tsStr, remoteAddr))
+				s.Logger.Info("Time must be 10 or 13 chars", zap.String("time", tsStr), zap.String("remote_addr", remoteAddr))
 			}
 			continue
 		}
@@ -410,7 +410,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 				atomic.AddInt64(&s.stats.TelnetBadTag, 1)
 				if s.LogPointErrors {
-					s.Logger.Info(fmt.Sprintf("malformed tag data '%v' from %s", tagStrs[t], remoteAddr))
+					s.Logger.Info("Malformed tag data", zap.String("tag", tagStrs[t]), zap.String("remote_addr", remoteAddr))
 				}
 				continue
 			}
@@ -424,7 +424,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		if err != nil {
 			atomic.AddInt64(&s.stats.TelnetBadFloat, 1)
 			if s.LogPointErrors {
-				s.Logger.Info(fmt.Sprintf("bad float '%s' from %s", valueStr, remoteAddr))
+				s.Logger.Info("Bad float", zap.String("value", valueStr), zap.String("remote_addr", remoteAddr))
 			}
 			continue
 		}
@@ -434,7 +434,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		if err != nil {
 			atomic.AddInt64(&s.stats.TelnetBadFloat, 1)
 			if s.LogPointErrors {
-				s.Logger.Info(fmt.Sprintf("bad float '%s' from %s", valueStr, remoteAddr))
+				s.Logger.Info("Bad float", zap.String("value", valueStr), zap.String("remote_addr", remoteAddr))
 			}
 			continue
 		}
@@ -464,7 +464,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		case batch := <-batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
-				s.Logger.Info(fmt.Sprintf("Required database %s does not yet exist: %s", s.Database, err.Error()))
+				s.Logger.Info("Required database does not yet exist", zap.String("db", s.Database), zap.Error(err))
 				continue
 			}
 
@@ -472,7 +472,8 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				s.Logger.Info(fmt.Sprintf("failed to write point batch to database %q: %s", s.Database, err))
+				s.Logger.Info("Failed to write point batch to database",
+					zap.String("db", s.Database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 		}
