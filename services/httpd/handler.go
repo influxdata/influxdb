@@ -24,6 +24,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -421,7 +422,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 				h.Logger.Info("Unauthorized request",
 					zap.String("user", err.User),
 					zap.Stringer("query", err.Query),
-					zap.String("db", err.Database))
+					logger.Database(err.Database))
 			}
 			h.httpError(rw, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
@@ -981,7 +982,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 				h.Logger.Info("Unauthorized request",
 					zap.String("user", err.User),
 					zap.Stringer("query", err.Query),
-					zap.String("db", err.Database))
+					logger.Database(err.Database))
 			}
 			h.httpError(w, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return

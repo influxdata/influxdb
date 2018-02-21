@@ -463,7 +463,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
 				s.logger.Info("Failed to write point batch to database",
-					zap.String("db", s.database), zap.Error(err))
+					logger.Database(s.database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 

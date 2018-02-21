@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 
@@ -800,9 +801,9 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 				// if it already exists, continue
 				if sg, _ := data.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); sg != nil {
 					c.logger.Info("Shard group already exists",
-						zap.Uint64("id", sg.ID),
-						zap.String("db", di.Name),
-						zap.String("rp", rp.Name))
+						logger.ShardGroup(sg.ID),
+						logger.Database(di.Name),
+						logger.RetentionPolicy(rp.Name))
 					continue
 				}
 				newGroup, err := createShardGroup(data, di.Name, rp.Name, nextShardGroupTime)
@@ -813,9 +814,9 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 				}
 				changed = true
 				c.logger.Info("New shard group successfully precreated",
-					zap.Uint64("group_id", newGroup.ID),
-					zap.String("db", di.Name),
-					zap.String("rp", rp.Name))
+					logger.ShardGroup(newGroup.ID),
+					logger.Database(di.Name),
+					logger.RetentionPolicy(rp.Name))
 			}
 		}
 	}

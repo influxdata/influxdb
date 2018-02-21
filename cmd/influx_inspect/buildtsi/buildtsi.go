@@ -115,7 +115,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 }
 
 func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpName, dataDir, walDir string) error {
-	cmd.Logger.Info("rebuilding retention policy", zap.String("db", dbName), zap.String("rp", rpName))
+	cmd.Logger.Info("rebuilding retention policy", logger.Database(dbName), logger.RetentionPolicy(rpName))
 
 	fis, err := ioutil.ReadDir(dataDir)
 	if err != nil {
@@ -142,7 +142,7 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 }
 
 func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, shardID uint64, dataDir, walDir string) error {
-	cmd.Logger.Info("rebuilding shard", zap.String("db", dbName), zap.String("rp", rpName), zap.Uint64("shard", shardID))
+	cmd.Logger.Info("rebuilding shard", logger.Database(dbName), logger.RetentionPolicy(rpName), logger.Shard(shardID))
 
 	// Check if shard already has a TSI index.
 	indexPath := filepath.Join(dataDir, "index")

@@ -390,7 +390,7 @@ func (m *Monitor) createInternalStorage() {
 		}
 
 		if _, err := m.MetaClient.CreateDatabaseWithRetentionPolicy(m.storeDatabase, &spec); err != nil {
-			m.Logger.Info("Failed to create storage", zap.String("db", m.storeDatabase), zap.Error(err))
+			m.Logger.Info("Failed to create storage", logger.Database(m.storeDatabase), zap.Error(err))
 			return
 		}
 	}
@@ -417,7 +417,7 @@ func (m *Monitor) waitUntilInterval(d time.Duration) error {
 // storeStatistics writes the statistics to an InfluxDB system.
 func (m *Monitor) storeStatistics() {
 	defer m.wg.Done()
-	m.Logger.Info("Storing statistics", zap.String("db", m.storeDatabase), zap.String("rp", m.storeRetentionPolicy), logger.DurationLiteral("interval", m.storeInterval))
+	m.Logger.Info("Storing statistics", logger.Database(m.storeDatabase), logger.RetentionPolicy(m.storeRetentionPolicy), logger.DurationLiteral("interval", m.storeInterval))
 
 	// Wait until an even interval to start recording monitor statistics.
 	// If we are interrupted before the interval for some reason, exit early.

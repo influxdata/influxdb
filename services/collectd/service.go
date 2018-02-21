@@ -15,6 +15,7 @@ import (
 
 	"collectd.org/api"
 	"collectd.org/network"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -395,7 +396,7 @@ func (s *Service) writePoints() {
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
 				s.Logger.Info("Required database not yet created",
-					zap.String("db", s.Config.Database), zap.Error(err))
+					logger.Database(s.Config.Database), zap.Error(err))
 				continue
 			}
 
@@ -404,7 +405,7 @@ func (s *Service) writePoints() {
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
 				s.Logger.Info("Failed to write point batch to database",
-					zap.String("db", s.Config.Database), zap.Error(err))
+					logger.Database(s.Config.Database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 		}

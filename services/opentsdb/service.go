@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -464,7 +465,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		case batch := <-batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
-				s.Logger.Info("Required database does not yet exist", zap.String("db", s.Database), zap.Error(err))
+				s.Logger.Info("Required database does not yet exist", logger.Database(s.Database), zap.Error(err))
 				continue
 			}
 
@@ -473,7 +474,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
 				s.Logger.Info("Failed to write point batch to database",
-					zap.String("db", s.Database), zap.Error(err))
+					logger.Database(s.Database), zap.Error(err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 		}

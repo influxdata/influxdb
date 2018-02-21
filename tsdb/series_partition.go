@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/rhh"
 	"go.uber.org/zap"
@@ -258,10 +258,8 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	// Check if we've crossed the compaction threshold.
 	if p.compactionsEnabled() && !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
 		p.compacting = true
-		logger := p.Logger.With(zap.String("path", p.path))
-		logger.Info("beginning series partition compaction")
+		log, logEnd := logger.NewOperation(p.Logger, "Series partition compaction", "series_partition.compaction", zap.String("path", p.path))
 
-		startTime := time.Now()
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
@@ -269,10 +267,10 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 			compactor := NewSeriesPartitionCompactor()
 			compactor.cancel = p.closing
 			if err := compactor.Compact(p); err != nil {
-				logger.With(zap.Error(err)).Error("series partition compaction failed")
+				log.Error("series partition compaction failed", zap.Error(err))
 			}
 
-			logger.With(zap.Duration("elapsed", time.Since(startTime))).Info("completed series partition compaction")
+			logEnd()
 
 			// Clear compaction flag.
 			p.mu.Lock()

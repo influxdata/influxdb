@@ -360,13 +360,20 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		return false, fmt.Errorf("unable to set time range: %s", err)
 	}
 
-	var start time.Time
+	var (
+		start time.Time
+		log   = s.Logger
+	)
 	if s.loggingEnabled || s.queryStatsEnabled {
 		start = time.Now()
 	}
 
 	if s.loggingEnabled {
-		s.Logger.Info("Executing continuous query",
+		var logEnd func()
+		log, logEnd = logger.NewOperation(s.Logger, "Continuous query execution", "continuous_querier.execute")
+		defer logEnd()
+
+		log.Info("Executing continuous query",
 			zap.String("name", cq.Info.Name),
 			zap.Time("start", startTime),
 			zap.Time("end", endTime))
@@ -391,7 +398,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	if s.loggingEnabled {
-		s.Logger.Info("Finished continuous query",
+		log.Info("Finished continuous query",
 			zap.String("name", cq.Info.Name),
 			zap.Int64("written", written),
 			zap.Time("start", startTime),
