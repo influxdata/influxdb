@@ -29,7 +29,7 @@ const RefreshingGraph = ({
   editQueryStatus,
   grabDataForDownload,
 }) => {
-  if (preventLoad || !queries.length) {
+  if (!queries.length) {
     return (
       <div className="graph-empty">
         <p data-test="data-explorer-no-results">
@@ -79,7 +79,7 @@ const RefreshingGraph = ({
       axes={axes}
       colors={colors}
       onZoom={onZoom}
-      queries={queries}
+      queries={preventLoad ? [] : queries}
       key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
