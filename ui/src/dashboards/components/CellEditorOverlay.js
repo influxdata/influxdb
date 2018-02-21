@@ -28,7 +28,7 @@ class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {queries, axes}, sources} = props
+    const {cell: {queries}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -45,7 +45,6 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
-      axes,
     }
   }
 
@@ -67,7 +66,7 @@ class CellEditorOverlay extends Component {
   }
 
   handleSetSuffix = e => {
-    const {axes} = this.state
+    const {axes} = this.props.cell
 
     this.setState({
       axes: {
@@ -96,46 +95,6 @@ class CellEditorOverlay extends Component {
     this.setState({queriesWorkingDraft: nextQueries})
   }
 
-  handleSetYAxisBoundMin = min => {
-    const {axes} = this.state
-    const {y: {bounds: [, max]}} = axes
-
-    this.setState({
-      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
-    })
-  }
-
-  handleSetYAxisBoundMax = max => {
-    const {axes} = this.state
-    const {y: {bounds: [min]}} = axes
-
-    this.setState({
-      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
-    })
-  }
-
-  handleSetLabel = label => {
-    const {axes} = this.state
-
-    this.setState({axes: {...axes, y: {...axes.y, label}}})
-  }
-
-  handleSetPrefixSuffix = e => {
-    const {axes} = this.state
-    const {prefix, suffix} = e.target.form
-
-    this.setState({
-      axes: {
-        ...axes,
-        y: {
-          ...axes.y,
-          prefix: prefix.value,
-          suffix: suffix.value,
-        },
-      },
-    })
-  }
-
   handleAddQuery = () => {
     const {queriesWorkingDraft} = this.state
     const newIndex = queriesWorkingDraft.length
@@ -157,7 +116,7 @@ class CellEditorOverlay extends Component {
   }
 
   handleSaveCell = () => {
-    const {queriesWorkingDraft, axes} = this.state
+    const {queriesWorkingDraft} = this.state
 
     const {cell, singleStatColors, gaugeColors} = this.props
 
@@ -185,7 +144,6 @@ class CellEditorOverlay extends Component {
     this.props.onSave({
       ...cell,
       queries,
-      axes,
       colors,
     })
   }
@@ -196,34 +154,6 @@ class CellEditorOverlay extends Component {
 
   handleSetActiveQueryIndex = activeQueryIndex => {
     this.setState({activeQueryIndex})
-  }
-
-  handleSetBase = base => () => {
-    const {axes} = this.state
-
-    this.setState({
-      axes: {
-        ...axes,
-        y: {
-          ...axes.y,
-          base,
-        },
-      },
-    })
-  }
-
-  handleSetScale = scale => () => {
-    const {axes} = this.state
-
-    this.setState({
-      axes: {
-        ...axes,
-        y: {
-          ...axes.y,
-          scale,
-        },
-      },
-    })
   }
 
   handleSetQuerySource = source => {
@@ -325,7 +255,6 @@ class CellEditorOverlay extends Component {
     } = this.props
 
     const {
-      axes,
       activeQueryIndex,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
@@ -355,7 +284,6 @@ class CellEditorOverlay extends Component {
           initialBottomHeight={INITIAL_HEIGHTS.queryMaker}
         >
           <Visualization
-            axes={axes}
             timeRange={timeRange}
             templates={templates}
             autoRefresh={autoRefresh}
@@ -376,20 +304,8 @@ class CellEditorOverlay extends Component {
             />
             {isDisplayOptionsTabActive
               ? <DisplayOptions
-                  axes={axes}
-                  onChooseColor={this.handleChooseColor}
-                  onValidateColorValue={this.handleValidateColorValue}
-                  onUpdateColorValue={this.handleUpdateColorValue}
-                  onAddGaugeThreshold={this.handleAddGaugeThreshold}
-                  onDeleteThreshold={this.handleDeleteThreshold}
-                  onSetBase={this.handleSetBase}
-                  onSetLabel={this.handleSetLabel}
-                  onSetScale={this.handleSetScale}
                   queryConfigs={queriesWorkingDraft}
-                  onSetPrefixSuffix={this.handleSetPrefixSuffix}
                   onSetSuffix={this.handleSetSuffix}
-                  onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
-                  onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                 />
               : <QueryMaker
                   source={this.getSource()}

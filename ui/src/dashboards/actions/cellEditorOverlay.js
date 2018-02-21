@@ -43,3 +43,10 @@ export const updateGaugeColors = gaugeColors => ({
     gaugeColors,
   },
 })
+
+export const updateAxes = axes => ({
+  type: 'UPDATE_AXES',
+  payload: {
+    axes,
+  },
+})

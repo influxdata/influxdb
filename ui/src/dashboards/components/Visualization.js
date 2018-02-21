@@ -90,11 +90,12 @@ DashVisualization.contextTypes = {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatColors, gaugeColors, cell: {type}},
+  cellEditorOverlay: {singleStatColors, gaugeColors, cell: {type, axes}},
 }) => ({
   gaugeColors,
   singleStatColors,
   type,
+  axes,
 })
 
 export default connect(mapStateToProps, null)(DashVisualization)

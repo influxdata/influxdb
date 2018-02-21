@@ -68,6 +68,13 @@ export default function cellEditorOverlay(state = initialState, action) {
 
       return {...state, gaugeColors}
     }
+
+    case 'UPDATE_AXES': {
+      const {axes} = action.payload
+      const cell = {...state.cell, axes}
+
+      return {...state, cell}
+    }
   }
 
   return state

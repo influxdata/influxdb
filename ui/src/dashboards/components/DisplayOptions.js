@@ -35,17 +35,7 @@ class DisplayOptions extends Component {
   }
 
   renderOptions = () => {
-    const {
-      cell,
-      onSetBase,
-      onSetScale,
-      onSetLabel,
-      onSetPrefixSuffix,
-      onSetYAxisBoundMin,
-      onSetYAxisBoundMax,
-      onSetSuffix,
-    } = this.props
-    const {axes, axes: {y: {suffix}}} = this.state
+    const {cell, cell: {axes: {y: {suffix}}}, onSetSuffix} = this.props
 
     switch (cell.type) {
       case 'gauge':
@@ -53,18 +43,7 @@ class DisplayOptions extends Component {
       case 'single-stat':
         return <SingleStatOptions suffix={suffix} onSetSuffix={onSetSuffix} />
       default:
-        return (
-          <AxesOptions
-            cellType={cell.type}
-            axes={axes}
-            onSetBase={onSetBase}
-            onSetLabel={onSetLabel}
-            onSetScale={onSetScale}
-            onSetPrefixSuffix={onSetPrefixSuffix}
-            onSetYAxisBoundMin={onSetYAxisBoundMin}
-            onSetYAxisBoundMax={onSetYAxisBoundMax}
-          />
-        )
+        return <AxesOptions />
     }
   }
 
@@ -83,19 +62,20 @@ DisplayOptions.propTypes = {
   cell: shape({
     type: string.isRequired,
   }).isRequired,
-  onSetPrefixSuffix: func.isRequired,
+  axes: shape({
+    y: shape({
+      bounds: arrayOf(string),
+      label: string,
+      defaultYLabel: string,
+    }),
+  }).isRequired,
   onSetSuffix: func.isRequired,
-  onSetYAxisBoundMin: func.isRequired,
-  onSetYAxisBoundMax: func.isRequired,
-  onSetScale: func.isRequired,
-  onSetLabel: func.isRequired,
-  onSetBase: func.isRequired,
-  axes: shape({}).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell}}) => ({
+const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({
   cell,
+  axes,
 })
 
 export default connect(mapStateToProps, null)(DisplayOptions)
