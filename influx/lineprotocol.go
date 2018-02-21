@@ -31,8 +31,15 @@ var (
 	)
 )
 
-func toLineProtocol(point *chronograf.Point) string {
+func toLineProtocol(point *chronograf.Point) (string, error) {
 	measurement := escapeMeasurement.Replace(point.Measurement)
+	if len(measurement) == 0 {
+		return "", fmt.Errorf("measurement required to write point")
+	}
+	if len(point.Fields) == 0 {
+		return "", fmt.Errorf("at least one field required to write point")
+	}
+
 	tags := []string{}
 	for tag, value := range point.Tags {
 		if value != "" {
@@ -62,9 +69,16 @@ func toLineProtocol(point *chronograf.Point) string {
 			fields = append(fields, format)
 		}
 	}
-	return fmt.Sprintf("%s,%s %s %d\n",
-		measurement,
-		strings.Join(tags, ","),
-		strings.Join(fields, ","),
-		point.Time)
+	sort.Strings(fields)
+
+	lp := measurement
+	if len(tags) > 0 {
+		lp += fmt.Sprintf(",%s", strings.Join(tags, ","))
+	}
+
+	lp += fmt.Sprintf(" %s", strings.Join(fields, ","))
+	if point.Time != 0 {
+		lp += fmt.Sprintf(" %d", point.Time)
+	}
+	return lp, nil
 }
