@@ -30,7 +30,7 @@ class AnnotationPoint extends React.Component {
     this.setState({isDragging: true})
   }
 
-  handleDragStop = () => {
+  handleDragEnd = () => {
     const {annotation, updateAnnotationAsync} = this.props
     updateAnnotationAsync(annotation)
     this.setState({isDragging: false})
@@ -110,7 +110,7 @@ class AnnotationPoint extends React.Component {
           draggable={true}
           onDrag={this.handleDrag}
           onDragStart={this.handleDragStart}
-          onDragEnd={this.handleDragStop}
+          onDragEnd={this.handleDragEnd}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />

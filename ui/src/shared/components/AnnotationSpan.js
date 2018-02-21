@@ -1,8 +1,10 @@
 import React, {PropTypes} from 'react'
+import {connect} from 'react-redux'
 
 import {EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as style from 'shared/annotations/styles'
+import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
 import AnnotationWindow from 'shared/components/AnnotationWindow'
 
@@ -25,12 +27,23 @@ class AnnotationSpan extends React.Component {
     this.setState({isDragging: false, isMouseOver: false})
   }
 
-  handleStartDrag = () => {
-    console.log('??')
+  handleDragStart = () => {
     this.setState({isDragging: true})
   }
 
-  handleStopDrag = () => {
+  handleDragEnd = () => {
+    const {annotation, updateAnnotationAsync} = this.props
+    const [startTime, endTime] = [
+      annotation.startTime,
+      annotation.endTime,
+    ].sort()
+    const newAnnotation = {
+      ...annotation,
+      startTime,
+      endTime,
+    }
+    updateAnnotationAsync(newAnnotation)
+
     this.setState({isDragging: false})
   }
 
@@ -40,7 +53,7 @@ class AnnotationSpan extends React.Component {
     }
 
     const {pageX} = e
-    const {annotation, dygraph, onUpdateAnnotation} = this.props
+    const {annotation, dygraph, updateAnnotation} = this.props
 
     if (pageX === 0) {
       return
@@ -73,7 +86,7 @@ class AnnotationSpan extends React.Component {
       newTime = startX
     }
 
-    onUpdateAnnotation({...annotation, [timeProp]: `${newTime}`})
+    updateAnnotation({...annotation, [timeProp]: `${newTime}`})
 
     e.preventDefault()
     e.stopPropagation()
@@ -95,8 +108,8 @@ class AnnotationSpan extends React.Component {
           style={style.clickArea(isEditing)}
           draggable={true}
           onDrag={this.handleDrag('startTime')}
-          onDragStart={this.handleStartDrag}
-          onDragEnd={this.handleStopDrag}
+          onDragStart={this.handleDragStart}
+          onDragEnd={this.handleDragEnd}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
@@ -121,8 +134,8 @@ class AnnotationSpan extends React.Component {
           style={style.clickArea(isEditing)}
           draggable={true}
           onDrag={this.handleDrag('endTime')}
-          onDragStart={this.handleStartDrag}
-          onDragEnd={this.handleStopDrag}
+          onDragStart={this.handleDragStart}
+          onDragEnd={this.handleDragEnd}
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
         />
@@ -159,7 +172,13 @@ AnnotationSpan.propTypes = {
   annotation: schema.annotation.isRequired,
   mode: PropTypes.string.isRequired,
   dygraph: PropTypes.shape({}).isRequired,
-  onUpdateAnnotation: PropTypes.func.isRequired,
+  updateAnnotationAsync: PropTypes.func.isRequired,
+  updateAnnotation: PropTypes.func.isRequired,
 }
 
-export default AnnotationSpan
+const mdtp = {
+  updateAnnotationAsync: actions.updateAnnotationAsync,
+  updateAnnotation: actions.updateAnnotation,
+}
+
+export default connect(null, mdtp)(AnnotationSpan)

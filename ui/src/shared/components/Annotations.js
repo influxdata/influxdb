@@ -62,13 +62,7 @@ class Annotations extends Component {
             onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
           />}
         {annotations.map(a =>
-          <Annotation
-            key={a.id}
-            mode={mode}
-            annotation={a}
-            dygraph={dygraph}
-            onUpdateAnnotation={handleUpdateAnnotation}
-          />
+          <Annotation key={a.id} mode={mode} annotation={a} dygraph={dygraph} />
         )}
       </div>
     )
@@ -93,7 +87,7 @@ const mapStateToProps = ({
   annotations: {annotations, mode, isTempHovering},
 }) => ({
   annotations,
-  mode,
+  mode: mode || 'NORMAL',
   isTempHovering,
 })
 

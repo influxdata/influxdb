@@ -11,11 +11,11 @@ export const TEMP_ANNOTATION = {
 }
 
 export const getAnnotations = (graph, annotations = []) => {
-  if (!graph) {
+  const [xStart, xEnd] = graph.xAxisRange()
+
+  if (xStart === 0 && xEnd === 0) {
     return []
   }
-
-  const [xStart, xEnd] = graph.xAxisRange()
 
   return annotations.filter(a => {
     if (a.endTime === a.startTime) {

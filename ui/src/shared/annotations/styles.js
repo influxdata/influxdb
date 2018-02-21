@@ -101,7 +101,6 @@ export const clickArea = editing => ({
   height: editing ? 'calc(100% + 8px)' : '16px',
   zIndex: '4',
   cursor: editing ? 'col-resize' : 'default',
-  border: '1px blue solid',
 })
 
 export const tooltip = annotationState => {
