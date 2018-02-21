@@ -38,7 +38,7 @@ class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {name, type, queries, axes, colors}, sources} = props
+    const {cell: {name, queries, axes, colors}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -55,7 +55,6 @@ class CellEditorOverlay extends Component {
 
     this.state = {
       cellWorkingName: name,
-      cellWorkingType: type,
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
@@ -141,9 +140,9 @@ class CellEditorOverlay extends Component {
   }
 
   handleDeleteThreshold = threshold => () => {
-    const {cellWorkingType} = this.state
+    const {type} = this.props.cell
 
-    if (cellWorkingType === 'gauge') {
+    if (type === 'gauge') {
       const gaugeColors = this.state.gaugeColors.filter(
         color => color.id !== threshold.id
       )
@@ -151,7 +150,7 @@ class CellEditorOverlay extends Component {
       this.setState({gaugeColors})
     }
 
-    if (cellWorkingType === 'single-stat') {
+    if (type === 'single-stat') {
       const singleStatColors = this.state.singleStatColors.filter(
         color => color.id !== threshold.id
       )
@@ -161,9 +160,9 @@ class CellEditorOverlay extends Component {
   }
 
   handleChooseColor = threshold => chosenColor => {
-    const {cellWorkingType} = this.state
+    const {type} = this.props.cell
 
-    if (cellWorkingType === 'gauge') {
+    if (type === 'gauge') {
       const gaugeColors = this.state.gaugeColors.map(
         color =>
           color.id === threshold.id
@@ -174,7 +173,7 @@ class CellEditorOverlay extends Component {
       this.setState({gaugeColors})
     }
 
-    if (cellWorkingType === 'single-stat') {
+    if (type === 'single-stat') {
       const singleStatColors = this.state.singleStatColors.map(
         color =>
           color.id === threshold.id
@@ -187,9 +186,9 @@ class CellEditorOverlay extends Component {
   }
 
   handleUpdateColorValue = (threshold, value) => {
-    const {cellWorkingType} = this.state
+    const {type} = this.props.cell
 
-    if (cellWorkingType === 'gauge') {
+    if (type === 'gauge') {
       const gaugeColors = this.state.gaugeColors.map(
         color => (color.id === threshold.id ? {...color, value} : color)
       )
@@ -197,7 +196,7 @@ class CellEditorOverlay extends Component {
       this.setState({gaugeColors})
     }
 
-    if (cellWorkingType === 'single-stat') {
+    if (type === 'single-stat') {
       const singleStatColors = this.state.singleStatColors.map(
         color => (color.id === threshold.id ? {...color, value} : color)
       )
@@ -207,11 +206,13 @@ class CellEditorOverlay extends Component {
   }
 
   handleValidateColorValue = (threshold, targetValue) => {
-    const {gaugeColors, singleStatColors, cellWorkingType} = this.state
+    const {gaugeColors, singleStatColors} = this.state
+    const {type} = this.props.cell
+
     const thresholdValue = threshold.value
     let allowedToUpdate = false
 
-    if (cellWorkingType === 'single-stat') {
+    if (type === 'single-stat') {
       // If type is single-stat then value only has to be unique
       const sortedColors = _.sortBy(singleStatColors, color => color.value)
       return !sortedColors.some(color => color.value === targetValue)
@@ -357,7 +358,6 @@ class CellEditorOverlay extends Component {
   handleSaveCell = () => {
     const {
       queriesWorkingDraft,
-      cellWorkingType: type,
       cellWorkingName: name,
       axes,
       gaugeColors,
@@ -378,24 +378,22 @@ class CellEditorOverlay extends Component {
     })
 
     let colors = []
-    if (type === 'gauge') {
+    if (cell.type === 'gauge') {
       colors = stringifyColorValues(gaugeColors)
-    } else if (type === 'single-stat' || type === 'line-plus-single-stat') {
+    } else if (
+      cell.type === 'single-stat' ||
+      cell.type === 'line-plus-single-stat'
+    ) {
       colors = stringifyColorValues(singleStatColors)
     }
 
     this.props.onSave({
       ...cell,
       name,
-      type,
       queries,
       axes,
       colors,
     })
-  }
-
-  handleSelectGraphType = cellWorkingType => () => {
-    this.setState({cellWorkingType})
   }
 
   handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
@@ -529,6 +527,7 @@ class CellEditorOverlay extends Component {
 
   render() {
     const {
+      cell,
       onCancel,
       templates,
       timeRange,
@@ -542,7 +541,6 @@ class CellEditorOverlay extends Component {
       singleStatColors,
       activeQueryIndex,
       cellWorkingName,
-      cellWorkingType,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
       singleStatType,
@@ -558,7 +556,7 @@ class CellEditorOverlay extends Component {
       !!query.rawText
 
     const visualizationColors =
-      cellWorkingType === 'gauge' ? gaugeColors : singleStatColors
+      cell.type === 'gauge' ? gaugeColors : singleStatColors
 
     return (
       <div
@@ -577,7 +575,7 @@ class CellEditorOverlay extends Component {
           <Visualization
             axes={axes}
             colors={visualizationColors}
-            type={cellWorkingType}
+            type={cell.type}
             name={cellWorkingName}
             timeRange={timeRange}
             templates={templates}
@@ -615,10 +613,8 @@ class CellEditorOverlay extends Component {
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
                   queryConfigs={queriesWorkingDraft}
-                  selectedGraphType={cellWorkingType}
                   onSetPrefixSuffix={this.handleSetPrefixSuffix}
                   onSetSuffix={this.handleSetSuffix}
-                  onSelectGraphType={this.handleSelectGraphType}
                   onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                 />

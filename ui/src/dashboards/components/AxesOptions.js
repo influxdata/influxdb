@@ -19,13 +19,11 @@ const AxesOptions = ({
   onSetPrefixSuffix,
   onSetYAxisBoundMin,
   onSetYAxisBoundMax,
-  selectedGraphType,
+  cellType,
 }) => {
   const [min, max] = bounds
 
-  const {menuOption} = GRAPH_TYPES.find(
-    graph => graph.type === selectedGraphType
-  )
+  const {menuOption} = GRAPH_TYPES.find(graph => graph.type === cellType)
 
   return (
     <FancyScrollbar
@@ -130,7 +128,7 @@ AxesOptions.defaultProps = {
 }
 
 AxesOptions.propTypes = {
-  selectedGraphType: string.isRequired,
+  cellType: string.isRequired,
   onSetPrefixSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,

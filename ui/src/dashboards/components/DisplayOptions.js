@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
@@ -35,12 +36,12 @@ class DisplayOptions extends Component {
 
   renderOptions = () => {
     const {
+      cell,
       gaugeColors,
       singleStatColors,
       onSetBase,
       onSetScale,
       onSetLabel,
-      selectedGraphType,
       onSetPrefixSuffix,
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
@@ -56,7 +57,7 @@ class DisplayOptions extends Component {
     } = this.props
     const {axes, axes: {y: {suffix}}} = this.state
 
-    switch (selectedGraphType) {
+    switch (cell.type) {
       case 'gauge':
         return (
           <GaugeOptions
@@ -86,7 +87,7 @@ class DisplayOptions extends Component {
       default:
         return (
           <AxesOptions
-            selectedGraphType={selectedGraphType}
+            cellType={cell.type}
             axes={axes}
             onSetBase={onSetBase}
             onSetLabel={onSetLabel}
@@ -100,14 +101,9 @@ class DisplayOptions extends Component {
   }
 
   render() {
-    const {selectedGraphType, onSelectGraphType} = this.props
-
     return (
       <div className="display-options">
-        <GraphTypeSelector
-          selectedGraphType={selectedGraphType}
-          onSelectGraphType={onSelectGraphType}
-        />
+        <GraphTypeSelector />
         {this.renderOptions()}
       </div>
     )
@@ -122,8 +118,9 @@ DisplayOptions.propTypes = {
   onChooseColor: func.isRequired,
   onValidateColorValue: func.isRequired,
   onUpdateColorValue: func.isRequired,
-  selectedGraphType: string.isRequired,
-  onSelectGraphType: func.isRequired,
+  cell: shape({
+    type: string.isRequired,
+  }).isRequired,
   onSetPrefixSuffix: func.isRequired,
   onSetSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
@@ -155,4 +152,8 @@ DisplayOptions.propTypes = {
   onToggleSingleStatType: func.isRequired,
 }
 
-export default DisplayOptions
+const mapStateToProps = ({cellEditorOverlay: {cell}}) => ({
+  cell,
+})
+
+export default connect(mapStateToProps, null)(DisplayOptions)

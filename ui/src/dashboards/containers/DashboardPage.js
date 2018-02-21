@@ -20,6 +20,10 @@ import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
+import {
+  showCellEditorOverlay,
+  hideCellEditorOverlay,
+} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {
   setAutoRefresh,
@@ -95,19 +99,15 @@ class DashboardPage extends Component {
     }
   }
 
-  handleDismissOverlay = () => {
-    this.setState({selectedCell: null})
-  }
-
   handleSaveEditedCell = newCell => {
-    const {dashboardActions, dashboard} = this.props
+    const {
+      dashboardActions,
+      dashboard,
+      handleHideCellEditorOverlay,
+    } = this.props
     dashboardActions
       .updateDashboardCell(dashboard, newCell)
-      .then(this.handleDismissOverlay)
-  }
-
-  handleSummonOverlayTechnologies = cell => {
-    this.setState({selectedCell: cell})
+      .then(handleHideCellEditorOverlay)
   }
 
   handleChooseTimeRange = ({upper, lower}) => {
@@ -240,12 +240,15 @@ class DashboardPage extends Component {
       dashboard,
       dashboards,
       autoRefresh,
+      selectedCell,
       manualRefresh,
       onManualRefresh,
       cellQueryStatus,
       dashboardActions,
       inPresentationMode,
       handleChooseAutoRefresh,
+      handleShowCellEditorOverlay,
+      handleHideCellEditorOverlay,
       handleClickPresentationButton,
       params: {sourceID, dashboardID},
     } = this.props
@@ -313,7 +316,7 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating} = this.state
+    const {isEditMode, isTemplating} = this.state
     const names = dashboards.map(d => ({
       name: d.name,
       link: `/sources/${sourceID}/dashboards/${d.id}`,
@@ -342,7 +345,7 @@ class DashboardPage extends Component {
               dashboardID={dashboardID}
               queryStatus={cellQueryStatus}
               onSave={this.handleSaveEditedCell}
-              onCancel={this.handleDismissOverlay}
+              onCancel={handleHideCellEditorOverlay}
               templates={templatesIncludingDashTime}
               editQueryStatus={dashboardActions.editCellQueryStatus}
             />
@@ -387,7 +390,7 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
-              onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+              onSummonOverlayTechnologies={handleShowCellEditorOverlay}
             />
           : null}
       </div>
@@ -467,6 +470,9 @@ DashboardPage.propTypes = {
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
   notify: func.isRequired,
+  handleShowCellEditorOverlay: func.isRequired,
+  handleHideCellEditorOverlay: func.isRequired,
+  selectedCell: shape({}),
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -479,6 +485,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
+    cellEditorOverlay: {cell},
   } = state
   const meRole = _.get(me, 'role', null)
 
@@ -490,6 +497,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   const dashboard = dashboards.find(
     d => d.id === idNormalizer(TYPE_ID, dashboardID)
   )
+  const selectedCell = cell
 
   return {
     dashboards,
@@ -502,6 +510,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     sources,
     meRole,
     isUsingAuth,
+    selectedCell,
   }
 }
 
@@ -515,6 +524,14 @@ const mapDispatchToProps = dispatch => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(publishNotification, dispatch),
+  handleShowCellEditorOverlay: bindActionCreators(
+    showCellEditorOverlay,
+    dispatch
+  ),
+  handleHideCellEditorOverlay: bindActionCreators(
+    hideCellEditorOverlay,
+    dispatch
+  ),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
