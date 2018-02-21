@@ -22,6 +22,13 @@ export default function cellEditorOverlay(state = initialState, action) {
 
       return {...state, cell}
     }
+
+    case 'RENAME_CELL': {
+      const {cellName} = action.payload
+      const cell = {...state.cell, name: cellName}
+
+      return {...state, cell}
+    }
   }
 
   return state

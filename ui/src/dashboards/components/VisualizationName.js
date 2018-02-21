@@ -1,34 +1,43 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
+import {renameCell} from 'src/dashboards/actions/cellEditorOverlay'
 
 class VisualizationName extends Component {
   constructor(props) {
     super(props)
 
     this.state = {
-      reset: false,
       isEditing: false,
     }
   }
 
-  handleInputBlur = reset => e => {
-    this.props.onCellRename(reset ? this.props.defaultName : e.target.value)
-    this.setState({reset: false, isEditing: false})
+  handleInputClick = () => {
+    this.setState({isEditing: true})
+  }
+
+  handleCancel = () => {
+    this.setState({
+      isEditing: false,
+    })
+  }
+
+  handleInputBlur = () => {
+    this.setState({isEditing: false})
   }
 
   handleKeyDown = e => {
+    const {handleRenameCell} = this.props
+
     if (e.key === 'Enter') {
-      this.inputRef.blur()
+      handleRenameCell(e.target.value)
+      this.handleInputBlur(e)
     }
     if (e.key === 'Escape') {
-      this.inputRef.value = this.props.defaultName
-      this.setState({reset: true}, () => this.inputRef.blur())
+      this.handleInputBlur(e)
     }
-  }
-
-  handleEditMode = () => {
-    this.setState({isEditing: true})
   }
 
   handleFocus = e => {
@@ -36,10 +45,10 @@ class VisualizationName extends Component {
   }
 
   render() {
-    const {defaultName} = this.props
-    const {reset, isEditing} = this.state
+    const {name} = this.props
+    const {isEditing} = this.state
     const graphNameClass =
-      defaultName === NEW_DEFAULT_DASHBOARD_CELL.name
+      name === NEW_DEFAULT_DASHBOARD_CELL.name
         ? 'graph-name graph-name__untitled'
         : 'graph-name'
 
@@ -49,16 +58,15 @@ class VisualizationName extends Component {
           ? <input
               type="text"
               className="form-control input-sm"
-              defaultValue={defaultName}
-              onBlur={this.handleInputBlur(reset)}
+              defaultValue={name}
+              onBlur={this.handleInputBlur}
               onKeyDown={this.handleKeyDown}
-              placeholder="Name this Cell..."
               autoFocus={true}
               onFocus={this.handleFocus}
-              ref={r => (this.inputRef = r)}
+              placeholder="Name this Cell..."
             />
-          : <div className={graphNameClass} onClick={this.handleEditMode}>
-              {defaultName}
+          : <div className={graphNameClass} onClick={this.handleInputClick}>
+              {name}
             </div>}
       </div>
     )
@@ -68,8 +76,16 @@ class VisualizationName extends Component {
 const {string, func} = PropTypes
 
 VisualizationName.propTypes = {
-  defaultName: string.isRequired,
-  onCellRename: func,
+  name: string.isRequired,
+  handleRenameCell: func,
 }
 
-export default VisualizationName
+const mapStateToProps = ({cellEditorOverlay: {cell: {name}}}) => ({
+  name,
+})
+
+const mapDispatchToProps = dispatch => ({
+  handleRenameCell: bindActionCreators(renameCell, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(VisualizationName)

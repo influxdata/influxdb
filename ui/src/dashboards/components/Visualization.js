@@ -9,12 +9,10 @@ const DashVisualization = (
   {
     axes,
     type,
-    name,
     colors,
     templates,
     timeRange,
     autoRefresh,
-    onCellRename,
     queryConfigs,
     editQueryStatus,
     resizerTopHeight,
@@ -22,7 +20,7 @@ const DashVisualization = (
   {source: {links: {proxy}}}
 ) =>
   <div className="graph">
-    <VisualizationName defaultName={name} onCellRename={onCellRename} />
+    <VisualizationName />
     <div className="graph-container">
       <RefreshingGraph
         colors={stringifyColorValues(colors)}
@@ -40,12 +38,10 @@ const DashVisualization = (
 const {arrayOf, func, number, shape, string} = PropTypes
 
 DashVisualization.defaultProps = {
-  name: '',
   type: '',
 }
 
 DashVisualization.propTypes = {
-  name: string,
   type: string,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),
@@ -60,7 +56,6 @@ DashVisualization.propTypes = {
       bounds: arrayOf(string),
     }),
   }),
-  onCellRename: func,
   resizerTopHeight: number,
   colors: arrayOf(
     shape({

@@ -38,7 +38,7 @@ class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {name, queries, axes, colors}, sources} = props
+    const {cell: {queries, axes, colors}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -54,7 +54,6 @@ class CellEditorOverlay extends Component {
     const singleStatType = getSingleStatType(colors)
 
     this.state = {
-      cellWorkingName: name,
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
@@ -358,7 +357,6 @@ class CellEditorOverlay extends Component {
   handleSaveCell = () => {
     const {
       queriesWorkingDraft,
-      cellWorkingName: name,
       axes,
       gaugeColors,
       singleStatColors,
@@ -389,7 +387,6 @@ class CellEditorOverlay extends Component {
 
     this.props.onSave({
       ...cell,
-      name,
       queries,
       axes,
       colors,
@@ -416,10 +413,6 @@ class CellEditorOverlay extends Component {
         },
       },
     })
-  }
-
-  handleCellRename = newName => {
-    this.setState({cellWorkingName: newName})
   }
 
   handleSetScale = scale => () => {
@@ -540,7 +533,6 @@ class CellEditorOverlay extends Component {
       gaugeColors,
       singleStatColors,
       activeQueryIndex,
-      cellWorkingName,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
       singleStatType,
@@ -576,13 +568,11 @@ class CellEditorOverlay extends Component {
             axes={axes}
             colors={visualizationColors}
             type={cell.type}
-            name={cellWorkingName}
             timeRange={timeRange}
             templates={templates}
             autoRefresh={autoRefresh}
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
-            onCellRename={this.handleCellRename}
           />
           <CEOBottom>
             <OverlayControls
