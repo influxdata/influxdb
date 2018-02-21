@@ -95,7 +95,7 @@ const RefreshingGraph = ({
   )
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 RefreshingGraph.propTypes = {
   timeRange: shape({
@@ -123,10 +123,12 @@ RefreshingGraph.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  preventLoad: bool,
 }
 
 RefreshingGraph.defaultProps = {
   manualRefresh: 0,
+  preventLoad: false,
 }
 
 export default RefreshingGraph

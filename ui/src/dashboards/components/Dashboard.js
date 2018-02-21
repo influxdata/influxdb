@@ -24,10 +24,13 @@ const Dashboard = ({
   onSelectTemplate,
   showTemplateControlBar,
   getScrollTop,
-  scrollTop,
+  inView,
 }) => {
   const cells = dashboard.cells.map(cell => {
-    const dashboardCell = {...cell}
+    const dashboardCell = {
+      ...cell,
+      preventLoad: !inView(cell),
+    }
     dashboardCell.queries = dashboardCell.queries.map(q => ({
       ...q,
       database: q.db,
@@ -59,7 +62,6 @@ const Dashboard = ({
               source={source}
               sources={sources}
               isEditable={true}
-              scrollTop={scrollTop}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
@@ -123,6 +125,8 @@ Dashboard.propTypes = {
   onSelectTemplate: func.isRequired,
   showTemplateControlBar: bool,
   onZoom: func,
+  getScrollTop: func,
+  inView: func,
 }
 
 export default Dashboard

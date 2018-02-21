@@ -26,7 +26,6 @@ class LayoutRenderer extends Component {
     this.state = {
       rowHeight: this.calculateRowHeight(),
       resizeCoords: null,
-      availableHeight: window.innerHeight,
     }
   }
 
@@ -64,32 +63,6 @@ class LayoutRenderer extends Component {
     this.setState({resizeCoords})
   }
 
-  handleWindowResize = () => {
-    this.setState({availableHeight: window.innerHeight})
-  }
-
-  componentDidMount() {
-    window.addEventListener('resize', this.handleWindowResize, true)
-  }
-
-  componentWillUnMount() {
-    window.removeEventListener('resize', this.handleWindowResize, true)
-  }
-
-  inViewFilter = cell => {
-    const {isStatusPage, scrollTop} = this.props
-    const {availableHeight} = this.state
-
-    if (isStatusPage) {
-      return true
-    }
-
-    return (
-      cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT < availableHeight + scrollTop &&
-      (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT > scrollTop
-    )
-  }
-
   render() {
     const {
       host,
@@ -102,7 +75,6 @@ class LayoutRenderer extends Component {
       isEditable,
       onEditCell,
       autoRefresh,
-      scrollTop,
       manualRefresh,
       onDeleteCell,
       synchronizer,
@@ -110,12 +82,8 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
-    const {rowHeight, resizeCoords, availableHeight} = this.state
+    const {rowHeight, resizeCoords} = this.state
     const isDashboard = !!this.props.onPositionChange
-
-    const mappedCells = cells.map(cell => {
-      return {...cell, preventLoad: !this.inViewFilter(cell)}
-    })
 
     return (
       <Resizeable onResize={this.handleCellResize}>
@@ -140,7 +108,7 @@ class LayoutRenderer extends Component {
             isDraggable={isDashboard}
             isResizable={isDashboard}
           >
-            {mappedCells.map(cell =>
+            {cells.map(cell =>
               <div key={cell.i}>
                 <Authorized
                   requiredRole={EDITOR_ROLE}

@@ -26,6 +26,7 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -44,6 +45,7 @@ class DashboardPage extends Component {
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
+      windowHeight: window.innerHeight,
     }
   }
 
@@ -64,6 +66,8 @@ class DashboardPage extends Component {
       notify,
     } = this.props
 
+    window.addEventListener('resize', this.handleWindowResize, true)
+
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
@@ -81,6 +85,25 @@ class DashboardPage extends Component {
       await updateTempVarValues(source, dashboard)
       await putDashboardByID(dashboardID)
     }
+  }
+
+  handleWindowResize = () => {
+    this.setState({windowHeight: window.innerHeight})
+  }
+
+  componentWillUnMount() {
+    window.removeEventListener('resize', this.handleWindowResize, true)
+  }
+
+  inView = cell => {
+    const {scrollTop, windowHeight} = this.state
+    const bufferValue = 600
+
+    return (
+      cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT <
+        windowHeight + scrollTop + bufferValue &&
+      (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT > scrollTop - bufferValue
+    )
   }
 
   handleOpenTemplateManager = () => {
@@ -318,7 +341,8 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating, scrollTop} = this.state
+    const {selectedCell, isEditMode, isTemplating} = this.state
+
     const names = dashboards.map(d => ({
       name: d.name,
       link: `/sources/${sourceID}/dashboards/${d.id}`,
@@ -379,7 +403,7 @@ class DashboardPage extends Component {
               source={source}
               sources={sources}
               getScrollTop={this.getScrollTop}
-              scrollTop={scrollTop}
+              inView={this.inView}
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}

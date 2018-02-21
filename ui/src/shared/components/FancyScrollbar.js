@@ -50,7 +50,7 @@ class FancyScrollbar extends Component {
   }
 }
 
-const {bool, node, number, string} = PropTypes
+const {bool, func, node, number, string} = PropTypes
 
 FancyScrollbar.propTypes = {
   children: node.isRequired,
@@ -58,6 +58,7 @@ FancyScrollbar.propTypes = {
   autoHide: bool,
   autoHeight: bool,
   maxHeight: number,
+  getScrollTop: func,
 }
 
 export default FancyScrollbar
