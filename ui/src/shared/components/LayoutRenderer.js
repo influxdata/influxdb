@@ -26,21 +26,22 @@ class LayoutRenderer extends Component {
     this.state = {
       rowHeight: this.calculateRowHeight(),
       resizeCoords: null,
+      availableHeight: 0,
+      scrollTop: 0,
     }
   }
 
   handleLayoutChange = layout => {
-    if (!this.props.onPositionChange) {
-      return
-    }
-
-    const newCells = this.props.cells.map(cell => {
-      const l = layout.find(ly => ly.i === cell.i)
-      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
-      return {...cell, ...newLayout}
-    })
-
-    this.props.onPositionChange(newCells)
+    // if (!this.props.onPositionChange) {
+    //   return
+    // }
+    // const filteredCells = this.props.cells.filter(this.lazyLoadFilter)
+    // const newCells = filteredCells.map(cell => {
+    //   const l = layout.find(ly => ly.i === cell.i)
+    //   const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
+    //   return {...cell, ...newLayout}
+    // })
+    // this.props.onPositionChange(newCells)
   }
 
   // ensures that Status Page height fits the window
@@ -65,6 +66,42 @@ class LayoutRenderer extends Component {
     this.setState({resizeCoords})
   }
 
+  handleWindowResize = () => {
+    this.setState({availableHeight: window.innerHeight})
+  }
+
+  handleScroll = event => {
+    this.setState({
+      scrollTop: event.target.scrollTop,
+    })
+  }
+
+  componentDidMount() {
+    this.handleWindowResize()
+    window.addEventListener('resize', this.handleWindowResize, true)
+    window.addEventListener('scroll', this.handleScroll, true)
+  }
+
+  componentWillUnMount() {
+    window.removeEventListener('resize', this.handleWindowResize, true)
+    window.removeEventListener('scroll', this.handleScroll, true)
+  }
+
+  lazyLoadFilter = (cell, i) => {
+    console.log(cell, i)
+    const {isStatusPage} = this.props
+    if (isStatusPage) {
+      return true
+    }
+    const {availableHeight, scrollTop} = this.state
+    console.log(availableHeight, scrollTop, window.innerHeight)
+    // return true
+    return (
+      cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT < availableHeight + scrollTop &&
+      (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT > scrollTop
+    )
+  }
+
   render() {
     const {
       host,
@@ -84,8 +121,11 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
+    console.log(this.state.availableHeight)
     const {rowHeight, resizeCoords} = this.state
     const isDashboard = !!this.props.onPositionChange
+    console.log(cells)
+    const filteredCells = cells.filter(this.lazyLoadFilter)
 
     return (
       <Resizeable onResize={this.handleCellResize}>
@@ -98,7 +138,7 @@ class LayoutRenderer extends Component {
           }}
         >
           <GridLayout
-            layout={cells}
+            layout={filteredCells}
             cols={12}
             rowHeight={rowHeight}
             margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
@@ -110,7 +150,7 @@ class LayoutRenderer extends Component {
             isDraggable={isDashboard}
             isResizable={isDashboard}
           >
-            {cells.map(cell =>
+            {filteredCells.map(cell =>
               <div key={cell.i}>
                 <Authorized
                   requiredRole={EDITOR_ROLE}
