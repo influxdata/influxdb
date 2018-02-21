@@ -13,7 +13,7 @@ const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 
 const RefreshingGraph = ({
   axes,
-  dontload,
+  preventLoad,
   type,
   colors,
   onZoom,
@@ -29,7 +29,7 @@ const RefreshingGraph = ({
   editQueryStatus,
   grabDataForDownload,
 }) => {
-  if (dontload || !queries.length) {
+  if (preventLoad || !queries.length) {
     return (
       <div className="graph-empty">
         <p data-test="data-explorer-no-results">

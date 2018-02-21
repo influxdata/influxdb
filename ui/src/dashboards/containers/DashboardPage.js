@@ -43,6 +43,7 @@ class DashboardPage extends Component {
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
+      scrollTop: 0,
     }
   }
 
@@ -227,6 +228,10 @@ class DashboardPage extends Component {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
   }
 
+  getScrollTop = event => {
+    this.setState({scrollTop: event.target.scrollTop})
+  }
+
   render() {
     const {zoomedTimeRange} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
@@ -313,7 +318,7 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating} = this.state
+    const {selectedCell, isEditMode, isTemplating, scrollTop} = this.state
     const names = dashboards.map(d => ({
       name: d.name,
       link: `/sources/${sourceID}/dashboards/${d.id}`,
@@ -373,6 +378,8 @@ class DashboardPage extends Component {
           ? <Dashboard
               source={source}
               sources={sources}
+              getScrollTop={this.getScrollTop}
+              scrollTop={scrollTop}
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}

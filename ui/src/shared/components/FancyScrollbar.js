@@ -10,6 +10,7 @@ class FancyScrollbar extends Component {
   static defaultProps = {
     autoHide: true,
     autoHeight: false,
+    getScrollTop: () => {},
   }
 
   handleMakeDiv = className => props => {
@@ -17,13 +18,21 @@ class FancyScrollbar extends Component {
   }
 
   render() {
-    const {autoHide, autoHeight, children, className, maxHeight} = this.props
+    const {
+      autoHide,
+      autoHeight,
+      children,
+      className,
+      maxHeight,
+      getScrollTop,
+    } = this.props
 
     return (
       <Scrollbars
         className={classnames('fancy-scroll--container', {
           [className]: className,
         })}
+        onScroll={getScrollTop}
         autoHide={autoHide}
         autoHideTimeout={1000}
         autoHideDuration={250}

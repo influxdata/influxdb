@@ -26,23 +26,18 @@ class LayoutRenderer extends Component {
     this.state = {
       rowHeight: this.calculateRowHeight(),
       resizeCoords: null,
-      availableHeight: 0,
-      scrollTop: 0,
+      availableHeight: window.innerHeight,
     }
   }
 
   handleLayoutChange = layout => {
-    console.log('here')
     if (!this.props.onPositionChange) {
       return
     }
     const newCells = this.props.cells.map(cell => {
       const l = layout.find(ly => ly.i === cell.i)
-      if (l) {
-        const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
-        return {...cell, ...newLayout}
-      }
-      return cell
+      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
+      return {...cell, ...newLayout}
     })
     this.props.onPositionChange(newCells)
   }
@@ -69,30 +64,21 @@ class LayoutRenderer extends Component {
     this.setState({resizeCoords})
   }
 
-  handleScroll = event => {
-    this.setState({
-      scrollTop: event.target.scrollTop,
-    })
-  }
-
   handleWindowResize = () => {
     this.setState({availableHeight: window.innerHeight})
   }
 
   componentDidMount() {
-    this.handleWindowResize()
     window.addEventListener('resize', this.handleWindowResize, true)
-    window.addEventListener('scroll', this.handleScroll, true)
   }
 
   componentWillUnMount() {
     window.removeEventListener('resize', this.handleWindowResize, true)
-    window.removeEventListener('scroll', this.handleScroll, true)
   }
 
-  lazyLoadFilter = cell => {
-    const {isStatusPage} = this.props
-    const {availableHeight, scrollTop} = this.state
+  inViewFilter = cell => {
+    const {isStatusPage, scrollTop} = this.props
+    const {availableHeight} = this.state
 
     if (isStatusPage) {
       return true
@@ -116,6 +102,7 @@ class LayoutRenderer extends Component {
       isEditable,
       onEditCell,
       autoRefresh,
+      scrollTop,
       manualRefresh,
       onDeleteCell,
       synchronizer,
@@ -123,12 +110,11 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
-    const {rowHeight, resizeCoords, availableHeight, scrollTop} = this.state
+    const {rowHeight, resizeCoords, availableHeight} = this.state
     const isDashboard = !!this.props.onPositionChange
-    const filteredCells = cells.filter(this.lazyLoadFilter)
 
     const mappedCells = cells.map(cell => {
-      return {...cell, dontload: !this.lazyLoadFilter(cell)}
+      return {...cell, preventLoad: !this.inViewFilter(cell)}
     })
 
     return (
@@ -156,38 +142,33 @@ class LayoutRenderer extends Component {
           >
             {mappedCells.map(cell =>
               <div key={cell.i}>
-                {cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT <
-                  availableHeight + scrollTop &&
-                (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT > scrollTop
-                  ? <Authorized
-                      requiredRole={EDITOR_ROLE}
-                      propsOverride={{
-                        isEditable: false,
-                      }}
-                    >
-                      <Layout
-                        key={cell.i}
-                        cell={cell}
-                        host={host}
-                        source={source}
-                        onZoom={onZoom}
-                        sources={sources}
-                        templates={templates}
-                        timeRange={timeRange}
-                        isEditable={isEditable}
-                        onEditCell={onEditCell}
-                        resizeCoords={resizeCoords}
-                        autoRefresh={autoRefresh}
-                        manualRefresh={manualRefresh}
-                        onDeleteCell={onDeleteCell}
-                        synchronizer={synchronizer}
-                        onCancelEditCell={onCancelEditCell}
-                        onSummonOverlayTechnologies={
-                          onSummonOverlayTechnologies
-                        }
-                      />
-                    </Authorized>
-                  : null}
+                <Authorized
+                  requiredRole={EDITOR_ROLE}
+                  propsOverride={{
+                    isEditable: false,
+                  }}
+                >
+                  <Layout
+                    key={cell.i}
+                    cell={cell}
+                    host={host}
+                    source={source}
+                    onZoom={onZoom}
+                    sources={sources}
+                    templates={templates}
+                    timeRange={timeRange}
+                    isEditable={isEditable}
+                    onEditCell={onEditCell}
+                    resizeCoords={resizeCoords}
+                    autoRefresh={autoRefresh}
+                    manualRefresh={manualRefresh}
+                    onDeleteCell={onDeleteCell}
+                    synchronizer={synchronizer}
+                    onCancelEditCell={onCancelEditCell}
+                    onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+                  />
+                </Authorized>
+                }
               </div>
             )}
           </GridLayout>

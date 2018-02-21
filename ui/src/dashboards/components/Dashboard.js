@@ -23,6 +23,8 @@ const Dashboard = ({
   onSummonOverlayTechnologies,
   onSelectTemplate,
   showTemplateControlBar,
+  getScrollTop,
+  scrollTop,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
@@ -39,6 +41,7 @@ const Dashboard = ({
       className={classnames('page-contents', {
         'presentation-mode': inPresentationMode,
       })}
+      getScrollTop={getScrollTop}
     >
       <div className="dashboard container-fluid full-width">
         {inPresentationMode
@@ -56,6 +59,7 @@ const Dashboard = ({
               source={source}
               sources={sources}
               isEditable={true}
+              scrollTop={scrollTop}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
