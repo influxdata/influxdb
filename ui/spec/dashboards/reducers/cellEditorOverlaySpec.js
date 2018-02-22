@@ -47,14 +47,12 @@ const defaultGaugeColors = validateGaugeColors(defaultCell.colors)
 describe('Dashboards.Reducers.cellEditorOverlay', () => {
   it('should show cell editor overlay', () => {
     const actual = reducer(initialState, showCellEditorOverlay(defaultCell))
-    console.log('actual: ', actual)
     const expected = {
       cell: defaultCell,
       gaugeColors: defaultGaugeColors,
       singleStatColors: defaultSingleStatColors,
       singleStatType: defaultSingleStatType,
     }
-    console.log('expected: ', expected)
 
     expect(actual.cell).to.equal(expected.cell)
     expect(actual.gaugeColors).to.equal(expected.gaugeColors)
