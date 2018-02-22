@@ -44,16 +44,14 @@ func init() {
 // series, and their tags. Exported functions are goroutine safe while
 // un-exported functions assume the caller will use the appropriate locks.
 type Index struct {
-	mu sync.RWMutex
-
 	database string
+
+	mu       sync.RWMutex
 	sfile    *tsdb.SeriesFile
 	fieldset *tsdb.MeasurementFieldSet
-
 	// In-memory metadata index, built on load and updated when new series come in
-	measurements map[string]*measurement // measurement name to object and index
-	series       map[string]*series      // map series key to the Series object
-
+	measurements                             map[string]*measurement // measurement name to object and index
+	series                                   map[string]*series      // map series key to the Series object
 	seriesSketch, seriesTSSketch             *hll.Plus
 	measurementsSketch, measurementsTSSketch *hll.Plus
 
@@ -190,44 +188,49 @@ func (i *Index) CreateSeriesListIfNotExists(shardID uint64, seriesIDSet *tsdb.Se
 		mms[j] = i.CreateMeasurementIndexIfNotExists(name)
 	}
 
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
 	// Check for the series again under a write lock
 	var newSeriesN int
+	i.mu.Lock()
+	totalSeries := len(i.series)
 	for j, key := range keys {
 		if seriesList[j] != nil {
 			continue
 		}
+		newSeriesN++
+		seriesList[j] = i.series[string(key)]
+	}
+	i.mu.Unlock()
 
-		ss := i.series[string(key)]
+	// Check if any series need to be added to the local bitset, if the series
+	// was created on another shard.
+	for _, ss := range seriesList {
 		if ss == nil {
-			newSeriesN++
 			continue
 		}
-		seriesList[j] = ss
 
-		// This series might need to be added to the local bitset, if the series
-		// was created on another shard.
 		seriesIDSet.Lock()
 		if !seriesIDSet.ContainsNoLock(ss.ID) {
 			seriesIDSet.AddNoLock(ss.ID)
 		}
 		seriesIDSet.Unlock()
 	}
+
 	if newSeriesN == 0 {
 		return nil
 	}
 
 	// Verify that the series will not exceed limit.
 	if !ignoreLimits {
-		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+len(keys) > max {
+		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && totalSeries+len(keys) > max {
 			return errMaxSeriesPerDatabaseExceeded{limit: opt.Config.MaxSeriesPerDatabase}
 		}
 	}
 
 	for j, key := range keys {
-		if seriesList[j] != nil {
+		// It's possible two series could be added at the same time. One of them
+		// would have the series id and the other would have a series id of 0.
+		// Ignore the series with id 0.
+		if seriesList[j] != nil || seriesIDs[j] == 0 {
 			continue
 		}
 
@@ -235,12 +238,15 @@ func (i *Index) CreateSeriesListIfNotExists(shardID uint64, seriesIDSet *tsdb.Se
 		// The series key and tags are clone to prevent a memory leak
 		skey := string(key)
 		ss := newSeries(seriesIDs[j], mms[j], skey, tagsSlice[j].Clone())
+
+		i.mu.Lock()
 		i.series[skey] = ss
-
-		mms[j].AddSeries(ss)
-
 		// Add the series to the series sketch.
 		i.seriesSketch.Add(key)
+		i.mu.Unlock()
+
+		// Add the series to the measurement
+		mms[j].AddSeries(ss)
 
 		// This series needs to be added to the bitset tracking undeleted series IDs.
 		seriesIDSet.Add(seriesIDs[j])
