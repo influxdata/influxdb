@@ -100,7 +100,7 @@ class NewAnnotation extends Component {
 
     return (
       <div className="new-annotation-tooltip">
-        <span className="new-annotation-helper">Click to Annotate</span>
+        <span className="new-annotation-helper">Click or Drag to Annotate</span>
         <span className="new-annotation-timestamp">
           {timestamp}
         </span>
