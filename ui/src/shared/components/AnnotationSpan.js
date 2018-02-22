@@ -9,25 +9,25 @@ import AnnotationWindow from 'shared/components/AnnotationWindow'
 
 class AnnotationSpan extends React.Component {
   state = {
-    isDragging: false,
-    isMouseOver: false,
+    isDragging: null,
+    isMouseOver: null,
   }
 
-  handleMouseEnter = () => {
-    this.setState({isMouseOver: true})
+  handleMouseEnter = direction => () => {
+    this.setState({isMouseOver: direction})
   }
 
   handleMouseLeave = e => {
     const {annotation} = this.props
 
     if (e.relatedTarget.id === `tooltip-${annotation.id}`) {
-      return this.setState({isDragging: false})
+      return this.setState({isDragging: null})
     }
-    this.setState({isMouseOver: false})
+    this.setState({isMouseOver: null})
   }
 
-  handleDragStart = () => {
-    this.setState({isDragging: true})
+  handleDragStart = direction => () => {
+    this.setState({isDragging: direction})
   }
 
   handleDragEnd = () => {
@@ -43,7 +43,7 @@ class AnnotationSpan extends React.Component {
     }
     updateAnnotationAsync(newAnnotation)
 
-    this.setState({isDragging: false})
+    this.setState({isDragging: null})
   }
 
   handleDrag = timeProp => e => {
@@ -93,7 +93,7 @@ class AnnotationSpan extends React.Component {
   renderLeftMarker(startTime, dygraph) {
     const isEditing = this.props.mode === EDITING
     const humanTime = `${new Date(+startTime)}`
-    const {isDragging} = this.state
+    const {isDragging, isMouseOver} = this.state
     const {annotation} = this.props
 
     const flagClass = isDragging
@@ -108,6 +108,7 @@ class AnnotationSpan extends React.Component {
     if (startTime < leftBound) {
       return null
     }
+    const showTooltip = isDragging === 'left' || isMouseOver === 'left'
 
     const left = dygraph.toDomXCoord(startTime) + 16
 
@@ -118,20 +119,21 @@ class AnnotationSpan extends React.Component {
         data-time-ms={startTime}
         data-time-local={humanTime}
       >
-        <AnnotationTooltip
-          isEditing={isEditing}
-          timestamp={annotation.startTime}
-          annotation={annotation}
-          onMouseLeave={this.handleMouseLeave}
-          annotationState={this.state}
-        />
+        {showTooltip &&
+          <AnnotationTooltip
+            isEditing={isEditing}
+            timestamp={annotation.startTime}
+            annotation={annotation}
+            onMouseLeave={this.handleMouseLeave}
+            annotationState={this.state}
+          />}
         <div
           className={clickClass}
           draggable={true}
           onDrag={this.handleDrag('startTime')}
-          onDragStart={this.handleDragStart}
+          onDragStart={this.handleDragStart('left')}
           onDragEnd={this.handleDragEnd}
-          onMouseEnter={this.handleMouseEnter}
+          onMouseEnter={this.handleMouseEnter('left')}
           onMouseLeave={this.handleMouseLeave}
         />
         <div className={flagClass} />
@@ -142,7 +144,7 @@ class AnnotationSpan extends React.Component {
   renderRightMarker(endTime, dygraph) {
     const isEditing = this.props.mode === EDITING
     const humanTime = `${new Date(+endTime)}`
-    const {isDragging} = this.state
+    const {isDragging, isMouseOver} = this.state
     const {annotation} = this.props
 
     const flagClass = isDragging
@@ -157,6 +159,7 @@ class AnnotationSpan extends React.Component {
     if (rightBound < endTime) {
       return null
     }
+    const showTooltip = isDragging === 'right' || isMouseOver === 'right'
 
     const left = `${dygraph.toDomXCoord(endTime) + 16}px`
 
@@ -167,20 +170,21 @@ class AnnotationSpan extends React.Component {
         data-time-ms={endTime}
         data-time-local={humanTime}
       >
-        <AnnotationTooltip
-          isEditing={isEditing}
-          timestamp={annotation.endTime}
-          annotation={annotation}
-          onMouseLeave={this.handleMouseLeave}
-          annotationState={this.state}
-        />
+        {showTooltip &&
+          <AnnotationTooltip
+            isEditing={isEditing}
+            timestamp={annotation.endTime}
+            annotation={annotation}
+            onMouseLeave={this.handleMouseLeave}
+            annotationState={this.state}
+          />}
         <div
           className={clickClass}
           draggable={true}
           onDrag={this.handleDrag('endTime')}
-          onDragStart={this.handleDragStart}
+          onDragStart={this.handleDragStart('right')}
           onDragEnd={this.handleDragEnd}
-          onMouseEnter={this.handleMouseEnter}
+          onMouseEnter={this.handleMouseEnter('right')}
           onMouseLeave={this.handleMouseLeave}
         />
         <div className={flagClass} />
