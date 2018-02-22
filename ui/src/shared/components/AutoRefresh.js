@@ -27,6 +27,9 @@ const AutoRefresh = ComposedComponent => {
     }
 
     componentWillReceiveProps(nextProps) {
+      const preventLoadDidUpdate =
+        this.props.preventLoad && !nextProps.preventLoad
+
       const queriesDidUpdate = this.queryDifference(
         this.props.queries,
         nextProps.queries
@@ -37,7 +40,8 @@ const AutoRefresh = ComposedComponent => {
         nextProps.templates
       )
 
-      const shouldRefetch = queriesDidUpdate || tempVarsDidUpdate
+      const shouldRefetch =
+        queriesDidUpdate || tempVarsDidUpdate || preventLoadDidUpdate
 
       if (shouldRefetch) {
         this.executeQueries(nextProps.queries, nextProps.templates)
@@ -207,6 +211,7 @@ const AutoRefresh = ComposedComponent => {
   wrapper.propTypes = {
     children: element,
     autoRefresh: number.isRequired,
+    preventLoad: bool,
     templates: arrayOf(
       shape({
         type: string.isRequired,
