@@ -65,9 +65,12 @@ const AutoRefresh = ComposedComponent => {
     }
 
     executeQueries = async (queries, templates = []) => {
-      const {editQueryStatus, grabDataForDownload} = this.props
+      const {editQueryStatus, grabDataForDownload, preventLoad} = this.props
       const {resolution} = this.state
-
+      if (preventLoad) {
+        this.setState({timeSeries: []})
+        return
+      }
       if (!queries.length) {
         this.setState({timeSeries: []})
         return
