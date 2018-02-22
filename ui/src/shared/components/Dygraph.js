@@ -154,8 +154,8 @@ class Dygraph extends Component {
       colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
       plotter: isBarGraph ? barPlotter : null,
-      drawCallback: graph => {
-        this.annotationsRef.setState({dygraph: graph})
+      drawCallback: () => {
+        this.annotationsRef.setState({lastUpdated: Date.now()})
       },
     }
 
@@ -304,7 +304,11 @@ class Dygraph extends Component {
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        <Annotations annotationsRef={this.handleAnnotationsRef} />
+        {this.dygraph &&
+          <Annotations
+            dygraph={this.dygraph}
+            annotationsRef={this.handleAnnotationsRef}
+          />}
         {this.dygraph &&
           <DygraphLegend
             isHidden={hideLegend}

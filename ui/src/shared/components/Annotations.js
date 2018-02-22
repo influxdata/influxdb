@@ -19,7 +19,7 @@ import {getAnnotations} from 'src/shared/annotations/helpers'
 
 class Annotations extends Component {
   state = {
-    dygraph: null,
+    lastUpdated: null,
   }
 
   componentDidMount() {
@@ -27,9 +27,10 @@ class Annotations extends Component {
   }
 
   render() {
-    const {dygraph} = this.state
+    const {lastUpdated} = this.state
     const {
       mode,
+      dygraph,
       isTempHovering,
       handleUpdateAnnotation,
       handleDismissAddingAnnotation,
@@ -37,10 +38,6 @@ class Annotations extends Component {
       handleMouseEnterTempAnnotation,
       handleMouseLeaveTempAnnotation,
     } = this.props
-
-    if (!dygraph) {
-      return null
-    }
 
     const annotations = getAnnotations(dygraph, this.props.annotations).filter(
       a => a.id !== TEMP_ANNOTATION.id
@@ -64,17 +61,24 @@ class Annotations extends Component {
             onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
           />}
         {annotations.map(a =>
-          <Annotation key={a.id} mode={mode} annotation={a} dygraph={dygraph} />
+          <Annotation
+            key={a.id}
+            mode={mode}
+            annotation={a}
+            dygraph={dygraph}
+            lastUpdated={lastUpdated}
+          />
         )}
       </div>
     )
   }
 }
 
-const {arrayOf, bool, func, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 Annotations.propTypes = {
   annotations: arrayOf(schema.annotation),
+  dygraph: shape({}),
   mode: string,
   isTempHovering: bool,
   annotationsRef: func,
