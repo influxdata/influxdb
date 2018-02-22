@@ -94,6 +94,7 @@ class AnnotationSpan extends React.Component {
     const isEditing = this.props.mode === EDITING
     const humanTime = `${new Date(+startTime)}`
     const {isDragging} = this.state
+    const {annotation} = this.props
 
     const flagClass = isDragging
       ? 'annotation-span--left-flag dragging'
@@ -112,6 +113,12 @@ class AnnotationSpan extends React.Component {
         data-time-ms={startTime}
         data-time-local={humanTime}
       >
+        <AnnotationTooltip
+          isEditing={isEditing}
+          annotation={annotation}
+          onMouseLeave={this.handleMouseLeave}
+          annotationState={this.state}
+        />
         <div
           className={clickClass}
           draggable={true}
@@ -130,6 +137,7 @@ class AnnotationSpan extends React.Component {
     const isEditing = this.props.mode === EDITING
     const humanTime = `${new Date(+endTime)}`
     const {isDragging} = this.state
+    const {annotation} = this.props
 
     const flagClass = isDragging
       ? 'annotation-span--right-flag dragging'
@@ -147,6 +155,12 @@ class AnnotationSpan extends React.Component {
         data-time-ms={endTime}
         data-time-local={humanTime}
       >
+        <AnnotationTooltip
+          isEditing={isEditing}
+          annotation={annotation}
+          onMouseLeave={this.handleMouseLeave}
+          annotationState={this.state}
+        />
         <div
           className={clickClass}
           draggable={true}
@@ -163,17 +177,10 @@ class AnnotationSpan extends React.Component {
 
   render() {
     const {annotation, dygraph} = this.props
-    const isEditing = this.props.mode === EDITING
 
     return (
       <div>
         <AnnotationWindow annotation={annotation} dygraph={dygraph} />
-        <AnnotationTooltip
-          isEditing={isEditing}
-          annotation={annotation}
-          onMouseLeave={this.handleMouseLeave}
-          annotationState={this.state}
-        />
         {this.renderLeftMarker(annotation.startTime, dygraph)}
         {this.renderRightMarker(annotation.endTime, dygraph)}
       </div>

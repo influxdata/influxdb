@@ -7,7 +7,7 @@ import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 
 const TimeStamp = ({time}) =>
-  <div className="annotation-tooltip--timestmap">
+  <div className="annotation-tooltip--timestamp">
     {`${moment(+time).format('YYYY/DD/MM HH:mm:ss.SS')}`}
   </div>
 

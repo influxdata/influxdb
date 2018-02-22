@@ -11,6 +11,7 @@ $timestamp-font-weight: 600;
 
 .annotation-point--flag {
   position: absolute;
+  z-index: 2;
   top: -3px;
   left: -2px;
   width: 6px;
@@ -28,6 +29,7 @@ $timestamp-font-weight: 600;
 
 .annotation-span--flag {
   position: absolute;
+  z-index: 2;
   top: -6px;
   width: 0;
   height: 0;
@@ -50,6 +52,10 @@ $timestamp-font-weight: 600;
   &.dragging {
     border-left-color: $annotation-color__drag;
   }
+
+  &:hover {
+    border-left-color: red;
+  }
 }
 
 .annotation-span--right-flag {
@@ -64,22 +70,20 @@ $timestamp-font-weight: 600;
 }
 
 
-
+// width: 100%;
 .annotation-tooltip {
-  position: absolute;
-  width: 100%;  
+  position: absolute;  
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   background-color: $g0-obsidian;
+  z-index: 3;
   padding: 6px 12px;
   border-radius: 4px;
   white-space: nowrap;
   user-select: none;
   display: flex;
-  flex: 1 0 0;
   box-shadow: 0 0 10px 2px $g2-kevlar;
-  margin-bottom: 4px;
 
   &:before {
     content: '';
@@ -89,6 +93,7 @@ $timestamp-font-weight: 600;
     height: calc(100% + 28px);
     top: -14px;
     left: -8px;
+    z-index: -1;
   }
 
   &.hidden {
@@ -124,6 +129,14 @@ $timestamp-font-weight: 600;
     font-size: 12px;
     transform: translate(-50%,-50%);
   }
+}
+
+.annotation-tooltip--input {
+  flex: 1 0 0;
+}
+.annotation-tooltip--input-container {
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .annotation-tooltip--input .input-cte {
@@ -162,7 +175,7 @@ $timestamp-font-weight: 600;
 .annotation {
   position: absolute;
   top: 8px;
-  z-index: 5;
+  z-index: 3;
   background-color: $annotation-color;
   height: calc(100% - 36px);
   width: 2px;
@@ -172,6 +185,7 @@ $timestamp-font-weight: 600;
 
   &.dragging {
     background-color: $annotation-color__drag;
+    z-index: 4;
   }
 }
 
@@ -181,6 +195,7 @@ $timestamp-font-weight: 600;
   left: -7px;
   width: 16px;
   height: 16px;
+  z-index: 4;
   cursor: default;
 
   &.editing {
@@ -197,6 +212,7 @@ $timestamp-font-weight: 600;
   background: linear-gradient(to bottom, $window15 0%, $window0 100%);
   height: calc(100% - 36px);
   border-top: 2px dotted $window35;
+  z-index: 1;
 }
 
 
@@ -227,6 +243,7 @@ $timestamp-font-weight: 600;
   transform: translateX(-1px);
   background: linear-gradient(to bottom, $c-hydrogen 0%, $c-pool 100%);
   transition: opacity 0.4s ease;
+  z-index: 5;
   cursor: pointer;
 }
 
@@ -241,6 +258,7 @@ $timestamp-font-weight: 600;
   bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
+  z-index: 10;
 }
 .new-annotation.hover .new-annotation-tooltip {
   display: flex;

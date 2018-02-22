@@ -55,7 +55,7 @@ class AnnotationInput extends Component {
     const {value} = this.props
 
     return (
-      <div className="annotation-tooltip--input">
+      <div className="annotation-tooltip--input-container">
         {isEditing
           ? <form
               onSubmit={this.handleFormSubmit}
