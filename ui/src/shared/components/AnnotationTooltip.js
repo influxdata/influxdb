@@ -46,7 +46,7 @@ class AnnotationTooltip extends Component {
     const tooltipClass =
       isDragging || isMouseOver
         ? 'annotation-tooltip'
-        : 'annotation-tooltip.hidden'
+        : 'annotation-tooltip hidden'
 
     return (
       <div

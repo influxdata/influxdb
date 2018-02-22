@@ -42,7 +42,9 @@ class Annotations extends Component {
       return null
     }
 
-    const annotations = getAnnotations(dygraph, this.props.annotations)
+    const annotations = getAnnotations(dygraph, this.props.annotations).filter(
+      a => a.id !== TEMP_ANNOTATION.id
+    )
     const tempAnnotation = this.props.annotations.find(
       a => a.id === TEMP_ANNOTATION.id
     )

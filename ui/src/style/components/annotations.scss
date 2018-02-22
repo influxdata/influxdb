@@ -1,4 +1,4 @@
-$annotation-color: $g0-obsidian;
+$annotation-color: $g20-white;
 $annotation-color__drag: $c-hydrogen;
 
 $window0: rgba($annotation-color,0);
@@ -11,32 +11,30 @@ $timestamp-font-weight: 600;
 
 .annotation-point--flag {
   position: absolute;
-  z-index: 2;
   top: -3px;
   left: -2px;
   width: 6px;
   height: 6px;
   background-color: $annotation-color;
   border-radius: 50%;
-  transition: background-color 0.25s ease, transform 0.25s ease;
+  transition: transform 0.25s ease;
 }
 
 .annotation-point--flag__dragging {
   @extend .annotation-point--flag;
   transform: scale(1.5,1.5);
-  background-color: rgb($annotation-color__drag);
+  background-color: $annotation-color__drag;
 }
 
 .annotation-span--flag {
   position: absolute;
-  z-index: 2;
   top: -6px;
   width: 0;
   height: 0;
   border: 6px solid transparent;
   border-radius: 0;
   background: none;
-  transition: border-color 0.25s ease, transform 0.25s ease;
+  transition: transform 0.25s ease;
 
   &.mouseover {
     transform: scale(1.5,1.5);
@@ -47,10 +45,10 @@ $timestamp-font-weight: 600;
   @extend .annotation-span--flag;
   transform-origin: 0% 50%;  
   left: 0;
-  border-left-color: rgb($annotation-color);
+  border-left-color: $annotation-color;
 
   &.dragging {
-    border-left-color: rgb($annotation-color__drag);
+    border-left-color: $annotation-color__drag;
   }
 }
 
@@ -58,10 +56,10 @@ $timestamp-font-weight: 600;
   @extend .annotation-span--flag;
   transform-origin: 100% 50%;  
   right: 0;
-  border-right-color: rgb($annotation-color);
+  border-right-color: $annotation-color;
 
   &.dragging {
-    border-right-color: rgb($annotation-color__drag);
+    border-right-color: $annotation-color__drag;
   }
 }
 
@@ -74,7 +72,6 @@ $timestamp-font-weight: 600;
   left: 50%;
   transform: translateX(-50%);
   background-color: $g0-obsidian;
-  z-index: 3;
   padding: 6px 12px;
   border-radius: 4px;
   white-space: nowrap;
@@ -92,7 +89,6 @@ $timestamp-font-weight: 600;
     height: calc(100% + 28px);
     top: -14px;
     left: -8px;
-    z-index: -1;
   }
 
   &.hidden {
@@ -113,7 +109,6 @@ $timestamp-font-weight: 600;
   transform: translate(50%,-50%);
   transition:
     background-color 0.25s ease;
-  z-index: 3;
   outline: none;
   border: none;
 
@@ -167,24 +162,22 @@ $timestamp-font-weight: 600;
 .annotation {
   position: absolute;
   top: 8px;
+  z-index: 5;
   background-color: $annotation-color;
   height: calc(100% - 36px);
   width: 2px;
   transform: translateX(-1px); // translate should always be half with width to horizontally center the annotation pos  
   transition: background-color 0.25s ease;
   visibility: visible;
-  z-index: 3;
 
   &.dragging {
     background-color: $annotation-color__drag;
-    z-index: 4;
   }
 }
 
 .annotation--click-area {
   position: absolute;
   top: -8px;
-  z-index: 4;  
   left: -7px;
   width: 16px;
   height: 16px;
@@ -201,10 +194,9 @@ $timestamp-font-weight: 600;
 .annotation-window {
   position: absolute;
   top: 8px;
-  background: linear-gradient(to bottom, $window0 0%, $window15 100%);
+  background: linear-gradient(to bottom, $window15 0%, $window0 100%);
   height: calc(100% - 36px);
   border-top: 2px dotted $window35;
-  z-index: 1;
 }
 
 
@@ -216,7 +208,6 @@ $timestamp-font-weight: 600;
   position: absolute;
   z-index: 9999;
   top: 8px;
-  left: 16px;
   width: calc(100% - 32px);
   height: calc(100% - 16px);
   cursor: pointer;
@@ -236,7 +227,6 @@ $timestamp-font-weight: 600;
   transform: translateX(-1px);
   background: linear-gradient(to bottom, $c-hydrogen 0%, $c-pool 100%);
   transition: opacity 0.4s ease;
-  z-index: 5;
   cursor: pointer;
 }
 
@@ -251,11 +241,9 @@ $timestamp-font-weight: 600;
   bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10;
-
-  &.hover {
-    display: flex;
-  }
+}
+.new-annotation.hover .new-annotation-tooltip {
+  display: flex;
 }
 
 .new-annotation-helper {

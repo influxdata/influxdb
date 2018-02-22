@@ -3,7 +3,6 @@ import {connect} from 'react-redux'
 
 import {EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
-import * as style from 'shared/annotations/styles'
 import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
 import AnnotationWindow from 'shared/components/AnnotationWindow'
@@ -87,7 +86,6 @@ class AnnotationSpan extends React.Component {
     }
 
     updateAnnotation({...annotation, [timeProp]: `${newTime}`})
-
     e.preventDefault()
     e.stopPropagation()
   }
@@ -105,10 +103,12 @@ class AnnotationSpan extends React.Component {
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
 
+    const left = `${dygraph.toDomXCoord(startTime) + 16}px`
+
     return (
       <div
         className="annotation"
-        style={style.annotationLeft(startTime, dygraph)}
+        style={{left}}
         data-time-ms={startTime}
         data-time-local={humanTime}
       >
@@ -132,16 +132,18 @@ class AnnotationSpan extends React.Component {
     const {isDragging} = this.state
 
     const flagClass = isDragging
-      ? 'annotation-span--left-flag dragging'
-      : 'annotation-span--left-flag'
+      ? 'annotation-span--right-flag dragging'
+      : 'annotation-span--right-flag'
     const clickClass = isEditing
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
 
+    const left = `${dygraph.toDomXCoord(endTime) + 16}px`
+
     return (
       <div
         className="annotation"
-        style={style.annotationLeft(endTime, dygraph)}
+        style={{left}}
         data-time-ms={endTime}
         data-time-local={humanTime}
       >
@@ -165,11 +167,7 @@ class AnnotationSpan extends React.Component {
 
     return (
       <div>
-        <AnnotationWindow
-          key={annotation.id}
-          annotation={annotation}
-          dygraph={dygraph}
-        />
+        <AnnotationWindow annotation={annotation} dygraph={dygraph} />
         <AnnotationTooltip
           isEditing={isEditing}
           annotation={annotation}

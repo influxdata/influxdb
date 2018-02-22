@@ -3,7 +3,6 @@ import {connect} from 'react-redux'
 
 import {EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
-import * as style from 'shared/annotations/styles'
 import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
 
@@ -101,10 +100,12 @@ class AnnotationPoint extends React.Component {
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
 
+    const left = `${dygraph.toDomXCoord(annotation.startTime) + 16}px`
+
     return (
       <div
         className="annotation"
-        style={style.annotationLeft(annotation.startTime, dygraph)}
+        style={{left}}
         data-time-ms={annotation.startTime}
         data-time-local={humanTime}
       >

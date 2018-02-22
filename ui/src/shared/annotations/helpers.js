@@ -22,6 +22,6 @@ export const getAnnotations = (graph, annotations = []) => {
       return xStart <= +a.startTime && +a.startTime <= xEnd
     }
 
-    return xStart < +a.endTime || +a.startTime < xEnd
+    return !(+a.endTime < xStart || xEnd < +a.startTime)
   })
 }
