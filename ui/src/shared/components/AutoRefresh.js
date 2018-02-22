@@ -27,8 +27,10 @@ const AutoRefresh = ComposedComponent => {
     }
 
     componentWillReceiveProps(nextProps) {
-      const preventLoadDidUpdate =
-        this.props.preventLoad && !nextProps.preventLoad
+      const preventLoadDidUpdate = !_.isEqual(
+        this.props.preventLoad,
+        nextProps.preventLoad
+      )
 
       const queriesDidUpdate = this.queryDifference(
         this.props.queries,
@@ -44,7 +46,11 @@ const AutoRefresh = ComposedComponent => {
         queriesDidUpdate || tempVarsDidUpdate || preventLoadDidUpdate
 
       if (shouldRefetch) {
-        this.executeQueries(nextProps.queries, nextProps.templates)
+        this.executeQueries(
+          nextProps.queries,
+          nextProps.templates,
+          nextProps.preventLoad
+        )
       }
 
       if (this.props.autoRefresh !== nextProps.autoRefresh || shouldRefetch) {
@@ -52,7 +58,12 @@ const AutoRefresh = ComposedComponent => {
 
         if (nextProps.autoRefresh) {
           this.intervalID = setInterval(
-            () => this.executeQueries(nextProps.queries, nextProps.templates),
+            () =>
+              this.executeQueries(
+                nextProps.queries,
+                nextProps.templates,
+                nextProps.preventLoad
+              ),
             nextProps.autoRefresh
           )
         }
@@ -68,11 +79,14 @@ const AutoRefresh = ComposedComponent => {
       )
     }
 
-    executeQueries = async (queries, templates = []) => {
-      const {editQueryStatus, grabDataForDownload, preventLoad} = this.props
+    executeQueries = async (
+      queries,
+      templates = [],
+      preventLoad = this.props.preventLoad
+    ) => {
+      const {editQueryStatus, grabDataForDownload} = this.props
       const {resolution} = this.state
       if (preventLoad) {
-        this.setState({timeSeries: []})
         return
       }
       if (!queries.length) {
