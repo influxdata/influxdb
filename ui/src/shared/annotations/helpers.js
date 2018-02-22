@@ -3,8 +3,7 @@ export const EDITING = 'editing'
 
 export const TEMP_ANNOTATION = {
   id: 'tempAnnotation',
-  name: 'New Annotation',
-  text: '',
+  text: 'Name Me',
   type: '',
   startTime: '',
   endTime: '',

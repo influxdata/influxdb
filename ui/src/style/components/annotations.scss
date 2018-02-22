@@ -69,10 +69,6 @@ $timestamp-font-weight: 600;
   &.dragging {
     border-left-color: $annotation-color__drag;
   }
-
-  &:hover {
-    border-left-color: red;
-  }
 }
 
 .annotation-span--right-flag {
@@ -87,7 +83,6 @@ $timestamp-font-weight: 600;
 }
 
 
-// width: 100%;
 .annotation-tooltip {
   position: absolute;  
   bottom: calc(100% + 6px);
@@ -119,44 +114,36 @@ $timestamp-font-weight: 600;
 }
 
 .annotation-tooltip--delete {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
+  position: relative;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
   padding: 0;
-  border-radius: 50%;
-  color: $g20-white;
-  background-color: $c-curacao;
-  transform: translate(50%,-50%);
-  transition:
-    background-color 0.25s ease;
+  border-radius: 3px;
+  background-color: $g2-kevlar;
+  color: $c-curacao;
+  transition: color 0.25s ease;
   outline: none;
   border: none;
+  font-size: 13px;
 
   &:hover {
+    color: $c-tungsten;
     cursor: pointer;
-    background-color: $c-dreamsicle;
-  }
-
-  > span.icon {
-    position: absolute;
-    top: calc(50% - 1px);
-    left: calc(50% - 1px);
-    font-size: 12px;
-    transform: translate(-50%,-50%);
   }
 }
 
-.annotation-tooltip--input {
-  flex: 1 0 0;
-}
 .annotation-tooltip--input-container {
-  width: 100%;
+  flex: 1 0 0;
   margin-bottom: 4px;
 }
 
-.annotation-tooltip--input .input-cte {
+.annotation-tooltip--input,
+.annotation-tooltip--input-container .input-cte {
+  width: 100%;
+}
+
+.annotation-tooltip--input-container .input-cte {
   height: 22px;
   font-size: 12px;
   line-height: 18px;
@@ -176,7 +163,13 @@ $timestamp-font-weight: 600;
 .annotation-tooltip--items {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+
+  > div {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
 }
 .annotation-tooltip--form {
   display: inline-flex;

@@ -32,21 +32,7 @@ class AnnotationInput extends Component {
   }
 
   handleClickOutside = () => {
-    if (!this.state.isEditing) {
-      return
-    }
-    this.props.onRejectUpdate()
-    this.setState({isEditing: false})
-  }
-
-  handleFormSubmit = e => {
-    e.preventDefault()
     this.props.onConfirmUpdate()
-    this.setState({isEditing: false})
-  }
-
-  handleFormCancel = () => {
-    this.props.onRejectUpdate()
     this.setState({isEditing: false})
   }
 
@@ -57,33 +43,16 @@ class AnnotationInput extends Component {
     return (
       <div className="annotation-tooltip--input-container">
         {isEditing
-          ? <form
-              onSubmit={this.handleFormSubmit}
-              className="annotation-tooltip--form"
-            >
-              <input
-                type="text"
-                className="annotation-tooltip--input form-control input-xs"
-                value={value}
-                onChange={this.handleChange}
-                onKeyDown={this.handleKeyDown}
-                autoFocus={true}
-                onFocus={this.handleFocus}
-              />
-              <button
-                className="annotation-tooltip--input-button btn btn-square btn-xs btn-default"
-                type="button"
-                onClick={this.handleClickOutside}
-              >
-                <span className="icon remove" />
-              </button>
-              <button
-                className="annotation-tooltip--input-button btn btn-square btn-xs btn-success"
-                type="submit"
-              >
-                <span className="icon checkmark" />
-              </button>
-            </form>
+          ? <input
+              type="text"
+              className="annotation-tooltip--input form-control input-xs"
+              value={value}
+              onChange={this.handleChange}
+              onKeyDown={this.handleKeyDown}
+              autoFocus={true}
+              onFocus={this.handleFocus}
+              placeholder="Annotation text"
+            />
           : <div className="input-cte" onClick={this.handleInputClick}>
               {value}
               <span className="icon pencil" />
