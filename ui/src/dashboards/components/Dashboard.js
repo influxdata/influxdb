@@ -29,7 +29,7 @@ const Dashboard = ({
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {
       ...cell,
-      preventLoad: !inView(cell),
+      notInView: !inView(cell),
     }
     dashboardCell.queries = dashboardCell.queries.map(q => ({
       ...q,

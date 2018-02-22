@@ -27,9 +27,9 @@ const AutoRefresh = ComposedComponent => {
     }
 
     componentWillReceiveProps(nextProps) {
-      const preventLoadDidUpdate = !_.isEqual(
-        this.props.preventLoad,
-        nextProps.preventLoad
+      const notInViewDidUpdate = !_.isEqual(
+        this.props.notInView,
+        nextProps.notInView
       )
 
       const queriesDidUpdate = this.queryDifference(
@@ -43,13 +43,13 @@ const AutoRefresh = ComposedComponent => {
       )
 
       const shouldRefetch =
-        queriesDidUpdate || tempVarsDidUpdate || preventLoadDidUpdate
+        queriesDidUpdate || tempVarsDidUpdate || notInViewDidUpdate
 
       if (shouldRefetch) {
         this.executeQueries(
           nextProps.queries,
           nextProps.templates,
-          nextProps.preventLoad
+          nextProps.notInView
         )
       }
 
@@ -62,7 +62,7 @@ const AutoRefresh = ComposedComponent => {
               this.executeQueries(
                 nextProps.queries,
                 nextProps.templates,
-                nextProps.preventLoad
+                nextProps.notInView
               ),
             nextProps.autoRefresh
           )
@@ -82,11 +82,11 @@ const AutoRefresh = ComposedComponent => {
     executeQueries = async (
       queries,
       templates = [],
-      preventLoad = this.props.preventLoad
+      notInView = this.props.notInView
     ) => {
       const {editQueryStatus, grabDataForDownload} = this.props
       const {resolution} = this.state
-      if (preventLoad) {
+      if (notInView) {
         return
       }
       if (!queries.length) {
@@ -225,7 +225,7 @@ const AutoRefresh = ComposedComponent => {
   wrapper.propTypes = {
     children: element,
     autoRefresh: number.isRequired,
-    preventLoad: bool,
+    notInView: bool,
     templates: arrayOf(
       shape({
         type: string.isRequired,
