@@ -63,6 +63,7 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 	opt := query.IteratorOptions{
 		Aux:        []influxql.VarRef{{Val: "key"}},
 		Authorizer: query.OpenAuthorizer,
+		Ascending:  true,
 		Ordered:    true,
 	}
 	p := &indexSeriesCursor{row: seriesRow{shards: shards}}
