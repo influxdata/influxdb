@@ -104,12 +104,17 @@ class AnnotationSpan extends React.Component {
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
 
-    const left = `${dygraph.toDomXCoord(startTime) + 16}px`
+    const leftBound = dygraph.xAxisRange()[0]
+    if (startTime < leftBound) {
+      return null
+    }
+
+    const left = dygraph.toDomXCoord(startTime) + 16
 
     return (
       <div
         className="annotation"
-        style={{left}}
+        style={{left: `${left}px`}}
         data-time-ms={startTime}
         data-time-local={humanTime}
       >
