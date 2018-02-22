@@ -23,7 +23,7 @@ class AnnotationSpan extends React.Component {
     if (e.relatedTarget.id === `tooltip-${annotation.id}`) {
       return this.setState({isDragging: false})
     }
-    this.setState({isDragging: false, isMouseOver: false})
+    this.setState({isMouseOver: false})
   }
 
   handleDragStart = () => {
@@ -115,6 +115,7 @@ class AnnotationSpan extends React.Component {
       >
         <AnnotationTooltip
           isEditing={isEditing}
+          timestamp={annotation.startTime}
           annotation={annotation}
           onMouseLeave={this.handleMouseLeave}
           annotationState={this.state}
@@ -157,6 +158,7 @@ class AnnotationSpan extends React.Component {
       >
         <AnnotationTooltip
           isEditing={isEditing}
+          timestamp={annotation.endTime}
           annotation={annotation}
           onMouseLeave={this.handleMouseLeave}
           annotationState={this.state}

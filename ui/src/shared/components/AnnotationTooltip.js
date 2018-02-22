@@ -39,6 +39,7 @@ class AnnotationTooltip extends Component {
     const {annotation} = this.state
     const {
       onMouseLeave,
+      timestamp,
       annotationState: {isDragging, isMouseOver},
       isEditing,
     } = this.props
@@ -55,7 +56,7 @@ class AnnotationTooltip extends Component {
         className={tooltipClass}
       >
         {isDragging
-          ? <TimeStamp time={this.props.annotation.startTime} />
+          ? <TimeStamp time={timestamp} />
           : <div className="annotation-tooltip--items">
               {isEditing &&
                 <button
@@ -74,7 +75,7 @@ class AnnotationTooltip extends Component {
                 : <div>
                     {annotation.name}
                   </div>}
-              <TimeStamp time={this.props.annotation.startTime} />
+              <TimeStamp time={timestamp} />
             </div>}
       </div>
     )
@@ -89,6 +90,7 @@ TimeStamp.propTypes = {
 AnnotationTooltip.propTypes = {
   isEditing: bool,
   annotation: schema.annotation.isRequired,
+  timestamp: string,
   onMouseLeave: func.isRequired,
   annotationState: shape({}),
   deleteAnnotationAsync: func.isRequired,

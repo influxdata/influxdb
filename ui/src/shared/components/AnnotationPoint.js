@@ -22,7 +22,7 @@ class AnnotationPoint extends React.Component {
     if (e.relatedTarget.id === `tooltip-${annotation.id}`) {
       return this.setState({isDragging: false})
     }
-    this.setState({isDragging: false, isMouseOver: false})
+    this.setState({isMouseOver: false})
   }
 
   handleDragStart = () => {
@@ -121,6 +121,7 @@ class AnnotationPoint extends React.Component {
         <div className={flagClass} />
         <AnnotationTooltip
           isEditing={isEditing}
+          timestamp={annotation.startTime}
           annotation={annotation}
           onMouseLeave={this.handleMouseLeave}
           annotationState={this.state}
