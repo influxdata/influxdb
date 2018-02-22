@@ -24,7 +24,7 @@ class AnnotationTooltip extends Component {
   }
 
   handleConfirmUpdate = () => {
-    this.props.updateAnnotation(this.state.annotation)
+    this.props.updateAnnotationAsync(this.state.annotation)
   }
 
   handleRejectUpdate = () => {
@@ -67,13 +67,13 @@ class AnnotationTooltip extends Component {
                 </button>}
               {isEditing
                 ? <AnnotationInput
-                    value={annotation.name}
-                    onChangeInput={this.handleChangeInput('name')}
+                    value={annotation.text}
+                    onChangeInput={this.handleChangeInput('text')}
                     onConfirmUpdate={this.handleConfirmUpdate}
                     onRejectUpdate={this.handleRejectUpdate}
                   />
                 : <div>
-                    {annotation.name}
+                    {annotation.text}
                   </div>}
               <TimeStamp time={timestamp} />
             </div>}
@@ -94,10 +94,10 @@ AnnotationTooltip.propTypes = {
   onMouseLeave: func.isRequired,
   annotationState: shape({}),
   deleteAnnotationAsync: func.isRequired,
-  updateAnnotation: func.isRequired,
+  updateAnnotationAsync: func.isRequired,
 }
 
 export default connect(null, {
   deleteAnnotationAsync: actions.deleteAnnotationAsync,
-  updateAnnotation: actions.updateAnnotation,
+  updateAnnotationAsync: actions.updateAnnotationAsync,
 })(AnnotationTooltip)

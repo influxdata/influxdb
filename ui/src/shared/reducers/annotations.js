@@ -35,14 +35,9 @@ const annotationsReducer = (state = initialState, action) => {
     }
 
     case 'ADDING_ANNOTATION_SUCCESS': {
-      const annotations = state.annotations.filter(
-        a => a.id !== TEMP_ANNOTATION.id
-      )
-
       return {
         ...state,
         mode: null,
-        annotations,
       }
     }
 
