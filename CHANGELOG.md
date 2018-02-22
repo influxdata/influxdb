@@ -3,6 +3,7 @@
 ### UI Improvements
 ### Bug Fixes
 1. [#2821](https://github.com/influxdata/chronograf/pull/2821): Save only selected template variable values into dashboards for non csv template variables
+1. [#2842](https://github.com/influxdata/chronograf/pull/2842): Use Generic APIKey for Oauth2 group lookup
 
 ## v1.4.1.3 [2018-02-14]
 ### Bug Fixes
