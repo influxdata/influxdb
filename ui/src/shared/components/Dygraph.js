@@ -303,7 +303,7 @@ class Dygraph extends Component {
     const hideLegend = mode === EDITING || mode === ADDING ? true : isHidden
 
     return (
-      <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
+      <div className="dygraph-container" onMouseLeave={this.deselectCrosshair}>
         {this.dygraph &&
           <Annotations
             dygraph={this.dygraph}
@@ -321,7 +321,7 @@ class Dygraph extends Component {
             this.graphRef = r
             this.props.dygraphRef(r)
           }}
-          className="dygraph-child-container"
+          className="dygraph"
           style={{...this.props.containerStyle, zIndex: '2'}}
         />
       </div>

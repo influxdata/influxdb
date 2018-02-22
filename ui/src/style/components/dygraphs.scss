@@ -1,9 +1,9 @@
 // Overrides default Dygraphs styles
 
-.dygraph {
-  &:hover {
-    cursor: default;
-  }
+.dygraph-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
 }
 
 .graph-vertical-marker {
@@ -38,7 +38,6 @@
   text-align: right !important;
   user-select: none;
 }
-.graph-container > div > div > div > div {}
 
 /* Vertical Axis Labels */
 .dygraph-ylabel,
@@ -61,7 +60,7 @@
   transform: rotate(90deg);
 }
 
-.graph--hasYLabel {
+.line-graph__hasYLabel {
 
   .dygraph-axis-label-y {
     padding: 0 1px 0 16px !important;
@@ -141,7 +140,7 @@
   Legend Styles
   ------------------------------------------------------------------------------
 */
-.dygraph-child-container .dygraph-legend {
+.dygraph .dygraph-legend {
   display: none !important; // hide default legend
 }
 .dygraph-legend {

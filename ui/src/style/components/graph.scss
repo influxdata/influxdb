@@ -5,6 +5,18 @@
 $graph-heading-height: 44px;
 $graph-gutter: 16px;
 
+.line-graph {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  &:hover {
+    cursor: default;
+  }
+}
+
 /*
   Graph Styles
   ---------------------------------------------
@@ -108,18 +120,6 @@ $graph-gutter: 16px;
 }
 .graph-container {
   @include no-user-select();
-
-  & > .dygraph {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-  }
-  & > .dygraph > .dygraph-child {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    padding: 8px 16px;
-  }
 }
 
 .graph-empty {

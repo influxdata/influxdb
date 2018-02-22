@@ -89,6 +89,7 @@ class LineGraph extends Component {
       width: 'calc(100% - 32px)',
       height: 'calc(100% - 16px)',
       position: 'absolute',
+      left: '16px',
       top: '8px',
     }
 
@@ -101,7 +102,10 @@ class LineGraph extends Component {
     }
 
     return (
-      <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
+      <div
+        className="line-graph line-graph__hasYLabel"
+        style={{height: '100%'}}
+      >
         {isRefreshing ? <GraphLoadingDots /> : null}
         <Dygraph
           cell={cell}
