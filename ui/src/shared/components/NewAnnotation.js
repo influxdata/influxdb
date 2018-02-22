@@ -95,6 +95,19 @@ class NewAnnotation extends Component {
     }
   }
 
+  renderTimestamp(time) {
+    const timestamp = `${new Date(+time)}`
+
+    return (
+      <div className="new-annotation-tooltip">
+        <span className="new-annotation-helper">Click to Annotate</span>
+        <span className="new-annotation-timestamp">
+          {timestamp}
+        </span>
+      </div>
+    )
+  }
+
   render() {
     const {
       dygraph,
@@ -102,8 +115,6 @@ class NewAnnotation extends Component {
       tempAnnotation,
       tempAnnotation: {startTime, endTime},
     } = this.props
-
-    const timestamp = `${new Date(+startTime)}`
 
     const crosshairOne = dygraph.toDomXCoord(startTime)
     const crosshairTwo = dygraph.toDomXCoord(endTime)
@@ -123,12 +134,6 @@ class NewAnnotation extends Component {
       <div>
         {isDragging &&
           <AnnotationWindow annotation={tempAnnotation} dygraph={dygraph} />}
-        <div className="new-annotation-tooltip">
-          <span className="new-annotation-helper">Click to Annotate</span>
-          <span className="new-annotation-timestamp">
-            {timestamp}
-          </span>
-        </div>
         <div
           className={classnames('new-annotation', {
             hover: isTempHovering,
@@ -145,12 +150,14 @@ class NewAnnotation extends Component {
               className="new-annotation--crosshair"
               style={{left: crosshairTwo}}
             >
+              {this.renderTimestamp(tempAnnotation.endTime)}
               <div className={flagTwoClass} />
             </div>}
           <div
             className="new-annotation--crosshair"
             style={{left: crosshairOne}}
           >
+            {isDragging || this.renderTimestamp(tempAnnotation.startTime)}
             <div className={isDragging ? flagOneClass : pointFlagClass} />
           </div>
         </div>

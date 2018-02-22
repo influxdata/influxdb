@@ -99,7 +99,7 @@ class AnnotationSpan extends React.Component {
     const flagClass = isDragging
       ? 'annotation-span--left-flag dragging'
       : 'annotation-span--left-flag'
-
+    const markerClass = isDragging ? 'annotation dragging' : 'annotation'
     const clickClass = isEditing
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
@@ -113,7 +113,7 @@ class AnnotationSpan extends React.Component {
 
     return (
       <div
-        className="annotation"
+        className={markerClass}
         style={{left: `${left}px`}}
         data-time-ms={startTime}
         data-time-local={humanTime}
@@ -148,15 +148,21 @@ class AnnotationSpan extends React.Component {
     const flagClass = isDragging
       ? 'annotation-span--right-flag dragging'
       : 'annotation-span--right-flag'
+    const markerClass = isDragging ? 'annotation dragging' : 'annotation'
     const clickClass = isEditing
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
+
+    const rightBound = dygraph.xAxisRange()[1]
+    if (rightBound < endTime) {
+      return null
+    }
 
     const left = `${dygraph.toDomXCoord(endTime) + 16}px`
 
     return (
       <div
-        className="annotation"
+        className={markerClass}
         style={{left}}
         data-time-ms={endTime}
         data-time-local={humanTime}

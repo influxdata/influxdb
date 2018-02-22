@@ -93,9 +93,9 @@ class AnnotationPoint extends React.Component {
     const {isDragging} = this.state
 
     const flagClass = isDragging
-      ? 'annotation-point--flag dragging'
+      ? 'annotation-point--flag__dragging'
       : 'annotation-point--flag'
-
+    const markerClass = isDragging ? 'annotation dragging' : 'annotation'
     const clickClass = isEditing
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
@@ -104,7 +104,7 @@ class AnnotationPoint extends React.Component {
 
     return (
       <div
-        className="annotation"
+        className={markerClass}
         style={{left}}
         data-time-ms={annotation.startTime}
         data-time-local={humanTime}

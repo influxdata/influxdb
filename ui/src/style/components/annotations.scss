@@ -9,6 +9,23 @@ $window35: rgba($annotation-color,0.35);
 $timestamp-font-size: 14px;
 $timestamp-font-weight: 600;
 
+.annotation {
+  position: absolute;
+  top: 8px;
+  z-index: 3;
+  background-color: $annotation-color;
+  height: calc(100% - 36px);
+  width: 2px;
+  transform: translateX(-1px); // translate should always be half with width to horizontally center the annotation pos  
+  transition: background-color 0.25s ease;
+  visibility: visible;
+
+  &.dragging {
+    background-color: $annotation-color__drag;
+    z-index: 4;
+  }
+}
+
 .annotation-point--flag {
   position: absolute;
   z-index: 2;
@@ -171,24 +188,6 @@ $timestamp-font-weight: 600;
   margin-left: 2px;
 }
 
-
-.annotation {
-  position: absolute;
-  top: 8px;
-  z-index: 3;
-  background-color: $annotation-color;
-  height: calc(100% - 36px);
-  width: 2px;
-  transform: translateX(-1px); // translate should always be half with width to horizontally center the annotation pos  
-  transition: background-color 0.25s ease;
-  visibility: visible;
-
-  &.dragging {
-    background-color: $annotation-color__drag;
-    z-index: 4;
-  }
-}
-
 .annotation--click-area {
   position: absolute;
   top: -8px;
@@ -248,7 +247,7 @@ $timestamp-font-weight: 600;
 }
 
 .new-annotation-tooltip {
-  display: none;
+  display: flex;
   flex-direction: column;
   align-items: center;
   background: linear-gradient(to bottom, $c-pool 0%,$c-ocean 100%);
@@ -259,9 +258,6 @@ $timestamp-font-weight: 600;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-}
-.new-annotation.hover .new-annotation-tooltip {
-  display: flex;
 }
 
 .new-annotation-helper {
