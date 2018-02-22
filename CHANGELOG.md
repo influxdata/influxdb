@@ -1,5 +1,6 @@
 ## v1.4.2.0 [unreleased]
 ### Features
+1. [#2837] (https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 ### UI Improvements
 ### Bug Fixes
 
