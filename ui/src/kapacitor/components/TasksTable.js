@@ -5,14 +5,13 @@ import _ from 'lodash'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 
-const {colID, colName, colType, colEnabled, colActions} = TASKS_TABLE
+const {colName, colType, colEnabled, colActions} = TASKS_TABLE
 
 const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
     <table className="table v-center table-highlight">
       <thead>
         <tr>
-          <th style={{minWidth: colID}}>ID</th>
           <th style={{minWidth: colName}}>Name</th>
           <th style={{width: colType}}>Type</th>
           <th style={{width: colEnabled}} className="text-center">
@@ -41,16 +40,13 @@ const handleDelete = (task, onDelete) => onDelete(task)
 
 const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
   <tr key={task.id}>
-    <td style={{minWidth: colID}}>
+    <td style={{minWidth: colName}}>
       <Link
         className="link-success"
         to={`/sources/${source.id}/tickscript/${task.id}`}
       >
-        {task.id}
+        {task.name}
       </Link>
-    </td>
-    <td style={{width: colName}}>
-      {task.name || ''}
     </td>
     <td style={{width: colType, textTransform: 'capitalize'}}>
       {task.type}
