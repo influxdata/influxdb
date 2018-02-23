@@ -350,7 +350,7 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating} = this.state
+    const {isEditMode, isTemplating} = this.state
 
     const names = dashboards.map(d => ({
       name: d.name,
