@@ -12,6 +12,7 @@ class GaugeChart extends PureComponent {
   render() {
     const {
       data,
+      cellID,
       cellHeight,
       isFetchingInitially,
       colors,
@@ -35,11 +36,17 @@ class GaugeChart extends PureComponent {
     // When a new height is passed the Gauge component resizes internally
     // Passing in a new often ensures the gauge appears sharp
 
+    let thisGaugeIsResizing = false
+    if (resizeCoords) {
+      thisGaugeIsResizing = cellID === resizeCoords.i
+    }
     const initialCellHeight =
       cellHeight && (cellHeight * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
 
     const resizeCoordsHeight =
-      resizeCoords && (resizeCoords.h * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
+      resizeCoords &&
+      thisGaugeIsResizing &&
+      (resizeCoords.h * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
 
     const height = (resizeCoordsHeight ||
       initialCellHeight ||
@@ -69,6 +76,7 @@ GaugeChart.defaultProps = {
 GaugeChart.propTypes = {
   data: arrayOf(shape()).isRequired,
   isFetchingInitially: bool,
+  cellID: string,
   cellHeight: number,
   resizerTopHeight: number,
   resizeCoords: shape(),
