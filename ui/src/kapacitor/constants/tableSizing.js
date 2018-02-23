@@ -9,6 +9,7 @@ export const KAPACITOR_RULES_TABLE = {
 
 export const TASKS_TABLE = {
   colID: '200px',
+  colName: '200px',
   colType: '90px',
   colEnabled: '64px',
   colActions: '68px',

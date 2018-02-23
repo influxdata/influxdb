@@ -5,11 +5,7 @@ import _ from 'lodash'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 
-const {colID, colType, colEnabled, colActions} = TASKS_TABLE
-
-const checkForName = task => {
-  return task.id.slice(0, 10) === 'chronograf' ? task.name : task.id
-}
+const {colID, colName, colType, colEnabled, colActions} = TASKS_TABLE
 
 const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
@@ -17,6 +13,7 @@ const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
       <thead>
         <tr>
           <th style={{minWidth: colID}}>ID</th>
+          <th style={{minWidth: colName}}>Name</th>
           <th style={{width: colType}}>Type</th>
           <th style={{width: colEnabled}} className="text-center">
             Enabled
@@ -25,7 +22,7 @@ const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
         </tr>
       </thead>
       <tbody>
-        {_.sortBy(tasks, t => t.name.toLowerCase()).map(task => {
+        {_.sortBy(tasks, t => t.id.toLowerCase()).map(task => {
           return (
             <TaskRow
               key={task.id}
@@ -49,8 +46,11 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
         className="link-success"
         to={`/sources/${source.id}/tickscript/${task.id}`}
       >
-        {checkForName(task)}
+        {task.id}
       </Link>
+    </td>
+    <td style={{width: colName}}>
+      {task.name || ''}
     </td>
     <td style={{width: colType, textTransform: 'capitalize'}}>
       {task.type}
