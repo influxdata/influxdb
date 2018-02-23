@@ -134,7 +134,11 @@ class NewAnnotation extends Component {
     return (
       <div>
         {isDragging &&
-          <AnnotationWindow annotation={tempAnnotation} dygraph={dygraph} />}
+          <AnnotationWindow
+            annotation={tempAnnotation}
+            dygraph={dygraph}
+            active={true}
+          />}
         <div
           className={classnames('new-annotation', {
             hover: isTempHovering,
