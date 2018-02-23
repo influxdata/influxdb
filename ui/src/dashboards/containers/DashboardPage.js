@@ -20,15 +20,12 @@ import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
-<<<<<<< HEAD
 import * as annotationActions from 'shared/actions/annotations'
-||||||| merged common ancestors
-=======
+
 import {
   showCellEditorOverlay,
   hideCellEditorOverlay,
 } from 'src/dashboards/actions/cellEditorOverlay'
->>>>>>> master
 
 import {
   setAutoRefresh,
@@ -528,17 +525,13 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     dashboards,
     autoRefresh,
     isUsingAuth,
-<<<<<<< HEAD
     cellQueryStatus,
     inPresentationMode,
     showTemplateControlBar,
-||||||| merged common ancestors
-=======
     selectedCell,
     singleStatType,
     singleStatColors,
     gaugeColors,
->>>>>>> master
   }
 }
 
@@ -552,13 +545,10 @@ const mapDispatchToProps = dispatch => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(publishNotification, dispatch),
-<<<<<<< HEAD
   getAnnotationsAsync: bindActionCreators(
     annotationActions.getAnnotationsAsync,
     dispatch
   ),
-||||||| merged common ancestors
-=======
   handleShowCellEditorOverlay: bindActionCreators(
     showCellEditorOverlay,
     dispatch
@@ -567,7 +557,6 @@ const mapDispatchToProps = dispatch => ({
     hideCellEditorOverlay,
     dispatch
   ),
->>>>>>> master
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
