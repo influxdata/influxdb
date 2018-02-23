@@ -15,7 +15,7 @@ const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
           <th style={{minWidth: colName}}>Name</th>
           <th style={{width: colType}}>Type</th>
           <th style={{width: colEnabled}} className="text-center">
-            Enabled
+            Task Enabled
           </th>
           <th style={{width: colActions}} />
         </tr>

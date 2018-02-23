@@ -4,7 +4,7 @@ import _ from 'lodash'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {parseAlertNodeList} from 'src/shared/parsing/parseHandlersFromRule'
-import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
+import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {
   colName,
   colTrigger,
@@ -12,7 +12,7 @@ const {
   colAlerts,
   colEnabled,
   colActions,
-} = KAPACITOR_RULES_TABLE
+} = TASKS_TABLE
 
 const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
@@ -20,11 +20,11 @@ const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
       <thead>
         <tr>
           <th style={{minWidth: colName}}>Name</th>
-          <th style={{width: colTrigger}}>Rule Trigger</th>
+          <th style={{width: colTrigger}}>Rule Type</th>
           <th style={{width: colMessage}}>Message</th>
-          <th style={{width: colAlerts}}>Alerts</th>
+          <th style={{width: colAlerts}}>Alert Handlers</th>
           <th style={{width: colEnabled}} className="text-center">
-            Enabled
+            Task Enabled
           </th>
           <th style={{width: colActions}} />
         </tr>
@@ -57,7 +57,7 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
     <td style={{width: colTrigger, textTransform: 'capitalize'}}>
       {rule.trigger}
     </td>
-    <td style={{wdith: colMessage}}>
+    <td style={{width: colMessage}}>
       {rule.message}
     </td>
     <td style={{width: colAlerts}}>
