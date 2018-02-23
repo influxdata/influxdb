@@ -6,6 +6,7 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
 import TasksTable from 'src/kapacitor/components/TasksTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
 const KapacitorRules = ({
   source,
@@ -112,6 +113,10 @@ const PageContents = ({children}) =>
           <h1 className="page-header__title">Manage Tasks</h1>
         </div>
         <div className="page-header__right">
+          <QuestionMarkTooltip
+            tipID="manage-tasks--tooltip"
+            tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
+          />
           <SourceIndicator />
         </div>
       </div>
