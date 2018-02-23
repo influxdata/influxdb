@@ -114,9 +114,7 @@ func (g *Generic) PrincipalID(provider *http.Client) (string, error) {
 // Group returns the domain that a user belongs to in the
 // the generic OAuth.
 func (g *Generic) Group(provider *http.Client) (string, error) {
-	res := struct {
-		Email string `json:"email"`
-	}{}
+	res := map[string]interface{}{}
 
 	r, err := provider.Get(g.APIURL)
 	if err != nil {
@@ -128,12 +126,27 @@ func (g *Generic) Group(provider *http.Client) (string, error) {
 		return "", err
 	}
 
-	email := strings.Split(res.Email, "@")
-	if len(email) != 2 {
-		return "", fmt.Errorf("malformed email address, expected %q to contain @ symbol", res.Email)
+	email := ""
+	value := res[g.APIKey]
+	if e, ok := value.(string); ok {
+		email = e
 	}
 
-	return email[1], nil
+	// If we did not receive an email address, try to lookup the email
+	// in a similar way as github
+	if email == "" {
+		email, err = g.getPrimaryEmail(provider)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	domain := strings.Split(email, "@")
+	if len(domain) != 2 {
+		return "", fmt.Errorf("malformed email address, expected %q to contain @ symbol", email)
+	}
+
+	return domain[1], nil
 }
 
 // UserEmail represents user's email address

@@ -37,7 +37,7 @@ func (c *UserStore) Delete(ctx context.Context, u *chronograf.User) error {
 	return c.Ctrl.DeleteUser(ctx, u.Name)
 }
 
-// Number of users in Influx
+// Num of users in Influx
 func (c *UserStore) Num(ctx context.Context) (int, error) {
 	all, err := c.All(ctx)
 	if err != nil {
