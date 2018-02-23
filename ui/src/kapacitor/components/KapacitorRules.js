@@ -109,7 +109,7 @@ const PageContents = ({children}) =>
     <div className="page-header">
       <div className="page-header__container">
         <div className="page-header__left">
-          <h1 className="page-header__title">Manage Alerts</h1>
+          <h1 className="page-header__title">Manage Tasks</h1>
         </div>
         <div className="page-header__right">
           <SourceIndicator />

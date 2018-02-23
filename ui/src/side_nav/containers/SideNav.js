@@ -121,7 +121,7 @@ const SideNav = React.createClass({
             <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
             <NavListItem link={`${sourcePrefix}/alerts`}>History</NavListItem>
             <NavListItem link={`${sourcePrefix}/alert-rules`}>
-              Manage Alerts
+              Manage Tasks
             </NavListItem>
           </NavBlock>
 
