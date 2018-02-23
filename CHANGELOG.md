@@ -1,7 +1,9 @@
 ## v1.4.2.0 [unreleased]
 ### Features
 ### UI Improvements
+1. [#2848](https://github.com/influxdata/chronograf/pull/2848): Add ability to set a prefix and suffix on Single Stat and Gauge cell types
 1. [#2831](https://github.com/influxdata/chronograf/pull/2831): Rename 'Create Alerts' page to 'Manage Tasks'; Redesign page to improve clarity of purpose
+
 ### Bug Fixes
 1. [#2821](https://github.com/influxdata/chronograf/pull/2821): Save only selected template variable values into dashboards for non csv template variables
 1. [#2842](https://github.com/influxdata/chronograf/pull/2842): Use Generic APIKey for Oauth2 group lookup
