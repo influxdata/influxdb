@@ -27,10 +27,7 @@ const AutoRefresh = ComposedComponent => {
     }
 
     componentWillReceiveProps(nextProps) {
-      const notInViewDidUpdate = !_.isEqual(
-        this.props.notInView,
-        nextProps.notInView
-      )
+      const inViewDidUpdate = this.props.inView !== nextProps.inView
 
       const queriesDidUpdate = this.queryDifference(
         this.props.queries,
@@ -43,13 +40,13 @@ const AutoRefresh = ComposedComponent => {
       )
 
       const shouldRefetch =
-        queriesDidUpdate || tempVarsDidUpdate || notInViewDidUpdate
+        queriesDidUpdate || tempVarsDidUpdate || inViewDidUpdate
 
       if (shouldRefetch) {
         this.executeQueries(
           nextProps.queries,
           nextProps.templates,
-          nextProps.notInView
+          nextProps.inView
         )
       }
 
@@ -62,7 +59,7 @@ const AutoRefresh = ComposedComponent => {
               this.executeQueries(
                 nextProps.queries,
                 nextProps.templates,
-                nextProps.notInView
+                nextProps.inView
               ),
             nextProps.autoRefresh
           )
@@ -82,11 +79,11 @@ const AutoRefresh = ComposedComponent => {
     executeQueries = async (
       queries,
       templates = [],
-      notInView = this.props.notInView
+      inView = this.props.inView
     ) => {
       const {editQueryStatus, grabDataForDownload} = this.props
       const {resolution} = this.state
-      if (notInView) {
+      if (!inView) {
         return
       }
       if (!queries.length) {
@@ -216,7 +213,7 @@ const AutoRefresh = ComposedComponent => {
   wrapper.propTypes = {
     children: element,
     autoRefresh: number.isRequired,
-    notInView: bool,
+    inView: bool,
     templates: arrayOf(
       shape({
         type: string.isRequired,
