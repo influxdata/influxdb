@@ -20,12 +20,6 @@ import {
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 class QueriesPage extends Component {
-  constructor(props) {
-    super(props)
-    this.updateQueries = ::this.updateQueries
-    this.handleKillQuery = ::this.handleKillQuery
-  }
-
   componentDidMount() {
     this.updateQueries()
     const updateInterval = 5000
@@ -42,7 +36,7 @@ class QueriesPage extends Component {
     return <QueriesTable queries={queries} onKillQuery={this.handleKillQuery} />
   }
 
-  updateQueries() {
+  updateQueries = () => {
     const {source, notify, loadQueries} = this.props
     showDatabases(source.links.proxy).then(resp => {
       const {databases, errors} = showDatabasesParser(resp.data)
@@ -78,7 +72,7 @@ class QueriesPage extends Component {
     })
   }
 
-  handleKillQuery(id) {
+  handleKillQuery = id => {
     const {source, killQuery} = this.props
     killQuery(source.links.proxy, id)
   }

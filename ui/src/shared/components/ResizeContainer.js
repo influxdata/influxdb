@@ -17,11 +17,6 @@ class ResizeContainer extends Component {
       topHeight: props.initialTopHeight,
       bottomHeight: props.initialBottomHeight,
     }
-
-    this.handleStartDrag = ::this.handleStartDrag
-    this.handleStopDrag = ::this.handleStopDrag
-    this.handleMouseLeave = ::this.handleMouseLeave
-    this.handleDrag = ::this.handleDrag
   }
 
   static defaultProps = {
@@ -38,19 +33,19 @@ class ResizeContainer extends Component {
     })
   }
 
-  handleStartDrag() {
+  handleStartDrag = () => {
     this.setState({isDragging: true})
   }
 
-  handleStopDrag() {
+  handleStopDrag = () => {
     this.setState({isDragging: false})
   }
 
-  handleMouseLeave() {
+  handleMouseLeave = () => {
     this.setState({isDragging: false})
   }
 
-  handleDrag(e) {
+  handleDrag = e => {
     if (!this.state.isDragging) {
       return
     }

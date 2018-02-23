@@ -4,7 +4,9 @@ const webpack = require('webpack')
 const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const WebpackOnBuildPlugin = require('on-build-webpack')
-const _ = require('lodash')
+const keys = require('lodash/keys')
+const difference = require('lodash/difference')
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 
 const package = require('../package.json')
 const dependencies = package.dependencies
@@ -15,7 +17,8 @@ const babelLoader = {
   options: {
     cacheDirectory: true,
     presets: [
-      'react', [
+      'react',
+      [
         'es2015',
         {
           modules: false,
@@ -62,7 +65,8 @@ module.exports = {
         'memoizerific.js'
       ),
     ],
-    loaders: [{
+    rules: [
+      {
         test: /\.js$/,
         exclude: /node_modules/,
         loader: 'eslint-loader',
@@ -93,28 +97,44 @@ module.exports = {
       },
       {
         test: /\.js$/,
+        include: path.resolve(__dirname, '..', 'src'),
         exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['es2015', 'react', 'stage-0'],
-            cacheDirectory: true, // use a cache directory to speed up compilation
-          }
-        },
+        use: [
+          {
+            loader: 'babel-loader',
+            options: {
+              presets: ['es2015', 'react', 'stage-0'],
+              cacheDirectory: true, // use a cache directory to speed up compilation
+            },
+          },
+        ],
       },
       {
         test: /\.ts(x?)$/,
         exclude: /node_modules/,
         use: [
+          {
+            loader: 'thread-loader',
+            options: {
+              // there should be 1 cpu for the fork-ts-checker-webpack-plugin
+              workers: require('os').cpus().length - 1,
+            },
+          },
           babelLoader,
           {
             loader: 'ts-loader',
+            options: {
+              happyPackMode: true, // required for use with thread-loader
+            },
           },
         ],
       },
     ],
   },
   plugins: [
+    new ForkTsCheckerWebpackPlugin({
+      checkSyntacticErrors: true,
+    }),
     new webpack.LoaderOptionsPlugin({
       options: {
         postcss: require('./postcss'),
@@ -152,8 +172,8 @@ module.exports = {
           return
         }
 
-        const assetFileNames = _.keys(newlyCreatedAssets)
-        const filesToRemove = _.difference(buildDirFiles, assetFileNames)
+        const assetFileNames = keys(newlyCreatedAssets)
+        const filesToRemove = difference(buildDirFiles, assetFileNames)
 
         for (const file of filesToRemove) {
           const ext = path.extname(file)

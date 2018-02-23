@@ -65,6 +65,7 @@
     "express": "^4.14.0",
     "extract-text-webpack-plugin": "^3.0.2",
     "file-loader": "^1.1.7",
+    "fork-ts-checker-webpack-plugin": "^0.3.0",
     "hanson": "^1.1.1",
     "hson-loader": "^1.0.0",
     "html-webpack-plugin": "^2.22.0",
@@ -97,10 +98,12 @@
     "sinon-chai": "^2.8.0",
     "style-loader": "^0.13.0",
     "testem": "^1.2.1",
+    "thread-loader": "^1.1.4",
     "ts-loader": "^3.5.0",
     "tslib": "^1.9.0",
     "uglify-js": "^2.6.1",
     "webpack": "^3.11.0",
+    "webpack-bundle-analyzer": "^2.10.1",
     "webpack-dev-server": "^2.11.1"
   },
   "dependencies": {

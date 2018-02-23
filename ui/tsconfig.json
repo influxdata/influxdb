@@ -24,5 +24,8 @@
     "allowJs": true,
     "checkJs": false,
     "sourceMap": true,
+    "baseUrl": "./",
+    "rootDir": "src",
+    "exclude": ["./assets/*", "./build/*", "./node_modules/*"]
   }
 }
