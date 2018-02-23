@@ -253,7 +253,7 @@ class DashboardPage extends Component {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
   }
 
-  getScrollTop = event => {
+  setScrollTop = event => {
     this.setState({scrollTop: event.target.scrollTop})
   }
 
@@ -404,7 +404,7 @@ class DashboardPage extends Component {
           ? <Dashboard
               source={source}
               sources={sources}
-              getScrollTop={this.getScrollTop}
+              setScrollTop={this.setScrollTop}
               inView={this.inView}
               dashboard={dashboard}
               timeRange={timeRange}

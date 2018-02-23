@@ -10,7 +10,7 @@ class FancyScrollbar extends Component {
   static defaultProps = {
     autoHide: true,
     autoHeight: false,
-    getScrollTop: () => {},
+    setScrollTop: () => {},
   }
 
   handleMakeDiv = className => props => {
@@ -24,7 +24,7 @@ class FancyScrollbar extends Component {
       children,
       className,
       maxHeight,
-      getScrollTop,
+      setScrollTop,
     } = this.props
 
     return (
@@ -32,7 +32,7 @@ class FancyScrollbar extends Component {
         className={classnames('fancy-scroll--container', {
           [className]: className,
         })}
-        onScroll={getScrollTop}
+        onScroll={setScrollTop}
         autoHide={autoHide}
         autoHideTimeout={1000}
         autoHideDuration={250}
@@ -58,7 +58,7 @@ FancyScrollbar.propTypes = {
   autoHide: bool,
   autoHeight: bool,
   maxHeight: number,
-  getScrollTop: func,
+  setScrollTop: func,
 }
 
 export default FancyScrollbar
