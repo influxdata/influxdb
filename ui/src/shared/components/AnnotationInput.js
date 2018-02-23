@@ -1,13 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import onClickOutside from 'react-onclickoutside'
 
-import {
-  tooltipInputContainer,
-  tooltipFormStyle,
-  tooltipInputButton,
-  tooltipInput,
-} from 'src/shared/annotations/styles'
-
 class AnnotationInput extends Component {
   state = {
     isEditing: false,
@@ -39,21 +32,7 @@ class AnnotationInput extends Component {
   }
 
   handleClickOutside = () => {
-    if (!this.state.isEditing) {
-      return
-    }
-    this.props.onRejectUpdate()
-    this.setState({isEditing: false})
-  }
-
-  handleFormSubmit = e => {
-    e.preventDefault()
     this.props.onConfirmUpdate()
-    this.setState({isEditing: false})
-  }
-
-  handleFormCancel = () => {
-    this.props.onRejectUpdate()
     this.setState({isEditing: false})
   }
 
@@ -62,35 +41,18 @@ class AnnotationInput extends Component {
     const {value} = this.props
 
     return (
-      <div className="annotation-tooltip-input" style={tooltipInputContainer}>
+      <div className="annotation-tooltip--input-container">
         {isEditing
-          ? <form onSubmit={this.handleFormSubmit} style={tooltipFormStyle}>
-              <input
-                type="text"
-                className="form-control input-sm"
-                style={tooltipInput}
-                value={value}
-                onChange={this.handleChange}
-                onKeyDown={this.handleKeyDown}
-                autoFocus={true}
-                onFocus={this.handleFocus}
-              />
-              <button
-                className="btn btn-square btn-sm btn-default"
-                style={tooltipInputButton}
-                type="button"
-                onClick={this.handleClickOutside}
-              >
-                <span className="icon remove" />
-              </button>
-              <button
-                className="btn btn-square btn-sm btn-success"
-                style={tooltipInputButton}
-                type="submit"
-              >
-                <span className="icon checkmark" />
-              </button>
-            </form>
+          ? <input
+              type="text"
+              className="annotation-tooltip--input form-control input-xs"
+              value={value}
+              onChange={this.handleChange}
+              onKeyDown={this.handleKeyDown}
+              autoFocus={true}
+              onFocus={this.handleFocus}
+              placeholder="Annotation text"
+            />
           : <div className="input-cte" onClick={this.handleInputClick}>
               {value}
               <span className="icon pencil" />

@@ -3,15 +3,13 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import Annotation from 'src/shared/components/Annotation'
-import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 import NewAnnotation from 'src/shared/components/NewAnnotation'
+import * as schema from 'src/shared/schemas'
 
 import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
 import {
-  addAnnotation,
   updateAnnotation,
-  deleteAnnotation,
   addingAnnotationSuccess,
   dismissAddingAnnotation,
   mouseEnterTempAnnotation,
@@ -21,7 +19,7 @@ import {getAnnotations} from 'src/shared/annotations/helpers'
 
 class Annotations extends Component {
   state = {
-    dygraph: null,
+    lastUpdated: null,
   }
 
   componentDidMount() {
@@ -29,13 +27,12 @@ class Annotations extends Component {
   }
 
   render() {
-    const {dygraph} = this.state
+    const {lastUpdated} = this.state
     const {
       mode,
+      dygraph,
       isTempHovering,
-      handleAddAnnotation,
       handleUpdateAnnotation,
-      handleDeleteAnnotation,
       handleDismissAddingAnnotation,
       handleAddingAnnotationSuccess,
       handleMouseEnterTempAnnotation,
@@ -43,11 +40,9 @@ class Annotations extends Component {
       staticLegendHeight,
     } = this.props
 
-    if (!dygraph) {
-      return null
-    }
-
-    const annotations = getAnnotations(dygraph, this.props.annotations)
+    const annotations = getAnnotations(dygraph, this.props.annotations).filter(
+      a => a.id !== TEMP_ANNOTATION.id
+    )
     const tempAnnotation = this.props.annotations.find(
       a => a.id === TEMP_ANNOTATION.id
     )
@@ -59,7 +54,6 @@ class Annotations extends Component {
           <NewAnnotation
             dygraph={dygraph}
             tempAnnotation={tempAnnotation}
-            onAddAnnotation={handleAddAnnotation}
             onDismissAddingAnnotation={handleDismissAddingAnnotation}
             onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
             onUpdateAnnotation={handleUpdateAnnotation}
@@ -74,22 +68,10 @@ class Annotations extends Component {
             mode={mode}
             annotation={a}
             dygraph={dygraph}
-            annotations={annotations}
-            onUpdateAnnotation={handleUpdateAnnotation}
-            onDeleteAnnotation={handleDeleteAnnotation}
             staticLegendHeight={staticLegendHeight}
+            lastUpdated={lastUpdated}
           />
         )}
-        {annotations.map((a, i) => {
-          return a.duration
-            ? <AnnotationWindow
-                key={i}
-                annotation={a}
-                dygraph={dygraph}
-                staticLegendHeight={staticLegendHeight}
-              />
-            : null
-        })}
       </div>
     )
   }
@@ -98,13 +80,12 @@ class Annotations extends Component {
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 Annotations.propTypes = {
-  annotations: arrayOf(shape({})),
+  annotations: arrayOf(schema.annotation),
+  dygraph: shape({}),
   mode: string,
   isTempHovering: bool,
   annotationsRef: func,
-  handleDeleteAnnotation: func.isRequired,
   handleUpdateAnnotation: func.isRequired,
-  handleAddAnnotation: func.isRequired,
   handleDismissAddingAnnotation: func.isRequired,
   handleAddingAnnotationSuccess: func.isRequired,
   handleMouseEnterTempAnnotation: func.isRequired,
@@ -116,7 +97,7 @@ const mapStateToProps = ({
   annotations: {annotations, mode, isTempHovering},
 }) => ({
   annotations,
-  mode,
+  mode: mode || 'NORMAL',
   isTempHovering,
 })
 
@@ -137,9 +118,7 @@ const mapDispatchToProps = dispatch => ({
     mouseLeaveTempAnnotation,
     dispatch
   ),
-  handleAddAnnotation: bindActionCreators(addAnnotation, dispatch),
   handleUpdateAnnotation: bindActionCreators(updateAnnotation, dispatch),
-  handleDeleteAnnotation: bindActionCreators(deleteAnnotation, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(Annotations)

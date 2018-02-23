@@ -1,79 +1,32 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
+import {connect} from 'react-redux'
+import uuid from 'node-uuid'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-
-import {
-  circleFlagStyle,
-  staticFlagStyle,
-  draggingFlagStyle,
-  newAnnotationContainer,
-  newAnnotationCrosshairStyle,
-  newAnnotationTooltipStyle,
-  newAnnotationHelperStyle,
-  newAnnotationTimestampStyle,
-  newAnnotationWindowStyle,
-} from 'src/shared/annotations/styles'
+import AnnotationWindow from 'shared/components/AnnotationWindow'
+import * as schema from 'shared/schemas'
+import * as actions from 'shared/actions/annotations'
 
 class NewAnnotation extends Component {
   state = {
     isMouseOver: false,
-    mouseAction: null,
+    gatherMode: 'startTime',
   }
 
-  handleMouseOver = () => {
-    this.setState({isMouseOver: true})
-    this.props.onMouseEnterTempAnnotation()
-  }
+  handleMouseDown = e => {
+    const {tempAnnotation, dygraph, onUpdateAnnotation} = this.props
 
-  handleMouseUp = () => {
-    const {
-      onAddAnnotation,
-      onAddingAnnotationSuccess,
-      tempAnnotation,
-      onMouseLeaveTempAnnotation,
-      dygraph,
-    } = this.props
-    const {trueGraphX} = this.state
+    const wrapperRect = this.wrapper.getBoundingClientRect()
+    const trueGraphX = e.pageX - wrapperRect.left
+    const startTime = `${dygraph.toDataXCoord(trueGraphX)}`
 
-    if (this.state.mouseAction === 'dragging') {
-      // time on mouse down
-      const staticTime = dygraph.toDataXCoord(trueGraphX)
-      // time on mouse up
-      const draggingTime = Number(tempAnnotation.time)
-      const duration = draggingTime - staticTime
-
-      onAddAnnotation({
-        ...tempAnnotation,
-        time: `${staticTime}`,
-        duration: `${duration}`,
-      })
-      onAddingAnnotationSuccess()
-
-      return this.setState({
-        isMouseOver: false,
-        mouseAction: null,
-        trueGraphX: null,
-      })
-    }
-
-    onMouseLeaveTempAnnotation()
-    onAddAnnotation(tempAnnotation)
-    onAddingAnnotationSuccess()
-    return this.setState({
-      isMouseOver: false,
-      mouseAction: null,
-      trueGraphX: null,
-    })
+    onUpdateAnnotation({...tempAnnotation, startTime})
+    this.setState({gatherMode: 'endTime'})
   }
 
   handleMouseMove = e => {
-    const {isTempHovering} = this.props
-    if (this.state.mouseAction === 'down') {
-      this.setState({mouseAction: 'dragging'})
-    }
-
-    if (isTempHovering === false) {
+    if (this.props.isTempHovering === false) {
       return
     }
 
@@ -81,21 +34,58 @@ class NewAnnotation extends Component {
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
 
-    const time = `${dygraph.toDataXCoord(trueGraphX)}`
+    const newTime = `${dygraph.toDataXCoord(trueGraphX)}`
 
-    onUpdateAnnotation({...tempAnnotation, time})
+    if (this.state.gatherMode === 'startTime') {
+      onUpdateAnnotation({
+        ...tempAnnotation,
+        startTime: newTime,
+        endTime: newTime,
+      })
+    } else {
+      onUpdateAnnotation({...tempAnnotation, endTime: newTime})
+    }
+  }
+
+  handleMouseUp = e => {
+    const {
+      addAnnotationAsync,
+      onAddingAnnotationSuccess,
+      onMouseLeaveTempAnnotation,
+    } = this.props
+
+    const createUrl = this.context.source.links.annotations
+
+    const {dygraph, tempAnnotation, onUpdateAnnotation} = this.props
+    const wrapperRect = this.wrapper.getBoundingClientRect()
+    const trueGraphX = e.pageX - wrapperRect.left
+    const upTime = `${dygraph.toDataXCoord(trueGraphX)}`
+
+    const downTime = tempAnnotation.startTime
+    const [startTime, endTime] = [downTime, upTime].sort()
+
+    const newAnnotation = {...tempAnnotation, startTime, endTime}
+    onUpdateAnnotation(newAnnotation)
+    addAnnotationAsync(createUrl, {...newAnnotation, id: uuid.v4()})
+
+    onAddingAnnotationSuccess()
+    onMouseLeaveTempAnnotation()
+
+    this.setState({
+      isMouseOver: false,
+      gatherMode: 'startTime',
+    })
+  }
+
+  handleMouseOver = e => {
+    this.setState({isMouseOver: true})
+    this.handleMouseMove(e)
+    this.props.onMouseEnterTempAnnotation()
   }
 
   handleMouseLeave = () => {
     this.setState({isMouseOver: false})
     this.props.onMouseLeaveTempAnnotation()
-  }
-
-  handleMouseDown = e => {
-    const wrapperRect = this.wrapper.getBoundingClientRect()
-    const trueGraphX = e.pageX - wrapperRect.left
-
-    this.setState({mouseAction: 'down', trueGraphX})
   }
 
   handleClickOutside = () => {
@@ -106,65 +96,75 @@ class NewAnnotation extends Component {
     }
   }
 
+  renderTimestamp(time) {
+    const timestamp = `${new Date(+time)}`
+
+    return (
+      <div className="new-annotation-tooltip">
+        <span className="new-annotation-helper">Click or Drag to Annotate</span>
+        <span className="new-annotation-timestamp">
+          {timestamp}
+        </span>
+      </div>
+    )
+  }
+
   render() {
     const {
       dygraph,
       isTempHovering,
-      tempAnnotation: {time},
+      tempAnnotation,
+      tempAnnotation: {startTime, endTime},
       staticLegendHeight,
     } = this.props
 
-    const {isMouseOver, mouseAction} = this.state
+    const crosshairOne = Math.max(-1000, dygraph.toDomXCoord(startTime))
+    const crosshairTwo = dygraph.toDomXCoord(endTime)
 
-    const timestamp = `${new Date(+time)}`
-
-    const crosshairLeft = dygraph.toDomXCoord(time)
-    const staticCrosshairLeft = this.state.trueGraphX
-
-    const isDragging = mouseAction === 'dragging'
+    const isDragging = startTime !== endTime
+    const flagOneClass =
+      crosshairOne < crosshairTwo
+        ? 'annotation-span--left-flag dragging'
+        : 'annotation-span--right-flag dragging'
+    const flagTwoClass =
+      crosshairOne < crosshairTwo
+        ? 'annotation-span--right-flag dragging'
+        : 'annotation-span--left-flag dragging'
+    const pointFlagClass = 'annotation-point--flag__dragging'
 
     return (
-      <div
-        className={classnames('new-annotation', {hover: isTempHovering})}
-        ref={el => (this.wrapper = el)}
-        onMouseMove={this.handleMouseMove}
-        onMouseOver={this.handleMouseOver}
-        onMouseLeave={this.handleMouseLeave}
-        onMouseUp={this.handleMouseUp}
-        onMouseDown={this.handleMouseDown}
-        style={newAnnotationContainer(staticLegendHeight)}
-      >
+      <div>
         {isDragging &&
-          <div
-            className="new-annotation--crosshair__static"
-            style={newAnnotationCrosshairStyle(staticCrosshairLeft)}
-          >
-            <div style={isDragging ? staticFlagStyle : circleFlagStyle} />
-          </div>}
+          <AnnotationWindow
+            annotation={tempAnnotation}
+            dygraph={dygraph}
+            staticLegendHeight={staticLegendHeight}
+          />}
         <div
-          className="new-annotation--window"
-          style={newAnnotationWindowStyle(
-            isDragging,
-            staticCrosshairLeft,
-            crosshairLeft
-          )}
-        />
-        <div
-          className="new-annotation--crosshair"
-          style={newAnnotationCrosshairStyle(crosshairLeft)}
+          className={classnames('new-annotation', {
+            hover: isTempHovering,
+          })}
+          ref={el => (this.wrapper = el)}
+          onMouseMove={this.handleMouseMove}
+          onMouseOver={this.handleMouseOver}
+          onMouseLeave={this.handleMouseLeave}
+          onMouseUp={this.handleMouseUp}
+          onMouseDown={this.handleMouseDown}
         >
+          {isDragging &&
+            <div
+              className="new-annotation--crosshair"
+              style={{left: crosshairTwo}}
+            >
+              {this.renderTimestamp(tempAnnotation.endTime)}
+              <div className={flagTwoClass} />
+            </div>}
           <div
-            className="new-annotation--flag"
-            style={isDragging ? draggingFlagStyle : circleFlagStyle}
-          />
-          <div
-            className="new-annotation--tooltip"
-            style={newAnnotationTooltipStyle(isMouseOver)}
+            className="new-annotation--crosshair"
+            style={{left: crosshairOne}}
           >
-            <span style={newAnnotationHelperStyle}>Click to Annotate</span>
-            <span style={newAnnotationTimestampStyle}>
-              {timestamp}
-            </span>
+            {isDragging || this.renderTimestamp(tempAnnotation.startTime)}
+            <div className={isDragging ? flagOneClass : pointFlagClass} />
           </div>
         </div>
       </div>
@@ -172,13 +172,21 @@ class NewAnnotation extends Component {
   }
 }
 
-const {bool, func, number, shape} = PropTypes
+const {bool, func, number, shape, string} = PropTypes
+
+NewAnnotation.contextTypes = {
+  source: shape({
+    links: shape({
+      annotations: string,
+    }),
+  }),
+}
 
 NewAnnotation.propTypes = {
   dygraph: shape({}).isRequired,
   isTempHovering: bool,
-  tempAnnotation: shape({}).isRequired,
-  onAddAnnotation: func.isRequired,
+  tempAnnotation: schema.annotation.isRequired,
+  addAnnotationAsync: func.isRequired,
   onDismissAddingAnnotation: func.isRequired,
   onAddingAnnotationSuccess: func.isRequired,
   onUpdateAnnotation: func.isRequired,
@@ -187,4 +195,8 @@ NewAnnotation.propTypes = {
   staticLegendHeight: number,
 }
 
-export default OnClickOutside(NewAnnotation)
+const mdtp = {
+  addAnnotationAsync: actions.addAnnotationAsync,
+}
+
+export default connect(null, mdtp)(OnClickOutside(NewAnnotation))

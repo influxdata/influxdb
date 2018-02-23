@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
 	"github.com/influxdata/chronograf/log"
+	"github.com/influxdata/chronograf/mocks"
 )
 
 // NewClient initializes an HTTP Client for InfluxDB.
@@ -393,5 +394,155 @@ func TestClient_Roles(t *testing.T) {
 	_, err := c.Roles(context.Background())
 	if err == nil {
 		t.Errorf("Client.Roles() want error")
+	}
+}
+
+func TestClient_write(t *testing.T) {
+	type fields struct {
+		Authorizer         influx.Authorizer
+		InsecureSkipVerify bool
+		Logger             chronograf.Logger
+	}
+	type args struct {
+		ctx   context.Context
+		point *chronograf.Point
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		body    string
+		wantErr bool
+	}{
+		{
+			name: "write point to influxdb",
+			fields: fields{
+				Logger: mocks.NewLogger(),
+			},
+			args: args{
+				ctx: context.Background(),
+				point: &chronograf.Point{
+					Database:        "mydb",
+					RetentionPolicy: "myrp",
+					Measurement:     "mymeas",
+					Time:            10,
+					Tags: map[string]string{
+						"tag1": "value1",
+						"tag2": "value2",
+					},
+					Fields: map[string]interface{}{
+						"field1": "value1",
+					},
+				},
+			},
+		},
+		{
+			name: "point without fields",
+			args: args{
+				ctx:   context.Background(),
+				point: &chronograf.Point{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "hinted handoff errors are not errors really.",
+			fields: fields{
+				Logger: mocks.NewLogger(),
+			},
+			args: args{
+				ctx: context.Background(),
+				point: &chronograf.Point{
+					Database:        "mydb",
+					RetentionPolicy: "myrp",
+					Measurement:     "mymeas",
+					Time:            10,
+					Tags: map[string]string{
+						"tag1": "value1",
+						"tag2": "value2",
+					},
+					Fields: map[string]interface{}{
+						"field1": "value1",
+					},
+				},
+			},
+			body: `{"error":"hinted handoff queue not empty"}`,
+		},
+		{
+			name: "database not found creates a new db",
+			fields: fields{
+				Logger: mocks.NewLogger(),
+			},
+			args: args{
+				ctx: context.Background(),
+				point: &chronograf.Point{
+					Database:        "mydb",
+					RetentionPolicy: "myrp",
+					Measurement:     "mymeas",
+					Time:            10,
+					Tags: map[string]string{
+						"tag1": "value1",
+						"tag2": "value2",
+					},
+					Fields: map[string]interface{}{
+						"field1": "value1",
+					},
+				},
+			},
+			body: `{"error":"database not found"}`,
+		},
+		{
+			name: "error from database reported",
+			fields: fields{
+				Logger: mocks.NewLogger(),
+			},
+			args: args{
+				ctx: context.Background(),
+				point: &chronograf.Point{
+					Database:        "mydb",
+					RetentionPolicy: "myrp",
+					Measurement:     "mymeas",
+					Time:            10,
+					Tags: map[string]string{
+						"tag1": "value1",
+						"tag2": "value2",
+					},
+					Fields: map[string]interface{}{
+						"field1": "value1",
+					},
+				},
+			},
+			body:    `{"error":"oh no!"}`,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			retry := 0 // if the retry is > 0 then we don't error
+			ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if strings.HasPrefix(r.RequestURI, "/write") {
+					if tt.body == "" || retry > 0 {
+						rw.WriteHeader(http.StatusNoContent)
+						return
+					}
+					retry++
+					rw.WriteHeader(http.StatusBadRequest)
+					rw.Write([]byte(tt.body))
+					return
+				}
+				rw.WriteHeader(http.StatusOK)
+				rw.Write([]byte(`{"results":[{}]}`))
+			}))
+			defer ts.Close()
+			u, _ := url.Parse(ts.URL)
+			c := &influx.Client{
+				URL:                u,
+				Authorizer:         tt.fields.Authorizer,
+				InsecureSkipVerify: tt.fields.InsecureSkipVerify,
+				Logger:             tt.fields.Logger,
+			}
+			if err := c.Write(tt.args.ctx, tt.args.point); (err != nil) != tt.wantErr {
+				t.Errorf("Client.write() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

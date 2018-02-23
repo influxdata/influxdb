@@ -20,6 +20,12 @@ import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
+import * as annotationActions from 'shared/actions/annotations'
+
+import {
+  showCellEditorOverlay,
+  hideCellEditorOverlay,
+} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {
   setAutoRefresh,
@@ -61,7 +67,11 @@ class DashboardPage extends Component {
       isUsingAuth,
       router,
       notify,
+      getAnnotationsAsync,
     } = this.props
+
+    const fifteenMinutes = Date.now() - 15 * 60 * 1000
+    getAnnotationsAsync(source.links.annotations, fifteenMinutes)
 
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
@@ -95,19 +105,15 @@ class DashboardPage extends Component {
     }
   }
 
-  handleDismissOverlay = () => {
-    this.setState({selectedCell: null})
-  }
-
   handleSaveEditedCell = newCell => {
-    const {dashboardActions, dashboard} = this.props
+    const {
+      dashboardActions,
+      dashboard,
+      handleHideCellEditorOverlay,
+    } = this.props
     dashboardActions
       .updateDashboardCell(dashboard, newCell)
-      .then(this.handleDismissOverlay)
-  }
-
-  handleSummonOverlayTechnologies = cell => {
-    this.setState({selectedCell: cell})
+      .then(handleHideCellEditorOverlay)
   }
 
   handleChooseTimeRange = ({upper, lower}) => {
@@ -165,10 +171,11 @@ class DashboardPage extends Component {
   }
 
   handleSelectTemplate = templateID => values => {
-    const {dashboardActions, dashboard} = this.props
+    const {dashboardActions, dashboard, params: {dashboardID}} = this.props
     dashboardActions.templateVariableSelected(dashboard.id, templateID, [
       values,
     ])
+    dashboardActions.putDashboardByID(dashboardID)
   }
 
   handleEditTemplateVariables = (
@@ -239,13 +246,19 @@ class DashboardPage extends Component {
       showTemplateControlBar,
       dashboard,
       dashboards,
+      gaugeColors,
       autoRefresh,
+      selectedCell,
       manualRefresh,
       onManualRefresh,
       cellQueryStatus,
+      singleStatType,
+      singleStatColors,
       dashboardActions,
       inPresentationMode,
       handleChooseAutoRefresh,
+      handleShowCellEditorOverlay,
+      handleHideCellEditorOverlay,
       handleClickPresentationButton,
       params: {sourceID, dashboardID},
     } = this.props
@@ -313,7 +326,7 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating} = this.state
+    const {isEditMode, isTemplating} = this.state
     const names = dashboards.map(d => ({
       name: d.name,
       link: `/sources/${sourceID}/dashboards/${d.id}`,
@@ -342,9 +355,12 @@ class DashboardPage extends Component {
               dashboardID={dashboardID}
               queryStatus={cellQueryStatus}
               onSave={this.handleSaveEditedCell}
-              onCancel={this.handleDismissOverlay}
+              onCancel={handleHideCellEditorOverlay}
               templates={templatesIncludingDashTime}
               editQueryStatus={dashboardActions.editCellQueryStatus}
+              singleStatType={singleStatType}
+              singleStatColors={singleStatColors}
+              gaugeColors={gaugeColors}
             />
           : null}
         <DashboardHeader
@@ -387,7 +403,7 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
-              onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+              onSummonOverlayTechnologies={handleShowCellEditorOverlay}
             />
           : null}
       </div>
@@ -467,6 +483,13 @@ DashboardPage.propTypes = {
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
   notify: func.isRequired,
+  getAnnotationsAsync: func.isRequired,
+  handleShowCellEditorOverlay: func.isRequired,
+  handleHideCellEditorOverlay: func.isRequired,
+  selectedCell: shape({}),
+  singleStatType: string.isRequired,
+  singleStatColors: arrayOf(shape({}).isRequired).isRequired,
+  gaugeColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -479,6 +502,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
+    cellEditorOverlay: {cell, singleStatType, singleStatColors, gaugeColors},
   } = state
 
   const meRole = _.get(me, 'role', null)
@@ -491,6 +515,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   const dashboard = dashboards.find(
     d => d.id === idNormalizer(TYPE_ID, dashboardID)
   )
+  const selectedCell = cell
 
   return {
     sources,
@@ -500,6 +525,10 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     dashboards,
     autoRefresh,
     isUsingAuth,
+    selectedCell,
+    singleStatType,
+    singleStatColors,
+    gaugeColors,
     cellQueryStatus,
     inPresentationMode,
     showTemplateControlBar,
@@ -516,6 +545,18 @@ const mapDispatchToProps = dispatch => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(publishNotification, dispatch),
+  getAnnotationsAsync: bindActionCreators(
+    annotationActions.getAnnotationsAsync,
+    dispatch
+  ),
+  handleShowCellEditorOverlay: bindActionCreators(
+    showCellEditorOverlay,
+    dispatch
+  ),
+  handleHideCellEditorOverlay: bindActionCreators(
+    hideCellEditorOverlay,
+    dispatch
+  ),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(

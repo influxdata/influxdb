@@ -32,7 +32,7 @@ type annotationResponse struct {
 
 func newAnnotationResponse(src chronograf.Source, a *chronograf.Annotation) annotationResponse {
 	base := "/chronograf/v1/sources"
-	return annotationResponse{
+	res := annotationResponse{
 		ID:        a.ID,
 		StartTime: a.StartTime.UTC().Format(timeMilliFormat),
 		EndTime:   a.EndTime.UTC().Format(timeMilliFormat),
@@ -42,6 +42,12 @@ func newAnnotationResponse(src chronograf.Source, a *chronograf.Annotation) anno
 			Self: fmt.Sprintf("%s/%d/annotations/%s", base, src.ID, a.ID),
 		},
 	}
+
+	if a.EndTime.IsZero() {
+		res.EndTime = ""
+	}
+
+	return res
 }
 
 type annotationsResponse struct {
@@ -58,7 +64,6 @@ func newAnnotationsResponse(src chronograf.Source, as []chronograf.Annotation) a
 	}
 }
 
-// TODO: check that start time is before stop time
 func validAnnotationQuery(query url.Values) (startTime, stopTime time.Time, err error) {
 	start := query.Get(since)
 	if start == "" {
@@ -71,15 +76,18 @@ func validAnnotationQuery(query url.Values) (startTime, stopTime time.Time, err 
 	}
 
 	// if until isn't stated, the default time is now
+	stopTime = time.Now()
 	stop := query.Get(until)
 	if stop != "" {
-		stopTime, err := time.Parse(timeMilliFormat, stop)
+		stopTime, err = time.Parse(timeMilliFormat, stop)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
-		return startTime, stopTime, nil
 	}
-	return startTime, time.Now().UTC(), nil
+	if startTime.After(stopTime) {
+		startTime, stopTime = stopTime, startTime
+	}
+	return startTime, stopTime, nil
 }
 
 // Annotations returns all annotations within the annotations store
@@ -178,18 +186,17 @@ func (s *Service) Annotation(w http.ResponseWriter, r *http.Request) {
 }
 
 type newAnnotationRequest struct {
-	StartTime time.Time `json:"startTime"`      // StartTime is the time in rfc3339 milliseconds
-	EndTime   time.Time `json:"endTime"`        // EndTime is the time in rfc3339 milliseconds
-	Text      string    `json:"text,omitempty"` // Text is the associated user-facing text describing the annotation
-	Type      string    `json:"type,omitempty"` // Type describes the kind of annotation
+	StartTime time.Time
+	EndTime   time.Time
+	Text      string `json:"text,omitempty"` // Text is the associated user-facing text describing the annotation
+	Type      string `json:"type,omitempty"` // Type describes the kind of annotation
 }
 
-// TODO: check that the endtime is after the starttime
 func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	type Alias newAnnotationRequest
 	aux := &struct {
-		StartTime string `json:"startTime"`
-		EndTime   string `json:"endTime"`
+		StartTime string `json:"startTime"` // StartTime is the time in rfc3339 milliseconds
+		EndTime   string `json:"endTime"`   // EndTime is the time in rfc3339 milliseconds
 		*Alias
 	}{
 		Alias: (*Alias)(ar),
@@ -207,6 +214,10 @@ func (ar *newAnnotationRequest) UnmarshalJSON(data []byte) error {
 	ar.EndTime, err = time.Parse(timeMilliFormat, aux.EndTime)
 	if err != nil {
 		return err
+	}
+
+	if ar.StartTime.After(ar.EndTime) {
+		ar.StartTime, ar.EndTime = ar.EndTime, ar.StartTime
 	}
 
 	return nil
