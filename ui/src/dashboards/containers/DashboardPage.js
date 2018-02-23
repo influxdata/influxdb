@@ -98,12 +98,14 @@ class DashboardPage extends Component {
   inView = cell => {
     const {scrollTop, windowHeight} = this.state
     const bufferValue = 600
+    const cellTop = cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT
+    const cellBottom = (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT
+    const bufferedWindowBottom = windowHeight + scrollTop + bufferValue
+    const bufferedWindowTop = scrollTop - bufferValue
+    const topInView = cellTop < bufferedWindowBottom
+    const bottomInView = cellBottom > bufferedWindowTop
 
-    return (
-      cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT <
-        windowHeight + scrollTop + bufferValue &&
-      (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT > scrollTop - bufferValue
-    )
+    return topInView && bottomInView
   }
 
   handleOpenTemplateManager = () => {
