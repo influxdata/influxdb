@@ -29,6 +29,9 @@ const RefreshingGraph = ({
   editQueryStatus,
   grabDataForDownload,
 }) => {
+  const prefix = axes.y.prefix || ''
+  const suffix = axes.y.suffix || ''
+
   if (!queries.length) {
     return (
       <div className="graph-empty">
@@ -40,7 +43,6 @@ const RefreshingGraph = ({
   }
 
   if (type === 'single-stat') {
-    const suffix = axes.y.suffix || ''
     return (
       <RefreshingSingleStat
         colors={colors}
@@ -49,6 +51,7 @@ const RefreshingGraph = ({
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+        prefix={prefix}
         suffix={suffix}
       />
     )
@@ -65,6 +68,8 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
+        prefix={prefix}
+        suffix={suffix}
       />
     )
   }

@@ -17,6 +17,8 @@ class GaugeChart extends PureComponent {
       colors,
       resizeCoords,
       resizerTopHeight,
+      prefix,
+      suffix,
     } = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -54,6 +56,8 @@ class GaugeChart extends PureComponent {
           height={height}
           colors={colors}
           gaugePosition={roundedValue}
+          prefix={prefix}
+          suffix={suffix}
         />
       </div>
     )
@@ -81,6 +85,8 @@ GaugeChart.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  prefix: string.isRequired,
+  suffix: string.isRequired,
 }
 
 export default GaugeChart

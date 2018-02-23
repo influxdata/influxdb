@@ -195,10 +195,36 @@ export const getDashboardsAsync = () => async dispatch => {
   }
 }
 
+const removeUnselectedTemplateValues = dashboard => {
+  const templates = dashboard.templates.map(template => {
+    const values =
+      template.type === 'csv'
+        ? template.values
+        : [template.values.find(val => val.selected)] || []
+    return {...template, values}
+  })
+  return templates
+}
+
 export const putDashboard = dashboard => async dispatch => {
   try {
-    const {data} = await updateDashboardAJAX(dashboard)
-    dispatch(updateDashboard(data))
+    // save only selected template values to server
+    const templatesWithOnlySelectedValues = removeUnselectedTemplateValues(
+      dashboard
+    )
+    const {
+      data: dashboardWithOnlySelectedTemplateValues,
+    } = await updateDashboardAJAX({
+      ...dashboard,
+      templates: templatesWithOnlySelectedValues,
+    })
+    // save all template values to redux
+    dispatch(
+      updateDashboard({
+        ...dashboardWithOnlySelectedTemplateValues,
+        templates: dashboard.templates,
+      })
+    )
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -209,7 +235,8 @@ export const putDashboardByID = dashboardID => async (dispatch, getState) => {
   try {
     const {dashboardUI: {dashboards}} = getState()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
-    await updateDashboardAJAX(dashboard)
+    const templates = removeUnselectedTemplateValues(dashboard)
+    await updateDashboardAJAX({...dashboard, templates})
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))

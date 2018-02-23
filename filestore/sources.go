@@ -59,6 +59,8 @@ func (d *Sources) All(ctx context.Context) ([]chronograf.Source, error) {
 		}
 		var source chronograf.Source
 		if err := d.Load(path.Join(d.Dir, file.Name()), &source); err != nil {
+			var fmtErr = fmt.Errorf("Error loading source configuration from %v:\n%v", path.Join(d.Dir, file.Name()), err)
+			d.Logger.Error(fmtErr)
 			continue // We want to load all files we can.
 		} else {
 			sources = append(sources, source)

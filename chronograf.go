@@ -341,15 +341,15 @@ type KapacitorProperty struct {
 
 // Server represents a proxy connection to an HTTP server
 type Server struct {
-	ID                 int    // ID is the unique ID of the server
-	SrcID              int    // SrcID of the data source
-	Name               string // Name is the user-defined name for the server
-	Username           string // Username is the username to connect to the server
-	Password           string // Password is in CLEARTEXT
-	URL                string // URL are the connections to the server
-	InsecureSkipVerify bool   // InsecureSkipVerify as true means any certificate presented by the server is accepted.
-	Active             bool   // Is this the active server for the source?
-	Organization       string // Organization is the organization ID that resource belongs to
+	ID                 int    `json:"id,string"`          // ID is the unique ID of the server
+	SrcID              int    `json:"srcId,string"`       // SrcID of the data source
+	Name               string `json:"name"`               // Name is the user-defined name for the server
+	Username           string `json:"username"`           // Username is the username to connect to the server
+	Password           string `json:"password"`           // Password is in CLEARTEXT
+	URL                string `json:"url"`                // URL are the connections to the server
+	InsecureSkipVerify bool   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the server is accepted.
+	Active             bool   `json:"active"`             // Is this the active server for the source?
+	Organization       string `json:"organization"`       // Organization is the organization ID that resource belongs to
 }
 
 // ServersStore stores connection information for a `Server`
