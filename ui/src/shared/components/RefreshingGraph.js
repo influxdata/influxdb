@@ -13,6 +13,7 @@ const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 
 const RefreshingGraph = ({
   axes,
+  inView,
   type,
   colors,
   onZoom,
@@ -84,6 +85,7 @@ const RefreshingGraph = ({
       colors={colors}
       onZoom={onZoom}
       queries={queries}
+      inView={inView}
       key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
@@ -99,7 +101,7 @@ const RefreshingGraph = ({
   )
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 RefreshingGraph.propTypes = {
   timeRange: shape({
@@ -127,10 +129,12 @@ RefreshingGraph.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  inView: bool,
 }
 
 RefreshingGraph.defaultProps = {
   manualRefresh: 0,
+  inView: true,
 }
 
 export default RefreshingGraph

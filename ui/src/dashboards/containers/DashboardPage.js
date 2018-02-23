@@ -30,6 +30,7 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -47,6 +48,8 @@ class DashboardPage extends Component {
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
+      scrollTop: 0,
+      windowHeight: window.innerHeight,
     }
   }
 
@@ -67,6 +70,8 @@ class DashboardPage extends Component {
       notify,
     } = this.props
 
+    window.addEventListener('resize', this.handleWindowResize, true)
+
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
@@ -84,6 +89,27 @@ class DashboardPage extends Component {
       await updateTempVarValues(source, dashboard)
       await putDashboardByID(dashboardID)
     }
+  }
+
+  handleWindowResize = () => {
+    this.setState({windowHeight: window.innerHeight})
+  }
+
+  componentWillUnMount() {
+    window.removeEventListener('resize', this.handleWindowResize, true)
+  }
+
+  inView = cell => {
+    const {scrollTop, windowHeight} = this.state
+    const bufferValue = 600
+    const cellTop = cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT
+    const cellBottom = (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT
+    const bufferedWindowBottom = windowHeight + scrollTop + bufferValue
+    const bufferedWindowTop = scrollTop - bufferValue
+    const topInView = cellTop < bufferedWindowBottom
+    const bottomInView = cellBottom > bufferedWindowTop
+
+    return topInView && bottomInView
   }
 
   handleOpenTemplateManager = () => {
@@ -228,6 +254,10 @@ class DashboardPage extends Component {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
   }
 
+  setScrollTop = event => {
+    this.setState({scrollTop: event.target.scrollTop})
+  }
+
   render() {
     const {zoomedTimeRange} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
@@ -321,6 +351,7 @@ class DashboardPage extends Component {
     }
 
     const {isEditMode, isTemplating} = this.state
+
     const names = dashboards.map(d => ({
       name: d.name,
       link: `/sources/${sourceID}/dashboards/${d.id}`,
@@ -383,6 +414,8 @@ class DashboardPage extends Component {
           ? <Dashboard
               source={source}
               sources={sources}
+              setScrollTop={this.setScrollTop}
+              inView={this.inView}
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
