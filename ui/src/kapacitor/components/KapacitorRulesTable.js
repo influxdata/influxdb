@@ -2,8 +2,9 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {parseAlertNodeList} from 'src/shared/parsing/parseHandlersFromRule'
-import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
+import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {
   colName,
   colTrigger,
@@ -11,19 +12,19 @@ const {
   colAlerts,
   colEnabled,
   colActions,
-} = KAPACITOR_RULES_TABLE
+} = TASKS_TABLE
 
 const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
-    <table className="table v-center">
+    <table className="table v-center table-highlight">
       <thead>
         <tr>
-          <th style={{width: colName}}>Name</th>
-          <th style={{width: colTrigger}}>Rule Trigger</th>
+          <th style={{minWidth: colName}}>Name</th>
+          <th style={{width: colTrigger}}>Rule Type</th>
           <th style={{width: colMessage}}>Message</th>
-          <th style={{width: colAlerts}}>Alerts</th>
+          <th style={{width: colAlerts}}>Alert Handlers</th>
           <th style={{width: colEnabled}} className="text-center">
-            Enabled
+            Task Enabled
           </th>
           <th style={{width: colActions}} />
         </tr>
@@ -48,24 +49,21 @@ const handleDelete = (rule, onDelete) => onDelete(rule)
 
 const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
   <tr key={rule.id}>
-    <td style={{width: colName}} className="monotype">
-      <RuleTitle rule={rule} source={source} />
+    <td style={{minWidth: colName}}>
+      <Link to={`/sources/${source.id}/alert-rules/${rule.id}`}>
+        {rule.name}
+      </Link>
     </td>
-    <td style={{width: colTrigger}} className="monotype">
+    <td style={{width: colTrigger, textTransform: 'capitalize'}}>
       {rule.trigger}
     </td>
-    <td className="monotype">
-      <span
-        className="table-cell-nowrap"
-        style={{display: 'inline-block', maxWidth: colMessage}}
-      >
-        {rule.message}
-      </span>
+    <td style={{width: colMessage}}>
+      {rule.message}
     </td>
-    <td style={{width: colAlerts}} className="monotype">
+    <td style={{width: colAlerts}}>
       {parseAlertNodeList(rule)}
     </td>
-    <td style={{width: colEnabled}} className="monotype text-center">
+    <td style={{width: colEnabled}} className="text-center">
       <div className="dark-checkbox">
         <input
           id={`kapacitor-enabled ${rule.id}`}
@@ -77,38 +75,16 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
         <label htmlFor={`kapacitor-enabled ${rule.id}`} />
       </div>
     </td>
-    <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <Link
-        className="btn btn-info btn-xs"
-        to={`/sources/${source.id}/tickscript/${rule.id}`}
-      >
-        Edit TICKscript
-      </Link>
-      <button
-        className="btn btn-danger btn-xs"
-        onClick={handleDelete(rule, onDelete)}
-      >
-        Delete
-      </button>
+    <td style={{width: colActions}} className="text-right">
+      <ConfirmButton
+        text="Delete"
+        type="btn-danger"
+        size="btn-xs"
+        customClass="table--show-on-row-hover"
+        confirmAction={handleDelete(rule, onDelete)}
+      />
     </td>
   </tr>
-
-const RuleTitle = ({rule: {id, name, query}, source}) => {
-  // no queryConfig means the rule was manually created outside of Chronograf
-  if (!query) {
-    return (
-      <i>
-        {name}
-      </i>
-    )
-  }
-
-  return (
-    <Link to={`/sources/${source.id}/alert-rules/${id}`}>
-      {name}
-    </Link>
-  )
-}
 
 const {arrayOf, func, shape, string} = PropTypes
 
@@ -126,19 +102,6 @@ RuleRow.propTypes = {
   source: shape(),
   onChangeRuleStatus: func,
   onDelete: func,
-}
-
-RuleTitle.propTypes = {
-  rule: shape({
-    name: string.isRequired,
-    query: shape(),
-    links: shape({
-      self: string.isRequired,
-    }),
-  }),
-  source: shape({
-    id: string.isRequired,
-  }).isRequired,
 }
 
 export default KapacitorRulesTable

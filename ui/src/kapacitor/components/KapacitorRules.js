@@ -6,6 +6,7 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
 import TasksTable from 'src/kapacitor/components/TasksTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
 const KapacitorRules = ({
   source,
@@ -41,17 +42,21 @@ const KapacitorRules = ({
     )
   }
 
-  const rulez = rules.filter(r => r.query)
-  const tasks = rules.filter(r => !r.query)
+  const builderRules = rules.filter(r => r.query)
 
-  const rHeader = `${rulez.length} Alert Rule${rulez.length === 1 ? '' : 's'}`
-  const tHeader = `${tasks.length} TICKscript${tasks.length === 1 ? '' : 's'}`
+  const builderHeader = `${builderRules.length} Alert Rule${builderRules.length ===
+  1
+    ? ''
+    : 's'}`
+  const scriptsHeader = `${rules.length} TICKscript${rules.length === 1
+    ? ''
+    : 's'}`
 
   return (
     <PageContents source={source}>
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">
-          {rHeader}
+          {builderHeader}
         </h2>
         <div className="u-flex u-ai-center u-jc-space-between">
           <Link
@@ -65,7 +70,7 @@ const KapacitorRules = ({
       </div>
       <KapacitorRulesTable
         source={source}
-        rules={rulez}
+        rules={builderRules}
         onDelete={onDelete}
         onChangeRuleStatus={onChangeRuleStatus}
       />
@@ -75,12 +80,12 @@ const KapacitorRules = ({
           <div className="panel panel-minimal">
             <div className="panel-heading u-flex u-ai-center u-jc-space-between">
               <h2 className="panel-title">
-                {tHeader}
+                {scriptsHeader}
               </h2>
               <div className="u-flex u-ai-center u-jc-space-between">
                 <Link
                   to={`/sources/${source.id}/tickscript/new`}
-                  className="btn btn-sm btn-primary"
+                  className="btn btn-sm btn-success"
                   style={{marginRight: '4px'}}
                 >
                   <span className="icon plus" /> Write TICKscript
@@ -89,7 +94,7 @@ const KapacitorRules = ({
             </div>
             <TasksTable
               source={source}
-              tasks={tasks}
+              tasks={rules}
               onDelete={onDelete}
               onChangeRuleStatus={onChangeRuleStatus}
             />
@@ -105,11 +110,13 @@ const PageContents = ({children}) =>
     <div className="page-header">
       <div className="page-header__container">
         <div className="page-header__left">
-          <h1 className="page-header__title">
-            Build Alert Rules or Write TICKscripts
-          </h1>
+          <h1 className="page-header__title">Manage Tasks</h1>
         </div>
         <div className="page-header__right">
+          <QuestionMarkTooltip
+            tipID="manage-tasks--tooltip"
+            tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
+          />
           <SourceIndicator />
         </div>
       </div>
