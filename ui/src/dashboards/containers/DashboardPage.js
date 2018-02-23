@@ -525,13 +525,13 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     dashboards,
     autoRefresh,
     isUsingAuth,
+    cellQueryStatus,
+    inPresentationMode,
+    showTemplateControlBar,
     selectedCell,
     singleStatType,
     singleStatColors,
     gaugeColors,
-    cellQueryStatus,
-    inPresentationMode,
-    showTemplateControlBar,
   }
 }
 
