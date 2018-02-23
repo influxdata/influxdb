@@ -77,8 +77,9 @@ class NewAnnotation extends Component {
     })
   }
 
-  handleMouseOver = () => {
+  handleMouseOver = e => {
     this.setState({isMouseOver: true})
+    this.handleMouseMove(e)
     this.props.onMouseEnterTempAnnotation()
   }
 
@@ -116,7 +117,7 @@ class NewAnnotation extends Component {
       tempAnnotation: {startTime, endTime},
     } = this.props
 
-    const crosshairOne = dygraph.toDomXCoord(startTime)
+    const crosshairOne = Math.max(-1000, dygraph.toDomXCoord(startTime))
     const crosshairTwo = dygraph.toDomXCoord(endTime)
 
     const isDragging = startTime !== endTime

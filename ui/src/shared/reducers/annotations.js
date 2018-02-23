@@ -30,6 +30,7 @@ const annotationsReducer = (state = initialState, action) => {
       return {
         ...state,
         mode: ADDING,
+        isTempHovering: true,
         annotations: [...annotations, TEMP_ANNOTATION],
       }
     }
@@ -37,6 +38,7 @@ const annotationsReducer = (state = initialState, action) => {
     case 'ADDING_ANNOTATION_SUCCESS': {
       return {
         ...state,
+        isTempHovering: false,
         mode: null,
       }
     }
@@ -48,6 +50,7 @@ const annotationsReducer = (state = initialState, action) => {
 
       return {
         ...state,
+        isTempHovering: false,
         mode: null,
         annotations,
       }
