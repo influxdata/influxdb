@@ -23,6 +23,7 @@ class Dropdown extends Component {
     menuWidth: '100%',
     useAutoComplete: false,
     disabled: false,
+    tabIndex: 0,
   }
 
   handleClickOutside = () => {
@@ -44,6 +45,7 @@ class Dropdown extends Component {
   handleSelection = item => () => {
     this.toggleMenu()
     this.props.onChoose(item)
+    this.dropdownRef.focus()
   }
 
   handleHighlight = itemIndex => () => {
@@ -215,6 +217,7 @@ class Dropdown extends Component {
       toggleStyle,
       useAutoComplete,
       disabled,
+      tabIndex,
     } = this.props
     const {isOpen, searchTerm, filteredItems} = this.state
     const menuItems = useAutoComplete ? filteredItems : items
@@ -227,6 +230,8 @@ class Dropdown extends Component {
           open: isOpen,
           [className]: className,
         })}
+        tabIndex={tabIndex}
+        ref={r => (this.dropdownRef = r)}
       >
         {useAutoComplete && isOpen
           ? <div
@@ -274,7 +279,7 @@ class Dropdown extends Component {
   }
 }
 
-const {arrayOf, bool, shape, string, func} = PropTypes
+const {arrayOf, bool, number, shape, string, func} = PropTypes
 
 Dropdown.propTypes = {
   actions: arrayOf(
@@ -306,6 +311,7 @@ Dropdown.propTypes = {
   useAutoComplete: bool,
   toggleStyle: shape(),
   disabled: bool,
+  tabIndex: number,
 }
 
 export default OnClickOutside(Dropdown)

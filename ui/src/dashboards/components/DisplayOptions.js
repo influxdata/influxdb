@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
@@ -34,125 +35,46 @@ class DisplayOptions extends Component {
   }
 
   renderOptions = () => {
-    const {
-      gaugeColors,
-      singleStatColors,
-      onSetBase,
-      onSetScale,
-      onSetLabel,
-      selectedGraphType,
-      onSetPrefixSuffix,
-      onSetYAxisBoundMin,
-      onSetYAxisBoundMax,
-      onAddGaugeThreshold,
-      onAddSingleStatThreshold,
-      onDeleteThreshold,
-      onChooseColor,
-      onValidateColorValue,
-      onUpdateColorValue,
-      singleStatType,
-      onToggleSingleStatType,
-      onSetSuffix,
-    } = this.props
-    const {axes, axes: {y: {suffix}}} = this.state
+    const {cell: {type}} = this.props
 
-    switch (selectedGraphType) {
+    switch (type) {
       case 'gauge':
-        return (
-          <GaugeOptions
-            colors={gaugeColors}
-            onChooseColor={onChooseColor}
-            onValidateColorValue={onValidateColorValue}
-            onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddGaugeThreshold}
-            onDeleteThreshold={onDeleteThreshold}
-          />
-        )
+        return <GaugeOptions />
       case 'single-stat':
-        return (
-          <SingleStatOptions
-            colors={singleStatColors}
-            suffix={suffix}
-            onSetSuffix={onSetSuffix}
-            onChooseColor={onChooseColor}
-            onValidateColorValue={onValidateColorValue}
-            onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddSingleStatThreshold}
-            onDeleteThreshold={onDeleteThreshold}
-            singleStatType={singleStatType}
-            onToggleSingleStatType={onToggleSingleStatType}
-          />
-        )
+        return <SingleStatOptions />
       default:
-        return (
-          <AxesOptions
-            selectedGraphType={selectedGraphType}
-            axes={axes}
-            onSetBase={onSetBase}
-            onSetLabel={onSetLabel}
-            onSetScale={onSetScale}
-            onSetPrefixSuffix={onSetPrefixSuffix}
-            onSetYAxisBoundMin={onSetYAxisBoundMin}
-            onSetYAxisBoundMax={onSetYAxisBoundMax}
-          />
-        )
+        return <AxesOptions />
     }
   }
 
   render() {
-    const {selectedGraphType, onSelectGraphType} = this.props
-
     return (
       <div className="display-options">
-        <GraphTypeSelector
-          selectedGraphType={selectedGraphType}
-          onSelectGraphType={onSelectGraphType}
-        />
+        <GraphTypeSelector />
         {this.renderOptions()}
       </div>
     )
   }
 }
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
-  onAddGaugeThreshold: func.isRequired,
-  onAddSingleStatThreshold: func.isRequired,
-  onDeleteThreshold: func.isRequired,
-  onChooseColor: func.isRequired,
-  onValidateColorValue: func.isRequired,
-  onUpdateColorValue: func.isRequired,
-  selectedGraphType: string.isRequired,
-  onSelectGraphType: func.isRequired,
-  onSetPrefixSuffix: func.isRequired,
-  onSetSuffix: func.isRequired,
-  onSetYAxisBoundMin: func.isRequired,
-  onSetYAxisBoundMax: func.isRequired,
-  onSetScale: func.isRequired,
-  onSetLabel: func.isRequired,
-  onSetBase: func.isRequired,
-  axes: shape({}).isRequired,
-  gaugeColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  singleStatColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
+  cell: shape({
+    type: string.isRequired,
+  }).isRequired,
+  axes: shape({
+    y: shape({
+      bounds: arrayOf(string),
+      label: string,
+      defaultYLabel: string,
+    }),
+  }).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
-  singleStatType: string.isRequired,
-  onToggleSingleStatType: func.isRequired,
 }
 
-export default DisplayOptions
+const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({
+  cell,
+  axes,
+})
+
+export default connect(mapStateToProps, null)(DisplayOptions)
