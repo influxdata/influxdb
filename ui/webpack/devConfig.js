@@ -15,8 +15,7 @@ const babelLoader = {
   options: {
     cacheDirectory: true,
     presets: [
-      'react',
-      [
+      'react', [
         'es2015',
         {
           modules: false,
@@ -63,8 +62,7 @@ module.exports = {
         'memoizerific.js'
       ),
     ],
-    loaders: [
-      {
+    loaders: [{
         test: /\.js$/,
         exclude: /node_modules/,
         loader: 'eslint-loader',
@@ -96,10 +94,12 @@ module.exports = {
       {
         test: /\.js$/,
         exclude: /node_modules/,
-        loader: 'babel-loader',
-        query: {
-          presets: ['es2015', 'react', 'stage-0'],
-          cacheDirectory: true, // use a cache directory to speed up compilation
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['es2015', 'react', 'stage-0'],
+            cacheDirectory: true, // use a cache directory to speed up compilation
+          }
         },
       },
       {

@@ -11,8 +11,7 @@ const babelLoader = {
   options: {
     cacheDirectory: true,
     presets: [
-      'react',
-      [
+      'react', [
         'es2015',
         {
           modules: false,
@@ -27,7 +26,7 @@ const config = {
   node: {
     fs: "empty",
     module: "empty"
- },
+  },
   bail: true,
   devtool: 'eval',
   entry: {
@@ -59,8 +58,7 @@ const config = {
         'memoizerific.js'
       ),
     ],
-    loaders: [
-      {
+    loaders: [{
         test: /\.js$/,
         exclude: [/node_modules/, /(_s|S)pec\.js$/],
         loader: 'eslint-loader',
@@ -92,10 +90,12 @@ const config = {
       {
         test: /\.js$/,
         exclude: /node_modules/,
-        loader: 'babel-loader',
-        query: {
-          presets: ['es2015', 'react', 'stage-0'],
-          cacheDirectory: false, // Using the cache directory on production builds has never been helpful.
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['es2015', 'react', 'stage-0'],
+            cacheDirectory: false, // Using the cache directory on production builds has never been helpful.
+          },
         },
       },
       {
@@ -144,9 +144,9 @@ const config = {
     new webpack.optimize.CommonsChunkPlugin({
       names: ['vendor', 'manifest'],
     }),
-    function() {
+    function () {
       /* Webpack does not exit with non-zero status if error. */
-      this.plugin('done', function(stats) {
+      this.plugin('done', function (stats) {
         if (
           stats.compilation.errors &&
           stats.compilation.errors.length &&
