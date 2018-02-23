@@ -256,12 +256,18 @@ $rule-builder--radius-lg: 5px;
 .rule-builder--graph {
   padding: 0 $rule-builder--padding-sm;
 
-  > div.line-graph {
+  > div.dygraph {
     position: absolute;
     top: ($rule-builder--padding-lg * 2);
     left: $rule-builder--padding-sm;
     width: calc(100% - #{$rule-builder--padding-sm * 2});
     height: calc(100% - #{$rule-builder--padding-lg * 2}) !important;
+  }
+  > .dygraph > .dygraph-child {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    padding: 8px 16px;
   }
 }
 .rule-builder--graph-empty {
