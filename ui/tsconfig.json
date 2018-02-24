@@ -26,6 +26,6 @@
     "sourceMap": true,
     "baseUrl": "./",
     "rootDir": "src",
-    "exclude": ["./assets/*", "./build/*", "./node_modules/*"]
-  }
+  },
+  "exclude": ["./assets/*", "./build/*", "./node_modules/*"]
 }
