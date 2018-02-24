@@ -5,6 +5,9 @@ $window0: rgba($annotation-color,0);
 $window15: rgba($annotation-color,0.15);
 $window35: rgba($annotation-color,0.35);
 
+$active-window0: rgba($annotation-color__drag,0);
+$active-window15: rgba($annotation-color__drag,0.15);
+$active-window35: rgba($annotation-color__drag,0.35);
 
 $timestamp-font-size: 14px;
 $timestamp-font-weight: 600;
@@ -16,7 +19,7 @@ $timestamp-font-weight: 600;
   background-color: $annotation-color;
   height: calc(100% - 36px);
   width: 2px;
-  transform: translateX(-1px); // translate should always be half with width to horizontally center the annotation pos  
+  transform: translateX(-1px); // translate should always be half with width to horizontally center the annotation pos
   transition: background-color 0.25s ease;
   visibility: visible;
 
@@ -62,7 +65,7 @@ $timestamp-font-weight: 600;
 
 .annotation-span--left-flag {
   @extend .annotation-span--flag;
-  transform-origin: 0% 50%;  
+  transform-origin: 0% 50%;
   left: 0;
   border-left-color: $annotation-color;
 
@@ -73,7 +76,7 @@ $timestamp-font-weight: 600;
 
 .annotation-span--right-flag {
   @extend .annotation-span--flag;
-  transform-origin: 100% 50%;  
+  transform-origin: 100% 50%;
   right: 0;
   border-right-color: $annotation-color;
 
@@ -84,7 +87,7 @@ $timestamp-font-weight: 600;
 
 
 .annotation-tooltip {
-  position: absolute;  
+  position: absolute;
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
@@ -204,6 +207,11 @@ $timestamp-font-weight: 600;
   background: linear-gradient(to bottom, $window15 0%, $window0 100%);
   border-top: 2px dotted $window35;
   z-index: 1;
+
+  &.active {
+    background: linear-gradient(to bottom, $active-window15 0%, $active-window0 100%);
+    border-top: 2px dotted $active-window35;
+  }
 }
 
 

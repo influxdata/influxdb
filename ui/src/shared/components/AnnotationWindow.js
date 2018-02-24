@@ -31,18 +31,19 @@ const windowDimensions = (anno, dygraph, staticLegendHeight) => {
   }
 }
 
-const AnnotationWindow = ({annotation, dygraph, staticLegendHeight}) =>
+const AnnotationWindow = ({annotation, dygraph, active, staticLegendHeight}) =>
   <div
-    className="annotation-window"
+    className={`annotation-window${active ? ' active' : ''}`}
     style={windowDimensions(annotation, dygraph, staticLegendHeight)}
   />
 
-const {number, shape} = PropTypes
+const {bool, number, shape} = PropTypes
 
 AnnotationWindow.propTypes = {
   annotation: schema.annotation.isRequired,
   dygraph: shape({}).isRequired,
   staticLegendHeight: number,
+  active: bool,
 }
 
 export default AnnotationWindow

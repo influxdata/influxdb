@@ -194,12 +194,14 @@ class AnnotationSpan extends React.Component {
 
   render() {
     const {annotation, dygraph, staticLegendHeight} = this.props
+    const {isDragging} = this.state
 
     return (
       <div>
         <AnnotationWindow
           annotation={annotation}
           dygraph={dygraph}
+          active={isDragging}
           staticLegendHeight={staticLegendHeight}
         />
         {this.renderLeftMarker(annotation.startTime, dygraph)}

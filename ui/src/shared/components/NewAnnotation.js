@@ -138,6 +138,7 @@ class NewAnnotation extends Component {
           <AnnotationWindow
             annotation={tempAnnotation}
             dygraph={dygraph}
+            active={true}
             staticLegendHeight={staticLegendHeight}
           />}
         <div
