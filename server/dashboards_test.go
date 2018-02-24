@@ -299,7 +299,7 @@ func Test_newDashboardResponse(t *testing.T) {
 									Label:  "foo",
 								},
 								"y2": chronograf.Axis{
-									Bounds: []string{},
+									Bounds: []string{"", ""},
 								},
 							},
 						},
@@ -314,13 +314,13 @@ func Test_newDashboardResponse(t *testing.T) {
 							H:  4,
 							Axes: map[string]chronograf.Axis{
 								"x": chronograf.Axis{
-									Bounds: []string{},
+									Bounds: []string{"", ""},
 								},
 								"y": chronograf.Axis{
-									Bounds: []string{},
+									Bounds: []string{"", ""},
 								},
 								"y2": chronograf.Axis{
-									Bounds: []string{},
+									Bounds: []string{"", ""},
 								},
 							},
 							CellColors: []chronograf.CellColor{},
