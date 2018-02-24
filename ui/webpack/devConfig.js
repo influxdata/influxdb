@@ -39,7 +39,6 @@ module.exports = {
   devtool: 'inline-eval-cheap-source-map',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
-    vendor: Object.keys(dependencies),
   },
   output: {
     publicPath: '/',
@@ -132,6 +131,10 @@ module.exports = {
     ],
   },
   plugins: [
+    new webpack.DllReferencePlugin({
+      context: process.cwd(),
+      manifest: require('../build/vendor/vendor.dll.json'),
+    }),
     new ForkTsCheckerWebpackPlugin({
       checkSyntacticErrors: true,
     }),
@@ -157,9 +160,6 @@ module.exports = {
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
       favicon: 'assets/images/favicon.ico',
-    }),
-    new webpack.optimize.CommonsChunkPlugin({
-      names: ['vendor', 'manifest'],
     }),
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
