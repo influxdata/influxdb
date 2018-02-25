@@ -138,7 +138,12 @@ const config = {
       chunksSortMode: 'dependency',
       favicon: 'assets/images/favicon.ico',
     }),
-    new UglifyJsPlugin(),
+    new UglifyJsPlugin({
+      parallel: true,
+      uglifyOptions: {
+        ie8: false,
+      },
+    }),
     new webpack.optimize.CommonsChunkPlugin({
       name: 'vendor',
       minChunks(module) {
