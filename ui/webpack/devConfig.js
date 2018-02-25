@@ -16,16 +16,7 @@ const babelLoader = {
   loader: 'babel-loader',
   options: {
     cacheDirectory: true,
-    presets: [
-      'react',
-      [
-        'es2015',
-        {
-          modules: false,
-        },
-      ],
-      'es2016',
-    ],
+    presets: ['env', 'react', 'stage-0'],
   },
 }
 
@@ -100,9 +91,12 @@ module.exports = {
         exclude: /node_modules/,
         use: [
           {
+            loader: 'thread-loader',
+          },
+          {
             loader: 'babel-loader',
             options: {
-              presets: ['es2015', 'react', 'stage-0'],
+              presets: ['env', 'react', 'stage-0'],
               cacheDirectory: true, // use a cache directory to speed up compilation
             },
           },

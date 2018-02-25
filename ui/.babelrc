@@ -6,7 +6,7 @@
     "transform-runtime",
     "lodash"
   ],
-  "presets": ["es2015", "es2016", "react", "stage-0"],
+  "presets": ["env", "react", "stage-0"],
   "env": {
     "production": {
       "plugins": [

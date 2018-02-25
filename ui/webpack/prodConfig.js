@@ -4,23 +4,15 @@ const path = require('path')
 const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 const package = require('../package.json')
 const dependencies = package.dependencies
 
 const babelLoader = {
   loader: 'babel-loader',
   options: {
-    cacheDirectory: true,
-    presets: [
-      'react',
-      [
-        'es2015',
-        {
-          modules: false,
-        },
-      ],
-      'es2016',
-    ],
+    cacheDirectory: false,
+    presets: ['env', 'react', 'stage-0'],
   },
 }
 
@@ -64,7 +56,7 @@ const config = {
       {
         test: /\.js$/,
         exclude: [/node_modules/, /(_s|S)pec\.js$/],
-        loader: 'eslint-loader',
+        use: 'eslint-loader',
         enforce: 'pre',
       },
       {
@@ -93,27 +85,35 @@ const config = {
       {
         test: /\.js$/,
         exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['es2015', 'react', 'stage-0'],
-            cacheDirectory: false, // Using the cache directory on production builds has never been helpful.
-          },
-        },
+        use: [{loader: 'thread-loader'}, babelLoader],
       },
       {
         test: /\.ts(x?)$/,
         exclude: /node_modules/,
         use: [
+          {
+            loader: 'thread-loader',
+            options: {
+              // there should be 1 cpu for the fork-ts-checker-webpack-plugin
+              workers: require('os').cpus().length - 1,
+            },
+          },
           babelLoader,
           {
             loader: 'ts-loader',
+            options: {
+              happyPackMode: true, // required for use with thread-loader
+            },
           },
         ],
       },
     ],
   },
   plugins: [
+    new webpack.optimize.ModuleConcatenationPlugin(),
+    new ForkTsCheckerWebpackPlugin({
+      checkSyntacticErrors: true,
+    }),
     new webpack.LoaderOptionsPlugin({
       postcss: require('./postcss'),
       options: {
@@ -121,11 +121,6 @@ const config = {
           failOnWarning: false,
           failOnError: false,
         },
-      },
-    }),
-    new webpack.DefinePlugin({
-      'process.env': {
-        NODE_ENV: JSON.stringify('production'),
       },
     }),
     new webpack.ProvidePlugin({
@@ -144,6 +139,9 @@ const config = {
     }),
     new webpack.optimize.CommonsChunkPlugin({
       name: 'vendor',
+      minChunks(module) {
+        return module.context && module.context.indexOf('node_modules') >= 0
+      },
     }),
     new webpack.optimize.CommonsChunkPlugin({
       name: 'manifest',
@@ -167,6 +165,7 @@ const config = {
     },
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
+      'process.env.NODE_ENV': JSON.stringify('production'),
     }),
   ],
   target: 'web',
