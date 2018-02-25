@@ -105,6 +105,7 @@
     "ts-loader": "^3.5.0",
     "tslib": "^1.9.0",
     "uglify-js": "^2.6.1",
+    "uglifyjs-webpack-plugin": "^1.2.2",
     "webpack": "^3.11.0",
     "webpack-bundle-analyzer": "^2.10.1",
     "webpack-dev-server": "^2.11.1"

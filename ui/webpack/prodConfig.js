@@ -3,6 +3,7 @@ const webpack = require('webpack')
 const path = require('path')
 const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
+const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
 const package = require('../package.json')
 const dependencies = package.dependencies
 
@@ -11,7 +12,8 @@ const babelLoader = {
   options: {
     cacheDirectory: true,
     presets: [
-      'react', [
+      'react',
+      [
         'es2015',
         {
           modules: false,
@@ -24,8 +26,8 @@ const babelLoader = {
 
 const config = {
   node: {
-    fs: "empty",
-    module: "empty"
+    fs: 'empty',
+    module: 'empty',
   },
   bail: true,
   devtool: 'eval',
@@ -58,7 +60,8 @@ const config = {
         'memoizerific.js'
       ),
     ],
-    loaders: [{
+    loaders: [
+      {
         test: /\.js$/,
         exclude: [/node_modules/, /(_s|S)pec\.js$/],
         loader: 'eslint-loader',
@@ -136,17 +139,18 @@ const config = {
       chunksSortMode: 'dependency',
       favicon: 'assets/images/favicon.ico',
     }),
-    new webpack.optimize.UglifyJsPlugin({
-      compress: {
-        warnings: false,
-      },
+    new UglifyJsPlugin({
+      parallel: true,
     }),
     new webpack.optimize.CommonsChunkPlugin({
-      names: ['vendor', 'manifest'],
+      name: 'vendor',
     }),
-    function () {
+    new webpack.optimize.CommonsChunkPlugin({
+      name: 'manifest',
+    }),
+    function() {
       /* Webpack does not exit with non-zero status if error. */
-      this.plugin('done', function (stats) {
+      this.plugin('done', function(stats) {
         if (
           stats.compilation.errors &&
           stats.compilation.errors.length &&
