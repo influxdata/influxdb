@@ -22,7 +22,7 @@ const config = {
     module: 'empty',
   },
   bail: true,
-  devtool: 'eval',
+  devtool: false,
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
     vendor: Object.keys(dependencies),
@@ -110,6 +110,10 @@ const config = {
     ],
   },
   plugins: [
+    new webpack.DefinePlugin({
+      VERSION: JSON.stringify(require('../package.json').version),
+      'process.env.NODE_ENV': JSON.stringify('production'),
+    }),
     new webpack.optimize.ModuleConcatenationPlugin(),
     new ForkTsCheckerWebpackPlugin({
       checkSyntacticErrors: true,
@@ -134,9 +138,7 @@ const config = {
       chunksSortMode: 'dependency',
       favicon: 'assets/images/favicon.ico',
     }),
-    new UglifyJsPlugin({
-      parallel: true,
-    }),
+    new UglifyJsPlugin(),
     new webpack.optimize.CommonsChunkPlugin({
       name: 'vendor',
       minChunks(module) {
@@ -163,10 +165,6 @@ const config = {
         }
       })
     },
-    new webpack.DefinePlugin({
-      VERSION: JSON.stringify(require('../package.json').version),
-      'process.env.NODE_ENV': JSON.stringify('production'),
-    }),
   ],
   target: 'web',
 }
