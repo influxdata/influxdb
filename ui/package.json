@@ -104,6 +104,7 @@
     "thread-loader": "^1.1.4",
     "ts-loader": "^3.5.0",
     "tslib": "^1.9.0",
+    "typescript": "^2.7.2",
     "uglifyjs-webpack-plugin": "^1.2.2",
     "webpack": "^3.11.0",
     "webpack-bundle-analyzer": "^2.10.1",
@@ -144,7 +145,6 @@
     "redux-auth-wrapper": "^1.0.0",
     "redux-thunk": "^1.0.3",
     "rome": "^2.1.22",
-    "typescript": "^2.7.2",
     "updeep": "^0.13.0"
   }
 }
