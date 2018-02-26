@@ -4,6 +4,7 @@ const webpack = require('webpack')
 const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const WebpackOnBuildPlugin = require('on-build-webpack')
+const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin')
 const keys = require('lodash/keys')
 const difference = require('lodash/difference')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
@@ -18,6 +19,11 @@ const babelLoader = {
     cacheDirectory: true,
     presets: ['env', 'react', 'stage-0'],
   },
+}
+
+const log = function(x) {
+  console.log('IM LOGGIN HERE: ', x)
+  return x
 }
 
 module.exports = {
@@ -152,6 +158,10 @@ module.exports = {
       inject: 'body',
       favicon: 'assets/images/favicon.ico',
     }),
+    new HtmlWebpackIncludeAssetsPlugin({
+      assets: ['vendor.dll.js'],
+      append: false,
+    }),
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
     }),
@@ -167,6 +177,10 @@ module.exports = {
         const filesToRemove = difference(buildDirFiles, assetFileNames)
 
         for (const file of filesToRemove) {
+          if (file.includes('dll')) {
+            return
+          }
+
           const ext = path.extname(file)
           if (['.js', '.json', '.map'].includes(ext)) {
             fs.unlink(path.join(buildDir, file), unlinkErr => {
