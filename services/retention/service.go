@@ -80,7 +80,7 @@ func (s *Service) run() {
 			return
 
 		case <-ticker.C:
-			log, logEnd := logger.NewOperation(s.logger, "Retention policy deletion check", "retention.delete_check")
+			log, logEnd := logger.NewOperation(s.logger, "Retention policy deletion check", "retention_delete_check")
 
 			type deletionInfo struct {
 				db string

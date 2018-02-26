@@ -178,7 +178,7 @@ func (i *Index) Open() error {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
 		p.Database = i.database
-		p.logger = i.logger.With(zap.String("index", "tsi"), zap.String("partition", fmt.Sprint(j+1)))
+		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
 

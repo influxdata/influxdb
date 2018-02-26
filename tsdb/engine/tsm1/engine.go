@@ -1561,7 +1561,7 @@ func (e *Engine) WriteSnapshot() error {
 
 	started := time.Now()
 
-	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "cache.snapshot")
+	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
 		e.Cache.UpdateCompactTime(elapsed)
@@ -1888,12 +1888,12 @@ func (s *compactionStrategy) Apply() {
 func (s *compactionStrategy) compactGroup() {
 	group := s.group
 	start := time.Now()
-	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1.compact_group")
+	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group")
 	defer logEnd()
 
-	log.Info("Beginning compaction", zap.Int("files", len(group)))
+	log.Info("Beginning compaction", zap.Int("tsm1_files", len(group)))
 	for i, f := range group {
-		log.Info("Compacting file", zap.Int("index", i), zap.String("file", f))
+		log.Info("Compacting file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
 	}
 
 	var (
@@ -1932,7 +1932,7 @@ func (s *compactionStrategy) compactGroup() {
 	}
 
 	for i, f := range files {
-		log.Info("Compacted file", zap.Int("index", i), zap.String("file", f))
+		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
 	}
 	log.Info("Finished compacting files",
 		zap.Int("groups", len(group)),
@@ -1946,7 +1946,7 @@ func (s *compactionStrategy) compactGroup() {
 func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level int) *compactionStrategy {
 	return &compactionStrategy{
 		group:     group,
-		logger:    e.logger.With(zap.Int("level", level), zap.String("strategy", "level")),
+		logger:    e.logger.With(zap.Int("tsm1_level", level), zap.String("tsm1_strategy", "level")),
 		fileStore: e.FileStore,
 		compactor: e.Compactor,
 		fast:      fast,
@@ -1965,7 +1965,7 @@ func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level
 func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *compactionStrategy {
 	s := &compactionStrategy{
 		group:     group,
-		logger:    e.logger.With(zap.String("strategy", "full"), zap.Bool("optimize", optimize)),
+		logger:    e.logger.With(zap.String("tsm1_strategy", "full"), zap.Bool("tsm1_optimize", optimize)),
 		fileStore: e.FileStore,
 		compactor: e.Compactor,
 		fast:      optimize,

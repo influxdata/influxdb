@@ -258,7 +258,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	// Check if we've crossed the compaction threshold.
 	if p.compactionsEnabled() && !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
 		p.compacting = true
-		log, logEnd := logger.NewOperation(p.Logger, "Series partition compaction", "series_partition.compaction", zap.String("path", p.path))
+		log, logEnd := logger.NewOperation(p.Logger, "Series partition compaction", "series_partition_compaction", zap.String("path", p.path))
 
 		p.wg.Add(1)
 		go func() {
