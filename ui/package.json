@@ -9,18 +9,17 @@
     "url": "github:influxdata/chronograf"
   },
   "scripts": {
-    "build": "yarn run clean:prod && webpack --config ./webpack/prodConfig.js",
+    "build": "yarn run clean && webpack --config ./webpack/prodConfig.js",
     "build:dev": "webpack --config ./webpack/devConfig.js",
-    "start": "yarn run clean && webpack --watch --config ./webpack/devConfig.js",
-    "start:vendor": "yarn run vendor && yarn start",
+    "build:vendor": "webpack --config webpack/vendor.config.js",
+    "start": "yarn run clean && yarn run build:vendor && webpack --watch --config ./webpack/devConfig.js",
+    "start:assets": "webpack --watch --config ./webpack/devConfig.js",
     "start:hmr": "webpack-dev-server --open --config ./webpack/devConfig.js",
     "lint": "esw src/",
     "test": "karma start --single-run",
     "test:lint": "yarn run lint; yarn run test",
     "test:dev": "karma start --auto-watch",
-    "clean": "find ./build -type f -maxdepth 1 -exec rm -fv {} \\;",
-    "clean:prod": "rm -rf ./build/*",
-    "vendor": "webpack --config webpack/vendor.config.js",
+    "clean": "rm -rf ./build/*",
     "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix",
     "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check"
   },

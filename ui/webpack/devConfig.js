@@ -124,7 +124,7 @@ module.exports = {
   plugins: [
     new webpack.DllReferencePlugin({
       context: process.cwd(),
-      manifest: require('../build/vendor/vendor.dll.json'),
+      manifest: require('../build/vendor.dll.json'),
     }),
     new ForkTsCheckerWebpackPlugin({
       checkSyntacticErrors: true,
