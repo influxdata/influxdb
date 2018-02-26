@@ -1561,7 +1561,7 @@ func (e *Engine) WriteSnapshot() error {
 
 	started := time.Now()
 
-	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "cache_snapshot")
+	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
 		e.Cache.UpdateCompactTime(elapsed)
