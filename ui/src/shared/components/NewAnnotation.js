@@ -122,6 +122,7 @@ class NewAnnotation extends Component {
       tempAnnotation,
       tempAnnotation: {startTime, endTime},
     } = this.props
+    const {isMouseOver} = this.state
 
     const crosshairOne = Math.max(-1000, dygraph.toDomXCoord(startTime))
     const crosshairTwo = dygraph.toDomXCoord(endTime)
@@ -161,14 +162,18 @@ class NewAnnotation extends Component {
               className="new-annotation--crosshair"
               style={{left: crosshairTwo}}
             >
-              {this.renderTimestamp(tempAnnotation.endTime)}
+              {isMouseOver &&
+                isDragging &&
+                this.renderTimestamp(tempAnnotation.endTime)}
               <div className={flagTwoClass} />
             </div>}
           <div
             className="new-annotation--crosshair"
             style={{left: crosshairOne}}
           >
-            {isDragging || this.renderTimestamp(tempAnnotation.startTime)}
+            {isMouseOver &&
+              !isDragging &&
+              this.renderTimestamp(tempAnnotation.startTime)}
             <div className={isDragging ? flagOneClass : pointFlagClass} />
           </div>
         </div>
