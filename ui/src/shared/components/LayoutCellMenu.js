@@ -40,6 +40,14 @@ class LayoutCellMenu extends Component {
       onDismissEditingAnnotation,
     } = this.props
 
+    const cellSupportsAnnotations =
+      cell.type ===
+      ('line' ||
+        'bar' ||
+        'line-plus-single-stat' ||
+        'line-stacked' ||
+        'line-stepplot')
+
     return (
       <div
         className={classnames('dash-graph-context', {
@@ -61,10 +69,15 @@ class LayoutCellMenu extends Component {
                   icon="pencil"
                   menuOptions={[
                     {text: 'Configure', action: onEdit(cell)},
-                    {text: 'Add Annotation', action: onStartAddingAnnotation},
+                    {
+                      text: 'Add Annotation',
+                      action: onStartAddingAnnotation,
+                      disabled: !cellSupportsAnnotations,
+                    },
                     {
                       text: 'Edit Annotations',
                       action: onStartEditingAnnotation,
+                      disabled: !cellSupportsAnnotations,
                     },
                   ]}
                   informParent={this.handleToggleSubMenu}
