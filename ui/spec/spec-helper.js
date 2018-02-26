@@ -8,6 +8,5 @@ window.then = function(cb, done) {
 }
 
 const chai = require('chai')
-chai.use(require('sinon-chai'))
 
 global.expect = chai.expect

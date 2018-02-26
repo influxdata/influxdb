@@ -4,7 +4,7 @@ const path = require('path')
 module.exports = function(config) {
   config.set({
     browsers: ['PhantomJS'],
-    frameworks: ['mocha', 'sinon-chai'],
+    frameworks: ['mocha'],
     files: [
       'node_modules/babel-polyfill/dist/polyfill.js',
       'spec/spec-helper.js',
@@ -41,10 +41,6 @@ module.exports = function(config) {
             test: /sinon\/pkg\/sinon\.js/,
             loader: 'imports?define=>false,require=>false',
           },
-          {
-            test: /\.json$/,
-            loader: 'json-loader',
-          },
         ],
       },
       externals: {
@@ -60,7 +56,6 @@ module.exports = function(config) {
           shared: path.resolve(__dirname, 'src', 'shared'),
           style: path.resolve(__dirname, 'src', 'style'),
           utils: path.resolve(__dirname, 'src', 'utils'),
-          sinon: 'sinon/pkg/sinon',
         },
       },
     },
