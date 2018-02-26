@@ -201,7 +201,7 @@ class AnnotationSpan extends React.Component {
         <AnnotationWindow
           annotation={annotation}
           dygraph={dygraph}
-          active={isDragging}
+          active={!!isDragging}
         />
         {this.renderLeftMarker(annotation.startTime, dygraph)}
         {this.renderRightMarker(annotation.endTime, dygraph)}
