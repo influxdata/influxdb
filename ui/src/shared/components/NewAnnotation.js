@@ -14,12 +14,19 @@ class NewAnnotation extends Component {
     gatherMode: 'startTime',
   }
 
+  enforceGraphBounds = newTime => {
+    const {dygraph} = this.props
+    const xRangeStart = dygraph.xAxisRange()[0]
+
+    return newTime < xRangeStart ? `${xRangeStart}` : `${newTime}`
+  }
+
   handleMouseDown = e => {
     const {tempAnnotation, dygraph, onUpdateAnnotation} = this.props
 
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
-    const startTime = `${dygraph.toDataXCoord(trueGraphX)}`
+    const startTime = this.enforceGraphBounds(dygraph.toDataXCoord(trueGraphX))
 
     onUpdateAnnotation({...tempAnnotation, startTime})
     this.setState({gatherMode: 'endTime'})
@@ -33,8 +40,7 @@ class NewAnnotation extends Component {
     const {dygraph, tempAnnotation, onUpdateAnnotation} = this.props
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
-
-    const newTime = `${dygraph.toDataXCoord(trueGraphX)}`
+    const newTime = this.enforceGraphBounds(dygraph.toDataXCoord(trueGraphX))
 
     if (this.state.gatherMode === 'startTime') {
       onUpdateAnnotation({
@@ -59,7 +65,7 @@ class NewAnnotation extends Component {
     const {dygraph, tempAnnotation, onUpdateAnnotation} = this.props
     const wrapperRect = this.wrapper.getBoundingClientRect()
     const trueGraphX = e.pageX - wrapperRect.left
-    const upTime = `${dygraph.toDataXCoord(trueGraphX)}`
+    const upTime = this.enforceGraphBounds(dygraph.toDataXCoord(trueGraphX))
 
     const downTime = tempAnnotation.startTime
     const [startTime, endTime] = [downTime, upTime].sort()
