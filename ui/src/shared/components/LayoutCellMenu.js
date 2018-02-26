@@ -91,7 +91,7 @@ class LayoutCellMenu extends Component {
               className="btn btn-xs btn-success"
               onClick={onDismissEditingAnnotation}
             >
-              Done
+              Done Editing
             </div>
           </div>}
       </div>
