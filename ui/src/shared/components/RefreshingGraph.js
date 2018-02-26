@@ -17,6 +17,7 @@ const RefreshingGraph = ({
   type,
   colors,
   onZoom,
+  cellID,
   queries,
   templates,
   timeRange,
@@ -29,8 +30,8 @@ const RefreshingGraph = ({
   editQueryStatus,
   grabDataForDownload,
 }) => {
-  const prefix = axes.y.prefix || ''
-  const suffix = axes.y.suffix || ''
+  const prefix = (axes && axes.y.prefix) || ''
+  const suffix = (axes && axes.y.suffix) || ''
 
   if (!queries.length) {
     return (
@@ -68,6 +69,7 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
+        cellID={cellID}
         prefix={prefix}
         suffix={suffix}
       />
@@ -129,6 +131,7 @@ RefreshingGraph.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  cellID: string,
   inView: bool,
 }
 
