@@ -13,26 +13,26 @@ const (
 	TraceIDKey = "trace_id"
 
 	// OperationNameKey is the logging context key used for identifying name of an operation.
-	OperationNameKey = "op.name"
+	OperationNameKey = "op_name"
 
 	// OperationEventKey is the logging context key used for identifying a notable
 	// event during the course of an operation.
-	OperationEventKey = "op.event"
+	OperationEventKey = "op_event"
 
 	// OperationElapsedKey is the logging context key used for identifying time elapsed to finish an operation.
-	OperationElapsedKey = "op.elapsed"
+	OperationElapsedKey = "op_elapsed"
 
 	// DBInstanceKey is the logging context key used for identifying name of the relevant database.
-	DBInstanceKey = "db.instance"
+	DBInstanceKey = "db_instance"
 
 	// DBRetentionKey is the logging context key used for identifying name of the relevant retention policy.
-	DBRetentionKey = "db.rp"
+	DBRetentionKey = "db_rp"
 
 	// DBShardGroupKey is the logging context key used for identifying relevant shard group.
-	DBShardGroupKey = "db.shard_group"
+	DBShardGroupKey = "db_shard_group"
 
-	// DBShardIDKey is the logging context key used for identifying name of the relevant shard group.
-	DBShardIDKey = "db.shard_id"
+	// DBShardIDKey is the logging context key used for identifying name of the relevant shard number.
+	DBShardIDKey = "db_shard_id"
 )
 const (
 	eventStart = "start"

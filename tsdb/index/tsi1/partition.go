@@ -887,7 +887,7 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	assert(level > 0, "cannot compact level zero")
 
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(i.logger, "TSI level compaction", "index.tsi.compact_to_level", zap.Int("tsi_level", level))
+	log, logEnd := logger.NewOperation(i.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
 	defer logEnd()
 
 	// Check for cancellation.
@@ -1049,7 +1049,7 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(i.logger, "TSI log compaction", "index.tsi.compact_log_file", zap.Int("log_file_id", id))
+	log, logEnd := logger.NewOperation(i.logger, "TSI log compaction", "tsi1_compact_log_file", zap.Int("tsi1_log_file_id", id))
 	defer logEnd()
 
 	// Create new index file.
