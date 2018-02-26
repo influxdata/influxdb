@@ -38,10 +38,8 @@ class GaugeChart extends PureComponent {
     // When a new height is passed the Gauge component resizes internally
     // Passing in a new often ensures the gauge appears sharp
 
-    let thisGaugeIsResizing = false
-    if (resizeCoords) {
-      thisGaugeIsResizing = cellID === resizeCoords.i
-    }
+    const thisGaugeIsResizing = resizeCoords ? cellID === resizeCoords.i : false
+
     const initialCellHeight =
       cellHeight && (cellHeight * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
 
