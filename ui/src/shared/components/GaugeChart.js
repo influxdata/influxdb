@@ -12,11 +12,14 @@ class GaugeChart extends PureComponent {
   render() {
     const {
       data,
+      cellID,
       cellHeight,
       isFetchingInitially,
       colors,
       resizeCoords,
       resizerTopHeight,
+      prefix,
+      suffix,
     } = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -35,11 +38,15 @@ class GaugeChart extends PureComponent {
     // When a new height is passed the Gauge component resizes internally
     // Passing in a new often ensures the gauge appears sharp
 
+    const thisGaugeIsResizing = resizeCoords ? cellID === resizeCoords.i : false
+
     const initialCellHeight =
       cellHeight && (cellHeight * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
 
     const resizeCoordsHeight =
-      resizeCoords && (resizeCoords.h * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
+      resizeCoords &&
+      thisGaugeIsResizing &&
+      (resizeCoords.h * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
 
     const height = (resizeCoordsHeight ||
       initialCellHeight ||
@@ -54,6 +61,8 @@ class GaugeChart extends PureComponent {
           height={height}
           colors={colors}
           gaugePosition={roundedValue}
+          prefix={prefix}
+          suffix={suffix}
         />
       </div>
     )
@@ -69,6 +78,7 @@ GaugeChart.defaultProps = {
 GaugeChart.propTypes = {
   data: arrayOf(shape()).isRequired,
   isFetchingInitially: bool,
+  cellID: string,
   cellHeight: number,
   resizerTopHeight: number,
   resizeCoords: shape(),
@@ -81,6 +91,8 @@ GaugeChart.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  prefix: string.isRequired,
+  suffix: string.isRequired,
 }
 
 export default GaugeChart

@@ -34,6 +34,11 @@ class LayoutCell extends Component {
 
     const queries = _.get(cell, ['queries'], [])
 
+    // Passing the cell ID into the child graph so that further along
+    // we can detect if "this cell is the one being resized"
+    const child = children.length ? children[0] : children
+    const layoutCellGraph = React.cloneElement(child, {cellID: cell.i})
+
     return (
       <div className="dash-graph">
         <Authorized requiredRole={EDITOR_ROLE}>
@@ -50,7 +55,7 @@ class LayoutCell extends Component {
         <LayoutCellHeader cellName={cell.name} isEditable={isEditable} />
         <div className="dash-graph--container">
           {queries.length
-            ? children
+            ? layoutCellGraph
             : <div className="graph-empty">
                 <Authorized requiredRole={EDITOR_ROLE}>
                   <button
@@ -71,6 +76,7 @@ const {arrayOf, bool, func, node, number, shape, string} = PropTypes
 
 LayoutCell.propTypes = {
   cell: shape({
+    i: string.isRequired,
     name: string.isRequired,
     isEditing: bool,
     x: number.isRequired,

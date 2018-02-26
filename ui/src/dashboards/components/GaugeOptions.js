@@ -15,7 +15,10 @@ import {
   MIN_THRESHOLDS,
 } from 'src/dashboards/constants/gaugeColors'
 
-import {updateGaugeColors} from 'src/dashboards/actions/cellEditorOverlay'
+import {
+  updateGaugeColors,
+  updateAxes,
+} from 'src/dashboards/actions/cellEditorOverlay'
 
 class GaugeOptions extends Component {
   handleAddThreshold = () => {
@@ -118,8 +121,22 @@ class GaugeOptions extends Component {
     return allowedToUpdate
   }
 
+  handleUpdatePrefix = e => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, prefix: e.target.value}}
+
+    handleUpdateAxes(newAxes)
+  }
+
+  handleUpdateSuffix = e => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, suffix: e.target.value}}
+
+    handleUpdateAxes(newAxes)
+  }
+
   render() {
-    const {gaugeColors} = this.props
+    const {gaugeColors, axes: {y: {prefix, suffix}}} = this.props
 
     const disableMaxColor = gaugeColors.length > MIN_THRESHOLDS
     const disableAddThreshold = gaugeColors.length > MAX_THRESHOLDS
@@ -157,6 +174,28 @@ class GaugeOptions extends Component {
               />
             )}
           </div>
+          <div className="single-stat-controls">
+            <div className="form-group col-xs-6">
+              <label>Prefix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={prefix}
+                onChange={this.handleUpdatePrefix}
+                maxLength="5"
+              />
+            </div>
+            <div className="form-group col-xs-6">
+              <label>Suffix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={suffix}
+                onChange={this.handleUpdateSuffix}
+                maxLength="5"
+              />
+            </div>
+          </div>
         </div>
       </FancyScrollbar>
     )
@@ -176,13 +215,17 @@ GaugeOptions.propTypes = {
     }).isRequired
   ),
   handleUpdateGaugeColors: func.isRequired,
+  handleUpdateAxes: func.isRequired,
+  axes: shape({}).isRequired,
 }
 
-const mapStateToProps = ({cellEditorOverlay: {gaugeColors}}) => ({
+const mapStateToProps = ({cellEditorOverlay: {gaugeColors, cell: {axes}}}) => ({
   gaugeColors,
+  axes,
 })
 
 const mapDispatchToProps = dispatch => ({
   handleUpdateGaugeColors: bindActionCreators(updateGaugeColors, dispatch),
+  handleUpdateAxes: bindActionCreators(updateAxes, dispatch),
 })
 export default connect(mapStateToProps, mapDispatchToProps)(GaugeOptions)
