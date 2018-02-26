@@ -91,9 +91,6 @@ module.exports = {
         exclude: /node_modules/,
         use: [
           {
-            loader: 'thread-loader',
-          },
-          {
             loader: 'babel-loader',
             options: {
               presets: ['env', 'react', 'stage-0'],
