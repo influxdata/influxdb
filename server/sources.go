@@ -330,7 +330,7 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 		return nil
 	}
 
-	s.Logger.Error("--new-sources is deprecated. To preconfigure a source, see this link. https://docs.influxdata.com/chronograf/latest/administration/config-options")
+	s.Logger.Error("--new-sources is deprecated and will be removed in a future version.")
 
 	var srcsKaps []struct {
 		Source    chronograf.Source `json:"influxdb"`
