@@ -30,8 +30,8 @@ const RefreshingGraph = ({
   editQueryStatus,
   grabDataForDownload,
 }) => {
-  const prefix = axes.y.prefix || ''
-  const suffix = axes.y.suffix || ''
+  const prefix = (axes && axes.y.prefix) || ''
+  const suffix = (axes && axes.y.suffix) || ''
 
   if (!queries.length) {
     return (
