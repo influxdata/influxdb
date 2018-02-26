@@ -38,7 +38,9 @@ $timestamp-font-weight: 600;
   height: 6px;
   background-color: $annotation-color;
   border-radius: 50%;
-  transition: transform 0.25s ease;
+  transition:
+    transform 0.25s ease,
+    background-color 0.25s ease;
 }
 
 .annotation-point--flag__dragging {
