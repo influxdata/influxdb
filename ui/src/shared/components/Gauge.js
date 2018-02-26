@@ -226,6 +226,7 @@ class Gauge extends Component {
     minValue,
     maxValue
   ) => {
+    const {prefix, suffix} = this.props
     const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
     const incrementValue = (maxValue - minValue) / lineCount
@@ -258,12 +259,14 @@ class Gauge extends Component {
       if (i > 3) {
         ctx.textAlign = 'left'
       }
+      const labelText = `${prefix}${gaugeValues[i]}${suffix}`
+
       ctx.rotate(startDegree)
       ctx.rotate(i * arcIncrement)
       ctx.translate(labelRadius, 0)
       ctx.rotate(i * -arcIncrement)
       ctx.rotate(-startDegree)
-      ctx.fillText(gaugeValues[i], 0, 0)
+      ctx.fillText(labelText, 0, 0)
       ctx.rotate(startDegree)
       ctx.rotate(i * arcIncrement)
       ctx.translate(-labelRadius, 0)
@@ -273,7 +276,7 @@ class Gauge extends Component {
   }
 
   drawGaugeValue = (ctx, radius, labelValueFontSize) => {
-    const {gaugePosition} = this.props
+    const {gaugePosition, prefix, suffix} = this.props
     const {valueColor} = GAUGE_SPECS
 
     ctx.font = `${labelValueFontSize}px Roboto`
@@ -282,7 +285,8 @@ class Gauge extends Component {
     ctx.textAlign = 'center'
 
     const textY = radius
-    ctx.fillText(gaugePosition.toString(), 0, textY)
+    const textContent = `${prefix}${gaugePosition.toString()}${suffix}`
+    ctx.fillText(textContent, 0, textY)
   }
 
   drawNeedle = (ctx, radius, minValue, maxValue) => {
@@ -335,6 +339,8 @@ Gauge.propTypes = {
       value: string.isRequired,
     }).isRequired
   ).isRequired,
+  prefix: string.isRequired,
+  suffix: string.isRequired,
 }
 
 export default Gauge

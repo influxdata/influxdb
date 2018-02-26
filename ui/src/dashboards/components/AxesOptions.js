@@ -124,6 +124,7 @@ class AxesOptions extends Component {
               value={prefix}
               labelText="Y-Value's Prefix"
               onChange={this.handleSetPrefixSuffix}
+              maxLength="5"
             />
             <Input
               name="suffix"
@@ -131,6 +132,7 @@ class AxesOptions extends Component {
               value={suffix}
               labelText="Y-Value's Suffix"
               onChange={this.handleSetPrefixSuffix}
+              maxLength="5"
             />
             <Tabber
               labelText="Y-Value's Format"

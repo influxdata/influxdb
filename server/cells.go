@@ -45,7 +45,7 @@ func newCellResponse(dID chronograf.DashboardID, cell chronograf.DashboardCell) 
 	for _, lbl := range []string{"x", "y", "y2"} {
 		if _, found := newAxes[lbl]; !found {
 			newAxes[lbl] = chronograf.Axis{
-				Bounds: []string{},
+				Bounds: []string{"", ""},
 			}
 		}
 	}
@@ -352,6 +352,13 @@ func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&cell); err != nil {
 		invalidJSON(w, s.Logger)
 		return
+	}
+
+	for i, a := range cell.Axes {
+		if len(a.Bounds) == 0 {
+			a.Bounds = []string{"", ""}
+			cell.Axes[i] = a
+		}
 	}
 
 	if err := ValidDashboardCellRequest(&cell); err != nil {
