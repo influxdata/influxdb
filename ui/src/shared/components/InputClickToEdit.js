@@ -7,13 +7,14 @@ class InputClickToEdit extends Component {
     this.state = {
       isEditing: null,
       value: this.props.value,
+      initialValue: this.props.value,
     }
   }
 
   handleCancel = () => {
     this.setState({
       isEditing: false,
-      value: this.props.value,
+      value: this.state.initialValue,
     })
   }
 
@@ -22,21 +23,28 @@ class InputClickToEdit extends Component {
   }
 
   handleInputBlur = e => {
-    const {onUpdate, value} = this.props
-
+    const {onBlurUpdate, value} = this.props
     if (value !== e.target.value) {
-      onUpdate(e.target.value)
+      onBlurUpdate(e.target.value)
     }
 
-    this.setState({isEditing: false, value: e.target.value})
+    this.setState({
+      isEditing: false,
+      value: e.target.value,
+      initialValue: e.target.value,
+    })
   }
 
-  handleKeyDown = e => {
+  handleKeyUp = e => {
+    const {onKeyUpdate, value} = this.props
     if (e.key === 'Enter') {
       this.handleInputBlur(e)
     }
     if (e.key === 'Escape') {
       this.handleCancel()
+    }
+    if (onKeyUpdate && value !== e.target.value) {
+      onKeyUpdate(e.target.value)
     }
   }
 
@@ -63,7 +71,7 @@ class InputClickToEdit extends Component {
                 className="form-control input-sm provider--input"
                 defaultValue={value}
                 onBlur={this.handleInputBlur}
-                onKeyDown={this.handleKeyDown}
+                onKeyUp={this.handleKeyUp}
                 autoFocus={true}
                 onFocus={this.handleFocus}
                 ref={r => (this.inputRef = r)}
@@ -88,7 +96,8 @@ const {func, bool, number, string} = PropTypes
 InputClickToEdit.propTypes = {
   wrapperClass: string.isRequired,
   value: string,
-  onUpdate: func.isRequired,
+  onKeyUpdate: func,
+  onBlurUpdate: func.isRequired,
   disabled: bool,
   tabIndex: number,
   placeholder: string,
