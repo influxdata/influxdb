@@ -18,8 +18,8 @@ const (
 	AllAnnotations = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "deleted"=false AND time >= %dns and "start_time" <= %d ORDER BY time DESC`
 	// GetAnnotationID returns all annotations from the chronograf database where id is %s
 	GetAnnotationID = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "id"='%s' AND "deleted"=false ORDER BY time DESC`
-	// DefaultDB is chronograf.  Perhaps later we allow this to be changed
-	DefaultDB = "chronograf"
+	// AnnotationsDB is chronograf.  Perhaps later we allow this to be changed
+	AnnotationsDB = "chronograf"
 	// DefaultRP is autogen. Perhaps later we allow this to be changed
 	DefaultRP = "autogen"
 	// DefaultMeasurement is annotations.
@@ -104,7 +104,7 @@ func (a *AnnotationStore) Update(ctx context.Context, anno *chronograf.Annotatio
 func (a *AnnotationStore) queryAnnotations(ctx context.Context, query string) ([]chronograf.Annotation, error) {
 	res, err := a.client.Query(ctx, chronograf.Query{
 		Command: query,
-		DB:      DefaultDB,
+		DB:      AnnotationsDB,
 		Epoch:   "ns",
 	})
 	if err != nil {
@@ -126,7 +126,7 @@ func (a *AnnotationStore) queryAnnotations(ctx context.Context, query string) ([
 
 func toPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
 	return &chronograf.Point{
-		Database:        DefaultDB,
+		Database:        AnnotationsDB,
 		RetentionPolicy: DefaultRP,
 		Measurement:     DefaultMeasurement,
 		Time:            anno.EndTime.UnixNano(),
@@ -145,7 +145,7 @@ func toPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
 
 func toDeletedPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
 	return &chronograf.Point{
-		Database:        DefaultDB,
+		Database:        AnnotationsDB,
 		RetentionPolicy: DefaultRP,
 		Measurement:     DefaultMeasurement,
 		Time:            anno.EndTime.UnixNano(),
