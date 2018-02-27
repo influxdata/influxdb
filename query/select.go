@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"sort"
+	"time"
 
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxql"
@@ -97,9 +98,14 @@ type preparedStatement struct {
 		io.Closer
 	}
 	columns []string
+	now     time.Time
 }
 
 func (p *preparedStatement) Select(ctx context.Context) ([]Iterator, []string, error) {
+	// TODO(jsternberg): Remove this hacky method of propagating now.
+	// Each level of the query should use a time range discovered during
+	// compilation, but that requires too large of a refactor at the moment.
+	ctx = context.WithValue(ctx, "now", p.now)
 	itrs, err := buildIterators(ctx, p.stmt, p.ic, p.opt)
 	if err != nil {
 		return nil, nil, err

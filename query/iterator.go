@@ -797,7 +797,7 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	return opt, nil
 }
 
-func newIteratorOptionsSubstatement(stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
+func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
 	subOpt, err := newIteratorOptionsStmt(stmt, SelectOptions{})
 	if err != nil {
 		return IteratorOptions{}, err
@@ -808,6 +808,11 @@ func newIteratorOptionsSubstatement(stmt *influxql.SelectStatement, opt Iterator
 	}
 	if subOpt.EndTime > opt.EndTime {
 		subOpt.EndTime = opt.EndTime
+	}
+	if !subOpt.Interval.IsZero() && subOpt.EndTime == influxql.MaxTime {
+		if now := ctx.Value("now"); now != nil {
+			subOpt.EndTime = now.(time.Time).UnixNano()
+		}
 	}
 	// Propagate the dimensions to the inner subquery.
 	subOpt.Dimensions = opt.Dimensions

@@ -24,7 +24,7 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 
 	// Map the desired auxiliary fields from the substatement.
 	indexes := b.mapAuxFields(auxFields)
-	subOpt, err := newIteratorOptionsSubstatement(b.stmt, opt)
+	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 
 	// Map the auxiliary fields to their index in the subquery.
 	indexes := b.mapAuxFields(auxFields)
-	subOpt, err := newIteratorOptionsSubstatement(b.stmt, opt)
+	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
 		return nil, err
 	}
