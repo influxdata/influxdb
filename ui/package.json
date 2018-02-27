@@ -16,9 +16,9 @@
     "start:assets": "webpack --watch --config ./webpack/dev.config.js",
     "start:hmr": "webpack-dev-server --open --config ./webpack/dev.config.js",
     "lint": "esw src/",
-    "test": "karma start --single-run",
+    "test": "jest",
     "test:lint": "yarn run lint; yarn run test",
-    "test:dev": "karma start --auto-watch",
+    "test:dev": "jest --watch",
     "clean": "rm -rf ./build/*",
     "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix",
     "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check"
