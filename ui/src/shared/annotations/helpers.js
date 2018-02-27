@@ -1,3 +1,5 @@
+export const ANNOTATION_MIN_DELTA = 0.5
+
 export const ADDING = 'adding'
 export const EDITING = 'editing'
 

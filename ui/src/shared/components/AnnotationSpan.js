@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 
-import {EDITING} from 'shared/annotations/helpers'
+import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
@@ -65,14 +65,12 @@ class AnnotationSpan extends React.Component {
     const graphX = pageX - left
     let newTime = dygraph.toDataXCoord(graphX)
 
-    const minPercentChange = 0.5
-
     if (
       Math.abs(
         dygraph.toPercentXCoord(newTime) - dygraph.toPercentXCoord(oldTime)
       ) *
         100 <
-      minPercentChange
+      ANNOTATION_MIN_DELTA
     ) {
       return
     }
