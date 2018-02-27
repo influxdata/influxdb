@@ -26,6 +26,10 @@ class Annotations extends Component {
     this.props.annotationsRef(this)
   }
 
+  heartbeat = () => {
+    this.setState({lastUpdated: Date.now()})
+  }
+
   render() {
     const {lastUpdated} = this.state
     const {
