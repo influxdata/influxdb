@@ -73,6 +73,7 @@
     "html-webpack-include-assets-plugin": "^1.0.2",
     "html-webpack-plugin": "^2.30.1",
     "imports-loader": "^0.6.5",
+    "jest": "^22.4.2",
     "jsdom": "^9.0.0",
     "json-loader": "^0.5.7",
     "karma": "^2.0.0",
