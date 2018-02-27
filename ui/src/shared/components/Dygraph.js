@@ -339,14 +339,13 @@ class Dygraph extends Component {
           className="dygraph-child-container"
           style={dygraphStyle}
         />
-        {staticLegend
-          ? <StaticLegend
-              dygraph={this.dygraph}
-              handleReceiveStaticLegendHeight={
-                this.handleReceiveStaticLegendHeight
-              }
-            />
-          : null}
+        {staticLegend &&
+          <StaticLegend
+            dygraph={this.dygraph}
+            handleReceiveStaticLegendHeight={
+              this.handleReceiveStaticLegendHeight
+            }
+          />}
       </div>
     )
   }

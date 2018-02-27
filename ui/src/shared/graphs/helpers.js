@@ -173,6 +173,12 @@ export const makeLegendStyles = (graph, legend, pageX) => {
   }
 }
 
+// globally matches anything that ends in a '.'
+export const removeMeasurement = (label = '') => {
+  const [measurement] = label.match(/^(.*)[.]/g) || ['']
+  return label.replace(measurement, '')
+}
+
 export const OPTIONS = {
   rightGap: 0,
   axisLineWidth: 2,

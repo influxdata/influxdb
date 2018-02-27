@@ -1,19 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 import uuid from 'node-uuid'
-
-const style = {
-  position: 'absolute',
-  width: 'calc(100% - 32px)',
-  bottom: '8px',
-  left: '16px',
-  paddingTop: '8px',
-}
-
-const removeMeasurement = (label = '') => {
-  const [measurement] = label.match(/^(.*)[.]/g) || ['']
-  return label.replace(measurement, '')
-}
+import {removeMeasurement} from 'shared/graphs/helpers'
 
 const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
   if (visibilities.length) {
@@ -29,10 +17,11 @@ const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
 class StaticLegend extends Component {
   constructor(props) {
     super(props)
+  }
 
-    this.state = {
-      visibilities: [],
-    }
+  state = {
+    visibilities: [],
+    clickStatus: false,
   }
 
   componentDidMount = () => {
@@ -51,6 +40,7 @@ class StaticLegend extends Component {
 
   handleClick = i => e => {
     const visibilities = this.props.dygraph.visibility()
+    const clickStatus = this.state.clickStatus
 
     if (e.shiftKey || e.metaKey) {
       visibilities[i] = !visibilities[i]
@@ -59,13 +49,19 @@ class StaticLegend extends Component {
       return
     }
 
-    const newVisibilities = visibilities[i]
-      ? _.map(visibilities, v => !v)
+    const prevClickStatus = clickStatus && visibilities[i]
+
+    const newVisibilities = prevClickStatus
+      ? _.map(visibilities, () => true)
       : _.map(visibilities, () => false)
+
     newVisibilities[i] = true
 
     this.props.dygraph.setVisibility(newVisibilities)
-    this.setState({visibilities: newVisibilities})
+    this.setState({
+      visibilities: newVisibilities,
+      clickStatus: !prevClickStatus,
+    })
   }
 
   render() {
@@ -74,9 +70,7 @@ class StaticLegend extends Component {
 
     const labels = dygraph ? _.drop(dygraph.getLabels()) : []
     const colors = dygraph
-      ? _.map(labels, l => {
-          return dygraph.attributes_.series_[l].options.color
-        })
+      ? _.map(labels, l => dygraph.attributes_.series_[l].options.color)
       : []
 
     const hoverEnabled = labels.length > 1

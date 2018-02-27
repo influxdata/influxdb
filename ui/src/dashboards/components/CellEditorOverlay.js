@@ -14,7 +14,7 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
-import {GET_STATIC_LEGEND} from 'src/shared/constants'
+import {IS_STATIC_LEGEND} from 'src/shared/constants'
 
 import {
   removeUnselectedTemplateValues,
@@ -46,7 +46,7 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
-      staticLegend: GET_STATIC_LEGEND(legend),
+      staticLegend: IS_STATIC_LEGEND(legend),
     }
   }
 

@@ -426,7 +426,7 @@ export const DEFAULT_SOURCE = {
   metaUrl: '',
 }
 
-export const GET_STATIC_LEGEND = legend =>
+export const IS_STATIC_LEGEND = legend =>
   _.get(legend, 'type', false) === 'static'
 
 export const linksLink = '/chronograf/v1'

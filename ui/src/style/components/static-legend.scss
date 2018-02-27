@@ -6,7 +6,12 @@
 */
 
 .static-legend {
+  position: absolute;
+  width: calc(100% - 32px);
+  bottom: 8px;
+  left: 16px;
   display: flex;
+  padding-top: 8px;
   align-items: flex-end;
   flex-wrap: wrap;
   max-height: 50%;

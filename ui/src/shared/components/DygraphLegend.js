@@ -3,12 +3,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import uuid from 'node-uuid'
 
-import {makeLegendStyles} from 'shared/graphs/helpers'
-
-const removeMeasurement = (label = '') => {
-  const [measurement] = label.match(/^(.*)[.]/g) || ['']
-  return label.replace(measurement, '')
-}
+import {makeLegendStyles, removeMeasurement} from 'shared/graphs/helpers'
 
 class DygraphLegend extends Component {
   state = {
