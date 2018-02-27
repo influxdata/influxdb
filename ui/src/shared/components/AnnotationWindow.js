@@ -11,17 +11,14 @@ const windowDimensions = (anno, dygraph) => {
 
   const windowStartXCoord = dygraph.toDomXCoord(startTime)
   const windowEndXCoord = dygraph.toDomXCoord(endTime)
+  const windowWidth = Math.abs(windowEndXCoord - windowStartXCoord)
 
-  const windowWidth = windowEndXCoord - windowStartXCoord
-  const isDurationNegative = windowWidth < 0
-  const foo = isDurationNegative ? windowWidth : 0
-
-  const left = `${windowStartXCoord + DYGRAPH_CONTAINER_MARGIN + foo}px`
-  const width = `${Math.abs(windowWidth)}px`
+  const windowLeftXCoord =
+    Math.min(windowStartXCoord, windowEndXCoord) + DYGRAPH_CONTAINER_MARGIN
 
   return {
-    left,
-    width,
+    left: `${windowLeftXCoord}px`,
+    width: `${windowWidth}px`,
   }
 }
 
