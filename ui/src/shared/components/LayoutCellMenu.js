@@ -8,6 +8,7 @@ import MenuTooltipButton from 'src/shared/components/MenuTooltipButton'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
 
 import {EDITING} from 'src/shared/annotations/helpers'
+import {cellSupportsAnnotations} from 'src/shared/constants/index'
 
 import {
   addingAnnotation,
@@ -40,14 +41,6 @@ class LayoutCellMenu extends Component {
       onDismissEditingAnnotation,
     } = this.props
 
-    const cellSupportsAnnotations =
-      cell.type ===
-      ('line' ||
-        'bar' ||
-        'line-plus-single-stat' ||
-        'line-stacked' ||
-        'line-stepplot')
-
     return (
       <div
         className={classnames('dash-graph-context', {
@@ -72,12 +65,12 @@ class LayoutCellMenu extends Component {
                     {
                       text: 'Add Annotation',
                       action: onStartAddingAnnotation,
-                      disabled: !cellSupportsAnnotations,
+                      disabled: !cellSupportsAnnotations(cell.type),
                     },
                     {
                       text: 'Edit Annotations',
                       action: onStartEditingAnnotation,
-                      disabled: !cellSupportsAnnotations,
+                      disabled: !cellSupportsAnnotations(cell.type),
                     },
                   ]}
                   informParent={this.handleToggleSubMenu}

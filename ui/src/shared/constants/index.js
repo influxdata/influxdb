@@ -425,3 +425,14 @@ export const DEFAULT_SOURCE = {
 }
 
 export const linksLink = '/chronograf/v1'
+
+export const cellSupportsAnnotations = cellType => {
+  const supportedTypes = [
+    'line',
+    'bar',
+    'line-plus-single-stat',
+    'line-stacked',
+    'line-stepplot',
+  ]
+  return !!supportedTypes.find(type => type === cellType)
+}
