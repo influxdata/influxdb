@@ -1155,9 +1155,9 @@ func (idx *ShardIndex) SeriesN() int64 {
 }
 
 // InitializeSeries is called during start-up.
-// This works the same as CreateSeriesIfNotExists except it ignore limit errors.
-func (idx *ShardIndex) InitializeSeries(key, name []byte, tags models.Tags) error {
-	return idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, [][]byte{key}, [][]byte{name}, []models.Tags{tags}, &idx.opt, true)
+// This works the same as CreateSeriesListIfNotExists except it ignore limit errors.
+func (idx *ShardIndex) InitializeSeries(keys, names [][]byte, tags []models.Tags) error {
+	return idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, keys, names, tags, &idx.opt, true)
 }
 
 // CreateSeriesIfNotExists creates the provided series on the index if it is not

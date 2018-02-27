@@ -554,7 +554,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 }
 
 // InitializeSeries is a no-op. This only applies to the in-memory index.
-func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
+func (i *Index) InitializeSeries(keys, names [][]byte, tags []models.Tags) error {
 	return nil
 }
 
