@@ -54,6 +54,7 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         prefix={prefix}
         suffix={suffix}
+        inView={inView}
       />
     )
   }
@@ -72,6 +73,7 @@ const RefreshingGraph = ({
         cellID={cellID}
         prefix={prefix}
         suffix={suffix}
+        inView={inView}
       />
     )
   }
