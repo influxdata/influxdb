@@ -1,7 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import {makeLegendStyles, removeMeasurement} from 'shared/graphs/helpers'
 

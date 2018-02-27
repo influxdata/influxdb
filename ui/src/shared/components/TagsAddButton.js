@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 class TagsAddButton extends Component {
   constructor(props) {

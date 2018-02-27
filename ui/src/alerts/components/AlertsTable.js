@@ -3,7 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
 import {Link} from 'react-router'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import InfiniteScroll from 'shared/components/InfiniteScroll'
 
