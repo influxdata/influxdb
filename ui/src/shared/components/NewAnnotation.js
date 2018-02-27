@@ -16,9 +16,9 @@ class NewAnnotation extends Component {
 
   enforceGraphBounds = newTime => {
     const {dygraph} = this.props
-    const xRangeStart = dygraph.xAxisRange()[0]
+    const [xStart] = dygraph.xAxisRange()
 
-    return newTime < xRangeStart ? `${xRangeStart}` : `${newTime}`
+    return newTime < xStart ? `${xStart}` : `${newTime}`
   }
 
   handleMouseDown = e => {
