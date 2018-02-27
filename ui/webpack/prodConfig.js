@@ -88,10 +88,6 @@ var config = {
         NODE_ENV: JSON.stringify('production'),
       },
     }),
-    new webpack.ProvidePlugin({
-      $: 'jquery',
-      jQuery: 'jquery',
-    }),
     new ExtractTextPlugin('chronograf.css'),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
