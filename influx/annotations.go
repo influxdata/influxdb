@@ -15,9 +15,9 @@ import (
 
 const (
 	// AllAnnotations returns all annotations from the chronograf database
-	AllAnnotations = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "deleted"=false AND time >= %dns and "start_time" <= %d ORDER BY time DESC`
+	AllAnnotations = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "annotations" WHERE "deleted"=false AND time >= %dns and "start_time" <= %d ORDER BY time DESC`
 	// GetAnnotationID returns all annotations from the chronograf database where id is %s
-	GetAnnotationID = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "chronograf"."autogen"."annotations" WHERE "id"='%s' AND "deleted"=false ORDER BY time DESC`
+	GetAnnotationID = `SELECT "start_time", "modified_time_ns", "text", "type", "id" FROM "annotations" WHERE "id"='%s' AND "deleted"=false ORDER BY time DESC`
 	// AnnotationsDB is chronograf.  Perhaps later we allow this to be changed
 	AnnotationsDB = "chronograf"
 	// DefaultRP is autogen. Perhaps later we allow this to be changed
