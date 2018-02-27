@@ -3,6 +3,7 @@ package tsi1
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -880,3 +881,21 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 
 // Rebuild rebuilds an index. It's a no-op for this index.
 func (i *Index) Rebuild() {}
+
+// IsIndexDir returns true if directory contains at least one partition directory.
+func IsIndexDir(path string) (bool, error) {
+	fis, err := ioutil.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	for _, fi := range fis {
+		if !fi.IsDir() {
+			continue
+		} else if ok, err := IsPartitionDir(filepath.Join(path, fi.Name())); err != nil {
+			return false, err
+		} else if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}

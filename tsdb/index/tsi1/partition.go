@@ -1276,3 +1276,13 @@ const MaxIndexMergeCount = 2
 
 // MaxIndexFileSize is the maximum expected size of an index file.
 const MaxIndexFileSize = 4 * (1 << 30)
+
+// IsPartitionDir returns true if directory contains a MANIFEST file.
+func IsPartitionDir(path string) (bool, error) {
+	if _, err := os.Stat(filepath.Join(path, ManifestFileName)); os.IsNotExist(err) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
