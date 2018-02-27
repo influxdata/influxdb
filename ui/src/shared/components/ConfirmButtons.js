@@ -28,7 +28,7 @@ class ConfirmButtons extends Component {
       confirmLeft,
       confirmHoverText,
     } = this.props
-    const hoverText = confirmHoverTextText || 'Save'
+    const hoverText = confirmHoverText || 'Save'
 
     return confirmLeft
       ? <div className="confirm-buttons">
