@@ -9,8 +9,7 @@ describe('formatDate', () => {
   it('converts timestamp to an excel compatible date string', () => {
     const timestamp = 1000000000000
     const result = formatDate(timestamp)
-    expect(result).to.be.a('string')
-    expect(moment(result, 'M/D/YYYY h:mm:ss.SSSSSSSSS A').valueOf()).to.equal(
+    expect(moment(result, 'M/D/YYYY h:mm:ss.SSSSSSSSS A').valueOf()).toBe(
       timestamp
     )
   })
@@ -44,13 +43,12 @@ describe('resultsToCSV', () => {
         1505264400000
       )},2.616484718180463\n${formatDate(1505266200000)},1.6174323943535571`,
     }
-    expect(response).to.have.all.keys('flag', 'name', 'CSVString')
-    expect(response.flag).to.be.a('string')
-    expect(response.name).to.be.a('string')
-    expect(response.CSVString).to.be.a('string')
-    expect(response.flag).to.equal(expected.flag)
-    expect(response.name).to.equal(expected.name)
-    expect(response.CSVString).to.equal(expected.CSVString)
+    expect(Object.keys(response).sort()).toEqual(
+      ['flag', 'name', 'CSVString'].sort()
+    )
+    expect(response.flag).toBe(expected.flag)
+    expect(response.name).toBe(expected.name)
+    expect(response.CSVString).toBe(expected.CSVString)
   })
 })
 
@@ -102,7 +100,6 @@ describe('dashboardtoCSV', () => {
     )},2.616484718180463,1505264400000,2.616484718180463\n${formatDate(
       1505266200000
     )},1.6174323943535571,1505266200000,1.6174323943535571`
-    expect(result).to.be.a('string')
-    expect(result).to.equal(expected)
+    expect(result).toBe(expected)
   })
 })

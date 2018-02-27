@@ -40,7 +40,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
     const actual = state[queryID]
     const expected = defaultQueryConfig({id: queryID})
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   describe('choosing db, rp, and measurement', () => {
@@ -58,14 +58,14 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         })
       )
 
-      expect(newState[queryID].database).to.equal('telegraf')
-      expect(newState[queryID].retentionPolicy).to.equal('monitor')
+      expect(newState[queryID].database).toBe('telegraf')
+      expect(newState[queryID].retentionPolicy).toBe('monitor')
     })
 
     it('sets the measurement', () => {
       const newState = reducer(state, chooseMeasurement(queryID, 'mem'))
 
-      expect(newState[queryID].measurement).to.equal('mem')
+      expect(newState[queryID].measurement).toBe('mem')
     })
   })
 
@@ -94,8 +94,8 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     describe('choosing a new namespace', () => {
       it('clears out the old measurement and fields', () => {
         // what about tags?
-        expect(state[queryID].measurement).to.equal('disk')
-        expect(state[queryID].fields.length).to.equal(1)
+        expect(state[queryID].measurement).toBe('disk')
+        expect(state[queryID].fields.length).toBe(1)
 
         const newState = reducer(
           state,
@@ -106,31 +106,31 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         )
 
         expect(newState[queryID].measurement).to.be.null
-        expect(newState[queryID].fields.length).to.equal(0)
+        expect(newState[queryID].fields.length).toBe(0)
       })
     })
 
     describe('choosing a new measurement', () => {
       it('leaves the namespace and clears out the old fields', () => {
         // what about tags?
-        expect(state[queryID].fields.length).to.equal(1)
+        expect(state[queryID].fields.length).toBe(1)
 
         const newState = reducer(
           state,
           chooseMeasurement(queryID, 'newmeasurement')
         )
 
-        expect(state[queryID].database).to.equal(newState[queryID].database)
-        expect(state[queryID].retentionPolicy).to.equal(
+        expect(state[queryID].database).toBe(newState[queryID].database)
+        expect(state[queryID].retentionPolicy).toBe(
           newState[queryID].retentionPolicy
         )
-        expect(newState[queryID].fields.length).to.equal(0)
+        expect(newState[queryID].fields.length).toBe(0)
       })
     })
 
     describe('DE_TOGGLE_FIELD', () => {
       it('can toggle multiple fields', () => {
-        expect(state[queryID].fields.length).to.equal(1)
+        expect(state[queryID].fields.length).toBe(1)
 
         const newState = reducer(
           state,
@@ -140,18 +140,18 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           })
         )
 
-        expect(newState[queryID].fields.length).to.equal(2)
-        expect(newState[queryID].fields[1].alias).to.deep.equal('mean_f2')
-        expect(newState[queryID].fields[1].args).to.deep.equal([
+        expect(newState[queryID].fields.length).toBe(2)
+        expect(newState[queryID].fields[1].alias).toEqual('mean_f2')
+        expect(newState[queryID].fields[1].args).toEqual([
           {value: 'f2', type: 'field'},
         ])
-        expect(newState[queryID].fields[1].value).to.deep.equal('mean')
+        expect(newState[queryID].fields[1].value).toEqual('mean')
       })
 
       it('applies a func to newly selected fields', () => {
-        expect(state[queryID].fields.length).to.equal(1)
-        expect(state[queryID].fields[0].type).to.equal('func')
-        expect(state[queryID].fields[0].value).to.equal('mean')
+        expect(state[queryID].fields.length).toBe(1)
+        expect(state[queryID].fields[0].type).toBe('func')
+        expect(state[queryID].fields[0].value).toBe('mean')
 
         const newState = reducer(
           state,
@@ -161,24 +161,24 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           })
         )
 
-        expect(newState[queryID].fields[1].value).to.equal('mean')
-        expect(newState[queryID].fields[1].alias).to.equal('mean_f2')
-        expect(newState[queryID].fields[1].args).to.deep.equal([
+        expect(newState[queryID].fields[1].value).toBe('mean')
+        expect(newState[queryID].fields[1].alias).toBe('mean_f2')
+        expect(newState[queryID].fields[1].args).toEqual([
           {value: 'f2', type: 'field'},
         ])
-        expect(newState[queryID].fields[1].type).to.equal('func')
+        expect(newState[queryID].fields[1].type).toBe('func')
       })
 
       it('adds the field property to query config if not found', () => {
         delete state[queryID].fields
-        expect(state[queryID].fields).to.equal(undefined)
+        expect(state[queryID].fields).toBe(undefined)
 
         const newState = reducer(
           state,
           toggleField(queryID, {value: 'fk1', type: 'field'})
         )
 
-        expect(newState[queryID].fields.length).to.equal(1)
+        expect(newState[queryID].fields.length).toBe(1)
       })
     })
   })
@@ -213,7 +213,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].fields).to.deep.equal([
+      expect(nextState[queryID].fields).toEqual([
         {value: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.value}`},
         {value: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.value}`},
         {value: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.value}`},
@@ -247,8 +247,8 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       const actual = nextState[queryID].fields
       const expected = [f1, f2]
 
-      expect(actual).to.eql(expected)
-      expect(nextState[queryID].groupBy.time).to.equal(null)
+      expect(actual).toEqual(expected)
+      expect(nextState[queryID].groupBy.time).toBe(null)
     })
   })
 
@@ -269,7 +269,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].tags).to.eql({
+      expect(nextState[queryID].tags).toEqual({
         k1: ['v0', 'v1'],
         k2: ['foo'],
       })
@@ -288,7 +288,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].tags).to.eql({
+      expect(nextState[queryID].tags).toEqual({
         k1: ['v1'],
       })
     })
@@ -309,7 +309,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       const nextState = reducer(initialState, action)
 
       // TODO: this should probably remove the `k1` property entirely from the tags object
-      expect(nextState[queryID].tags).to.eql({})
+      expect(nextState[queryID].tags).toEqual({})
     })
   })
 
@@ -329,7 +329,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].groupBy).to.eql({
+      expect(nextState[queryID].groupBy).toEqual({
         time: null,
         tags: ['k1'],
       })
@@ -350,7 +350,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].groupBy).to.eql({
+      expect(nextState[queryID].groupBy).toEqual({
         time: null,
         tags: [],
       })
@@ -366,7 +366,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].areTagsAccepted).to.equal(
+      expect(nextState[queryID].areTagsAccepted).toBe(
         !initialState[queryID].areTagsAccepted
       )
     })
@@ -383,7 +383,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].groupBy.time).to.equal(time)
+      expect(nextState[queryID].groupBy.time).toBe(time)
     })
   })
 
@@ -396,7 +396,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
     const nextState = reducer(initialState, action)
 
-    expect(nextState[queryID]).to.deep.equal(expected)
+    expect(nextState[queryID]).toEqual(expected)
   })
 
   it("updates a query's raw text", () => {
@@ -408,7 +408,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
     const nextState = reducer(initialState, action)
 
-    expect(nextState[queryID].rawText).to.equal('foo')
+    expect(nextState[queryID].rawText).toBe('foo')
   })
 
   it("updates a query's raw status", () => {
@@ -420,7 +420,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
     const nextState = reducer(initialState, action)
 
-    expect(nextState[queryID].status).to.equal(status)
+    expect(nextState[queryID].status).toBe(status)
   })
 
   describe('DE_FILL', () => {
@@ -433,7 +433,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].fill).to.equal(NULL_STRING)
+      expect(nextState[queryID].fill).toBe(NULL_STRING)
     })
 
     it('updates fill to non-null-string non-number string value', () => {
@@ -444,7 +444,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].fill).to.equal(LINEAR)
+      expect(nextState[queryID].fill).toBe(LINEAR)
     })
 
     it('updates fill to string integer value', () => {
@@ -456,7 +456,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].fill).to.equal(INT_STRING)
+      expect(nextState[queryID].fill).toBe(INT_STRING)
     })
 
     it('updates fill to string float value', () => {
@@ -468,7 +468,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].fill).to.equal(FLOAT_STRING)
+      expect(nextState[queryID].fill).toBe(FLOAT_STRING)
     })
   })
 
@@ -482,7 +482,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       const action = timeShift(queryID, shift)
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryID].shifts).to.deep.equal([shift])
+      expect(nextState[queryID].shifts).toEqual([shift])
     })
   })
 })

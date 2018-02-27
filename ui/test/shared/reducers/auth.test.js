@@ -31,22 +31,22 @@ describe('Shared.Reducers.authReducer', () => {
   it('should handle AUTH_EXPIRED', () => {
     const reducedState = authReducer(initialState, authExpired(defaultAuth))
 
-    expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
-    expect(reducedState.me).to.equal(null)
-    expect(reducedState.isMeLoading).to.equal(false)
-    expect(reducedState.isAuthLoading).to.equal(false)
+    expect(reducedState.links[0]).toEqual(defaultAuth.links[0])
+    expect(reducedState.me).toBe(null)
+    expect(reducedState.isMeLoading).toBe(false)
+    expect(reducedState.isAuthLoading).toBe(false)
   })
 
   it('should handle AUTH_REQUESTED', () => {
     const reducedState = authReducer(initialState, authRequested())
 
-    expect(reducedState.isAuthLoading).to.equal(true)
+    expect(reducedState.isAuthLoading).toBe(true)
   })
 
   it('should handle ME_GET_REQUESTED', () => {
     const reducedState = authReducer(initialState, meGetRequested())
 
-    expect(reducedState.isMeLoading).to.equal(true)
+    expect(reducedState.isMeLoading).toBe(true)
   })
 
   it('should handle ME_GET_COMPLETED with auth', () => {
@@ -72,10 +72,10 @@ describe('Shared.Reducers.authReducer', () => {
       })
     )
 
-    expect(reducedState.me).to.deep.equal(meWithAuth)
-    expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
-    expect(reducedState.isAuthLoading).to.equal(false)
-    expect(reducedState.isMeLoading).to.equal(false)
+    expect(reducedState.me).toEqual(meWithAuth)
+    expect(reducedState.links[0]).toEqual(defaultAuth.links[0])
+    expect(reducedState.isAuthLoading).toBe(false)
+    expect(reducedState.isMeLoading).toBe(false)
   })
 
   it('should handle ME_GET_COMPLETED without auth', () => {
@@ -92,9 +92,9 @@ describe('Shared.Reducers.authReducer', () => {
       })
     )
 
-    expect(reducedState.me).to.deep.equal(defaultMe)
-    expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
-    expect(reducedState.isAuthLoading).to.equal(false)
-    expect(reducedState.isMeLoading).to.equal(false)
+    expect(reducedState.me).toEqual(defaultMe)
+    expect(reducedState.links[0]).toEqual(defaultAuth.links[0])
+    expect(reducedState.isAuthLoading).toBe(false)
+    expect(reducedState.isMeLoading).toBe(false)
   })
 })

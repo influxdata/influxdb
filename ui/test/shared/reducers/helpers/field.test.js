@@ -20,7 +20,7 @@ describe('Reducers.Helpers.Fields', () => {
       {value: 'fn2', type: 'func', args: [{value: 'f2', type: 'field'}]},
     ]
     const actual = fieldWalk(fields, f => _.get(f, 'value'))
-    expect(actual).to.deep.equal(['fn1', 'f1', 'f2', 'fn1', 'f2', 'fn2', 'f2'])
+    expect(actual).toEqual(['fn1', 'f1', 'f2', 'fn1', 'f2', 'fn2', 'f2'])
   })
 
   it('can return all unique fields for type field', () => {
@@ -36,7 +36,7 @@ describe('Reducers.Helpers.Fields', () => {
       {value: 'fn2', type: 'func', args: [{value: 'f2', type: 'field'}]},
     ]
     const actual = getFieldsDeep(fields)
-    expect(actual).to.deep.equal([{value: 'f2', type: 'field'}])
+    expect(actual).toEqual([{value: 'f2', type: 'field'}])
   })
 
   it('can return all unique field value for type field', () => {
@@ -52,7 +52,7 @@ describe('Reducers.Helpers.Fields', () => {
       {value: 'fn2', type: 'func', args: [{value: 'f2', type: 'field'}]},
     ]
     const actual = fieldNamesDeep(fields)
-    expect(actual).to.deep.equal(['f2'])
+    expect(actual).toEqual(['f2'])
   })
 
   describe('removeField', () => {
@@ -69,7 +69,7 @@ describe('Reducers.Helpers.Fields', () => {
         {value: 'fn3', type: 'func', args: [{value: 'f3', type: 'field'}]},
       ]
       const actual = removeField('f2', fields)
-      expect(actual).to.deep.equal([
+      expect(actual).toEqual([
         {value: 'fn3', type: 'func', args: [{value: 'f3', type: 'field'}]},
       ])
     })
@@ -80,7 +80,7 @@ describe('Reducers.Helpers.Fields', () => {
         {value: 'f2', type: 'field'},
       ]
       const actual = removeField('f2', fields)
-      expect(actual).to.deep.equal([{value: 'f1', type: 'field'}])
+      expect(actual).toEqual([{value: 'f1', type: 'field'}])
     })
   })
 })

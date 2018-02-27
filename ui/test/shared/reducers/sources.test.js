@@ -22,7 +22,7 @@ describe('Shared.Reducers.sources', () => {
       })
     )
 
-    expect(state.filter(s => s.default).length).to.equal(1)
+    expect(state.filter(s => s.default).length).toBe(1)
   })
 
   it('can correctly show default sources when updating a source', () => {
@@ -52,7 +52,7 @@ describe('Shared.Reducers.sources', () => {
       })
     )
 
-    expect(state.find(({id}) => id === '1').default).to.equal(true)
-    expect(state.find(({id}) => id === '2').default).to.equal(false)
+    expect(state.find(({id}) => id === '1').default).toBe(true)
+    expect(state.find(({id}) => id === '2').default).toBe(false)
   })
 })

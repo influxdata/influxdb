@@ -21,9 +21,9 @@ describe('parseHandlersFromRule', () => {
     const handlersOnThisAlert_expected = []
     const selectedHandler_expected = null
     const handlersOfKind_expected = {}
-    expect(handlersOnThisAlert).to.deep.equal(handlersOnThisAlert_expected)
-    expect(selectedHandler).to.deep.equal(selectedHandler_expected)
-    expect(handlersOfKind).to.deep.equal(handlersOfKind_expected)
+    expect(handlersOnThisAlert).toEqual(handlersOnThisAlert_expected)
+    expect(selectedHandler).toEqual(selectedHandler_expected)
+    expect(handlersOfKind).toEqual(handlersOfKind_expected)
   })
 
   it('returns values if rule and config are not empty', () => {
@@ -35,8 +35,8 @@ describe('parseHandlersFromRule', () => {
       handlersOfKind,
     } = parseHandlersFromRule(input1, input2)
 
-    expect(handlersOnThisAlert).to.deep.equal(handlersOnThisAlert_expected)
-    expect(selectedHandler).to.deep.equal(selectedHandler_expected)
-    expect(handlersOfKind).to.deep.equal(handlersOfKind_expected)
+    expect(handlersOnThisAlert).toEqual(handlersOnThisAlert_expected)
+    expect(selectedHandler).toEqual(selectedHandler_expected)
+    expect(handlersOfKind).toEqual(handlersOfKind_expected)
   })
 })

@@ -51,8 +51,8 @@ describe('diskBytesFromShard', () => {
     const result = diskBytesFromShard(response)
     const expectedTotal = 300
 
-    expect(result.errors).to.deep.equal([])
-    expect(result.bytes).to.equal(expectedTotal)
+    expect(result.errors).toEqual([])
+    expect(result.bytes).toBe(expectedTotal)
   })
 
   it('returns emtpy with empty response', () => {
@@ -60,8 +60,8 @@ describe('diskBytesFromShard', () => {
 
     const result = diskBytesFromShard(response)
 
-    expect(result.errors).to.deep.equal([])
-    expect(result.bytes).to.equal(0)
+    expect(result.errors).toEqual([])
+    expect(result.bytes).toBe(0)
   })
 
   it('exposes the server error', () => {
@@ -69,8 +69,8 @@ describe('diskBytesFromShard', () => {
 
     const result = diskBytesFromShard(response)
 
-    expect(result.errors).to.deep.equal(['internal server error?'])
-    expect(result.bytes).to.equal(0)
+    expect(result.errors).toEqual(['internal server error?'])
+    expect(result.bytes).toBe(0)
   })
 })
 
@@ -137,7 +137,7 @@ describe('diskBytesFromShardForDatabase', () => {
       ],
     }
 
-    expect(result.shardData).to.deep.equal(expected)
+    expect(result.shardData).toEqual(expected)
   })
 
   it('returns emtpy with empty response', () => {
@@ -145,8 +145,8 @@ describe('diskBytesFromShardForDatabase', () => {
 
     const result = diskBytesFromShardForDatabase(response)
 
-    expect(result.errors).to.deep.equal([])
-    expect(result.shardData).to.deep.equal({})
+    expect(result.errors).toEqual([])
+    expect(result.shardData).toEqual({})
   })
 
   it('exposes the server error', () => {
@@ -154,7 +154,7 @@ describe('diskBytesFromShardForDatabase', () => {
 
     const result = diskBytesFromShardForDatabase(response)
 
-    expect(result.errors).to.deep.equal(['internal server error?'])
-    expect(result.shardData).to.deep.equal({})
+    expect(result.errors).toEqual(['internal server error?'])
+    expect(result.shardData).toEqual({})
   })
 })

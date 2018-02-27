@@ -6,8 +6,8 @@ describe('showTagValuesParser', () => {
 
     const result = showTagValuesParser(response)
 
-    expect(result.errors).to.eql([])
-    expect(result.tags).to.eql({})
+    expect(result.errors).toEqual([])
+    expect(result.tags).toEqual({})
   })
 
   it('returns a an object of tag keys mapped to their values', () => {
@@ -32,8 +32,8 @@ describe('showTagValuesParser', () => {
 
     const result = showTagValuesParser(response)
 
-    expect(result.errors).to.eql([])
-    expect(result.tags).to.eql({
+    expect(result.errors).toEqual([])
+    expect(result.tags).toEqual({
       host: ['hostA', 'hostB'],
       cpu: ['cpu0', 'cpu1'],
     })

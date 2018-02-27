@@ -13,8 +13,8 @@ describe('parseShowFieldKeys', () => {
     }
 
     const result = parseShowFieldKeys(response)
-    expect(result.errors).to.eql([])
-    expect(result.fieldSets).to.eql({
+    expect(result.errors).toEqual([])
+    expect(result.fieldSets).toEqual({
       m1: ['f1', 'f2'],
     })
   })
@@ -35,8 +35,8 @@ describe('parseShowFieldKeys', () => {
       ],
     }
     const result = parseShowFieldKeys(response)
-    expect(result.errors).to.eql([])
-    expect(result.fieldSets).to.eql({
+    expect(result.errors).toEqual([])
+    expect(result.fieldSets).toEqual({
       m1: ['f1', 'f2'],
       m2: ['f3', 'f4'],
     })
@@ -50,11 +50,11 @@ describe('parseShowFieldKeys', () => {
       ],
     }
     const result = parseShowFieldKeys(response)
-    expect(result.errors).to.eql([
+    expect(result.errors).toEqual([
       'measurement not found: m1',
       'measurement not found: m2',
     ])
-    expect(result.fieldSets).to.eql({})
+    expect(result.fieldSets).toEqual({})
   })
 
   it('parses a mix of results and errors', () => {
@@ -69,8 +69,8 @@ describe('parseShowFieldKeys', () => {
       ],
     }
     const result = parseShowFieldKeys(response)
-    expect(result.errors).to.eql(['measurement not found: m2'])
-    expect(result.fieldSets).to.eql({
+    expect(result.errors).toEqual(['measurement not found: m2'])
+    expect(result.fieldSets).toEqual({
       m1: ['f1', 'f2'],
     })
   })

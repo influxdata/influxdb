@@ -12,7 +12,7 @@ describe('Normalizers.DashboardTime', () => {
     const actual = normalizer(ranges)
     const expected = [timeRange]
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('can remove objects with missing keys', () => {
@@ -26,7 +26,7 @@ describe('Normalizers.DashboardTime', () => {
 
     const actual = normalizer(ranges)
     const expected = [timeRange]
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('can remove timeRanges with incorrect dashboardID', () => {
@@ -34,7 +34,7 @@ describe('Normalizers.DashboardTime', () => {
 
     const actual = normalizer(ranges)
     const expected = [timeRange]
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('can remove timeRange when is neither an upper or lower bound', () => {
@@ -43,7 +43,7 @@ describe('Normalizers.DashboardTime', () => {
 
     const actual = normalizer(ranges)
     const expected = [timeRange]
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('can remove a timeRange when upper and lower bounds are of the wrong type', () => {
@@ -53,6 +53,6 @@ describe('Normalizers.DashboardTime', () => {
 
     const actual = normalizer(ranges)
     const expected = [timeRange]
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 })

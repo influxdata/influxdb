@@ -145,10 +145,10 @@ describe('Admin.InfluxDB.Reducers', () => {
     it('can add a database', () => {
       const actual = reducer(state, addDatabase())
       const expected = [{...NEW_DEFAULT_DATABASE, isEditing: true}, db1, db2]
-      expect(actual.databases.length).to.equal(expected.length)
-      expect(actual.databases[0].name).to.equal(expected[0].name)
-      expect(actual.databases[0].isNew).to.equal(expected[0].isNew)
-      expect(actual.databases[0].retentionPolicies).to.equal(
+      expect(actual.databases.length).toBe(expected.length)
+      expect(actual.databases[0].name).toBe(expected[0].name)
+      expect(actual.databases[0].isNew).toBe(expected[0].isNew)
+      expect(actual.databases[0].retentionPolicies).toBe(
         expected[0].retentionPolicies
       )
     })
@@ -158,21 +158,21 @@ describe('Admin.InfluxDB.Reducers', () => {
       const actual = reducer(state, editDatabase(db1, updates))
       const expected = [{...db1, ...updates}, db2]
 
-      expect(actual.databases).to.deep.equal(expected)
+      expect(actual.databases).toEqual(expected)
     })
 
     it('can remove a database', () => {
       const actual = reducer(state, removeDatabase(db1))
       const expected = [db2]
 
-      expect(actual.databases).to.deep.equal(expected)
+      expect(actual.databases).toEqual(expected)
     })
 
     it('can add a database delete code', () => {
       const actual = reducer(state, addDatabaseDeleteCode(db1))
       const expected = [{...db1, deleteCode: ''}, db2]
 
-      expect(actual.databases).to.deep.equal(expected)
+      expect(actual.databases).toEqual(expected)
     })
 
     it('can remove the delete code', () => {
@@ -180,7 +180,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       delete db2.deleteCode
       const expected = [db1, db2]
 
-      expect(actual.databases).to.deep.equal(expected)
+      expect(actual.databases).toEqual(expected)
     })
   })
 
@@ -191,14 +191,14 @@ describe('Admin.InfluxDB.Reducers', () => {
       const actual = reducer(state, addRetentionPolicy(db1))
       const expected = [{...db1, retentionPolicies: [NEW_EMPTY_RP, rp1]}]
 
-      expect(actual.databases).to.deep.equal(expected)
+      expect(actual.databases).toEqual(expected)
     })
 
     it('can remove a retention policy', () => {
       const actual = reducer(state, removeRetentionPolicy(db1, rp1))
       const expected = [{...db1, retentionPolicies: []}]
 
-      expect(actual.databases).to.deep.equal(expected)
+      expect(actual.databases).toEqual(expected)
     })
 
     it('can edit a retention policy', () => {
@@ -209,7 +209,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       )
       const expected = [{...db1, retentionPolicies: [{...rp1, ...updates}]}]
 
-      expect(actual.databases).to.deep.equal(expected)
+      expect(actual.databases).toEqual(expected)
     })
   })
 
@@ -223,7 +223,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       users: [{...NEW_DEFAULT_USER, isEditing: true}, u1],
     }
 
-    expect(actual.users).to.deep.equal(expected.users)
+    expect(actual.users).toEqual(expected.users)
   })
 
   it('it can sync a stale user', () => {
@@ -235,7 +235,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       users: [u2, u1],
     }
 
-    expect(actual.users).to.deep.equal(expected.users)
+    expect(actual.users).toEqual(expected.users)
   })
 
   it('it can edit a user', () => {
@@ -249,7 +249,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       users: [{...u2, ...updates}, u1],
     }
 
-    expect(actual.users).to.deep.equal(expected.users)
+    expect(actual.users).toEqual(expected.users)
   })
 
   it('it can add a role', () => {
@@ -262,7 +262,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       roles: [{...NEW_DEFAULT_ROLE, isEditing: true}, r1],
     }
 
-    expect(actual.roles).to.deep.equal(expected.roles)
+    expect(actual.roles).toEqual(expected.roles)
   })
 
   it('it can sync a stale role', () => {
@@ -274,7 +274,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       roles: [r2, r1],
     }
 
-    expect(actual.roles).to.deep.equal(expected.roles)
+    expect(actual.roles).toEqual(expected.roles)
   })
 
   it('it can edit a role', () => {
@@ -288,7 +288,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       roles: [{...r2, ...updates}, r1],
     }
 
-    expect(actual.roles).to.deep.equal(expected.roles)
+    expect(actual.roles).toEqual(expected.roles)
   })
 
   it('it can load the roles', () => {
@@ -297,7 +297,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       roles,
     }
 
-    expect(actual.roles).to.deep.equal(expected.roles)
+    expect(actual.roles).toEqual(expected.roles)
   })
 
   it('it can delete a role', () => {
@@ -310,7 +310,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       roles: [],
     }
 
-    expect(actual.roles).to.deep.equal(expected.roles)
+    expect(actual.roles).toEqual(expected.roles)
   })
 
   it('it can delete a user', () => {
@@ -323,7 +323,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       users: [],
     }
 
-    expect(actual.users).to.deep.equal(expected.users)
+    expect(actual.users).toEqual(expected.users)
   })
 
   it('can filter roles w/ "x" text', () => {
@@ -338,7 +338,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       roles: [{...r1, hidden: false}, {...r2, hidden: true}],
     }
 
-    expect(actual.roles).to.deep.equal(expected.roles)
+    expect(actual.roles).toEqual(expected.roles)
   })
 
   it('can filter users w/ "zero" text', () => {
@@ -353,7 +353,7 @@ describe('Admin.InfluxDB.Reducers', () => {
       users: [{...u1, hidden: true}, {...u2, hidden: false}],
     }
 
-    expect(actual.users).to.deep.equal(expected.users)
+    expect(actual.users).toEqual(expected.users)
   })
 
   // Permissions
@@ -363,6 +363,6 @@ describe('Admin.InfluxDB.Reducers', () => {
       permissions,
     }
 
-    expect(actual.permissions).to.deep.equal(expected.permissions)
+    expect(actual.permissions).toEqual(expected.permissions)
   })
 })

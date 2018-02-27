@@ -21,7 +21,7 @@ describe('Presenters', () => {
 
           const actual = buildRoles(roles)
 
-          expect(actual[0].users).to.eql([])
+          expect(actual[0].users).toEqual([])
         })
       })
 
@@ -36,7 +36,7 @@ describe('Presenters', () => {
 
           const actual = buildRoles(roles)
 
-          expect(actual[0].permissions).to.eql([])
+          expect(actual[0].permissions).toEqual([])
         })
       })
 
@@ -60,13 +60,13 @@ describe('Presenters', () => {
 
         it('each role has a name and a list of users (if they exist)', () => {
           const role = roles[0]
-          expect(role.name).to.equal('Marketing')
+          expect(role.name).toBe('Marketing')
           expect(role.users).to.contain('roley@influxdb.com')
           expect(role.users).to.contain('will@influxdb.com')
         })
 
         it('transforms permissions into a list of objects and each permission has a list of resources', () => {
-          expect(roles[0].permissions).to.eql([
+          expect(roles[0].permissions).toEqual([
             {
               name: 'ViewAdmin',
               displayName: 'View Admin',
@@ -195,7 +195,7 @@ describe('Presenters', () => {
           },
         ]
 
-        expect(actual).to.eql(expected)
+        expect(actual).toEqual(expected)
       })
 
       it('can handle empty results for users and roles', () => {
@@ -204,7 +204,7 @@ describe('Presenters', () => {
 
         const actual = buildClusterAccounts(users, roles)
 
-        expect(actual).to.eql([])
+        expect(actual).toEqual([])
       })
 
       it('sets roles to an empty array if a user has no roles', () => {
@@ -218,7 +218,7 @@ describe('Presenters', () => {
 
         const actual = buildClusterAccounts(users, roles)
 
-        expect(actual[0].roles).to.eql([])
+        expect(actual[0].roles).toEqual([])
       })
     })
   })
@@ -231,7 +231,7 @@ describe('Presenters', () => {
       const queryConfig = {...query, measurement, fields}
       const actual = buildDefaultYLabel(queryConfig)
 
-      expect(actual).to.equal('m1.usage_system')
+      expect(actual).toBe('m1.usage_system')
     })
 
     it('can return the correct string for funcs with args', () => {
@@ -256,14 +256,14 @@ describe('Presenters', () => {
       const queryConfig = {...query, measurement, fields}
       const actual = buildDefaultYLabel(queryConfig)
 
-      expect(actual).to.equal('m1.derivative_mean_usage_system')
+      expect(actual).toBe('m1.derivative_mean_usage_system')
     })
 
     it('returns a label of empty string if the query config is empty', () => {
       const query = defaultQueryConfig({id: 1})
       const actual = buildDefaultYLabel(query)
 
-      expect(actual).to.equal('')
+      expect(actual).toBe('')
     })
   })
 })

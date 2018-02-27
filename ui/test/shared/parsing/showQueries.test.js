@@ -20,21 +20,21 @@ describe('showQueriesParser', () => {
 
     const result = showQueriesParser(response)
 
-    expect(result.errors).to.eql([])
-    expect(result.queries.length).to.equal(2)
-    expect(result.queries[0]).to.eql({
+    expect(result.errors).toEqual([])
+    expect(result.queries.length).toBe(2)
+    expect(result.queries[0]).toEqual({
       id: 1,
       database: 'db1',
       query: 'SHOW QUERIES',
       duration: '1s',
     })
-    expect(result.queries[1]).to.eql({
+    expect(result.queries[1]).toEqual({
       id: 2,
       database: 'db1',
       query: 'SELECT foo FROM bar',
       duration: '2s',
     })
-    expect({foo: 'bar'}).to.eql({foo: 'bar'})
+    expect({foo: 'bar'}).toEqual({foo: 'bar'})
   })
 
   it('exposes the server error', () => {
@@ -42,7 +42,7 @@ describe('showQueriesParser', () => {
 
     const result = showQueriesParser(response)
 
-    expect(result.errors).to.eql(['internal server error?'])
-    expect(result.queries).to.eql([])
+    expect(result.errors).toEqual(['internal server error?'])
+    expect(result.queries).toEqual([])
   })
 })

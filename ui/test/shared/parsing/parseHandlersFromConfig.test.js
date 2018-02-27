@@ -15,11 +15,11 @@ describe('parseHandlersFromConfig', () => {
   it('returns the right response', () => {
     const input = config
     const actual = parseHandlersFromConfig(input)
-    expect(actual).to.deep.equal(configResponse)
+    expect(actual).toEqual(configResponse)
   })
   it('returns the right response even if config is empty', () => {
     const input = emptyConfig
     const actual = parseHandlersFromConfig(input)
-    expect(actual).to.deep.equal(emptyConfigResponse)
+    expect(actual).toEqual(emptyConfigResponse)
   })
 })

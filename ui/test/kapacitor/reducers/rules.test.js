@@ -26,16 +26,16 @@ describe('Kapacitor.Reducers.rules', () => {
     }
 
     let newState = reducer(initialState, chooseTrigger(ruleID, 'deadman'))
-    expect(newState[ruleID].trigger).to.equal('deadman')
-    expect(newState[ruleID].values).to.equal(defaultRuleConfigs.deadman)
+    expect(newState[ruleID].trigger).toBe('deadman')
+    expect(newState[ruleID].values).toBe(defaultRuleConfigs.deadman)
 
     newState = reducer(initialState, chooseTrigger(ruleID, 'relative'))
-    expect(newState[ruleID].trigger).to.equal('relative')
-    expect(newState[ruleID].values).to.equal(defaultRuleConfigs.relative)
+    expect(newState[ruleID].trigger).toBe('relative')
+    expect(newState[ruleID].values).toBe(defaultRuleConfigs.relative)
 
     newState = reducer(initialState, chooseTrigger(ruleID, 'threshold'))
-    expect(newState[ruleID].trigger).to.equal('threshold')
-    expect(newState[ruleID].values).to.equal(defaultRuleConfigs.threshold)
+    expect(newState[ruleID].trigger).toBe('threshold')
+    expect(newState[ruleID].values).toBe(defaultRuleConfigs.threshold)
   })
 
   it('can update the every', () => {
@@ -49,10 +49,10 @@ describe('Kapacitor.Reducers.rules', () => {
     }
 
     let newState = reducer(initialState, addEvery(ruleID, '30s'))
-    expect(newState[ruleID].every).to.equal('30s')
+    expect(newState[ruleID].every).toBe('30s')
 
     newState = reducer(newState, removeEvery(ruleID))
-    expect(newState[ruleID].every).to.equal(null)
+    expect(newState[ruleID].every).toBe(null)
   })
 
   it('can update the values', () => {
@@ -71,15 +71,15 @@ describe('Kapacitor.Reducers.rules', () => {
       initialState,
       updateRuleValues(ruleID, 'deadman', newDeadmanValues)
     )
-    expect(newState[ruleID].values).to.equal(newDeadmanValues)
+    expect(newState[ruleID].values).toBe(newDeadmanValues)
 
     const newRelativeValues = {func: 'max', change: 'change'}
     const finalState = reducer(
       newState,
       updateRuleValues(ruleID, 'relative', newRelativeValues)
     )
-    expect(finalState[ruleID].trigger).to.equal('relative')
-    expect(finalState[ruleID].values).to.equal(newRelativeValues)
+    expect(finalState[ruleID].trigger).toBe('relative')
+    expect(finalState[ruleID].values).toBe(newRelativeValues)
   })
 
   it('can update the message', () => {
@@ -94,7 +94,7 @@ describe('Kapacitor.Reducers.rules', () => {
 
     const message = 'im a kapacitor rule message'
     const newState = reducer(initialState, updateMessage(ruleID, message))
-    expect(newState[ruleID].message).to.equal(message)
+    expect(newState[ruleID].message).toBe(message)
   })
 
   it('can update a slack alert', () => {
@@ -123,7 +123,7 @@ describe('Kapacitor.Reducers.rules', () => {
       initialState,
       updateAlertNodes(ruleID, [updatedSlack])
     )
-    expect(newState[ruleID].alertNodes.slack[0]).to.deep.equal(expectedSlack)
+    expect(newState[ruleID].alertNodes.slack[0]).toEqual(expectedSlack)
   })
 
   it('can update the name', () => {
@@ -138,7 +138,7 @@ describe('Kapacitor.Reducers.rules', () => {
     }
 
     const newState = reducer(initialState, updateRuleName(ruleID, name))
-    expect(newState[ruleID].name).to.equal(name)
+    expect(newState[ruleID].name).toBe(name)
   })
 
   it('it can delete a rule', () => {
@@ -153,10 +153,10 @@ describe('Kapacitor.Reducers.rules', () => {
       },
     }
 
-    expect(Object.keys(initialState).length).to.equal(2)
+    expect(Object.keys(initialState).length).toBe(2)
     const newState = reducer(initialState, deleteRuleSuccess(rule2))
-    expect(Object.keys(newState).length).to.equal(1)
-    expect(newState[rule1]).to.equal(initialState[rule1])
+    expect(Object.keys(newState).length).toBe(1)
+    expect(newState[rule1]).toBe(initialState[rule1])
   })
 
   it('can update details', () => {
@@ -172,7 +172,7 @@ describe('Kapacitor.Reducers.rules', () => {
     }
 
     const newState = reducer(initialState, updateDetails(ruleID, details))
-    expect(newState[ruleID].details).to.equal(details)
+    expect(newState[ruleID].details).toBe(details)
   })
 
   it('can update status', () => {
@@ -191,6 +191,6 @@ describe('Kapacitor.Reducers.rules', () => {
       initialState,
       updateRuleStatusSuccess(ruleID, status)
     )
-    expect(newState[ruleID].status).to.equal(status)
+    expect(newState[ruleID].status).toBe(status)
   })
 })

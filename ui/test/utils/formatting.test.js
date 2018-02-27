@@ -5,19 +5,19 @@ describe('Formatting helpers', () => {
     it('returns null when passed a falsey value', () => {
       const actual = formatBytes(null)
 
-      expect(actual).to.equal(null)
+      expect(actual).toBe(null)
     })
 
     it('returns the correct value when passed 0', () => {
       const actual = formatBytes(0)
 
-      expect(actual).to.equal('0 Bytes')
+      expect(actual).toBe('0 Bytes')
     })
 
     it("converts a raw byte value into it's most appropriate unit", () => {
-      expect(formatBytes(1000)).to.equal('1 KB')
-      expect(formatBytes(1000000)).to.equal('1 MB')
-      expect(formatBytes(1000000000)).to.equal('1 GB')
+      expect(formatBytes(1000)).toBe('1 KB')
+      expect(formatBytes(1000000)).toBe('1 MB')
+      expect(formatBytes(1000000000)).toBe('1 GB')
     })
   })
 
@@ -25,15 +25,15 @@ describe('Formatting helpers', () => {
     it("returns 'infinite' for a retention policy with a value of '0'", () => {
       const actual = formatRPDuration('0')
 
-      expect(actual).to.equal('∞')
+      expect(actual).toBe('∞')
     })
 
     it('correctly formats retention policy durations', () => {
-      expect(formatRPDuration('24h0m0s')).to.equal('24h')
+      expect(formatRPDuration('24h0m0s')).toBe('24h')
 
-      expect(formatRPDuration('168h0m0s')).to.equal('7d')
+      expect(formatRPDuration('168h0m0s')).toBe('7d')
 
-      expect(formatRPDuration('200h32m3s')).to.equal('8d8h32m3s')
+      expect(formatRPDuration('200h32m3s')).toBe('8d8h32m3s')
     })
   })
 })

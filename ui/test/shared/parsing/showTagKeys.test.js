@@ -13,23 +13,23 @@ describe('parseShowTagKeys', () => {
     }
 
     const result = parseShowTagKeys(response)
-    expect(result.errors).to.eql([])
-    expect(result.tagKeys).to.eql(['cpu', 'host'])
+    expect(result.errors).toEqual([])
+    expect(result.tagKeys).toEqual(['cpu', 'host'])
   })
 
   it('handles empty results', () => {
     const response = {results: [{}]}
 
     const result = parseShowTagKeys(response)
-    expect(result.errors).to.eql([])
-    expect(result.tagKeys).to.eql([])
+    expect(result.errors).toEqual([])
+    expect(result.tagKeys).toEqual([])
   })
 
   it('handles errors', () => {
     const response = {results: [{error: 'influxdb error'}]}
 
     const result = parseShowTagKeys(response)
-    expect(result.errors).to.eql([response.results[0].error])
-    expect(result.tagKeys).to.eql([])
+    expect(result.errors).toEqual([response.results[0].error])
+    expect(result.tagKeys).toEqual([])
   })
 })

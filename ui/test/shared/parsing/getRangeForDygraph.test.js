@@ -13,7 +13,7 @@ describe('getRangeForDygraphSpec', () => {
     const actual = getRange(timeSeries)
     const expected = [min, max]
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('does not get range when a range is provided', () => {
@@ -21,7 +21,7 @@ describe('getRangeForDygraphSpec', () => {
     const providedRange = ['0', '4']
     const actual = getRange(timeSeries, providedRange)
 
-    expect(actual).to.deep.equal([0, 4])
+    expect(actual).toEqual([0, 4])
   })
 
   it('gets the range for multiple timeSeries', () => {
@@ -29,7 +29,7 @@ describe('getRangeForDygraphSpec', () => {
     const actual = getRange(timeSeries)
     const expected = [min, max]
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   describe('if min and max are equal', () => {
@@ -38,7 +38,7 @@ describe('getRangeForDygraphSpec', () => {
       const actual = getRange(timeSeries)
       const expected = [0, max]
 
-      expect(actual).to.deep.equal(expected)
+      expect(actual).toEqual(expected)
     })
 
     it('it sets max to 0 if they are negative', () => {
@@ -46,7 +46,7 @@ describe('getRangeForDygraphSpec', () => {
       const actual = getRange(timeSeries)
       const expected = [negMax, 0]
 
-      expect(actual).to.deep.equal(expected)
+      expect(actual).toEqual(expected)
     })
   })
 
@@ -59,8 +59,8 @@ describe('getRangeForDygraphSpec', () => {
         value: 20,
       })
 
-      expect(actualMin).to.equal(min)
-      expect(actualMax).to.be.above(max)
+      expect(actualMin).toBe(min)
+      expect(actualMax).toBeGreaterThan(max)
     })
 
     it('can pad negative values', () => {
@@ -69,8 +69,8 @@ describe('getRangeForDygraphSpec', () => {
         value: -10,
       })
 
-      expect(actualMin).to.be.below(min)
-      expect(actualMax).to.equal(max)
+      expect(actualMin).toBeLessThan(min)
+      expect(actualMax).toBe(max)
     })
 
     describe('when Kapacitor operator is "lower than" and value is outiside the range', () => {
@@ -82,8 +82,8 @@ describe('getRangeForDygraphSpec', () => {
           ...opAndValue,
         })
 
-        expect(actualMin).to.be.lessThan(value)
-        expect(actualMax).to.equal(max)
+        expect(actualMin).toBeLessThan(value)
+        expect(actualMax).toBe(max)
       })
     })
   })
@@ -97,8 +97,8 @@ describe('getRangeForDygraphSpec', () => {
         rangeValue: 20,
       })
 
-      expect(actualMin).to.equal(min)
-      expect(actualMax).to.be.above(max)
+      expect(actualMin).toBe(min)
+      expect(actualMax).toBeGreaterThan(max)
     })
 
     it('can pad negative values', () => {
@@ -107,8 +107,8 @@ describe('getRangeForDygraphSpec', () => {
         rangeValue: -10,
       })
 
-      expect(actualMin).to.be.below(min)
-      expect(actualMax).to.equal(max)
+      expect(actualMin).toBeLessThan(min)
+      expect(actualMax).toBe(max)
     })
   })
 })

@@ -51,6 +51,6 @@ describe('Shared.Reducers.errorsReducer', () => {
       errorThrown(errorForbidden)
     )
 
-    expect(reducedState.error.status).to.equal(HTTP_FORBIDDEN)
+    expect(reducedState.error.status).toBe(HTTP_FORBIDDEN)
   })
 })

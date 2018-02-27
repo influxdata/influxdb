@@ -17,7 +17,7 @@ describe('Shared.Query.Helpers', () => {
 
       const timeRange = {lower, upper}
 
-      expect(timeRangeType(timeRange)).to.equal(INVALID)
+      expect(timeRangeType(timeRange)).toBe(INVALID)
     })
 
     it('can detect absolute type', () => {
@@ -27,7 +27,7 @@ describe('Shared.Query.Helpers', () => {
 
       const timeRange = {lower, upper, format}
 
-      expect(timeRangeType(timeRange)).to.equal(ABSOLUTE)
+      expect(timeRangeType(timeRange)).toBe(ABSOLUTE)
     })
 
     it('can detect exclusive relative lower', () => {
@@ -36,7 +36,7 @@ describe('Shared.Query.Helpers', () => {
 
       const timeRange = {lower, upper, format}
 
-      expect(timeRangeType(timeRange)).to.equal(RELATIVE_LOWER)
+      expect(timeRangeType(timeRange)).toBe(RELATIVE_LOWER)
     })
 
     it('can detect relative upper', () => {
@@ -46,7 +46,7 @@ describe('Shared.Query.Helpers', () => {
 
       const timeRange = {lower, upper, format}
 
-      expect(timeRangeType(timeRange)).to.equal(RELATIVE_UPPER)
+      expect(timeRangeType(timeRange)).toBe(RELATIVE_UPPER)
     })
   })
 
@@ -66,8 +66,8 @@ describe('Shared.Query.Helpers', () => {
         type: 'shifted',
       }
 
-      expect(type).to.equal(ABSOLUTE)
-      expect(actual).to.deep.equal(expected)
+      expect(type).toBe(ABSOLUTE)
+      expect(actual).toEqual(expected)
     })
 
     it('can calculate the shift for relative lower timeRanges', () => {
@@ -83,8 +83,8 @@ describe('Shared.Query.Helpers', () => {
         type: 'shifted',
       }
 
-      expect(type).to.equal(RELATIVE_LOWER)
-      expect(actual).to.deep.equal(expected)
+      expect(type).toBe(RELATIVE_LOWER)
+      expect(actual).toEqual(expected)
     })
 
     it('can calculate the shift for relative upper timeRanges', () => {
@@ -102,8 +102,8 @@ describe('Shared.Query.Helpers', () => {
         type: 'shifted',
       }
 
-      expect(type).to.equal(ABSOLUTE)
-      expect(actual).to.deep.equal(expected)
+      expect(type).toBe(ABSOLUTE)
+      expect(actual).toEqual(expected)
     })
   })
 })

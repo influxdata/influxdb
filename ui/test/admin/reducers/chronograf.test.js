@@ -136,6 +136,6 @@ describe('Admin.Chronograf.Reducers', () => {
       users,
     }
 
-    expect(actual.users).to.deep.equal(expected.users)
+    expect(actual.users).toEqual(expected.users)
   })
 })

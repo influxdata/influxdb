@@ -14,7 +14,7 @@ describe('DataExplorer.Reducers.TimeRange', () => {
       upper: null,
     }
 
-    expect(state).to.deep.equal(expected)
+    expect(state).toEqual(expected)
   })
 
   it('it can set the time range', () => {
@@ -24,6 +24,6 @@ describe('DataExplorer.Reducers.TimeRange', () => {
     }
     const expected = reducer(undefined, setTimeRange(timeRange))
 
-    expect(timeRange).to.deep.equal(expected)
+    expect(timeRange).toEqual(expected)
   })
 })

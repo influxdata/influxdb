@@ -15,12 +15,12 @@ describe('DataExplorer.Reducers.UI', () => {
       queryIDs: [],
     }
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('it can add a query', () => {
     const actual = reducer(state, addQuery())
-    expect(actual.queryIDs.length).to.equal(1)
+    expect(actual.queryIDs.length).toBe(1)
   })
 
   it('it can delete a query', () => {
@@ -32,6 +32,6 @@ describe('DataExplorer.Reducers.UI', () => {
       queryIDs: ['456'],
     }
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 })

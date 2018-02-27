@@ -81,7 +81,7 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards,
     }
 
-    expect(actual.dashboards).to.deep.equal(expected.dashboards)
+    expect(actual.dashboards).toEqual(expected.dashboards)
   })
 
   it('can handle a failed dashboard deletion', () => {
@@ -91,7 +91,7 @@ describe('DataExplorer.Reducers.UI', () => {
 
     expect(actual.dashboards).to.have.length(2)
     _.forOwn(d2, (v, k) => {
-      expect(actualFirst[k]).to.deep.equal(v)
+      expect(actualFirst[k]).toEqual(v)
     })
   })
 
@@ -99,7 +99,7 @@ describe('DataExplorer.Reducers.UI', () => {
     const expected = {upper: null, lower: 'now() - 1h'}
     const actual = reducer(state, setTimeRange(expected))
 
-    expect(actual.timeRange).to.deep.equal(expected)
+    expect(actual.timeRange).toEqual(expected)
   })
 
   it('can update dashboard cells', () => {
@@ -118,7 +118,7 @@ describe('DataExplorer.Reducers.UI', () => {
 
     const actual = reducer(state, updateDashboardCells(d1, updatedCells))
 
-    expect(actual.dashboards[0]).to.deep.equal(expected)
+    expect(actual.dashboards[0]).toEqual(expected)
   })
 
   it('can edit a cell', () => {
@@ -128,7 +128,7 @@ describe('DataExplorer.Reducers.UI', () => {
     }
 
     const actual = reducer(state, editDashboardCell(dash, 0, 0, true))
-    expect(actual.dashboards[0].cells[0].isEditing).to.equal(true)
+    expect(actual.dashboards[0].cells[0].isEditing).toBe(true)
   })
 
   it('can sync a cell', () => {
@@ -144,7 +144,7 @@ describe('DataExplorer.Reducers.UI', () => {
     }
 
     const actual = reducer(state, syncDashboardCell(dash, newCell))
-    expect(actual.dashboards[0].cells[0].name).to.equal(newCellName)
+    expect(actual.dashboards[0].cells[0].name).toBe(newCellName)
   })
 
   it('can rename cells', () => {
@@ -158,7 +158,7 @@ describe('DataExplorer.Reducers.UI', () => {
       state,
       renameDashboardCell(dash, 0, 0, 'Plutonium Consumption Rate (ug/sec)')
     )
-    expect(actual.dashboards[0].cells[0].name).to.equal(
+    expect(actual.dashboards[0].cells[0].name).toBe(
       'Plutonium Consumption Rate (ug/sec)'
     )
   })
@@ -175,9 +175,9 @@ describe('DataExplorer.Reducers.UI', () => {
       templateVariableSelected(dash.id, dash.templates[0].id, [{value}])
     )
 
-    expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
-    expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
-    expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(true)
+    expect(actual.dashboards[0].templates[0].values[0].selected).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[1].selected).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[2].selected).toBe(true)
   })
 
   it('can select template variable values by name', () => {
@@ -192,12 +192,12 @@ describe('DataExplorer.Reducers.UI', () => {
       templateVariablesSelectedByName(dash.id, selected)
     )
 
-    expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(true)
-    expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
-    expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(false)
-    expect(actual.dashboards[0].templates[1].values[0].selected).to.equal(false)
-    expect(actual.dashboards[0].templates[1].values[1].selected).to.equal(true)
-    expect(actual.dashboards[0].templates[1].values[2].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[0].values[0].selected).toBe(true)
+    expect(actual.dashboards[0].templates[0].values[1].selected).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[2].selected).toBe(false)
+    expect(actual.dashboards[0].templates[1].values[0].selected).toBe(false)
+    expect(actual.dashboards[0].templates[1].values[1].selected).toBe(true)
+    expect(actual.dashboards[0].templates[1].values[2].selected).toBe(false)
   })
 
   it('can cancel cell editing', () => {
@@ -209,7 +209,7 @@ describe('DataExplorer.Reducers.UI', () => {
       cancelEditCell(dash.id, editingCell.i)
     )
 
-    expect(actual.dashboards[0].cells[0].isEditing).to.equal(false)
-    expect(actual.dashboards[0].cells[0].name).to.equal(editingCell.name)
+    expect(actual.dashboards[0].cells[0].isEditing).toBe(false)
+    expect(actual.dashboards[0].cells[0].name).toBe(editingCell.name)
   })
 })

@@ -48,7 +48,7 @@ describe('timeSeriesToDygraph', () => {
       },
     }
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('can sort numerical timestamps correctly', () => {
@@ -77,7 +77,7 @@ describe('timeSeriesToDygraph', () => {
       timeSeries: [[new Date(100), 1], [new Date(200), 2], [new Date(3000), 3]],
     }
 
-    expect(actual.timeSeries).to.deep.equal(expected.timeSeries)
+    expect(actual.timeSeries).toEqual(expected.timeSeries)
   })
 
   it('can parse multiple responses into two axes', () => {
@@ -137,7 +137,7 @@ describe('timeSeriesToDygraph', () => {
       },
     }
 
-    expect(actual.dygraphSeries).to.deep.equal(expected)
+    expect(actual.dygraphSeries).toEqual(expected)
   })
 
   it('can parse multiple responses with the same field and measurement', () => {
@@ -190,7 +190,7 @@ describe('timeSeriesToDygraph', () => {
       },
     }
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('it does not use multiple axes if being used for the DataExplorer', () => {
@@ -232,7 +232,7 @@ describe('timeSeriesToDygraph', () => {
 
     const expected = {}
 
-    expect(actual.dygraphSeries).to.deep.equal(expected)
+    expect(actual.dygraphSeries).toEqual(expected)
   })
 
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -285,6 +285,6 @@ describe('timeSeriesToDygraph', () => {
 
     const expected = ['time', `ma.f1`, `mb.f1`, `mc.f1`, `mc.f2`]
 
-    expect(actual.labels).to.deep.equal(expected)
+    expect(actual.labels).toEqual(expected)
   })
 })

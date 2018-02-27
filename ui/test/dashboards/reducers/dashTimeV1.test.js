@@ -19,14 +19,14 @@ describe('Dashboards.Reducers.DashTimeV1', () => {
     const actual = reducer(emptyState, noopAction)
     const expected = {ranges: []}
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('can add a dashboard time', () => {
     const actual = reducer(emptyState, addDashTimeV1(dashboardID, timeRange))
     const expected = [{dashboardID, timeRange}]
 
-    expect(actual.ranges).to.deep.equal(expected)
+    expect(actual.ranges).toEqual(expected)
   })
 
   it('can delete a dashboard time range', () => {
@@ -38,7 +38,7 @@ describe('Dashboards.Reducers.DashTimeV1', () => {
     const actual = reducer(state, deleteDashboard(dashboard))
     const expected = []
 
-    expect(actual.ranges).to.deep.equal(expected)
+    expect(actual.ranges).toEqual(expected)
   })
 
   describe('setting a dashboard time range', () => {
@@ -55,7 +55,7 @@ describe('Dashboards.Reducers.DashTimeV1', () => {
       const actual = reducer(state, setDashTimeV1(dashboardID, {upper, lower}))
       const expected = [{dashboardID, upper, lower}]
 
-      expect(actual.ranges).to.deep.equal(expected)
+      expect(actual.ranges).toEqual(expected)
     })
 
     it('can set a new time range if none exists', () => {
@@ -65,7 +65,7 @@ describe('Dashboards.Reducers.DashTimeV1', () => {
         {dashboardID, upper: timeRange.upper, lower: timeRange.lower},
       ]
 
-      expect(actual.ranges).to.deep.equal(expected)
+      expect(actual.ranges).toEqual(expected)
     })
   })
 })

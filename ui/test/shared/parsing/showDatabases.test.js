@@ -10,10 +10,10 @@ describe('showDatabases', () => {
 
     const result = showDatabases(response)
 
-    expect(result.errors).to.deep.equal([])
-    expect(result.databases.length).to.equal(2)
-    expect(result.databases[0]).to.equal('mydb1')
-    expect(result.databases[1]).to.equal('mydb2')
+    expect(result.errors).toEqual([])
+    expect(result.databases.length).toBe(2)
+    expect(result.databases[0]).toBe('mydb1')
+    expect(result.databases[1]).toBe('mydb2')
   })
 
   it('returns an empty array when there are no databases', () => {
@@ -21,8 +21,8 @@ describe('showDatabases', () => {
 
     const result = showDatabases(response)
 
-    expect(result.errors).to.deep.equal([])
-    expect(result.databases).to.deep.equal([])
+    expect(result.errors).toEqual([])
+    expect(result.databases).toEqual([])
   })
 
   it('exposes the server error', () => {
@@ -30,7 +30,7 @@ describe('showDatabases', () => {
 
     const result = showDatabases(response)
 
-    expect(result.errors).to.deep.equal(['internal server error?'])
-    expect(result.databases).to.deep.equal([])
+    expect(result.errors).toEqual(['internal server error?'])
+    expect(result.databases).toEqual([])
   })
 })

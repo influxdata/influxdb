@@ -12,8 +12,8 @@ describe('buildInfluxQLQuery', () => {
   let config, timeBounds
   describe('when information is missing', () => {
     it('returns a null select statement', () => {
-      expect(buildInfluxQLQuery({}, mergeConfig())).to.equal(null)
-      expect(buildInfluxQLQuery({}, mergeConfig({database: 'db1'}))).to.equal(
+      expect(buildInfluxQLQuery({}, mergeConfig())).toBe(null)
+      expect(buildInfluxQLQuery({}, mergeConfig({database: 'db1'}))).toBe(
         null
       ) // no measurement
       expect(
@@ -21,7 +21,7 @@ describe('buildInfluxQLQuery', () => {
           {},
           mergeConfig({database: 'db1', measurement: 'm1'})
         )
-      ).to.equal(null) // no fields
+      ).toBe(null) // no fields
     })
   })
 
@@ -35,7 +35,7 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery({}, config)).to.equal(
+      expect(buildInfluxQLQuery({}, config)).toBe(
         'SELECT "f1" FROM "db1".."m1"'
       )
     })
@@ -53,13 +53,13 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery({}, config)).to.equal(
+      expect(buildInfluxQLQuery({}, config)).toBe(
         'SELECT "f1" FROM "db1"."rp1"."m1"'
       )
     })
 
     it('builds the right query with a time range', () => {
-      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(
         'SELECT "f1" FROM "db1"."rp1"."m1" WHERE time > now() - 1hr'
       )
     })
@@ -76,7 +76,7 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('does not quote the star', () => {
-      expect(buildInfluxQLQuery({}, config)).to.equal(
+      expect(buildInfluxQLQuery({}, config)).toBe(
         'SELECT * FROM "db1"."rp1"."m1"'
       )
     })
@@ -105,7 +105,7 @@ describe('buildInfluxQLQuery', () => {
     it('builds the right query', () => {
       const expected =
         'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(null)'
-      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
     })
   })
 
@@ -130,7 +130,7 @@ describe('buildInfluxQLQuery', () => {
 
     it('builds the right query', () => {
       const expected = `SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY "t1", "t2"`
-      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
     })
   })
 
@@ -151,7 +151,7 @@ describe('buildInfluxQLQuery', () => {
     it('builds the right query', () => {
       const expected =
         'SELECT "value" FROM "db1"."rp1"."m0" WHERE time > \'2015-07-23T15:52:24.447Z\' AND time < \'2015-07-24T15:52:24.447Z\''
-      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
     })
   })
 
@@ -178,7 +178,7 @@ describe('buildInfluxQLQuery', () => {
     it('builds the right query', () => {
       const expected =
         'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2" FILL(null)'
-      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
     })
   })
 
@@ -194,14 +194,14 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery({}, config)).to.equal(
+      expect(buildInfluxQLQuery({}, config)).toBe(
         'SELECT "f0", "f1" FROM "db1"."rp1"."m0"'
       )
     })
 
     it('builds the right query with a time range', () => {
       const expected = `SELECT "f0", "f1" FROM "db1"."rp1"."m0" WHERE time < '2015-02-24T00:00:00Z'`
-      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
     })
 
     describe('with multiple tag pairs', () => {
@@ -221,7 +221,7 @@ describe('buildInfluxQLQuery', () => {
 
       it('correctly uses AND/OR to combine pairs', () => {
         const expected = `SELECT "f0" FROM "db1"."rp1"."m0" WHERE time > now() - 6h AND ("k1"='v1' OR "k1"='v3' OR "k1"='v4') AND "k2"='v2'`
-        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+        expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
       })
     })
   })
@@ -247,7 +247,7 @@ describe('buildInfluxQLQuery', () => {
 
         const expected =
           'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(null)'
-        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+        expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
       })
     })
 
@@ -273,7 +273,7 @@ describe('buildInfluxQLQuery', () => {
 
         let expected =
           'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(null)'
-        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+        expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
 
         // Test fill another option
         config = mergeConfig({
@@ -295,7 +295,7 @@ describe('buildInfluxQLQuery', () => {
 
         expected =
           'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(none)'
-        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+        expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
 
         // Test fill number
         config = mergeConfig({
@@ -317,7 +317,7 @@ describe('buildInfluxQLQuery', () => {
 
         expected =
           'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2" FILL(1337)'
-        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+        expect(buildInfluxQLQuery(timeBounds, config)).toBe(expected)
       })
     })
   })
@@ -339,7 +339,7 @@ describe('buildInfluxQLQuery', () => {
         'SELECT "f1" FROM "db1"."rp1"."m1" WHERE time > now() - 15m GROUP BY time(10m) FILL(null)'
       const actual = buildQuery(TYPE_QUERY_CONFIG, timeRange, config)
 
-      expect(actual).to.equal(expected)
+      expect(actual).toBe(expected)
     })
   })
 })

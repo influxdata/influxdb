@@ -21,7 +21,7 @@ describe('Shared.Reducers.appReducer', () => {
   it('should handle ENABLE_PRESENTATION_MODE', () => {
     const reducedState = appReducer(initialState, enablePresentationMode())
 
-    expect(reducedState.ephemeral.inPresentationMode).to.equal(true)
+    expect(reducedState.ephemeral.inPresentationMode).toBe(true)
   })
 
   it('should handle DISABLE_PRESENTATION_MODE', () => {
@@ -29,7 +29,7 @@ describe('Shared.Reducers.appReducer', () => {
 
     const reducedState = appReducer(initialState, disablePresentationMode())
 
-    expect(reducedState.ephemeral.inPresentationMode).to.equal(false)
+    expect(reducedState.ephemeral.inPresentationMode).toBe(false)
   })
 
   it('should handle SET_AUTOREFRESH', () => {
@@ -37,7 +37,7 @@ describe('Shared.Reducers.appReducer', () => {
 
     const reducedState = appReducer(initialState, setAutoRefresh(expectedMs))
 
-    expect(reducedState.persisted.autoRefresh).to.equal(expectedMs)
+    expect(reducedState.persisted.autoRefresh).toBe(expectedMs)
   })
 
   it('should handle TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED', () => {
@@ -48,7 +48,7 @@ describe('Shared.Reducers.appReducer', () => {
 
     const expectedTestState = !reducedState.persisted.showTemplateControlBar
 
-    expect(initialState.persisted.showTemplateControlBar).to.equal(
+    expect(initialState.persisted.showTemplateControlBar).toBe(
       expectedTestState
     )
   })

@@ -35,7 +35,7 @@ describe('influxql astToString', () => {
 
     // console.log(actual)
 
-    expect(actual).to.equal(expected)
+    expect(actual).toBe(expected)
   })
 
   it('simple query w/ multiple sources', () => {
@@ -79,7 +79,7 @@ describe('influxql astToString', () => {
     // console.log('actual  ', actual)
     // console.log('expected', expected)
 
-    expect(actual).to.equal(expected)
+    expect(actual).toBe(expected)
   })
 
   it('query with AS', () => {
@@ -117,7 +117,7 @@ describe('influxql astToString', () => {
 
     // console.log(actual)
 
-    expect(actual).to.equal(expected)
+    expect(actual).toBe(expected)
   })
 
   it('query with 2x func', () => {
@@ -176,7 +176,7 @@ describe('influxql astToString', () => {
     // console.log('actual', actual)
     // console.log('expected', expected)
 
-    expect(actual).to.equal(expected)
+    expect(actual).toBe(expected)
   })
 
   it('query with where and groupby', () => {
@@ -299,7 +299,7 @@ describe('influxql astToString', () => {
     // console.log('actual  ', actual)
     // console.log('expected', expected)
 
-    expect(actual).to.equal(expected)
+    expect(actual).toBe(expected)
   })
 
   it('query with orderby and limit', () => {
@@ -404,6 +404,6 @@ describe('influxql astToString', () => {
     // console.log('actual  ', actual)
     // console.log('expected', expected)
 
-    expect(actual).to.equal(expected)
+    expect(actual).toBe(expected)
   })
 })
