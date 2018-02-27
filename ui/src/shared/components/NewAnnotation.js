@@ -136,8 +136,7 @@ class NewAnnotation extends Component {
 
     return (
       <div>
-        {isMouseOver &&
-          isDragging &&
+        {isDragging &&
           <AnnotationWindow
             annotation={tempAnnotation}
             dygraph={dygraph}
