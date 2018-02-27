@@ -3,6 +3,7 @@ import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import {buildQueriesForLayouts} from 'utils/buildQueriesForLayouts'
+import {IS_STATIC_LEGEND} from 'src/shared/constants'
 
 import _ from 'lodash'
 
@@ -39,7 +40,7 @@ const Layout = (
   {
     host,
     cell,
-    cell: {h, axes, type, colors},
+    cell: {h, axes, type, colors, legend},
     source,
     sources,
     onZoom,
@@ -76,6 +77,7 @@ const Layout = (
           inView={cell.inView}
           axes={axes}
           type={type}
+          staticLegend={IS_STATIC_LEGEND(legend)}
           cellHeight={h}
           onZoom={onZoom}
           sources={sources}

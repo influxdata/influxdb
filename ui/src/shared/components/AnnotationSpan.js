@@ -186,7 +186,7 @@ class AnnotationSpan extends React.Component {
   }
 
   render() {
-    const {annotation, dygraph} = this.props
+    const {annotation, dygraph, staticLegendHeight} = this.props
     const {isDragging} = this.state
 
     return (
@@ -195,6 +195,7 @@ class AnnotationSpan extends React.Component {
           annotation={annotation}
           dygraph={dygraph}
           active={!!isDragging}
+          staticLegendHeight={staticLegendHeight}
         />
         {this.renderLeftMarker(annotation.startTime, dygraph)}
         {this.renderRightMarker(annotation.endTime, dygraph)}
@@ -207,6 +208,7 @@ AnnotationSpan.propTypes = {
   annotation: schema.annotation.isRequired,
   mode: PropTypes.string.isRequired,
   dygraph: PropTypes.shape({}).isRequired,
+  staticLegendHeight: PropTypes.number.isRequired,
   updateAnnotationAsync: PropTypes.func.isRequired,
   updateAnnotation: PropTypes.func.isRequired,
 }

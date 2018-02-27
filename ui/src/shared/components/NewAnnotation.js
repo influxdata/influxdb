@@ -117,6 +117,7 @@ class NewAnnotation extends Component {
       isTempHovering,
       tempAnnotation,
       tempAnnotation: {startTime, endTime},
+      staticLegendHeight,
     } = this.props
     const {isMouseOver} = this.state
 
@@ -141,6 +142,7 @@ class NewAnnotation extends Component {
             annotation={tempAnnotation}
             dygraph={dygraph}
             active={true}
+            staticLegendHeight={staticLegendHeight}
           />}
         <div
           className={classnames('new-annotation', {
@@ -178,7 +180,7 @@ class NewAnnotation extends Component {
   }
 }
 
-const {bool, func, shape, string} = PropTypes
+const {bool, func, number, shape, string} = PropTypes
 
 NewAnnotation.contextTypes = {
   source: shape({
@@ -198,6 +200,7 @@ NewAnnotation.propTypes = {
   onUpdateAnnotation: func.isRequired,
   onMouseEnterTempAnnotation: func.isRequired,
   onMouseLeaveTempAnnotation: func.isRequired,
+  staticLegendHeight: number,
 }
 
 const mdtp = {

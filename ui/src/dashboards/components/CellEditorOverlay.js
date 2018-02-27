@@ -14,6 +14,7 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
+import {IS_STATIC_LEGEND} from 'src/shared/constants'
 
 import {
   removeUnselectedTemplateValues,
@@ -28,7 +29,7 @@ class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {queries}, sources} = props
+    const {cell: {queries, legend}, sources} = props
 
     let source = _.get(queries, ['0', 'source'], null)
     source = sources.find(s => s.links.self === source) || props.source
@@ -45,6 +46,7 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
+      staticLegend: IS_STATIC_LEGEND(legend),
     }
   }
 
@@ -102,8 +104,7 @@ class CellEditorOverlay extends Component {
   }
 
   handleSaveCell = () => {
-    const {queriesWorkingDraft} = this.state
-
+    const {queriesWorkingDraft, staticLegend} = this.state
     const {cell, singleStatColors, gaugeColors} = this.props
 
     const queries = queriesWorkingDraft.map(q => {
@@ -131,6 +132,12 @@ class CellEditorOverlay extends Component {
       ...cell,
       queries,
       colors,
+      legend: staticLegend
+        ? {
+            type: 'static',
+            orientation: 'bottom',
+          }
+        : {},
     })
   }
 
@@ -140,6 +147,10 @@ class CellEditorOverlay extends Component {
 
   handleSetActiveQueryIndex = activeQueryIndex => {
     this.setState({activeQueryIndex})
+  }
+
+  handleToggleStaticLegend = staticLegend => () => {
+    this.setState({staticLegend})
   }
 
   handleSetQuerySource = source => {
@@ -251,6 +262,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
+      staticLegend,
     } = this.state
 
     const queryActions = {
@@ -282,6 +294,7 @@ class CellEditorOverlay extends Component {
             autoRefresh={autoRefresh}
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
+            staticLegend={staticLegend}
           />
           <CEOBottom>
             <OverlayControls
@@ -296,7 +309,11 @@ class CellEditorOverlay extends Component {
               onClickDisplayOptions={this.handleClickDisplayOptionsTab}
             />
             {isDisplayOptionsTabActive
-              ? <DisplayOptions queryConfigs={queriesWorkingDraft} />
+              ? <DisplayOptions
+                  queryConfigs={queriesWorkingDraft}
+                  onToggleStaticLegend={this.handleToggleStaticLegend}
+                  staticLegend={staticLegend}
+                />
               : <QueryMaker
                   source={this.getSource()}
                   templates={templates}

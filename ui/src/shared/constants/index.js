@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 export const PERMISSIONS = {
   ViewAdmin: {
     description: 'Can view or edit admin screens',
@@ -425,6 +427,9 @@ export const DEFAULT_SOURCE = {
   insecureSkipVerify: false,
   metaUrl: '',
 }
+
+export const IS_STATIC_LEGEND = legend =>
+  _.get(legend, 'type', false) === 'static'
 
 export const linksLink = '/chronograf/v1'
 

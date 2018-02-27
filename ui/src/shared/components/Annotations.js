@@ -41,6 +41,7 @@ class Annotations extends Component {
       handleAddingAnnotationSuccess,
       handleMouseEnterTempAnnotation,
       handleMouseLeaveTempAnnotation,
+      staticLegendHeight,
     } = this.props
 
     const annotations = visibleAnnotations(
@@ -64,6 +65,7 @@ class Annotations extends Component {
             isTempHovering={isTempHovering}
             onMouseEnterTempAnnotation={handleMouseEnterTempAnnotation}
             onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
+            staticLegendHeight={staticLegendHeight}
           />}
         {annotations.map(a =>
           <Annotation
@@ -71,6 +73,7 @@ class Annotations extends Component {
             mode={mode}
             annotation={a}
             dygraph={dygraph}
+            staticLegendHeight={staticLegendHeight}
             lastUpdated={lastUpdated}
           />
         )}
@@ -79,7 +82,7 @@ class Annotations extends Component {
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 Annotations.propTypes = {
   annotations: arrayOf(schema.annotation),
@@ -92,6 +95,7 @@ Annotations.propTypes = {
   handleAddingAnnotationSuccess: func.isRequired,
   handleMouseEnterTempAnnotation: func.isRequired,
   handleMouseLeaveTempAnnotation: func.isRequired,
+  staticLegendHeight: number,
 }
 
 const mapStateToProps = ({

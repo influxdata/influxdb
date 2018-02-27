@@ -54,6 +54,7 @@ class LineGraph extends Component {
       isGraphFilled,
       showSingleStat,
       displayOptions,
+      staticLegend,
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
@@ -120,6 +121,7 @@ class LineGraph extends Component {
           setResolution={setResolution}
           overrideLineColors={lineColors}
           containerStyle={containerStyle}
+          staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
         />
         {showSingleStat
@@ -155,6 +157,7 @@ LineGraph.defaultProps = {
   underlayCallback: () => {},
   isGraphFilled: true,
   overrideLineColors: null,
+  staticLegend: false,
 }
 
 LineGraph.propTypes = {
@@ -174,6 +177,7 @@ LineGraph.propTypes = {
   underlayCallback: func,
   isGraphFilled: bool,
   isBarGraph: bool,
+  staticLegend: bool,
   overrideLineColors: array,
   showSingleStat: bool,
   displayOptions: shape({

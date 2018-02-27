@@ -35,15 +35,19 @@ class DisplayOptions extends Component {
   }
 
   renderOptions = () => {
-    const {cell: {type}} = this.props
-
+    const {cell: {type}, staticLegend, onToggleStaticLegend} = this.props
     switch (type) {
       case 'gauge':
         return <GaugeOptions />
       case 'single-stat':
         return <SingleStatOptions />
       default:
-        return <AxesOptions />
+        return (
+          <AxesOptions
+            onToggleStaticLegend={onToggleStaticLegend}
+            staticLegend={staticLegend}
+          />
+        )
     }
   }
 
@@ -56,7 +60,8 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, shape, string} = PropTypes
+
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
   cell: shape({
@@ -70,6 +75,8 @@ DisplayOptions.propTypes = {
     }),
   }).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
+  onToggleStaticLegend: func.isRequired,
+  staticLegend: bool,
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({
