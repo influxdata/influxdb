@@ -413,6 +413,8 @@ export const PAGE_CONTAINER_MARGIN = 30 // TODO: get this dynamically to ensure 
 export const LAYOUT_MARGIN = 4
 export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
 
+export const DYGRAPH_CONTAINER_MARGIN = 16
+
 export const DEFAULT_SOURCE = {
   url: 'http://localhost:8086',
   name: 'Influx 1',

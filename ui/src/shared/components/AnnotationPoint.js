@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 
+import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
 import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
@@ -99,7 +100,8 @@ class AnnotationPoint extends React.Component {
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
 
-    const left = `${dygraph.toDomXCoord(annotation.startTime) + 16}px`
+    const left = `${dygraph.toDomXCoord(annotation.startTime) +
+      DYGRAPH_CONTAINER_MARGIN}px`
 
     return (
       <div className={markerClass} style={{left}}>

@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 
+import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
 import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
@@ -107,7 +108,7 @@ class AnnotationSpan extends React.Component {
     }
     const showTooltip = isDragging === 'left' || isMouseOver === 'left'
 
-    const left = dygraph.toDomXCoord(startTime) + 16
+    const left = dygraph.toDomXCoord(startTime) + DYGRAPH_CONTAINER_MARGIN
 
     return (
       <div className={markerClass} style={{left: `${left}px`}}>
@@ -153,7 +154,7 @@ class AnnotationSpan extends React.Component {
     }
     const showTooltip = isDragging === 'right' || isMouseOver === 'right'
 
-    const left = `${dygraph.toDomXCoord(endTime) + 16}px`
+    const left = `${dygraph.toDomXCoord(endTime) + DYGRAPH_CONTAINER_MARGIN}px`
 
     return (
       <div

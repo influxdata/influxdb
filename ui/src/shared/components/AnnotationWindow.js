@@ -1,8 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
 import * as schema from 'shared/schemas'
-
-const containerLeftPadding = 16
 
 const windowDimensions = (anno, dygraph) => {
   // TODO: export and test this function
@@ -17,7 +16,7 @@ const windowDimensions = (anno, dygraph) => {
   const isDurationNegative = windowWidth < 0
   const foo = isDurationNegative ? windowWidth : 0
 
-  const left = `${windowStartXCoord + containerLeftPadding + foo}px`
+  const left = `${windowStartXCoord + DYGRAPH_CONTAINER_MARGIN + foo}px`
   const width = `${Math.abs(windowWidth)}px`
 
   return {
