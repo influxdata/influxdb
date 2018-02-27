@@ -2109,6 +2109,10 @@ func (e *Engine) CreateIterator(ctx context.Context, measurement string, opt que
 	return newMergeFinalizerIterator(ctx, itrs, opt, e.logger)
 }
 
+type indexTagSets interface {
+	TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
+}
+
 func (e *Engine) createCallIterator(ctx context.Context, measurement string, call *influxql.Call, opt query.IteratorOptions) ([]query.Iterator, error) {
 	ref, _ := call.Args[0].(*influxql.VarRef)
 
@@ -2119,8 +2123,18 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
+	var (
+		tagSets []*query.TagSet
+		err     error
+	)
+	if e.index.Type() == "inmem" {
+		ts := e.index.(indexTagSets)
+		tagSets, err = ts.TagSets([]byte(measurement), opt)
+	} else {
+		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -2189,9 +2203,18 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		return nil, nil
 	}
 
-	// Determine tagsets for this measurement based on dimensions and filters.
-	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
+	var (
+		tagSets []*query.TagSet
+		err     error
+	)
+	if e.index.Type() == "inmem" {
+		ts := e.index.(indexTagSets)
+		tagSets, err = ts.TagSets([]byte(measurement), opt)
+	} else {
+		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
+	}
+
 	if err != nil {
 		return nil, err
 	}
