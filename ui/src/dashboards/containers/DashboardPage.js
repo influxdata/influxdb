@@ -38,6 +38,7 @@ const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
   upper: null,
   lower: 'now() - 15m',
+  seconds: 900,
   format: FORMAT_INFLUXQL,
 }
 
@@ -71,10 +72,13 @@ class DashboardPage extends Component {
       router,
       notify,
       getAnnotationsAsync,
+      timeRange,
     } = this.props
 
-    const fifteenMinutes = Date.now() - 15 * 60 * 1000
-    getAnnotationsAsync(source.links.annotations, fifteenMinutes)
+    getAnnotationsAsync(
+      source.links.annotations,
+      Date.now() - timeRange.seconds * 1000
+    )
     window.addEventListener('resize', this.handleWindowResize, true)
 
     const dashboards = await getDashboardsAsync()
@@ -141,13 +145,21 @@ class DashboardPage extends Component {
       .then(handleHideCellEditorOverlay)
   }
 
-  handleChooseTimeRange = ({upper, lower}) => {
-    const {dashboard, dashboardActions} = this.props
+  handleChooseTimeRange = timeRange => {
+    const {
+      dashboard,
+      dashboardActions,
+      getAnnotationsAsync,
+      source,
+    } = this.props
     dashboardActions.setDashTimeV1(dashboard.id, {
-      upper,
-      lower,
+      ...timeRange,
       format: FORMAT_INFLUXQL,
     })
+    getAnnotationsAsync(
+      source.links.annotations,
+      Date.now() - timeRange.seconds * 1000
+    )
   }
 
   handleUpdatePosition = cells => {
