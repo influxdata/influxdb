@@ -5,10 +5,6 @@ import {
   deleteDashboard,
 } from 'src/dashboards/actions/index'
 
-const initialState = {
-  ranges: [],
-}
-
 const emptyState = undefined
 const dashboardID = 1
 const timeRange = {upper: null, lower: 'now() - 15m'}

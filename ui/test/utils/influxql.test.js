@@ -13,15 +13,14 @@ describe('buildInfluxQLQuery', () => {
   describe('when information is missing', () => {
     it('returns a null select statement', () => {
       expect(buildInfluxQLQuery({}, mergeConfig())).toBe(null)
-      expect(buildInfluxQLQuery({}, mergeConfig({database: 'db1'}))).toBe(
-        null
-      ) // no measurement
-      expect(
-        buildInfluxQLQuery(
-          {},
-          mergeConfig({database: 'db1', measurement: 'm1'})
-        )
-      ).toBe(null) // no fields
+
+      let merged = mergeConfig({database: 'db1'})
+      let actual = buildInfluxQLQuery({}, merged)
+      expect(actual).toBe(null) // no measurement
+
+      merged = mergeConfig({database: 'db1', measurement: 'm1'})
+      actual = buildInfluxQLQuery({}, merged)
+      expect(actual).toBe(null) // no fields
     })
   })
 

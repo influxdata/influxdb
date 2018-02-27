@@ -30,8 +30,6 @@ import {
   NEW_EMPTY_RP,
 } from 'src/admin/constants'
 
-let state
-
 // Users
 const u1 = {
   name: 'acidburn',
@@ -138,9 +136,13 @@ const db2 = {
   deleteCode: 'DELETE',
 }
 
+let state
+
 describe('Admin.InfluxDB.Reducers', () => {
   describe('Databases', () => {
-    const state = {databases: [db1, db2]}
+    beforeEach(() => {
+      state = {databases: [db1, db2]}
+    })
 
     it('can add a database', () => {
       const actual = reducer(state, addDatabase())
@@ -185,7 +187,9 @@ describe('Admin.InfluxDB.Reducers', () => {
   })
 
   describe('Retention Policies', () => {
-    const state = {databases: [db1]}
+    beforeEach(() => {
+      state = {databases: [db1]}
+    })
 
     it('can add a retention policy', () => {
       const actual = reducer(state, addRetentionPolicy(db1))
@@ -358,7 +362,7 @@ describe('Admin.InfluxDB.Reducers', () => {
 
   // Permissions
   it('it can load the permissions', () => {
-    const actual = reducer(state, loadPermissions({permissions}))
+    const actual = reducer(undefined, loadPermissions({permissions}))
     const expected = {
       permissions,
     }

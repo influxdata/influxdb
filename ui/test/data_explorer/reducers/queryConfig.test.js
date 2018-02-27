@@ -187,8 +187,6 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     it('applies new functions to a field', () => {
       const f1 = {value: 'f1', type: 'field'}
       const f2 = {value: 'f2', type: 'field'}
-      const f3 = {value: 'f3', type: 'field'}
-      const f4 = {value: 'f4', type: 'field'}
 
       const initialState = {
         [queryID]: {

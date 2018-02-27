@@ -1034,7 +1034,7 @@ export const handlersfromConfig = [
   },
 ]
 
-export const handlersOnThisAlert_expected = [
+export const handlersOnThisAlertExpected = [
   {
     enabled: true,
     url: 'http://example.com',
@@ -1161,7 +1161,7 @@ export const handlersOnThisAlert_expected = [
   },
 ]
 
-export const selectedHandler_expected = {
+export const selectedHandlerExpected = {
   enabled: true,
   url: 'http://example.com',
   headerKey: 'key',
@@ -1169,7 +1169,7 @@ export const selectedHandler_expected = {
   alias: 'post-1',
   type: 'post',
 }
-export const handlersOfKind_expected = {
+export const handlersOfKindExpected = {
   post: 1,
   tcp: 1,
   email: 2,

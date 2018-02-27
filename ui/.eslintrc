@@ -4,6 +4,7 @@
     'react',
     'prettier',
     'babel',
+    'jest',
   ],
   extends: [
     "prettier",
@@ -247,6 +248,10 @@
       'bracketSpacing': false,
       'semi': false,
     }],
+
+    // jest
+    'jest/no-disabled-tests': "warn",
+    'jest/no-focused-tests': "error",
 
     // Babel
     'babel/no-invalid-this': 1

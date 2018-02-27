@@ -4,9 +4,9 @@ import {
   emptyConfigResponse,
   rule,
   handlersFromConfig,
-  handlersOfKind_expected,
-  selectedHandler_expected,
-  handlersOnThisAlert_expected,
+  handlersOfKindExpected,
+  selectedHandlerExpected,
+  handlersOnThisAlertExpected,
 } from './constants'
 
 describe('parseHandlersFromRule', () => {
@@ -18,12 +18,10 @@ describe('parseHandlersFromRule', () => {
       selectedHandler,
       handlersOfKind,
     } = parseHandlersFromRule(input1, input2)
-    const handlersOnThisAlert_expected = []
-    const selectedHandler_expected = null
-    const handlersOfKind_expected = {}
-    expect(handlersOnThisAlert).toEqual(handlersOnThisAlert_expected)
-    expect(selectedHandler).toEqual(selectedHandler_expected)
-    expect(handlersOfKind).toEqual(handlersOfKind_expected)
+
+    expect(handlersOnThisAlert).toEqual([])
+    expect(selectedHandler).toEqual(null)
+    expect(handlersOfKind).toEqual({})
   })
 
   it('returns values if rule and config are not empty', () => {
@@ -35,8 +33,8 @@ describe('parseHandlersFromRule', () => {
       handlersOfKind,
     } = parseHandlersFromRule(input1, input2)
 
-    expect(handlersOnThisAlert).toEqual(handlersOnThisAlert_expected)
-    expect(selectedHandler).toEqual(selectedHandler_expected)
-    expect(handlersOfKind).toEqual(handlersOfKind_expected)
+    expect(handlersOnThisAlert).toEqual(handlersOnThisAlertExpected)
+    expect(selectedHandler).toEqual(selectedHandlerExpected)
+    expect(handlersOfKind).toEqual(handlersOfKindExpected)
   })
 })
