@@ -21,7 +21,14 @@ class ConfirmButtons extends Component {
   }
 
   render() {
-    const {item, buttonSize, isDisabled, confirmLeft} = this.props
+    const {
+      item,
+      buttonSize,
+      isDisabled,
+      confirmLeft,
+      confirmHoverText,
+    } = this.props
+    const hoverText = confirmHoverTextText || 'Save'
 
     return confirmLeft
       ? <div className="confirm-buttons">
@@ -30,7 +37,7 @@ class ConfirmButtons extends Component {
               [buttonSize]: buttonSize,
             })}
             disabled={isDisabled}
-            title={isDisabled ? 'Cannot Save' : 'Save'}
+            title={isDisabled ? `Cannot ${hoverText}` : hoverText}
             onClick={this.handleConfirm(item)}
           >
             <span className="icon checkmark" />
@@ -58,7 +65,7 @@ class ConfirmButtons extends Component {
               [buttonSize]: buttonSize,
             })}
             disabled={isDisabled}
-            title={isDisabled ? 'Cannot Save' : 'Save'}
+            title={isDisabled ? `Cannot ${hoverText}` : hoverText}
             onClick={this.handleConfirm(item)}
           >
             <span className="icon checkmark" />
@@ -77,6 +84,7 @@ ConfirmButtons.propTypes = {
   isDisabled: bool,
   onClickOutside: func,
   confirmLeft: bool,
+  confirmHoverText: string,
 }
 
 ConfirmButtons.defaultProps = {
