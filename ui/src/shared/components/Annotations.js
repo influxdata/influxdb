@@ -15,7 +15,7 @@ import {
   mouseEnterTempAnnotation,
   mouseLeaveTempAnnotation,
 } from 'src/shared/actions/annotations'
-import {getAnnotations} from 'src/shared/annotations/helpers'
+import {visibleAnnotations} from 'src/shared/annotations/helpers'
 
 class Annotations extends Component {
   state = {
@@ -24,6 +24,10 @@ class Annotations extends Component {
 
   componentDidMount() {
     this.props.annotationsRef(this)
+  }
+
+  heartbeat = () => {
+    this.setState({lastUpdated: Date.now()})
   }
 
   render() {
@@ -40,9 +44,10 @@ class Annotations extends Component {
       staticLegendHeight,
     } = this.props
 
-    const annotations = getAnnotations(dygraph, this.props.annotations).filter(
-      a => a.id !== TEMP_ANNOTATION.id
-    )
+    const annotations = visibleAnnotations(
+      dygraph,
+      this.props.annotations
+    ).filter(a => a.id !== TEMP_ANNOTATION.id)
     const tempAnnotation = this.props.annotations.find(
       a => a.id === TEMP_ANNOTATION.id
     )

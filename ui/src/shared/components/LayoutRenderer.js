@@ -33,13 +33,11 @@ class LayoutRenderer extends Component {
     if (!this.props.onPositionChange) {
       return
     }
-
     const newCells = this.props.cells.map(cell => {
       const l = layout.find(ly => ly.i === cell.i)
       const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
       return {...cell, ...newLayout}
     })
-
     this.props.onPositionChange(newCells)
   }
 

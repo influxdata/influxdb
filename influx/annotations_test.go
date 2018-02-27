@@ -29,7 +29,7 @@ func Test_toPoint(t *testing.T) {
 			},
 			now: time.Unix(0, 0),
 			want: &chronograf.Point{
-				Database:        DefaultDB,
+				Database:        AnnotationsDB,
 				RetentionPolicy: DefaultRP,
 				Measurement:     DefaultMeasurement,
 				Time:            time.Time{}.UnixNano(),
@@ -56,7 +56,7 @@ func Test_toPoint(t *testing.T) {
 			},
 			now: time.Unix(0, 0),
 			want: &chronograf.Point{
-				Database:        DefaultDB,
+				Database:        AnnotationsDB,
 				RetentionPolicy: DefaultRP,
 				Measurement:     DefaultMeasurement,
 				Time:            time.Unix(200, 0).UnixNano(),
@@ -97,7 +97,7 @@ func Test_toDeletedPoint(t *testing.T) {
 			},
 			now: time.Unix(0, 0),
 			want: &chronograf.Point{
-				Database:        DefaultDB,
+				Database:        AnnotationsDB,
 				RetentionPolicy: DefaultRP,
 				Measurement:     DefaultMeasurement,
 				Time:            0,

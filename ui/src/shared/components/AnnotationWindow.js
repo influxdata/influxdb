@@ -1,8 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
 import * as schema from 'shared/schemas'
-
-const containerLeftPadding = 16
 
 const windowDimensions = (anno, dygraph, staticLegendHeight) => {
   // TODO: export and test this function
@@ -12,21 +11,18 @@ const windowDimensions = (anno, dygraph, staticLegendHeight) => {
 
   const windowStartXCoord = dygraph.toDomXCoord(startTime)
   const windowEndXCoord = dygraph.toDomXCoord(endTime)
+  const windowWidth = Math.abs(windowEndXCoord - windowStartXCoord)
 
-  const windowWidth = windowEndXCoord - windowStartXCoord
-  const isDurationNegative = windowWidth < 0
-  const foo = isDurationNegative ? windowWidth : 0
-
-  const left = `${windowStartXCoord + containerLeftPadding + foo}px`
-  const width = `${Math.abs(windowWidth)}px`
+  const windowLeftXCoord =
+    Math.min(windowStartXCoord, windowEndXCoord) + DYGRAPH_CONTAINER_MARGIN
 
   const height = staticLegendHeight
     ? `calc(100% - ${staticLegendHeight + 36}px)`
     : 'calc(100% - 36px)'
 
   return {
-    left,
-    width,
+    left: `${windowLeftXCoord}px`,
+    width: `${windowWidth}px`,
     height,
   }
 }

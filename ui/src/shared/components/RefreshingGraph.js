@@ -13,9 +13,11 @@ const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 
 const RefreshingGraph = ({
   axes,
+  inView,
   type,
   colors,
   onZoom,
+  cellID,
   queries,
   templates,
   timeRange,
@@ -29,6 +31,9 @@ const RefreshingGraph = ({
   editQueryStatus,
   grabDataForDownload,
 }) => {
+  const prefix = (axes && axes.y.prefix) || ''
+  const suffix = (axes && axes.y.suffix) || ''
+
   if (!queries.length) {
     return (
       <div className="graph-empty">
@@ -40,8 +45,6 @@ const RefreshingGraph = ({
   }
 
   if (type === 'single-stat') {
-    const suffix = axes.y.suffix || ''
-
     return (
       <RefreshingSingleStat
         colors={colors}
@@ -50,6 +53,7 @@ const RefreshingGraph = ({
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+        prefix={prefix}
         suffix={suffix}
       />
     )
@@ -66,6 +70,9 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
+        cellID={cellID}
+        prefix={prefix}
+        suffix={suffix}
       />
     )
   }
@@ -81,6 +88,7 @@ const RefreshingGraph = ({
       colors={colors}
       onZoom={onZoom}
       queries={queries}
+      inView={inView}
       key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
@@ -126,11 +134,14 @@ RefreshingGraph.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  cellID: string,
+  inView: bool,
 }
 
 RefreshingGraph.defaultProps = {
   manualRefresh: 0,
   staticLegend: false,
+  inView: true,
 }
 
 export default RefreshingGraph

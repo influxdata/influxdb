@@ -73,11 +73,12 @@ const Layout = (
     {cell.isWidget
       ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
       : <RefreshingGraph
+          colors={colors}
+          inView={cell.inView}
           axes={axes}
           type={type}
           staticLegend={IS_STATIC_LEGEND(legend)}
           cellHeight={h}
-          colors={colors}
           onZoom={onZoom}
           sources={sources}
           timeRange={timeRange}

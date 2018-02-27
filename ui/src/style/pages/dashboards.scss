@@ -311,6 +311,14 @@ $dash-graph-options-arrow: 8px;
       background-color: $g8-storm;
       cursor: pointer;
     }
+
+    &.disabled,
+    &.disabled:hover {
+      cursor: default;
+      background-color: transparent;
+      font-style: italic;
+      color: $g11-sidewalk;
+    }
   }
 }
 

@@ -8,6 +8,7 @@ import MenuTooltipButton from 'src/shared/components/MenuTooltipButton'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
 
 import {EDITING} from 'src/shared/annotations/helpers'
+import {cellSupportsAnnotations} from 'src/shared/constants/index'
 
 import {
   addingAnnotation,
@@ -61,10 +62,15 @@ class LayoutCellMenu extends Component {
                   icon="pencil"
                   menuOptions={[
                     {text: 'Configure', action: onEdit(cell)},
-                    {text: 'Add Annotation', action: onStartAddingAnnotation},
+                    {
+                      text: 'Add Annotation',
+                      action: onStartAddingAnnotation,
+                      disabled: !cellSupportsAnnotations(cell.type),
+                    },
                     {
                       text: 'Edit Annotations',
                       action: onStartEditingAnnotation,
+                      disabled: !cellSupportsAnnotations(cell.type),
                     },
                   ]}
                   informParent={this.handleToggleSubMenu}
@@ -91,7 +97,7 @@ class LayoutCellMenu extends Component {
               className="btn btn-xs btn-success"
               onClick={onDismissEditingAnnotation}
             >
-              Done
+              Done Editing
             </div>
           </div>}
       </div>

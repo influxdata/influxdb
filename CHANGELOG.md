@@ -1,9 +1,15 @@
 ## v1.4.2.0 [unreleased]
 ### Features
+1. [#2837] (https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 ### UI Improvements
+1. [#2848](https://github.com/influxdata/chronograf/pull/2848): Add ability to set a prefix and suffix on Single Stat and Gauge cell types
+1. [#2831](https://github.com/influxdata/chronograf/pull/2831): Rename 'Create Alerts' page to 'Manage Tasks'; Redesign page to improve clarity of purpose
+
 ### Bug Fixes
 1. [#2821](https://github.com/influxdata/chronograf/pull/2821): Save only selected template variable values into dashboards for non csv template variables
 1. [#2842](https://github.com/influxdata/chronograf/pull/2842): Use Generic APIKey for Oauth2 group lookup
+1. [#2850](https://github.com/influxdata/chronograf/pull/2850): Fix bug in which resizing any cell in a dashboard causes a Gauge cell to resize
+1. [#2851] (https://github.com/influxdata/chronograf/pull/2851): Maintain y axis labels in dashboard cells
 
 ## v1.4.1.3 [2018-02-14]
 ### Bug Fixes

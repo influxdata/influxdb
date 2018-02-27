@@ -1,7 +1,8 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 
-import {EDITING} from 'shared/annotations/helpers'
+import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
+import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
@@ -65,14 +66,12 @@ class AnnotationSpan extends React.Component {
     const graphX = pageX - left
     let newTime = dygraph.toDataXCoord(graphX)
 
-    const minPercentChange = 0.5
-
     if (
       Math.abs(
         dygraph.toPercentXCoord(newTime) - dygraph.toPercentXCoord(oldTime)
       ) *
         100 <
-      minPercentChange
+      ANNOTATION_MIN_DELTA
     ) {
       return
     }
@@ -92,7 +91,6 @@ class AnnotationSpan extends React.Component {
 
   renderLeftMarker(startTime, dygraph) {
     const isEditing = this.props.mode === EDITING
-    const humanTime = `${new Date(+startTime)}`
     const {isDragging, isMouseOver} = this.state
     const {annotation} = this.props
 
@@ -110,15 +108,10 @@ class AnnotationSpan extends React.Component {
     }
     const showTooltip = isDragging === 'left' || isMouseOver === 'left'
 
-    const left = dygraph.toDomXCoord(startTime) + 16
+    const left = dygraph.toDomXCoord(startTime) + DYGRAPH_CONTAINER_MARGIN
 
     return (
-      <div
-        className={markerClass}
-        style={{left: `${left}px`}}
-        data-time-ms={startTime}
-        data-time-local={humanTime}
-      >
+      <div className={markerClass} style={{left: `${left}px`}}>
         {showTooltip &&
           <AnnotationTooltip
             isEditing={isEditing}
@@ -161,7 +154,7 @@ class AnnotationSpan extends React.Component {
     }
     const showTooltip = isDragging === 'right' || isMouseOver === 'right'
 
-    const left = `${dygraph.toDomXCoord(endTime) + 16}px`
+    const left = `${dygraph.toDomXCoord(endTime) + DYGRAPH_CONTAINER_MARGIN}px`
 
     return (
       <div
@@ -201,7 +194,7 @@ class AnnotationSpan extends React.Component {
         <AnnotationWindow
           annotation={annotation}
           dygraph={dygraph}
-          active={isDragging}
+          active={!!isDragging}
           staticLegendHeight={staticLegendHeight}
         />
         {this.renderLeftMarker(annotation.startTime, dygraph)}

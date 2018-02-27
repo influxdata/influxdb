@@ -45,8 +45,12 @@ class MenuTooltipButton extends Component {
     return menuOptions.map((option, i) =>
       <div
         key={i}
-        className="dash-graph-context--menu-item"
-        onClick={this.handleMenuItemClick(option.action)}
+        className={`dash-graph-context--menu-item${option.disabled
+          ? ' disabled'
+          : ''}`}
+        onClick={
+          option.disabled ? null : this.handleMenuItemClick(option.action)
+        }
       >
         {option.text}
       </div>
@@ -73,7 +77,7 @@ class MenuTooltipButton extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 MenuTooltipButton.defaultProps = {
   theme: 'default',
@@ -86,6 +90,7 @@ MenuTooltipButton.propTypes = {
     shape({
       text: string.isRequired,
       action: func.isRequired,
+      disabled: bool,
     })
   ).isRequired,
   informParent: func,

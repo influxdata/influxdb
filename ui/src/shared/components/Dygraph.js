@@ -155,9 +155,7 @@ class Dygraph extends Component {
       colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
       plotter: isBarGraph ? barPlotter : null,
-      drawCallback: () => {
-        this.annotationsRef.setState({lastUpdated: Date.now()})
-      },
+      drawCallback: this.annotationsRef.heartbeat,
     }
 
     dygraph.updateOptions(updateOptions)

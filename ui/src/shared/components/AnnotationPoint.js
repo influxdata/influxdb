@@ -1,7 +1,8 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 
-import {EDITING} from 'shared/annotations/helpers'
+import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
+import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
@@ -55,14 +56,12 @@ class AnnotationPoint extends React.Component {
     let newTime = dygraph.toDataXCoord(graphX)
     const oldTime = +startTime
 
-    const minPercentChange = 0.5
-
     if (
       Math.abs(
         dygraph.toPercentXCoord(newTime) - dygraph.toPercentXCoord(oldTime)
       ) *
         100 <
-      minPercentChange
+      ANNOTATION_MIN_DELTA
     ) {
       return
     }
@@ -87,28 +86,25 @@ class AnnotationPoint extends React.Component {
 
   render() {
     const {annotation, mode, dygraph} = this.props
+    const {isDragging} = this.state
 
     const isEditing = mode === EDITING
-    const humanTime = `${new Date(+annotation.startTime)}`
-    const {isDragging} = this.state
 
     const flagClass = isDragging
       ? 'annotation-point--flag__dragging'
       : 'annotation-point--flag'
+
     const markerClass = isDragging ? 'annotation dragging' : 'annotation'
+
     const clickClass = isEditing
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
 
-    const left = `${dygraph.toDomXCoord(annotation.startTime) + 16}px`
+    const left = `${dygraph.toDomXCoord(annotation.startTime) +
+      DYGRAPH_CONTAINER_MARGIN}px`
 
     return (
-      <div
-        className={markerClass}
-        style={{left}}
-        data-time-ms={annotation.startTime}
-        data-time-local={humanTime}
-      >
+      <div className={markerClass} style={{left}}>
         <div
           className={clickClass}
           draggable={true}

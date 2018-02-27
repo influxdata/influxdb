@@ -14,14 +14,22 @@ class NewAnnotation extends Component {
     gatherMode: 'startTime',
   }
 
+  clampWithinGraphTimerange = timestamp => {
+    const [xRangeStart] = this.props.dygraph.xAxisRange()
+    return Math.max(xRangeStart, timestamp)
+  }
+
+  eventToTimestamp = ({pageX: pxBetweenMouseAndPage}) => {
+    const {left: pxBetweenGraphAndPage} = this.wrapper.getBoundingClientRect()
+    const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
+    const timestamp = this.props.dygraph.toDataXCoord(graphXCoordinate)
+    const clamped = this.clampWithinGraphTimerange(timestamp)
+    return `${clamped}`
+  }
+
   handleMouseDown = e => {
-    const {tempAnnotation, dygraph, onUpdateAnnotation} = this.props
-
-    const wrapperRect = this.wrapper.getBoundingClientRect()
-    const trueGraphX = e.pageX - wrapperRect.left
-    const startTime = `${dygraph.toDataXCoord(trueGraphX)}`
-
-    onUpdateAnnotation({...tempAnnotation, startTime})
+    const startTime = this.eventToTimestamp(e)
+    this.props.onUpdateAnnotation({...this.props.tempAnnotation, startTime})
     this.setState({gatherMode: 'endTime'})
   }
 
@@ -30,11 +38,8 @@ class NewAnnotation extends Component {
       return
     }
 
-    const {dygraph, tempAnnotation, onUpdateAnnotation} = this.props
-    const wrapperRect = this.wrapper.getBoundingClientRect()
-    const trueGraphX = e.pageX - wrapperRect.left
-
-    const newTime = `${dygraph.toDataXCoord(trueGraphX)}`
+    const {tempAnnotation, onUpdateAnnotation} = this.props
+    const newTime = this.eventToTimestamp(e)
 
     if (this.state.gatherMode === 'startTime') {
       onUpdateAnnotation({
@@ -49,22 +54,19 @@ class NewAnnotation extends Component {
 
   handleMouseUp = e => {
     const {
+      tempAnnotation,
+      onUpdateAnnotation,
       addAnnotationAsync,
       onAddingAnnotationSuccess,
       onMouseLeaveTempAnnotation,
     } = this.props
-
     const createUrl = this.context.source.links.annotations
 
-    const {dygraph, tempAnnotation, onUpdateAnnotation} = this.props
-    const wrapperRect = this.wrapper.getBoundingClientRect()
-    const trueGraphX = e.pageX - wrapperRect.left
-    const upTime = `${dygraph.toDataXCoord(trueGraphX)}`
-
+    const upTime = this.eventToTimestamp(e)
     const downTime = tempAnnotation.startTime
     const [startTime, endTime] = [downTime, upTime].sort()
-
     const newAnnotation = {...tempAnnotation, startTime, endTime}
+
     onUpdateAnnotation(newAnnotation)
     addAnnotationAsync(createUrl, {...newAnnotation, id: uuid.v4()})
 
@@ -117,6 +119,7 @@ class NewAnnotation extends Component {
       tempAnnotation: {startTime, endTime},
       staticLegendHeight,
     } = this.props
+    const {isMouseOver} = this.state
 
     const crosshairOne = Math.max(-1000, dygraph.toDomXCoord(startTime))
     const crosshairTwo = dygraph.toDomXCoord(endTime)
@@ -157,14 +160,18 @@ class NewAnnotation extends Component {
               className="new-annotation--crosshair"
               style={{left: crosshairTwo}}
             >
-              {this.renderTimestamp(tempAnnotation.endTime)}
+              {isMouseOver &&
+                isDragging &&
+                this.renderTimestamp(tempAnnotation.endTime)}
               <div className={flagTwoClass} />
             </div>}
           <div
             className="new-annotation--crosshair"
             style={{left: crosshairOne}}
           >
-            {isDragging || this.renderTimestamp(tempAnnotation.startTime)}
+            {isMouseOver &&
+              !isDragging &&
+              this.renderTimestamp(tempAnnotation.startTime)}
             <div className={isDragging ? flagOneClass : pointFlagClass} />
           </div>
         </div>

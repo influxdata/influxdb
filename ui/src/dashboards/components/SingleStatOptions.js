@@ -109,6 +109,13 @@ class SingleStatOptions extends Component {
     return !sortedColors.some(color => color.value === targetValue)
   }
 
+  handleUpdatePrefix = e => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, prefix: e.target.value}}
+
+    handleUpdateAxes(newAxes)
+  }
+
   handleUpdateSuffix = e => {
     const {handleUpdateAxes, axes} = this.props
     const newAxes = {...axes, y: {...axes.y, suffix: e.target.value}}
@@ -117,7 +124,11 @@ class SingleStatOptions extends Component {
   }
 
   render() {
-    const {singleStatColors, singleStatType, axes: {y: {suffix}}} = this.props
+    const {
+      singleStatColors,
+      singleStatType,
+      axes: {y: {prefix, suffix}},
+    } = this.props
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
 
@@ -163,6 +174,26 @@ class SingleStatOptions extends Component {
           </div>
           <div className="single-stat-controls">
             <div className="form-group col-xs-6">
+              <label>Prefix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={prefix}
+                onChange={this.handleUpdatePrefix}
+                maxLength="5"
+              />
+            </div>
+            <div className="form-group col-xs-6">
+              <label>Suffix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={suffix}
+                onChange={this.handleUpdateSuffix}
+                maxLength="5"
+              />
+            </div>
+            <div className="form-group col-xs-6">
               <label>Coloring</label>
               <ul className="nav nav-tablist nav-tablist-sm">
                 <li
@@ -182,16 +213,6 @@ class SingleStatOptions extends Component {
                   Text
                 </li>
               </ul>
-            </div>
-            <div className="form-group col-xs-6">
-              <label>Suffix</label>
-              <input
-                className="form-control input-sm"
-                placeholder="%, MPH, etc."
-                defaultValue={suffix}
-                onChange={this.handleUpdateSuffix}
-                maxLength="5"
-              />
             </div>
           </div>
         </div>
