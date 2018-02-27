@@ -816,6 +816,11 @@ func (m *Measurement) WalkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 	case *influxql.ParenExpr:
 		// walk down the tree
 		return m.WalkWhereForSeriesIds(n.Expr)
+	case *influxql.BooleanLiteral:
+		if n.Val {
+			return m.SeriesIDs(), nil, nil
+		}
+		return nil, nil, nil
 	default:
 		return nil, nil, nil
 	}
