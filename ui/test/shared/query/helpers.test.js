@@ -1,5 +1,4 @@
 import {timeRangeType, shiftTimeRange} from 'shared/query/helpers'
-import moment from 'moment'
 import {
   INVALID,
   ABSOLUTE,
