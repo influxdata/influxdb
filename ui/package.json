@@ -18,7 +18,7 @@
     "lint": "esw src/",
     "test": "jest",
     "test:lint": "yarn run lint; yarn run test",
-    "test:dev": "jest --watch",
+    "test:watch": "jest --watch",
     "clean": "rm -rf ./build/*",
     "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix",
     "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check"
