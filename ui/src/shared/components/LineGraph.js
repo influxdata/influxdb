@@ -50,9 +50,11 @@ class LineGraph extends Component {
       resizeCoords,
       synchronizer,
       isRefreshing,
+      setResolution,
       isGraphFilled,
       showSingleStat,
       displayOptions,
+      staticLegend,
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
@@ -84,6 +86,13 @@ class LineGraph extends Component {
       ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
 
+    const containerStyle = {
+      width: 'calc(100% - 32px)',
+      height: 'calc(100% - 16px)',
+      position: 'absolute',
+      top: '8px',
+    }
+
     let prefix
     let suffix
 
@@ -101,18 +110,19 @@ class LineGraph extends Component {
           onZoom={onZoom}
           labels={labels}
           queries={queries}
+          options={options}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           resizeCoords={resizeCoords}
-          overrideLineColors={lineColors}
           dygraphSeries={dygraphSeries}
-          setResolution={this.props.setResolution}
-          containerStyle={{width: '100%', height: '100%'}}
+          setResolution={setResolution}
+          overrideLineColors={lineColors}
+          containerStyle={containerStyle}
+          staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
-          options={options}
         />
         {showSingleStat
           ? <SingleStat
@@ -147,6 +157,7 @@ LineGraph.defaultProps = {
   underlayCallback: () => {},
   isGraphFilled: true,
   overrideLineColors: null,
+  staticLegend: false,
 }
 
 LineGraph.propTypes = {
@@ -166,6 +177,7 @@ LineGraph.propTypes = {
   underlayCallback: func,
   isGraphFilled: bool,
   isBarGraph: bool,
+  staticLegend: bool,
   overrideLineColors: array,
   showSingleStat: bool,
   displayOptions: shape({

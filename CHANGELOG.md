@@ -1,6 +1,7 @@
 ## v1.4.2.0 [unreleased]
 ### Features
 1. [#2837] (https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
+1. [#2829] (https://github.com/influxdata/chronograf/pull/2829): Add an optional persistent legend which can toggle series visibility to dashboard cells
 ### UI Improvements
 1. [#2848](https://github.com/influxdata/chronograf/pull/2848): Add ability to set a prefix and suffix on Single Stat and Gauge cell types
 1. [#2831](https://github.com/influxdata/chronograf/pull/2831): Rename 'Create Alerts' page to 'Manage Tasks'; Redesign page to improve clarity of purpose

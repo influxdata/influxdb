@@ -3140,7 +3140,7 @@
         "rp": "autogen",
         "tempVars": [
           {
-            "tempVar": "$myfield",
+            "tempVar": ":myfield:",
             "values": [
               {
                 "type": "fieldKey",
@@ -3160,6 +3160,11 @@
         },
         "rp": {
           "type": "string"
+        },
+        "epoch": {
+          "description": "timestamp return format",
+          "type": "string",
+          "enum": ["h", "m", "s", "ms", "u", "ns"]
         },
         "tempVars": {
           "type": "array",

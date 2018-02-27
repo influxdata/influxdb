@@ -20,6 +20,8 @@ import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
+import * as annotationActions from 'shared/actions/annotations'
+
 import {
   showCellEditorOverlay,
   hideCellEditorOverlay,
@@ -36,6 +38,7 @@ const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
   upper: null,
   lower: 'now() - 15m',
+  seconds: 900,
   format: FORMAT_INFLUXQL,
 }
 
@@ -68,8 +71,14 @@ class DashboardPage extends Component {
       isUsingAuth,
       router,
       notify,
+      getAnnotationsAsync,
+      timeRange,
     } = this.props
 
+    getAnnotationsAsync(
+      source.links.annotations,
+      Date.now() - timeRange.seconds * 1000
+    )
     window.addEventListener('resize', this.handleWindowResize, true)
 
     const dashboards = await getDashboardsAsync()
@@ -136,13 +145,21 @@ class DashboardPage extends Component {
       .then(handleHideCellEditorOverlay)
   }
 
-  handleChooseTimeRange = ({upper, lower}) => {
-    const {dashboard, dashboardActions} = this.props
+  handleChooseTimeRange = timeRange => {
+    const {
+      dashboard,
+      dashboardActions,
+      getAnnotationsAsync,
+      source,
+    } = this.props
     dashboardActions.setDashTimeV1(dashboard.id, {
-      upper,
-      lower,
+      ...timeRange,
       format: FORMAT_INFLUXQL,
     })
+    getAnnotationsAsync(
+      source.links.annotations,
+      Date.now() - timeRange.seconds * 1000
+    )
   }
 
   handleUpdatePosition = cells => {
@@ -510,6 +527,7 @@ DashboardPage.propTypes = {
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
   notify: func.isRequired,
+  getAnnotationsAsync: func.isRequired,
   handleShowCellEditorOverlay: func.isRequired,
   handleHideCellEditorOverlay: func.isRequired,
   selectedCell: shape({}),
@@ -530,6 +548,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     auth: {me, isUsingAuth},
     cellEditorOverlay: {cell, singleStatType, singleStatColors, gaugeColors},
   } = state
+
   const meRole = _.get(me, 'role', null)
 
   const timeRange =
@@ -543,16 +562,16 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   const selectedCell = cell
 
   return {
-    dashboards,
-    autoRefresh,
-    dashboard,
-    timeRange,
-    showTemplateControlBar,
-    inPresentationMode,
-    cellQueryStatus,
     sources,
     meRole,
+    dashboard,
+    timeRange,
+    dashboards,
+    autoRefresh,
     isUsingAuth,
+    cellQueryStatus,
+    inPresentationMode,
+    showTemplateControlBar,
     selectedCell,
     singleStatType,
     singleStatColors,
@@ -570,6 +589,10 @@ const mapDispatchToProps = dispatch => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(publishNotification, dispatch),
+  getAnnotationsAsync: bindActionCreators(
+    annotationActions.getAnnotationsAsync,
+    dispatch
+  ),
   handleShowCellEditorOverlay: bindActionCreators(
     showCellEditorOverlay,
     dispatch
