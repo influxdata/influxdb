@@ -90,7 +90,6 @@ class AnnotationSpan extends React.Component {
 
   renderLeftMarker(startTime, dygraph) {
     const isEditing = this.props.mode === EDITING
-    const humanTime = `${new Date(+startTime)}`
     const {isDragging, isMouseOver} = this.state
     const {annotation} = this.props
 
@@ -111,12 +110,7 @@ class AnnotationSpan extends React.Component {
     const left = dygraph.toDomXCoord(startTime) + 16
 
     return (
-      <div
-        className={markerClass}
-        style={{left: `${left}px`}}
-        data-time-ms={startTime}
-        data-time-local={humanTime}
-      >
+      <div className={markerClass} style={{left: `${left}px`}}>
         {showTooltip &&
           <AnnotationTooltip
             isEditing={isEditing}
