@@ -126,6 +126,7 @@
     "react-router-redux": "^4.0.8",
     "react-sparklines": "^1.4.2",
     "react-tooltip": "^3.2.1",
+    "react-virtualized": "^9.18.5",
     "redux": "^3.3.1",
     "redux-auth-wrapper": "^1.0.0",
     "redux-thunk": "^1.0.3",
