@@ -53,6 +53,7 @@ v1.5.0 [unreleased]
 -	[#9443](https://github.com/influxdata/influxdb/pull/9443): Fix regression when math between literals is used in a field.
 -	[#9464](https://github.com/influxdata/influxdb/pull/9464): Re-open last WAL segment.
 -	[#9470](https://github.com/influxdata/influxdb/pull/9470): Make closing TSM cursors idempotent.
+-	[#9489](https://github.com/influxdata/influxdb/pull/9489): Add dumptsi path error handling..
 
 v1.4.3 [unreleased]
 -------------------
