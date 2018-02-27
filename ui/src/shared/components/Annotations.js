@@ -15,7 +15,7 @@ import {
   mouseEnterTempAnnotation,
   mouseLeaveTempAnnotation,
 } from 'src/shared/actions/annotations'
-import {getAnnotations} from 'src/shared/annotations/helpers'
+import {visibleAnnotations} from 'src/shared/annotations/helpers'
 
 class Annotations extends Component {
   state = {
@@ -39,9 +39,10 @@ class Annotations extends Component {
       handleMouseLeaveTempAnnotation,
     } = this.props
 
-    const annotations = getAnnotations(dygraph, this.props.annotations).filter(
-      a => a.id !== TEMP_ANNOTATION.id
-    )
+    const annotations = visibleAnnotations(
+      dygraph,
+      this.props.annotations
+    ).filter(a => a.id !== TEMP_ANNOTATION.id)
     const tempAnnotation = this.props.annotations.find(
       a => a.id === TEMP_ANNOTATION.id
     )

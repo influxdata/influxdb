@@ -1,4 +1,4 @@
-import {getAnnotations} from 'shared/annotations/helpers'
+import {visibleAnnotations} from 'shared/annotations/helpers'
 import Dygraph from 'src/external/dygraph'
 
 const start = 1515628800000
@@ -38,16 +38,16 @@ const a2 = {
 const annotations = [a1]
 
 describe('Shared.Annotations.Helpers', () => {
-  describe('getAnnotations', () => {
+  describe('visibleAnnotations', () => {
     it('returns an empty array with no graph or annotations are provided', () => {
-      const actual = getAnnotations(undefined, annotations)
+      const actual = visibleAnnotations(undefined, annotations)
       const expected = []
 
       expect(actual).to.deep.equal(expected)
     })
 
     it('returns an annotation if it is in the time range', () => {
-      const actual = getAnnotations(graph, annotations)
+      const actual = visibleAnnotations(graph, annotations)
       const expected = annotations
 
       expect(actual).to.deep.equal(expected)
@@ -62,7 +62,7 @@ describe('Shared.Annotations.Helpers', () => {
       }
 
       const newAnnos = [...annotations, outOfBounds]
-      const actual = getAnnotations(graph, newAnnos)
+      const actual = visibleAnnotations(graph, newAnnos)
       const expected = annotations
 
       expect(actual).to.deep.equal(expected)
@@ -71,7 +71,7 @@ describe('Shared.Annotations.Helpers', () => {
     describe('with a duration', () => {
       it('it adds an annotation', () => {
         const withDurations = [...annotations, a2]
-        const actual = getAnnotations(graph, withDurations)
+        const actual = visibleAnnotations(graph, withDurations)
         const expectedAnnotation = {
           ...a2,
           time: `${Number(a2.time) + Number(a2.duration)}`,
@@ -93,7 +93,7 @@ describe('Shared.Annotations.Helpers', () => {
           annotationWithOutOfBoundsDuration,
         ]
 
-        const actual = getAnnotations(graph, withDurations)
+        const actual = visibleAnnotations(graph, withDurations)
         const expected = withDurations
 
         expect(actual).to.deep.equal(expected)
