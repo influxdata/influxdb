@@ -19,6 +19,7 @@ const Annotation = ({
           annotation={annotation}
           mode={mode}
           dygraph={dygraph}
+          staticLegendHeight={staticLegendHeight}
         />
       : <AnnotationSpan
           lastUpdated={lastUpdated}

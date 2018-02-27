@@ -1,7 +1,11 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 
-import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
+import {
+  DYGRAPH_CONTAINER_H_MARGIN,
+  DYGRAPH_CONTAINER_V_MARGIN,
+  DYGRAPH_CONTAINER_XLABEL_MARGIN,
+} from 'shared/constants'
 import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
@@ -85,7 +89,7 @@ class AnnotationPoint extends React.Component {
   }
 
   render() {
-    const {annotation, mode, dygraph} = this.props
+    const {annotation, mode, dygraph, staticLegendHeight} = this.props
     const {isDragging} = this.state
 
     const isEditing = mode === EDITING
@@ -100,11 +104,16 @@ class AnnotationPoint extends React.Component {
       ? 'annotation--click-area editing'
       : 'annotation--click-area'
 
-    const left = `${dygraph.toDomXCoord(annotation.startTime) +
-      DYGRAPH_CONTAINER_MARGIN}px`
+    const markerStyles = {
+      left: `${dygraph.toDomXCoord(annotation.startTime) +
+        DYGRAPH_CONTAINER_H_MARGIN}px`,
+      height: `calc(100% - ${staticLegendHeight +
+        DYGRAPH_CONTAINER_XLABEL_MARGIN +
+        DYGRAPH_CONTAINER_V_MARGIN * 2}px)`,
+    }
 
     return (
-      <div className={markerClass} style={{left}}>
+      <div className={markerClass} style={markerStyles}>
         <div
           className={clickClass}
           draggable={true}
@@ -127,12 +136,19 @@ class AnnotationPoint extends React.Component {
   }
 }
 
+const {func, number, shape, string} = PropTypes
+
+AnnotationPoint.defaultProps = {
+  staticLegendHeight: 0,
+}
+
 AnnotationPoint.propTypes = {
   annotation: schema.annotation.isRequired,
-  mode: PropTypes.string.isRequired,
-  dygraph: PropTypes.shape({}).isRequired,
-  updateAnnotation: PropTypes.func.isRequired,
-  updateAnnotationAsync: PropTypes.func.isRequired,
+  mode: string.isRequired,
+  dygraph: shape({}).isRequired,
+  updateAnnotation: func.isRequired,
+  updateAnnotationAsync: func.isRequired,
+  staticLegendHeight: number.isRequired,
 }
 
 const mdtp = {
