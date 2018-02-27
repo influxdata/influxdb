@@ -1,7 +1,11 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 
-import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
+import {
+  DYGRAPH_CONTAINER_H_MARGIN,
+  DYGRAPH_CONTAINER_V_MARGIN,
+  DYGRAPH_CONTAINER_XLABEL_MARGIN,
+} from 'shared/constants'
 import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
@@ -92,7 +96,7 @@ class AnnotationSpan extends React.Component {
   renderLeftMarker(startTime, dygraph) {
     const isEditing = this.props.mode === EDITING
     const {isDragging, isMouseOver} = this.state
-    const {annotation} = this.props
+    const {annotation, staticLegendHeight} = this.props
 
     const flagClass = isDragging
       ? 'annotation-span--left-flag dragging'
@@ -108,10 +112,15 @@ class AnnotationSpan extends React.Component {
     }
     const showTooltip = isDragging === 'left' || isMouseOver === 'left'
 
-    const left = dygraph.toDomXCoord(startTime) + DYGRAPH_CONTAINER_MARGIN
+    const markerStyles = {
+      left: `${dygraph.toDomXCoord(startTime) + DYGRAPH_CONTAINER_H_MARGIN}px`,
+      height: `calc(100% - ${staticLegendHeight +
+        DYGRAPH_CONTAINER_XLABEL_MARGIN +
+        DYGRAPH_CONTAINER_V_MARGIN * 2}px)`,
+    }
 
     return (
-      <div className={markerClass} style={{left: `${left}px`}}>
+      <div className={markerClass} style={markerStyles}>
         {showTooltip &&
           <AnnotationTooltip
             isEditing={isEditing}
@@ -136,9 +145,8 @@ class AnnotationSpan extends React.Component {
 
   renderRightMarker(endTime, dygraph) {
     const isEditing = this.props.mode === EDITING
-    const humanTime = `${new Date(+endTime)}`
     const {isDragging, isMouseOver} = this.state
-    const {annotation} = this.props
+    const {annotation, staticLegendHeight} = this.props
 
     const flagClass = isDragging
       ? 'annotation-span--right-flag dragging'
@@ -154,15 +162,15 @@ class AnnotationSpan extends React.Component {
     }
     const showTooltip = isDragging === 'right' || isMouseOver === 'right'
 
-    const left = `${dygraph.toDomXCoord(endTime) + DYGRAPH_CONTAINER_MARGIN}px`
+    const markerStyles = {
+      left: `${dygraph.toDomXCoord(endTime) + DYGRAPH_CONTAINER_H_MARGIN}px`,
+      height: `calc(100% - ${staticLegendHeight +
+        DYGRAPH_CONTAINER_XLABEL_MARGIN +
+        DYGRAPH_CONTAINER_V_MARGIN * 2}px)`,
+    }
 
     return (
-      <div
-        className={markerClass}
-        style={{left}}
-        data-time-ms={endTime}
-        data-time-local={humanTime}
-      >
+      <div className={markerClass} style={markerStyles}>
         {showTooltip &&
           <AnnotationTooltip
             isEditing={isEditing}
@@ -204,13 +212,19 @@ class AnnotationSpan extends React.Component {
   }
 }
 
+const {func, number, shape, string} = PropTypes
+
+AnnotationSpan.defaultProps = {
+  staticLegendHeight: 0,
+}
+
 AnnotationSpan.propTypes = {
   annotation: schema.annotation.isRequired,
-  mode: PropTypes.string.isRequired,
-  dygraph: PropTypes.shape({}).isRequired,
-  staticLegendHeight: PropTypes.number.isRequired,
-  updateAnnotationAsync: PropTypes.func.isRequired,
-  updateAnnotation: PropTypes.func.isRequired,
+  mode: string.isRequired,
+  dygraph: shape({}).isRequired,
+  staticLegendHeight: number.isRequired,
+  updateAnnotationAsync: func.isRequired,
+  updateAnnotation: func.isRequired,
 }
 
 const mdtp = {
