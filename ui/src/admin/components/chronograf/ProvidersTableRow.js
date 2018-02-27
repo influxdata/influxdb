@@ -109,6 +109,7 @@ class ProvidersTableRow extends Component {
               onCancel={this.handleDismissDeleteConfirmation}
               onConfirm={this.handleDeleteMap}
               onClickOutside={this.handleDismissDeleteConfirmation}
+              confirmHoverText="Delete"
             />
           : <button
               className="btn btn-sm btn-default btn-square"
