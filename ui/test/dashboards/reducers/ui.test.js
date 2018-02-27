@@ -89,7 +89,7 @@ describe('DataExplorer.Reducers.UI', () => {
     const actual = reducer(loadedState, deleteDashboardFailed(d2))
     const actualFirst = _.first(actual.dashboards)
 
-    expect(actual.dashboards).to.have.length(2)
+    expect(actual.dashboards.length).toBe(2)
     _.forOwn(d2, (v, k) => {
       expect(actualFirst[k]).toEqual(v)
     })

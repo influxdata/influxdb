@@ -1,6 +1,6 @@
 import reducer from 'src/data_explorer/reducers/queryConfigs'
 
-import defaultQueryConfig from 'src/utils/defaultQueryConfig'
+import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {
   fill,
   timeShift,
@@ -105,7 +105,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           })
         )
 
-        expect(newState[queryID].measurement).to.be.null
+        expect(newState[queryID].measurement).toBe(null)
         expect(newState[queryID].fields.length).toBe(0)
       })
     })

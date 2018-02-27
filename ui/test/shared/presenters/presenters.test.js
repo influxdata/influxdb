@@ -60,9 +60,10 @@ describe('Presenters', () => {
 
         it('each role has a name and a list of users (if they exist)', () => {
           const role = roles[0]
+          const expected = ['will@influxdb.com', 'roley@influxdb.com']
+
           expect(role.name).toBe('Marketing')
-          expect(role.users).to.contain('roley@influxdb.com')
-          expect(role.users).to.contain('will@influxdb.com')
+          expect(role.users).toEqual(expect.arrayContaining(expected))
         })
 
         it('transforms permissions into a list of objects and each permission has a list of resources', () => {
