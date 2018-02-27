@@ -6,10 +6,9 @@
 // Fonts
 @import 'fonts/fonts';
 
-// Base Theme
-@import 'theme/bootstrap';
-@import 'theme/bootstrap-theme';
+// Theme
 @import 'theme/reset';
+@import 'theme/bootstrap-theme';
 
 // Vendor
 @import 'external/react-grid-layout';
