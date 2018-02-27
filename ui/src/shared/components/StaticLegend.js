@@ -78,7 +78,6 @@ class StaticLegend extends Component {
     return (
       <div
         className="static-legend"
-        style={style}
         ref={s => {
           this.staticLegendRef = s
         }}
