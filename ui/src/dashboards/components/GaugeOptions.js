@@ -22,7 +22,7 @@ import {
 
 class GaugeOptions extends Component {
   handleAddThreshold = () => {
-    const {gaugeColors, handleUpdateGaugeColors} = this.props
+    const {gaugeColors, handleUpdateGaugeColors, onResetFocus} = this.props
     const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     if (sortedColors.length <= MAX_THRESHOLDS) {
@@ -47,16 +47,19 @@ class GaugeOptions extends Component {
       }
 
       handleUpdateGaugeColors([...gaugeColors, newThreshold])
+    } else {
+      onResetFocus()
     }
   }
 
   handleDeleteThreshold = threshold => () => {
-    const {handleUpdateGaugeColors} = this.props
+    const {handleUpdateGaugeColors, onResetFocus} = this.props
     const gaugeColors = this.props.gaugeColors.filter(
       color => color.id !== threshold.id
     )
 
     handleUpdateGaugeColors(gaugeColors)
+    onResetFocus()
   }
 
   handleChooseColor = threshold => chosenColor => {
@@ -217,6 +220,7 @@ GaugeOptions.propTypes = {
   handleUpdateGaugeColors: func.isRequired,
   handleUpdateAxes: func.isRequired,
   axes: shape({}).isRequired,
+  onResetFocus: func.isRequired,
 }
 
 const mapStateToProps = ({cellEditorOverlay: {gaugeColors, cell: {axes}}}) => ({
