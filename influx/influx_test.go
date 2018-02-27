@@ -405,7 +405,7 @@ func TestClient_write(t *testing.T) {
 	}
 	type args struct {
 		ctx   context.Context
-		point *chronograf.Point
+		point chronograf.Point
 	}
 	tests := []struct {
 		name    string
@@ -421,7 +421,7 @@ func TestClient_write(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				point: &chronograf.Point{
+				point: chronograf.Point{
 					Database:        "mydb",
 					RetentionPolicy: "myrp",
 					Measurement:     "mymeas",
@@ -440,7 +440,7 @@ func TestClient_write(t *testing.T) {
 			name: "point without fields",
 			args: args{
 				ctx:   context.Background(),
-				point: &chronograf.Point{},
+				point: chronograf.Point{},
 			},
 			wantErr: true,
 		},
@@ -451,7 +451,7 @@ func TestClient_write(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				point: &chronograf.Point{
+				point: chronograf.Point{
 					Database:        "mydb",
 					RetentionPolicy: "myrp",
 					Measurement:     "mymeas",
@@ -474,7 +474,7 @@ func TestClient_write(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				point: &chronograf.Point{
+				point: chronograf.Point{
 					Database:        "mydb",
 					RetentionPolicy: "myrp",
 					Measurement:     "mymeas",
@@ -497,7 +497,7 @@ func TestClient_write(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				point: &chronograf.Point{
+				point: chronograf.Point{
 					Database:        "mydb",
 					RetentionPolicy: "myrp",
 					Measurement:     "mymeas",
@@ -540,7 +540,7 @@ func TestClient_write(t *testing.T) {
 				InsecureSkipVerify: tt.fields.InsecureSkipVerify,
 				Logger:             tt.fields.Logger,
 			}
-			if err := c.Write(tt.args.ctx, tt.args.point); (err != nil) != tt.wantErr {
+			if err := c.Write(tt.args.ctx, []chronograf.Point{tt.args.point}); (err != nil) != tt.wantErr {
 				t.Errorf("Client.write() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

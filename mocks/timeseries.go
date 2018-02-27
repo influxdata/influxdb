@@ -15,7 +15,7 @@ type TimeSeries struct {
 	// Query retrieves time series data from the database.
 	QueryF func(context.Context, chronograf.Query) (chronograf.Response, error)
 	// Write records points into the TimeSeries
-	WriteF func(context.Context, *chronograf.Point) error
+	WriteF func(context.Context, []chronograf.Point) error
 	// UsersStore represents the user accounts within the TimeSeries database
 	UsersF func(context.Context) chronograf.UsersStore
 	// Permissions returns all valid names permissions in this database
@@ -40,8 +40,8 @@ func (t *TimeSeries) Query(ctx context.Context, query chronograf.Query) (chronog
 }
 
 // Write records a point into the time series
-func (t *TimeSeries) Write(ctx context.Context, point *chronograf.Point) error {
-	return t.WriteF(ctx, point)
+func (t *TimeSeries) Write(ctx context.Context, points []chronograf.Point) error {
+	return t.WriteF(ctx, points)
 }
 
 // Users represents the user accounts within the TimeSeries database

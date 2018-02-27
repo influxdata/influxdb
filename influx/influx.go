@@ -267,7 +267,16 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 }
 
 // Write POSTs line protocol to a database and retention policy
-func (c *Client) Write(ctx context.Context, point *chronograf.Point) error {
+func (c *Client) Write(ctx context.Context, points []chronograf.Point) error {
+	for _, point := range points {
+		if err := c.writePoint(ctx, &point); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) writePoint(ctx context.Context, point *chronograf.Point) error {
 	lp, err := toLineProtocol(point)
 	if err != nil {
 		return err

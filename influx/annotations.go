@@ -68,7 +68,9 @@ func (a *AnnotationStore) Add(ctx context.Context, anno *chronograf.Annotation) 
 	if err != nil {
 		return nil, err
 	}
-	return anno, a.client.Write(ctx, toPoint(anno, a.now()))
+	return anno, a.client.Write(ctx, []chronograf.Point{
+		toPoint(anno, a.now()),
+	})
 }
 
 // Delete removes the annotation from the store
@@ -77,7 +79,9 @@ func (a *AnnotationStore) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return a.client.Write(ctx, toDeletedPoint(cur, a.now()))
+	return a.client.Write(ctx, []chronograf.Point{
+		toDeletedPoint(cur, a.now()),
+	})
 }
 
 // Update replaces annotation; if the annotation's time is different, it
@@ -88,14 +92,16 @@ func (a *AnnotationStore) Update(ctx context.Context, anno *chronograf.Annotatio
 		return err
 	}
 
-	if err := a.client.Write(ctx, toPoint(anno, a.now())); err != nil {
+	if err := a.client.Write(ctx, []chronograf.Point{toPoint(anno, a.now())}); err != nil {
 		return err
 	}
 
 	// If the updated annotation has a different time, then, we must
 	// delete the previous annotation
 	if !cur.EndTime.Equal(anno.EndTime) {
-		return a.client.Write(ctx, toDeletedPoint(cur, a.now()))
+		return a.client.Write(ctx, []chronograf.Point{
+			toDeletedPoint(cur, a.now()),
+		})
 	}
 	return nil
 }
@@ -124,8 +130,8 @@ func (a *AnnotationStore) queryAnnotations(ctx context.Context, query string) ([
 	return results.Annotations()
 }
 
-func toPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
-	return &chronograf.Point{
+func toPoint(anno *chronograf.Annotation, now time.Time) chronograf.Point {
+	return chronograf.Point{
 		Database:        AnnotationsDB,
 		RetentionPolicy: DefaultRP,
 		Measurement:     DefaultMeasurement,
@@ -143,8 +149,8 @@ func toPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
 	}
 }
 
-func toDeletedPoint(anno *chronograf.Annotation, now time.Time) *chronograf.Point {
-	return &chronograf.Point{
+func toDeletedPoint(anno *chronograf.Annotation, now time.Time) chronograf.Point {
+	return chronograf.Point{
 		Database:        AnnotationsDB,
 		RetentionPolicy: DefaultRP,
 		Measurement:     DefaultMeasurement,

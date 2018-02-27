@@ -115,8 +115,8 @@ type TimeSeries interface {
 	Connect(context.Context, *Source) error
 	// Query retrieves time series data from the database.
 	Query(context.Context, Query) (Response, error)
-	// Write records a point into a series
-	Write(context.Context, *Point) error
+	// Write records points into a series
+	Write(context.Context, []Point) error
 	// UsersStore represents the user accounts within the TimeSeries database
 	Users(context.Context) UsersStore
 	// Permissions returns all valid names permissions in this database

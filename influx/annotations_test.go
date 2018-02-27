@@ -18,7 +18,7 @@ func Test_toPoint(t *testing.T) {
 		name string
 		anno *chronograf.Annotation
 		now  time.Time
-		want *chronograf.Point
+		want chronograf.Point
 	}{
 		0: {
 			name: "convert annotation to point w/o start and end times",
@@ -28,7 +28,7 @@ func Test_toPoint(t *testing.T) {
 				Type: "mytype",
 			},
 			now: time.Unix(0, 0),
-			want: &chronograf.Point{
+			want: chronograf.Point{
 				Database:        AnnotationsDB,
 				RetentionPolicy: DefaultRP,
 				Measurement:     DefaultMeasurement,
@@ -55,7 +55,7 @@ func Test_toPoint(t *testing.T) {
 				EndTime:   time.Unix(200, 0),
 			},
 			now: time.Unix(0, 0),
-			want: &chronograf.Point{
+			want: chronograf.Point{
 				Database:        AnnotationsDB,
 				RetentionPolicy: DefaultRP,
 				Measurement:     DefaultMeasurement,
@@ -87,7 +87,7 @@ func Test_toDeletedPoint(t *testing.T) {
 		name string
 		anno *chronograf.Annotation
 		now  time.Time
-		want *chronograf.Point
+		want chronograf.Point
 	}{
 		0: {
 			name: "convert annotation to point w/o start and end times",
@@ -96,7 +96,7 @@ func Test_toDeletedPoint(t *testing.T) {
 				EndTime: time.Unix(0, 0),
 			},
 			now: time.Unix(0, 0),
-			want: &chronograf.Point{
+			want: chronograf.Point{
 				Database:        AnnotationsDB,
 				RetentionPolicy: DefaultRP,
 				Measurement:     DefaultMeasurement,
@@ -489,7 +489,7 @@ func TestAnnotationStore_Update(t *testing.T) {
 					QueryF: func(context.Context, chronograf.Query) (chronograf.Response, error) {
 						return mocks.NewResponse(`[ { } ]`, nil), nil
 					},
-					WriteF: func(context.Context, *chronograf.Point) error {
+					WriteF: func(context.Context, []chronograf.Point) error {
 						return nil
 					},
 				},
@@ -544,7 +544,7 @@ func TestAnnotationStore_Update(t *testing.T) {
 							}
 						]`, nil), nil
 					},
-					WriteF: func(context.Context, *chronograf.Point) error {
+					WriteF: func(context.Context, []chronograf.Point) error {
 						return fmt.Errorf("error")
 					},
 				},
@@ -591,7 +591,7 @@ func TestAnnotationStore_Update(t *testing.T) {
 							}
 						]`, nil), nil
 					},
-					WriteF: func(context.Context, *chronograf.Point) error {
+					WriteF: func(context.Context, []chronograf.Point) error {
 						return nil
 					},
 				},
@@ -637,7 +637,7 @@ func TestAnnotationStore_Update(t *testing.T) {
 							}
 						]`, nil), nil
 					},
-					WriteF: func(context.Context, *chronograf.Point) error {
+					WriteF: func(context.Context, []chronograf.Point) error {
 						return nil
 					},
 				},
