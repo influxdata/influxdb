@@ -114,6 +114,7 @@
     "lodash": "^4.3.0",
     "moment": "^2.13.0",
     "nano-date": "^2.0.1",
+    "prop-types": "^15.6.1",
     "query-string": "^5.0.0",
     "react": "^15.0.2",
     "react-addons-shallow-compare": "^15.0.2",

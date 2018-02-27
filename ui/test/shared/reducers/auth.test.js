@@ -3,7 +3,6 @@ import {default as authReducer, initialState} from 'shared/reducers/auth'
 import {
   authExpired,
   authRequested,
-  authReceived,
   meGetRequested,
   meGetCompleted,
 } from 'shared/actions/auth'

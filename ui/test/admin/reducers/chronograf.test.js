@@ -1,14 +1,6 @@
 import reducer from 'src/admin/reducers/chronograf'
 
 import {loadUsers} from 'src/admin/actions/chronograf'
-
-import {
-  MEMBER_ROLE,
-  VIEWER_ROLE,
-  EDITOR_ROLE,
-  ADMIN_ROLE,
-} from 'src/auth/Authorized'
-
 let state
 
 const users = [
