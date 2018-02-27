@@ -249,6 +249,10 @@ class CellEditorOverlay extends Component {
     }
   }
 
+  handleResetFocus = () => {
+    this.overlayRef.focus()
+  }
+
   render() {
     const {
       onCancel,
@@ -313,6 +317,7 @@ class CellEditorOverlay extends Component {
                   queryConfigs={queriesWorkingDraft}
                   onToggleStaticLegend={this.handleToggleStaticLegend}
                   staticLegend={staticLegend}
+                  onResetFocus={this.handleResetFocus}
                 />
               : <QueryMaker
                   source={this.getSource()}

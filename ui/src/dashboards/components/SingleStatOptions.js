@@ -42,6 +42,7 @@ class SingleStatOptions extends Component {
       singleStatColors,
       singleStatType,
       handleUpdateSingleStatColors,
+      onResetFocus,
     } = this.props
 
     const randomColor = _.random(0, GAUGE_COLORS.length - 1)
@@ -67,16 +68,18 @@ class SingleStatOptions extends Component {
     }
 
     handleUpdateSingleStatColors([...singleStatColors, newThreshold])
+    onResetFocus()
   }
 
   handleDeleteThreshold = threshold => () => {
-    const {handleUpdateSingleStatColors} = this.props
+    const {handleUpdateSingleStatColors, onResetFocus} = this.props
 
     const singleStatColors = this.props.singleStatColors.filter(
       color => color.id !== threshold.id
     )
 
     handleUpdateSingleStatColors(singleStatColors)
+    onResetFocus()
   }
 
   handleChooseColor = threshold => chosenColor => {
@@ -242,6 +245,7 @@ SingleStatOptions.propTypes = {
   handleUpdateSingleStatColors: func.isRequired,
   handleUpdateAxes: func.isRequired,
   axes: shape({}).isRequired,
+  onResetFocus: func.isRequired,
 }
 
 const mapStateToProps = ({
