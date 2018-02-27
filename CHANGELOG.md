@@ -1,3 +1,9 @@
+## v1.3.10 [unreleased]
+
+### Bugfixes
+
+- [#9386](https://github.com/influxdata/influxdb/issues/9386): Fix stddev() call to report itself as always returning a float.
+
 ## v1.3.9 [2018-01-19]
 
 ### Bugfixes

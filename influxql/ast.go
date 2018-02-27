@@ -4689,7 +4689,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		return typ
 	case *Call:
 		switch expr.Name {
-		case "mean", "median", "integral":
+		case "mean", "median", "integral", "stddev":
 			return Float
 		case "count":
 			return Integer
