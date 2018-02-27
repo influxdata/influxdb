@@ -1,7 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import _ from 'lodash'
 
 import Annotation from 'src/shared/components/Annotation'
 import NewAnnotation from 'src/shared/components/NewAnnotation'
@@ -40,11 +39,12 @@ class Annotations extends Component {
       handleMouseLeaveTempAnnotation,
     } = this.props
 
-    const visibleAnnotations = getAnnotations(dygraph, this.props.annotations)
-    const [
-      [tempAnnotation],
-      [...annotations],
-    ] = _.partition(visibleAnnotations, ['id', TEMP_ANNOTATION.id])
+    const annotations = getAnnotations(dygraph, this.props.annotations).filter(
+      a => a.id !== TEMP_ANNOTATION.id
+    )
+    const tempAnnotation = this.props.annotations.find(
+      a => a.id === TEMP_ANNOTATION.id
+    )
 
     return (
       <div className="annotations-container">
