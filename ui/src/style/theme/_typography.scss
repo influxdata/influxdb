@@ -28,6 +28,9 @@ a:visited {
   &.link-warning {
     color: $ix-link-warning;
   }
+  &.link-info {
+    color: $ix-link-info;
+  }
 }
 a:hover,
 a:active {
@@ -42,6 +45,9 @@ a:active {
   }
   &.link-warning {
     color: $ix-link-warning-hover;
+  }
+  &.link-info {
+    color: $ix-link-info-hover;
   }
 }
 
@@ -227,4 +233,24 @@ mark {
 }
 br {
   @extend %no-user-select;
+}
+
+//  Colored Text Utilities
+//  ----------------------------------------------------------------------------
+span.text-color {
+  &-primary {
+    color: $c-pool;
+  }
+  &-success {
+    color: $c-rainforest;
+  }
+  &-warning {
+    color: $c-pineapple;
+  }
+  &-danger {
+    color: $c-curacao;
+  }
+  &-info {
+    color: $c-star;
+  }
 }
