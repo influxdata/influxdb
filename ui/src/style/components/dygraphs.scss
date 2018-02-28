@@ -93,6 +93,9 @@
     height: 100% !important;
   }
 }
+.dygraph > .single-stat {
+  z-index: 3;
+}
 .single-stat--value {
   position: absolute;
   top: 50%;
