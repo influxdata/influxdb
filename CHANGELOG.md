@@ -54,6 +54,7 @@ v1.5.0 [unreleased]
 -	[#9464](https://github.com/influxdata/influxdb/pull/9464): Re-open last WAL segment.
 -	[#9470](https://github.com/influxdata/influxdb/pull/9470): Make closing TSM cursors idempotent.
 -	[#9489](https://github.com/influxdata/influxdb/pull/9489): Add dumptsi path error handling..
+-	[#9493](https://github.com/influxdata/influxdb/pull/9493): Fix the implicit time range in a subquery.
 
 v1.4.3 [unreleased]
 -------------------
