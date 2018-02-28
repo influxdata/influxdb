@@ -878,5 +878,6 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 		opt:     opt,
 		ic:      shards,
 		columns: columns,
+		now:     c.Options.Now,
 	}, nil
 }
