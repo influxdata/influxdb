@@ -8,7 +8,10 @@ import uuid from 'node-uuid'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
 import ColorDropdown from 'shared/components/ColorDropdown'
-import Dropdown from 'shared/components/Dropdown'
+
+import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
+import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 
 import {
   GAUGE_COLORS,
@@ -32,6 +35,7 @@ const formatColor = color => {
 }
 
 class TableOptions extends Component {
+  state = {TimeAxis: 'VERTICAL', TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss'}
   handleToggleSingleStatType = newType => () => {
     const {handleUpdateSingleStatType} = this.props
 
@@ -139,11 +143,13 @@ class TableOptions extends Component {
       //   axes: {y: {prefix, suffix}},
     } = this.props
 
+    const {TimeFormat, TimeAxis} = this.state
+
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
 
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
-    const sortByOptions = ['hey', 'yo', 'what'].map(op => ({text: op}))
+    const tableSortByOptions = ['hey', 'yo', 'what'].map(op => ({text: op}))
 
     return (
       <FancyScrollbar
@@ -153,74 +159,18 @@ class TableOptions extends Component {
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Table Controls</h5>
           <div className="gauge-controls">
-            <label>Time Format</label>
-            <input
-              className="form-control input-sm"
-              placeholder="mm/dd/yyyy HH:mm:ss.ss"
-              defaultValue="mm/dd/yyyy HH:mm:ss.ss"
-              onChange={this.handleTimeFormatChange}
+            <GraphOptionsTimeFormat
+              TimeFormat={TimeFormat}
+              onTimeFormatChange={this.handleTimeFormatChange}
             />
-            <div className="form-group col-xs-6">
-              <label>Time Axis</label>
-              <ul className="nav nav-tablist nav-tablist-sm">
-                <li
-                  className={`${singleStatType === SINGLE_STAT_BG
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTimeAxis}
-                >
-                  Vertical
-                </li>
-                <li
-                  className={`${singleStatType === SINGLE_STAT_TEXT
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTimeAxis}
-                >
-                  Horizontal
-                </li>
-              </ul>
-            </div>
-            <div className="form-group col-xs-6">
-              <label>Sort By</label>
-              <Dropdown
-                items={sortByOptions}
-                selected="hey"
-                buttonColor="btn-primary"
-                buttonSize="btn-xs"
-                className="dropdown-stretch"
-                onChoose={this.handleChooseSortBy}
-              />
-            </div>
-            <div className="single-stat-controls">
-              <label>Text Wrapping</label>
-              <ul className="nav nav-tablist nav-tablist-sm">
-                <li
-                  className={`${singleStatType === SINGLE_STAT_BG
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTextWrapping}
-                >
-                  Truncate
-                </li>
-                <li
-                  className={`${singleStatType === SINGLE_STAT_TEXT
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTextWrapping}
-                >
-                  Wrap
-                </li>
-                <li
-                  className={`${singleStatType === SINGLE_STAT_BG
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTextWrapping}
-                >
-                  Single Line
-                </li>
-              </ul>
-            </div>
+            <GraphOptionsTimeAxis
+              TimeAxis={TimeAxis}
+              onToggleTimeAxis={this.handleToggleTimeAxis}
+            />
+            <GraphOptionsSortBy
+              sortByOptions={tableSortByOptions}
+              onChooseSortBy={this.handleChooseSortBy}
+            />
             <label>Customize Columns</label>
             <label>Thresholds</label>
             <button
