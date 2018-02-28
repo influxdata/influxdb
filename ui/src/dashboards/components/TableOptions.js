@@ -93,6 +93,14 @@ class TableOptions extends Component {
     handleUpdateSingleStatColors(singleStatColors)
   }
 
+  handleChooseSortBy = value => {}
+
+  handleTimeFormatChange = format => {}
+
+  handleToggleTimeAxis = axis => {}
+
+  handleToggleTextWrapping = wrapType => {}
+
   handleUpdateColorValue = (threshold, value) => {
     const {handleUpdateSingleStatColors} = this.props
 
@@ -135,6 +143,8 @@ class TableOptions extends Component {
 
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
+    const sortByOptions = ['hey', 'yo', 'what'].map(op => ({text: op}))
+
     return (
       <FancyScrollbar
         className="display-options--cell y-axis-controls"
@@ -148,8 +158,7 @@ class TableOptions extends Component {
               className="form-control input-sm"
               placeholder="mm/dd/yyyy HH:mm:ss.ss"
               defaultValue="mm/dd/yyyy HH:mm:ss.ss"
-              // TODO: handle change
-              // onChange={this.handleUpdatePrefix}
+              onChange={this.handleTimeFormatChange}
             />
             <div className="form-group col-xs-6">
               <label>Time Axis</label>
@@ -158,7 +167,7 @@ class TableOptions extends Component {
                   className={`${singleStatType === SINGLE_STAT_BG
                     ? 'active'
                     : ''}`}
-                  //   onClick={this.handleToggleSingleStatType(SINGLE_STAT_BG)}
+                  onClick={this.handleToggleTimeAxis}
                 >
                   Vertical
                 </li>
@@ -166,19 +175,31 @@ class TableOptions extends Component {
                   className={`${singleStatType === SINGLE_STAT_TEXT
                     ? 'active'
                     : ''}`}
-                  //   onClick={this.handleToggleSingleStatType(SINGLE_STAT_TEXT)}
+                  onClick={this.handleToggleTimeAxis}
                 >
                   Horizontal
                 </li>
               </ul>
-
+            </div>
+            <div className="form-group col-xs-6">
+              <label>Sort By</label>
+              <Dropdown
+                items={sortByOptions}
+                selected="hey"
+                buttonColor="btn-primary"
+                buttonSize="btn-xs"
+                className="dropdown-stretch"
+                onChoose={this.handleChooseSortBy}
+              />
+            </div>
+            <div className="single-stat-controls">
               <label>Text Wrapping</label>
               <ul className="nav nav-tablist nav-tablist-sm">
                 <li
                   className={`${singleStatType === SINGLE_STAT_BG
                     ? 'active'
                     : ''}`}
-                  //   onClick={this.handleToggleSingleStatType(SINGLE_STAT_BG)}
+                  onClick={this.handleToggleTextWrapping}
                 >
                   Truncate
                 </li>
@@ -186,7 +207,7 @@ class TableOptions extends Component {
                   className={`${singleStatType === SINGLE_STAT_TEXT
                     ? 'active'
                     : ''}`}
-                  //   onClick={this.handleToggleSingleStatType(SINGLE_STAT_TEXT)}
+                  onClick={this.handleToggleTextWrapping}
                 >
                   Wrap
                 </li>
@@ -194,21 +215,13 @@ class TableOptions extends Component {
                   className={`${singleStatType === SINGLE_STAT_BG
                     ? 'active'
                     : ''}`}
-                  //   onClick={this.handleToggleSingleStatType(SINGLE_STAT_BG)}
+                  onClick={this.handleToggleTextWrapping}
                 >
                   Single Line
                 </li>
               </ul>
             </div>
-            <label>Sort By</label>
-            <Dropdown
-              items={['hey', 'yo', 'what']}
-              selected="hey"
-              buttonColor="btn-primary"
-              buttonSize="btn-xs"
-              className="dropdown-stretch"
-            />
-
+            <label>Customize Columns</label>
             <label>Thresholds</label>
             <button
               className="btn btn-sm btn-primary gauge-controls--add-threshold"
@@ -239,8 +252,7 @@ class TableOptions extends Component {
                       onDeleteThreshold={this.handleDeleteThreshold}
                     />
             )}
-
-            <div className="form-group col-xs-6">
+            <div className="form-group col-xs">
               <label>Threshold Coloring</label>
               <ul className="nav nav-tablist nav-tablist-sm">
                 <li
