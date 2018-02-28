@@ -1,6 +1,10 @@
 import React, {PropTypes} from 'react'
 
-import {DYGRAPH_CONTAINER_MARGIN} from 'shared/constants'
+import {
+  DYGRAPH_CONTAINER_H_MARGIN,
+  DYGRAPH_CONTAINER_V_MARGIN,
+  DYGRAPH_CONTAINER_XLABEL_MARGIN,
+} from 'shared/constants'
 import * as schema from 'shared/schemas'
 
 const windowDimensions = (anno, dygraph, staticLegendHeight) => {
@@ -14,10 +18,12 @@ const windowDimensions = (anno, dygraph, staticLegendHeight) => {
   const windowWidth = Math.abs(windowEndXCoord - windowStartXCoord)
 
   const windowLeftXCoord =
-    Math.min(windowStartXCoord, windowEndXCoord) + DYGRAPH_CONTAINER_MARGIN
+    Math.min(windowStartXCoord, windowEndXCoord) + DYGRAPH_CONTAINER_H_MARGIN
 
   const height = staticLegendHeight
-    ? `calc(100% - ${staticLegendHeight + 36}px)`
+    ? `calc(100% - ${staticLegendHeight +
+        DYGRAPH_CONTAINER_XLABEL_MARGIN +
+        DYGRAPH_CONTAINER_V_MARGIN * 2}px)`
     : 'calc(100% - 36px)'
 
   return {

@@ -8,6 +8,8 @@ import AnnotationWindow from 'shared/components/AnnotationWindow'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 
+import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'shared/constants'
+
 class NewAnnotation extends Component {
   state = {
     isMouseOver: false,
@@ -123,6 +125,8 @@ class NewAnnotation extends Component {
 
     const crosshairOne = Math.max(-1000, dygraph.toDomXCoord(startTime))
     const crosshairTwo = dygraph.toDomXCoord(endTime)
+    const crosshairHeight = `calc(100% - ${staticLegendHeight +
+      DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
 
     const isDragging = startTime !== endTime
     const flagOneClass =
@@ -158,7 +162,7 @@ class NewAnnotation extends Component {
           {isDragging &&
             <div
               className="new-annotation--crosshair"
-              style={{left: crosshairTwo}}
+              style={{left: crosshairTwo, height: crosshairHeight}}
             >
               {isMouseOver &&
                 isDragging &&
@@ -167,7 +171,7 @@ class NewAnnotation extends Component {
             </div>}
           <div
             className="new-annotation--crosshair"
-            style={{left: crosshairOne}}
+            style={{left: crosshairOne, height: crosshairHeight}}
           >
             {isMouseOver &&
               !isDragging &&
