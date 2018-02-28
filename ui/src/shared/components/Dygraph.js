@@ -21,9 +21,9 @@ import {
   LABEL_WIDTH,
   CHAR_PIXELS,
   barPlotter,
-  hasherino,
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
+import {getIdealColors} from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
 
 class Dygraph extends Component {
@@ -51,7 +51,7 @@ class Dygraph extends Component {
       fillGraph,
       logscale: y.scale === LOG,
       colors: this.getLineColors(),
-      series: this.hashColorDygraphSeries(),
+      series: this.colorDygraphSeries(),
       unhighlightCallback: this.unhighlightCallback,
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
@@ -153,7 +153,7 @@ class Dygraph extends Component {
         },
       },
       colors: this.getLineColors(),
-      series: this.hashColorDygraphSeries(),
+      series: this.colorDygraphSeries(),
       plotter: isBarGraph ? barPlotter : null,
       drawCallback: this.annotationsRef.heartbeat,
     }
@@ -193,19 +193,21 @@ class Dygraph extends Component {
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
   }
 
-  hashColorDygraphSeries = () => {
+  colorDygraphSeries = () => {
     const {dygraphSeries} = this.props
-    const colors = this.getLineColors()
-    const hashColorDygraphSeries = {}
+    const numSeries = Object.keys(dygraphSeries).length
+    const colors = getIdealColors(numSeries)
+
+    const coloredDygraphSeries = {}
 
     for (const seriesName in dygraphSeries) {
       const series = dygraphSeries[seriesName]
-      const hashIndex = hasherino(seriesName, colors.length)
-      const color = colors[hashIndex]
-      hashColorDygraphSeries[seriesName] = {...series, color}
+      const color = colors[Object.keys(dygraphSeries).indexOf(seriesName)]
+
+      coloredDygraphSeries[seriesName] = {...series, color}
     }
 
-    return hashColorDygraphSeries
+    return coloredDygraphSeries
   }
 
   sync = () => {
