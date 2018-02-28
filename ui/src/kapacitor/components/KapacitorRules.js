@@ -54,51 +54,50 @@ const KapacitorRules = ({
 
   return (
     <PageContents source={source}>
-      <div className="panel-heading">
-        <h2 className="panel-title">
-          {builderHeader}
-        </h2>
-        <div className="u-flex u-ai-center u-jc-space-between">
-          <Link
-            to={`/sources/${source.id}/alert-rules/new`}
-            className="btn btn-sm btn-primary"
-            style={{marginRight: '4px'}}
-          >
-            <span className="icon plus" /> Build Alert Rule
-          </Link>
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">
+            {builderHeader}
+          </h2>
+          <div className="u-flex u-ai-center u-jc-space-between">
+            <Link
+              to={`/sources/${source.id}/alert-rules/new`}
+              className="btn btn-sm btn-primary"
+              style={{marginRight: '4px'}}
+            >
+              <span className="icon plus" /> Build Alert Rule
+            </Link>
+          </div>
+        </div>
+        <div className="panel-body">
+          <KapacitorRulesTable
+            source={source}
+            rules={builderRules}
+            onDelete={onDelete}
+            onChangeRuleStatus={onChangeRuleStatus}
+          />
         </div>
       </div>
-      <KapacitorRulesTable
-        source={source}
-        rules={builderRules}
-        onDelete={onDelete}
-        onChangeRuleStatus={onChangeRuleStatus}
-      />
-
-      <div className="row">
-        <div className="col-md-12">
-          <div className="panel">
-            <div className="panel-heading">
-              <h2 className="panel-title">
-                {scriptsHeader}
-              </h2>
-              <div className="u-flex u-ai-center u-jc-space-between">
-                <Link
-                  to={`/sources/${source.id}/tickscript/new`}
-                  className="btn btn-sm btn-success"
-                  style={{marginRight: '4px'}}
-                >
-                  <span className="icon plus" /> Write TICKscript
-                </Link>
-              </div>
-            </div>
-            <TasksTable
-              source={source}
-              tasks={rules}
-              onDelete={onDelete}
-              onChangeRuleStatus={onChangeRuleStatus}
-            />
-          </div>
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">
+            {scriptsHeader}
+          </h2>
+          <Link
+            to={`/sources/${source.id}/tickscript/new`}
+            className="btn btn-sm btn-success"
+            style={{marginRight: '4px'}}
+          >
+            <span className="icon plus" /> Write TICKscript
+          </Link>
+        </div>
+        <div className="panel-body">
+          <TasksTable
+            source={source}
+            tasks={rules}
+            onDelete={onDelete}
+            onChangeRuleStatus={onChangeRuleStatus}
+          />
         </div>
       </div>
     </PageContents>
@@ -125,9 +124,7 @@ const PageContents = ({children}) =>
       <div className="container-fluid">
         <div className="row">
           <div className="col-md-12">
-            <div className="panel">
-              {children}
-            </div>
+            {children}
           </div>
         </div>
       </div>

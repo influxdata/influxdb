@@ -9,6 +9,7 @@ $panel-gutter: 30px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  margin-bottom: $panel-gutter;
 }
 
 .panel-heading {
