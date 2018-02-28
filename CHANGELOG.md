@@ -1,5 +1,6 @@
 ## v1.4.2.0 [unreleased]
 ### Features
+1. [#2837](https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 1. [#2837] (https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 1. [#2829] (https://github.com/influxdata/chronograf/pull/2829): Add an optional persistent legend which can toggle series visibility to dashboard cells
 ### UI Improvements
@@ -13,6 +14,8 @@
 1. [#2851] (https://github.com/influxdata/chronograf/pull/2851): Maintain y axis labels in dashboard cells
 1. [#2819] (https://github.com/influxdata/chronograf/pull/2819): Deprecate --new-sources in CLI
 1. [#2886](https://github.com/influxdata/chronograf/pull/2886): Don't sort Single Stat & Gauge thresholds when editing threshold values
+1. [#2851](https://github.com/influxdata/chronograf/pull/2851): Maintain y axis labels in dashboard cells
+1. [#2819](https://github.com/influxdata/chronograf/pull/2819): Deprecate --new-sources in CLI
 
 ## v1.4.1.3 [2018-02-14]
 ### Bug Fixes

@@ -12,6 +12,10 @@ import (
 // SortTemplates the templates by size, then type, then value.
 func SortTemplates(ts []chronograf.TemplateVar) []chronograf.TemplateVar {
 	sort.Slice(ts, func(i, j int) bool {
+		if ts[i].Var == ":interval:" {
+			return false
+		}
+
 		if len(ts[i].Values) != len(ts[j].Values) {
 			return len(ts[i].Values) < len(ts[j].Values)
 		}
@@ -59,6 +63,20 @@ func RenderTemplate(query string, t chronograf.TemplateVar, now time.Time) (stri
 		tv[t.Values[i].Type] = t.Values[i].Value
 	}
 
+	if pts, ok := tv["points"]; ok {
+		points, err := strconv.ParseInt(pts, 0, 64)
+		if err != nil {
+			return "", err
+		}
+
+		dur, err := ParseTime(query, now)
+		if err != nil {
+			return "", err
+		}
+		interval := AutoInterval(points, dur)
+		return strings.Replace(query, t.Var, interval, -1), nil
+	}
+
 	if res, ok := tv["resolution"]; ok {
 		resolution, err := strconv.ParseInt(res, 0, 64)
 		if err != nil {
@@ -81,6 +99,22 @@ func RenderTemplate(query string, t chronograf.TemplateVar, now time.Time) (stri
 		return strings.Replace(query, t.Var, interval, -1), nil
 	}
 	return query, nil
+}
+
+func AutoInterval(points int64, duration time.Duration) string {
+	// The function is: ((total_seconds * millisecond_converstion) / group_by) = pixels / 3
+	// Number of points given the pixels
+	pixels := float64(points)
+	msPerPixel := float64(duration/time.Millisecond) / pixels
+	secPerPixel := float64(duration/time.Second) / pixels
+	if secPerPixel < 1.0 {
+		if msPerPixel < 1.0 {
+			msPerPixel = 1.0
+		}
+		return strconv.FormatInt(int64(msPerPixel), 10) + "ms"
+	}
+	// If groupby is more than 1 second round to the second
+	return strconv.FormatInt(int64(secPerPixel), 10) + "s"
 }
 
 // AutoGroupBy generates the time to group by in order to decimate the number of

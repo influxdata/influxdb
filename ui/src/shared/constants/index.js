@@ -430,6 +430,20 @@ export const DEFAULT_SOURCE = {
   metaUrl: '',
 }
 
+export const intervalValuesPoints = [
+  {value: '333', type: 'points', selected: true},
+]
+
+export const interval = {
+  id: 'interval',
+  type: 'autoGroupBy',
+  tempVar: ':interval:',
+  label: 'automatically determine the best group by time',
+  values: intervalValuesPoints,
+}
+
+export const TEMPLATES = [interval]
+
 export const IS_STATIC_LEGEND = legend =>
   _.get(legend, 'type', false) === 'static'
 
