@@ -1,6 +1,7 @@
 import React from 'react'
 import Dropdown from 'shared/components/Dropdown'
 import DropdownMenu from 'shared/components/DropdownMenu'
+import DropdownInput from 'shared/components/DropdownInput'
 
 import {shallow} from 'enzyme'
 const items = [{text: 'foo'}, {text: 'bar'}]
@@ -41,13 +42,56 @@ describe('Components.Shared.Dropdown', () => {
     })
 
     describe('user interactions', () => {
-      it('shows the menu when clicked', () => {
-        const {dropdown} = setup({items})
+      describe('opening the <DropdownMenu/>', () => {
+        it('shows the menu when clicked', () => {
+          const {dropdown} = setup({items})
 
-        dropdown.simulate('click')
+          dropdown.simulate('click')
 
-        const menu = dropdown.find(DropdownMenu)
-        expect(menu.exists()).toBe(true)
+          const menu = dropdown.find(DropdownMenu)
+          expect(dropdown.state().isOpen).toBe(true)
+          expect(menu.exists()).toBe(true)
+        })
+
+        it('hides the menu when clicked twice', () => {
+          const {dropdown} = setup({items})
+
+          // first click
+          dropdown.simulate('click')
+          // second click
+          dropdown.simulate('click')
+
+          const menu = dropdown.find(DropdownMenu)
+          expect(dropdown.state().isOpen).toBe(false)
+          expect(menu.exists()).toBe(false)
+        })
+      })
+
+      describe('the <DropdownInput/>', () => {
+        it('does not display the input by default', () => {
+          const {dropdown} = setup()
+          const input = dropdown.find(DropdownInput)
+
+          expect(input.exists()).toBe(false)
+        })
+
+        it('displays the input when provided useAutoCompelete is true', () => {
+          const {dropdown} = setup({items, useAutoComplete: true})
+          const input = dropdown.find(DropdownInput)
+
+          expect(input.exists()).toBe(false)
+        })
+      })
+    })
+
+    describe('instance methods', () => {
+      describe('applyFilter', () => {
+        it('filters the list by the searchTerm', () => {
+          const {dropdown} = setup({items, useAutoComplete: true})
+
+          dropdown.instance().applyFilter('fo')
+          expect(dropdown.state().filteredItems).toEqual([{text: 'foo'}])
+        })
       })
     })
   })
