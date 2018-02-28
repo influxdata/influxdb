@@ -86,6 +86,10 @@ export const GAUGE_COLORS = [
     hex: '#ffffff',
     name: 'white',
   },
+  {
+    hex: '#292933',
+    name: 'castle',
+  },
 ]
 
 export const DEFAULT_GAUGE_COLORS = [
@@ -111,6 +115,16 @@ export const DEFAULT_SINGLESTAT_COLORS = [
     hex: GAUGE_COLORS[11].hex,
     id: SINGLE_STAT_BASE,
     name: GAUGE_COLORS[11].name,
+    value: 0,
+  },
+]
+
+export const DEFAULT_TABLE_COLORS = [
+  {
+    type: SINGLE_STAT_BG,
+    hex: GAUGE_COLORS[18].hex,
+    id: SINGLE_STAT_BASE,
+    name: GAUGE_COLORS[18].name,
     value: 0,
   },
 ]
