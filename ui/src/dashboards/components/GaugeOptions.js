@@ -151,16 +151,11 @@ class GaugeOptions extends Component {
     handleUpdateGaugeColors(sortedColors)
   }
 
-  // componentDidMount = () => {
-  //   this.handleSortColors()
-  // }
-
   render() {
     const {gaugeColors, axes: {y: {prefix, suffix}}} = this.props
 
     const disableMaxColor = gaugeColors.length > MIN_THRESHOLDS
     const disableAddThreshold = gaugeColors.length > MAX_THRESHOLDS
-    // const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     return (
       <FancyScrollbar
