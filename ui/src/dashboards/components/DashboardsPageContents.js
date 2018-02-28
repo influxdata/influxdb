@@ -50,7 +50,7 @@ class DashboardsPageContents extends Component {
                   <h2 className="panel-title">
                     {tableHeader}
                   </h2>
-                  <div className="u-flex u-ai-center dashboards-page--actions">
+                  <div className="dashboards-page--actions">
                     <SearchBar
                       placeholder="Filter by Name..."
                       onSearch={this.filterDashboards}

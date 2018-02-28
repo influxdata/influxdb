@@ -263,17 +263,15 @@ class SearchBar extends Component {
 
   render() {
     return (
-      <div className="users__search-widget input-group">
+      <div className="search-widget" style={{width: '260px'}}>
         <input
           type="text"
-          className="form-control"
+          className="form-control input-sm"
           placeholder="Filter Alerts..."
           onChange={this.handleChange}
           value={this.state.searchTerm}
         />
-        <div className="input-group-addon">
-          <span className="icon search" />
-        </div>
+        <span className="icon search" />
       </div>
     )
   }
