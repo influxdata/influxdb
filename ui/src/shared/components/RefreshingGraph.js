@@ -6,6 +6,7 @@ import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
 import GaugeChart from 'shared/components/GaugeChart'
+import TableGraph from 'shared/components/TableGraph'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
@@ -80,19 +81,7 @@ const RefreshingGraph = ({
   }
 
   if (type === 'table') {
-    return (
-      <RefreshingSingleStat
-        colors={colors}
-        key={manualRefresh}
-        queries={[queries[0]]}
-        templates={templates}
-        autoRefresh={autoRefresh}
-        cellHeight={cellHeight}
-        prefix={prefix}
-        suffix={suffix}
-        inView={inView}
-      />
-    )
+    return <TableGraph cellHeight={cellHeight} />
   }
 
   const displayOptions = {
