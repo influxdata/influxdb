@@ -77,6 +77,21 @@ const RefreshingGraph = ({
     )
   }
 
+  if (type === 'table') {
+    return (
+      <RefreshingSingleStat
+        colors={colors}
+        key={manualRefresh}
+        queries={[queries[0]]}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        cellHeight={cellHeight}
+        prefix={prefix}
+        suffix={suffix}
+      />
+    )
+  }
+
   const displayOptions = {
     stepPlot: type === 'line-stepplot',
     stackedGraph: type === 'line-stacked',

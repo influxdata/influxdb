@@ -5,6 +5,7 @@ import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
 import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
+import TableOptions from 'src/dashboards/components/TableOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
 
@@ -41,6 +42,8 @@ class DisplayOptions extends Component {
         return <GaugeOptions />
       case 'single-stat':
         return <SingleStatOptions />
+      case 'table':
+        return <TableOptions />
       default:
         return (
           <AxesOptions
