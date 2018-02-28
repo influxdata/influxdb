@@ -84,7 +84,8 @@ $dropdown-purple-header: $c-potassium;
   }
 }
 
-// Positioning rules for elements inside a Dropdown Toggle
+//  Elements inside a Dropdown Toggle
+//  ----------------------------------------------------------------------------
 .dropdown > .dropdown-toggle {
   position: relative;
   text-align: left;
@@ -96,12 +97,30 @@ $dropdown-purple-header: $c-potassium;
     top: calc(50% + 1px);
     right: $form-md-padding;
     transform: translateY(-50%);
+    width: 11px;
+    height: 16px;
+
+    &:after {
+      content: "\e902";
+      font-family: 'icomoon' !important;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      color: inherit;
+      display: inline;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-55%);
+      font-size: 11px;
+    }
   }
+
   > .icon {
     display: inline-block;
     vertical-align: middle;
     margin-right: 6px;
   }
+
   .dropdown-selected {
     display: inline-block;
     flex: 1 0 0;
@@ -130,10 +149,8 @@ $dropdown-purple-header: $c-potassium;
   }
 }
 
-/*
-    AutoComplete Field
-    ----------------------------------------------------------------------------
-*/
+//  AutoComplete Field
+//  ----------------------------------------------------------------------------
 .dropdown-autocomplete {
   position: relative;
   padding: 0 !important;
@@ -177,10 +194,8 @@ $dropdown-purple-header: $c-potassium;
   @extend %no-user-select;
 }
 
-/*
-    Dropdown Menu
-    ----------------------------------------------------------------------------
-*/
+//  Dropdown Menu
+//  ----------------------------------------------------------------------------
 .dropdown .dropdown-menu {
   min-width: 100%;
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
