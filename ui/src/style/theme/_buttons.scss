@@ -130,6 +130,9 @@ a.btn {
   font-size: $form-lg-font;
 }
 
+.btn.btn-block {
+  width: 100%;
+}
 
 // Solid Button styles mixin
 // -----------------------------------------------------------------------------

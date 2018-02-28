@@ -4,6 +4,7 @@
 */
 
 .form-control {
+  width: 100%;
   border: 2px solid $g5-pepper;
   border-radius: $radius;
   color: $g15-platinum;
@@ -145,32 +146,6 @@ input.form-control {
   }
 }
 
-
-.panel form {
-  margin-left: -9px;
-  margin-right: -9px;
-  width: calc(100% + 18px);
-  display: inline-block;
-
-  .alert {
-    margin-bottom: 0px;
-  }
-  &.form-inline {
-    padding-top: 0;
-    margin-left: 0;
-    margin-right: 0;
-    width: 100%;
-  }
-  &.form-horizontal {
-    margin-left: 0;
-    margin-right: 0;
-    width: 100%;
-  }
-}
-.panel-body:first-child > form {
-  padding-top: 15px;
-}
-
 //  Form Add-Ons
 //  ----------------------------------------------------------------------------
 .input-group-addon {
@@ -208,6 +183,9 @@ input.form-control {
 //  ----------------------------------------------------------------------------
 .form-group {
   margin-bottom: 8px;
+}
+.form-group > .btn {
+  display: inline-block;
 }
 .form-group > label {
   font-size: 12px;
@@ -505,8 +483,4 @@ textarea.form-control {
     opacity: 1;
     transform: translate(-50%,-50%) scale(1,1);
   }
-}
-
-.form-group-submit {
-  margin-top: 30px;
 }
