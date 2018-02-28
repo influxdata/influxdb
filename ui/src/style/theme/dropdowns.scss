@@ -85,7 +85,7 @@ $dropdown-purple-header: $c-potassium;
 }
 
 // Positioning rules for elements inside a Dropdown Toggle
-.dropdown-toggle {
+.dropdown > .dropdown-toggle {
   position: relative;
   text-align: left;
   display: flex;
@@ -132,7 +132,7 @@ $dropdown-purple-header: $c-potassium;
 
 /*
     AutoComplete Field
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .dropdown-autocomplete {
   position: relative;
@@ -179,16 +179,26 @@ $dropdown-purple-header: $c-potassium;
 
 /*
     Dropdown Menu
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .dropdown .dropdown-menu {
   min-width: 100%;
-  box-shadow: 0 2px 5px 0.6px fadeout($g0-obsidian, 80%);
+  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
+  border-radius: 4px;
   padding: 0;
-  margin-top: 0;
+  margin: 0;
   border: 0;
   @include gradient-h($dropdown-default-dark,$dropdown-default-bg);
   overflow: hidden;
+  display: none;
+  position: absolute;
+  top: 100%;
+}
+.dropdown.open {
+  z-index: 9999;
+}
+.dropdown.open .dropdown-menu {
+  display: block;
 }
 // Dropdown Menu Item
 .dropdown-menu li.dropdown-item {
@@ -306,7 +316,7 @@ $dropdown-purple-header: $c-potassium;
 }
 /*
     Dropdown Menu (only js highlighting, works with autocomplete feature)
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .dropdown .dropdown-menu.dropdown-menu--no-highlight {
   li.dropdown-item:hover {
@@ -321,7 +331,7 @@ $dropdown-purple-header: $c-potassium;
 
 /*
     Multi-Select Dropdowns
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .multi-select--item,
 .multi-select--apply {
