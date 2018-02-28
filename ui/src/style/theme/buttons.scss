@@ -8,9 +8,12 @@ a.btn,
 div.btn,
 button.btn,
 input.btn {
+  display: block;
   text-decoration: none;
+  text-align: center;
   box-shadow: none;
   font-weight: 700;
+  font-family: $ix-text-font;
   border-style: solid;
   margin: 0;
   position: relative;
@@ -26,6 +29,7 @@ input.btn {
   height: $form-md-height;
   line-height: $form-md-height;
   font-size: $form-md-font;
+  @extend %no-user-select;
 
   // Icons
   > .icon {
