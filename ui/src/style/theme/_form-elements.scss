@@ -147,24 +147,6 @@ textarea.form-control {
   }
 }
 
-//  Static Elements
-//  ----------------------------------------------------------------------------
-.form-control-static {
-  min-height: $form-md-height;
-  padding: ($ix-marg-b - 1px) ($ix-marg-b + 1px);
-  border: $ix-border solid $g5-pepper;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-
-  label {
-    font-size: 14px;
-    margin: 0;
-    @extend %no-user-select;
-  }
-}
-
 //  Form Add-Ons
 //  ----------------------------------------------------------------------------
 .input-group-addon {
@@ -207,6 +189,7 @@ textarea.form-control {
   display: inline-block;
 }
 .form-group > label {
+  display: inline-block;
   font-size: 12px;
   font-weight: 600;
   color: $g11-sidewalk;
@@ -220,11 +203,29 @@ label.form-helper {
   @extend %no-user-select;
 }
 
+//  Static Elements
+//  ----------------------------------------------------------------------------
+.form-control-static {
+  min-height: $form-md-height;
+  padding: ($ix-marg-b - 1px) ($ix-marg-b + 1px);
+  border: $ix-border solid $g5-pepper;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  label {
+    font-weight: 500;
+    font-size: 14px;
+    @extend %no-user-select;
+  }
+}
+
 //  Checkboxes
 //  ----------------------------------------------------------------------------
-$form-control-checkbox: 16px;
-$form-control-checkdot: 6px;
-$form-control-checkbox-gap: 24px;
+$form-control-checkbox: 20px;
+$form-control-checkdot: 8px;
+$form-control-checkbox-gap: 30px;
 
 .form-control-static {
   input[type="checkbox"] {
@@ -243,6 +244,7 @@ $form-control-checkbox-gap: 24px;
 
     // Checkbox
     &:before {
+      box-sizing: border-box;
       content: '';
       display: block;
       position: absolute;
@@ -258,6 +260,7 @@ $form-control-checkbox-gap: 24px;
     }
     // Check Dot
     &:after {
+      box-sizing: border-box;
       content: '';
       display: block;
       position: absolute;
@@ -296,6 +299,11 @@ $form-control-checkbox-gap: 24px;
 .form-control-static {
   > .radio-item {
     width: 100%;
+    margin-bottom: 6px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
   }
   input[type="radio"] {
     position: relative;
@@ -313,6 +321,7 @@ $form-control-checkbox-gap: 24px;
 
     // Radio Circle
     &:before {
+      box-sizing: border-box;
       content: '';
       display: block;
       position: absolute;
@@ -328,6 +337,7 @@ $form-control-checkbox-gap: 24px;
     }
     // Radio Dot
     &:after {
+      box-sizing: border-box;
       content: '';
       display: block;
       position: absolute;

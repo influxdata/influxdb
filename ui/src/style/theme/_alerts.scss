@@ -9,6 +9,7 @@
   border-radius: $ix-radius;
   position: relative;
   padding: $ix-marg-c;
+  margin-bottom: $ix-marg-c;
   font-weight: 500;
   @extend %no-user-select;
 
