@@ -1302,7 +1302,7 @@ func TestEngine_LastModified(t *testing.T) {
 			// Artificial sleep added due to filesystems caching the mod time
 			// of files.  This prevents the WAL last modified time from being
 			// returned and newer than the filestore's mod time.
-			time.Sleep(400 * time.Millisecond)
+			time.Sleep(2 * time.Second) // Covers most filesystems.
 
 			if err := e.WriteSnapshot(); err != nil {
 				t.Fatalf("failed to snapshot: %s", err.Error())
