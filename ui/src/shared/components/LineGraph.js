@@ -93,13 +93,8 @@ class LineGraph extends Component {
       top: '8px',
     }
 
-    let prefix
-    let suffix
-
-    if (axes) {
-      prefix = axes.y.prefix
-      suffix = axes.y.suffix
-    }
+    const prefix = (axes && axes.y.prefix) || ''
+    const suffix = (axes && axes.y.suffix) || ''
 
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
