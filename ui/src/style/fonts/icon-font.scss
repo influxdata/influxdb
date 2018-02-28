@@ -1,0 +1,140 @@
+/*
+   Icon Font
+   -----------------------------------------------------------------------------
+   Created using a tool called IcoMoon
+   See more at http://icomoon.io
+*/
+
+@font-face {
+  font-family: 'icomoon';
+  src:    url('icomoon.eot');
+  src:    url('icomoon.eot') format('embedded-opentype'),
+      url('icomoon.woff2') format('woff2'),
+      url('icomoon.ttf') format('truetype'),
+      url('icomoon.woff') format('woff'),
+      url('icomoon.svg') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.icon {
+  font-family: 'icomoon' !important;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  // Better Font Rendering
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  &.annotate-plus:before {content: "\e952";}
+  &.annotate:before {content: "\e953";}
+  &.maximize:before {content: "\e91f";}
+  &.minimize:before {content: "\e920";}
+  &.download:before {content: "\e91d";}
+  &.eye:before {content: "\e91e";}
+  &.checkmark:before {content: "\e918";}
+  &.search:before {content: "\e916";}
+  &.duplicate:before {content: "\e917";}
+  &.remove:before {content: "\e909";}
+  &.plus:before {content: "\e90a";}
+  &.arrow-up:before {content: "\e90b";}
+  &.arrow-left:before {content: "\e90c";}
+  &.arrow-down:before {content: "\e910";}
+  &.arrow-right:before {content: "\e911";}
+  &.caret-left:before {content: "\e900";}
+  &.caret-up:before {content: "\e901";}
+  &.caret-down:before {content: "\e902";}
+  &.caret-right:before {content: "\e903";}
+  &.trash-outline:before {content: "\e904";}
+  &.trash:before {content: "\e905";}
+  &.wrench:before {content: "\e912";}
+  &.wrenches:before {content: "\e913";}
+  &.user:before {content: "\e94d";}
+  &.cog-thick:before {content: "\e906";}
+  &.cog:before {content: "\e907";}
+  &.cubo:before {content: "\e908";}
+  &.flag:before {content: "\e90d";}
+  &.graphline:before {content: "\e90e";}
+  &.dash-a:before {content: "\e922";}
+  &.dash-b:before {content: "\e923";}
+  &.dash-c:before {content: "\e924";}
+  &.dash-d:before {content: "\e925";}
+  &.dash-e:before {content: "\e926";}
+  &.dash-f:before {content: "\e927";}
+  &.dash-g:before {content: "\e928";}
+  &.dash-h:before {content: "\e929";}
+  &.dash-i:before {content: "\e92a";}
+  &.dash-j:before {content: "\e92b";}
+  &.access-key:before {content: "\e921";}
+  &.crown2:before {content: "\e94b";}
+  &.crown:before {content: "\e90f";}
+  &.server2:before {content: "\e94c";}
+  &.server:before {content: "\e914";}
+  &.cpu:before {content: "\e915";}
+  &.cubo-node:before {content: "\e919";}
+  &.cubo-uniform:before {content: "\e91a";}
+  &.user-outline:before {content: "\e91c";}
+  &.refresh:before {content: "\e949";}
+  &.pause:before {content: "\e94a";}
+  &.clock:before {content: "\e91b";}
+  &.triangle:before {content: "\e92c";}
+  &.square:before {content: "\e93e";}
+  &.diamond:before {content: "\e93f";}
+  &.octagon:before {content: "\e92d";}
+  &.circle:before {content: "\e940";}
+  &.cube:before {content: "\e92e";}
+  &.component-e:before {content: "\e92f";}
+  &.component-d:before {content: "\e930";}
+  &.component-c:before {content: "\e931";}
+  &.component-b:before {content: "\e932";}
+  &.component-a:before {content: "\e933";}
+  &.pulse-a:before {content: "\e934";}
+  &.pulse-b:before {content: "\e935";}
+  &.pulse-c:before {content: "\e936";}
+  &.pulse-d:before {content: "\e937";}
+  &.pulse-e:before {content: "\e938";}
+  &.brush:before {content: "\e939";}
+  &.keynote:before {content: "\e93a";}
+  &.polaroid:before {content: "\e93b";}
+  &.alpha-a:before {content: "\e93c";}
+  &.alpha-b:before {content: "\e93d";}
+  &.export:before {content: "\e941";}
+  &.expand-b:before {content: "\e942";}
+  &.expand-c:before {content: "\e943";}
+  &.expand-a:before {content: "\e944";}
+  &.undo:before {content: "\e945";}
+  &.redo:before {content: "\e946";}
+  &.heroku:before {content: "\e947";}
+  &.heroku-simple:before {content: "\e948";}
+  &.oauth:before {content: "\e94f";}
+  &.authzero:before {content: "\e951";}
+  &.shuffle:before {content: "\e94e";}
+  &.disks:before {content: "\e950";}
+  &.alert-triangle:before {content: "\f02d";}
+  &.comment:before {content: "\f02b";}
+  &.comment-discussion:before {content: "\f04f";}
+  &.heart:before {content: "\2665";}
+  &.link:before {content: "\f05c";}
+  &.location:before {content: "\f060";}
+  &.octoface:before {content: "\f008";}
+  &.pencil:before {content: "\f058";}
+  &.star:before {content: "\f02a";}
+  &.stop:before {content: "\f08f";}
+  &.sync:before {content: "\f087";}
+  &.zap:before {content: "\26a1";}
+  &.google:before {content: "\ea88";}
+  &.google3:before {content: "\ea8a";}
+  &.google-plus:before {content: "\ea8b";}
+  &.facebook:before {content: "\ea90";}
+  &.facebook2:before {content: "\ea91";}
+  &.twitter:before {content: "\ea96";}
+  &.github:before {content: "\eab0";}
+  &.trello:before {content: "\eab3";}
+  &.linkedin:before {content: "\eac9";}
+  &.linkedin2:before {content: "\eaca";}
+  &.stackoverflow:before {content: "\ead0";}
+}
