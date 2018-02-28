@@ -5,6 +5,7 @@ module.exports = {
       testPathIgnorePatterns: ['/build/'],
       modulePaths: ['<rootDir>', '<rootDir>/node_modules/'],
       moduleDirectories: ['src'],
+      setupFiles: ['<rootDir>/test/setupTests.js'],
     },
     {
       runner: 'jest-runner-eslint',

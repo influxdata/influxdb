@@ -1,5 +1,5 @@
 {
-  parser: 'babel-eslint',
+  "parser": "babel-eslint",
   plugins: [
     'react',
     'prettier',
@@ -13,6 +13,7 @@
   env: {
     browser: true,
     mocha: true,
+    "jest": true,
   node: true,
     es6: true,
   },
