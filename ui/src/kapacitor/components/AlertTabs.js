@@ -270,11 +270,9 @@ class AlertTabs extends Component {
       },
     }
     return (
-      <div>
-        <div className="panel">
-          <div className="panel-heading">
-            <h2 className="panel-title">Configure Alert Endpoints</h2>
-          </div>
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
 
         <Tabs
