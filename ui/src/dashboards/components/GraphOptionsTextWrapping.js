@@ -5,29 +5,26 @@ import {
   SINGLE_STAT_TEXT,
 } from 'src/dashboards/constants/gaugeColors'
 
-const GraphOptionsTextWrapping = ({
-  singleStatType,
-  handleToggleTextWrapping,
-}) => {
+const GraphOptionsTextWrapping = ({singleStatType, onToggleTextWrapping}) => {
   return (
     <div>
       <label>Text Wrapping</label>
       <ul className="nav nav-tablist nav-tablist-sm">
         <li
           className={`${singleStatType === SINGLE_STAT_BG ? 'active' : ''}`}
-          onClick={handleToggleTextWrapping}
+          onClick={onToggleTextWrapping}
         >
           Truncate
         </li>
         <li
           className={`${singleStatType === SINGLE_STAT_TEXT ? 'active' : ''}`}
-          onClick={handleToggleTextWrapping}
+          onClick={onToggleTextWrapping}
         >
           Wrap
         </li>
         <li
           className={`${singleStatType === SINGLE_STAT_BG ? 'active' : ''}`}
-          onClick={handleToggleTextWrapping}
+          onClick={onToggleTextWrapping}
         >
           Single Line
         </li>
@@ -38,8 +35,8 @@ const GraphOptionsTextWrapping = ({
 const {func, string} = PropTypes
 
 GraphOptionsTextWrapping.propTypes = {
-  singleStatType: string.isRequired,
-  handleToggleTextWrapping: func.isRequired,
+  singleStatType: string,
+  onToggleTextWrapping: func,
 }
 
 export default GraphOptionsTextWrapping

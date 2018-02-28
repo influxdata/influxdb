@@ -5,7 +5,7 @@ import InputClickToEdit from 'shared/components/InputClickToEdit'
 const GraphOptionsCustomizableColumn = ({
   originalColumnName,
   newColumnName,
-  handleColumnRename,
+  onColumnRename,
 }) => {
   return (
     <div className="gauge-controls--section">
@@ -15,7 +15,7 @@ const GraphOptionsCustomizableColumn = ({
       <InputClickToEdit
         value={newColumnName}
         wrapperClass="fancytable--td orgs-table--name"
-        onUpdate={handleColumnRename}
+        onUpdate={onColumnRename}
         placeholder="Rename..."
       />
     </div>
@@ -24,9 +24,9 @@ const GraphOptionsCustomizableColumn = ({
 const {func, string} = PropTypes
 
 GraphOptionsCustomizableColumn.propTypes = {
-  originalColumnName: string.isRequired,
-  newColumnName: string.isRequired,
-  handleColumnRename: func.isRequired,
+  originalColumnName: string,
+  newColumnName: string,
+  onColumnRename: func,
 }
 
 export default GraphOptionsCustomizableColumn

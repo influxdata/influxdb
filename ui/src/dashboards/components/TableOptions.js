@@ -6,19 +6,20 @@ import _ from 'lodash'
 import uuid from 'node-uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import Dropdown from 'shared/components/Dropdown'
 import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
 import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
+
+import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
+import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 
 import {
   GAUGE_COLORS,
   DEFAULT_VALUE_MIN,
   DEFAULT_VALUE_MAX,
   MAX_THRESHOLDS,
-  SINGLE_STAT_TEXT,
-  SINGLE_STAT_BG,
 } from 'src/dashboards/constants/gaugeColors'
 
 import {
@@ -33,6 +34,7 @@ const formatColor = color => {
 }
 
 class TableOptions extends Component {
+  state = {TimeAxis: 'VERTICAL', TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss'}
   handleToggleSingleStatType = newType => () => {
     const {handleUpdateSingleStatType} = this.props
 
@@ -94,15 +96,15 @@ class TableOptions extends Component {
     handleUpdateSingleStatColors(singleStatColors)
   }
 
-  handleChooseSortBy = value => {}
+  handleChooseSortBy = () => {}
 
-  handleTimeFormatChange = format => {}
+  handleTimeFormatChange = () => {}
 
-  handleToggleTimeAxis = axis => {}
+  handleToggleTimeAxis = () => {}
 
-  handleToggleTextWrapping = wrapType => {}
+  handleToggleTextWrapping = () => {}
 
-  handleColumnRename = newName => {}
+  handleColumnRename = () => {}
 
   handleUpdateColorValue = (threshold, value) => {
     const {handleUpdateSingleStatColors} = this.props
@@ -142,6 +144,8 @@ class TableOptions extends Component {
       //   axes: {y: {prefix, suffix}},
     } = this.props
 
+    const {TimeFormat, TimeAxis} = this.state
+
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
 
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
@@ -151,6 +155,7 @@ class TableOptions extends Component {
       name: col,
       newName: '',
     }))
+    const tableSortByOptions = ['hey', 'yo', 'what'].map(col => ({text: col}))
 
     return (
       <FancyScrollbar
@@ -160,65 +165,38 @@ class TableOptions extends Component {
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Table Controls</h5>
           <div className="gauge-controls">
-            <label>Time Format</label>
-            <input
-              className="form-control input-sm"
-              placeholder="mm/dd/yyyy HH:mm:ss.ss"
-              defaultValue="mm/dd/yyyy HH:mm:ss.ss"
-              onChange={this.handleTimeFormatChange}
+            <GraphOptionsTimeFormat
+              TimeFormat={TimeFormat}
+              onTimeFormatChange={this.handleTimeFormatChange}
             />
-            <div className="form-group col-xs-6">
-              <label>Time Axis</label>
-              <ul className="nav nav-tablist nav-tablist-sm">
-                <li
-                  className={`${singleStatType === SINGLE_STAT_BG
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTimeAxis}
-                >
-                  Vertical
-                </li>
-                <li
-                  className={`${singleStatType === SINGLE_STAT_TEXT
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTimeAxis}
-                >
-                  Horizontal
-                </li>
-              </ul>
-            </div>
-            <div className="form-group col-xs-6">
-              <label>Sort By</label>
-              <Dropdown
-                items={columns}
-                selected="hey"
-                buttonColor="btn-primary"
-                buttonSize="btn-xs"
-                className="dropdown-stretch"
-                onChoose={this.handleChooseSortBy}
-              />
-            </div>
+            <GraphOptionsTimeAxis
+              TimeAxis={TimeAxis}
+              onToggleTimeAxis={this.handleToggleTimeAxis}
+            />
+            <GraphOptionsSortBy
+              sortByOptions={tableSortByOptions}
+              onChooseSortBy={this.handleChooseSortBy}
+            />
             <GraphOptionsTextWrapping
               singleStatType={singleStatType}
-              handleToggleTextWrapping={this.handleToggleTextWrapping}
+              onToggleTextWrapping={this.handleToggleTextWrapping}
             />
             <GraphOptionsCustomizeColumns
               columns={columns}
-              handleColumnRename={this.handleColumnRename}
+              onColumnRename={this.handleColumnRename}
             />
             <GraphOptionsThresholds
-              handleAddThreshold={this.handleAddThreshold}
+              onAddThreshold={this.handleAddThreshold}
               disableAddThreshold={disableAddThreshold}
               sortedColors={sortedColors}
               formatColor={formatColor}
-              handleChooseColor={this.handleChooseColor}
-              handleValidateColorValue={this.handleValidateColorValue}
-              handleUpdateColorValue={this.handleUpdateColorValue}
-              handleDeleteThreshold={this.handleDeleteThreshold}
+              onChooseColor={this.handleChooseColor}
+              onValidateColorValue={this.handleValidateColorValue}
+              onUpdateColorValue={this.handleUpdateColorValue}
+              onDeleteThreshold={this.handleDeleteThreshold}
             />
             <GraphOptionsThresholdColoring
-              handleToggleSingleStatType={this.handleToggleSingleStatType}
+              onToggleSingleStatType={this.handleToggleSingleStatType}
               singleStatColors={singleStatType}
             />
           </div>

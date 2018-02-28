@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import GraphOptionsCustomizableColumn from 'src/dashboards/components/GraphOptionsCustomizableColumn'
 import uuid from 'node-uuid'
 
-const GraphOptionsCustomizeColumns = ({columns, handleColumnRename}) => {
+const GraphOptionsCustomizeColumns = ({columns, onColumnRename}) => {
   return (
     <div>
       <label>Customize Columns</label>
@@ -13,7 +13,7 @@ const GraphOptionsCustomizeColumns = ({columns, handleColumnRename}) => {
             key={uuid.v4()}
             originalColumnName={col.name}
             newColumnName={col.newName}
-            handleColumnRename={handleColumnRename}
+            onColumnRename={onColumnRename}
           />
         )
       })}
@@ -25,11 +25,11 @@ const {arrayOf, func, shape, string} = PropTypes
 GraphOptionsCustomizeColumns.propTypes = {
   columns: arrayOf(
     shape({
-      name: string.isRequired,
+      name: string,
       newName: string,
-    }).isRequired
-  ).isRequired,
-  handleColumnRename: func.isRequired,
+    })
+  ),
+  onColumnRename: func,
 }
 
 export default GraphOptionsCustomizeColumns

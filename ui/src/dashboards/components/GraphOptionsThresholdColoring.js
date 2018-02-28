@@ -6,7 +6,7 @@ import {
 } from 'src/dashboards/constants/gaugeColors'
 
 const GraphOptionsThresholdColoring = ({
-  handleToggleSingleStatType,
+  onToggleSingleStatType,
   singleStatType,
 }) => {
   return (
@@ -15,13 +15,13 @@ const GraphOptionsThresholdColoring = ({
       <ul className="nav nav-tablist nav-tablist-sm">
         <li
           className={`${singleStatType === SINGLE_STAT_BG ? 'active' : ''}`}
-          onClick={handleToggleSingleStatType(SINGLE_STAT_BG)}
+          onClick={onToggleSingleStatType(SINGLE_STAT_BG)}
         >
           Background
         </li>
         <li
           className={`${singleStatType === SINGLE_STAT_TEXT ? 'active' : ''}`}
-          onClick={handleToggleSingleStatType(SINGLE_STAT_TEXT)}
+          onClick={onToggleSingleStatType(SINGLE_STAT_TEXT)}
         >
           Text
         </li>
@@ -32,8 +32,8 @@ const GraphOptionsThresholdColoring = ({
 const {func, string} = PropTypes
 
 GraphOptionsThresholdColoring.propTypes = {
-  singleStatType: string.isRequired,
-  handleToggleSingleStatType: func.isRequired,
+  singleStatType: string,
+  onToggleSingleStatType: func,
 }
 
 export default GraphOptionsThresholdColoring

@@ -8,21 +8,21 @@ import {
 } from 'src/dashboards/constants/gaugeColors'
 
 const GraphOptionsThresholds = ({
-  handleAddThreshold,
+  onAddThreshold,
   disableAddThreshold,
   sortedColors,
   formatColor,
-  handleChooseColor,
-  handleValidateColorValue,
-  handleUpdateColorValue,
-  handleDeleteThreshold,
+  onChooseColor,
+  onValidateColorValue,
+  onUpdateColorValue,
+  onDeleteThreshold,
 }) => {
   return (
     <div>
       <label>Thresholds</label>
       <button
         className="btn btn-sm btn-primary gauge-controls--add-threshold"
-        onClick={handleAddThreshold}
+        onClick={onAddThreshold}
         disabled={disableAddThreshold}
       >
         <span className="icon plus" /> Add Threshold
@@ -35,7 +35,7 @@ const GraphOptionsThresholds = ({
                 <ColorDropdown
                   colors={GAUGE_COLORS}
                   selected={formatColor(color)}
-                  onChoose={handleChooseColor(color)}
+                  onChoose={onChooseColor(color)}
                   stretchToFit={true}
                 />
               </div>
@@ -43,10 +43,10 @@ const GraphOptionsThresholds = ({
                 visualizationType="single-stat"
                 threshold={color}
                 key={color.id}
-                onChooseColor={handleChooseColor}
-                onValidateColorValue={handleValidateColorValue}
-                onUpdateColorValue={handleUpdateColorValue}
-                onDeleteThreshold={handleDeleteThreshold}
+                onChooseColor={onChooseColor}
+                onValidateColorValue={onValidateColorValue}
+                onUpdateColorValue={onUpdateColorValue}
+                onDeleteThreshold={onDeleteThreshold}
               />
       )}
     </div>
@@ -55,22 +55,22 @@ const GraphOptionsThresholds = ({
 const {arrayOf, bool, func, shape, string, number} = PropTypes
 
 GraphOptionsThresholds.propTypes = {
-  handleAddThreshold: func.isRequired,
+  onAddThreshold: func,
   disableAddThreshold: bool,
   sortedColors: arrayOf(
     shape({
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      type: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ).isRequired,
-  formatColor: func.isRequired,
-  handleChooseColor: func.isRequired,
-  handleValidateColorValue: func.isRequired,
-  handleUpdateColorValue: func.isRequired,
-  handleDeleteThreshold: func.isRequired,
+      hex: string,
+      id: string,
+      name: string,
+      type: string,
+      value: number,
+    })
+  ),
+  formatColor: func,
+  onChooseColor: func,
+  onValidateColorValue: func,
+  onUpdateColorValue: func,
+  onDeleteThreshold: func,
 }
 
 export default GraphOptionsThresholds
