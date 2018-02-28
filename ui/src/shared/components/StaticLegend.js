@@ -65,13 +65,10 @@ class StaticLegend extends Component {
   }
 
   render() {
-    const {dygraph} = this.props
+    const {dygraphSeries} = this.props
     const {visibilities} = this.state
-
-    const labels = dygraph ? _.drop(dygraph.getLabels()) : []
-    const colors = dygraph
-      ? _.map(labels, l => dygraph.attributes_.series_[l].options.color)
-      : []
+    const labels = _.keys(dygraphSeries)
+    const colors = _.map(labels, l => dygraphSeries[l].color)
 
     const hoverEnabled = labels.length > 1
 
@@ -105,7 +102,7 @@ class StaticLegend extends Component {
 const {shape, func} = PropTypes
 
 StaticLegend.propTypes = {
-  sharedLegend: shape({}),
+  dygraphSeries: shape({}),
   dygraph: shape({}),
   handleReceiveStaticLegendHeight: func.isRequired,
 }
