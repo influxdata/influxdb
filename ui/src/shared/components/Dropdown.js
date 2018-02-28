@@ -58,6 +58,7 @@ export class Dropdown extends Component {
     if (e) {
       e.stopPropagation()
     }
+
     if (!this.state.isOpen) {
       this.setState({
         searchTerm: '',
@@ -65,6 +66,7 @@ export class Dropdown extends Component {
         highlightedItemIndex: null,
       })
     }
+
     this.setState({isOpen: !this.state.isOpen})
   }
 
@@ -97,17 +99,17 @@ export class Dropdown extends Component {
   }
 
   handleFilterChange = e => {
-    if (e.target.value === null || e.target.value === '') {
-      this.setState({
-        searchTerm: '',
-        filteredItems: this.props.items,
-        highlightedItemIndex: null,
-      })
-    } else {
-      this.setState({searchTerm: e.target.value}, () =>
+    if (e.target.value) {
+      return this.setState({searchTerm: e.target.value}, () =>
         this.applyFilter(this.state.searchTerm)
       )
     }
+
+    this.setState({
+      searchTerm: '',
+      filteredItems: this.props.items,
+      highlightedItemIndex: null,
+    })
   }
 
   applyFilter = searchTerm => {

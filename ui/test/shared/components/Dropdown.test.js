@@ -120,6 +120,36 @@ describe('Components.Shared.Dropdown', () => {
           expect(dropdown.state().isOpen).toBe(false)
         })
       })
+
+      describe('handleClick', () => {
+        it('fires the onClick prop', () => {
+          const onClick = jest.fn()
+          const {dropdown} = setup({onClick})
+          dropdown.instance().handleClick()
+
+          expect(onClick).toHaveBeenCalled()
+        })
+
+        it('toggles the isOpen', () => {
+          const {dropdown} = setup()
+
+          dropdown.instance().handleClick()
+          expect(dropdown.state().isOpen).toBe(true)
+
+          dropdown.instance().handleClick()
+          expect(dropdown.state().isOpen).toBe(false)
+        })
+
+        it('does nothing if disabled', () => {
+          const onClick = jest.fn()
+          const {dropdown} = setup({disabled: true, onClick})
+
+          dropdown.instance().handleClick()
+
+          expect(dropdown.state().isOpen).toBe(false)
+          expect(onClick).not.toHaveBeenCalled()
+        })
+      })
     })
   })
 })
