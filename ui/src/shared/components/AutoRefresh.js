@@ -10,7 +10,7 @@ const AutoRefresh = ComposedComponent => {
     constructor() {
       super()
       this.state = {
-        lastQuerySuccessful: false,
+        lastQuerySuccessful: true,
         timeSeries: [],
         resolution: null,
       }
@@ -28,6 +28,8 @@ const AutoRefresh = ComposedComponent => {
     }
 
     componentWillReceiveProps(nextProps) {
+      const inViewDidUpdate = this.props.inView !== nextProps.inView
+
       const queriesDidUpdate = this.queryDifference(
         this.props.queries,
         nextProps.queries
@@ -38,10 +40,15 @@ const AutoRefresh = ComposedComponent => {
         nextProps.templates
       )
 
-      const shouldRefetch = queriesDidUpdate || tempVarsDidUpdate
+      const shouldRefetch =
+        queriesDidUpdate || tempVarsDidUpdate || inViewDidUpdate
 
       if (shouldRefetch) {
-        this.executeQueries(nextProps.queries, nextProps.templates)
+        this.executeQueries(
+          nextProps.queries,
+          nextProps.templates,
+          nextProps.inView
+        )
       }
 
       if (this.props.autoRefresh !== nextProps.autoRefresh || shouldRefetch) {
@@ -49,7 +56,12 @@ const AutoRefresh = ComposedComponent => {
 
         if (nextProps.autoRefresh) {
           this.intervalID = setInterval(
-            () => this.executeQueries(nextProps.queries, nextProps.templates),
+            () =>
+              this.executeQueries(
+                nextProps.queries,
+                nextProps.templates,
+                nextProps.inView
+              ),
             nextProps.autoRefresh
           )
         }
@@ -65,10 +77,16 @@ const AutoRefresh = ComposedComponent => {
       )
     }
 
-    executeQueries = async (queries, templates = []) => {
+    executeQueries = async (
+      queries,
+      templates = [],
+      inView = this.props.inView
+    ) => {
       const {editQueryStatus, grabDataForDownload} = this.props
       const {resolution} = this.state
-
+      if (!inView) {
+        return
+      }
       if (!queries.length) {
         this.setState({timeSeries: []})
         return
@@ -156,7 +174,15 @@ const AutoRefresh = ComposedComponent => {
       const {timeSeries} = this.state
 
       if (this.state.isFetching && this.state.lastQuerySuccessful) {
-        return this.renderFetching(timeSeries)
+        return (
+          <ComposedComponent
+            {...this.props}
+            data={timeSeries}
+            setResolution={this.setResolution}
+            isFetchingInitially={false}
+            isRefreshing={true}
+          />
+        )
       }
 
       return (
@@ -164,23 +190,6 @@ const AutoRefresh = ComposedComponent => {
           {...this.props}
           data={timeSeries}
           setResolution={this.setResolution}
-        />
-      )
-    }
-
-    /**
-     * Graphs can potentially show mulitple kinds of spinners based on whether
-     * a graph is being fetched for the first time, or is being refreshed.
-     */
-    renderFetching = data => {
-      const isFirstFetch = !Object.keys(this.state.timeSeries).length
-      return (
-        <ComposedComponent
-          {...this.props}
-          data={data}
-          setResolution={this.setResolution}
-          isFetchingInitially={isFirstFetch}
-          isRefreshing={!isFirstFetch}
         />
       )
     }
@@ -212,6 +221,7 @@ const AutoRefresh = ComposedComponent => {
   wrapper.propTypes = {
     children: element,
     autoRefresh: number.isRequired,
+    inView: bool,
     templates: arrayOf(
       shape({
         type: string.isRequired,

@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 export const PERMISSIONS = {
   ViewAdmin: {
     description: 'Can view or edit admin screens',
@@ -413,6 +415,10 @@ export const PAGE_CONTAINER_MARGIN = 30 // TODO: get this dynamically to ensure 
 export const LAYOUT_MARGIN = 4
 export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
 
+export const DYGRAPH_CONTAINER_H_MARGIN = 16
+export const DYGRAPH_CONTAINER_V_MARGIN = 8
+export const DYGRAPH_CONTAINER_XLABEL_MARGIN = 20
+
 export const DEFAULT_SOURCE = {
   url: 'http://localhost:8086',
   name: 'Influx 1',
@@ -438,4 +444,18 @@ export const interval = {
 
 export const TEMPLATES = [interval]
 
+export const IS_STATIC_LEGEND = legend =>
+  _.get(legend, 'type', false) === 'static'
+
 export const linksLink = '/chronograf/v1'
+
+export const cellSupportsAnnotations = cellType => {
+  const supportedTypes = [
+    'line',
+    'bar',
+    'line-plus-single-stat',
+    'line-stacked',
+    'line-stepplot',
+  ]
+  return !!supportedTypes.find(type => type === cellType)
+}

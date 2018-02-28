@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
+// TimeRangeAsEpochNano extracs the min and max epoch times from the expression
 func TimeRangeAsEpochNano(expr influxql.Expr, now time.Time) (min, max int64, err error) {
 	tmin, tmax, err := influxql.TimeRange(expr)
 	if err != nil {
@@ -28,8 +29,10 @@ func TimeRangeAsEpochNano(expr influxql.Expr, now time.Time) (min, max int64, er
 	return
 }
 
+// WhereToken is used to parse the time expression from an influxql query
 const WhereToken = "WHERE"
 
+// ParseTime extracts the duration of the time range of the query
 func ParseTime(influxQL string, now time.Time) (time.Duration, error) {
 	start := strings.Index(strings.ToUpper(influxQL), WhereToken)
 	if start == -1 {

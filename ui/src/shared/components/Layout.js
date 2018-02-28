@@ -3,6 +3,7 @@ import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import {buildQueriesForLayouts} from 'utils/buildQueriesForLayouts'
+import {IS_STATIC_LEGEND} from 'src/shared/constants'
 
 import _ from 'lodash'
 
@@ -16,11 +17,8 @@ const getSource = (cell, source, sources, defaultSource) => {
 }
 
 class LayoutState extends Component {
-  constructor(props) {
-    super(props)
-    this.state = {
-      celldata: [],
-    }
+  state = {
+    celldata: [],
   }
 
   grabDataForDownload = celldata => {
@@ -28,11 +26,10 @@ class LayoutState extends Component {
   }
 
   render() {
-    const {celldata} = this.state
     return (
       <Layout
         {...this.props}
-        celldata={celldata}
+        {...this.state}
         grabDataForDownload={this.grabDataForDownload}
       />
     )
@@ -43,10 +40,11 @@ const Layout = (
   {
     host,
     cell,
-    cell: {h, axes, type, colors},
+    cell: {h, axes, type, colors, legend},
     source,
     sources,
     onZoom,
+    celldata,
     templates,
     timeRange,
     isEditable,
@@ -57,17 +55,17 @@ const Layout = (
     synchronizer,
     resizeCoords,
     onCancelEditCell,
+    onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
-    celldata,
   },
   {source: defaultSource}
 ) =>
   <LayoutCell
     cell={cell}
+    celldata={celldata}
     isEditable={isEditable}
     onEditCell={onEditCell}
-    celldata={celldata}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -76,16 +74,19 @@ const Layout = (
       ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
       : <RefreshingGraph
           colors={colors}
+          inView={cell.inView}
           axes={axes}
           type={type}
+          staticLegend={IS_STATIC_LEGEND(legend)}
           cellHeight={h}
           onZoom={onZoom}
           sources={sources}
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
-          manualRefresh={manualRefresh}
           synchronizer={synchronizer}
+          manualRefresh={manualRefresh}
+          onStopAddAnnotation={onStopAddAnnotation}
           grabDataForDownload={grabDataForDownload}
           resizeCoords={resizeCoords}
           queries={buildQueriesForLayouts(

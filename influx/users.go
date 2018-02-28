@@ -126,7 +126,7 @@ func (c *Client) All(ctx context.Context) ([]chronograf.User, error) {
 	return users, nil
 }
 
-// Number of users in Influx
+// Num is the number of users in DB
 func (c *Client) Num(ctx context.Context) (int, error) {
 	all, err := c.All(ctx)
 	if err != nil {

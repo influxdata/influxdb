@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// SortTemplates the templates by size, then type, then value.
 func SortTemplates(ts []chronograf.TemplateVar) []chronograf.TemplateVar {
 	sort.Slice(ts, func(i, j int) bool {
 		if ts[i].Var == ":interval:" {
@@ -116,6 +117,8 @@ func AutoInterval(points int64, duration time.Duration) string {
 	return strconv.FormatInt(int64(secPerPixel), 10) + "s"
 }
 
+// AutoGroupBy generates the time to group by in order to decimate the number of
+// points returned in a query
 func AutoGroupBy(resolution, pixelsPerPoint int64, duration time.Duration) string {
 	// The function is: ((total_seconds * millisecond_converstion) / group_by) = pixels / 3
 	// Number of points given the pixels

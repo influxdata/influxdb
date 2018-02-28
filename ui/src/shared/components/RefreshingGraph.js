@@ -13,21 +13,27 @@ const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 
 const RefreshingGraph = ({
   axes,
+  inView,
   type,
   colors,
   onZoom,
+  cellID,
   queries,
   templates,
   timeRange,
   cellHeight,
   autoRefresh,
   resizerTopHeight,
+  staticLegend,
   manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
   editQueryStatus,
   grabDataForDownload,
 }) => {
+  const prefix = (axes && axes.y.prefix) || ''
+  const suffix = (axes && axes.y.suffix) || ''
+
   if (!queries.length) {
     return (
       <div className="graph-empty">
@@ -39,7 +45,6 @@ const RefreshingGraph = ({
   }
 
   if (type === 'single-stat') {
-    const suffix = axes.y.suffix || ''
     return (
       <RefreshingSingleStat
         colors={colors}
@@ -48,7 +53,9 @@ const RefreshingGraph = ({
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+        prefix={prefix}
         suffix={suffix}
+        inView={inView}
       />
     )
   }
@@ -64,6 +71,10 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
+        cellID={cellID}
+        prefix={prefix}
+        suffix={suffix}
+        inView={inView}
       />
     )
   }
@@ -79,6 +90,7 @@ const RefreshingGraph = ({
       colors={colors}
       onZoom={onZoom}
       queries={queries}
+      inView={inView}
       key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
@@ -86,6 +98,7 @@ const RefreshingGraph = ({
       isBarGraph={type === 'bar'}
       synchronizer={synchronizer}
       resizeCoords={resizeCoords}
+      staticLegend={staticLegend}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
       grabDataForDownload={grabDataForDownload}
@@ -94,7 +107,7 @@ const RefreshingGraph = ({
   )
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 RefreshingGraph.propTypes = {
   timeRange: shape({
@@ -110,6 +123,7 @@ RefreshingGraph.propTypes = {
   axes: shape(),
   queries: arrayOf(shape()).isRequired,
   editQueryStatus: func,
+  staticLegend: bool,
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
@@ -122,10 +136,14 @@ RefreshingGraph.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  cellID: string,
+  inView: bool,
 }
 
 RefreshingGraph.defaultProps = {
   manualRefresh: 0,
+  staticLegend: false,
+  inView: true,
 }
 
 export default RefreshingGraph

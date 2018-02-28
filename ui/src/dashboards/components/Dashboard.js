@@ -23,9 +23,14 @@ const Dashboard = ({
   onSummonOverlayTechnologies,
   onSelectTemplate,
   showTemplateControlBar,
+  setScrollTop,
+  inView,
 }) => {
   const cells = dashboard.cells.map(cell => {
-    const dashboardCell = {...cell}
+    const dashboardCell = {
+      ...cell,
+      inView: inView(cell),
+    }
     dashboardCell.queries = dashboardCell.queries.map(q => ({
       ...q,
       database: q.db,
@@ -39,6 +44,7 @@ const Dashboard = ({
       className={classnames('page-contents', {
         'presentation-mode': inPresentationMode,
       })}
+      setScrollTop={setScrollTop}
     >
       <div className="dashboard container-fluid full-width">
         {inPresentationMode
@@ -119,6 +125,8 @@ Dashboard.propTypes = {
   onSelectTemplate: func.isRequired,
   showTemplateControlBar: bool,
   onZoom: func,
+  setScrollTop: func,
+  inView: func,
 }
 
 export default Dashboard
