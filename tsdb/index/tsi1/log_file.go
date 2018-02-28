@@ -618,7 +618,14 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		seriesKey = f.sfile.SeriesKey(e.SeriesID)
 	}
 
-	assert(seriesKey != nil, fmt.Sprintf("series key for ID: %d not found", e.SeriesID))
+	// Series keys can be removed if the series has been deleted from
+	// the entire database and the server is restarted. This would cause
+	// the log to replay its insert but the key cannot be found.
+	//
+	// https://github.com/influxdata/influxdb/issues/9444
+	if seriesKey == nil {
+		return
+	}
 
 	// Check if deleted.
 	deleted := e.Flag == LogEntrySeriesTombstoneFlag
