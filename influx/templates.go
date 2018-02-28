@@ -11,6 +11,10 @@ import (
 
 func SortTemplates(ts []chronograf.TemplateVar) []chronograf.TemplateVar {
 	sort.Slice(ts, func(i, j int) bool {
+		if ts[i].Var == ":interval:" {
+			return false
+		}
+
 		if len(ts[i].Values) != len(ts[j].Values) {
 			return len(ts[i].Values) < len(ts[j].Values)
 		}
