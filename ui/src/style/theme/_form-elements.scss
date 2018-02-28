@@ -97,10 +97,10 @@
 .form-control,
 textarea,
 input {
-  &::-webkit-input-placeholder { color: $g9-mountain; font-weight: 500 !important; font-style: italic;}
-  &::-moz-placeholder { color: $g9-mountain; font-weight: 500 !important; font-style: italic;}
-  &:-ms-input-placeholder { color: $g9-mountain; font-weight: 500 !important; font-style: italic;}
-  &:-moz-placeholder { color: $g9-mountain; font-weight: 500 !important; font-style: italic;}
+  &::-webkit-input-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
+  &::-moz-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
+  &:-ms-input-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
+  &:-moz-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
 }
 
 //  Size Modifiers
