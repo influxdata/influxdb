@@ -1625,7 +1625,7 @@ func (e *Engine) WriteSnapshot() error {
 	defer func() {
 		elapsed := time.Since(started)
 		e.Cache.UpdateCompactTime(elapsed)
-		e.logger.Info("Snapshot for path written",
+		log.Info("Snapshot for path written",
 			zap.String("path", e.path),
 			zap.Duration("duration", elapsed))
 		logEnd()
