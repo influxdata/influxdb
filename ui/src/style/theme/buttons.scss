@@ -4,8 +4,6 @@
 */
 
 .btn,
-a.btn,
-div.btn,
 button.btn,
 input.btn {
   display: block;
@@ -106,6 +104,9 @@ input.btn {
       width: $form-lg-height;
     }
   }
+}
+a.btn {
+  display: inline-block;
 }
 // Button Size Modifiers
 .btn-group-xs > .btn,
