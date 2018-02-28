@@ -142,8 +142,8 @@ pre.admin-table--query {
   margin-bottom: 8px;
 
   &:last-child {margin-bottom: 0;}
-  .db-manager-header--actions {display: none;}
-  &:hover .db-manager-header--actions {display: block;}
+  .db-manager-header--actions {visibility: hidden;}
+  &:hover .db-manager-header--actions {visibility: visible;}
 }
 .db-manager-header {
   padding: 0 11px;
@@ -162,6 +162,11 @@ pre.admin-table--query {
     padding-left: 6px;
     @include no-user-select();
   }
+}
+.db-manager-header--actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 .db-manager-header--edit {
   justify-content: flex-start;
