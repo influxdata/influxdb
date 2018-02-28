@@ -76,3 +76,17 @@ $panel-gutter: 30px;
 .panel > .table th:last-child {
   padding-right: $panel-gutter;
 }
+
+//  Solid Panels
+//  ----------------------------------------------------------------------------
+.panel.panel-solid {
+  background-color: $g3-castle;
+  border-radius: 4px;
+
+  .panel-heading {
+    padding: $panel-gutter;
+  }
+  .panel-body {
+    background-color: transparent;
+  }
+}
