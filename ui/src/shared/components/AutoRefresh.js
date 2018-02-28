@@ -111,7 +111,6 @@ const AutoRefresh = ComposedComponent => {
         const tempVars = removeUnselectedTemplateValues(
           templatesWithIntervalVals
         )
-        console.log(tempVars)
         return fetchTimeSeriesAsync(
           {
             source: host,
@@ -129,7 +128,6 @@ const AutoRefresh = ComposedComponent => {
         const timeSeries = await Promise.all(timeSeriesPromises)
         const newSeries = timeSeries.map(response => ({response}))
         const lastQuerySuccessful = this._resultsForQuery(newSeries)
-        console.log(newSeries)
 
         this.setState({
           timeSeries: newSeries,
