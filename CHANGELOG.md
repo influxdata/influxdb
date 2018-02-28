@@ -56,6 +56,7 @@ v1.5.0 [unreleased]
 -	[#9489](https://github.com/influxdata/influxdb/pull/9489): Add dumptsi path error handling..
 -	[#9493](https://github.com/influxdata/influxdb/pull/9493): Fix the implicit time range in a subquery.
 -	[#9491](https://github.com/influxdata/influxdb/pull/9491): Evaluate a true boolean literal when calculating tag sets.
+-	[#9496](https://github.com/influxdata/influxdb/pull/9496): Fix panic on tsi1 log replay of deleted series..
 
 v1.4.3 [unreleased]
 -------------------
