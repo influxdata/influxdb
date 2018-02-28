@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -135,7 +136,9 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	m.DropSeries(s1)
 
 	// This was deadlocking
-	m.TagSets(1, query.IteratorOptions{})
+	s := tsdb.NewSeriesIDSet()
+	s.Add(1)
+	m.TagSets(s, query.IteratorOptions{})
 	if got, exp := len(m.SeriesIDs()), 1; got != exp {
 		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
 	}
@@ -204,19 +207,22 @@ func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 
 func benchmarkTagSets(b *testing.B, n int, opt query.IteratorOptions) {
 	m := newMeasurement("foo", "m")
+	ss := tsdb.NewSeriesIDSet()
+
 	for i := 0; i < n; i++ {
 		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
 		s := newSeries(uint64(i), m, fmt.Sprintf("m,tag1=value1,tag2=value2"), models.NewTags(tags))
+		ss.Add(uint64(i))
 		m.AddSeries(s)
 	}
 
 	// warm caches
-	m.TagSets(0, opt)
+	m.TagSets(ss, opt)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.TagSets(0, opt)
+		m.TagSets(ss, opt)
 	}
 }
 
