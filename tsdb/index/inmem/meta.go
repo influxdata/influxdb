@@ -365,7 +365,7 @@ func (m *measurement) ForEachSeriesByExpr(condition influxql.Expr, fn func(tags 
 // This will also populate the TagSet objects with the series IDs that match each tagset and any
 // influx filter expression that goes with the series
 // TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
-func (m *measurement) TagSets(shardID uint64, opt query.IteratorOptions) ([]*query.TagSet, error) {
+func (m *measurement) TagSets(shardSeriesIDs *tsdb.SeriesIDSet, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	// get the unique set of series ids and the filters that should be applied to each
 	ids, filters, err := m.filters(opt.Condition)
 	if err != nil {
@@ -400,7 +400,7 @@ func (m *measurement) TagSets(shardID uint64, opt query.IteratorOptions) ([]*que
 		}
 
 		s := m.seriesByID[id]
-		if s == nil || s.Deleted() {
+		if s == nil || s.Deleted() || !shardSeriesIDs.Contains(id) {
 			continue
 		}
 
