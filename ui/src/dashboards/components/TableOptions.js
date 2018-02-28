@@ -6,16 +6,17 @@ import _ from 'lodash'
 import uuid from 'node-uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import Threshold from 'src/dashboards/components/Threshold'
-import ColorDropdown from 'shared/components/ColorDropdown'
 import Dropdown from 'shared/components/Dropdown'
+import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
+import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
+import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
+import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 
 import {
   GAUGE_COLORS,
   DEFAULT_VALUE_MIN,
   DEFAULT_VALUE_MAX,
   MAX_THRESHOLDS,
-  SINGLE_STAT_BASE,
   SINGLE_STAT_TEXT,
   SINGLE_STAT_BG,
 } from 'src/dashboards/constants/gaugeColors'
@@ -101,6 +102,8 @@ class TableOptions extends Component {
 
   handleToggleTextWrapping = wrapType => {}
 
+  handleColumnRename = newName => {}
+
   handleUpdateColorValue = (threshold, value) => {
     const {handleUpdateSingleStatColors} = this.props
 
@@ -143,7 +146,11 @@ class TableOptions extends Component {
 
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
-    const sortByOptions = ['hey', 'yo', 'what'].map(op => ({text: op}))
+    const columns = ['hey', 'yo', 'what'].map(col => ({
+      text: col,
+      name: col,
+      newName: '',
+    }))
 
     return (
       <FancyScrollbar
@@ -184,7 +191,7 @@ class TableOptions extends Component {
             <div className="form-group col-xs-6">
               <label>Sort By</label>
               <Dropdown
-                items={sortByOptions}
+                items={columns}
                 selected="hey"
                 buttonColor="btn-primary"
                 buttonSize="btn-xs"
@@ -192,87 +199,28 @@ class TableOptions extends Component {
                 onChoose={this.handleChooseSortBy}
               />
             </div>
-            <div className="single-stat-controls">
-              <label>Text Wrapping</label>
-              <ul className="nav nav-tablist nav-tablist-sm">
-                <li
-                  className={`${singleStatType === SINGLE_STAT_BG
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTextWrapping}
-                >
-                  Truncate
-                </li>
-                <li
-                  className={`${singleStatType === SINGLE_STAT_TEXT
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTextWrapping}
-                >
-                  Wrap
-                </li>
-                <li
-                  className={`${singleStatType === SINGLE_STAT_BG
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleTextWrapping}
-                >
-                  Single Line
-                </li>
-              </ul>
-            </div>
-            <label>Customize Columns</label>
-            <label>Thresholds</label>
-            <button
-              className="btn btn-sm btn-primary gauge-controls--add-threshold"
-              onClick={this.handleAddThreshold}
-              disabled={disableAddThreshold}
-            >
-              <span className="icon plus" /> Add Threshold
-            </button>
-            {sortedColors.map(
-              color =>
-                color.id === SINGLE_STAT_BASE
-                  ? <div className="gauge-controls--section" key={color.id}>
-                      <div className="gauge-controls--label">Base Color</div>
-                      <ColorDropdown
-                        colors={GAUGE_COLORS}
-                        selected={formatColor(color)}
-                        onChoose={this.handleChooseColor(color)}
-                        stretchToFit={true}
-                      />
-                    </div>
-                  : <Threshold
-                      visualizationType="single-stat"
-                      threshold={color}
-                      key={color.id}
-                      onChooseColor={this.handleChooseColor}
-                      onValidateColorValue={this.handleValidateColorValue}
-                      onUpdateColorValue={this.handleUpdateColorValue}
-                      onDeleteThreshold={this.handleDeleteThreshold}
-                    />
-            )}
-            <div className="form-group col-xs">
-              <label>Threshold Coloring</label>
-              <ul className="nav nav-tablist nav-tablist-sm">
-                <li
-                  className={`${singleStatType === SINGLE_STAT_BG
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleSingleStatType(SINGLE_STAT_BG)}
-                >
-                  Background
-                </li>
-                <li
-                  className={`${singleStatType === SINGLE_STAT_TEXT
-                    ? 'active'
-                    : ''}`}
-                  onClick={this.handleToggleSingleStatType(SINGLE_STAT_TEXT)}
-                >
-                  Text
-                </li>
-              </ul>
-            </div>
+            <GraphOptionsTextWrapping
+              singleStatType={singleStatType}
+              handleToggleTextWrapping={this.handleToggleTextWrapping}
+            />
+            <GraphOptionsCustomizeColumns
+              columns={columns}
+              handleColumnRename={this.handleColumnRename}
+            />
+            <GraphOptionsThresholds
+              handleAddThreshold={this.handleAddThreshold}
+              disableAddThreshold={disableAddThreshold}
+              sortedColors={sortedColors}
+              formatColor={formatColor}
+              handleChooseColor={this.handleChooseColor}
+              handleValidateColorValue={this.handleValidateColorValue}
+              handleUpdateColorValue={this.handleUpdateColorValue}
+              handleDeleteThreshold={this.handleDeleteThreshold}
+            />
+            <GraphOptionsThresholdColoring
+              handleToggleSingleStatType={this.handleToggleSingleStatType}
+              singleStatColors={singleStatType}
+            />
           </div>
         </div>
       </FancyScrollbar>
