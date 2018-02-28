@@ -78,14 +78,6 @@ $graph-gutter: 16px;
 .graph-name__untitled {
   font-style: italic;
 }
-.graph-title {
-  font-size: 14px;
-  color: $g13-mist;
-  font-weight: 600;
-  @include no-user-select();
-  transition:
-    color 0.25s ease;
-}
 .graph .table-container,
 .graph-container {
   top: $graph-gutter;
