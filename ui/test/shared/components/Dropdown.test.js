@@ -1,6 +1,9 @@
 import React from 'react'
-import Dropdown from 'shared/components/dropdown'
+import Dropdown from 'shared/components/Dropdown'
+import DropdownMenu from 'shared/components/DropdownMenu'
+
 import {shallow} from 'enzyme'
+const items = [{text: 'foo'}, {text: 'bar'}]
 
 const setup = (override = {}) => {
   const props = {
@@ -10,10 +13,12 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  const wrapper = shallow(<Dropdown {...props} />)
+  const dropdown = shallow(<Dropdown {...props} />).dive({
+    'data-test': 'dropdown-button',
+  })
 
   return {
-    wrapper,
+    dropdown,
     props,
   }
 }
@@ -21,36 +26,28 @@ const setup = (override = {}) => {
 describe('Components.Shared.Dropdown', () => {
   describe('rednering', () => {
     describe('initial render', () => {
-      it('renders the dropdown button', () => {
-        const {wrapper} = setup()
+      it('renders the dropdown menu button', () => {
+        const {dropdown} = setup()
 
-        const actual = wrapper.dive({'data-test': 'dropdown-button'})
-        expect(actual.length).toBe(1)
+        expect(dropdown.exists()).toBe(true)
       })
 
       it('does not show the list', () => {
-        const items = [{text: 'foo'}, {text: 'bar'}]
-        const {wrapper} = setup({items})
+        const {dropdown} = setup({items})
 
-        const dropdown = wrapper.dive({'data-test': 'dropdown-button'})
-        const list = dropdown.find({'data-test': 'dropdown-items'})
-        expect(list.length).toBe(0)
+        const menu = dropdown.find(DropdownMenu)
+        expect(menu.exists()).toBe(false)
       })
     })
 
     describe('user interactions', () => {
-      it('shows the list when clicked', () => {
-        const items = [{text: 'foo'}, {text: 'bar'}]
-        const {wrapper} = setup({items})
+      it('shows the menu when clicked', () => {
+        const {dropdown} = setup({items})
 
-        const dropdown = wrapper.dive({'data-test': 'dropdown-button'})
         dropdown.simulate('click')
 
-        const ul = dropdown.find({'data-test': 'dropdown-ul'})
-        expect(ul.length).toBe(1)
-
-        const list = ul.find({'data-test': 'dropdown-item'})
-        expect(list.length).toBe(items.length)
+        const menu = dropdown.find(DropdownMenu)
+        expect(menu.exists()).toBe(true)
       })
     })
   })

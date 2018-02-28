@@ -1,10 +1,10 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
-import {Link} from 'react-router'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
-import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
+import DropdownMenu, {DropdownMenuEmpty} from 'shared/components/DropdownMenu'
+import DropdownInput from 'shared/components/DropdownInput'
+import DropdownHead from 'shared/components/DropdownHead'
 
 export class Dropdown extends Component {
   constructor(props) {
@@ -123,111 +123,33 @@ export class Dropdown extends Component {
     })
   }
 
-  renderMenu() {
-    const {
-      actions,
-      addNew,
-      items,
-      menuWidth,
-      menuLabel,
-      menuClass,
-      useAutoComplete,
-      selected,
-    } = this.props
-    const {filteredItems, highlightedItemIndex} = this.state
-    const menuItems = useAutoComplete ? filteredItems : items
-
-    return (
-      <ul
-        className={classnames('dropdown-menu', {
-          'dropdown-menu--no-highlight': useAutoComplete,
-          [menuClass]: menuClass,
-        })}
-        style={{width: menuWidth}}
-        data-test="dropdown-ul"
-      >
-        <FancyScrollbar
-          autoHide={false}
-          autoHeight={true}
-          maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
-          data-test="scrollbar"
-        >
-          {menuLabel
-            ? <li className="dropdown-header">
-                {menuLabel}
-              </li>
-            : null}
-          {menuItems.map((item, i) => {
-            if (item.text === 'SEPARATOR') {
-              return <li key={i} className="dropdown-divider" />
-            }
-            return (
-              <li
-                className={classnames('dropdown-item', {
-                  highlight: i === highlightedItemIndex,
-                  active: item.text === selected,
-                })}
-                data-test="dropdown-item"
-                key={i}
-              >
-                <a
-                  href="#"
-                  onClick={this.handleSelection(item)}
-                  onMouseOver={this.handleHighlight(i)}
-                >
-                  {item.text}
-                </a>
-                {actions && actions.length
-                  ? <div className="dropdown-actions">
-                      {actions.map(action => {
-                        return (
-                          <button
-                            key={action.text}
-                            className="dropdown-action"
-                            onClick={this.handleAction(action, item)}
-                          >
-                            <span
-                              title={action.text}
-                              className={`icon ${action.icon}`}
-                            />
-                          </button>
-                        )
-                      })}
-                    </div>
-                  : null}
-              </li>
-            )
-          })}
-          {addNew
-            ? <li className="multi-select--apply">
-                <Link className="btn btn-xs btn-default" to={addNew.url}>
-                  {addNew.text}
-                </Link>
-              </li>
-            : null}
-        </FancyScrollbar>
-      </ul>
-    )
-  }
-
   render() {
     const {
       items,
+      addNew,
+      actions,
       selected,
+      disabled,
+      iconName,
       className,
       menuClass,
-      iconName,
+      menuWidth,
+      menuLabel,
       buttonSize,
       buttonColor,
       toggleStyle,
       useAutoComplete,
+<<<<<<< HEAD
       disabled,
       tabIndex,
+=======
+>>>>>>> Refactor Dropdown component and specs
     } = this.props
-    const {isOpen, searchTerm, filteredItems} = this.state
-    const menuItems = useAutoComplete ? filteredItems : items
 
+    const {isOpen, searchTerm, filteredItems, highlightedItemIndex} = this.state
+    const menuItems = useAutoComplete ? filteredItems : items
     const disabledClass = disabled ? 'disabled' : null
+
     return (
       <div
         onClick={this.handleClick}
@@ -237,49 +159,46 @@ export class Dropdown extends Component {
         })}
         tabIndex={tabIndex}
         ref={r => (this.dropdownRef = r)}
-        data-test="dropdown-button"
+        data-test="dropdown-toggle"
       >
         {useAutoComplete && isOpen
-          ? <div
-              className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor} ${disabledClass}`}
-              style={toggleStyle}
-            >
-              <input
-                ref="dropdownAutoComplete"
-                className="dropdown-autocomplete--input"
-                type="text"
-                autoFocus={true}
-                placeholder="Filter items..."
-                spellCheck={false}
-                onChange={this.handleFilterChange}
-                onKeyDown={this.handleFilterKeyPress}
-                value={searchTerm}
-              />
-              <span className="caret" />
-            </div>
-          : <div
-              className={`btn dropdown-toggle ${buttonSize} ${buttonColor} ${disabledClass}`}
-              style={toggleStyle}
-            >
-              {iconName
-                ? <span className={classnames('icon', {[iconName]: true})} />
-                : null}
-              <span className="dropdown-selected">
-                {selected}
-              </span>
-              <span className="caret" />
-            </div>}
-        {isOpen && menuItems.length ? this.renderMenu() : null}
-        {isOpen && !menuItems.length
-          ? <ul
-              className={classnames('dropdown-menu', {
-                'dropdown-menu--no-highlight': useAutoComplete,
-                [menuClass]: menuClass,
-              })}
-            >
-              <li className="dropdown-empty">No matching items</li>
-            </ul>
-          : null}
+          ? <DropdownInput
+              searchTerm={searchTerm}
+              buttonSize={buttonSize}
+              buttonColor={buttonColor}
+              toggleStyle={toggleStyle}
+              disabledClass={disabledClass}
+              onFilterChange={this.handleFilterChange}
+              onFilterKeyPress={this.handleFilterKeyPress}
+            />
+          : <DropdownHead
+              iconName={iconName}
+              selected={selected}
+              searchTerm={searchTerm}
+              buttonSize={buttonSize}
+              buttonColor={buttonColor}
+              toggleStyle={toggleStyle}
+              disabledClass={disabledClass}
+            />}
+        {isOpen && menuItems.length
+          ? <DropdownMenu
+              addNew={addNew}
+              actions={actions}
+              items={menuItems}
+              selected={selected}
+              menuClass={menuClass}
+              menuWidth={menuWidth}
+              menuLabel={menuLabel}
+              onAction={this.handleAction}
+              useAutoComplete={useAutoComplete}
+              onSelection={this.handleSelection}
+              onHighlight={this.handleHighlight}
+              highlightedItemIndex={highlightedItemIndex}
+            />
+          : <DropdownMenuEmpty
+              useAutoComplete={useAutoComplete}
+              menuClass={menuClass}
+            />}
       </div>
     )
   }
