@@ -93,6 +93,33 @@ describe('Components.Shared.Dropdown', () => {
           expect(dropdown.state().filteredItems).toEqual([{text: 'foo'}])
         })
       })
+
+      describe('handleFilterChange', () => {
+        it('resets filteredList and searchTerm if the filter is empty', () => {
+          const {dropdown} = setup({items, useAutoComplete: true})
+          const event = {target: {value: ''}}
+          dropdown.instance().applyFilter('fo')
+
+          // assert that the list is filtered
+          expect(dropdown.state().filteredItems).toEqual([{text: 'foo'}])
+
+          dropdown.instance().handleFilterChange(event)
+          const {filteredItems, searchTerm} = dropdown.state()
+
+          expect(filteredItems).toEqual(items)
+          expect(searchTerm).toEqual('')
+        })
+      })
+
+      describe('handleClickOutside', () => {
+        it('sets isOpen to false', () => {
+          const {dropdown} = setup()
+          dropdown.simulate('click')
+          dropdown.instance().handleClickOutside()
+
+          expect(dropdown.state().isOpen).toBe(false)
+        })
+      })
     })
   })
 })
