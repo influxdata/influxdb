@@ -127,12 +127,13 @@ class LayoutRenderer extends Component {
                     timeRange={timeRange}
                     isEditable={isEditable}
                     onEditCell={onEditCell}
-                    resizeCoords={resizeCoords}
                     autoRefresh={autoRefresh}
-                    manualRefresh={manualRefresh}
+                    resizeCoords={resizeCoords}
                     onDeleteCell={onDeleteCell}
                     synchronizer={synchronizer}
+                    manualRefresh={manualRefresh}
                     onCancelEditCell={onCancelEditCell}
+                    onStopAddAnnotation={this.handleStopAddAnnotation}
                     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
                   />
                 </Authorized>

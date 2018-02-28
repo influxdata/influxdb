@@ -126,6 +126,38 @@ func TestTemplateReplace(t *testing.T) {
 			want: `SELECT :field: FROM "cpu"`,
 		},
 		{
+			name:  "auto interval",
+			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(:interval:)`,
+			vars: []chronograf.TemplateVar{
+				{
+					Var: ":interval:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "333",
+							Type:  "points",
+						},
+					},
+				},
+			},
+			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(46702s)`,
+		},
+		{
+			name:  "auto interval",
+			query: `SELECT derivative(mean(usage_idle),:interval:) from "cpu" where time > now() - 4320h group by time(:interval:)`,
+			vars: []chronograf.TemplateVar{
+				{
+					Var: ":interval:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "333",
+							Type:  "points",
+						},
+					},
+				},
+			},
+			want: `SELECT derivative(mean(usage_idle),46702s) from "cpu" where time > now() - 4320h group by time(46702s)`,
+		},
+		{
 			name:  "auto group by",
 			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by :interval:`,
 			vars: []chronograf.TemplateVar{
@@ -133,7 +165,7 @@ func TestTemplateReplace(t *testing.T) {
 					Var: ":interval:",
 					Values: []chronograf.TemplateValue{
 						{
-							Value: "1000",
+							Value: "999",
 							Type:  "resolution",
 						},
 						{
@@ -143,7 +175,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(46655s)`,
+			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(46702s)`,
 		},
 		{
 			name:  "auto group by without duration",
@@ -153,7 +185,7 @@ func TestTemplateReplace(t *testing.T) {
 					Var: ":interval:",
 					Values: []chronograf.TemplateValue{
 						{
-							Value: "1000",
+							Value: "999",
 							Type:  "resolution",
 						},
 						{
@@ -163,7 +195,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46655s)`,
+			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46702s)`,
 		},
 		{
 			name:  "auto group by with :dashboardTime:",
