@@ -1789,6 +1789,12 @@ func (is IndexSet) seriesByExprIterator(name []byte, expr influxql.Expr, mf *Mea
 	case *influxql.ParenExpr:
 		return is.seriesByExprIterator(name, expr.Expr, mf)
 
+	case *influxql.BooleanLiteral:
+		if expr.Val {
+			return is.measurementSeriesIDIterator(name)
+		}
+		return nil, nil
+
 	default:
 		return nil, nil
 	}
