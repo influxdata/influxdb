@@ -1,3 +1,8 @@
+/*
+   Chronograf Styles
+   -----------------------------------------------------------------------------
+*/
+
 // Modules
 @import 'modules/influx-colors';
 @import 'modules/variables';
@@ -7,7 +12,7 @@
 @import 'fonts/fonts';
 
 // Theme
-@import 'theme/reset';
+@import 'theme/chronograf-theme';
 @import 'theme/bootstrap-theme';
 
 // Vendor
