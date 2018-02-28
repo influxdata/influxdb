@@ -90,6 +90,7 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         prefix={prefix}
         suffix={suffix}
+        inView={inView}
       />
     )
   }
