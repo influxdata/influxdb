@@ -301,8 +301,9 @@ class Dygraph extends Component {
 
   render() {
     const {isHidden, staticLegendHeight} = this.state
-    const {staticLegend} = this.props
+    const {staticLegend, children} = this.props
 
+    const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
     if (staticLegend) {
       const cellVerticalPadding = 16
@@ -344,12 +345,13 @@ class Dygraph extends Component {
               this.handleReceiveStaticLegendHeight
             }
           />}
+        {nestedGraph && React.cloneElement(nestedGraph, {staticLegendHeight})}
       </div>
     )
   }
 }
 
-const {array, arrayOf, bool, func, shape, string} = PropTypes
+const {array, arrayOf, bool, func, node, shape, string} = PropTypes
 
 Dygraph.defaultProps = {
   axes: {
@@ -408,6 +410,7 @@ Dygraph.propTypes = {
   dygraphRef: func,
   onZoom: func,
   mode: string,
+  children: node,
 }
 
 const mapStateToProps = ({annotations: {mode}}) => ({
