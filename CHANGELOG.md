@@ -55,6 +55,7 @@ v1.5.0 [unreleased]
 -	[#9470](https://github.com/influxdata/influxdb/pull/9470): Make closing TSM cursors idempotent.
 -	[#9489](https://github.com/influxdata/influxdb/pull/9489): Add dumptsi path error handling..
 -	[#9493](https://github.com/influxdata/influxdb/pull/9493): Fix the implicit time range in a subquery.
+-	[#9491](https://github.com/influxdata/influxdb/pull/9491): Evaluate a true boolean literal when calculating tag sets.
 
 v1.4.3 [unreleased]
 -------------------
