@@ -220,8 +220,8 @@ class AlertsTable extends Component {
               </button>
             : null}
         </div>
-      : <div className="panel panel-minimal">
-          <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      : <div className="panel">
+          <div className="panel-heading">
             <h2 className="panel-title">
               {this.props.alerts.length} Alerts
             </h2>

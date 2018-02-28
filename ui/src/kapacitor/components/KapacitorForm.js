@@ -22,8 +22,8 @@ class KapacitorForm extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-3">
-                <div className="panel panel-minimal">
-                  <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+                <div className="panel">
+                  <div className="panel-heading">
                     <h2 className="panel-title">Connection Details</h2>
                   </div>
                   <div className="panel-body">
@@ -123,8 +123,8 @@ class KapacitorForm extends Component {
     }
 
     return (
-      <div className="panel panel-minimal">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel">
+        <div className="panel-heading">
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
         <div className="panel-body">

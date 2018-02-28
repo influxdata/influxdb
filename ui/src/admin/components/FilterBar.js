@@ -26,7 +26,7 @@ class FilterBar extends Component {
       return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
     })
     return (
-      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel-heading">
         <div className="users__search-widget input-group admin__search-widget">
           <input
             type="text"

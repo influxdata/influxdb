@@ -5,7 +5,7 @@ import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
 
 const QueriesTable = ({queries, onKillQuery}) =>
   <div>
-    <div className="panel panel-default">
+    <div className="panel panel-solid">
       <div className="panel-body">
         <table className="table v-center admin-table table-highlight">
           <thead>

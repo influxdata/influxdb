@@ -16,7 +16,7 @@ class UsersTableHeader extends Component {
     const panelTitle = numUsers === 1 ? `${numUsers} User` : `${numUsers} Users`
 
     return (
-      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel-heading">
         <h2 className="panel-title">
           {panelTitle} in <em>{organization.name}</em>
         </h2>

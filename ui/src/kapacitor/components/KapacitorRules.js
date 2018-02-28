@@ -19,7 +19,7 @@ const KapacitorRules = ({
   if (loading) {
     return (
       <PageContents>
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+        <div className="panel-heading">
           <h2 className="panel-title">Alert Rules</h2>
           <button className="btn btn-primary btn-sm disabled" disabled={true}>
             Create Rule
@@ -54,7 +54,7 @@ const KapacitorRules = ({
 
   return (
     <PageContents source={source}>
-      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel-heading">
         <h2 className="panel-title">
           {builderHeader}
         </h2>
@@ -77,8 +77,8 @@ const KapacitorRules = ({
 
       <div className="row">
         <div className="col-md-12">
-          <div className="panel panel-minimal">
-            <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <div className="panel">
+            <div className="panel-heading">
               <h2 className="panel-title">
                 {scriptsHeader}
               </h2>
@@ -125,7 +125,7 @@ const PageContents = ({children}) =>
       <div className="container-fluid">
         <div className="row">
           <div className="col-md-12">
-            <div className="panel panel-minimal">
+            <div className="panel">
               {children}
             </div>
           </div>

@@ -48,7 +48,7 @@ class UsersTable extends Component {
 
     if (isLoading) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -56,7 +56,7 @@ class UsersTable extends Component {
       )
     }
     return (
-      <div className="panel panel-default">
+      <div className="panel panel-solid">
         <UsersTableHeader
           numUsers={users.length}
           onClickCreateUser={this.handleClickCreateUser}

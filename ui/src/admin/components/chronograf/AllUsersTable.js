@@ -91,7 +91,7 @@ class AllUsersTable extends Component {
     const {isCreatingUser} = this.state
     if (isLoading) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -99,7 +99,7 @@ class AllUsersTable extends Component {
       )
     }
     return (
-      <div className="panel panel-default">
+      <div className="panel panel-solid">
         <AllUsersTableHeader
           numUsers={users.length}
           numOrganizations={organizations.length}
