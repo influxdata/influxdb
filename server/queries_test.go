@@ -155,18 +155,14 @@ func TestService_Queries(t *testing.T) {
 						"tempVar": ":interval:",
 						"values": [
 							{
-									"value": "1000",
-									"type":  "resolution"
-							},
-							{
-									"value": "3",
-									"type":  "pointsPerPixel"
+									"value": "333",
+									"type":  "points"
 							}
 					]
 					  }
 					]
 				  }`))),
-			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"","measurement":"","retentionPolicy":"","fields":[],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","range":null,"shifts":[]},"queryTemplated":"SELECT \"pingReq\" FROM \"_internal\".\"monitor\".\"httpd\" WHERE time \u003e now() - 15m AND time \u003c now() GROUP BY time(2s)","tempVars":[{"tempVar":":upperDashboardTime:","values":[{"value":"now()","type":"constant","selected":true}]},{"tempVar":":dashboardTime:","values":[{"value":"now() - 15m","type":"constant","selected":true}]},{"tempVar":":dbs:","values":[{"value":"_internal","type":"database","selected":true}]},{"tempVar":":interval:","values":[{"value":"1000","type":"resolution","selected":false},{"value":"3","type":"pointsPerPixel","selected":false}]}]}]}
+			want: `{"queries":[{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","query":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","queryConfig":{"id":"82b60d37-251e-4afe-ac93-ca20a3642b11","database":"","measurement":"","retentionPolicy":"","fields":[],"tags":{},"groupBy":{"time":"","tags":[]},"areTagsAccepted":false,"rawText":"SELECT \"pingReq\" FROM :dbs:.\"monitor\".\"httpd\" WHERE time \u003e :dashboardTime: AND time \u003c :upperDashboardTime: GROUP BY :interval:","range":null,"shifts":[]},"queryTemplated":"SELECT \"pingReq\" FROM \"_internal\".\"monitor\".\"httpd\" WHERE time \u003e now() - 15m AND time \u003c now() GROUP BY time(2s)","tempVars":[{"tempVar":":upperDashboardTime:","values":[{"value":"now()","type":"constant","selected":true}]},{"tempVar":":dashboardTime:","values":[{"value":"now() - 15m","type":"constant","selected":true}]},{"tempVar":":dbs:","values":[{"value":"_internal","type":"database","selected":true}]},{"tempVar":":interval:","values":[{"value":"333","type":"points","selected":false}]}]}]}
 `,
 		},
 	}
