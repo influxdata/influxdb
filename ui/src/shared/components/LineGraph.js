@@ -119,16 +119,15 @@ class LineGraph extends Component {
           staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
         >
-          {showSingleStat
-            ? <SingleStat
-                prefix={prefix}
-                suffix={suffix}
-                data={data}
-                lineGraph={true}
-                colors={colors}
-                cellHeight={cellHeight}
-              />
-            : null}
+          {showSingleStat &&
+            <SingleStat
+              prefix={prefix}
+              suffix={suffix}
+              data={data}
+              lineGraph={true}
+              colors={colors}
+              cellHeight={cellHeight}
+            />}
         </Dygraph>
       </div>
     )
