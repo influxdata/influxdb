@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
 
-import groupByTimeOptions from 'hson!src/data_explorer/data/groupByTimes.hson'
+import groupByTimeOptions from 'src/data_explorer/data/groupByTimes'
 
 import Dropdown from 'shared/components/Dropdown'
 

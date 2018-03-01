@@ -3,6 +3,7 @@ import classnames from 'classnames'
 import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
+import {DYGRAPH_CONTAINER_V_MARGIN} from 'shared/constants'
 import {SINGLE_STAT_TEXT} from 'src/dashboards/constants/gaugeColors'
 import {generateSingleStatHexs} from 'shared/constants/colorOperations'
 
@@ -16,6 +17,7 @@ class SingleStat extends PureComponent {
       prefix,
       suffix,
       lineGraph,
+      staticLegendHeight,
     } = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -39,11 +41,24 @@ class SingleStat extends PureComponent {
       lastValue
     )
 
+    const backgroundColor = bgColor
+    const color = textColor
+    const height = `calc(100% - ${staticLegendHeight +
+      DYGRAPH_CONTAINER_V_MARGIN * 2}px)`
+
+    const singleStatStyles = staticLegendHeight
+      ? {
+          backgroundColor,
+          color,
+          height,
+        }
+      : {
+          backgroundColor,
+          color,
+        }
+
     return (
-      <div
-        className="single-stat"
-        style={{backgroundColor: bgColor, color: textColor}}
-      >
+      <div className="single-stat" style={singleStatStyles}>
         <span
           className={classnames('single-stat--value', {
             'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
@@ -77,6 +92,7 @@ SingleStat.propTypes = {
   prefix: string,
   suffix: string,
   lineGraph: bool,
+  staticLegendHeight: number,
 }
 
 export default SingleStat

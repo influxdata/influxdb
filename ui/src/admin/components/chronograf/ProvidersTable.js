@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 import ProvidersTableRow from 'src/admin/components/chronograf/ProvidersTableRow'
 import ProvidersTableRowNew from 'src/admin/components/chronograf/ProvidersTableRowNew'
 

@@ -1,7 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'

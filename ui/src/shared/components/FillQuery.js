@@ -3,7 +3,7 @@ import Dropdown from 'shared/components/Dropdown'
 
 import {NULL_STRING, NUMBER} from 'shared/constants/queryFillOptions'
 
-import queryFills from 'hson!shared/data/queryFills.hson'
+import queryFills from 'shared/data/queryFills'
 
 class FillQuery extends Component {
   constructor(props) {

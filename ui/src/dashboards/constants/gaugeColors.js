@@ -111,7 +111,7 @@ export const DEFAULT_SINGLESTAT_COLORS = [
     hex: GAUGE_COLORS[11].hex,
     id: SINGLE_STAT_BASE,
     name: GAUGE_COLORS[11].name,
-    value: 0,
+    value: -999999999999999999,
   },
 ]
 

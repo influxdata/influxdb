@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import ResizeContainer from 'shared/components/ResizeContainer'
 import QueryMaker from 'src/dashboards/components/QueryMaker'

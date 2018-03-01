@@ -81,3 +81,16 @@ export const QUERY_TEMPLATES = [
   {text: 'Show Stats', query: 'SHOW STATS'},
   {text: 'Show Diagnostics', query: 'SHOW DIAGNOSTICS'},
 ]
+
+const interval = {
+  id: 'interval',
+  type: 'autoGroupBy',
+  tempVar: ':interval:',
+  label: 'automatically determine the best group by time',
+  values: [
+    {value: '1000', type: 'resolution', selected: true},
+    {value: '3', type: 'pointsPerPixel', selected: true},
+  ],
+} // pixels
+
+export const TEMPLATES = [interval]

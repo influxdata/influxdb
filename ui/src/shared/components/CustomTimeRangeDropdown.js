@@ -12,20 +12,17 @@ class CustomTimeRangeDropdown extends Component {
     this.state = {
       expanded: false,
     }
-
-    this.handleToggleDropdown = ::this.handleToggleDropdown
-    this.handleCloseDropdown = ::this.handleCloseDropdown
   }
 
   handleClickOutside() {
     this.handleCloseDropdown()
   }
 
-  handleToggleDropdown() {
+  handleToggleDropdown = () => {
     this.setState({expanded: !this.state.expanded})
   }
 
-  handleCloseDropdown() {
+  handleCloseDropdown = () => {
     this.setState({expanded: false})
   }
 

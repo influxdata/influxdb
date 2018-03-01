@@ -3,7 +3,6 @@ import _ from 'lodash'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
-import {intervalValuesPoints} from 'src/shared/constants'
 
 const AutoRefresh = ComposedComponent => {
   class wrapper extends Component {
@@ -97,38 +96,31 @@ const AutoRefresh = ComposedComponent => {
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
 
-        const templatesWithIntervalVals = templates.map(temp => {
+        const templatesWithResolution = templates.map(temp => {
           if (temp.tempVar === ':interval:') {
             if (resolution) {
-              // resize event
               return {
                 ...temp,
-                values: temp.values.map(v => {
-                  if (v.type === 'resolution') {
-                    return {...v, value: `${resolution}`}
-                  }
-                  if (v.type === 'points') {
-                    return {
-                      ...v,
-                      value: `${_.toInteger(Number(resolution) / 3)}`,
-                    }
-                  }
-                  return v
-                }),
+                values: temp.values.map(
+                  v => (temp.type === 'resolution' ? {...v, resolution} : v)
+                ),
               }
             }
 
             return {
               ...temp,
-              values: intervalValuesPoints,
+              values: [
+                ...temp.values,
+                {value: '1000', type: 'resolution', selected: true},
+              ],
             }
           }
+
           return temp
         })
 
-        const tempVars = removeUnselectedTemplateValues(
-          templatesWithIntervalVals
-        )
+        const tempVars = removeUnselectedTemplateValues(templatesWithResolution)
+
         return fetchTimeSeriesAsync(
           {
             source: host,
@@ -204,6 +196,10 @@ const AutoRefresh = ComposedComponent => {
             )
           )
         : false
+  }
+
+  wrapper.defaultProps = {
+    inView: true,
   }
 
   const {

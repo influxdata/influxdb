@@ -1,5 +1,5 @@
 import {AUTOREFRESH_DEFAULT} from 'shared/constants'
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 
 import * as actionTypes from 'src/status/constants/actionTypes'
 
