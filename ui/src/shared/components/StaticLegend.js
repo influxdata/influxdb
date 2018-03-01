@@ -1,6 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 import {removeMeasurement} from 'shared/graphs/helpers'
 
 const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
