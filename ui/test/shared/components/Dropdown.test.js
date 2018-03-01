@@ -88,9 +88,14 @@ describe('Components.Shared.Dropdown', () => {
 
         it('displays the input when provided useAutoCompelete is true', () => {
           const {dropdown} = setup({items, useAutoComplete: true})
-          const input = dropdown.find(DropdownInput)
+          let input = dropdown.find(DropdownInput)
 
           expect(input.exists()).toBe(false)
+
+          dropdown.simulate('click')
+          input = dropdown.find(DropdownInput)
+
+          expect(input.exists()).toBe(true)
         })
       })
     })
