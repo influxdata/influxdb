@@ -30,35 +30,40 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  &.annotate-plus:before {content: "\e952";}
+  &.clipboard:before {content: "\e954";}
+  &.erlenmeyer:before {content: "\e955";}
+  &.access-key:before {content: "\e921";}
+  &.alpha-a:before {content: "\e93c";}
+  &.alpha-b:before {content: "\e93d";}
   &.annotate:before {content: "\e953";}
-  &.maximize:before {content: "\e91f";}
-  &.minimize:before {content: "\e920";}
-  &.download:before {content: "\e91d";}
-  &.eye:before {content: "\e91e";}
-  &.checkmark:before {content: "\e918";}
-  &.search:before {content: "\e916";}
-  &.duplicate:before {content: "\e917";}
-  &.remove:before {content: "\e909";}
-  &.plus:before {content: "\e90a";}
-  &.arrow-up:before {content: "\e90b";}
-  &.arrow-left:before {content: "\e90c";}
+  &.annotate-plus:before {content: "\e952";}
   &.arrow-down:before {content: "\e910";}
+  &.arrow-left:before {content: "\e90c";}
   &.arrow-right:before {content: "\e911";}
-  &.caret-left:before {content: "\e900";}
-  &.caret-up:before {content: "\e901";}
+  &.arrow-up:before {content: "\e90b";}
+  &.authzero:before {content: "\e951";}
+  &.brush:before {content: "\e939";}
   &.caret-down:before {content: "\e902";}
+  &.caret-left:before {content: "\e900";}
   &.caret-right:before {content: "\e903";}
-  &.trash-outline:before {content: "\e904";}
-  &.trash:before {content: "\e905";}
-  &.wrench:before {content: "\e912";}
-  &.wrenches:before {content: "\e913";}
-  &.user:before {content: "\e94d";}
-  &.cog-thick:before {content: "\e906";}
+  &.caret-up:before {content: "\e901";}
+  &.checkmark:before {content: "\e918";}
+  &.circle:before {content: "\e940";}
+  &.clock:before {content: "\e91b";}
   &.cog:before {content: "\e907";}
+  &.cog-thick:before {content: "\e906";}
+  &.component-a:before {content: "\e933";}
+  &.component-b:before {content: "\e932";}
+  &.component-c:before {content: "\e931";}
+  &.component-d:before {content: "\e930";}
+  &.component-e:before {content: "\e92f";}
+  &.cpu:before {content: "\e915";}
+  &.crown:before {content: "\e90f";}
+  &.crown2:before {content: "\e94b";}
+  &.cube:before {content: "\e92e";}
   &.cubo:before {content: "\e908";}
-  &.flag:before {content: "\e90d";}
-  &.graphline:before {content: "\e90e";}
+  &.cubo-node:before {content: "\e919";}
+  &.cubo-uniform:before {content: "\e91a";}
   &.dash-a:before {content: "\e922";}
   &.dash-b:before {content: "\e923";}
   &.dash-c:before {content: "\e924";}
@@ -69,51 +74,48 @@
   &.dash-h:before {content: "\e929";}
   &.dash-i:before {content: "\e92a";}
   &.dash-j:before {content: "\e92b";}
-  &.access-key:before {content: "\e921";}
-  &.crown2:before {content: "\e94b";}
-  &.crown:before {content: "\e90f";}
-  &.server2:before {content: "\e94c";}
-  &.server:before {content: "\e914";}
-  &.cpu:before {content: "\e915";}
-  &.cubo-node:before {content: "\e919";}
-  &.cubo-uniform:before {content: "\e91a";}
-  &.user-outline:before {content: "\e91c";}
-  &.refresh:before {content: "\e949";}
-  &.pause:before {content: "\e94a";}
-  &.clock:before {content: "\e91b";}
-  &.triangle:before {content: "\e92c";}
-  &.square:before {content: "\e93e";}
   &.diamond:before {content: "\e93f";}
+  &.disks:before {content: "\e950";}
+  &.download:before {content: "\e91d";}
+  &.duplicate:before {content: "\e917";}
+  &.expand-a:before {content: "\e944";}
+  &.expand-b:before {content: "\e942";}
+  &.expand-c:before {content: "\e943";}
+  &.export:before {content: "\e941";}
+  &.eye:before {content: "\e91e";}
+  &.flag:before {content: "\e90d";}
+  &.graphline:before {content: "\e90e";}
+  &.heroku:before {content: "\e947";}
+  &.heroku-simple:before {content: "\e948";}
+  &.keynote:before {content: "\e93a";}
+  &.maximize:before {content: "\e91f";}
+  &.minimize:before {content: "\e920";}
+  &.oauth:before {content: "\e94f";}
   &.octagon:before {content: "\e92d";}
-  &.circle:before {content: "\e940";}
-  &.cube:before {content: "\e92e";}
-  &.component-e:before {content: "\e92f";}
-  &.component-d:before {content: "\e930";}
-  &.component-c:before {content: "\e931";}
-  &.component-b:before {content: "\e932";}
-  &.component-a:before {content: "\e933";}
+  &.pause:before {content: "\e94a";}
+  &.plus:before {content: "\e90a";}
+  &.polaroid:before {content: "\e93b";}
   &.pulse-a:before {content: "\e934";}
   &.pulse-b:before {content: "\e935";}
   &.pulse-c:before {content: "\e936";}
   &.pulse-d:before {content: "\e937";}
   &.pulse-e:before {content: "\e938";}
-  &.brush:before {content: "\e939";}
-  &.keynote:before {content: "\e93a";}
-  &.polaroid:before {content: "\e93b";}
-  &.alpha-a:before {content: "\e93c";}
-  &.alpha-b:before {content: "\e93d";}
-  &.export:before {content: "\e941";}
-  &.expand-b:before {content: "\e942";}
-  &.expand-c:before {content: "\e943";}
-  &.expand-a:before {content: "\e944";}
-  &.undo:before {content: "\e945";}
   &.redo:before {content: "\e946";}
-  &.heroku:before {content: "\e947";}
-  &.heroku-simple:before {content: "\e948";}
-  &.oauth:before {content: "\e94f";}
-  &.authzero:before {content: "\e951";}
+  &.refresh:before {content: "\e949";}
+  &.remove:before {content: "\e909";}
+  &.search:before {content: "\e916";}
+  &.server:before {content: "\e914";}
+  &.server2:before {content: "\e94c";}
   &.shuffle:before {content: "\e94e";}
-  &.disks:before {content: "\e950";}
+  &.square:before {content: "\e93e";}
+  &.trash:before {content: "\e905";}
+  &.trash-outline:before {content: "\e904";}
+  &.triangle:before {content: "\e92c";}
+  &.undo:before {content: "\e945";}
+  &.user:before {content: "\e94d";}
+  &.user-outline:before {content: "\e91c";}
+  &.wrench:before {content: "\e912";}
+  &.wrenches:before {content: "\e913";}
   &.alert-triangle:before {content: "\f02d";}
   &.comment:before {content: "\f02b";}
   &.comment-discussion:before {content: "\f04f";}
@@ -127,14 +129,5 @@
   &.sync:before {content: "\f087";}
   &.zap:before {content: "\26a1";}
   &.google:before {content: "\ea88";}
-  &.google3:before {content: "\ea8a";}
-  &.google-plus:before {content: "\ea8b";}
-  &.facebook:before {content: "\ea90";}
-  &.facebook2:before {content: "\ea91";}
-  &.twitter:before {content: "\ea96";}
   &.github:before {content: "\eab0";}
-  &.trello:before {content: "\eab3";}
-  &.linkedin:before {content: "\eac9";}
-  &.linkedin2:before {content: "\eaca";}
-  &.stackoverflow:before {content: "\ead0";}
 }
