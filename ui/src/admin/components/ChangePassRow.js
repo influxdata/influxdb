@@ -9,18 +9,13 @@ class ChangePassRow extends Component {
     this.state = {
       showForm: false,
     }
-    this.showForm = ::this.showForm
-    this.handleCancel = ::this.handleCancel
-    this.handleKeyPress = ::this.handleKeyPress
-    this.handleEdit = ::this.handleEdit
-    this.handleSubmit = ::this.handleSubmit
   }
 
-  showForm() {
+  showForm = () => {
     this.setState({showForm: true})
   }
 
-  handleCancel() {
+  handleCancel = () => {
     this.setState({showForm: false})
   }
 
@@ -28,12 +23,12 @@ class ChangePassRow extends Component {
     this.setState({showForm: false})
   }
 
-  handleSubmit(user) {
+  handleSubmit = user => {
     this.props.onApply(user)
     this.setState({showForm: false})
   }
 
-  handleKeyPress(user) {
+  handleKeyPress = user => {
     return e => {
       if (e.key === 'Enter') {
         this.handleSubmit(user)
@@ -41,7 +36,7 @@ class ChangePassRow extends Component {
     }
   }
 
-  handleEdit(user) {
+  handleEdit = user => {
     return e => {
       this.props.onEdit(user, {[e.target.name]: e.target.value})
     }

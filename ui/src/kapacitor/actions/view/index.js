@@ -1,4 +1,4 @@
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 import {getActiveKapacitor} from 'shared/apis'
 import {publishNotification} from 'shared/actions/notifications'
 import {

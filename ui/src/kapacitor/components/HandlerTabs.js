@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 const HandlerTabs = ({
   handlersOnThisAlert,

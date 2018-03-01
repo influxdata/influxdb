@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import ReactTooltip from 'react-tooltip'
 
