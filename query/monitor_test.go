@@ -46,14 +46,14 @@ func TestPointLimitMonitor(t *testing.T) {
 		},
 	}
 
-	itrs, _, err := query.Select(ctx, stmt, &shardMapper, query.SelectOptions{
+	cur, err := query.Select(ctx, stmt, &shardMapper, query.SelectOptions{
 		MaxPointN: 1,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if _, err := Iterators(itrs).ReadAll(); err == nil {
+	if err := query.DrainCursor(cur); err == nil {
 		t.Fatalf("expected an error")
 	} else if got, want := err.Error(), "max-select-point limit exceeed: (10/1)"; got != want {
 		t.Fatalf("unexpected error: got=%v want=%v", got, want)

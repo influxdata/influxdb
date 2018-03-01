@@ -34,9 +34,10 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 	if err != nil {
 		return nil, err
 	}
+	cur := b.buildCursor(itrs, subOpt.Ascending)
 
 	// Construct the iterators for the subquery.
-	input := NewIteratorMapper(itrs, nil, indexes, subOpt)
+	input := NewIteratorMapper(cur, nil, indexes, subOpt)
 	// If there is a condition, filter it now.
 	if opt.Condition != nil {
 		input = NewFilterIterator(input, opt.Condition, subOpt)
@@ -124,12 +125,28 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 	if err != nil {
 		return nil, err
 	}
+	cur := b.buildCursor(itrs, subOpt.Ascending)
 
 	// Construct the iterators for the subquery.
-	input := NewIteratorMapper(itrs, driver, indexes, subOpt)
+	input := NewIteratorMapper(cur, driver, indexes, subOpt)
 	// If there is a condition, filter it now.
 	if opt.Condition != nil {
 		input = NewFilterIterator(input, opt.Condition, subOpt)
 	}
 	return input, nil
+}
+
+func (b *subqueryBuilder) buildCursor(itrs []Iterator, ascending bool) Cursor {
+	columnNames := b.stmt.ColumnNames()
+	columns := make([]influxql.VarRef, len(itrs))
+	for i, itr := range itrs {
+		columns[i] = influxql.VarRef{
+			Val:  columnNames[i+1],
+			Type: iteratorDataType(itr),
+		}
+	}
+
+	cur := newCursor(itrs, columns, ascending)
+	cur.omitTime = true
+	return cur
 }
