@@ -11,6 +11,7 @@
 1. [#2821](https://github.com/influxdata/chronograf/pull/2821): Save only selected template variable values into dashboards for non csv template variables
 1. [#2842](https://github.com/influxdata/chronograf/pull/2842): Use Generic APIKey for Oauth2 group lookup
 1. [#2850](https://github.com/influxdata/chronograf/pull/2850): Fix bug in which resizing any cell in a dashboard causes a Gauge cell to resize
+1. [#2886](https://github.com/influxdata/chronograf/pull/2886): Don't sort Single Stat & Gauge thresholds when editing threshold values
 1. [#2851](https://github.com/influxdata/chronograf/pull/2851): Maintain y axis labels in dashboard cells
 1. [#2819](https://github.com/influxdata/chronograf/pull/2819): Deprecate --new-sources in CLI
 
