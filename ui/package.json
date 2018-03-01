@@ -13,7 +13,7 @@
     "build:dev": "webpack --config ./webpack/dev.config.js",
     "build:vendor": "webpack --config webpack/vendor.config.js",
     "start": "yarn run clean && yarn run build:vendor && webpack --watch --config ./webpack/dev.config.js",
-    "start:assets": "webpack --watch --config ./webpack/dev.config.js",
+    "start:fast": "webpack --watch --config ./webpack/dev.config.js",
     "start:hmr": "webpack-dev-server --open --config ./webpack/dev.config.js",
     "lint": "esw src/",
     "test": "jest --runInBand",
