@@ -6,7 +6,7 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import CustomTimeRangeOverlay from 'shared/components/CustomTimeRangeOverlay'
 
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 const dateFormat = 'YYYY-MM-DD HH:mm'

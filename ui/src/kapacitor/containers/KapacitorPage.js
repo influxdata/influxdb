@@ -60,6 +60,10 @@ class KapacitorPage extends Component {
     })
   }
 
+  handleChangeUrl = ({value}) => {
+    this.setState({kapacitor: {...this.state.kapacitor, url: value}})
+  }
+
   handleSubmit = e => {
     e.preventDefault()
     const {
@@ -143,6 +147,7 @@ class KapacitorPage extends Component {
       <KapacitorForm
         onSubmit={this.handleSubmit}
         onInputChange={this.handleInputChange}
+        onChangeUrl={this.handleChangeUrl}
         onReset={this.handleResetToDefaults}
         kapacitor={kapacitor}
         source={source}

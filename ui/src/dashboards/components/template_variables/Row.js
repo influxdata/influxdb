@@ -119,8 +119,6 @@ class RowWrapper extends Component {
       selectedTagKey: query && query.tagKey,
       autoFocusTarget: 'tempVar',
     }
-
-    this.runTemplateVariableQuery = ::this.runTemplateVariableQuery
   }
 
   handleSubmit = ({

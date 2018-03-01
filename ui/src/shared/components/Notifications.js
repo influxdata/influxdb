@@ -15,9 +15,6 @@ import {
 class Notifications extends Component {
   constructor(props) {
     super(props)
-
-    this.renderNotification = ::this.renderNotification
-    this.renderDismiss = ::this.renderDismiss
   }
 
   componentWillReceiveProps(nextProps) {
@@ -26,7 +23,7 @@ class Notifications extends Component {
     }
   }
 
-  renderNotification(type, message) {
+  renderNotification = (type, message) => {
     const isDismissed = this.props.dismissedNotifications[
       getNotificationID(message, type)
     ]
@@ -48,7 +45,7 @@ class Notifications extends Component {
 
   handleDismiss = type => () => this.props.dismissNotification(type)
 
-  renderDismiss(type) {
+  renderDismiss = type => {
     return (
       <button
         className="close"
