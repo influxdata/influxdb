@@ -1,40 +1,43 @@
 import React, {PropTypes, Component} from 'react'
-import {Grid} from 'react-virtualized'
 import _ from 'lodash'
 // import uuid from 'node-uuid'
 
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
-import timeSeriesToDygraph from 'src/utils/timeSeriesToDygraph'
+import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
+import {MultiGrid} from 'react-virtualized/dist/commonjs/MultiGrid'
 
 class TableGraph extends Component {
   constructor(props) {
     super(props)
   }
 
+  componentWillMount() {
+    this._labels = []
+    this._data = [[]]
+  }
+
   componentWillUpdate(nextProps) {
     // TODO: determine if in dataExplorer
-    this._timeSeries = timeSeriesToDygraph(nextProps.data, false)
+    const {labels, data} = timeSeriesToTable(nextProps.data)
+    this._labels = labels
+    this._data = data
   }
 
   cellRenderer = ({columnIndex, key, rowIndex, style}) => {
-    const data = _.get(this._timeSeries, 'timeSeries', [[]])
-    console.log(data[0][0].toString())
+    const data = this._data
     return (
       <div key={key} style={style}>
-        {data[columnIndex][rowIndex]
-          ? data[columnIndex][rowIndex].toString()
-          : ''}
+        {data[rowIndex][columnIndex]}
       </div>
     )
   }
-  render() {
-    const data = _.get(this._timeSeries, 'timeSeries', [[]])
-    const columns = _.get(this._timeSeries, 'labels', [])
 
+  render() {
+    const data = this._data
     const {cellHeight} = this.props
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
-    const COLUMN_WIDTH = 50
+    const COLUMN_WIDTH = 300
     const ROW_HEIGHT = 50
     const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 400
     const tableHeight = cellHeight * DASHBOARD_LAYOUT_ROW_HEIGHT - 64
@@ -45,7 +48,9 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
       >
         {data.length > 1
-          ? <Grid
+          ? <MultiGrid
+              fixedColumnCount={1}
+              fixedRowCount={1}
               cellRenderer={this.cellRenderer}
               columnCount={columnCount}
               columnWidth={COLUMN_WIDTH}
@@ -58,6 +63,13 @@ class TableGraph extends Component {
       </div>
     )
   }
+}
+
+const {arrayOf, number, shape} = PropTypes
+
+TableGraph.propTypes = {
+  cellHeight: number,
+  data: arrayOf(shape()),
 }
 
 export default TableGraph
