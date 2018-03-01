@@ -133,6 +133,7 @@ export class Dropdown extends Component {
       selected,
       disabled,
       iconName,
+      tabIndex,
       className,
       menuClass,
       menuWidth,
@@ -141,11 +142,6 @@ export class Dropdown extends Component {
       buttonColor,
       toggleStyle,
       useAutoComplete,
-<<<<<<< HEAD
-      disabled,
-      tabIndex,
-=======
->>>>>>> Refactor Dropdown component and specs
     } = this.props
 
     const {isOpen, searchTerm, filteredItems, highlightedItemIndex} = this.state
