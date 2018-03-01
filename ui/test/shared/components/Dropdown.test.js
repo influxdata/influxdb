@@ -1,9 +1,9 @@
 import React from 'react'
-import Dropdown from 'shared/components/Dropdown'
+import {Dropdown} from 'shared/components/Dropdown'
 import DropdownMenu from 'shared/components/DropdownMenu'
 import DropdownInput from 'shared/components/DropdownInput'
 
-import {shallow} from 'enzyme'
+import {mount} from 'enzyme'
 
 // mock props
 const itemOne = {text: 'foo'}
@@ -26,9 +26,7 @@ const setup = (override = {}) => {
     highlightedItemIndex: null,
   }
 
-  const dropdown = shallow(<Dropdown {...props} />).dive({
-    'data-test': 'dropdown-toggle',
-  })
+  const dropdown = mount(<Dropdown {...props} />)
 
   return {
     props,
