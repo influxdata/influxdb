@@ -43,6 +43,7 @@ const RuleGraph = ({
       </div>
       <RefreshingLineGraph
         queries={queries}
+        inView={true}
         isGraphFilled={false}
         ruleValues={rule.values}
         autoRefresh={autoRefreshMs}
