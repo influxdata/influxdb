@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import GraphOptionsCustomizableColumn from 'src/dashboards/components/GraphOptionsCustomizableColumn'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 const GraphOptionsCustomizeColumns = ({columns, onColumnRename}) => {
   return (

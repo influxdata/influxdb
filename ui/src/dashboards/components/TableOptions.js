@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
