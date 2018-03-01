@@ -340,6 +340,7 @@ class Dygraph extends Component {
         />
         {staticLegend &&
           <StaticLegend
+            dygraphSeries={this.hashColorDygraphSeries()}
             dygraph={this.dygraph}
             handleReceiveStaticLegendHeight={
               this.handleReceiveStaticLegendHeight
