@@ -1,0 +1,104 @@
+/*
+   Radio Buttons
+   -----------------------------------------------------------------------------
+*/
+
+.nav-tablist {
+  display: inline-flex;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  border: $ix-border solid $g5-pepper;
+  background-color: $g5-pepper;
+  height: $form-md-height;
+  border-radius: 4px;
+  overflow: hidden;
+
+  > li {
+    @extend %no-user-select;
+    display: flex;
+    align-items: center;
+    padding: 0 $form-md-padding;
+    font-size: $form-md-font;
+    font-weight: 600;
+    margin: 0 2px 0 0;
+    background-color: $g2-kevlar;
+    color: $g11-sidewalk;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+
+    &:hover {
+      background-color: $g4-onyx;
+      color: $g15-platinum;
+      cursor: pointer;
+    }
+    &.active {
+      background-color: $g5-pepper;
+      color: $g18-cloud;
+    }
+    &.disabled,
+    &[disabled="true"] {
+      &, &:hover {
+        background-color: $g2-kevlar;
+        font-style: italic;
+        color: $g7-graphite;
+        cursor: not-allowed;
+      }
+    }
+    &:last-child {margin-right: 0;}
+  }
+}
+
+//  Size Modifiers
+//  ----------------------------------------------------------------------------
+.nav-tablist.nav-tablist-lg {
+  height: $form-lg-height;
+  > li {
+    padding: 0 $form-lg-padding;
+    font-size: $form-lg-font;
+  }
+}
+.nav-tablist.nav-tablist-md {
+  height: $form-md-height;
+  > li {
+    padding: 0 $form-md-padding;
+    font-size: $form-md-font;
+  }
+}
+.nav-tablist.nav-tablist-sm {
+  height: $form-sm-height;
+  > li {
+    padding: 0 $form-sm-padding;
+    font-size: $form-sm-font;
+  }
+}
+.nav-tablist.nav-tablist-xs {
+  height: $form-xs-height;
+  > li {
+    padding: 0 $form-xs-padding;
+    font-size: $form-xs-font;
+  }
+}
+
+//  Theme Modifiers
+//  ----------------------------------------------------------------------------
+.nav-tablist.nav-tablist-malachite {
+  > li {
+    background-color: $g3-castle;
+
+    &:hover {background-color: $g4-onyx;}
+    &.active {
+      background-color: $g5-pepper;
+      color: $c-rainforest;
+    }
+    &.disabled,
+    &[disabled="true"] {
+      &, &:hover {
+        background-color: $g3-castle;
+        color: $g7-graphite;
+      }
+    }
+  }
+}

@@ -10,7 +10,7 @@ class CustomTimeRangeDropdown extends Component {
     super(props)
 
     this.state = {
-      isDropdownOpen: false,
+      expanded: false,
     }
   }
 
@@ -19,22 +19,23 @@ class CustomTimeRangeDropdown extends Component {
   }
 
   handleToggleDropdown = () => {
-    this.setState({isDropdownOpen: !this.state.isDropdownOpen})
+    this.setState({expanded: !this.state.expanded})
   }
 
   handleCloseDropdown = () => {
-    this.setState({isDropdownOpen: false})
+    this.setState({expanded: false})
   }
 
   render() {
     const {timeRange: {upper, lower}, timeRange, onApplyTimeRange} = this.props
 
-    const {isDropdownOpen} = this.state
+    const {expanded} = this.state
 
     return (
       <div
-        className={classnames('custom-time-range', {open: isDropdownOpen})}
-        style={{display: 'flex'}}
+        className={classnames('dropdown dropdown-280 custom-time-range', {
+          open: expanded,
+        })}
       >
         <button
           className="btn btn-sm btn-default dropdown-toggle"

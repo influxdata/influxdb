@@ -1,15 +1,20 @@
+/*
+   Chronograf Styles
+   -----------------------------------------------------------------------------
+*/
+
 // Modules
 @import 'modules/influx-colors';
 @import 'modules/variables';
 @import 'modules/mixins';
+@import 'modules/helpers';
 
 // Fonts
 @import 'fonts/fonts';
+@import 'fonts/icon-font';
 
-// Base Theme
-@import 'theme/bootstrap';
-@import 'theme/bootstrap-theme';
-@import 'theme/reset';
+// Theme
+@import 'theme/chronograf-theme';
 
 // Vendor
 @import 'external/react-grid-layout';

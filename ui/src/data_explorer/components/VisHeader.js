@@ -26,36 +26,31 @@ const getCSV = (query, errorThrown) => async () => {
   }
 }
 
-const VisHeader = ({views, view, onToggleView, name, query, errorThrown}) =>
+const VisHeader = ({views, view, onToggleView, query, errorThrown}) =>
   <div className="graph-heading">
     {views.length
-      ? <div>
-          <ul className="nav nav-tablist nav-tablist-sm">
-            {views.map(v =>
-              <li
-                key={v}
-                onClick={onToggleView(v)}
-                className={classnames({active: view === v})}
-                data-test={`data-${v}`}
-              >
-                {_.upperFirst(v)}
-              </li>
-            )}
-          </ul>
-          {query
-            ? <div
-                className="btn btn-sm btn-default dlcsv"
-                onClick={getCSV(query, errorThrown)}
-              >
-                <span className="icon download dlcsv" />
-                .csv
-              </div>
-            : null}
+      ? <ul className="nav nav-tablist nav-tablist-sm">
+          {views.map(v =>
+            <li
+              key={v}
+              onClick={onToggleView(v)}
+              className={classnames({active: view === v})}
+              data-test={`data-${v}`}
+            >
+              {_.upperFirst(v)}
+            </li>
+          )}
+        </ul>
+      : null}
+    {query
+      ? <div
+          className="btn btn-sm btn-default dlcsv"
+          onClick={getCSV(query, errorThrown)}
+        >
+          <span className="icon download dlcsv" />
+          .csv
         </div>
       : null}
-    <div className="graph-title">
-      {name}
-    </div>
   </div>
 
 const {arrayOf, func, shape, string} = PropTypes
@@ -64,7 +59,6 @@ VisHeader.propTypes = {
   views: arrayOf(string).isRequired,
   view: string.isRequired,
   onToggleView: func.isRequired,
-  name: string.isRequired,
   query: shape(),
   errorThrown: func.isRequired,
 }

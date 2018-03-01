@@ -1,0 +1,482 @@
+/*
+   Dropdowns
+   -----------------------------------------------------------------------------
+*/
+
+// Default Theme Colors
+$dropdown-default-bg: $c-pool;
+$dropdown-default-dark: $c-ocean;
+$dropdown-default-press: $c-sapphire;
+$dropdown-default-hover: $c-laser;
+$dropdown-default-text: $c-yeti;
+$dropdown-default-text-hover: $g20-white;
+$dropdown-default-header: $c-sapphire;
+
+// Green Theme Colors
+$dropdown-green-bg: $c-pool;
+$dropdown-green-dark: $c-viridian;
+$dropdown-green-press: $c-emerald;
+$dropdown-green-hover: $c-honeydew;
+$dropdown-green-text: $c-mint;
+$dropdown-green-text-hover: $g20-white;
+$dropdown-green-header: $c-wasabi;
+
+// Purple Theme Colors
+$dropdown-purple-bg: $c-pool;
+$dropdown-purple-dark: $c-star;
+$dropdown-purple-press: $c-amethyst;
+$dropdown-purple-hover: $c-comet;
+$dropdown-purple-text: $c-twilight;
+$dropdown-purple-text-hover: $g20-white;
+$dropdown-purple-header: $c-potassium;
+
+.dropdown {
+  display: inline-block;
+  position: relative;
+  width: auto;
+
+  // Default Size
+  .dropdown-toggle {
+    width: 120px;
+  }
+  // Size Modifiers
+  &-80 .dropdown-toggle {width: 80px;}
+  &-90 .dropdown-toggle {width: 90px;}
+  &-100 .dropdown-toggle {width: 100px;}
+  &-110 .dropdown-toggle {width: 110px;}
+  &-120 .dropdown-toggle {width: 120px;}
+  &-130 .dropdown-toggle {width: 130px;}
+  &-140 .dropdown-toggle {width: 140px;}
+  &-150 .dropdown-toggle {width: 150px;}
+  &-160 .dropdown-toggle {width: 160px;}
+  &-170 .dropdown-toggle {width: 170px;}
+  &-180 .dropdown-toggle {width: 180px;}
+  &-190 .dropdown-toggle {width: 190px;}
+  &-200 .dropdown-toggle {width: 200px;}
+  &-210 .dropdown-toggle {width: 210px;}
+  &-220 .dropdown-toggle {width: 220px;}
+  &-230 .dropdown-toggle {width: 230px;}
+  &-240 .dropdown-toggle {width: 240px;}
+  &-250 .dropdown-toggle {width: 250px;}
+  &-260 .dropdown-toggle {width: 260px;}
+  &-270 .dropdown-toggle {width: 270px;}
+  &-280 .dropdown-toggle {width: 280px;}
+  &-290 .dropdown-toggle {width: 290px;}
+  &-300 .dropdown-toggle {width: 300px;}
+  &-310 .dropdown-toggle {width: 310px;}
+  &-320 .dropdown-toggle {width: 320px;}
+  &-330 .dropdown-toggle {width: 330px;}
+  &-340 .dropdown-toggle {width: 340px;}
+}
+
+.dropdown:focus,
+.dropdown.open,
+.dropdown.open:focus {
+  outline: none;
+
+  > .btn.dropdown-toggle,
+  > .btn.dropdown-toggle:hover,
+  > .btn.dropdown-toggle:hover:active,
+  > .btn.dropdown-toggle.active,
+  > .btn.dropdown-toggle.active:active,
+  > .btn.dropdown-toggle.active:active:hover {
+    box-shadow: 0 0 5px 3px $c-pool;
+  }
+}
+
+//  Elements inside a Dropdown Toggle
+//  ----------------------------------------------------------------------------
+.dropdown > .dropdown-toggle {
+  position: relative;
+  text-align: left;
+  display: flex;
+  align-items: center;
+
+  .caret {
+    right: $form-md-padding;
+  }
+
+  > .icon {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  .dropdown-selected {
+    display: inline-block;
+    flex: 1 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: $form-md-padding;
+  }
+
+  // Size Modifiers
+  &.btn-xs {
+    .caret {right: $form-xs-padding;}
+    .dropdown-selected {padding-right: $form-xs-padding;}
+  }
+  &.btn-sm {
+    .caret {right: $form-sm-padding;}
+    .dropdown-selected {padding-right: $form-sm-padding;}
+  }
+  &.btn-md {
+    .caret {right: $form-md-padding;}
+    .dropdown-selected {padding-right: $form-md-padding;}
+  }
+  &.btn-lg {
+    .caret {right: $form-lg-padding;}
+    .dropdown-selected {padding-right: $form-lg-padding;}
+  }
+}
+
+//  AutoComplete Field
+//  ----------------------------------------------------------------------------
+.dropdown-autocomplete {
+  position: relative;
+  padding: 0 !important;
+
+  &.btn-xs {height: $form-xs-height;}
+  &.btn-sm {height: $form-sm-height;}
+  &.btn-md {height: $form-md-height;}
+  &.btn-lg {height: $form-lg-height;}
+}
+.dropdown-autocomplete--input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  background-color: transparent;
+  border: 0;
+  color: $g20-white;
+  padding: 0;
+  font-weight: 500;
+
+  .btn-xs & {padding: 0 ($form-xs-padding * 2) 0 $form-xs-padding; font-size: $form-xs-font;}
+  .btn-sm & {padding: 0 ($form-sm-padding * 2) 0 $form-sm-padding; font-size: $form-sm-font;}
+  .btn-md & {padding: 0 ($form-md-padding * 2) 0 $form-md-padding; font-size: $form-md-font;}
+  .btn-lg & {padding: 0 ($form-lg-padding * 2) 0 $form-lg-padding; font-size: $form-lg-font;}
+
+  &::-webkit-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &::-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-ms-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+
+  &:focus {
+    color: $g20-white;
+  }
+}
+.dropdown-empty {
+  padding: 7px 9px;
+  font-size: 13px;
+  line-height: 13px;
+  color: rgba(255,255,255,0.4);
+  font-weight: 500;
+  @extend %no-user-select;
+}
+
+//  Dropdown Menu
+//  ----------------------------------------------------------------------------
+.dropdown .dropdown-menu {
+  min-width: 100%;
+  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
+  border-radius: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  @include gradient-h($dropdown-default-dark,$dropdown-default-bg);
+  overflow: hidden;
+  display: none;
+  position: absolute;
+  top: 100%;
+}
+.dropdown.open {
+  z-index: 9999;
+}
+.dropdown.open .dropdown-menu {
+  display: block;
+}
+// Dropdown Menu Item
+.dropdown-menu li.dropdown-item {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  @extend %no-user-select;
+
+  &:hover,
+  &.highlight,
+  &.highlight:hover {
+    @include gradient-h($dropdown-default-hover,$dropdown-default-bg);
+  }
+  > a {
+    font-size: 13px;
+    line-height: 13px;
+    transition: color 0.25s ease;
+    color: $dropdown-default-text;
+    font-weight: 500;
+    padding: 7px 9px;
+    outline: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &, &:hover, &:focus {
+      background: none;
+      background-color: transparent;
+    }
+    &:hover {
+      color: $dropdown-default-text-hover;
+    }
+    &.active,
+    &.active:hover,
+    &:active,
+    &:active:hover,
+    &:focus:active,
+    &:focus:active:hover {
+      @include gradient-h($dropdown-default-press,$dropdown-default-bg);
+      color: $dropdown-default-text-hover;
+    }
+  }
+  &.active {
+    @include gradient-h($dropdown-default-press,$dropdown-default-bg);
+    color: $dropdown-default-text-hover;
+  }
+}
+// Dropown Menu Sub-Item
+.dropdown-menu .dropdown-sub-item {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 12px;
+  opacity: 0.66;
+  margin-top: 4px;
+  white-space: pre-wrap;
+
+  &.dropdown-sub-item--success {
+    opacity: 1;
+    color: $c-krypton;
+  }
+  span.icon {
+    margin-right: 3px;
+  }
+}
+// Dropdown Item Actions
+.dropdown .dropdown-menu .dropdown-actions {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  z-index: 2;
+  opacity: 0;
+}
+.dropdown .dropdown-menu li.dropdown-item:hover .dropdown-actions {
+  opacity: 1;
+}
+.dropdown .dropdown-menu .dropdown-action {
+  width: 20px;
+  height: 27px;
+  border: 0;
+  background-color: transparent;
+  outline: none;
+  color: $dropdown-default-header;
+  transition: color 0.25s ease;
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  line-height: 27px;
+
+  &:hover {
+    cursor: pointer;
+    color: $dropdown-default-text-hover;
+  }
+}
+// Dropdown Menu Header
+.dropdown .dropdown-menu li.dropdown-header {
+  font-size: 13px;
+  line-height: 13px;
+  background-color: $dropdown-default-bg;
+  color: $dropdown-default-header;
+  font-weight: 600;
+  padding: 7px 9px;
+  margin: 0;
+  @extend %no-user-select;
+}
+// Dropdown Menu Divider
+.dropdown .dropdown-menu li.dropdown-divider {
+  width: 100%;
+  margin: 0;
+  background-color: $dropdown-default-bg;
+  height: $ix-border;
+}
+/*
+    Dropdown Menu (only js highlighting, works with autocomplete feature)
+    ----------------------------------------------------------------------------
+*/
+.dropdown .dropdown-menu.dropdown-menu--no-highlight {
+  li.dropdown-item:hover {
+    background: none;
+    background-color: transparent;
+  }
+  li.dropdown-item.highlight,
+  li.dropdown-item.highlight:hover {
+    @include gradient-h($dropdown-default-hover,$dropdown-default-bg);
+  }
+}
+
+/*
+    Multi-Select Dropdowns
+    ----------------------------------------------------------------------------
+*/
+.multi-select--item,
+.multi-select--apply {
+  @extend %no-user-select;
+  padding: 7px 9px;
+  margin: 0;
+}
+.multi-select--checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  margin-right: 7px;
+  background-color: $c-sapphire;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%) scale(2,2);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: $g20-white;
+    opacity: 0;
+    transition:
+      transform 0.25s ease,
+      opacity 0.25s ease;
+  }
+}
+.multi-select--item {
+  color: $c-neutrino;
+  font-size: 13px;
+  line-height: 13px;
+  transition:
+    color 0.25s ease;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+
+  > span {
+    width: calc(100% - 21px);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  &:hover {
+    @include gradient-h($c-laser,$c-pool);
+    color: $g20-white;
+    cursor: pointer;;
+  }
+  &.checked {
+    color: $g20-white;
+
+    .multi-select--checkbox:after {
+      opacity: 1;
+      transform: translate(-50%,-50%) scale(1,1);
+    }
+  }
+}
+.multi-select--apply {
+  .btn {
+    width: 100%;
+  }
+}
+
+
+/*
+  Kapacitor Theme Dropdowns
+*/
+.dropdown .dropdown-menu.dropdown-malachite {
+  @include gradient-h($dropdown-green-dark,$dropdown-green-bg);
+  li.dropdown-item {
+    &:hover,
+    &.highlight,
+    &.highlight:hover {@include gradient-h($dropdown-green-hover,$dropdown-green-bg);}
+    > a {
+      color: $dropdown-green-text;
+
+      &:hover {
+        color: $dropdown-green-text-hover;
+      }
+      &.active,
+      &.active:hover,
+      &:active,
+      &:active:hover,
+      &:focus:active,
+      &:focus:active:hover {
+        @include gradient-h($dropdown-green-press,$dropdown-green-bg);
+        color: $dropdown-green-text-hover;
+      }
+    }
+    .dropdown-action {color: $c-sapphire;}
+    .dropdown-action:hover {color: $dropdown-green-text-hover;}
+    &.active {@include gradient-h($dropdown-green-press,$dropdown-green-bg);}
+  }
+  li.dropdown-divider {@include gradient-h($dropdown-green-press,$c-ocean)}
+  li.dropdown-header {
+    @include gradient-h($dropdown-green-press,$c-ocean);
+    color: $dropdown-green-header;
+  }
+  &.dropdown-menu--no-highlight {
+    li.dropdown-item.highlight,
+    li.dropdown-item.highlight:hover {
+      @include gradient-h($dropdown-green-hover,$dropdown-green-bg);
+    }
+  }
+}
+
+/*
+  Purple Theme Dropdowns
+*/
+.dropdown .dropdown-menu.dropdown-astronaut {
+  @include gradient-h($dropdown-purple-dark,$dropdown-purple-bg);
+  li.dropdown-item {
+    &:hover,
+    &.highlight,
+    &.highlight:hover {@include gradient-h($dropdown-purple-hover,$dropdown-purple-bg);}
+    > a {
+      color: $dropdown-purple-text;
+
+      &:hover {
+        color: $dropdown-purple-text-hover;
+      }
+      &.active,
+      &.active:hover,
+      &:active,
+      &:active:hover,
+      &:focus:active,
+      &:focus:active:hover {
+        @include gradient-h($dropdown-purple-press,$dropdown-purple-bg);
+        color: $dropdown-purple-text-hover;
+      }
+    }
+    &.active {@include gradient-h($dropdown-purple-press,$dropdown-purple-bg);}
+    .dropdown-action {color: $dropdown-purple-press;}
+    .dropdown-action:hover {color: $dropdown-purple-text-hover;}
+  }
+  li.dropdown-divider {@include gradient-h($dropdown-purple-press,$c-ocean);}
+  li.dropdown-header {
+    @include gradient-h($dropdown-purple-press,$c-ocean);
+    color: $dropdown-purple-header;
+  }
+  &.dropdown-menu--no-highlight {
+    li.dropdown-item.highlight,
+    li.dropdown-item.highlight:hover {
+      @include gradient-h($dropdown-purple-hover,$dropdown-purple-bg);
+    }
+  }
+}

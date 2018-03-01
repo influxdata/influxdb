@@ -220,8 +220,8 @@ class AlertsTable extends Component {
               </button>
             : null}
         </div>
-      : <div className="panel panel-minimal">
-          <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      : <div className="panel">
+          <div className="panel-heading">
             <h2 className="panel-title">
               {this.props.alerts.length} Alerts
             </h2>
@@ -260,17 +260,15 @@ class SearchBar extends Component {
 
   render() {
     return (
-      <div className="users__search-widget input-group">
+      <div className="search-widget" style={{width: '260px'}}>
         <input
           type="text"
-          className="form-control"
+          className="form-control input-sm"
           placeholder="Filter Alerts..."
           onChange={this.handleChange}
           value={this.state.searchTerm}
         />
-        <div className="input-group-addon">
-          <span className="icon search" />
-        </div>
+        <span className="icon search" />
       </div>
     )
   }

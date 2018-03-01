@@ -49,7 +49,6 @@ class Visualization extends Component {
       views,
       height,
       cellType,
-      cellName,
       timeRange,
       templates,
       autoRefresh,
@@ -76,7 +75,6 @@ class Visualization extends Component {
           view={view}
           views={views}
           query={query}
-          name={cellName}
           errorThrown={errorThrown}
           onToggleView={this.handleToggleView}
         />
@@ -111,7 +109,6 @@ class Visualization extends Component {
 }
 
 Visualization.defaultProps = {
-  cellName: '',
   cellType: '',
 }
 
@@ -126,7 +123,6 @@ Visualization.contextTypes = {
 }
 
 Visualization.propTypes = {
-  cellName: string,
   cellType: string,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),

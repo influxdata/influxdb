@@ -34,6 +34,7 @@
   align-items: stretch;
 }
 .container-fluid {
+  margin: 0 auto;
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
   max-width: $page-wrapper-max-width;
 

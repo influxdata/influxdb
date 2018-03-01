@@ -17,7 +17,7 @@ const RolesTable = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) =>
-  <div className="panel panel-default">
+  <div className="panel panel-solid">
     <FilterBar
       type="roles"
       onFilter={onFilter}

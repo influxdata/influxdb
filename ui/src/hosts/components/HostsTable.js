@@ -99,8 +99,8 @@ class HostsTable extends Component {
     }
 
     return (
-      <div className="panel panel-minimal">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel">
+        <div className="panel-heading">
           <h2 className="panel-title">
             {hostsTitle}
           </h2>

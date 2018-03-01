@@ -8,33 +8,31 @@ import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {colName, colType, colEnabled, colActions} = TASKS_TABLE
 
 const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
-  <div className="panel-body">
-    <table className="table v-center table-highlight">
-      <thead>
-        <tr>
-          <th style={{minWidth: colName}}>Name</th>
-          <th style={{width: colType}}>Type</th>
-          <th style={{width: colEnabled}} className="text-center">
-            Task Enabled
-          </th>
-          <th style={{width: colActions}} />
-        </tr>
-      </thead>
-      <tbody>
-        {_.sortBy(tasks, t => t.id.toLowerCase()).map(task => {
-          return (
-            <TaskRow
-              key={task.id}
-              task={task}
-              source={source}
-              onDelete={onDelete}
-              onChangeRuleStatus={onChangeRuleStatus}
-            />
-          )
-        })}
-      </tbody>
-    </table>
-  </div>
+  <table className="table v-center table-highlight">
+    <thead>
+      <tr>
+        <th style={{minWidth: colName}}>Name</th>
+        <th style={{width: colType}}>Type</th>
+        <th style={{width: colEnabled}} className="text-center">
+          Task Enabled
+        </th>
+        <th style={{width: colActions}} />
+      </tr>
+    </thead>
+    <tbody>
+      {_.sortBy(tasks, t => t.id.toLowerCase()).map(task => {
+        return (
+          <TaskRow
+            key={task.id}
+            task={task}
+            source={source}
+            onDelete={onDelete}
+            onChangeRuleStatus={onChangeRuleStatus}
+          />
+        )
+      })}
+    </tbody>
+  </table>
 
 const handleDelete = (task, onDelete) => onDelete(task)
 

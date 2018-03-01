@@ -5,7 +5,7 @@ const HandlerEmpty = ({onGoToConfig, validationError}) =>
     <div className="endpoint-tab--parameters">
       <div className="endpoint-tab--parameters--empty">
         <p>This handler has not been configured</p>
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"

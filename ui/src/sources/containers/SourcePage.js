@@ -225,7 +225,7 @@ class SourcePage extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-8 col-md-offset-2">
-                <div className="panel panel-minimal">
+                <div className="panel">
                   <SourceForm
                     source={source}
                     editMode={editMode}
