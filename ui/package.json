@@ -16,7 +16,7 @@
     "start:assets": "webpack --watch --config ./webpack/dev.config.js",
     "start:hmr": "webpack-dev-server --open --config ./webpack/dev.config.js",
     "lint": "esw src/",
-    "test": "jest",
+    "test": "jest --runInBand",
     "test:lint": "yarn run lint; yarn run test",
     "test:watch": "jest --watch",
     "clean": "rm -rf ./build/*",
