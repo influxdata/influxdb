@@ -19,7 +19,7 @@ $table--highlight-color: $g4-onyx;
 
     &.monotype {
       font-family: $code-font;
-      letter-spacing: 0px;
+      letter-spacing: 0;
     }
 
     &.text-left {text-align: left;}
@@ -34,7 +34,7 @@ $table--highlight-color: $g4-onyx;
     font-weight: 600;
     padding: 8px;
     @extend %no-user-select;
-    border: 0px;
+    border: 0;
     border-bottom: $ix-border solid $table--border-color;
   }
 
@@ -44,7 +44,7 @@ $table--highlight-color: $g4-onyx;
     color: $g13-mist;
     font-weight: 500;
     padding: 4px 8px;
-    border: 0px;
+    border: 0;
   }
 }
 

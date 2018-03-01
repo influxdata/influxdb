@@ -68,7 +68,7 @@ input.btn {
     font-size: $form-sm-font;
     // Icons
     > .icon {
-      top: 0px;
+      top: 0;
       font-size: 1.125em;
       margin-right: 6px;
     }
@@ -301,18 +301,18 @@ input.btn-alert {
   ) {
 
   // Adjusting line height in response to more borders
-  line-height: ($form-md-height - 4px);
+  line-height: $form-md-height - 4px;
   &.btn-xs {
-    line-height: ($form-xs-height - 4px);
+    line-height: $form-xs-height - 4px;
   }
   &.btn-sm {
-    line-height: ($form-sm-height - 4px);
+    line-height: $form-sm-height - 4px;
   }
   &.btn-md {
-    line-height: ($form-md-height - 4px);
+    line-height: $form-md-height - 4px;
   }
   &.btn-lg {
-    line-height: ($form-lg-height - 4px);
+    line-height: $form-lg-height - 4px;
   }
 
   // Default State

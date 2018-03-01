@@ -60,7 +60,7 @@
 
 @media screen and (min-width: 992px) {
   .admin-tabs {
-    padding-right: 0px;
+    padding-right: 0;
 
     .btn-group {
       flex-direction: column;
@@ -69,7 +69,7 @@
       border-radius: $radius 0 0 $radius !important;
       padding: 0 0 0 16px !important;
     }
-    & + div {padding-left: 0px;}
+    & + div {padding-left: 0;}
   }
 }
 
@@ -155,7 +155,7 @@ pre.admin-table--query {
   border-radius: $radius-small $radius-small 0 0;
 
   h4 {
-    margin: 0px;
+    margin: 0;
     color: $c-potassium;
     font-size: 16px;
     font-family: $code-font;

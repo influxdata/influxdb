@@ -59,15 +59,13 @@ const KapacitorRules = ({
           <h2 className="panel-title">
             {builderHeader}
           </h2>
-          <div className="u-flex u-ai-center u-jc-space-between">
-            <Link
-              to={`/sources/${source.id}/alert-rules/new`}
-              className="btn btn-sm btn-primary"
-              style={{marginRight: '4px'}}
-            >
-              <span className="icon plus" /> Build Alert Rule
-            </Link>
-          </div>
+          <Link
+            to={`/sources/${source.id}/alert-rules/new`}
+            className="btn btn-sm btn-primary"
+            style={{marginRight: '4px'}}
+          >
+            <span className="icon plus" /> Build Alert Rule
+          </Link>
         </div>
         <div className="panel-body">
           <KapacitorRulesTable
