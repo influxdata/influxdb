@@ -207,5 +207,29 @@ describe('Components.Shared.Dropdown', () => {
         expect(dropdown.state().highlightedItemIndex).toBe(highlightedItemIndex)
       })
     })
+
+    describe('handleFilterKeyPress', () => {
+      describe('when Enter is pressed and there are items', () => {
+        it('sets state of isOpen to false', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({isOpen: true})
+          expect(dropdown.state().isOpen).toBe(true)
+
+          dropdown.instance().handleFilterKeyPress({key: 'Enter'})
+          expect(dropdown.state().isOpen).toBe(false)
+        })
+
+        it('fires onChoose with the items at the highlighted index', () => {
+          const onChoose = jest.fn(item => item)
+          const highlightedItemIndex = 1
+          const {dropdown} = setup({items, onChoose})
+          dropdown.setState({highlightedItemIndex})
+
+          dropdown.instance().handleFilterKeyPress({key: 'Enter'})
+          expect(onChoose).toHaveBeenCalledTimes(1)
+          expect(onChoose.mock.calls[0][0]).toEqual(items[highlightedItemIndex])
+        })
+      })
+    })
   })
 })
