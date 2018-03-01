@@ -1,7 +1,6 @@
 package influx
 
 import (
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,10 +12,6 @@ import (
 // SortTemplates the templates by size, then type, then value.
 func SortTemplates(ts []chronograf.TemplateVar) []chronograf.TemplateVar {
 	sort.Slice(ts, func(i, j int) bool {
-		if ts[i].Var == ":interval:" {
-			return false
-		}
-
 		if len(ts[i].Values) != len(ts[j].Values) {
 			return len(ts[i].Values) < len(ts[j].Values)
 		}
@@ -37,8 +32,6 @@ func SortTemplates(ts []chronograf.TemplateVar) []chronograf.TemplateVar {
 	})
 	return ts
 }
-
-var groupByRe = regexp.MustCompile("(?i)GROUP BY :interval:")
 
 // RenderTemplate converts the template variable into a correct InfluxQL string based
 // on its type
@@ -66,10 +59,16 @@ func RenderTemplate(query string, t chronograf.TemplateVar, now time.Time) (stri
 		tv[t.Values[i].Type] = t.Values[i].Value
 	}
 
-	query = groupByRe.ReplaceAllString(query, "GROUP BY time(:interval:)")
-
-	if pts, ok := tv["points"]; ok {
-		points, err := strconv.ParseInt(pts, 0, 64)
+	if res, ok := tv["resolution"]; ok {
+		resolution, err := strconv.ParseInt(res, 0, 64)
+		if err != nil {
+			return "", err
+		}
+		ppp, ok := tv["pointsPerPixel"]
+		if !ok {
+			ppp = "3"
+		}
+		pixelsPerPoint, err := strconv.ParseInt(ppp, 0, 64)
 		if err != nil {
 			return "", err
 		}
@@ -78,27 +77,28 @@ func RenderTemplate(query string, t chronograf.TemplateVar, now time.Time) (stri
 		if err != nil {
 			return "", err
 		}
-		interval := AutoInterval(points, dur)
+		interval := AutoGroupBy(resolution, pixelsPerPoint, dur)
 		return strings.Replace(query, t.Var, interval, -1), nil
 	}
-
 	return query, nil
 }
 
-func AutoInterval(points int64, duration time.Duration) string {
+// AutoGroupBy generates the time to group by in order to decimate the number of
+// points returned in a query
+func AutoGroupBy(resolution, pixelsPerPoint int64, duration time.Duration) string {
 	// The function is: ((total_seconds * millisecond_converstion) / group_by) = pixels / 3
 	// Number of points given the pixels
-	pixels := float64(points)
+	pixels := float64(resolution) / float64(pixelsPerPoint)
 	msPerPixel := float64(duration/time.Millisecond) / pixels
 	secPerPixel := float64(duration/time.Second) / pixels
 	if secPerPixel < 1.0 {
 		if msPerPixel < 1.0 {
 			msPerPixel = 1.0
 		}
-		return strconv.FormatInt(int64(msPerPixel), 10) + "ms"
+		return "time(" + strconv.FormatInt(int64(msPerPixel), 10) + "ms)"
 	}
 	// If groupby is more than 1 second round to the second
-	return strconv.FormatInt(int64(secPerPixel), 10) + "s"
+	return "time(" + strconv.FormatInt(int64(secPerPixel), 10) + "s)"
 }
 
 // TemplateReplace replaces templates with values within the query string

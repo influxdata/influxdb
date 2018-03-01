@@ -32,7 +32,7 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import {interval, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -331,6 +331,25 @@ class DashboardPage extends Component {
         {
           value: up || 'now()',
           type: upperType,
+          selected: true,
+        },
+      ],
+    }
+
+    const interval = {
+      id: 'interval',
+      type: 'autoGroupBy',
+      tempVar: ':interval:',
+      label: 'automatically determine the best group by time',
+      values: [
+        {
+          value: '1000', // pixels
+          type: 'resolution',
+          selected: true,
+        },
+        {
+          value: '3',
+          type: 'pointsPerPixel',
           selected: true,
         },
       ],
