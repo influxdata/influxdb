@@ -27,7 +27,7 @@ const setup = (override = {}) => {
   }
 
   const dropdown = shallow(<Dropdown {...props} />).dive({
-    'data-test': 'dropdown-button',
+    'data-test': 'dropdown-toggle',
   })
 
   return {
@@ -38,7 +38,7 @@ const setup = (override = {}) => {
 }
 
 describe('Components.Shared.Dropdown', () => {
-  describe('rednering', () => {
+  describe('rendering', () => {
     describe('initial render', () => {
       it('renders the dropdown menu button', () => {
         const {dropdown} = setup()

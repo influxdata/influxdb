@@ -42,7 +42,6 @@ const DropdownMenu = ({
         autoHide={false}
         autoHeight={true}
         maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
-        data-test="scrollbar"
       >
         {menuLabel
           ? <li className="dropdown-header">
