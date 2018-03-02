@@ -18,21 +18,10 @@ export function publishNotification(notification) {
   }
 }
 
-export function dismissNotification(notificationID) {
+export function dismissNotification(id) {
   return {
     type: 'DISMISS_NOTIFICATION',
-    payload: {
-      notificationID,
-    },
-  }
-}
-
-export function deleteNotification(notificationID) {
-  return {
-    type: 'DELETE_NOTIFICATION',
-    payload: {
-      notificationID,
-    },
+    payload: {id},
   }
 }
 >>>>>>> WIP Refactor Notifications
