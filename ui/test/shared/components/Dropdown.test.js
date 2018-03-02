@@ -38,13 +38,13 @@ const setup = (override = {}) => {
 describe('Components.Shared.Dropdown', () => {
   describe('rendering', () => {
     describe('initial render', () => {
-      it('renders the dropdown menu button', () => {
+      it('renders the <Dropdown/> button', () => {
         const {dropdown} = setup()
 
         expect(dropdown.exists()).toBe(true)
       })
 
-      it('does not show the list', () => {
+      it('does not show the <DropdownMenu/> list', () => {
         const {dropdown} = setup({items})
 
         const menu = dropdown.find(DropdownMenu)
