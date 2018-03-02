@@ -1,7 +1,6 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
-import uuid from 'uuid'
 
 import {Source, Query} from 'src/types'
 import {Namespace} from 'src/types/query'
@@ -89,7 +88,11 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
         return [...acc, ...dbrp]
       }, [])
 
-      this.setState({namespaces})
+      const sorted = _.sortBy(namespaces, ({database}: Namespace) =>
+        database.toLowerCase()
+      )
+
+      this.setState({namespaces: sorted})
     } catch (err) {
       console.error(err)
     }
@@ -99,38 +102,21 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     this.props.onChooseNamespace(namespace)
   }
 
-  handleSortNamespace = (a, b) => {
-    const nsa = a.database.toLowerCase()
-    const nsb = b.database.toLowerCase()
-
-    if (nsa > nsb) {
-      return 1
-    }
-
-    if (nsa < nsb) {
-      return -1
-    }
-
-    return 0
-  }
-
   isActive = (query: Query, {database, retentionPolicy}: Namespace) =>
     database === query.database && retentionPolicy === query.retentionPolicy
 
   render() {
-    const namespaces = this.state.namespaces.sort(this.handleSortNamespace)
-
     return (
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">DB.RetentionPolicy</div>
         <div className="query-builder--list">
           <FancyScrollbar>
-            {namespaces.map(namespace =>
+            {this.state.namespaces.map(namespace =>
               <DatabaseListItem
                 isActive={this.isActive(this.props.query, namespace)}
                 namespace={namespace}
                 onChooseNamespace={this.handleChooseNamespace}
-                key={uuid.v4()}
+                key={namespace.database + namespace.retentionPolicy}
               />
             )}
           </FancyScrollbar>
