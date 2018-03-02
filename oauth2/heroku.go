@@ -61,7 +61,10 @@ func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
 		DefaultOrganization DefaultOrg `json:"default_organization"`
 	}
 
-	resp, err := provider.Get(HerokuAccountRoute)
+	req, err := http.NewRequest("GET", HerokuAccountRoute, nil)
+	// Requests fail to Heroku unless this Accept header is set.
+	req.Header.Set("Accept", "application/vnd.heroku+json; version=3")
+	resp, err := provider.Do(req)
 	if err != nil {
 		h.Logger.Error("Unable to communicate with Heroku. err:", err)
 		return "", err
