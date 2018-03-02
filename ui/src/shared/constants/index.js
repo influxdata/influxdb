@@ -445,3 +445,5 @@ export const cellSupportsAnnotations = cellType => {
   ]
   return !!supportedTypes.find(type => type === cellType)
 }
+
+export const NOTIFICATION_FADE_DURATION = 1000
