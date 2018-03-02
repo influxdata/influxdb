@@ -874,10 +874,11 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 
 	columns := stmt.ColumnNames()
 	return &preparedStatement{
-		stmt:    stmt,
-		opt:     opt,
-		ic:      shards,
-		columns: columns,
-		now:     c.Options.Now,
+		stmt:      stmt,
+		opt:       opt,
+		ic:        shards,
+		columns:   columns,
+		maxPointN: sopt.MaxPointN,
+		now:       c.Options.Now,
 	}, nil
 }

@@ -50,7 +50,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			callCnt++
 			if callCnt >= expectCallCnt {
 				done <- struct{}{}
@@ -122,7 +122,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
 			valuer := &influxql.NowValuer{Location: s.Location}
 			_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
@@ -204,7 +204,7 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 
 	// Set a callback for ExecuteQuery.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
 			valuer := &influxql.NowValuer{Location: s.Location}
 			_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
@@ -274,7 +274,7 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
 			valuer := &influxql.NowValuer{Location: s.Location}
 			_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
@@ -315,7 +315,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 	done := make(chan struct{})
 	// Set a callback for ExecuteStatement. Shouldn't get called because we're not the leader.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			done <- struct{}{}
 			ctx.Results <- &query.Result{Err: errUnexpected}
 			return nil
@@ -336,7 +336,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			return errUnexpected
 		},
 	}
@@ -435,7 +435,7 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 
 			// Set a callback for ExecuteStatement.
 			s.QueryExecutor.StatementExecutor = &StatementExecutor{
-				ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 					s := stmt.(*influxql.SelectStatement)
 					valuer := &influxql.NowValuer{Location: s.Location}
 					_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
@@ -549,7 +549,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 			// Set a callback for ExecuteStatement.
 			tests := make(chan test, 1)
 			s.QueryExecutor.StatementExecutor = &StatementExecutor{
-				ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 					test := <-tests
 					s := stmt.(*influxql.SelectStatement)
 					valuer := &influxql.NowValuer{Location: s.Location}
@@ -592,7 +592,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			return errExpected
 		},
 	}
@@ -612,7 +612,7 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 	const writeN = int64(50)
 
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			ctx.Results <- &query.Result{
 				Series: []*models.Row{{
 					Name:    "result",
@@ -658,8 +658,8 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 func TestService_ExecuteContinuousQuery_LogToMonitor_DisabledByDefault(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
-			ctx.Results <- &query.Result{}
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			ctx.Send(&query.Result{})
 			return nil
 		},
 	}
@@ -821,10 +821,10 @@ func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error 
 
 // StatementExecutor is a mock statement executor.
 type StatementExecutor struct {
-	ExecuteStatementFn func(stmt influxql.Statement, ctx query.ExecutionContext) error
+	ExecuteStatementFn func(stmt influxql.Statement, ctx *query.ExecutionContext) error
 }
 
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 

@@ -139,55 +139,11 @@ type ExecutionOptions struct {
 	AbortCh <-chan struct{}
 }
 
-// ExecutionContext contains state that the query is currently executing with.
-type ExecutionContext struct {
-	// The statement ID of the executing query.
-	StatementID int
-
-	// The query ID of the executing query.
-	QueryID uint64
-
-	// The query task information available to the StatementExecutor.
-	Query *Task
-
-	// Output channel where results and errors should be sent.
-	Results chan *Result
-
-	// A channel that is closed when the query is interrupted.
-	InterruptCh <-chan struct{}
-
-	// Options used to start this query.
-	ExecutionOptions
-}
-
-// send sends a Result to the Results channel and will exit if the query has
-// been aborted.
-func (ctx *ExecutionContext) send(result *Result) error {
-	select {
-	case <-ctx.AbortCh:
-		return ErrQueryAborted
-	case ctx.Results <- result:
-	}
-	return nil
-}
-
-// Send sends a Result to the Results channel and will exit if the query has
-// been interrupted or aborted.
-func (ctx *ExecutionContext) Send(result *Result) error {
-	select {
-	case <-ctx.InterruptCh:
-		return ErrQueryInterrupted
-	case <-ctx.AbortCh:
-		return ErrQueryAborted
-	case ctx.Results <- result:
-	}
-	return nil
-}
-
 type contextKey int
 
 const (
 	iteratorsContextKey contextKey = iota
+	monitorContextKey
 )
 
 // NewContextWithIterators returns a new context.Context with the *Iterators slice added.
@@ -208,7 +164,7 @@ func tryAddAuxIteratorToContext(ctx context.Context, itr AuxIterator) {
 type StatementExecutor interface {
 	// ExecuteStatement executes a statement. Results should be sent to the
 	// results channel in the ExecutionContext.
-	ExecuteStatement(stmt influxql.Statement, ctx ExecutionContext) error
+	ExecuteStatement(stmt influxql.Statement, ctx *ExecutionContext) error
 }
 
 // StatementNormalizer normalizes a statement before it is executed.
@@ -298,7 +254,7 @@ func (e *Executor) executeQuery(query *influxql.Query, opt ExecutionOptions, clo
 		atomic.AddInt64(&e.stats.QueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
-	qid, task, err := e.TaskManager.AttachQuery(query, opt.Database, closing)
+	ctx, detach, err := e.TaskManager.AttachQuery(query, opt, closing)
 	if err != nil {
 		select {
 		case results <- &Result{Err: err}:
@@ -306,21 +262,15 @@ func (e *Executor) executeQuery(query *influxql.Query, opt ExecutionOptions, clo
 		}
 		return
 	}
-	defer e.TaskManager.DetachQuery(qid)
+	defer detach()
 
 	// Setup the execution context that will be used when executing statements.
-	ctx := ExecutionContext{
-		QueryID:          qid,
-		Query:            task,
-		Results:          results,
-		InterruptCh:      task.closing,
-		ExecutionOptions: opt,
-	}
+	ctx.Results = results
 
 	var i int
 LOOP:
 	for ; i < len(query.Statements); i++ {
-		ctx.StatementID = i
+		ctx.statementID = i
 		stmt := query.Statements[i]
 
 		// If a default database wasn't passed in by the caller, check the statement.
@@ -390,7 +340,7 @@ LOOP:
 		if err == ErrQueryInterrupted {
 			// Query was interrupted so retrieve the real interrupt error from
 			// the query task if there is one.
-			if qerr := task.Error(); qerr != nil {
+			if qerr := ctx.Err(); qerr != nil {
 				err = qerr
 			}
 		}
@@ -409,13 +359,11 @@ LOOP:
 
 		// Check if the query was interrupted during an uninterruptible statement.
 		interrupted := false
-		if ctx.InterruptCh != nil {
-			select {
-			case <-ctx.InterruptCh:
-				interrupted = true
-			default:
-				// Query has not been interrupted.
-			}
+		select {
+		case <-ctx.Done():
+			interrupted = true
+		default:
+			// Query has not been interrupted.
 		}
 
 		if interrupted {
@@ -462,11 +410,6 @@ func (e *Executor) recover(query *influxql.Query, results chan *Result) {
 		}
 	}
 }
-
-// MonitorFunc is a function that will be called to check if a query
-// is currently healthy. If the query needs to be interrupted for some reason,
-// the error should be returned by this function.
-type MonitorFunc func(<-chan struct{}) error
 
 // Task is the internal data structure for managing queries.
 // For the public use data structure that gets returned, see Task.
