@@ -35,13 +35,14 @@ const formatColor = color => {
 
 class TableOptions extends Component {
   state = {TimeAxis: 'VERTICAL', TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss'}
+
   handleToggleSingleStatType = () => {}
 
   handleAddThreshold = () => {}
 
-  handleDeleteThreshold = () => {}
+  handleDeleteThreshold = () => () => {}
 
-  handleChooseColor = () => {}
+  handleChooseColor = () => () => {}
 
   handleChooseSortBy = () => {}
 
