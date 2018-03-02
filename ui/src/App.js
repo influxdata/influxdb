@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
@@ -6,21 +6,14 @@ import {bindActionCreators} from 'redux'
 import SideNav from 'src/side_nav'
 import Notifications from 'shared/components/Notifications'
 
-import {publishNotification} from 'shared/actions/notifications'
+import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-const {func, node} = PropTypes
+class App extends Component {
+  notify = notification => {
+    const {publishNotification} = this.props
 
-const App = React.createClass({
-  propTypes: {
-    children: node.isRequired,
-    notify: func.isRequired,
-  },
-
-  handleAddFlashMessage({type, text}) {
-    const {notify} = this.props
-
-    notify(type, text)
-  },
+    publishNotification(notification)
+  }
 
   render() {
     return (
@@ -29,15 +22,22 @@ const App = React.createClass({
         <SideNav />
         {this.props.children &&
           React.cloneElement(this.props.children, {
-            addFlashMessage: this.handleAddFlashMessage,
+            addFlashMessage: this.notify,
           })}
       </div>
     )
-  },
-})
+  }
+}
+
+const {func, node} = PropTypes
+
+App.propTypes = {
+  children: node.isRequired,
+  publishNotification: func.isRequired,
+}
 
 const mapDispatchToProps = dispatch => ({
-  notify: bindActionCreators(publishNotification, dispatch),
+  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(App)
