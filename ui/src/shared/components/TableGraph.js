@@ -4,10 +4,6 @@ import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
 import {MultiGrid} from 'react-virtualized'
 
 class TableGraph extends Component {
-  constructor(props) {
-    super(props)
-  }
-
   componentWillMount() {
     this._labels = []
     this._data = [[]]
