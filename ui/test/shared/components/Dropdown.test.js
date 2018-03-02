@@ -230,6 +230,70 @@ describe('Components.Shared.Dropdown', () => {
           expect(onChoose.mock.calls[0][0]).toEqual(items[highlightedItemIndex])
         })
       })
+
+      describe('when Escape is pressed', () => {
+        it('sets isOpen state to false', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({isOpen: true})
+
+          expect(dropdown.state().isOpen).toBe(true)
+
+          dropdown.instance().handleFilterKeyPress({key: 'Escape'})
+
+          expect(dropdown.state().isOpen).toBe(false)
+        })
+      })
+
+      describe('when ArrowUp is pressed', () => {
+        it('decrements the highlightedItemIndex', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({highlightedItemIndex: 1})
+
+          dropdown.instance().handleFilterKeyPress({key: 'ArrowUp'})
+          expect(dropdown.state().highlightedItemIndex).toBe(0)
+        })
+
+        it('does not decrement highlightedItemIndex past 0', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({highlightedItemIndex: 0})
+
+          dropdown.instance().handleFilterKeyPress({key: 'ArrowUp'})
+          expect(dropdown.state().highlightedItemIndex).toBe(0)
+        })
+      })
+
+      describe('when ArrowDown is pressed', () => {
+        describe('if no highlight has been set', () => {
+          it('starts highlighted index at 0', () => {
+            const {dropdown} = setup({items})
+            expect(dropdown.state().highlightedItemIndex).toBe(null)
+
+            dropdown.instance().handleFilterKeyPress({key: 'ArrowDown'})
+            expect(dropdown.state().highlightedItemIndex).toBe(0)
+          })
+        })
+
+        describe('if highlightedItemIndex has been set', () => {
+          it('it increments the index', () => {
+            const {dropdown} = setup({items})
+            dropdown.setState({highlightedItemIndex: 0})
+
+            dropdown.instance().handleFilterKeyPress({key: 'ArrowDown'})
+            expect(dropdown.state().highlightedItemIndex).toBe(1)
+          })
+
+          describe('when highilghtedItemIndex is at the end of the list', () => {
+            it('does not exceed the list length', () => {
+              const {dropdown} = setup({items})
+              dropdown.setState({highlightedItemIndex: 1})
+
+              const expectedIndex = items.length - 1
+              dropdown.instance().handleFilterKeyPress({key: 'ArrowDown'})
+              expect(dropdown.state().highlightedItemIndex).toBe(expectedIndex)
+            })
+          })
+        })
+      })
     })
   })
 })
