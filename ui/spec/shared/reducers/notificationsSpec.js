@@ -3,7 +3,6 @@ import reducer, {initialState} from 'src/shared/reducers/notifications'
 import {
   publishNotification,
   dismissNotification,
-  dismissAllNotifications,
 } from 'src/shared/actions/notifications'
 
 const notificationID = '000'
@@ -12,11 +11,14 @@ const exampleNotification = {
   id: notificationID,
   type: 'success',
   message: 'Hell yeah you are a real notification!',
-  duration: 5000,
+  created: 'timestamp',
+  duration: 5000, // -1 stays until dismissed
   icon: 'zap',
 }
 
-describe('fsd', () => {
+const exampleNotifications = [exampleNotification]
+
+describe('Shared.Reducers.notifications', () => {
   it('should publish a notification', () => {
     const actual = reducer(
       initialState,
@@ -28,15 +30,11 @@ describe('fsd', () => {
   })
 
   it('should dismiss a notification', () => {
-    const actual = reducer(initialState, dismissNotification(notificationID))
-    const expected = initialState.filter(n => n.id !== notificationID)
-
-    expect(actual).to.equal(expected)
-  })
-
-  it('should dismiss all notifications', () => {
-    const actual = reducer(initialState, dismissAllNotifications())
-    const expected = initialState
+    const actual = reducer(
+      exampleNotifications,
+      dismissNotification(notificationID)
+    )
+    const expected = exampleNotifications.filter(n => n.id !== notificationID)
 
     expect(actual).to.equal(expected)
   })
