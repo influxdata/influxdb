@@ -2,55 +2,95 @@ import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {dismissNotification as dismissNotificationAction} from 'shared/actions/notifications'
+import classnames from 'classnames'
+
+import {
+  dismissNotification as dismissNotificationAction,
+  deleteNotification as deleteNotificationAction,
+} from 'shared/actions/notifications'
 
 class Notification extends Component {
   constructor(props) {
     super(props)
+
+    this.state = {
+      opacity: 1,
+      height: 0,
+    }
   }
 
-  getOpacity = () => {
-    const {notification: {created, duration}} = this.props
-    const expirationTime = created + duration
+  componentDidMount = () => {
+    const {notification: {duration}} = this.props
 
-    if (duration === -1) {
-      // Notification is present until user dismisses it
-      return false
-    }
+    // Trigger animation in
+    const {height} = this.notificationRef.getBoundingClientRect()
+    this.setState({height})
 
-    if (expirationTime < Date.now()) {
-      return true
-      // dismissNotification(id)
+    if (duration >= 0) {
+      // Automatically dismiss notification after duration prop
+      window.setTimeout(this.handleDismiss, duration)
     }
+  }
+
+  componentDidUpdate = () => {
+    const {notification: {dismiss}} = this.props
+
+    if (dismiss) {
+      window.setTimeout(this.handleDelete, 800)
+    }
+  }
+
+  handleDelete = () => {
+    const {notification: {id}, deleteNotification} = this.props
+    deleteNotification(id)
+  }
+
+  handleDismiss = () => {
+    const {notification: {id, dismiss}, dismissNotification} = this.props
+
+    return dismiss ? null : dismissNotification(id)
   }
 
   render() {
-    const {
-      notification: {id, type, message, icon},
-      dismissNotification,
-    } = this.props
+    const {notification: {type, message, icon, dismiss}} = this.props
+    const {height} = this.state
 
-    const notificationClass = `alert alert-${type}`
-
-    const notificationStyle = {
-      opacity: this.getOpacity(),
-    }
+    const notificationContainerClass = classnames('notification-container', {
+      show: !!height,
+      'notification-dismissed': dismiss,
+    })
+    const notificationClass = `notification notification-${type}`
+    const notificationMargin = 4
 
     return (
-      <div className={notificationClass}>
-        {icon && <span className={`icon ${icon}`} />}
-        <div className="alert-message">
-          {message}
+      <div
+        className={notificationContainerClass}
+        style={{height: height + notificationMargin}}
+      >
+        <div
+          className={notificationClass}
+          ref={r => (this.notificationRef = r)}
+        >
+          <span className={`icon ${icon}`} />
+          <div className="notification-message">
+            {message}
+          </div>
+          <button className="notification-close" onClick={this.handleDismiss}>
+            <span className="icon remove" />
+          </button>
         </div>
-        <button className="alert-close" onClick={dismissNotification(id)}>
-          <span className="icon remove" />
-        </button>
       </div>
     )
   }
 }
 
-const {func, number, shape, string} = PropTypes
+const {func, bool, number, shape, string} = PropTypes
+
+Notification.defaultProps = {
+  notification: {
+    icon: 'zap',
+  },
+}
 
 Notification.propTypes = {
   notification: shape({
@@ -60,12 +100,15 @@ Notification.propTypes = {
     created: number.isRequired,
     duration: number.isRequired,
     icon: string,
+    dismiss: bool,
   }),
   dismissNotification: func.isRequired,
+  deleteNotification: func.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({
   dismissNotification: bindActionCreators(dismissNotificationAction, dispatch),
+  deleteNotification: bindActionCreators(deleteNotificationAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(Notification)

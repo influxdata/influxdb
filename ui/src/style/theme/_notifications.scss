@@ -16,13 +16,12 @@
   border-width: 0;
   border-radius: $ix-radius;
   position: relative;
-  padding: 12px;
-  padding-left: 40px;
+  padding: 12px 40px;
   @extend %no-user-select;
   transform: translateX(105%);
   transition:
     transform 0.25s ease 0.25s,
-    opacity 1s ease;
+    opacity 0.25s ease;
 
   > span.icon {
    position: absolute;
@@ -31,15 +30,6 @@
    transform: translate(-50%,-50%);
    font-size: $ix-text-base-2;
  }
-}
-
-.notification-container {
-  height: 0;
-  transition: height 0.25s ease;
-
-  &.show .notification {
-    transform: translateX(0);
-  }
 }
 
 .notification-message {
@@ -66,11 +56,21 @@
     cursor: pointer;
     opacity: 1;
   }
+}
+.notification-container {
+  overflow: hidden;
+  height: 0;
+  transition: height 0.25s ease;
 
-  .notification-dismissed & {
-    opacity: 0;
+  &.show .notification {
+    transform: translateX(0);
+  }
+  &.notification-dismissed {
+    height: 0 !important;
+    .notification {opacity: 0;}
   }
 }
+
 
 //  Mixin for Alert Themes
 //  ----------------------------------------------------------------------------

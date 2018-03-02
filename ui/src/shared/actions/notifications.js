@@ -9,7 +9,16 @@ export function publishNotification(notification) {
 
 export function dismissNotification(notificationID) {
   return {
-    type: 'NOTIFICATION_DISMISSED',
+    type: 'DISMISS_NOTIFICATION',
+    payload: {
+      notificationID,
+    },
+  }
+}
+
+export function deleteNotification(notificationID) {
+  return {
+    type: 'DELETE_NOTIFICATION',
     payload: {
       notificationID,
     },
