@@ -71,30 +71,29 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
-	// Attempt to parse the config once in advance. If this fails, use the
-	// default logging configuration.
-	var (
-		suppressLogo bool
-		logErr       error
-	)
-	if config, err := cmd.ParseConfig(options.GetConfigPath()); err == nil {
-		suppressLogo = config.Logging.SuppressLogo
-		if l, err := config.Logging.New(cmd.Stderr); err == nil {
-			cmd.Logger = l
-		} else {
-			logErr = err
-		}
-	} else {
-		logErr = err
+	config, err := cmd.ParseConfig(options.GetConfigPath())
+	if err != nil {
+		return fmt.Errorf("parse config: %s", err)
 	}
 
-	// We were unable to read the configuration file. Use the default logging format.
-	if logErr != nil {
+	// Apply any environment variables on top of the parsed config
+	if err := config.ApplyEnvOverrides(cmd.Getenv); err != nil {
+		return fmt.Errorf("apply env config: %v", err)
+	}
+
+	// Validate the configuration.
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
+	}
+
+	var logErr error
+	if cmd.Logger, logErr = config.Logging.New(cmd.Stderr); logErr != nil {
+		// assign the default logger
 		cmd.Logger = logger.New(cmd.Stderr)
 	}
 
 	// Print sweet InfluxDB logo.
-	if !suppressLogo && logger.IsTerminal(cmd.Stdout) {
+	if !config.Logging.SuppressLogo && logger.IsTerminal(cmd.Stdout) {
 		fmt.Fprint(cmd.Stdout, logo)
 	}
 
@@ -117,22 +116,6 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("write pid file: %s", err)
 	}
 	cmd.pidfile = options.PIDFile
-
-	// Parse config
-	config, err := cmd.ParseConfig(options.GetConfigPath())
-	if err != nil {
-		return fmt.Errorf("parse config: %s", err)
-	}
-
-	// Apply any environment variables on top of the parsed config
-	if err := config.ApplyEnvOverrides(cmd.Getenv); err != nil {
-		return fmt.Errorf("apply env config: %v", err)
-	}
-
-	// Validate the configuration.
-	if err := config.Validate(); err != nil {
-		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
-	}
 
 	if config.HTTPD.PprofEnabled {
 		// Turn on block and mutex profiling.
