@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import uuid from 'uuid'
+// import uuid from 'uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
@@ -16,9 +16,9 @@ import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 
 import {
-  GAUGE_COLORS,
-  DEFAULT_VALUE_MIN,
-  DEFAULT_VALUE_MAX,
+  // GAUGE_COLORS,
+  // DEFAULT_VALUE_MIN,
+  // DEFAULT_VALUE_MAX,
   MAX_THRESHOLDS,
 } from 'src/dashboards/constants/gaugeColors'
 

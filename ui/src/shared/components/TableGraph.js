@@ -1,6 +1,5 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
-import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
 import {MultiGrid} from 'react-virtualized/dist/commonjs/MultiGrid'
 
