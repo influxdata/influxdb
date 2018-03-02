@@ -196,6 +196,11 @@ module.exports = {
     clientLogLevel: 'info',
     stats: {
       colors: true,
+      children: false,
+      modules: false,
+      version: false,
+      assetsSort: "!size",
+      excludeAssets: [/\.(woff|eot|ttf|svg|ico|png)/]
     },
     contentBase: 'build',
     quiet: false,
