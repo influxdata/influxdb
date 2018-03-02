@@ -6,10 +6,12 @@ import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
 import GaugeChart from 'shared/components/GaugeChart'
+import TableGraph from 'shared/components/TableGraph'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 const RefreshingGaugeChart = AutoRefresh(GaugeChart)
+const RefreshingTableGraph = AutoRefresh(TableGraph)
 
 const RefreshingGraph = ({
   axes,
@@ -74,6 +76,25 @@ const RefreshingGraph = ({
         cellID={cellID}
         prefix={prefix}
         suffix={suffix}
+        inView={inView}
+      />
+    )
+  }
+
+  if (type === 'table') {
+    return (
+      <RefreshingTableGraph
+        colors={colors}
+        key={manualRefresh}
+        queries={queries}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        cellHeight={cellHeight}
+        resizerTopHeight={resizerTopHeight}
+        resizeCoords={resizeCoords}
+        cellID={cellID}
+        // prefix={prefix}
+        // suffix={suffix}
         inView={inView}
       />
     )
