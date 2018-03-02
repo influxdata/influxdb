@@ -27,7 +27,7 @@ const formatColor = color => {
 }
 
 class TableOptions extends Component {
-  state = {TimeAxis: 'VERTICAL', TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss'}
+  state = {TimeAxis: 'VERTICAL', TimeFormat: 'MM/DD/YYYY HH:mm:ss.ss'}
 
   handleToggleSingleStatType = () => {}
 

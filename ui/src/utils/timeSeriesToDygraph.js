@@ -166,7 +166,15 @@ export default function timeSeriesToDygraph(raw = [], isInDataExplorer) {
 export const timeSeriesToTable = data => {
   const {labels, timeSeries} = timeSeriesToDygraph(data, false)
   const tableData = timeSeries.length
-    ? timeSeries.map(row => row.map(cell => (cell ? cell.toString() : 'null')))
+    ? timeSeries.map(row =>
+        row.map(
+          cell =>
+            cell
+              ? typeof cell === 'object' ? cell.toISOString() : cell.toString()
+              : 'null'
+        )
+      )
     : [[]]
+
   return {labels, data: [labels, ...tableData]}
 }

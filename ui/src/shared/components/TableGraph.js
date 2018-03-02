@@ -1,9 +1,13 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
 import {MultiGrid} from 'react-virtualized'
+import moment from 'moment'
 
 class TableGraph extends Component {
+  state = {timeFormat: 'MM/DD/YYYY HH:mm:ss.ss'}
+
   componentWillMount() {
     this._labels = []
     this._data = [[]]
@@ -18,6 +22,12 @@ class TableGraph extends Component {
 
   cellRenderer = ({columnIndex, key, rowIndex, style}) => {
     const data = this._data
+    const {timeFormat} = this.state
+    if (columnIndex === 0 && rowIndex > 0) {
+      data[rowIndex][columnIndex] = moment(data[rowIndex][columnIndex]).format(
+        timeFormat
+      )
+    }
     return (
       <div key={key} style={style}>
         {data[rowIndex][columnIndex]}
