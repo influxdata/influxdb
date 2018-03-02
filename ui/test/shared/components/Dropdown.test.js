@@ -1,6 +1,7 @@
 import React from 'react'
 import {Dropdown} from 'shared/components/Dropdown'
-import DropdownMenu from 'shared/components/DropdownMenu'
+import DropdownMenu, {DropdownMenuEmpty} from 'shared/components/DropdownMenu'
+import DropdownHead from 'shared/components/DropdownHead'
 import DropdownInput from 'shared/components/DropdownInput'
 
 import {mount} from 'enzyme'
@@ -52,6 +53,43 @@ describe('Components.Shared.Dropdown', () => {
       })
     })
 
+    describe('the <DropdownHead />', () => {
+      const {dropdown} = setup()
+      const head = dropdown.find(DropdownHead)
+
+      expect(head.exists()).toBe(true)
+    })
+
+    describe('when there are no items in the dropdown', () => {
+      it('renders the <DropdownMenuEmpty/> component', () => {
+        const {dropdown} = setup()
+        const empty = dropdown.find(DropdownMenuEmpty)
+
+        expect(empty.exists()).toBe(true)
+      })
+    })
+
+    describe('the <DropdownInput/>', () => {
+      it('does not display the input by default', () => {
+        const {dropdown} = setup()
+        const input = dropdown.find(DropdownInput)
+
+        expect(input.exists()).toBe(false)
+      })
+
+      it('displays the input when provided useAutoCompelete is true', () => {
+        const {dropdown} = setup({items, useAutoComplete: true})
+        let input = dropdown.find(DropdownInput)
+
+        expect(input.exists()).toBe(false)
+
+        dropdown.simulate('click')
+        input = dropdown.find(DropdownInput)
+
+        expect(input.exists()).toBe(true)
+      })
+    })
+
     describe('user interactions', () => {
       describe('opening the <DropdownMenu/>', () => {
         it('shows the menu when clicked', () => {
@@ -75,27 +113,6 @@ describe('Components.Shared.Dropdown', () => {
           const menu = dropdown.find(DropdownMenu)
           expect(dropdown.state().isOpen).toBe(false)
           expect(menu.exists()).toBe(false)
-        })
-      })
-
-      describe('the <DropdownInput/>', () => {
-        it('does not display the input by default', () => {
-          const {dropdown} = setup()
-          const input = dropdown.find(DropdownInput)
-
-          expect(input.exists()).toBe(false)
-        })
-
-        it('displays the input when provided useAutoCompelete is true', () => {
-          const {dropdown} = setup({items, useAutoComplete: true})
-          let input = dropdown.find(DropdownInput)
-
-          expect(input.exists()).toBe(false)
-
-          dropdown.simulate('click')
-          input = dropdown.find(DropdownInput)
-
-          expect(input.exists()).toBe(true)
         })
       })
     })
