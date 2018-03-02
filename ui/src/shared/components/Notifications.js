@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import Notification from 'src/shared/components/Notification'
 
 const Notifications = ({notifications}) =>
-  <div className="flash-messages">
+  <div className="notification-center">
     {notifications.map(n => <Notification key={n.id} notification={n} />)}
   </div>
 
