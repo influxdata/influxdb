@@ -1,7 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
-import {MultiGrid} from 'react-virtualized/dist/commonjs/MultiGrid'
+import {MultiGrid} from 'react-virtualized'
 
 class TableGraph extends Component {
   constructor(props) {
@@ -43,19 +43,18 @@ class TableGraph extends Component {
         className="graph-container"
         ref={gridContainer => (this.gridContainer = gridContainer)}
       >
-        {data.length > 1
-          ? <MultiGrid
-              fixedColumnCount={1}
-              fixedRowCount={1}
-              cellRenderer={this.cellRenderer}
-              columnCount={columnCount}
-              columnWidth={COLUMN_WIDTH}
-              height={tableHeight}
-              rowCount={rowCount}
-              rowHeight={ROW_HEIGHT}
-              width={tableWidth - 32}
-            />
-          : null}
+        {data.length > 1 &&
+          <MultiGrid
+            fixedColumnCount={1}
+            fixedRowCount={1}
+            cellRenderer={this.cellRenderer}
+            columnCount={columnCount}
+            columnWidth={COLUMN_WIDTH}
+            height={tableHeight}
+            rowCount={rowCount}
+            rowHeight={ROW_HEIGHT}
+            width={tableWidth - 32}
+          />}
       </div>
     )
   }

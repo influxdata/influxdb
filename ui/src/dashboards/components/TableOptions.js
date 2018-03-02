@@ -3,24 +3,17 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-// import uuid from 'uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
-import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
+import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
+import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
+import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
+import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
 
-import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
-import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
-
-import {
-  // GAUGE_COLORS,
-  // DEFAULT_VALUE_MIN,
-  // DEFAULT_VALUE_MAX,
-  MAX_THRESHOLDS,
-} from 'src/dashboards/constants/gaugeColors'
+import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 
 import {
   updateSingleStatType,

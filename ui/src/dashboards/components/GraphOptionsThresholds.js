@@ -7,6 +7,7 @@ import {
   SINGLE_STAT_BASE,
 } from 'src/dashboards/constants/gaugeColors'
 
+// TODO: Needs major refactoring to make thresholds a much more general component to be shared between single stat, gauge, and table.
 const GraphOptionsThresholds = ({
   onAddThreshold,
   disableAddThreshold,
