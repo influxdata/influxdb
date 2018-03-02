@@ -1,15 +1,17 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
-import classnames from 'classnames'
 import _ from 'lodash'
+import uuid from 'uuid'
 
 import {Source, Query} from 'src/types'
 import {Namespace} from 'src/types/query'
+
 import {showDatabases, showRetentionPolicies} from 'src/shared/apis/metaQuery'
 import showDatabasesParser from 'src/shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'src/shared/parsing/showRetentionPolicies'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import DatabaseListItem from 'src/shared/components/DatabaseListItem'
 
 export interface DatabaseListProps {
   query: Query
@@ -67,76 +69,70 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  getDbRp() {
+  getDbRp = async () => {
     const {source} = this.context
     const {querySource} = this.props
-    const proxy =
-      _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
+    const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
 
-    showDatabases(proxy).then(resp => {
-      const {errors, databases} = showDatabasesParser(resp.data)
-      if (errors.length) {
-        // do something
-      }
+    try {
+      const {data} = await showDatabases(proxy)
+      const {databases} = showDatabasesParser(data)
+      const rps = await showRetentionPolicies(proxy, databases)
+      const namespaces = rps.data.results.reduce((acc, result, index) => {
+        const {retentionPolicies} = showRetentionPoliciesParser(result)
 
-      const namespaces = []
-      showRetentionPolicies(proxy, databases).then(res => {
-        res.data.results.forEach((result, index) => {
-          const {errors: errs, retentionPolicies} = showRetentionPoliciesParser(
-            result
-          )
-          if (errs.length) {
-            // do something
-          }
+        const dbrp = retentionPolicies.map(rp => ({
+          database: databases[index],
+          retentionPolicy: rp.name,
+        }))
 
-          retentionPolicies.forEach(rp => {
-            namespaces.push({
-              database: databases[index],
-              retentionPolicy: rp.name,
-            })
-          })
-        })
+        return [...acc, ...dbrp]
+      }, [])
 
-        this.setState({namespaces})
-      })
-    })
+      this.setState({namespaces})
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   handleChooseNamespace = (namespace: Namespace) => () => {
     this.props.onChooseNamespace(namespace)
   }
 
+  handleSortNamespace = (a, b) => {
+    const nsa = a.database.toLowerCase()
+    const nsb = b.database.toLowerCase()
+
+    if (nsa > nsb) {
+      return 1
+    }
+
+    if (nsa < nsb) {
+      return -1
+    }
+
+    return 0
+  }
+
+  isActive = (query: Query, {database, retentionPolicy}: Namespace) =>
+    database === query.database && retentionPolicy === query.retentionPolicy
+
   render() {
-    const {query} = this.props
-    const {namespaces} = this.state
-    const sortedNamespaces = namespaces.length
-      ? _.sortBy(namespaces, n => n.database.toLowerCase())
-      : namespaces
+    const namespaces = this.state.namespaces.sort(this.handleSortNamespace)
 
     return (
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">DB.RetentionPolicy</div>
         <div className="query-builder--list">
           <FancyScrollbar>
-            {sortedNamespaces.map(namespace => {
-              const {database, retentionPolicy} = namespace
-              const isActive =
-                database === query.database &&
-                retentionPolicy === query.retentionPolicy
-
-              return (
-                <div
-                  className={classnames('query-builder--list-item', {
-                    active: isActive,
-                  })}
-                  key={`${database}..${retentionPolicy}`}
-                  onClick={this.handleChooseNamespace(namespace)}
-                  data-test={`query-builder-list-item-database-${database}`}
-                >
-                  {database}.{retentionPolicy}
-                </div>
-              )
-            })}
+            {namespaces.map(namespace =>
+              <DatabaseListItem
+                isActive={this.isActive(this.props.query, namespace)}
+                namespace={namespace}
+                onChooseNamespace={this.handleChooseNamespace}
+                key={uuid.v4()}
+              />
+            )}
           </FancyScrollbar>
         </div>
       </div>
