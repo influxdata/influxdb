@@ -17,7 +17,6 @@ Notifications.propTypes = {
       id: string.isRequired,
       type: string.isRequired,
       message: string.isRequired,
-      created: number.isRequired,
       duration: number.isRequired,
       icon: string,
     })

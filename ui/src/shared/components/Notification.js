@@ -4,10 +4,7 @@ import {bindActionCreators} from 'redux'
 
 import classnames from 'classnames'
 
-import {
-  dismissNotification as dismissNotificationAction,
-  deleteNotification as deleteNotificationAction,
-} from 'shared/actions/notifications'
+import {dismissNotification as dismissNotificationAction} from 'shared/actions/notifications'
 
 class Notification extends Component {
   constructor(props) {
@@ -16,6 +13,7 @@ class Notification extends Component {
     this.state = {
       opacity: 1,
       height: 0,
+      dismiss: false,
     }
   }
 
@@ -28,32 +26,25 @@ class Notification extends Component {
 
     if (duration >= 0) {
       // Automatically dismiss notification after duration prop
-      window.setTimeout(this.handleDismiss, duration)
+      this.dismissTimer = setTimeout(this.handleDismiss, duration)
     }
   }
 
-  componentDidUpdate = () => {
-    const {notification: {dismiss}} = this.props
-
-    if (dismiss) {
-      window.setTimeout(this.handleDelete, 800)
-    }
-  }
-
-  handleDelete = () => {
-    const {notification: {id}, deleteNotification} = this.props
-    deleteNotification(id)
+  componentWillUnmount = () => {
+    clearTimeout(this.dismissTimer)
+    clearTimeout(this.deleteTimer)
   }
 
   handleDismiss = () => {
-    const {notification: {id, dismiss}, dismissNotification} = this.props
+    const {notification: {id}, dismissNotification} = this.props
 
-    return dismiss ? null : dismissNotification(id)
+    this.setState({dismiss: true})
+    this.deleteTimer = setTimeout(() => dismissNotification(id), 250)
   }
 
   render() {
-    const {notification: {type, message, icon, dismiss}} = this.props
-    const {height} = this.state
+    const {notification: {type, message, icon}} = this.props
+    const {height, dismiss} = this.state
 
     const notificationContainerClass = classnames('notification-container', {
       show: !!height,
@@ -84,31 +75,21 @@ class Notification extends Component {
   }
 }
 
-const {func, bool, number, shape, string} = PropTypes
-
-Notification.defaultProps = {
-  notification: {
-    icon: 'zap',
-  },
-}
+const {func, number, shape, string} = PropTypes
 
 Notification.propTypes = {
   notification: shape({
     id: string.isRequired,
     type: string.isRequired,
     message: string.isRequired,
-    created: number.isRequired,
     duration: number.isRequired,
-    icon: string,
-    dismiss: bool,
+    icon: string.isRequired,
   }),
   dismissNotification: func.isRequired,
-  deleteNotification: func.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({
   dismissNotification: bindActionCreators(dismissNotificationAction, dispatch),
-  deleteNotification: bindActionCreators(deleteNotificationAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(Notification)

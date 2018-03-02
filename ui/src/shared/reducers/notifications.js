@@ -1,5 +1,4 @@
 import uuid from 'uuid'
-
 export const initialState = []
 
 export const notifications = (state = initialState, action) => {
@@ -8,8 +7,6 @@ export const notifications = (state = initialState, action) => {
       const notification = {
         ...action.payload.notification,
         id: uuid.v4(),
-        created: Date.now(),
-        dismiss: false,
       }
       const newNotification = [notification]
       // Hacky way to add the new notifcation to the front of the list
@@ -17,15 +14,8 @@ export const notifications = (state = initialState, action) => {
     }
 
     case 'DISMISS_NOTIFICATION': {
-      const {notificationID} = action.payload
-
-      return state.map(n => {
-        return n.id === notificationID ? {...n, dismiss: true} : n
-      })
-    }
-
-    case 'DELETE_NOTIFICATION': {
-      return state.filter(n => n.id === action.payload)
+      const {id} = action.payload
+      return state.filter(n => n.id !== id)
     }
   }
 
