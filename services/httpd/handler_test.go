@@ -922,7 +922,7 @@ func NewHandler(requireAuthentication bool) *Handler {
 	h.MetaClient = &internal.MetaClientMock{}
 
 	h.Handler.MetaClient = h.MetaClient
-	h.Handler.QueryExecutor = query.NewQueryExecutor()
+	h.Handler.QueryExecutor = query.NewExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.PointsWriter = &h.PointsWriter

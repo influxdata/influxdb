@@ -686,7 +686,7 @@ func NewTestService(t *testing.T) *Service {
 	s := NewService(NewConfig())
 	ms := NewMetaClient(t)
 	s.MetaClient = ms
-	s.QueryExecutor = query.NewQueryExecutor()
+	s.QueryExecutor = query.NewExecutor()
 	s.RunInterval = time.Millisecond
 
 	// Set Logger to write to dev/null so stdout isn't polluted.

@@ -216,7 +216,7 @@ func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, measurement []byt
 }
 
 func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
-	qe := query.NewQueryExecutor()
+	qe := query.NewExecutor()
 	qe.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient: &internal.MetaClientMock{
 			DatabasesFn: func() []meta.DatabaseInfo {
@@ -260,7 +260,7 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 
 // QueryExecutor is a test wrapper for coordinator.QueryExecutor.
 type QueryExecutor struct {
-	*query.QueryExecutor
+	*query.Executor
 
 	MetaClient        MetaClient
 	TSDBStore         *internal.TSDBStoreMock
@@ -268,12 +268,12 @@ type QueryExecutor struct {
 	LogOutput         bytes.Buffer
 }
 
-// NewQueryExecutor returns a new instance of QueryExecutor.
+// NewQueryExecutor returns a new instance of Executor.
 // This query executor always has a node id of 0.
 func NewQueryExecutor() *QueryExecutor {
 	e := &QueryExecutor{
-		QueryExecutor: query.NewQueryExecutor(),
-		TSDBStore:     &internal.TSDBStoreMock{},
+		Executor:  query.NewExecutor(),
+		TSDBStore: &internal.TSDBStoreMock{},
 	}
 
 	e.TSDBStore.CreateShardFn = func(database, policy string, shardID uint64, enabled bool) error {
@@ -296,18 +296,18 @@ func NewQueryExecutor() *QueryExecutor {
 			TSDBStore:  e.TSDBStore,
 		},
 	}
-	e.QueryExecutor.StatementExecutor = e.StatementExecutor
+	e.Executor.StatementExecutor = e.StatementExecutor
 
 	var out io.Writer = &e.LogOutput
 	if testing.Verbose() {
 		out = io.MultiWriter(out, os.Stderr)
 	}
-	e.QueryExecutor.WithLogger(logger.New(out))
+	e.Executor.WithLogger(logger.New(out))
 
 	return e
 }
 
-// DefaultQueryExecutor returns a QueryExecutor with a database (db0) and retention policy (rp0).
+// DefaultQueryExecutor returns a Executor with a database (db0) and retention policy (rp0).
 func DefaultQueryExecutor() *QueryExecutor {
 	e := NewQueryExecutor()
 	e.MetaClient.DatabaseFn = DefaultMetaClientDatabaseFn
@@ -316,7 +316,7 @@ func DefaultQueryExecutor() *QueryExecutor {
 
 // ExecuteQuery parses query and executes against the database.
 func (e *QueryExecutor) ExecuteQuery(q, database string, chunkSize int) <-chan *query.Result {
-	return e.QueryExecutor.ExecuteQuery(MustParseQuery(q), query.ExecutionOptions{
+	return e.Executor.ExecuteQuery(MustParseQuery(q), query.ExecutionOptions{
 		Database:  database,
 		ChunkSize: chunkSize,
 	}, make(chan struct{}))

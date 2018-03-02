@@ -97,7 +97,7 @@ type Handler struct {
 		AuthorizeWrite(username, database string) error
 	}
 
-	QueryExecutor *query.QueryExecutor
+	QueryExecutor *query.Executor
 
 	Monitor interface {
 		Statistics(tags map[string]string) ([]*monitor.Statistic, error)

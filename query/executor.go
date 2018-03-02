@@ -41,7 +41,7 @@ var (
 	ErrAlreadyKilled = errors.New("already killed")
 )
 
-// Statistics for the QueryExecutor
+// Statistics for the Executor
 const (
 	statQueriesActive          = "queriesActive"   // Number of queries currently being executed.
 	statQueriesExecuted        = "queriesExecuted" // Number of queries that have been executed (started).
@@ -148,7 +148,7 @@ type ExecutionContext struct {
 	QueryID uint64
 
 	// The query task information available to the StatementExecutor.
-	Query *QueryTask
+	Query *Task
 
 	// Output channel where results and errors should be sent.
 	Results chan *Result
@@ -204,7 +204,7 @@ func tryAddAuxIteratorToContext(ctx context.Context, itr AuxIterator) {
 	}
 }
 
-// StatementExecutor executes a statement within the QueryExecutor.
+// StatementExecutor executes a statement within the Executor.
 type StatementExecutor interface {
 	// ExecuteStatement executes a statement. Results should be sent to the
 	// results channel in the ExecutionContext.
@@ -218,8 +218,8 @@ type StatementNormalizer interface {
 	NormalizeStatement(stmt influxql.Statement, database string) error
 }
 
-// QueryExecutor executes every statement in an Query.
-type QueryExecutor struct {
+// Executor executes every statement in an Query.
+type Executor struct {
 	// Used for executing a statement in the query.
 	StatementExecutor StatementExecutor
 
@@ -231,20 +231,20 @@ type QueryExecutor struct {
 	Logger *zap.Logger
 
 	// expvar-based stats.
-	stats *QueryStatistics
+	stats *Statistics
 }
 
-// NewQueryExecutor returns a new instance of QueryExecutor.
-func NewQueryExecutor() *QueryExecutor {
-	return &QueryExecutor{
+// NewExecutor returns a new instance of Executor.
+func NewExecutor() *Executor {
+	return &Executor{
 		TaskManager: NewTaskManager(),
 		Logger:      zap.NewNop(),
-		stats:       &QueryStatistics{},
+		stats:       &Statistics{},
 	}
 }
 
-// QueryStatistics keeps statistics related to the QueryExecutor.
-type QueryStatistics struct {
+// Statistics keeps statistics related to the Executor.
+type Statistics struct {
 	ActiveQueries          int64
 	ExecutedQueries        int64
 	FinishedQueries        int64
@@ -253,7 +253,7 @@ type QueryStatistics struct {
 }
 
 // Statistics returns statistics for periodic monitoring.
-func (e *QueryExecutor) Statistics(tags map[string]string) []models.Statistic {
+func (e *Executor) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "queryExecutor",
 		Tags: tags,
@@ -268,25 +268,25 @@ func (e *QueryExecutor) Statistics(tags map[string]string) []models.Statistic {
 }
 
 // Close kills all running queries and prevents new queries from being attached.
-func (e *QueryExecutor) Close() error {
+func (e *Executor) Close() error {
 	return e.TaskManager.Close()
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (e *QueryExecutor) WithLogger(log *zap.Logger) {
+func (e *Executor) WithLogger(log *zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
 }
 
 // ExecuteQuery executes each statement within a query.
-func (e *QueryExecutor) ExecuteQuery(query *influxql.Query, opt ExecutionOptions, closing chan struct{}) <-chan *Result {
+func (e *Executor) ExecuteQuery(query *influxql.Query, opt ExecutionOptions, closing chan struct{}) <-chan *Result {
 	results := make(chan *Result)
 	go e.executeQuery(query, opt, closing, results)
 	return results
 }
 
-func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions, closing <-chan struct{}, results chan *Result) {
+func (e *Executor) executeQuery(query *influxql.Query, opt ExecutionOptions, closing <-chan struct{}, results chan *Result) {
 	defer close(results)
 	defer e.recover(query, results)
 
@@ -434,7 +434,7 @@ LOOP:
 	}
 }
 
-// Determines if the QueryExecutor will recover any panics or let them crash
+// Determines if the Executor will recover any panics or let them crash
 // the server.
 var willCrash bool
 
@@ -445,7 +445,7 @@ func init() {
 	}
 }
 
-func (e *QueryExecutor) recover(query *influxql.Query, results chan *Result) {
+func (e *Executor) recover(query *influxql.Query, results chan *Result) {
 	if err := recover(); err != nil {
 		atomic.AddInt64(&e.stats.RecoveredPanics, 1) // Capture the panic in _internal stats.
 		e.Logger.Error(fmt.Sprintf("%s [panic:%s] %s", query.String(), err, debug.Stack()))
@@ -463,14 +463,14 @@ func (e *QueryExecutor) recover(query *influxql.Query, results chan *Result) {
 	}
 }
 
-// QueryMonitorFunc is a function that will be called to check if a query
+// MonitorFunc is a function that will be called to check if a query
 // is currently healthy. If the query needs to be interrupted for some reason,
 // the error should be returned by this function.
-type QueryMonitorFunc func(<-chan struct{}) error
+type MonitorFunc func(<-chan struct{}) error
 
-// QueryTask is the internal data structure for managing queries.
-// For the public use data structure that gets returned, see QueryTask.
-type QueryTask struct {
+// Task is the internal data structure for managing queries.
+// For the public use data structure that gets returned, see Task.
+type Task struct {
 	query     string
 	database  string
 	status    TaskStatus
@@ -485,25 +485,25 @@ type QueryTask struct {
 // will be passed in a channel to signal when the query has been finished
 // normally. If the function returns with an error and the query is still
 // running, the query will be terminated.
-func (q *QueryTask) Monitor(fn QueryMonitorFunc) {
+func (q *Task) Monitor(fn MonitorFunc) {
 	go q.monitor(fn)
 }
 
 // Error returns any asynchronous error that may have occured while executing
 // the query.
-func (q *QueryTask) Error() error {
+func (q *Task) Error() error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return q.err
 }
 
-func (q *QueryTask) setError(err error) {
+func (q *Task) setError(err error) {
 	q.mu.Lock()
 	q.err = err
 	q.mu.Unlock()
 }
 
-func (q *QueryTask) monitor(fn QueryMonitorFunc) {
+func (q *Task) monitor(fn MonitorFunc) {
 	if err := fn(q.closing); err != nil {
 		select {
 		case <-q.closing:
@@ -513,7 +513,7 @@ func (q *QueryTask) monitor(fn QueryMonitorFunc) {
 }
 
 // close closes the query task closing channel if the query hasn't been previously killed.
-func (q *QueryTask) close() {
+func (q *Task) close() {
 	q.mu.Lock()
 	if q.status != KilledTask {
 		// Set the status to killed to prevent closing the channel twice.
@@ -523,7 +523,7 @@ func (q *QueryTask) close() {
 	q.mu.Unlock()
 }
 
-func (q *QueryTask) kill() error {
+func (q *Task) kill() error {
 	q.mu.Lock()
 	if q.status == KilledTask {
 		q.mu.Unlock()
