@@ -200,7 +200,7 @@ module.exports = {
       modules: false,
       version: false,
       assetsSort: "!size",
-      excludeAssets: [/\.(woff|eot|ttf|svg|ico|png)/]
+      excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/]
     },
     contentBase: 'build',
     quiet: false,
