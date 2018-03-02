@@ -31,13 +31,13 @@ class Notifications extends Component {
     if (!message || isDismissed) {
       return null
     }
-    const cls = classnames('alert', {
+    const alertClassname = classnames('alert', {
       'alert-danger': type === 'error',
       'alert-success': type === 'success',
       'alert-warning': type === 'warning',
     })
     return (
-      <div className={cls} role="alert">
+      <div className={alertClassname}>
         {message}
         {this.renderDismiss(type)}
       </div>
@@ -48,12 +48,7 @@ class Notifications extends Component {
 
   renderDismiss = type => {
     return (
-      <button
-        className="close"
-        data-dismiss="alert"
-        aria-label="Close"
-        onClick={this.handleDismiss(type)}
-      >
+      <button className="alert-close" onClick={this.handleDismiss(type)}>
         <span className="icon remove" />
       </button>
     )

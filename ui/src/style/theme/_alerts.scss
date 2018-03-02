@@ -12,37 +12,38 @@
   margin-bottom: $ix-marg-c;
   font-weight: 500;
   @extend %no-user-select;
+}
 
-  button.close {
-    outline: none;
+.alert-icon {
+  padding-left: ($ix-marg-e - $ix-marg-b);
+
+   > span.icon {
     position: absolute;
     top: 50%;
+    left: $ix-marg-c;
     transform: translateY(-50%);
-    right: ($ix-marg-c - $ix-marg-a);
-    font-size: $ix-text-base;
-    width: 20px;
-    height: 20px;
-    opacity: 0.25;
-    transition:
-      opacity 0.25s ease;
-
-    &:hover {
-      opacity: 1;
-    }
+    width: ($ix-text-base-2 + 4px);
+    margin: 0;
+    font-size: $ix-text-base-2;
   }
+}
 
-  &-icon {
-    padding-left: ($ix-marg-e - $ix-marg-b);
+.alert-close {
+  outline: none;
+  position: absolute;
+  top: 50%;
+  background-color: transparent;
+  transform: translateY(-50%);
+  right: ($ix-marg-c - $ix-marg-a);
+  font-size: $ix-text-base;
+  width: 20px;
+  height: 20px;
+  opacity: 0.25;
+  transition:
+    opacity 0.25s ease;
 
-    span.icon:not(.remove) {
-      position: absolute;
-      top: 50%;
-      left: $ix-marg-c;
-      transform: translateY(-50%);
-      width: ($ix-text-base-2 + 4px);
-      margin: 0;
-      font-size: $ix-text-base-2;
-    }
+  &:hover {
+    opacity: 1;
   }
 }
 
