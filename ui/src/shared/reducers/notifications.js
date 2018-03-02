@@ -1,7 +1,9 @@
 import u from 'updeep'
 import _ from 'lodash'
 
-export const notifications = (state = {}, action) => {
+export const initialState = []
+
+export const notifications = (state = initialState, action) => {
   switch (action.type) {
     case 'NOTIFICATION_RECEIVED': {
       const {type, message} = action.payload
