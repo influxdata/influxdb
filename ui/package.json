@@ -34,6 +34,7 @@
     "@types/lodash": "^4.14.104",
     "@types/mocha": "^2.2.48",
     "@types/node": "^9.4.6",
+    "@types/prop-types": "^15.5.2",
     "@types/react": "^16.0.38",
     "autoprefixer": "^6.3.1",
     "babel-core": "^6.5.1",

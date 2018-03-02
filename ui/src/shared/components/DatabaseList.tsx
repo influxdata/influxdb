@@ -1,49 +1,55 @@
-import React, {PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
-import showDatabasesParser from 'shared/parsing/showDatabases'
-import showRetentionPoliciesParser from 'shared/parsing/showRetentionPolicies'
+import {Source, Query} from 'src/types'
+import {Namespace} from 'src/types/query'
+import {showDatabases, showRetentionPolicies} from 'src/shared/apis/metaQuery'
+import showDatabasesParser from 'src/shared/parsing/showDatabases'
+import showRetentionPoliciesParser from 'src/shared/parsing/showRetentionPolicies'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
-const {func, shape, string} = PropTypes
+export interface DatabaseListProps {
+  query: Query
+  querySource: Source
+  onChooseNamespace: (namespace: Namespace) => void
+  source: Source | null
+}
 
-const DatabaseList = React.createClass({
-  propTypes: {
-    query: shape({}).isRequired,
-    onChooseNamespace: func.isRequired,
-    querySource: shape({
-      links: shape({
-        proxy: string.isRequired,
-      }).isRequired,
-    }),
-  },
+export interface DatabaseListState {
+  namespaces: Namespace[]
+}
 
-  getDefaultProps() {
-    return {
-      source: null,
-    }
-  },
+export interface DatabaseListContext {
+  source: Source
+}
 
-  contextTypes: {
+const {shape, string} = PropTypes
+
+class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
+  state = {
+    namespaces: [],
+  }
+
+  context: DatabaseListContext
+
+  public static defaultProps: Partial<DatabaseListProps> = {
+    source: null,
+  }
+
+  public static contextTypes = {
     source: shape({
       links: shape({
         proxy: string.isRequired,
       }).isRequired,
     }).isRequired,
-  },
-
-  getInitialState() {
-    return {
-      namespaces: [],
-    }
-  },
+  }
 
   componentDidMount() {
     this.getDbRp()
-  },
+  }
 
   componentDidUpdate({querySource: prevSource, query: prevQuery}) {
     const {querySource: nextSource, query: nextQuery} = this.props
@@ -59,7 +65,7 @@ const DatabaseList = React.createClass({
     if (differentSource || newMetaQuery) {
       setTimeout(this.getDbRp, 100)
     }
-  },
+  }
 
   getDbRp() {
     const {source} = this.context
@@ -94,10 +100,14 @@ const DatabaseList = React.createClass({
         this.setState({namespaces})
       })
     })
-  },
+  }
+
+  handleChooseNamespace = (namespace: Namespace) => () => {
+    this.props.onChooseNamespace(namespace)
+  }
 
   render() {
-    const {query, onChooseNamespace} = this.props
+    const {query} = this.props
     const {namespaces} = this.state
     const sortedNamespaces = namespaces.length
       ? _.sortBy(namespaces, n => n.database.toLowerCase())
@@ -120,7 +130,7 @@ const DatabaseList = React.createClass({
                     active: isActive,
                   })}
                   key={`${database}..${retentionPolicy}`}
-                  onClick={_.wrap(namespace, onChooseNamespace)}
+                  onClick={this.handleChooseNamespace(namespace)}
                   data-test={`query-builder-list-item-database-${database}`}
                 >
                   {database}.{retentionPolicy}
@@ -131,7 +141,7 @@ const DatabaseList = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
 
 export default DatabaseList
