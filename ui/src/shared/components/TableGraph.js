@@ -1,7 +1,5 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
-// import uuid from 'node-uuid'
-
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
 import {MultiGrid} from 'react-virtualized/dist/commonjs/MultiGrid'
@@ -34,13 +32,12 @@ class TableGraph extends Component {
 
   render() {
     const data = this._data
-    const {cellHeight} = this.props
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const COLUMN_WIDTH = 300
     const ROW_HEIGHT = 50
-    const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 400
-    const tableHeight = cellHeight * DASHBOARD_LAYOUT_ROW_HEIGHT - 64
+    const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
+    const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
 
     return (
       <div

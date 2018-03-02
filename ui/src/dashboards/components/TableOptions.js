@@ -35,66 +35,13 @@ const formatColor = color => {
 
 class TableOptions extends Component {
   state = {TimeAxis: 'VERTICAL', TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss'}
-  handleToggleSingleStatType = newType => () => {
-    const {handleUpdateSingleStatType} = this.props
+  handleToggleSingleStatType = () => {}
 
-    handleUpdateSingleStatType(newType)
-  }
+  handleAddThreshold = () => {}
 
-  handleAddThreshold = () => {
-    const {
-      singleStatColors,
-      singleStatType,
-      handleUpdateSingleStatColors,
-    } = this.props
+  handleDeleteThreshold = () => {}
 
-    const randomColor = _.random(0, GAUGE_COLORS.length - 1)
-
-    const maxValue = DEFAULT_VALUE_MIN
-    const minValue = DEFAULT_VALUE_MAX
-
-    let randomValue = _.round(_.random(minValue, maxValue, true), 2)
-
-    if (singleStatColors.length > 0) {
-      const colorsValues = _.mapValues(singleStatColors, 'value')
-      do {
-        randomValue = _.round(_.random(minValue, maxValue, true), 2)
-      } while (_.includes(colorsValues, randomValue))
-    }
-
-    const newThreshold = {
-      type: singleStatType,
-      id: uuid.v4(),
-      value: randomValue,
-      hex: GAUGE_COLORS[randomColor].hex,
-      name: GAUGE_COLORS[randomColor].name,
-    }
-
-    handleUpdateSingleStatColors([...singleStatColors, newThreshold])
-  }
-
-  handleDeleteThreshold = threshold => () => {
-    const {handleUpdateSingleStatColors} = this.props
-
-    const singleStatColors = this.props.singleStatColors.filter(
-      color => color.id !== threshold.id
-    )
-
-    handleUpdateSingleStatColors(singleStatColors)
-  }
-
-  handleChooseColor = threshold => chosenColor => {
-    const {handleUpdateSingleStatColors} = this.props
-
-    const singleStatColors = this.props.singleStatColors.map(
-      color =>
-        color.id === threshold.id
-          ? {...color, hex: chosenColor.hex, name: chosenColor.name}
-          : color
-    )
-
-    handleUpdateSingleStatColors(singleStatColors)
-  }
+  handleChooseColor = () => {}
 
   handleChooseSortBy = () => {}
 
@@ -106,36 +53,9 @@ class TableOptions extends Component {
 
   handleColumnRename = () => {}
 
-  handleUpdateColorValue = (threshold, value) => {
-    const {handleUpdateSingleStatColors} = this.props
+  handleUpdateColorValue = () => {}
 
-    const singleStatColors = this.props.singleStatColors.map(
-      color => (color.id === threshold.id ? {...color, value} : color)
-    )
-
-    handleUpdateSingleStatColors(singleStatColors)
-  }
-
-  handleValidateColorValue = (threshold, targetValue) => {
-    const {singleStatColors} = this.props
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
-
-    return !sortedColors.some(color => color.value === targetValue)
-  }
-
-  handleUpdatePrefix = e => {
-    const {handleUpdateAxes, axes} = this.props
-    const newAxes = {...axes, y: {...axes.y, prefix: e.target.value}}
-
-    handleUpdateAxes(newAxes)
-  }
-
-  handleUpdateSuffix = e => {
-    const {handleUpdateAxes, axes} = this.props
-    const newAxes = {...axes, y: {...axes.y, suffix: e.target.value}}
-
-    handleUpdateAxes(newAxes)
-  }
+  handleValidateColorValue = () => {}
 
   render() {
     const {
