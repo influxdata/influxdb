@@ -30,6 +30,11 @@ export interface DatabaseListContext {
 const {shape, string} = PropTypes
 
 class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
+  constructor() {
+    super()
+    this.getDbRp = this.getDbRp.bind(this)
+  }
+
   state = {
     namespaces: [],
   }
@@ -68,7 +73,7 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  getDbRp = async () => {
+  async getDbRp() {
     const {source} = this.context
     const {querySource} = this.props
     const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
@@ -98,11 +103,11 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  handleChooseNamespace = (namespace: Namespace) => () => {
+  private handleChooseNamespace = (namespace: Namespace) => () => {
     this.props.onChooseNamespace(namespace)
   }
 
-  isActive = (query: Query, {database, retentionPolicy}: Namespace) =>
+  private isActive = (query: Query, {database, retentionPolicy}: Namespace) =>
     database === query.database && retentionPolicy === query.retentionPolicy
 
   render() {
