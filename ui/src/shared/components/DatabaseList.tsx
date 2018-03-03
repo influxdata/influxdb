@@ -103,11 +103,11 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  private handleChooseNamespace = (namespace: Namespace) => () => {
+  handleChooseNamespace = (namespace: Namespace) => () => {
     this.props.onChooseNamespace(namespace)
   }
 
-  private isActive = (query: Query, {database, retentionPolicy}: Namespace) =>
+  isActive = (query: Query, {database, retentionPolicy}: Namespace) =>
     database === query.database && retentionPolicy === query.retentionPolicy
 
   render() {
