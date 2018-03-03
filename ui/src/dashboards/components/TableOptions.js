@@ -40,7 +40,7 @@ class TableOptions extends Component {
   handleChooseSortBy = () => {}
 
   handleTimeFormatChange = timeFormat => {
-    this.setState({...this.state, timeFormat: timeFormat.target.value})
+    this.setState({...this.state, timeFormat})
   }
 
   handleToggleTimeAxis = () => {}
