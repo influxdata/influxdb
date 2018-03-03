@@ -16,7 +16,7 @@ export interface DatabaseListProps {
   query: Query
   querySource: Source
   onChooseNamespace: (namespace: Namespace) => void
-  source: Source | null
+  source: Source
 }
 
 export interface DatabaseListState {
@@ -30,8 +30,8 @@ export interface DatabaseListContext {
 const {shape, string} = PropTypes
 
 class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
-  constructor() {
-    super()
+  constructor(props) {
+    super(props)
     this.getDbRp = this.getDbRp.bind(this)
   }
 

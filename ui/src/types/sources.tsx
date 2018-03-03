@@ -2,20 +2,27 @@ export interface Source {
   id: string
   name: string
   url: string
-  links: {
-    proxy: string
-    self: string
-    kapacitors: string
-    queries: string
-    permissions: string
-    users: string
-    databases: string
-    roles: string
-  }
+  type: string
   default: boolean
-  telegraf?: string
+  organization: string
+  insecureSkipVerify: boolean
+  role: string
+  telegraf: string
+  links: SourceLinks
   kapacitors?: Kapacitor[]
   metaUrl?: string
+}
+
+export interface SourceLinks {
+  self: string
+  kapacitors: string
+  proxy: string
+  queries: string
+  write: string
+  permissions: string
+  users: string
+  databases: string
+  roles?: string
 }
 
 export interface Kapacitor {

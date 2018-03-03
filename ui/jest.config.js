@@ -2,7 +2,10 @@ module.exports = {
   projects: [
     {
       displayName: 'test',
-      testPathIgnorePatterns: ['build', 'node_modules/(?!(jest-test))'],
+      testPathIgnorePatterns: [
+        'build',
+        '<rootDir>/node_modules/(?!(jest-test))',
+      ],
       modulePaths: ['<rootDir>', '<rootDir>/node_modules/'],
       moduleDirectories: ['src'],
       setupFiles: ['<rootDir>/test/setupTests.js'],
