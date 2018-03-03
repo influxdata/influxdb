@@ -167,12 +167,14 @@ export const timeSeriesToTable = data => {
   const {labels, timeSeries} = timeSeriesToDygraph(data, false)
   const tableData = timeSeries.length
     ? timeSeries.map(row =>
-        row.map(
-          cell =>
-            cell
-              ? typeof cell === 'object' ? cell.toISOString() : cell.toString()
-              : 'null'
-        )
+        row.map(cell => {
+          if (cell) {
+            return typeof cell === 'object'
+              ? cell.toISOString()
+              : cell.toString()
+          }
+          return 'null'
+        })
       )
     : [[]]
 

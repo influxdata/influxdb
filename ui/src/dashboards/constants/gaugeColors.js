@@ -13,6 +13,8 @@ export const SINGLE_STAT_TEXT = 'text'
 export const SINGLE_STAT_BG = 'background'
 export const SINGLE_STAT_BASE = 'base'
 
+export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.ss'
+
 export const GAUGE_COLORS = [
   {
     hex: '#BF3D5E',

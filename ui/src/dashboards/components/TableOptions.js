@@ -27,7 +27,7 @@ const formatColor = color => {
 }
 
 class TableOptions extends Component {
-  state = {TimeAxis: 'VERTICAL', TimeFormat: 'MM/DD/YYYY HH:mm:ss.ss'}
+  state = {TimeAxis: 'VERTICAL', timeFormat: 'MM/DD/YYYY HH:mm:ss.ss'}
 
   handleToggleSingleStatType = () => {}
 
@@ -39,7 +39,9 @@ class TableOptions extends Component {
 
   handleChooseSortBy = () => {}
 
-  handleTimeFormatChange = () => {}
+  handleTimeFormatChange = timeFormat => {
+    this.setState({...this.state, timeFormat: timeFormat.target.value})
+  }
 
   handleToggleTimeAxis = () => {}
 
@@ -58,7 +60,7 @@ class TableOptions extends Component {
       //   axes: {y: {prefix, suffix}},
     } = this.props
 
-    const {TimeFormat, TimeAxis} = this.state
+    const {timeFormat, TimeAxis} = this.state
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
 
@@ -80,7 +82,7 @@ class TableOptions extends Component {
           <h5 className="display-options--header">Table Controls</h5>
           <div className="gauge-controls">
             <GraphOptionsTimeFormat
-              TimeFormat={TimeFormat}
+              timeFormat={timeFormat}
               onTimeFormatChange={this.handleTimeFormatChange}
             />
             <GraphOptionsTimeAxis
