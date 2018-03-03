@@ -4,6 +4,14 @@ import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
 import {MultiGrid} from 'react-virtualized'
 
 class TableGraph extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
+      hoveredColumnIndex: -1,
+      hoveredRowIndex: -1,
+    }
+  }
+
   componentWillMount() {
     this._labels = []
     this._data = [[]]
@@ -16,10 +24,29 @@ class TableGraph extends Component {
     this._data = data
   }
 
+  handleHover = (columnIndex, rowIndex) => () => {
+    this.setState({hoveredColumnIndex: columnIndex, hoveredRowIndex: rowIndex})
+  }
+
+  handleMouseOut = () => {
+    this.setState({hoveredColumnIndex: -1, hoveredRowIndex: -1})
+  }
+
   cellRenderer = ({columnIndex, key, rowIndex, style}) => {
     const data = this._data
+    const className =
+      columnIndex === this.state.hoveredColumnIndex ||
+      rowIndex === this.state.hoveredRowIndex
+        ? 'tablecell hovered'
+        : 'tablecell'
+
     return (
-      <div key={key} style={style}>
+      <div
+        key={key}
+        style={style}
+        className={className}
+        onMouseOver={this.handleHover(columnIndex, rowIndex)}
+      >
         {data[rowIndex][columnIndex]}
       </div>
     )
@@ -33,11 +60,11 @@ class TableGraph extends Component {
     const ROW_HEIGHT = 50
     const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
     const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
-
     return (
       <div
         className="graph-container"
         ref={gridContainer => (this.gridContainer = gridContainer)}
+        onMouseOut={this.handleMouseOut}
       >
         {data.length > 1 &&
           <MultiGrid
@@ -50,6 +77,8 @@ class TableGraph extends Component {
             rowCount={rowCount}
             rowHeight={ROW_HEIGHT}
             width={tableWidth - 32}
+            hoveredColumnIndex={this.state.hoveredColumnIndex}
+            hoveredRowIndex={this.state.hoveredRowIndex}
           />}
       </div>
     )
