@@ -14,7 +14,7 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  MeasurementList.prototype._getMeasurements = jest.fn(() => Promise.resolve())
+  MeasurementList.prototype.getMeasurements = jest.fn(() => Promise.resolve())
 
   const wrapper = shallow(<MeasurementList {...props} />, {
     context: {source},
@@ -41,67 +41,67 @@ describe('Shared.Components.MeasurementList', () => {
   describe('lifecycle methods', () => {
     describe('componentDidMount', () => {
       it('does not fire getMeasurements if there is no database', () => {
-        const _getMeasurements = jest.fn()
+        const getMeasurements = jest.fn()
         const {instance} = setup({query: {...query, database: ''}})
-        instance._getMeasurements = _getMeasurements
+        instance.getMeasurements = getMeasurements
         instance.componentDidMount()
-        expect(_getMeasurements).not.toHaveBeenCalled()
+        expect(getMeasurements).not.toHaveBeenCalled()
       })
 
-      it('does fire _getMeasurements if there is a database', () => {
-        const _getMeasurements = jest.fn()
+      it('does fire getMeasurements if there is a database', () => {
+        const getMeasurements = jest.fn()
         const {instance} = setup()
-        instance._getMeasurements = _getMeasurements
+        instance.getMeasurements = getMeasurements
         instance.componentDidMount()
-        expect(_getMeasurements).toHaveBeenCalled()
+        expect(getMeasurements).toHaveBeenCalled()
       })
     })
 
     describe('componentDidUpdate', () => {
       it('does not fire getMeasurements if there is no database', () => {
-        const _getMeasurements = jest.fn()
+        const getMeasurements = jest.fn()
         const {instance, props} = setup({query: {...query, database: ''}})
 
-        instance._getMeasurements = _getMeasurements
+        instance.getMeasurements = getMeasurements
         instance.componentDidUpdate(props)
 
-        expect(_getMeasurements).not.toHaveBeenCalled()
+        expect(getMeasurements).not.toHaveBeenCalled()
       })
 
-      it('does not fire _getMeasurements if the database does not change and the sources are equal', () => {
-        const _getMeasurements = jest.fn()
+      it('does not fire getMeasurements if the database does not change and the sources are equal', () => {
+        const getMeasurements = jest.fn()
         const {instance, props} = setup()
 
-        instance._getMeasurements = _getMeasurements
+        instance.getMeasurements = getMeasurements
         instance.componentDidUpdate(props)
 
-        expect(_getMeasurements).not.toHaveBeenCalled()
+        expect(getMeasurements).not.toHaveBeenCalled()
       })
 
-      it('it fires _getMeasurements if there is a change in database', () => {
-        const _getMeasurements = jest.fn()
+      it('it fires getMeasurements if there is a change in database', () => {
+        const getMeasurements = jest.fn()
         const {instance, props} = setup()
 
-        instance._getMeasurements = _getMeasurements
+        instance.getMeasurements = getMeasurements
         instance.componentDidUpdate({
           ...props,
           query: {...query, database: 'diffDb'},
         })
 
-        expect(_getMeasurements).toHaveBeenCalled()
+        expect(getMeasurements).toHaveBeenCalled()
       })
 
-      it('it calls _getMeasurements if there is a change in source', () => {
-        const _getMeasurements = jest.fn()
+      it('it calls getMeasurements if there is a change in source', () => {
+        const getMeasurements = jest.fn()
         const {instance, props} = setup()
 
-        instance._getMeasurements = _getMeasurements
+        instance.getMeasurements = getMeasurements
         instance.componentDidUpdate({
           ...props,
           querySource: {...source, id: 'newSource'},
         })
 
-        expect(_getMeasurements).toHaveBeenCalled()
+        expect(getMeasurements).toHaveBeenCalled()
       })
     })
   })

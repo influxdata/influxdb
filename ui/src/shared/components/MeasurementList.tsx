@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
-import classnames from 'classnames'
 import _ from 'lodash'
 
 import {showMeasurements} from 'src/shared/apis/metaQuery'
@@ -8,7 +7,8 @@ import showMeasurementsParser from 'src/shared/parsing/showMeasurements'
 
 import {Query, Source} from 'src/types'
 
-import TagList from 'src/data_explorer/components/TagList'
+import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
+import MeasurementListItem from 'src/shared/components/MeasurementListItem'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 interface Props {
@@ -23,6 +23,7 @@ interface Props {
 interface State {
   measurements: string[]
   filterText: string
+  filtered: string[]
 }
 
 const {shape, string} = PropTypes
@@ -31,6 +32,7 @@ class MeasurementList extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
+      filtered: [],
       measurements: [],
       filterText: '',
     }
@@ -38,6 +40,8 @@ class MeasurementList extends PureComponent<Props, State> {
     this.handleEscape = this.handleEscape.bind(this)
     this.handleFilterText = this.handleFilterText.bind(this)
     this.handleAcceptReject = this.handleAcceptReject.bind(this)
+    this.handleFilterMeasuremet = this.handleFilterMeasuremet.bind(this)
+    this.handleChoosemeasurement = this.handleChoosemeasurement.bind(this)
   }
 
   public static defaultProps: Partial<Props> = {
@@ -57,7 +61,7 @@ class MeasurementList extends PureComponent<Props, State> {
       return
     }
 
-    this._getMeasurements()
+    this.getMeasurements()
   }
 
   componentDidUpdate(prevProps) {
@@ -74,14 +78,22 @@ class MeasurementList extends PureComponent<Props, State> {
       return
     }
 
-    this._getMeasurements()
+    this.getMeasurements()
   }
 
   handleFilterText(e) {
     e.stopPropagation()
+    const filterText = e.target.value
     this.setState({
-      filterText: e.target.value,
+      filterText,
+      filtered: this.handleFilterMeasuremet(filterText),
     })
+  }
+
+  handleFilterMeasuremet(filter) {
+    return this.state.measurements.filter(m =>
+      m.toLowerCase().includes(filter.toLowerCase())
+    )
   }
 
   handleEscape(e) {
@@ -99,122 +111,69 @@ class MeasurementList extends PureComponent<Props, State> {
     this.props.onToggleTagAcceptance()
   }
 
+  handleChoosemeasurement(measurement) {
+    return () => this.props.onChooseMeasurement(measurement)
+  }
+
   render() {
+    const {query, querySource, onChooseTag, onGroupByTag} = this.props
+    const {database, areTagsAccepted} = query
+    const {filtered} = this.state
+
     return (
       <div className="query-builder--column">
         <div className="query-builder--heading">
           <span>Measurements & Tags</span>
-          {this.props.query.database
-            ? <div className="query-builder--filter">
-                <input
-                  className="form-control input-sm"
-                  placeholder="Filter"
-                  type="text"
-                  value={this.state.filterText}
-                  onChange={this.handleFilterText}
-                  onKeyUp={this.handleEscape}
-                  spellCheck={false}
-                  autoComplete="false"
-                />
-                <span className="icon search" />
-              </div>
-            : null}
+          {database &&
+            <MeasurementListFilter
+              onEscape={this.handleEscape}
+              onFilterText={this.handleFilterText}
+              filterText={this.state.filterText}
+            />}
         </div>
-        {this.renderList()}
+        {database
+          ? <div className="query-builder--list">
+              <FancyScrollbar>
+                {filtered.map(measurement =>
+                  <MeasurementListItem
+                    query={query}
+                    key={measurement}
+                    measurement={measurement}
+                    querySource={querySource}
+                    onChooseTag={onChooseTag}
+                    onGroupByTag={onGroupByTag}
+                    areTagsAccepted={areTagsAccepted}
+                    onAcceptReject={this.handleAcceptReject}
+                    isActive={measurement === query.measurement}
+                    numTagsActive={Object.keys(query.tags).length}
+                    onChooseMeasurement={this.handleChoosemeasurement}
+                  />
+                )}
+              </FancyScrollbar>
+            </div>
+          : <div className="query-builder--list-empty">
+              <span>
+                No <strong>Database</strong> selected
+              </span>
+            </div>}
       </div>
     )
   }
 
-  renderList() {
-    if (!this.props.query.database) {
-      return (
-        <div className="query-builder--list-empty">
-          <span>
-            No <strong>Database</strong> selected
-          </span>
-        </div>
-      )
-    }
-
-    const filterText = this.state.filterText.toLowerCase()
-    const measurements = this.state.measurements.filter(m =>
-      m.toLowerCase().includes(filterText)
-    )
-
-    return (
-      <div className="query-builder--list">
-        <FancyScrollbar>
-          {measurements.map(measurement => {
-            const isActive = measurement === this.props.query.measurement
-            const numTagsActive = Object.keys(this.props.query.tags).length
-
-            return (
-              <div
-                key={measurement}
-                onClick={
-                  isActive
-                    ? () => {}
-                    : () => this.props.onChooseMeasurement(measurement)
-                }
-              >
-                <div
-                  className={classnames('query-builder--list-item', {
-                    active: isActive,
-                  })}
-                  data-test={`query-builder-list-item-measurement-${measurement}`}
-                >
-                  <span>
-                    <div className="query-builder--caret icon caret-right" />
-                    {measurement}
-                  </span>
-                  {isActive && numTagsActive >= 1
-                    ? <div
-                        className={classnames('flip-toggle', {
-                          flipped: this.props.query.areTagsAccepted,
-                        })}
-                        onClick={this.handleAcceptReject}
-                      >
-                        <div className="flip-toggle--container">
-                          <div className="flip-toggle--front">!=</div>
-                          <div className="flip-toggle--back">=</div>
-                        </div>
-                      </div>
-                    : null}
-                </div>
-                {isActive
-                  ? <TagList
-                      query={this.props.query}
-                      querySource={this.props.querySource}
-                      onChooseTag={this.props.onChooseTag}
-                      onGroupByTag={this.props.onGroupByTag}
-                    />
-                  : null}
-              </div>
-            )
-          })}
-        </FancyScrollbar>
-      </div>
-    )
-  }
-
-  _getMeasurements() {
+  async getMeasurements() {
     const {source} = this.context
-    const {querySource} = this.props
+    const {querySource, query} = this.props
 
-    const proxy =
-      _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
+    const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
 
-    showMeasurements(proxy, this.props.query.database).then(resp => {
-      const {errors, measurementSets} = showMeasurementsParser(resp.data)
-      if (errors.length) {
-        // TODO: display errors in the UI.
-        return console.error('InfluxDB returned error(s): ', errors)
-      }
-
-      this.setState({
-        measurements: measurementSets[0].measurements,
-      })
-    })
+    try {
+      const {data} = await showMeasurements(proxy, query.database)
+      const {measurementSets} = showMeasurementsParser(data)
+      const measurements = measurementSets[0].measurements
+      this.setState({measurements, filtered: measurements})
+    } catch (err) {
+      console.error(err)
+    }
   }
 }
 
