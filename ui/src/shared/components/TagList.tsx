@@ -107,23 +107,21 @@ class TagList extends PureComponent<Props, State> {
   }
 
   render() {
-    const {query} = this.props
+    const {query, onChooseTag, onGroupByTag} = this.props
 
     return (
       <div className="query-builder--sub-list">
-        {_.map(this.state.tags, (tagValues: string[], tagKey: string) => {
-          return (
-            <TagListItem
-              key={tagKey}
-              tagKey={tagKey}
-              tagValues={tagValues}
-              isUsingGroupBy={query.groupBy.tags.indexOf(tagKey) > -1}
-              selectedTagValues={query.tags[tagKey] || []}
-              onChooseTag={this.props.onChooseTag}
-              onGroupByTag={this.props.onGroupByTag}
-            />
-          )
-        })}
+        {_.map(this.state.tags, (tagValues: string[], tagKey: string) =>
+          <TagListItem
+            key={tagKey}
+            tagKey={tagKey}
+            tagValues={tagValues}
+            onChooseTag={onChooseTag}
+            onGroupByTag={onGroupByTag}
+            selectedTagValues={query.tags[tagKey] || []}
+            isUsingGroupBy={query.groupBy.tags.indexOf(tagKey) > -1}
+          />
+        )}
       </div>
     )
   }
