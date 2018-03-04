@@ -61,6 +61,7 @@ class TagList extends PureComponent<Props, State> {
       measurement: prevMeas,
       retentionPolicy: prevRP,
     } = prevProps.query
+
     if (!database || !measurement || !retentionPolicy) {
       return
     }
@@ -116,8 +117,8 @@ class TagList extends PureComponent<Props, State> {
               key={tagKey}
               tagKey={tagKey}
               tagValues={tagValues}
-              selectedTagValues={query.tags[tagKey] || []}
               isUsingGroupBy={query.groupBy.tags.indexOf(tagKey) > -1}
+              selectedTagValues={query.tags[tagKey] || []}
               onChooseTag={this.props.onChooseTag}
               onGroupByTag={this.props.onGroupByTag}
             />
