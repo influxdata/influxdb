@@ -1,6 +1,10 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import _ from 'lodash'
+import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
 import {
@@ -48,8 +52,10 @@ class AlertTabs extends Component {
       this.setState({configSections: sections})
     } catch (error) {
       this.setState({configSections: null})
-      this.props.addFlashMessage({
-        type: 'error',
+      this.props.publishNotification({
+        type: 'danger',
+        icon: 'alert-triangle',
+        duration: 10000,
         text: 'There was an error getting the Kapacitor config',
       })
     }
@@ -81,15 +87,19 @@ class AlertTabs extends Component {
           propsToSend
         )
         this.refreshKapacitorConfig(this.props.kapacitor)
-        this.props.addFlashMessage({
+        this.props.publishNotification({
           type: 'success',
+          icon: 'checkmark',
+          duration: 5000,
           text: `Alert configuration for ${section} successfully saved.`,
         })
         return true
       } catch ({data: {error}}) {
         const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
-        this.props.addFlashMessage({
-          type: 'error',
+        this.props.publishNotification({
+          type: 'danger',
+          icon: 'alert-triangle',
+          duration: 10000,
           text: `There was an error saving the alert configuration for ${section}: ${errorMsg}`,
         })
         return false
@@ -103,19 +113,25 @@ class AlertTabs extends Component {
     try {
       const {data} = await testAlertOutput(this.props.kapacitor, section)
       if (data.success) {
-        this.props.addFlashMessage({
+        this.props.publishNotification({
           type: 'success',
+          icon: 'checkmark',
+          duration: 5000,
           text: `Successfully triggered an alert to ${section}. If the alert does not reach its destination, please check your configuration settings.`,
         })
       } else {
-        this.props.addFlashMessage({
-          type: 'error',
+        this.props.publishNotification({
+          type: 'danger',
+          icon: 'alert-triangle',
+          duration: 10000,
           text: `There was an error sending an alert to ${section}: ${data.message}`,
         })
       }
     } catch (error) {
-      this.props.addFlashMessage({
-        type: 'error',
+      this.props.publishNotification({
+        type: 'danger',
+        icon: 'alert-triangle',
+        duration: 10000,
         text: `There was an error sending an alert to ${section}.`,
       })
     }
@@ -329,8 +345,12 @@ AlertTabs.propTypes = {
       proxy: string.isRequired,
     }).isRequired,
   }),
-  addFlashMessage: func.isRequired,
+  publishNotification: func.isRequired,
   hash: string.isRequired,
 }
 
-export default AlertTabs
+const mapDispatchToProps = dispatch => ({
+  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(AlertTabs)

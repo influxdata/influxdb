@@ -176,7 +176,7 @@ export const deleteRule = rule => dispatch => {
     })
     .catch(() => {
       dispatch(
-        publishNotification('error', `${rule.name} could not be deleted`)
+        publishNotification('danger', `${rule.name} could not be deleted`)
       )
     })
 }
@@ -190,7 +190,7 @@ export const updateRuleStatus = (rule, status) => dispatch => {
     })
     .catch(() => {
       dispatch(
-        publishNotification('error', `${rule.name} could not be ${status}`)
+        publishNotification('danger', `${rule.name} could not be ${status}`)
       )
     })
 }
