@@ -1,52 +1,56 @@
-import React, {PropTypes} from 'react'
+import React, {PureComponent} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-import {showMeasurements} from 'shared/apis/metaQuery'
-import showMeasurementsParser from 'shared/parsing/showMeasurements'
+import {showMeasurements} from 'src/shared/apis/metaQuery'
+import showMeasurementsParser from 'src/shared/parsing/showMeasurements'
+
+import {Query, Source} from 'src/types'
 
 import TagList from 'src/data_explorer/components/TagList'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
-const {func, shape, string} = PropTypes
+interface Props {
+  query: Query
+  querySource: Source
+  onChooseTag: () => void
+  onGroupByTag: () => void
+  onToggleTagAcceptance: () => void
+  onChooseMeasurement: (measurement: string) => void
+}
 
-const MeasurementList = React.createClass({
-  propTypes: {
-    query: shape({
-      database: string,
-      measurement: string,
-    }).isRequired,
-    onChooseMeasurement: func.isRequired,
-    onChooseTag: func.isRequired,
-    onToggleTagAcceptance: func.isRequired,
-    onGroupByTag: func.isRequired,
-    querySource: shape({
-      links: shape({
-        proxy: string.isRequired,
-      }).isRequired,
-    }),
-  },
+interface State {
+  measurements: string[]
+  filterText: string
+}
 
-  contextTypes: {
+const {shape, string} = PropTypes
+
+class MeasurementList extends PureComponent<Props, State> {
+  constructor(props) {
+    super(props)
+    this.state = {
+      measurements: [],
+      filterText: '',
+    }
+
+    this.handleEscape = this.handleEscape.bind(this)
+    this.handleFilterText = this.handleFilterText.bind(this)
+    this.handleAcceptReject = this.handleAcceptReject.bind(this)
+  }
+
+  public static defaultProps: Partial<Props> = {
+    querySource: null,
+  }
+
+  public static contextTypes = {
     source: shape({
       links: shape({
         proxy: string.isRequired,
       }).isRequired,
     }).isRequired,
-  },
-
-  getInitialState() {
-    return {
-      measurements: [],
-      filterText: '',
-    }
-  },
-
-  getDefaultProps() {
-    return {
-      querySource: null,
-    }
-  },
+  }
 
   componentDidMount() {
     if (!this.props.query.database) {
@@ -54,7 +58,7 @@ const MeasurementList = React.createClass({
     }
 
     this._getMeasurements()
-  },
+  }
 
   componentDidUpdate(prevProps) {
     const {query, querySource} = this.props
@@ -71,14 +75,14 @@ const MeasurementList = React.createClass({
     }
 
     this._getMeasurements()
-  },
+  }
 
   handleFilterText(e) {
     e.stopPropagation()
     this.setState({
-      filterText: this.refs.filterText.value,
+      filterText: e.target.value,
     })
-  },
+  }
 
   handleEscape(e) {
     if (e.key !== 'Escape') {
@@ -89,12 +93,11 @@ const MeasurementList = React.createClass({
     this.setState({
       filterText: '',
     })
-  },
+  }
 
-  handleAcceptReject(e) {
-    e.stopPropagation()
+  handleAcceptReject() {
     this.props.onToggleTagAcceptance()
-  },
+  }
 
   render() {
     return (
@@ -105,14 +108,13 @@ const MeasurementList = React.createClass({
             ? <div className="query-builder--filter">
                 <input
                   className="form-control input-sm"
-                  ref="filterText"
                   placeholder="Filter"
                   type="text"
                   value={this.state.filterText}
                   onChange={this.handleFilterText}
                   onKeyUp={this.handleEscape}
                   spellCheck={false}
-                  autoComplete={false}
+                  autoComplete="false"
                 />
                 <span className="icon search" />
               </div>
@@ -121,7 +123,7 @@ const MeasurementList = React.createClass({
         {this.renderList()}
       </div>
     )
-  },
+  }
 
   renderList() {
     if (!this.props.query.database) {
@@ -193,7 +195,7 @@ const MeasurementList = React.createClass({
         </FancyScrollbar>
       </div>
     )
-  },
+  }
 
   _getMeasurements() {
     const {source} = this.context
@@ -206,14 +208,14 @@ const MeasurementList = React.createClass({
       const {errors, measurementSets} = showMeasurementsParser(resp.data)
       if (errors.length) {
         // TODO: display errors in the UI.
-        return console.error('InfluxDB returned error(s): ', errors) // eslint-disable-line no-console
+        return console.error('InfluxDB returned error(s): ', errors)
       }
 
       this.setState({
         measurements: measurementSets[0].measurements,
       })
     })
-  },
-})
+  }
+}
 
 export default MeasurementList

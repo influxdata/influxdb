@@ -23,10 +23,6 @@ interface DatabaseListState {
   namespaces: Namespace[]
 }
 
-export interface DatabaseListContext {
-  source: Source
-}
-
 const {shape, string} = PropTypes
 
 class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
