@@ -1,7 +1,7 @@
 import _ from 'lodash'
 
 import {authExpired} from 'shared/actions/auth'
-import {publishNotification as notify} from 'shared/actions/notifications'
+import {publishNotification} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
 
@@ -9,7 +9,7 @@ const actionsAllowedDuringBlackout = [
   '@@',
   'AUTH_',
   'ME_',
-  'NOTIFICATION_',
+  'PUBLISH_NOTIFICATION',
   'ERROR_',
   'LINKS_',
 ]
@@ -20,7 +20,7 @@ const errorsMiddleware = store => next => action => {
   const {auth: {me}} = store.getState()
 
   if (action.type === 'ERROR_THROWN') {
-    const {error, error: {status, auth}, altText, alertType = 'error'} = action
+    const {error, error: {status, auth}, altText, alertType = 'info'} = action
 
     if (status === HTTP_FORBIDDEN) {
       const message = _.get(error, 'data.message', '')
@@ -35,12 +35,24 @@ const errorsMiddleware = store => next => action => {
         message ===
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
-        store.dispatch(notify(alertType, message))
+        store.dispatch(
+          publishNotification({
+            type: alertType,
+            icon: 'circle',
+            duration: -1,
+            message,
+          })
+        )
       }
 
       if (organizationWasRemoved) {
         store.dispatch(
-          notify(alertType, 'Your current organization was deleted.')
+          publishNotification({
+            type: alertType,
+            icon: 'circle',
+            duration: -1,
+            message: 'Your current organization was deleted.',
+          })
         )
 
         allowNotifications = false
@@ -49,10 +61,12 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
         store.dispatch(
-          notify(
-            alertType,
-            'Your session has timed out. Log in again to continue.'
-          )
+          publishNotification({
+            type: alertType,
+            icon: 'circle',
+            duration: -1,
+            message: 'Your session has timed out. Log in again to continue.',
+          })
         )
 
         allowNotifications = false
@@ -61,10 +75,17 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       }
     } else if (altText) {
-      store.dispatch(notify(alertType, altText))
+      store.dispatch(
+        publishNotification({
+          type: alertType,
+          icon: 'circle',
+          duration: -1,
+          message: altText,
+        })
+      )
     } else {
       // TODO: actually do proper error handling
-      // store.dispatch(notify(alertType, 'Cannot communicate with server.'))
+      // store.dispatch(publishNotification({type: alertType, 'Cannot communicate with server.'))
     }
   }
 

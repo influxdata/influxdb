@@ -16,7 +16,7 @@ import TemplateVariableManager from 'src/dashboards/components/template_variable
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishNotification} from 'shared/actions/notifications'
+import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
@@ -72,7 +72,7 @@ class DashboardPage extends Component {
       meRole,
       isUsingAuth,
       router,
-      notify,
+      publishNotification,
       getAnnotationsAsync,
       timeRange,
     } = this.props
@@ -90,7 +90,12 @@ class DashboardPage extends Component {
 
     if (!dashboard) {
       router.push(`/sources/${source.id}/dashboards`)
-      return notify('error', `Dashboard ${dashboardID} could not be found`)
+      return publishNotification({
+        type: 'danger',
+        icon: 'alert-triangle',
+        duration: 10000,
+        message: `Dashboard ${dashboardID} could not be found`,
+      })
     }
 
     // Refresh and persists influxql generated template variable values.
@@ -506,7 +511,7 @@ DashboardPage.propTypes = {
   meRole: string,
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
-  notify: func.isRequired,
+  publishNotification: func.isRequired,
   getAnnotationsAsync: func.isRequired,
   handleShowCellEditorOverlay: func.isRequired,
   handleHideCellEditorOverlay: func.isRequired,
@@ -568,7 +573,7 @@ const mapDispatchToProps = dispatch => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
-  notify: bindActionCreators(publishNotification, dispatch),
+  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
   getAnnotationsAsync: bindActionCreators(
     annotationActions.getAnnotationsAsync,
     dispatch

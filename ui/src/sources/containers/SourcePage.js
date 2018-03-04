@@ -8,8 +8,9 @@ import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
 } from 'shared/actions/sources'
-import {publishNotification} from 'shared/actions/notifications'
+import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import Notifications from 'shared/components/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
@@ -96,10 +97,15 @@ class SourcePage extends Component {
   }
 
   handleError = (bannerText, err) => {
-    const {notify} = this.props
+    const {publishNotification} = this.props
     const error = this._parseError(err)
     console.error('Error: ', error)
-    notify('error', `${bannerText}: ${error}`)
+    publishNotification({
+      type: 'danger',
+      icon: 'alert-triangle',
+      duration: 10000,
+      message: `${bannerText}: ${error}`,
+    })
   }
 
   gotoPurgatory = () => {
@@ -123,7 +129,7 @@ class SourcePage extends Component {
     }
     createSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.addSourceAction(sourceFromServer)
+        this.props.addSource(sourceFromServer)
         this.setState({
           source: {...DEFAULT_SOURCE, ...sourceFromServer},
           isCreated: true,
@@ -138,12 +144,17 @@ class SourcePage extends Component {
 
   _createSource = () => {
     const {source} = this.state
-    const {notify} = this.props
+    const {publishNotification} = this.props
     createSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.addSourceAction(sourceFromServer)
+        this.props.addSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', `InfluxDB ${source.name} available as a connection`)
+        publishNotification({
+          type: 'success',
+          icon: 'server2',
+          duration: 5000,
+          message: `InfluxDB ${source.name} available as a connection`,
+        })
       })
       .catch(error => {
         this.handleError('Unable to create InfluxDB connection', error)
@@ -152,12 +163,17 @@ class SourcePage extends Component {
 
   _updateSource = () => {
     const {source} = this.state
-    const {notify} = this.props
+    const {publishNotification} = this.props
     updateSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.updateSourceAction(sourceFromServer)
+        this.props.updateSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', `InfluxDB connection ${source.name} updated`)
+        publishNotification({
+          type: 'success',
+          icon: 'server2',
+          duration: 5000,
+          message: `InfluxDB connection ${source.name} updated`,
+        })
       })
       .catch(error => {
         this.handleError('Unable to update InfluxDB connection', error)
@@ -261,15 +277,14 @@ SourcePage.propTypes = {
       redirectPath: string,
     }).isRequired,
   }).isRequired,
-  notify: func,
-  addSourceAction: func,
-  updateSourceAction: func,
+  publishNotification: func.isRequired,
+  addSource: func.isRequired,
+  updateSource: func.isRequired,
 }
 
-const mapStateToProps = () => ({})
-
-export default connect(mapStateToProps, {
-  notify: publishNotification,
-  addSourceAction,
-  updateSourceAction,
-})(withRouter(SourcePage))
+const mapDispatchToProps = dispatch => ({
+  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  addSource: bindActionCreators(addSourceAction, dispatch),
+  updateSource: bindActionCreators(updateSourceAction, dispatch),
+})
+export default connect(null, mapDispatchToProps)(withRouter(SourcePage))
