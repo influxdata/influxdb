@@ -1,17 +1,4 @@
-export function publishNotification(
-  type,
-  message,
-  duration = 4000,
-  icon = 'zap'
-) {
-  // TODO: Refactor where notifications are published from and use correct shape
-  // This acts as a temporary means to transform the old shape into the new one
-  const notification = {
-    type,
-    message,
-    duration,
-    icon,
-  }
+export function publishNotification(notification) {
   return {
     type: 'PUBLISH_NOTIFICATION',
     payload: {notification},
