@@ -52,7 +52,6 @@ export const saveToLocalStorage = ({
   timeRange,
   dataExplorer,
   dashTimeV1: {ranges},
-  dismissedNotifications,
 }) => {
   try {
     const appPersisted = Object.assign({}, {app: {persisted}})
@@ -67,7 +66,6 @@ export const saveToLocalStorage = ({
         dataExplorer,
         VERSION, // eslint-disable-line no-undef
         dashTimeV1,
-        dismissedNotifications,
       })
     )
   } catch (err) {
