@@ -18,7 +18,7 @@ import {
 
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
@@ -277,7 +277,12 @@ export const createUserAsync = (url, user) => async dispatch => {
   try {
     const {data} = await createUserAJAX(url, user)
     dispatch(
-      publishAutoDismissingNotification('success', 'User created successfully')
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'User created successfully',
+      })
     )
     dispatch(syncUser(user, data))
   } catch (error) {
@@ -291,7 +296,12 @@ export const createRoleAsync = (url, role) => async dispatch => {
   try {
     const {data} = await createRoleAJAX(url, role)
     dispatch(
-      publishAutoDismissingNotification('success', 'Role created successfully')
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Role created successfully',
+      })
     )
     dispatch(syncRole(role, data))
   } catch (error) {
@@ -306,10 +316,12 @@ export const createDatabaseAsync = (url, database) => async dispatch => {
     const {data} = await createDatabaseAJAX(url, database)
     dispatch(syncDatabase(database, data))
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Database created successfully'
-      )
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Database created successfully',
+      })
     )
   } catch (error) {
     dispatch(
@@ -330,10 +342,12 @@ export const createRetentionPolicyAsync = (
       retentionPolicy
     )
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Retention policy created successfully'
-      )
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Retention policy created successfully',
+      })
     )
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
@@ -361,10 +375,12 @@ export const updateRetentionPolicyAsync = (
     const {data} = await updateRetentionPolicyAJAX(oldRP.links.self, newRP)
     dispatch(editRetentionPolicyCompleted(database, oldRP, data))
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Retention policy updated successfully'
-      )
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Retention policy updated successfully',
+      })
     )
   } catch (error) {
     dispatch(editRetentionPolicyFailed(database, oldRP))
@@ -394,7 +410,14 @@ export const deleteRoleAsync = role => async dispatch => {
   dispatch(deleteRole(role))
   try {
     await deleteRoleAJAX(role.links.self)
-    dispatch(publishAutoDismissingNotification('success', 'Role deleted'))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Role deleted',
+      })
+    )
   } catch (error) {
     dispatch(errorThrown(error, `Failed to delete role: ${error.data.message}`))
   }
@@ -404,7 +427,14 @@ export const deleteUserAsync = user => async dispatch => {
   dispatch(deleteUser(user))
   try {
     await deleteUserAJAX(user.links.self)
-    dispatch(publishAutoDismissingNotification('success', 'User deleted'))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'User deleted',
+      })
+    )
   } catch (error) {
     dispatch(errorThrown(error, `Failed to delete user: ${error.data.message}`))
   }
@@ -414,7 +444,14 @@ export const deleteDatabaseAsync = database => async dispatch => {
   dispatch(removeDatabase(database))
   try {
     await deleteDatabaseAJAX(database.links.self)
-    dispatch(publishAutoDismissingNotification('success', 'Database deleted'))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Database deleted',
+      })
+    )
   } catch (error) {
     dispatch(
       errorThrown(error, `Failed to delete database: ${error.data.message}`)
@@ -430,10 +467,12 @@ export const deleteRetentionPolicyAsync = (
   try {
     await deleteRetentionPolicyAJAX(retentionPolicy.links.self)
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Retention policy ${retentionPolicy.name} deleted`
-      )
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: `Retention policy ${retentionPolicy.name} deleted`,
+      })
     )
   } catch (error) {
     dispatch(
@@ -452,7 +491,14 @@ export const updateRoleUsersAsync = (role, users) => async dispatch => {
       users,
       role.permissions
     )
-    dispatch(publishAutoDismissingNotification('success', 'Role users updated'))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Role users updated',
+      })
+    )
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(errorThrown(error, `Failed to update role: ${error.data.message}`))
@@ -470,7 +516,12 @@ export const updateRolePermissionsAsync = (
       permissions
     )
     dispatch(
-      publishAutoDismissingNotification('success', 'Role permissions updated')
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Role permissions updated',
+      })
     )
     dispatch(syncRole(role, data))
   } catch (error) {
@@ -487,7 +538,12 @@ export const updateUserPermissionsAsync = (
   try {
     const {data} = await updateUserAJAX(user.links.self, {permissions})
     dispatch(
-      publishAutoDismissingNotification('success', 'User permissions updated')
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'User permissions updated',
+      })
     )
     dispatch(syncUser(user, data))
   } catch (error) {
@@ -500,7 +556,14 @@ export const updateUserPermissionsAsync = (
 export const updateUserRolesAsync = (user, roles) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {roles})
-    dispatch(publishAutoDismissingNotification('success', 'User roles updated'))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'User roles updated',
+      })
+    )
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
@@ -513,7 +576,12 @@ export const updateUserPasswordAsync = (user, password) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {password})
     dispatch(
-      publishAutoDismissingNotification('success', 'User password updated')
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'User password updated',
+      })
     )
     dispatch(syncUser(user, data))
   } catch (error) {

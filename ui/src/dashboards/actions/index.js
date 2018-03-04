@@ -8,7 +8,7 @@ import {
   runTemplateVariableQuery,
 } from 'src/dashboards/apis'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
@@ -258,10 +258,12 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
   try {
     await deleteDashboardAJAX(dashboard)
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Dashboard deleted successfully.'
-      )
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'Dashboard deleted successfully.',
+      })
     )
   } catch (error) {
     dispatch(

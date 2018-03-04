@@ -22,7 +22,7 @@ import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 import generateTemplateVariableQuery from 'src/dashboards/utils/templateVariableQueryGenerator'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
 const compact = values => uniq(values).filter(value => /\S/.test(value))
 
@@ -137,17 +137,19 @@ class RowWrapper extends Component {
       onRunQuerySuccess,
       onRunQueryFailure,
       tempVarAlreadyExists,
-      notify,
+      publishNotification,
     } = this.props
 
     const _tempVar = e.target.tempVar.value.replace(/\u003a/g, '')
     const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
 
     if (tempVarAlreadyExists(tempVar, id)) {
-      return notify(
-        'error',
-        `Variable '${_tempVar}' already exists. Please enter a new value.`
-      )
+      return publishNotification({
+        type: 'danger',
+        icon: 'alert-triangle',
+        duration: 10000,
+        message: `Variable '${_tempVar}' already exists. Please enter a new value.`,
+      })
     }
 
     this.setState({
@@ -329,7 +331,7 @@ RowWrapper.propTypes = {
   onRunQueryFailure: func.isRequired,
   onDelete: func.isRequired,
   tempVarAlreadyExists: func.isRequired,
-  notify: func.isRequired,
+  publishNotification: func.isRequired,
 }
 
 TemplateVariableRow.propTypes = {
@@ -348,7 +350,7 @@ TemplateVariableRow.propTypes = {
 
 const mapDispatchToProps = dispatch => ({
   onErrorThrown: bindActionCreators(errorThrownAction, dispatch),
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(OnClickOutside(RowWrapper))

@@ -2,10 +2,8 @@ import {getMe as getMeAJAX, updateMe as updateMeAJAX} from 'shared/apis/auth'
 
 import {getLinksAsync} from 'shared/actions/links'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
-
-import {NOTIFICATION_DISMISS_DELAY} from 'shared/constants'
 
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',
@@ -92,12 +90,13 @@ export const meChangeOrganizationAsync = (
       r => r.organization === me.currentOrganization.id
     )
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Now logged in to '${me.currentOrganization
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: `Now logged in to '${me.currentOrganization
           .name}' as '${currentRole.name}'`,
-        NOTIFICATION_DISMISS_DELAY
-      )
+      })
     )
     dispatch(meChangeOrganizationCompleted())
     dispatch(meGetCompleted({me, auth, logoutLink}))

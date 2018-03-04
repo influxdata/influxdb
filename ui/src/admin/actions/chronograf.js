@@ -16,7 +16,7 @@ import {
   deleteMapping as deleteMappingAJAX,
 } from 'src/admin/apis/chronograf'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
@@ -178,10 +178,12 @@ export const deleteMappingAsync = mapping => async dispatch => {
   try {
     await deleteMappingAJAX(mapping)
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Mapping deleted: ${mapping.id} ${mapping.scheme}`
-      )
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: `Mapping deleted: ${mapping.id} ${mapping.scheme}`,
+      })
     )
   } catch (error) {
     dispatch(errorThrown(error))
@@ -238,7 +240,14 @@ export const updateUserAsync = (
       provider: null,
       scheme: null,
     })
-    dispatch(publishAutoDismissingNotification('success', successMessage))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: successMessage,
+      })
+    )
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))
@@ -256,7 +265,7 @@ export const deleteUserAsync = (
   try {
     await deleteUserAJAX(user)
     dispatch(
-      publishAutoDismissingNotification(
+      publishNotification(
         'success',
         `${user.name} has been removed from ${isAbsoluteDelete
           ? 'all organizations and deleted'
@@ -314,10 +323,12 @@ export const deleteOrganizationAsync = organization => async dispatch => {
   try {
     await deleteOrganizationAJAX(organization)
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Organization deleted: ${organization.name}`
-      )
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: `Organization deleted: ${organization.name}`,
+      })
     )
   } catch (error) {
     dispatch(errorThrown(error))
