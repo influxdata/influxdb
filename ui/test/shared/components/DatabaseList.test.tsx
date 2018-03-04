@@ -54,8 +54,8 @@ describe('Shared.Components.DatabaseList', () => {
         const onChooseNamespace = jest.fn()
         const {dbList} = setup({onChooseNamespace})
 
-        // TODO: find out why instance method is undefined
-        dbList.instance().handleChooseNamespace(dbrp1)
+        const instance = dbList.instance() as DatabaseList
+        instance.handleChooseNamespace(dbrp1)()
 
         expect(onChooseNamespace).toHaveBeenCalledTimes(1)
         expect(onChooseNamespace).toHaveBeenCalledWith(dbrp1)
@@ -67,25 +67,23 @@ describe('Shared.Components.DatabaseList', () => {
         it('returns false', () => {
           const {dbList} = setup()
 
-          // TODO: find out why ts is not finding this
-          // instance method is undefined
-          const isActive = dbList.instance().isActive(query, dbrp1)
-          expect(isActive).toBe(false)
+          const instance = dbList.instance() as DatabaseList
+          expect(instance.isActive(query, dbrp1)).toBe(false)
         })
 
         describe('if the query matches the db and rp', () => {
           it('returns true', () => {
+            const {database, retentionPolicy} = dbrp1
             const matchingQuery = {
               ...query,
-              db: dbrp1.database,
-              retentionPolicy: dbrp1.retentionPolicy,
+              database,
+              retentionPolicy,
             }
 
             const {dbList} = setup()
+            const instance = dbList.instance() as DatabaseList
 
-            // TODO: find out why instance method is undefined
-            const isActive = dbList.instance().isActive(matchingQuery, dbrp1)
-            expect(isActive).toBe(true)
+            expect(instance.isActive(matchingQuery, dbrp1)).toBe(true)
           })
         })
       })

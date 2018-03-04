@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 
@@ -12,14 +12,14 @@ import showRetentionPoliciesParser from 'src/shared/parsing/showRetentionPolicie
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import DatabaseListItem from 'src/shared/components/DatabaseListItem'
 
-export interface DatabaseListProps {
+interface DatabaseListProps {
   query: Query
   querySource: Source
   onChooseNamespace: (namespace: Namespace) => void
   source: Source
 }
 
-export interface DatabaseListState {
+interface DatabaseListState {
   namespaces: Namespace[]
 }
 
@@ -29,17 +29,15 @@ export interface DatabaseListContext {
 
 const {shape, string} = PropTypes
 
-class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
+class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
   constructor(props) {
     super(props)
     this.getDbRp = this.getDbRp.bind(this)
+    this.handleChooseNamespace = this.handleChooseNamespace.bind(this)
+    this.state = {
+      namespaces: [],
+    }
   }
-
-  state = {
-    namespaces: [],
-  }
-
-  context: DatabaseListContext
 
   public static defaultProps: Partial<DatabaseListProps> = {
     source: null,
@@ -53,11 +51,11 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     }).isRequired,
   }
 
-  componentDidMount() {
+  public componentDidMount() {
     this.getDbRp()
   }
 
-  componentDidUpdate({querySource: prevSource, query: prevQuery}) {
+  public componentDidUpdate({querySource: prevSource, query: prevQuery}) {
     const {querySource: nextSource, query: nextQuery} = this.props
     const differentSource = !_.isEqual(prevSource, nextSource)
 
@@ -73,7 +71,7 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  async getDbRp() {
+  public async getDbRp() {
     const {source} = this.context
     const {querySource} = this.props
     const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
@@ -103,14 +101,17 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  handleChooseNamespace = (namespace: Namespace) => () => {
-    this.props.onChooseNamespace(namespace)
+  public handleChooseNamespace(namespace: Namespace) {
+    return () => this.props.onChooseNamespace(namespace)
   }
 
-  isActive = (query: Query, {database, retentionPolicy}: Namespace) =>
-    database === query.database && retentionPolicy === query.retentionPolicy
+  public isActive(query: Query, {database, retentionPolicy}: Namespace) {
+    return (
+      database === query.database && retentionPolicy === query.retentionPolicy
+    )
+  }
 
-  render() {
+  public render() {
     return (
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">DB.RetentionPolicy</div>
