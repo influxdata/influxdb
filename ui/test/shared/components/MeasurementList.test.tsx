@@ -1,5 +1,7 @@
 import React from 'react'
 import MeasurementList from 'src/shared/components/MeasurementList'
+import MeasurementListItem from 'src/shared/components/MeasurementListItem'
+import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
 import {shallow} from 'enzyme'
 import {query, source} from 'test/resources'
 
@@ -35,6 +37,42 @@ describe('Shared.Components.MeasurementList', () => {
       const {wrapper} = setup()
 
       expect(wrapper.exists()).toBe(true)
+    })
+
+    describe('<MeasurementListItem/>', () => {
+      it('renders <MeasurementListItem/>`s to the page', () => {
+        const {wrapper} = setup()
+        wrapper.setState({filtered: ['foo', 'bar']})
+        const items = wrapper.find(MeasurementListItem)
+
+        expect(items.length).toBe(2)
+        expect(items.first().dive().text()).toContain('foo')
+        expect(items.last().dive().text()).toContain('bar')
+      })
+
+      it('renders <MeasurementListFilter/> to the page', () => {
+        const {wrapper} = setup()
+        const filter = wrapper.find(MeasurementListFilter)
+
+        expect(filter.exists()).toBe(true)
+      })
+    })
+  })
+
+  describe('user interractions', () => {
+    it('can filter the measurement list', () => {
+      const {wrapper} = setup()
+      const measurements = ['foo', 'bar']
+      const event = {target: {value: 'f'}, stopPropagation: () => {}}
+      wrapper.setState({filtered: measurements, measurements})
+
+      const filter = wrapper.find(MeasurementListFilter)
+      filter.dive().find('input').simulate('change', event)
+      wrapper.update()
+
+      const items = wrapper.find(MeasurementListItem)
+      expect(items.length).toBe(1)
+      expect(items.dive().text()).toBe('foo')
     })
   })
 
