@@ -96,6 +96,7 @@ module.exports = {
         include: path.resolve(__dirname, '..', 'src'),
         exclude: /node_modules/,
         use: [
+          {loader: 'thread-loader'},
           {
             loader: 'babel-loader',
             options: {
