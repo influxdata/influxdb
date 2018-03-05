@@ -17,6 +17,7 @@ const GraphOptionsCustomizableColumn = ({
         wrapperClass="column-controls-input"
         onUpdate={onColumnRename}
         placeholder="Rename..."
+        appearAsNormalInput={true}
       />
     </div>
   )
