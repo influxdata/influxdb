@@ -91,7 +91,7 @@ func (f *LogFile) open() error {
 	f.id, _ = ParseFilename(f.path)
 
 	// Open file for appending.
-	file, err := os.OpenFile(f.Path(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	file, err := os.OpenFile(f.Path(), os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
@@ -120,12 +120,7 @@ func (f *LogFile) open() error {
 	for buf := f.data; len(buf) > 0; {
 		// Read next entry. Truncate partial writes.
 		var e LogEntry
-		if err := e.UnmarshalBinary(buf); err == io.ErrShortBuffer {
-			if err := file.Truncate(n); err != nil {
-				return err
-			} else if _, err := file.Seek(0, io.SeekEnd); err != nil {
-				return err
-			}
+		if err := e.UnmarshalBinary(buf); err == io.ErrShortBuffer || err == ErrLogEntryChecksumMismatch {
 			break
 		} else if err != nil {
 			return err
@@ -137,6 +132,12 @@ func (f *LogFile) open() error {
 		// Move buffer forward.
 		n += int64(e.Size)
 		buf = buf[e.Size:]
+	}
+
+	// Move to the end of the file.
+	f.size = n
+	if _, err := file.Seek(n, io.SeekStart); err != nil {
+		return err
 	}
 
 	return nil
