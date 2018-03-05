@@ -57,6 +57,7 @@ v1.5.0 [unreleased]
 -	[#9493](https://github.com/influxdata/influxdb/pull/9493): Fix the implicit time range in a subquery.
 -	[#9491](https://github.com/influxdata/influxdb/pull/9491): Evaluate a true boolean literal when calculating tag sets.
 -	[#9496](https://github.com/influxdata/influxdb/pull/9496): Fix panic on tsi1 log replay of deleted series..
+-	[#9510](https://github.com/influxdata/influxdb/pull/9510): Fix TSI log file recovery.
 
 v1.4.3 [unreleased]
 -------------------
