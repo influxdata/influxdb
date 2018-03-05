@@ -161,6 +161,111 @@ func TestLogFile_DeleteMeasurement(t *testing.T) {
 	}
 }
 
+// Ensure log file can recover correctly.
+func TestLogFile_Open(t *testing.T) {
+	t.Run("Truncate", func(t *testing.T) {
+		sfile := MustOpenSeriesFile()
+		defer sfile.Close()
+		seriesSet := tsdb.NewSeriesIDSet()
+
+		f := MustOpenLogFile(sfile.SeriesFile)
+		defer f.Close()
+
+		// Add test data & close.
+		if err := f.AddSeriesList(seriesSet, [][]byte{[]byte("cpu"), []byte("mem")}, []models.Tags{{{}}, {{}}}); err != nil {
+			t.Fatal(err)
+		} else if err := f.LogFile.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Truncate data & reopen.
+		if fi, err := os.Stat(f.LogFile.Path()); err != nil {
+			t.Fatal(err)
+		} else if err := os.Truncate(f.LogFile.Path(), fi.Size()-1); err != nil {
+			t.Fatal(err)
+		} else if err := f.LogFile.Open(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify data.
+		itr := f.SeriesIDIterator()
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := sfile.Series(elem.SeriesID); string(name) != `cpu` {
+			t.Fatalf("unexpected series: %s,%s", name, tags.String())
+		} else if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %#v", elem)
+		}
+
+		// Add more data & reopen.
+		if err := f.AddSeriesList(seriesSet, [][]byte{[]byte("disk")}, []models.Tags{{{}}}); err != nil {
+			t.Fatal(err)
+		} else if err := f.Reopen(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify new data.
+		itr = f.SeriesIDIterator()
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := sfile.Series(elem.SeriesID); string(name) != `cpu` {
+			t.Fatalf("unexpected series: %s,%s", name, tags.String())
+		} else if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := sfile.Series(elem.SeriesID); string(name) != `disk` {
+			t.Fatalf("unexpected series: %s,%s", name, tags.String())
+		} else if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %#v", elem)
+		}
+	})
+
+	t.Run("ChecksumMismatch", func(t *testing.T) {
+		sfile := MustOpenSeriesFile()
+		defer sfile.Close()
+		seriesSet := tsdb.NewSeriesIDSet()
+
+		f := MustOpenLogFile(sfile.SeriesFile)
+		defer f.Close()
+
+		// Add test data & close.
+		if err := f.AddSeriesList(seriesSet, [][]byte{[]byte("cpu"), []byte("mem")}, []models.Tags{{{}}, {{}}}); err != nil {
+			t.Fatal(err)
+		} else if err := f.LogFile.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Corrupt last entry.
+		buf, err := ioutil.ReadFile(f.LogFile.Path())
+		if err != nil {
+			t.Fatal(err)
+		}
+		buf[len(buf)-1] = 0
+
+		// Overwrite file with corrupt entry and reopen.
+		if err := ioutil.WriteFile(f.LogFile.Path(), buf, 0666); err != nil {
+			t.Fatal(err)
+		} else if err := f.LogFile.Open(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify data.
+		itr := f.SeriesIDIterator()
+		if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if name, tags := sfile.Series(elem.SeriesID); string(name) != `cpu` {
+			t.Fatalf("unexpected series: %s,%s", name, tags.String())
+		} else if elem, err := itr.Next(); err != nil {
+			t.Fatal(err)
+		} else if elem.SeriesID != 0 {
+			t.Fatalf("expected eof, got: %#v", elem)
+		}
+	})
+}
+
 // LogFile is a test wrapper for tsi1.LogFile.
 type LogFile struct {
 	*tsi1.LogFile
