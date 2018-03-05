@@ -17,8 +17,6 @@ const labels = ['time', 'test.label']
 const div = document.createElement('div')
 const graph = new Dygraph(div, timeSeries, {labels})
 
-const oneHourMs = '3600000'
-
 const a1 = {
   group: '',
   name: 'a1',
@@ -43,14 +41,14 @@ describe('Shared.Annotations.Helpers', () => {
       const actual = visibleAnnotations(undefined, annotations)
       const expected = []
 
-      expect(actual).to.deep.equal(expected)
+      expect(actual).toEqual(expected)
     })
 
     it('returns an annotation if it is in the time range', () => {
       const actual = visibleAnnotations(graph, annotations)
       const expected = annotations
 
-      expect(actual).to.deep.equal(expected)
+      expect(actual).toEqual(expected)
     })
 
     it('removes an annotation if it is out of the time range', () => {
@@ -65,7 +63,7 @@ describe('Shared.Annotations.Helpers', () => {
       const actual = visibleAnnotations(graph, newAnnos)
       const expected = annotations
 
-      expect(actual).to.deep.equal(expected)
+      expect(actual).toEqual(expected)
     })
 
     describe('with a duration', () => {
@@ -79,7 +77,7 @@ describe('Shared.Annotations.Helpers', () => {
         }
 
         const expected = [...withDurations, expectedAnnotation]
-        expect(actual).to.deep.equal(expected)
+        expect(actual).toEqual(expected)
       })
 
       it('does not add a duration annotation if it is out of bounds', () => {
@@ -96,7 +94,7 @@ describe('Shared.Annotations.Helpers', () => {
         const actual = visibleAnnotations(graph, withDurations)
         const expected = withDurations
 
-        expect(actual).to.deep.equal(expected)
+        expect(actual).toEqual(expected)
       })
     })
   })
