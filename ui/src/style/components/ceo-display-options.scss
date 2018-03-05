@@ -257,13 +257,12 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
   Cell Editor Overlay - Single-Stat Controls
   ------------------------------------------------------------------------------
 */
-.single-stat-controls {
+.graph-options-group {
+  margin-top: 30px;
+}
+.form-group-wrapper {
   display: inline-block;
   width: calc(100% + 12px);
-  margin: 30px -6px 0 -6px;
-
-  > div.form-group {
-    padding-left: 6px;
-    padding-right: 6px;
-  }
+  margin-left: -6px;
+  margin-right: -6px;
 }

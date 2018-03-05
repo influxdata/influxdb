@@ -188,7 +188,8 @@ textarea.form-control {
 .form-group > .btn {
   display: inline-block;
 }
-.form-group > label {
+.form-group > label,
+label.form-label {
   display: inline-block;
   font-size: 12px;
   font-weight: 600;

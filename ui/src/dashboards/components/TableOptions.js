@@ -78,7 +78,7 @@ class TableOptions extends Component {
       >
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Table Controls</h5>
-          <div className="gauge-controls">
+          <div className="form-group-wrapper">
             <GraphOptionsTimeFormat
               TimeFormat={TimeFormat}
               onTimeFormatChange={this.handleTimeFormatChange}
