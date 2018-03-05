@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 
 const GraphOptionsTimeFormat = ({TimeFormat, onTimeFormatChange}) =>
-  <div>
+  <div className="form-group col-xs-12">
     <label>Time Format</label>
     <input
       className="form-control input-sm"
