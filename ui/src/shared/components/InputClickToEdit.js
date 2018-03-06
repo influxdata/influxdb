@@ -42,7 +42,6 @@ class InputClickToEdit extends Component {
 
   handleKeyUp = e => {
     const {onKeyUpdate, value} = this.props
-    const {initialValue} = this.state
     if (e.key === 'Enter') {
       this.handleInputBlur(e)
       return
