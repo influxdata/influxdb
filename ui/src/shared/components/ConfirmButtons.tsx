@@ -63,6 +63,7 @@ class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
             disabled={isDisabled}
             confirmAction={this.handleConfirm(item)}
             icon="icon checkmark"
+            hoverText={isDisabled ? `Cannot ${hoverText}` : hoverText}
           />
           <ConfirmButton
             customClass={cancelClass}
@@ -81,6 +82,7 @@ class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
             disabled={isDisabled}
             confirmAction={this.handleConfirm(item)}
             icon="icon checkmark"
+            hoverText={isDisabled ? `Cannot ${hoverText}` : hoverText}
           />
         </div>
   }

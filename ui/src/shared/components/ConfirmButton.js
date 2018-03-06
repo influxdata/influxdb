@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
 
@@ -55,6 +56,7 @@ class ConfirmButton extends Component {
       icon,
       disabled,
       customClass,
+      hoverText,
     } = this.props
     const {expanded} = this.state
 
@@ -70,6 +72,7 @@ class ConfirmButton extends Component {
         className={classname}
         onClick={this.handleButtonClick}
         ref={r => (this.buttonDiv = r)}
+        title={hoverText}
       >
         {icon && <span className={`icon ${icon}`} />}
         {text && text}
@@ -105,6 +108,7 @@ ConfirmButton.propTypes = {
   icon: string,
   disabled: bool,
   customClass: string,
+  hoverText: string,
 }
 
 export default OnClickOutside(ConfirmButton)
