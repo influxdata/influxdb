@@ -14,7 +14,7 @@ const babelLoader = {
   loader: 'babel-loader',
   options: {
     cacheDirectory: false,
-    presets: ['env', 'react', 'stage-0'],
+    presets: [['env', {modules: false}], 'react', 'stage-0'],
   },
 }
 
