@@ -5,17 +5,22 @@ class InputClickToEdit extends Component {
     super(props)
 
     this.state = {
-      isEditing: null,
-      value: this.props.value,
+      isEditing: false,
+      currentValue: this.props.value,
       initialValue: this.props.value,
     }
   }
 
   handleCancel = () => {
+    const {onKeyUpdate} = this.props
+    const {initialValue} = this.state
     this.setState({
       isEditing: false,
-      value: this.state.initialValue,
+      currentValue: initialValue,
     })
+    if (onKeyUpdate) {
+      onKeyUpdate(initialValue)
+    }
   }
 
   handleInputClick = () => {
@@ -30,18 +35,21 @@ class InputClickToEdit extends Component {
 
     this.setState({
       isEditing: false,
-      value: e.target.value,
+      currentValue: e.target.value,
       initialValue: e.target.value,
     })
   }
 
   handleKeyUp = e => {
     const {onKeyUpdate, value} = this.props
+    const {initialValue} = this.state
     if (e.key === 'Enter') {
       this.handleInputBlur(e)
+      return
     }
     if (e.key === 'Escape') {
       this.handleCancel()
+      return
     }
     if (onKeyUpdate && value !== e.target.value) {
       onKeyUpdate(e.target.value)
@@ -53,7 +61,7 @@ class InputClickToEdit extends Component {
   }
 
   render() {
-    const {isEditing, value} = this.state
+    const {isEditing, currentValue: value} = this.state
     const {wrapperClass, disabled, tabIndex, placeholder} = this.props
 
     const divStyle = value ? 'input-cte' : 'input-cte__empty'
@@ -74,7 +82,6 @@ class InputClickToEdit extends Component {
                 onKeyUp={this.handleKeyUp}
                 autoFocus={true}
                 onFocus={this.handleFocus}
-                ref={r => (this.inputRef = r)}
                 tabIndex={tabIndex}
                 placeholder={placeholder}
               />
@@ -92,6 +99,10 @@ class InputClickToEdit extends Component {
 }
 
 const {func, bool, number, string} = PropTypes
+
+InputClickToEdit.defaultValue = {
+  tabIndex: 0,
+}
 
 InputClickToEdit.propTypes = {
   wrapperClass: string.isRequired,
