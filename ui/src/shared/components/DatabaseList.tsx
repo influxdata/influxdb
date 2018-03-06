@@ -47,11 +47,11 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
     }).isRequired,
   }
 
-  public componentDidMount() {
+  componentDidMount() {
     this.getDbRp()
   }
 
-  public componentDidUpdate({querySource: prevSource, query: prevQuery}) {
+  componentDidUpdate({querySource: prevSource, query: prevQuery}) {
     const {querySource: nextSource, query: nextQuery} = this.props
     const differentSource = !_.isEqual(prevSource, nextSource)
 
@@ -67,7 +67,7 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  public async getDbRp() {
+  async getDbRp() {
     const {source} = this.context
     const {querySource} = this.props
     const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
@@ -97,17 +97,17 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
     }
   }
 
-  public handleChooseNamespace(namespace: Namespace) {
+  handleChooseNamespace(namespace: Namespace) {
     return () => this.props.onChooseNamespace(namespace)
   }
 
-  public isActive(query: Query, {database, retentionPolicy}: Namespace) {
+  isActive(query: Query, {database, retentionPolicy}: Namespace) {
     return (
       database === query.database && retentionPolicy === query.retentionPolicy
     )
   }
 
-  public render() {
+  render() {
     return (
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">DB.RetentionPolicy</div>
