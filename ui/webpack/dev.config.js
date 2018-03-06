@@ -21,11 +21,6 @@ const babelLoader = {
   },
 }
 
-const log = function(x) {
-  console.log('IM LOGGIN HERE: ', x)
-  return x
-}
-
 module.exports = {
   node: {
     fs: 'empty',
