@@ -32,7 +32,7 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT, DYGRAPH_CELL_TYPES} from 'shared/constants'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -247,7 +247,9 @@ class DashboardPage extends Component {
     )
 
     // Get only the graphs that can sync the hover line
-    const graphsToSync = dashboard.cells.filter(c => c.type !== 'single-stat')
+    const graphsToSync = dashboard.cells.filter(c =>
+      DYGRAPH_CELL_TYPES.find(dct => dct === c.type)
+    )
 
     if (
       dashboard &&
