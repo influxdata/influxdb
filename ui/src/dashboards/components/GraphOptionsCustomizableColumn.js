@@ -15,7 +15,7 @@ const GraphOptionsCustomizableColumn = ({
       <InputClickToEdit
         value={newColumnName}
         wrapperClass="fancytable--td orgs-table--name"
-        onUpdate={onColumnRename}
+        onBlurUpdate={onColumnRename}
         placeholder="Rename..."
       />
     </div>
