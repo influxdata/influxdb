@@ -1,4 +1,4 @@
-v1.5.0 [unreleased]
+v1.5.0 [2017-03-06]
 -------------------
 
 ### Breaking changes
