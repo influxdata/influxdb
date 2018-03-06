@@ -5,6 +5,7 @@ import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
 import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
+import TableOptions from 'src/dashboards/components/TableOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
 
@@ -35,15 +36,26 @@ class DisplayOptions extends Component {
   }
 
   renderOptions = () => {
-    const {cell: {type}} = this.props
-
+    const {
+      cell: {type},
+      staticLegend,
+      onToggleStaticLegend,
+      onResetFocus,
+    } = this.props
     switch (type) {
       case 'gauge':
-        return <GaugeOptions />
+        return <GaugeOptions onResetFocus={onResetFocus} />
       case 'single-stat':
-        return <SingleStatOptions />
+        return <SingleStatOptions onResetFocus={onResetFocus} />
+      case 'table':
+        return <TableOptions />
       default:
-        return <AxesOptions />
+        return (
+          <AxesOptions
+            onToggleStaticLegend={onToggleStaticLegend}
+            staticLegend={staticLegend}
+          />
+        )
     }
   }
 
@@ -56,7 +68,8 @@ class DisplayOptions extends Component {
     )
   }
 }
-const {arrayOf, shape, string} = PropTypes
+
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
   cell: shape({
@@ -70,6 +83,9 @@ DisplayOptions.propTypes = {
     }),
   }).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
+  onToggleStaticLegend: func.isRequired,
+  staticLegend: bool,
+  onResetFocus: func.isRequired,
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({

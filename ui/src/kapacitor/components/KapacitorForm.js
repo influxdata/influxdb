@@ -5,8 +5,15 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class KapacitorForm extends Component {
   render() {
-    const {onInputChange, onReset, kapacitor, onSubmit, exists} = this.props
-    const {url: kapaUrl, name, username, password} = kapacitor
+    const {
+      onInputChange,
+      onChangeUrl,
+      onReset,
+      kapacitor,
+      onSubmit,
+      exists,
+    } = this.props
+    const {url, name, username, password} = kapacitor
     return (
       <div className="page">
         <div className="page-header">
@@ -22,8 +29,8 @@ class KapacitorForm extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-3">
-                <div className="panel panel-minimal">
-                  <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+                <div className="panel">
+                  <div className="panel-heading">
                     <h2 className="panel-title">Connection Details</h2>
                   </div>
                   <div className="panel-body">
@@ -35,9 +42,9 @@ class KapacitorForm extends Component {
                             className="form-control"
                             id="kapaUrl"
                             name="kapaUrl"
-                            placeholder={kapaUrl}
-                            value={kapaUrl}
-                            onChange={onInputChange}
+                            placeholder={url}
+                            value={url}
+                            onChange={onChangeUrl}
                             spellCheck="false"
                           />
                         </div>
@@ -123,8 +130,8 @@ class KapacitorForm extends Component {
     }
 
     return (
-      <div className="panel panel-minimal">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel">
+        <div className="panel-heading">
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
         <div className="panel-body">
@@ -145,6 +152,7 @@ const {func, shape, string, bool} = PropTypes
 KapacitorForm.propTypes = {
   onSubmit: func.isRequired,
   onInputChange: func.isRequired,
+  onChangeUrl: func.isRequired,
   onReset: func.isRequired,
   kapacitor: shape({
     url: string.isRequired,

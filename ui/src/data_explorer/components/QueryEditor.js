@@ -10,11 +10,6 @@ class QueryEditor extends Component {
     this.state = {
       value: this.props.query,
     }
-
-    this.handleKeyDown = ::this.handleKeyDown
-    this.handleChange = ::this.handleChange
-    this.handleUpdate = ::this.handleUpdate
-    this.handleChooseMetaQuery = ::this.handleChooseMetaQuery
   }
 
   componentWillReceiveProps(nextProps) {
@@ -23,7 +18,7 @@ class QueryEditor extends Component {
     }
   }
 
-  handleKeyDown(e) {
+  handleKeyDown = e => {
     const {value} = this.state
 
     if (e.key === 'Escape') {
@@ -37,15 +32,15 @@ class QueryEditor extends Component {
     }
   }
 
-  handleChange() {
+  handleChange = () => {
     this.setState({value: this.editor.value})
   }
 
-  handleUpdate() {
+  handleUpdate = () => {
     this.props.onUpdate(this.state.value)
   }
 
-  handleChooseMetaQuery(template) {
+  handleChooseMetaQuery = template => {
     this.setState({value: template.query})
   }
 

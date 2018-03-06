@@ -30,15 +30,13 @@ class DeleteConfirmButtons extends Component {
     this.state = {
       isConfirming: false,
     }
-    this.handleClickDelete = ::this.handleClickDelete
-    this.handleCancel = ::this.handleCancel
   }
 
-  handleClickDelete() {
+  handleClickDelete = () => {
     this.setState({isConfirming: true})
   }
 
-  handleCancel() {
+  handleCancel = () => {
     this.setState({isConfirming: false})
   }
 

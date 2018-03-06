@@ -98,13 +98,13 @@ table.table thead th.sortable-header,
     ----------------------------------------------
 */
 tr.table-empty-state,
-.table-highlight tr.table-empty-state:hover {
+.table.table-highlight > tbody > tr.table-empty-state:hover {
   background-color: transparent;
 
   > th {
     text-align: center;
     @include no-user-select();
-    
+
     > p {
       font-weight: 400;
       font-size: 18px;

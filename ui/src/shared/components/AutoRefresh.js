@@ -198,6 +198,10 @@ const AutoRefresh = ComposedComponent => {
         : false
   }
 
+  wrapper.defaultProps = {
+    inView: true,
+  }
+
   const {
     array,
     arrayOf,

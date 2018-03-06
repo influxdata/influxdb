@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
@@ -42,6 +42,7 @@ class SingleStatOptions extends Component {
       singleStatColors,
       singleStatType,
       handleUpdateSingleStatColors,
+      onResetFocus,
     } = this.props
 
     const randomColor = _.random(0, GAUGE_COLORS.length - 1)
@@ -66,17 +67,24 @@ class SingleStatOptions extends Component {
       name: GAUGE_COLORS[randomColor].name,
     }
 
-    handleUpdateSingleStatColors([...singleStatColors, newThreshold])
+    const updatedColors = _.sortBy(
+      [...singleStatColors, newThreshold],
+      color => color.value
+    )
+
+    handleUpdateSingleStatColors(updatedColors)
+    onResetFocus()
   }
 
   handleDeleteThreshold = threshold => () => {
-    const {handleUpdateSingleStatColors} = this.props
-
+    const {handleUpdateSingleStatColors, onResetFocus} = this.props
     const singleStatColors = this.props.singleStatColors.filter(
       color => color.id !== threshold.id
     )
+    const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
-    handleUpdateSingleStatColors(singleStatColors)
+    handleUpdateSingleStatColors(sortedColors)
+    onResetFocus()
   }
 
   handleChooseColor = threshold => chosenColor => {
@@ -123,6 +131,13 @@ class SingleStatOptions extends Component {
     handleUpdateAxes(newAxes)
   }
 
+  handleSortColors = () => {
+    const {singleStatColors, handleUpdateSingleStatColors} = this.props
+    const sortedColors = _.sortBy(singleStatColors, color => color.value)
+
+    handleUpdateSingleStatColors(sortedColors)
+  }
+
   render() {
     const {
       singleStatColors,
@@ -131,8 +146,6 @@ class SingleStatOptions extends Component {
     } = this.props
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
-
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
     return (
       <FancyScrollbar
@@ -149,7 +162,7 @@ class SingleStatOptions extends Component {
             >
               <span className="icon plus" /> Add Threshold
             </button>
-            {sortedColors.map(
+            {singleStatColors.map(
               color =>
                 color.id === SINGLE_STAT_BASE
                   ? <div className="gauge-controls--section" key={color.id}>
@@ -169,6 +182,7 @@ class SingleStatOptions extends Component {
                       onValidateColorValue={this.handleValidateColorValue}
                       onUpdateColorValue={this.handleUpdateColorValue}
                       onDeleteThreshold={this.handleDeleteThreshold}
+                      onSortColors={this.handleSortColors}
                     />
             )}
           </div>
@@ -242,6 +256,7 @@ SingleStatOptions.propTypes = {
   handleUpdateSingleStatColors: func.isRequired,
   handleUpdateAxes: func.isRequired,
   axes: shape({}).isRequired,
+  onResetFocus: func.isRequired,
 }
 
 const mapStateToProps = ({

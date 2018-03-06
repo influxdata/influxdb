@@ -29,6 +29,13 @@ class Threshold extends Component {
 
   handleBlur = () => {
     this.setState({workingValue: this.props.threshold.value, valid: true})
+    this.props.onSortColors()
+  }
+
+  handleKeyUp = e => {
+    if (e.key === 'Enter') {
+      this.thresholdInputRef.blur()
+    }
   }
 
   render() {
@@ -87,6 +94,8 @@ class Threshold extends Component {
           type="number"
           onChange={this.handleChangeWorkingValue}
           onBlur={this.handleBlur}
+          onKeyUp={this.handleKeyUp}
+          ref={r => (this.thresholdInputRef = r)}
         />
         <ColorDropdown
           colors={GAUGE_COLORS}
@@ -117,6 +126,7 @@ Threshold.propTypes = {
   onDeleteThreshold: func.isRequired,
   isMin: bool,
   isMax: bool,
+  onSortColors: func.isRequired,
 }
 
 export default Threshold

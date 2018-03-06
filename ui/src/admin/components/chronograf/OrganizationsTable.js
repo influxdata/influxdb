@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
@@ -45,7 +45,7 @@ class OrganizationsTable extends Component {
 
     if (!organizations.length) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -53,8 +53,8 @@ class OrganizationsTable extends Component {
       )
     }
     return (
-      <div className="panel panel-default">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel panel-solid">
+        <div className="panel-heading">
           <h2 className="panel-title">
             {tableTitle}
           </h2>

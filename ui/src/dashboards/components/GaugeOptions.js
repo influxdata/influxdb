@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
@@ -22,7 +22,7 @@ import {
 
 class GaugeOptions extends Component {
   handleAddThreshold = () => {
-    const {gaugeColors, handleUpdateGaugeColors} = this.props
+    const {gaugeColors, handleUpdateGaugeColors, onResetFocus} = this.props
     const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     if (sortedColors.length <= MAX_THRESHOLDS) {
@@ -46,17 +46,26 @@ class GaugeOptions extends Component {
         name: GAUGE_COLORS[randomColor].name,
       }
 
-      handleUpdateGaugeColors([...gaugeColors, newThreshold])
+      const updatedColors = _.sortBy(
+        [...gaugeColors, newThreshold],
+        color => color.value
+      )
+
+      handleUpdateGaugeColors(updatedColors)
+    } else {
+      onResetFocus()
     }
   }
 
   handleDeleteThreshold = threshold => () => {
-    const {handleUpdateGaugeColors} = this.props
+    const {handleUpdateGaugeColors, onResetFocus} = this.props
     const gaugeColors = this.props.gaugeColors.filter(
       color => color.id !== threshold.id
     )
+    const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
-    handleUpdateGaugeColors(gaugeColors)
+    handleUpdateGaugeColors(sortedColors)
+    onResetFocus()
   }
 
   handleChooseColor = threshold => chosenColor => {
@@ -135,12 +144,18 @@ class GaugeOptions extends Component {
     handleUpdateAxes(newAxes)
   }
 
+  handleSortColors = () => {
+    const {gaugeColors, handleUpdateGaugeColors} = this.props
+    const sortedColors = _.sortBy(gaugeColors, color => color.value)
+
+    handleUpdateGaugeColors(sortedColors)
+  }
+
   render() {
     const {gaugeColors, axes: {y: {prefix, suffix}}} = this.props
 
     const disableMaxColor = gaugeColors.length > MIN_THRESHOLDS
     const disableAddThreshold = gaugeColors.length > MAX_THRESHOLDS
-    const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     return (
       <FancyScrollbar
@@ -157,11 +172,11 @@ class GaugeOptions extends Component {
             >
               <span className="icon plus" /> Add Threshold
             </button>
-            {sortedColors.map(color =>
+            {gaugeColors.map(color =>
               <Threshold
-                isMin={color.value === sortedColors[0].value}
+                isMin={color.value === gaugeColors[0].value}
                 isMax={
-                  color.value === sortedColors[sortedColors.length - 1].value
+                  color.value === gaugeColors[gaugeColors.length - 1].value
                 }
                 visualizationType="gauge"
                 threshold={color}
@@ -171,6 +186,7 @@ class GaugeOptions extends Component {
                 onValidateColorValue={this.handleValidateColorValue}
                 onUpdateColorValue={this.handleUpdateColorValue}
                 onDeleteThreshold={this.handleDeleteThreshold}
+                onSortColors={this.handleSortColors}
               />
             )}
           </div>
@@ -217,6 +233,7 @@ GaugeOptions.propTypes = {
   handleUpdateGaugeColors: func.isRequired,
   handleUpdateAxes: func.isRequired,
   axes: shape({}).isRequired,
+  onResetFocus: func.isRequired,
 }
 
 const mapStateToProps = ({cellEditorOverlay: {gaugeColors, cell: {axes}}}) => ({

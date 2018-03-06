@@ -6,10 +6,12 @@ import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
 import GaugeChart from 'shared/components/GaugeChart'
+import TableGraph from 'shared/components/TableGraph'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 const RefreshingGaugeChart = AutoRefresh(GaugeChart)
+const RefreshingTableGraph = AutoRefresh(TableGraph)
 
 const RefreshingGraph = ({
   axes,
@@ -24,6 +26,7 @@ const RefreshingGraph = ({
   cellHeight,
   autoRefresh,
   resizerTopHeight,
+  staticLegend,
   manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
@@ -54,6 +57,7 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         prefix={prefix}
         suffix={suffix}
+        inView={inView}
       />
     )
   }
@@ -72,6 +76,26 @@ const RefreshingGraph = ({
         cellID={cellID}
         prefix={prefix}
         suffix={suffix}
+        inView={inView}
+      />
+    )
+  }
+
+  if (type === 'table') {
+    return (
+      <RefreshingTableGraph
+        colors={colors}
+        key={manualRefresh}
+        queries={queries}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        cellHeight={cellHeight}
+        resizerTopHeight={resizerTopHeight}
+        resizeCoords={resizeCoords}
+        cellID={cellID}
+        // prefix={prefix}
+        // suffix={suffix}
+        inView={inView}
       />
     )
   }
@@ -95,6 +119,7 @@ const RefreshingGraph = ({
       isBarGraph={type === 'bar'}
       synchronizer={synchronizer}
       resizeCoords={resizeCoords}
+      staticLegend={staticLegend}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
       grabDataForDownload={grabDataForDownload}
@@ -119,6 +144,7 @@ RefreshingGraph.propTypes = {
   axes: shape(),
   queries: arrayOf(shape()).isRequired,
   editQueryStatus: func,
+  staticLegend: bool,
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
@@ -137,6 +163,7 @@ RefreshingGraph.propTypes = {
 
 RefreshingGraph.defaultProps = {
   manualRefresh: 0,
+  staticLegend: false,
   inView: true,
 }
 

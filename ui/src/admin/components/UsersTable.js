@@ -20,7 +20,7 @@ const UsersTable = ({
   onUpdateRoles,
   onUpdatePassword,
 }) =>
-  <div className="panel panel-default">
+  <div className="panel panel-solid">
     <FilterBar
       type="users"
       onFilter={onFilter}

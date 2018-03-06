@@ -273,6 +273,7 @@ $tick-script-overlay-margin: 30px;
   flex-wrap: nowrap;
 }
 .group-by-time--label {
+  white-space: nowrap;
   margin: 0;
   color: $g12-forge;
   padding: 0 6px;

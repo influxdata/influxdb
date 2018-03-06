@@ -2,7 +2,7 @@ import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
-import autoRefreshItems from 'hson!shared/data/autoRefreshes.hson'
+import autoRefreshItems from 'shared/data/autoRefreshes'
 
 class AutoRefreshDropdown extends Component {
   constructor(props) {

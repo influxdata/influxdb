@@ -17,7 +17,7 @@ const AllUsersTableHeader = ({
     : 's'}`
 
   return (
-    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+    <div className="panel-heading">
       <h2 className="panel-title">
         {numUsersString} across {numOrganizationsString}
       </h2>

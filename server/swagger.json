@@ -3,7 +3,7 @@
   "info": {
     "title": "Chronograf",
     "description": "API endpoints for Chronograf",
-    "version": "1.4.1.3"
+    "version": "1.4.2.1"
   },
   "schemes": ["http"],
   "basePath": "/chronograf/v1",
@@ -3140,7 +3140,7 @@
         "rp": "autogen",
         "tempVars": [
           {
-            "tempVar": "$myfield",
+            "tempVar": ":myfield:",
             "values": [
               {
                 "type": "fieldKey",
@@ -3160,6 +3160,11 @@
         },
         "rp": {
           "type": "string"
+        },
+        "epoch": {
+          "description": "timestamp return format",
+          "type": "string",
+          "enum": ["h", "m", "s", "ms", "u", "ns"]
         },
         "tempVars": {
           "type": "array",

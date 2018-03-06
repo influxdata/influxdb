@@ -53,7 +53,7 @@ const Header = ({
   onDatabaseDeleteConfirm,
 }) => {
   const buttons = (
-    <div className="text-right db-manager-header--actions">
+    <div className="db-manager-header--actions text-right">
       <button
         className="btn btn-xs btn-primary"
         disabled={isAddRPDisabled}

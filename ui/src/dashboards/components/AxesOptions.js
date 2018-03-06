@@ -10,10 +10,10 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {DISPLAY_OPTIONS, TOOLTIP_CONTENT} from 'src/dashboards/constants'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
+import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
+
 const {LINEAR, LOG, BASE_2, BASE_10} = DISPLAY_OPTIONS
 const getInputMin = scale => (scale === LOG ? '0' : null)
-
-import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 
 class AxesOptions extends Component {
   handleSetPrefixSuffix = e => {
@@ -73,6 +73,8 @@ class AxesOptions extends Component {
     const {
       axes: {y: {bounds, label, prefix, suffix, base, scale, defaultYLabel}},
       type,
+      staticLegend,
+      onToggleStaticLegend,
     } = this.props
 
     const [min, max] = bounds
@@ -162,6 +164,18 @@ class AxesOptions extends Component {
                 onClickTab={this.handleSetScale(LOG)}
               />
             </Tabber>
+            <Tabber labelText="Static Legend">
+              <Tab
+                text="Show"
+                isActive={staticLegend}
+                onClickTab={onToggleStaticLegend(true)}
+              />
+              <Tab
+                text="Hide"
+                isActive={!staticLegend}
+                onClickTab={onToggleStaticLegend(false)}
+              />
+            </Tabber>
           </form>
         </div>
       </FancyScrollbar>
@@ -169,7 +183,7 @@ class AxesOptions extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 AxesOptions.defaultProps = {
   axes: {
@@ -193,6 +207,8 @@ AxesOptions.propTypes = {
       defaultYLabel: string,
     }),
   }).isRequired,
+  onToggleStaticLegend: func.isRequired,
+  staticLegend: bool,
   handleUpdateAxes: func.isRequired,
 }
 

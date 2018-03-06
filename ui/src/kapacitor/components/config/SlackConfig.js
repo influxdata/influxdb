@@ -61,7 +61,7 @@ class SlackConfig extends Component {
           />
         </div>
 
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"

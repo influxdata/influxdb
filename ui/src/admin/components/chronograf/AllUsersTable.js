@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import AllUsersTableHeader from 'src/admin/components/chronograf/AllUsersTableHeader'
 import AllUsersTableRowNew from 'src/admin/components/chronograf/AllUsersTableRowNew'
@@ -91,7 +91,7 @@ class AllUsersTable extends Component {
     const {isCreatingUser} = this.state
     if (isLoading) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -99,7 +99,7 @@ class AllUsersTable extends Component {
       )
     }
     return (
-      <div className="panel panel-default">
+      <div className="panel panel-solid">
         <AllUsersTableHeader
           numUsers={users.length}
           numOrganizations={organizations.length}

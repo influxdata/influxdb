@@ -50,9 +50,11 @@ class LineGraph extends Component {
       resizeCoords,
       synchronizer,
       isRefreshing,
+      setResolution,
       isGraphFilled,
       showSingleStat,
       displayOptions,
+      staticLegend,
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
@@ -84,13 +86,15 @@ class LineGraph extends Component {
       ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
 
-    let prefix
-    let suffix
-
-    if (axes) {
-      prefix = axes.y.prefix
-      suffix = axes.y.suffix
+    const containerStyle = {
+      width: 'calc(100% - 32px)',
+      height: 'calc(100% - 16px)',
+      position: 'absolute',
+      top: '8px',
     }
+
+    const prefix = axes ? axes.y.prefix : ''
+    const suffix = axes ? axes.y.suffix : ''
 
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
@@ -101,29 +105,30 @@ class LineGraph extends Component {
           onZoom={onZoom}
           labels={labels}
           queries={queries}
+          options={options}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           resizeCoords={resizeCoords}
-          overrideLineColors={lineColors}
           dygraphSeries={dygraphSeries}
-          setResolution={this.props.setResolution}
-          containerStyle={{width: '100%', height: '100%'}}
+          setResolution={setResolution}
+          overrideLineColors={lineColors}
+          containerStyle={containerStyle}
+          staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
-          options={options}
-        />
-        {showSingleStat
-          ? <SingleStat
+        >
+          {showSingleStat &&
+            <SingleStat
               prefix={prefix}
               suffix={suffix}
               data={data}
               lineGraph={true}
               colors={colors}
               cellHeight={cellHeight}
-            />
-          : null}
+            />}
+        </Dygraph>
       </div>
     )
   }
@@ -147,6 +152,7 @@ LineGraph.defaultProps = {
   underlayCallback: () => {},
   isGraphFilled: true,
   overrideLineColors: null,
+  staticLegend: false,
 }
 
 LineGraph.propTypes = {
@@ -166,6 +172,7 @@ LineGraph.propTypes = {
   underlayCallback: func,
   isGraphFilled: bool,
   isBarGraph: bool,
+  staticLegend: bool,
   overrideLineColors: array,
   showSingleStat: bool,
   displayOptions: shape({
