@@ -358,6 +358,7 @@ func (s *Store) Close() error {
 	for _, sfile := range s.sfiles {
 		// Close out the series files.
 		if err := sfile.Close(); err != nil {
+			s.mu.Unlock()
 			return err
 		}
 	}
