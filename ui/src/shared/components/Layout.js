@@ -58,6 +58,8 @@ const Layout = (
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
+    hoverTime,
+    onSetHoverTime,
   },
   {source: defaultSource}
 ) =>
@@ -85,6 +87,8 @@ const Layout = (
           templates={templates}
           autoRefresh={autoRefresh}
           synchronizer={synchronizer}
+          hoverTime={hoverTime}
+          onSetHoverTime={onSetHoverTime}
           manualRefresh={manualRefresh}
           onStopAddAnnotation={onStopAddAnnotation}
           grabDataForDownload={grabDataForDownload}
@@ -149,6 +153,8 @@ const propTypes = {
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   synchronizer: func,
+  hoverTime: number,
+  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,

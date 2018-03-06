@@ -32,6 +32,8 @@ const RefreshingGraph = ({
   resizeCoords,
   editQueryStatus,
   grabDataForDownload,
+  hoverTime,
+  onSetHoverTime,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
@@ -93,8 +95,8 @@ const RefreshingGraph = ({
         resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
         cellID={cellID}
-        // prefix={prefix}
-        // suffix={suffix}
+        hoverTime={hoverTime}
+        onSetHoverTime={onSetHoverTime}
         inView={inView}
       />
     )
@@ -118,6 +120,8 @@ const RefreshingGraph = ({
       autoRefresh={autoRefresh}
       isBarGraph={type === 'bar'}
       synchronizer={synchronizer}
+      hoverTime={hoverTime}
+      onSetHoverTime={onSetHoverTime}
       resizeCoords={resizeCoords}
       staticLegend={staticLegend}
       displayOptions={displayOptions}
@@ -138,6 +142,8 @@ RefreshingGraph.propTypes = {
   manualRefresh: number,
   templates: arrayOf(shape()),
   synchronizer: func,
+  hoverTime: number,
+  onSetHoverTime: func,
   type: string.isRequired,
   cellHeight: number,
   resizerTopHeight: number,

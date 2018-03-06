@@ -58,6 +58,8 @@ class LineGraph extends Component {
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
+      hoverTime,
+      onSetHoverTime,
     } = this.props
 
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
@@ -111,6 +113,8 @@ class LineGraph extends Component {
           timeSeries={timeSeries}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
+          hoverTime={hoverTime}
+          onSetHoverTime={onSetHoverTime}
           resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
@@ -186,6 +190,8 @@ LineGraph.propTypes = {
   }),
   isInDataExplorer: bool,
   synchronizer: func,
+  hoverTime: number,
+  onSetHoverTime: func,
   setResolution: func,
   cellHeight: number,
   cell: shape(),

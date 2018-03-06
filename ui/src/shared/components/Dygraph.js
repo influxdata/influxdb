@@ -53,6 +53,7 @@ class Dygraph extends Component {
       colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
       unhighlightCallback: this.unhighlightCallback,
+      highlightCallback: this.highlightCallback,
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
@@ -136,6 +137,8 @@ class Dygraph extends Component {
     const updateOptions = {
       ...options,
       labels,
+      unhighlightCallback: this.unhighlightCallback,
+      highlightCallback: this.highlightCallback,
       file: timeSeries,
       logscale: y.scale === LOG,
       ylabel: this.getLabel('y'),
@@ -191,6 +194,16 @@ class Dygraph extends Component {
     }
 
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
+  }
+
+  highlightCallback = (e, x) => {
+    const {onSetHoverTime} = this.props
+    onSetHoverTime(x)
+  }
+
+  unhighlightCallback = () => {
+    const {onSetHoverTime} = this.props
+    onSetHoverTime(0)
   }
 
   hashColorDygraphSeries = () => {
@@ -352,7 +365,7 @@ class Dygraph extends Component {
   }
 }
 
-const {array, arrayOf, bool, func, node, shape, string} = PropTypes
+const {array, arrayOf, bool, func, node, number, shape, string} = PropTypes
 
 Dygraph.defaultProps = {
   axes: {
@@ -407,6 +420,8 @@ Dygraph.propTypes = {
     lower: string.isRequired,
   }),
   synchronizer: func,
+  hoverTime: number,
+  onSetHoverTime: func,
   setResolution: func,
   dygraphRef: func,
   onZoom: func,

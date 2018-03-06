@@ -1,6 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
-import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
+import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
 import {MultiGrid} from 'react-virtualized'
 
 class TableGraph extends Component {
@@ -19,27 +19,34 @@ class TableGraph extends Component {
 
   componentWillUpdate(nextProps) {
     // TODO: determine if in dataExplorer
-    const {labels, data} = timeSeriesToTable(nextProps.data)
+    const {labels, data} = timeSeriesToTableGraph(nextProps.data)
     this._labels = labels
     this._data = data
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
+    const {onSetHoverTime} = this.props
+    onSetHoverTime(this._data[rowIndex][0])
     this.setState({hoveredColumnIndex: columnIndex, hoveredRowIndex: rowIndex})
   }
 
   handleMouseOut = () => {
+    const {onSetHoverTime} = this.props
+    onSetHoverTime(0)
     this.setState({hoveredColumnIndex: -1, hoveredRowIndex: -1})
   }
 
   cellRenderer = ({columnIndex, key, rowIndex, style}) => {
     const data = this._data
+    const {hoverTime} = this.props
+    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+
     const className =
-      columnIndex === this.state.hoveredColumnIndex ||
-      rowIndex === this.state.hoveredRowIndex
+      data[rowIndex][0] === hoverTime ||
+      columnIndex === hoveredColumnIndex ||
+      rowIndex === hoveredRowIndex
         ? 'tablecell hovered'
         : 'tablecell'
-
     return (
       <div
         key={key}
@@ -47,7 +54,9 @@ class TableGraph extends Component {
         className={className}
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
       >
-        {data[rowIndex][columnIndex]}
+        {data[rowIndex][columnIndex]
+          ? data[rowIndex][columnIndex].toString()
+          : 'null'}
       </div>
     )
   }
@@ -79,17 +88,20 @@ class TableGraph extends Component {
             width={tableWidth - 32}
             hoveredColumnIndex={this.state.hoveredColumnIndex}
             hoveredRowIndex={this.state.hoveredRowIndex}
+            hoverTime={this.props.hoverTime}
           />}
       </div>
     )
   }
 }
 
-const {arrayOf, number, shape} = PropTypes
+const {arrayOf, number, shape, func} = PropTypes
 
 TableGraph.propTypes = {
   cellHeight: number,
   data: arrayOf(shape()),
+  hoverTime: number,
+  onSetHoverTime: func,
 }
 
 export default TableGraph

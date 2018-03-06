@@ -53,6 +53,7 @@ class DashboardPage extends Component {
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
       windowHeight: window.innerHeight,
+      hoverTime: 0,
     }
   }
 
@@ -263,6 +264,10 @@ class DashboardPage extends Component {
     this.dygraphs = dygraphs
   }
 
+  handleSetHoverTime = hoverTime => {
+    this.setState({hoverTime})
+  }
+
   handleToggleTempVarControls = () => {
     this.props.templateControlBarVisibilityToggled()
   }
@@ -276,9 +281,8 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {zoomedTimeRange} = this.state
+    const {zoomedTimeRange, hoverTime} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
-
     const {
       source,
       sources,
@@ -440,6 +444,8 @@ class DashboardPage extends Component {
               onZoom={this.handleZoomedTimeRange}
               onAddCell={this.handleAddCell}
               synchronizer={this.synchronizer}
+              hoverTime={hoverTime}
+              onSetHoverTime={this.handleSetHoverTime}
               inPresentationMode={inPresentationMode}
               onPositionChange={this.handleUpdatePosition}
               onSelectTemplate={this.handleSelectTemplate}
