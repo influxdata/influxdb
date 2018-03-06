@@ -13,6 +13,7 @@ var _ chronograf.BuildStore = &BuildStore{}
 
 // BuildBucket is the bolt bucket used to store Chronograf build information
 var BuildBucket = []byte("Build")
+var SchemaVersionBucket = []byte("SchemaVersions")
 
 // BuildKey is the constant key used in the bolt bucket
 var BuildKey = []byte("build")
@@ -20,6 +21,33 @@ var BuildKey = []byte("build")
 // BuildStore is a bolt implementation to store Chronograf build information
 type BuildStore struct {
 	client *Client
+}
+
+func (s *BuildStore) IsMigrationComplete(version string) (bool, error) {
+	complete := false
+	if err := s.client.db.View(func(tx *bolt.Tx) error {
+		migration := tx.Bucket(SchemaVersionBucket).Get([]byte(version))
+		if migration != nil {
+			complete = true
+		}
+		return nil
+	}); err != nil {
+		// If there's an error, represent this migration as complete
+		// so that future downstream code doesn't run it
+		return true, err
+	}
+
+	return complete, nil
+}
+
+func (s *BuildStore) MarkMigrationAsComplete(version string) error {
+	if err := s.client.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(SchemaVersionBucket).Put([]byte(version), []byte{})
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Get retrieves Chronograf build information from the database

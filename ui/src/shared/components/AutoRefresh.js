@@ -4,6 +4,7 @@ import _ from 'lodash'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
+import {intervalValuesPoints} from 'src/shared/constants'
 
 const AutoRefresh = ComposedComponent => {
   class wrapper extends Component {
@@ -97,31 +98,38 @@ const AutoRefresh = ComposedComponent => {
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
 
-        const templatesWithResolution = templates.map(temp => {
+        const templatesWithIntervalVals = templates.map(temp => {
           if (temp.tempVar === ':interval:') {
             if (resolution) {
+              // resize event
               return {
                 ...temp,
-                values: temp.values.map(
-                  v => (temp.type === 'resolution' ? {...v, resolution} : v)
-                ),
+                values: temp.values.map(v => {
+                  if (v.type === 'resolution') {
+                    return {...v, value: `${resolution}`}
+                  }
+                  if (v.type === 'points') {
+                    return {
+                      ...v,
+                      value: `${_.toInteger(Number(resolution) / 3)}`,
+                    }
+                  }
+                  return v
+                }),
               }
             }
 
             return {
               ...temp,
-              values: [
-                ...temp.values,
-                {value: '1000', type: 'resolution', selected: true},
-              ],
+              values: intervalValuesPoints,
             }
           }
-
           return temp
         })
 
-        const tempVars = removeUnselectedTemplateValues(templatesWithResolution)
-
+        const tempVars = removeUnselectedTemplateValues(
+          templatesWithIntervalVals
+        )
         return fetchTimeSeriesAsync(
           {
             source: host,

@@ -3,6 +3,7 @@ package bolt
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
@@ -48,7 +49,7 @@ func (d *DashboardsStore) AddIDs(ctx context.Context, boards []chronograf.Dashbo
 }
 
 // Migrate updates the dashboards at runtime
-func (d *DashboardsStore) Migrate(ctx context.Context) error {
+func (d *DashboardsStore) Migrate(ctx context.Context, build chronograf.BuildInfo) error {
 	// 1. Add UUIDs to cells without one
 	boards, err := d.All(ctx)
 	if err != nil {
@@ -71,6 +72,45 @@ func (d *DashboardsStore) Migrate(ctx context.Context) error {
 			}
 		}
 	}
+
+	return d.migrationChangeIntervalToDuration(ctx)
+}
+
+// migrationChangeIntervalToDuration (1.4.2)
+// Before, we supported queries that included `GROUP BY :interval:`
+// After, we only support queries with `GROUP BY time(:interval:)`
+// thereby allowing non_negative_derivative(_____, :interval)
+func (d *DashboardsStore) migrationChangeIntervalToDuration(ctx context.Context) error {
+	versionTimestamp := "20180228182849"
+	complete, err := d.client.BuildStore.IsMigrationComplete(versionTimestamp)
+	if err != nil {
+		return err
+	}
+	if complete {
+		return nil
+	}
+
+	d.client.logger.Info("Running migrationChangeIntervalToDuration (", versionTimestamp, ")")
+
+	boards, err := d.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, board := range boards {
+		for i, cell := range board.Cells {
+			for i, query := range cell.Queries {
+				query.Command = strings.Replace(query.Command, ":interval:", "time(:interval:)", -1)
+				cell.Queries[i] = query
+			}
+
+			board.Cells[i] = cell
+		}
+
+		d.Update(ctx, board)
+	}
+
+	d.client.BuildStore.MarkMigrationAsComplete(versionTimestamp)
 
 	return nil
 }
