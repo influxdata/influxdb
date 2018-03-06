@@ -58,6 +58,7 @@ v1.5.0 [unreleased]
 -	[#9491](https://github.com/influxdata/influxdb/pull/9491): Evaluate a true boolean literal when calculating tag sets.
 -	[#9496](https://github.com/influxdata/influxdb/pull/9496): Fix panic on tsi1 log replay of deleted series..
 -	[#9510](https://github.com/influxdata/influxdb/pull/9510): Fix TSI log file recovery.
+-	[#9513](https://github.com/influxdata/influxdb/pull/9513): Fix missing Store.Close() unlock.
 
 v1.4.3 [unreleased]
 -------------------
