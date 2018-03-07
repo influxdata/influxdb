@@ -484,9 +484,9 @@ export const GRAPH_TYPES = [
     graphic: GRAPH_SVGS['line-stepplot'],
   },
   {
-    type: 'single-stat',
-    menuOption: 'Single Stat',
-    graphic: GRAPH_SVGS['single-stat'],
+    type: 'bar',
+    menuOption: 'Bar Graph',
+    graphic: GRAPH_SVGS.bar,
   },
   {
     type: 'line-plus-single-stat',
@@ -494,9 +494,9 @@ export const GRAPH_TYPES = [
     graphic: GRAPH_SVGS['line-plus-single-stat'],
   },
   {
-    type: 'bar',
-    menuOption: 'Bar Graph',
-    graphic: GRAPH_SVGS.bar,
+    type: 'single-stat',
+    menuOption: 'Single Stat',
+    graphic: GRAPH_SVGS['single-stat'],
   },
   {
     type: 'gauge',
