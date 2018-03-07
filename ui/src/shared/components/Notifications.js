@@ -4,12 +4,16 @@ import {connect} from 'react-redux'
 
 import Notification from 'src/shared/components/Notification'
 
-const Notifications = ({notifications}) =>
-  <div className="notification-center">
+const Notifications = ({notifications, inPresentationMode}) =>
+  <div
+    className={`${inPresentationMode
+      ? 'notification-center__presentation-mode'
+      : 'notification-center'}`}
+  >
     {notifications.map(n => <Notification key={n.id} notification={n} />)}
   </div>
 
-const {arrayOf, number, shape, string} = PropTypes
+const {arrayOf, bool, number, shape, string} = PropTypes
 
 Notifications.propTypes = {
   notifications: arrayOf(
@@ -21,10 +25,15 @@ Notifications.propTypes = {
       icon: string,
     })
   ),
+  inPresentationMode: bool,
 }
 
-const mapStateToProps = ({notifications}) => ({
+const mapStateToProps = ({
   notifications,
+  app: {ephemeral: {inPresentationMode}},
+}) => ({
+  notifications,
+  inPresentationMode,
 })
 
 export default connect(mapStateToProps, null)(Notifications)

@@ -3,12 +3,19 @@
    -----------------------------------------------------------------------------
 */
 
+$notification-margin: 12px;
+
 .notification-center {
   position: fixed;
-  right: 12px;
+  right: $notification-margin;
   width: 360px;
-  top: 72px;
+  top: $chronograf-page-header-height + $notification-margin;
   z-index: 9999;
+}
+
+.notification-center__presentation-mode {
+  @extend .notification-center;
+  top: $notification-margin;
 }
 
 .notification {
@@ -37,6 +44,7 @@
   font-size: 14px;
   line-height: 16px;
 }
+
 .notification-close {
   outline: none;
   position: absolute;
