@@ -9,6 +9,7 @@ import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import StaticLegend from 'src/shared/components/StaticLegend'
 import Annotations from 'src/shared/components/Annotations'
+import Crosshair from 'src/shared/components/Crosshair'
 
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
@@ -196,10 +197,26 @@ class Dygraph extends Component {
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
   }
 
-  highlightCallback = (e, x) => {
+  clampWithinGraphTimerange = timestamp => {
+    const [xRangeStart] = this.dygraph.xAxisRange()
+    return Math.max(xRangeStart, timestamp)
+  }
+
+  eventToTimestamp = ({pageX: pxBetweenMouseAndPage}) => {
+    const {
+      left: pxBetweenGraphAndPage,
+    } = this.crosshairRef.getBoundingClientRect()
+    const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
+    const timestamp = this.dygraph.toDataXCoord(graphXCoordinate)
+    const clamped = this.clampWithinGraphTimerange(timestamp)
+    return `${clamped}`
+  }
+
+  highlightCallback = e => {
     const {onSetHoverTime} = this.props
+    const newTime = this.eventToTimestamp(e)
     if (onSetHoverTime) {
-      onSetHoverTime(x.toString())
+      onSetHoverTime(newTime)
     }
   }
 
@@ -311,6 +328,7 @@ class Dygraph extends Component {
   }
 
   handleAnnotationsRef = ref => (this.annotationsRef = ref)
+  handleCrosshairRef = ref => (this.crosshairRef = ref)
 
   handleReceiveStaticLegendHeight = staticLegendHeight => {
     this.setState({staticLegendHeight})
@@ -318,8 +336,7 @@ class Dygraph extends Component {
 
   render() {
     const {isHidden, staticLegendHeight} = this.state
-    const {staticLegend, children} = this.props
-
+    const {staticLegend, children, hoverTime} = this.props
     const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
     if (staticLegend) {
@@ -331,22 +348,28 @@ class Dygraph extends Component {
         height: `calc(100% - ${staticLegendHeight + cellVerticalPadding}px)`,
       }
     }
-
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         {this.dygraph &&
-          <Annotations
-            dygraph={this.dygraph}
-            annotationsRef={this.handleAnnotationsRef}
-            staticLegendHeight={staticLegendHeight}
-          />}
-        {this.dygraph &&
-          <DygraphLegend
-            isHidden={isHidden}
-            dygraph={this.dygraph}
-            onHide={this.handleHideLegend}
-            onShow={this.handleShowLegend}
-          />}
+          <div>
+            <Annotations
+              dygraph={this.dygraph}
+              annotationsRef={this.handleAnnotationsRef}
+              staticLegendHeight={staticLegendHeight}
+            />
+            <DygraphLegend
+              isHidden={isHidden}
+              dygraph={this.dygraph}
+              onHide={this.handleHideLegend}
+              onShow={this.handleShowLegend}
+            />
+            <Crosshair
+              dygraph={this.dygraph}
+              staticLegendHeight={staticLegendHeight}
+              hoverTime={hoverTime}
+              handleCrosshairRef={this.handleCrosshairRef}
+            />
+          </div>}
         <div
           ref={r => {
             this.graphRef = r
