@@ -42,7 +42,7 @@ interface State {
   exists: boolean
 }
 
-class KapacitorPage extends PureComponent<Props, State> {
+export class KapacitorPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {

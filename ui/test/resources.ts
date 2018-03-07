@@ -47,3 +47,14 @@ export const query = {
   status: null,
   shifts: [],
 }
+
+export const kapacitor = {
+  url: '/foo/bar/baz',
+  name: 'kapa',
+  username: 'influx',
+  password: '',
+  active: false,
+  links: {
+    self: '/kapa/1',
+  },
+}
