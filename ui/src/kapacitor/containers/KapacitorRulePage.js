@@ -37,7 +37,7 @@ class KapacitorRulePage extends Component {
         type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
-        text: "We couldn't find a configured Kapacitor for this source", // eslint-disable-line quotes
+        message: "We couldn't find a configured Kapacitor for this source", // eslint-disable-line quotes
       })
     }
 
@@ -50,7 +50,7 @@ class KapacitorRulePage extends Component {
         type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
-        text: 'There was a problem communicating with Kapacitor',
+        message: 'There was a problem communicating with Kapacitor',
       })
       console.error(error)
       throw error

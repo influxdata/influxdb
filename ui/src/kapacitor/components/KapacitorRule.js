@@ -59,7 +59,7 @@ class KapacitorRule extends Component {
           type: 'error',
           icon: 'alert-triangle',
           duration: 10000,
-          text: 'There was a problem creating the rule',
+          message: 'There was a problem creating the rule',
         })
       })
   }
@@ -77,7 +77,7 @@ class KapacitorRule extends Component {
           type: 'success',
           icon: 'checkmark',
           duration: 5000,
-          text: `${rule.name} successfully saved!`,
+          message: `${rule.name} successfully saved!`,
         })
       })
       .catch(e => {
@@ -85,7 +85,7 @@ class KapacitorRule extends Component {
           type: 'error',
           icon: 'alert-triangle',
           duration: 10000,
-          text: `There was a problem saving ${rule.name}: ${e.data.message}`,
+          message: `There was a problem saving ${rule.name}: ${e.data.message}`,
         })
       })
   }
