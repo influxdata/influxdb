@@ -60,8 +60,8 @@ class KapacitorPage extends Component {
     })
   }
 
-  handleChangeUrl = ({value}) => {
-    this.setState({kapacitor: {...this.state.kapacitor, url: value}})
+  handleChangeUrl = e => {
+    this.setState({kapacitor: {...this.state.kapacitor, url: e.target.value}})
   }
 
   handleSubmit = e => {
