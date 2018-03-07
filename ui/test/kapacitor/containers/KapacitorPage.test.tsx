@@ -2,8 +2,10 @@ import React from 'react'
 import {KapacitorPage} from 'src/kapacitor/containers/KapacitorPage'
 import KapacitorForm from 'src/kapacitor/components/KapacitorForm'
 import {shallow} from 'enzyme'
+import * as apis from 'src/shared/apis'
 
 import {source, kapacitor} from 'test/resources'
+apis.getKapacitor = jest.fn()
 
 const setup = (override = {}) => {
   const props = {
@@ -39,6 +41,16 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
       const form = wrapper.find(KapacitorForm)
 
       expect(form.exists()).toBe(true)
+    })
+  })
+
+  describe('instance methods', () => {
+    describe('componentDidMount', () => {
+      describe('if there is no id params', () => {
+        it('does not get the kapacitor', () => {
+          expect(apis.getKapacitor).not.toHaveBeenCalled()
+        })
+      })
     })
   })
 })
