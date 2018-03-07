@@ -60,16 +60,23 @@ export class KapacitorPage extends PureComponent<Props, State> {
     }
   }
 
-  componentDidMount() {
-    const {source, params: {id}} = this.props
+  async componentDidMount() {
+    const {source, params: {id}, addFlashMessage} = this.props
     if (!id) {
       return
     }
 
-    getKapacitor(source, id).then(kapacitor => {
+    try {
+      const kapacitor = await getKapacitor(source, id)
       this.setState({kapacitor})
       this.checkKapacitorConnection(kapacitor)
-    })
+    } catch (err) {
+      console.error('Could not get kapacitor: ', err)
+      addFlashMessage({
+        type: 'error',
+        text: 'Could not connect to Kapacitor',
+      })
+    }
   }
 
   checkKapacitorConnection = async kapacitor => {
