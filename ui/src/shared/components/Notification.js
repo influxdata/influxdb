@@ -66,9 +66,7 @@ class Notification extends Component {
           <div className="notification-message">
             {message}
           </div>
-          <button className="notification-close" onClick={this.handleDismiss}>
-            <span className="icon remove" />
-          </button>
+          <button className="notification-close" onClick={this.handleDismiss} />
         </div>
       </div>
     )

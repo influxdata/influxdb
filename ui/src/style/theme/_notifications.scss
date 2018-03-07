@@ -60,6 +60,24 @@ $notification-margin: 12px;
   transition:
     opacity 0.25s ease;
 
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g20-white;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+
   &:hover {
     cursor: pointer;
     opacity: 1;
@@ -107,6 +125,10 @@ $notification-margin: 12px;
   }
   span.icon {
     color: $text-color;
+  }
+  .notification-close:before,
+  .notification-close:after {
+    background-color: $text-color;
   }
 }
 
