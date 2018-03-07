@@ -1,10 +1,34 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PureComponent} from 'react'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
-import Dropdown from 'shared/components/Dropdown'
-import InputClickToEdit from 'shared/components/InputClickToEdit'
+import ConfirmButtons from 'src/shared/components/ConfirmButtons'
+import Dropdown from 'src/shared/components/Dropdown'
+import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
-class ProvidersTableRowNew extends Component {
+type Organization = {
+  id: string
+  name: string
+}
+
+type Scheme = {
+  text: string
+}
+
+interface Props {
+  organizations: Organization[]
+  schemes?: Scheme[]
+  rowIndex?: number
+  onCreate: (state: State) => {}
+  onCancel: () => {}
+}
+
+interface State {
+  scheme: string
+  provider: string
+  providerOrganization: string
+  organizationId: string
+}
+
+class ProvidersTableRowNew extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -14,25 +38,31 @@ class ProvidersTableRowNew extends Component {
       providerOrganization: null,
       organizationId: 'default',
     }
+
+    this.handleChooseScheme = this.handleChooseScheme.bind(this)
+    this.handleChangeProvider = this.handleChangeProvider.bind(this)
+    this.handleChangeProviderOrg = this.handleChangeProviderOrg.bind(this)
+    this.handleChooseOrganization = this.handleChooseOrganization.bind(this)
+    this.handleSaveNewMapping = this.handleSaveNewMapping.bind(this)
   }
 
-  handleChooseScheme = scheme => {
+  handleChooseScheme(scheme: Scheme) {
     this.setState({scheme: scheme.text})
   }
 
-  handleChangeProvider = provider => {
+  handleChangeProvider(provider: string) {
     this.setState({provider})
   }
 
-  handleChangeProviderOrg = providerOrganization => {
+  handleChangeProviderOrg(providerOrganization: string) {
     this.setState({providerOrganization})
   }
 
-  handleChooseOrganization = org => {
+  handleChooseOrganization(org: Organization) {
     this.setState({organizationId: org.id})
   }
 
-  handleSaveNewMapping = () => {
+  handleSaveNewMapping() {
     const {onCreate} = this.props
     onCreate(this.state)
   }
@@ -94,25 +124,6 @@ class ProvidersTableRowNew extends Component {
       </div>
     )
   }
-}
-
-const {arrayOf, func, number, shape, string} = PropTypes
-
-ProvidersTableRowNew.propTypes = {
-  organizations: arrayOf(
-    shape({
-      id: string.isRequired,
-      name: string.isRequired,
-    })
-  ).isRequired,
-  schemes: arrayOf(
-    shape({
-      text: string.isRequired,
-    })
-  ),
-  rowIndex: number,
-  onCreate: func.isRequired,
-  onCancel: func.isRequired,
 }
 
 export default ProvidersTableRowNew

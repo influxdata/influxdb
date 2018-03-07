@@ -8,7 +8,7 @@ interface Props {
   disabled?: boolean
   tabIndex?: number
   placeholder?: string
-  appearAsNormalInput: boolean
+  appearAsNormalInput?: boolean
 }
 
 interface State {
