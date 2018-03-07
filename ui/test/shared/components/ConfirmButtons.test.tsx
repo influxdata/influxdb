@@ -67,7 +67,7 @@ describe('Componenets.Shared.ConfirmButtons', () => {
         it('has a default title', () => {
           const {wrapper} = setup({confirmTitle: undefined})
           const confirm = wrapper.dive().find(Confirm)
-          const title = confirm.dive().props().title
+          const title = confirm.prop('title')
 
           expect(title.length).toBeTruthy()
         })
@@ -78,7 +78,7 @@ describe('Componenets.Shared.ConfirmButtons', () => {
           const confirmTitle = 'delete'
           const {wrapper} = setup({confirmTitle})
           const confirm = wrapper.dive().find(Confirm)
-          const title = confirm.dive().props().title
+          const title = confirm.prop('title')
 
           expect(title).toContain(confirmTitle)
         })
