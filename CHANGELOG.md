@@ -2,6 +2,7 @@
 ### Features
 ### UI Improvements
 ### Bug Fixes
+1. [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
 
 
 ## v1.4.2.1 [2018-02-28]
