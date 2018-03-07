@@ -6,7 +6,6 @@ class InputClickToEdit extends Component {
 
     this.state = {
       isEditing: false,
-      currentValue: this.props.value,
       initialValue: this.props.value,
     }
   }
@@ -16,7 +15,6 @@ class InputClickToEdit extends Component {
     const {initialValue} = this.state
     this.setState({
       isEditing: false,
-      currentValue: initialValue,
     })
     if (onKeyUpdate) {
       onKeyUpdate(initialValue)
@@ -35,7 +33,6 @@ class InputClickToEdit extends Component {
 
     this.setState({
       isEditing: false,
-      currentValue: e.target.value,
       initialValue: e.target.value,
     })
   }
@@ -60,8 +57,8 @@ class InputClickToEdit extends Component {
   }
 
   render() {
-    const {isEditing, currentValue: value} = this.state
-    const {wrapperClass, disabled, tabIndex, placeholder} = this.props
+    const {isEditing} = this.state
+    const {wrapperClass, disabled, tabIndex, placeholder, value} = this.props
 
     const divStyle = value ? 'input-cte' : 'input-cte__empty'
 
