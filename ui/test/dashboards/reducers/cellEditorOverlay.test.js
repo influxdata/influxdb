@@ -54,31 +54,31 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
       singleStatType: defaultSingleStatType,
     }
 
-    expect(actual.cell).to.equal(expected.cell)
-    expect(actual.gaugeColors).to.equal(expected.gaugeColors)
-    expect(actual.singleStatColors).to.equal(expected.singleStatColors)
-    expect(actual.singleStatType).to.equal(expected.singleStatType)
+    expect(actual.cell).toBe(expected.cell)
+    expect(actual.gaugeColors).toBe(expected.gaugeColors)
+    expect(actual.singleStatColors).toBe(expected.singleStatColors)
+    expect(actual.singleStatType).toBe(expected.singleStatType)
   })
 
   it('should hide cell editor overlay', () => {
     const actual = reducer(initialState, hideCellEditorOverlay)
     const expected = null
 
-    expect(actual.cell).to.equal(expected)
+    expect(actual.cell).toBe(expected)
   })
 
   it('should change the cell editor visualization type', () => {
     const actual = reducer(initialState, changeCellType(defaultCellType))
     const expected = defaultCellType
 
-    expect(actual.cell.type).to.equal(expected)
+    expect(actual.cell.type).toBe(expected)
   })
 
   it('should change the name of the cell', () => {
     const actual = reducer(initialState, renameCell(defaultCellName))
     const expected = defaultCellName
 
-    expect(actual.cell.name).to.equal(expected)
+    expect(actual.cell.name).toBe(expected)
   })
 
   it('should update the cell single stat colors', () => {
@@ -88,7 +88,7 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
     )
     const expected = defaultSingleStatColors
 
-    expect(actual.singleStatColors).to.equal(expected)
+    expect(actual.singleStatColors).toBe(expected)
   })
 
   it('should toggle the single stat type', () => {
@@ -98,20 +98,20 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
     )
     const expected = defaultSingleStatType
 
-    expect(actual.singleStatType).to.equal(expected)
+    expect(actual.singleStatType).toBe(expected)
   })
 
   it('should update the cell gauge colors', () => {
     const actual = reducer(initialState, updateGaugeColors(defaultGaugeColors))
     const expected = defaultGaugeColors
 
-    expect(actual.gaugeColors).to.equal(expected)
+    expect(actual.gaugeColors).toBe(expected)
   })
 
   it('should update the cell axes', () => {
     const actual = reducer(initialState, updateAxes(defaultCellAxes))
     const expected = defaultCellAxes
 
-    expect(actual.cell.axes).to.equal(expected)
+    expect(actual.cell.axes).toBe(expected)
   })
 })

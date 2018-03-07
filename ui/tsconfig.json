@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["node", "mocha", "chai", "lodash"],
+    "types": ["node", "chai", "lodash", "enzyme", "react", "prop-types", "jest"],
     "target": "es6",
     "module": "es2015",
     "moduleResolution": "node",
