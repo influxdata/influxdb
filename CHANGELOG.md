@@ -2,6 +2,7 @@
 ### Features
 ### UI Improvements
 ### Bug Fixes
+1. [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
 1. [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
 
 

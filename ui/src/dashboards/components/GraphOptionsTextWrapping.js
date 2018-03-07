@@ -8,7 +8,7 @@ import {
 // TODO: Needs major refactoring to make thresholds a much more general component to be shared between single stat, gauge, and table.
 const GraphOptionsTextWrapping = ({singleStatType, onToggleTextWrapping}) => {
   return (
-    <div>
+    <div className="form-group col-xs-12">
       <label>Text Wrapping</label>
       <ul className="nav nav-tablist nav-tablist-sm">
         <li

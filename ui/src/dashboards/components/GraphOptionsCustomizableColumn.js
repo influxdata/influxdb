@@ -8,15 +8,16 @@ const GraphOptionsCustomizableColumn = ({
   onColumnRename,
 }) => {
   return (
-    <div className="gauge-controls--section">
-      <div className="gauge-controls--label">
+    <div className="column-controls--section">
+      <div className="column-controls--label">
         {originalColumnName}
       </div>
       <InputClickToEdit
         value={newColumnName}
-        wrapperClass="fancytable--td orgs-table--name"
+        wrapperClass="column-controls-input"
         onBlur={onColumnRename}
         placeholder="Rename..."
+        appearAsNormalInput={true}
       />
     </div>
   )
