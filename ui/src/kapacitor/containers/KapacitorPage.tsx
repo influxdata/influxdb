@@ -1,18 +1,48 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PureComponent} from 'react'
 import {withRouter} from 'react-router'
+
+import {Source} from 'src/types'
 
 import {
   getKapacitor,
   createKapacitor,
   updateKapacitor,
   pingKapacitor,
-} from 'shared/apis'
+} from 'src/shared/apis'
+
 import KapacitorForm from '../components/KapacitorForm'
 
 const defaultName = 'My Kapacitor'
 const kapacitorPort = '9092'
 
-class KapacitorPage extends Component {
+type FlashMessage = {type: string; text: string}
+
+interface Kapacitor {
+  url: string
+  name: string
+  username: string
+  password: string
+  active: boolean
+  links: {
+    self: string
+  }
+}
+
+interface Props {
+  source: Source
+  addFlashMessage: (message: FlashMessage) => void
+  kapacitor: Kapacitor
+  router: {push: (url: string) => void}
+  location: {pathname: string; hash: string}
+  params: {id: string; hash: string}
+}
+
+interface State {
+  kapacitor: Kapacitor
+  exists: boolean
+}
+
+class KapacitorPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -21,6 +51,10 @@ class KapacitorPage extends Component {
         name: defaultName,
         username: '',
         password: '',
+        active: false,
+        links: {
+          self: '',
+        },
       },
       exists: false,
     }
@@ -127,6 +161,10 @@ class KapacitorPage extends Component {
       name: defaultName,
       username: '',
       password: '',
+      active: false,
+      links: {
+        self: '',
+      },
     }
 
     this.setState({kapacitor: {...defaultState}})
@@ -143,38 +181,21 @@ class KapacitorPage extends Component {
     const {source, addFlashMessage, location, params} = this.props
     const hash = (location && location.hash) || (params && params.hash) || ''
     const {kapacitor, exists} = this.state
+
     return (
       <KapacitorForm
+        hash={hash}
+        source={source}
+        exists={exists}
+        kapacitor={kapacitor}
         onSubmit={this.handleSubmit}
-        onInputChange={this.handleInputChange}
+        addFlashMessage={addFlashMessage}
         onChangeUrl={this.handleChangeUrl}
         onReset={this.handleResetToDefaults}
-        kapacitor={kapacitor}
-        source={source}
-        addFlashMessage={addFlashMessage}
-        exists={exists}
-        hash={hash}
+        onInputChange={this.handleInputChange}
       />
     )
   }
-}
-
-const {array, func, shape, string} = PropTypes
-
-KapacitorPage.propTypes = {
-  addFlashMessage: func,
-  params: shape({
-    id: string,
-  }).isRequired,
-  router: shape({
-    push: func.isRequired,
-  }).isRequired,
-  source: shape({
-    id: string.isRequired,
-    url: string.isRequired,
-    kapacitors: array,
-  }),
-  location: shape({pathname: string, hash: string}).isRequired,
 }
 
 export default withRouter(KapacitorPage)
