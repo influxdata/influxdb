@@ -197,6 +197,8 @@ func (c *Client) migrate(ctx context.Context, build chronograf.BuildInfo) error 
 		if err := c.MappingsStore.Migrate(ctx); err != nil {
 			return err
 		}
+
+		MigrateAll(c.db)
 	}
 	return nil
 }
