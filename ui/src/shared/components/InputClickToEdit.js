@@ -48,7 +48,9 @@ class InputClickToEdit extends Component {
 
   handleChange = e => {
     const {onChange} = this.props
-    onChange(e.target.value)
+    if (onChange) {
+      onChange(e.target.value)
+    }
   }
 
   handleFocus = e => {
@@ -72,7 +74,7 @@ class InputClickToEdit extends Component {
             ? <input
                 type="text"
                 className="form-control input-sm provider--input"
-                value={value || ''}
+                defaultValue={value}
                 onBlur={this.handleInputBlur}
                 onKeyDown={this.handleKeyDown}
                 onChange={this.handleChange}
