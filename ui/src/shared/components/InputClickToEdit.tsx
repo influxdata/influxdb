@@ -102,13 +102,14 @@ class InputClickToEdit extends PureComponent<Props, State> {
 
     return disabled
       ? <div className={wrapperClass}>
-          <div className="input-cte__disabled">
+          <div data-test="disabled" className="input-cte__disabled">
             {value}
           </div>
         </div>
       : <div className={wrapperClass}>
           {isEditing
             ? <input
+                data-test="input"
                 type="text"
                 className="form-control input-sm provider--input"
                 defaultValue={value}
@@ -121,13 +122,15 @@ class InputClickToEdit extends PureComponent<Props, State> {
                 spellCheck={false}
               />
             : <div
+                data-test="unclicked"
                 className={defaultStyle}
                 onClick={this.handleInputClick}
                 onFocus={this.handleInputClick}
                 tabIndex={tabIndex}
               >
                 {value || placeholder}
-                {appearAsNormalInput || <span className="icon pencil" />}
+                {appearAsNormalInput ||
+                  <span data-test="icon" className="icon pencil" />}
               </div>}
         </div>
   }
