@@ -2,6 +2,7 @@
 ### Features
 ### UI Improvements
 ### Bug Fixes
+1. [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
 
 
 ## v1.4.2.1 [2018-02-28]
