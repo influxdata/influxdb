@@ -80,14 +80,14 @@ class ProvidersTableRow extends Component {
         <InputClickToEdit
           value={provider}
           wrapperClass="fancytable--td provider--provider"
-          onBlurUpdate={this.handleChangeProvider}
+          onBlur={this.handleChangeProvider}
           disabled={isDefaultMapping}
           tabIndex={rowIndex}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
-          onBlurUpdate={this.handleChangeProviderOrg}
+          onBlur={this.handleChangeProviderOrg}
           disabled={isDefaultMapping}
           tabIndex={rowIndex}
         />

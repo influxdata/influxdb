@@ -11,13 +11,13 @@ class InputClickToEdit extends Component {
   }
 
   handleCancel = () => {
-    const {onKeyUpdate} = this.props
+    const {onChange} = this.props
     const {initialValue} = this.state
     this.setState({
       isEditing: false,
     })
-    if (onKeyUpdate) {
-      onKeyUpdate(initialValue)
+    if (onChange) {
+      onChange(initialValue)
     }
   }
 
@@ -26,9 +26,9 @@ class InputClickToEdit extends Component {
   }
 
   handleInputBlur = e => {
-    const {onBlurUpdate, value} = this.props
+    const {onBlur, value} = this.props
     if (value !== e.target.value) {
-      onBlurUpdate(e.target.value)
+      onBlur(e.target.value)
     }
 
     this.setState({
@@ -37,19 +37,18 @@ class InputClickToEdit extends Component {
     })
   }
 
-  handleKeyUp = e => {
-    const {onKeyUpdate, value} = this.props
+  handleKeyDown = e => {
     if (e.key === 'Enter') {
       this.handleInputBlur(e)
-      return
     }
     if (e.key === 'Escape') {
       this.handleCancel()
-      return
     }
-    if (onKeyUpdate && value !== e.target.value) {
-      onKeyUpdate(e.target.value)
-    }
+  }
+
+  handleChange = e => {
+    const {onChange} = this.props
+    onChange(e.target.value)
   }
 
   handleFocus = e => {
@@ -73,9 +72,10 @@ class InputClickToEdit extends Component {
             ? <input
                 type="text"
                 className="form-control input-sm provider--input"
-                defaultValue={value}
+                value={value || ''}
                 onBlur={this.handleInputBlur}
-                onKeyUp={this.handleKeyUp}
+                onKeyDown={this.handleKeyDown}
+                onChange={this.handleChange}
                 autoFocus={true}
                 onFocus={this.handleFocus}
                 tabIndex={tabIndex}
@@ -103,8 +103,8 @@ InputClickToEdit.defaultValue = {
 InputClickToEdit.propTypes = {
   wrapperClass: string.isRequired,
   value: string,
-  onKeyUpdate: func,
-  onBlurUpdate: func.isRequired,
+  onChange: func,
+  onBlur: func.isRequired,
   disabled: bool,
   tabIndex: number,
   placeholder: string,

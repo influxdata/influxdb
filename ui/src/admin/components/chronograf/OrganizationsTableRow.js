@@ -94,7 +94,7 @@ class OrganizationsTableRow extends Component {
         <InputClickToEdit
           value={organization.name}
           wrapperClass="fancytable--td orgs-table--name"
-          onBlurUpdate={this.handleUpdateOrgName}
+          onBlur={this.handleUpdateOrgName}
         />
         <div className={defaultRoleClassName}>
           <Dropdown
