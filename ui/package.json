@@ -92,7 +92,7 @@
     "resolve-url-loader": "^2.2.1",
     "sass-loader": "^6.0.6",
     "style-loader": "^0.13.0",
-    "thread-loader": "^1.1.4",
+    "thread-loader": "^1.1.5",
     "ts-jest": "^22.4.1",
     "ts-loader": "^3.5.0",
     "tslib": "^1.9.0",
