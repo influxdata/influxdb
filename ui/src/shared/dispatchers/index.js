@@ -7,7 +7,7 @@ export const presentationButtonDispatcher = dispatch => () => {
     publishNotification({
       type: 'primary',
       icon: 'expand-b',
-      duration: 4000,
+      duration: 7500,
       message: 'Press ESC to exit Presentation Mode.',
     })
   )
