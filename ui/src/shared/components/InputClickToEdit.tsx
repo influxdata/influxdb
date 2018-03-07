@@ -1,6 +1,21 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PureComponent} from 'react'
 
-class InputClickToEdit extends Component {
+interface Props {
+  wrapperClass: string
+  value?: string
+  onChange?: (value: string) => void
+  onBlur: (value: string) => void
+  disabled?: boolean
+  tabIndex?: number
+  placeholder?: string
+}
+
+interface State {
+  isEditing: boolean
+  initialValue: string
+}
+
+class InputClickToEdit extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -8,9 +23,20 @@ class InputClickToEdit extends Component {
       isEditing: false,
       initialValue: this.props.value,
     }
+
+    this.handleCancel = this.handleCancel.bind(this)
+    this.handleInputClick = this.handleInputClick.bind(this)
+    this.handleInputBlur = this.handleInputBlur.bind(this)
+    this.handleKeyDown = this.handleKeyDown.bind(this)
+    this.handleChange = this.handleChange.bind(this)
+    this.handleFocus = this.handleFocus.bind(this)
   }
 
-  handleCancel = () => {
+  public static defaultProps: Partial<Props> = {
+    tabIndex: 0,
+  }
+
+  handleCancel() {
     const {onChange} = this.props
     const {initialValue} = this.state
     this.setState({
@@ -21,11 +47,11 @@ class InputClickToEdit extends Component {
     }
   }
 
-  handleInputClick = () => {
+  handleInputClick() {
     this.setState({isEditing: true})
   }
 
-  handleInputBlur = e => {
+  handleInputBlur(e) {
     const {onBlur, value} = this.props
     if (value !== e.target.value) {
       onBlur(e.target.value)
@@ -94,22 +120,6 @@ class InputClickToEdit extends Component {
               </div>}
         </div>
   }
-}
-
-const {func, bool, number, string} = PropTypes
-
-InputClickToEdit.defaultValue = {
-  tabIndex: 0,
-}
-
-InputClickToEdit.propTypes = {
-  wrapperClass: string.isRequired,
-  value: string,
-  onChange: func,
-  onBlur: func.isRequired,
-  disabled: bool,
-  tabIndex: number,
-  placeholder: string,
 }
 
 export default InputClickToEdit
