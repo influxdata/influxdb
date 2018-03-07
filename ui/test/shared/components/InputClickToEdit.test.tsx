@@ -33,25 +33,27 @@ describe('Components.Shared.InputClickToEdit', () => {
   describe('rendering', () => {
     it('does not display input by default', () => {
       const {inputClickToEdit} = setup()
-      const initialDiv = inputClickToEdit
+      const initialDiv = inputClickToEdit.children().find('div')
+      const inputField = inputClickToEdit.children().find('input')
+      const disabledDiv = inputClickToEdit
         .children()
-        .find({'data-test': 'unclicked'})
-      const inputField = inputClickToEdit
-        .children()
-        .find({'data-test': 'input'})
+        .find({'data-test': 'disabled'})
 
       expect(initialDiv.exists()).toBe(true)
       expect(inputField.exists()).toBe(false)
+      expect(disabledDiv.exists()).toBe(false)
     })
 
     describe('if disabled passed in as props is true', () => {
       it('should show the disabled div', () => {
         const disabled = true
         const {inputClickToEdit} = setup({disabled})
+        const inputField = inputClickToEdit.children().find('input')
         const disabledDiv = inputClickToEdit
           .children()
           .find({'data-test': 'disabled'})
 
+        expect(inputField.exists()).toBe(false)
         expect(disabledDiv.exists()).toBe(true)
       })
 
@@ -74,16 +76,10 @@ describe('Components.Shared.InputClickToEdit', () => {
     describe('when clicking component', () => {
       it('should render input field', () => {
         const {inputClickToEdit} = setup()
-        const initialDiv = inputClickToEdit
-          .children()
-          .find({'data-test': 'unclicked'})
+        const initialDiv = inputClickToEdit.children().find('div')
         initialDiv.simulate('click')
-        const divAfterClick = inputClickToEdit
-          .children()
-          .find({'data-test': 'unclicked'})
-        const inputField = inputClickToEdit
-          .children()
-          .find({'data-test': 'input'})
+        const divAfterClick = inputClickToEdit.children().find('div')
+        const inputField = inputClickToEdit.children().find('input')
         const isEditing = inputClickToEdit.state('isEditing')
 
         expect(isEditing).toBe(true)
@@ -92,4 +88,6 @@ describe('Components.Shared.InputClickToEdit', () => {
       })
     })
   })
+
+  describe('instance methods', () => {})
 })

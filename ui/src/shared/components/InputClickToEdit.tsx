@@ -109,7 +109,6 @@ class InputClickToEdit extends PureComponent<Props, State> {
       : <div className={wrapperClass}>
           {isEditing
             ? <input
-                data-test="input"
                 type="text"
                 className="form-control input-sm provider--input"
                 defaultValue={value}
@@ -122,7 +121,6 @@ class InputClickToEdit extends PureComponent<Props, State> {
                 spellCheck={false}
               />
             : <div
-                data-test="unclicked"
                 className={defaultStyle}
                 onClick={this.handleInputClick}
                 onFocus={this.handleInputClick}
