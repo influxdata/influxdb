@@ -49,7 +49,7 @@ class KapacitorPage extends Component {
     } catch (error) {
       this.setState({exists: false})
       this.props.publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         text: 'Could not connect to Kapacitor. Check settings.',
@@ -86,7 +86,7 @@ class KapacitorPage extends Component {
 
     if (isNew && isNameTaken) {
       publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
@@ -108,7 +108,7 @@ class KapacitorPage extends Component {
         })
         .catch(() => {
           publishNotification({
-            type: 'danger',
+            type: 'error',
             icon: 'alert-triangle',
             duration: 10000,
             text: 'There was a problem updating the Kapacitor record',
@@ -130,7 +130,7 @@ class KapacitorPage extends Component {
         })
         .catch(() => {
           publishNotification({
-            type: 'danger',
+            type: 'error',
             icon: 'alert-triangle',
             duration: 10000,
             text: 'There was a problem creating the Kapacitor record',

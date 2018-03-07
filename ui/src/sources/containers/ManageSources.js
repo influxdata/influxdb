@@ -49,7 +49,7 @@ class ManageSources extends Component {
       })
     } catch (e) {
       publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: 'Could not remove source from Chronograf',

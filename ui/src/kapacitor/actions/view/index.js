@@ -171,12 +171,22 @@ export const deleteRule = rule => dispatch => {
     .then(() => {
       dispatch(deleteRuleSuccess(rule.id))
       dispatch(
-        publishNotification('success', `${rule.name} deleted successfully`)
+        publishNotification({
+          type: 'success',
+          icon: 'checkmark',
+          duration: 5000,
+          message: `${rule.name} deleted successfully`,
+        })
       )
     })
     .catch(() => {
       dispatch(
-        publishNotification('danger', `${rule.name} could not be deleted`)
+        publishNotification({
+          type: 'error',
+          icon: 'alert-triangle',
+          duration: 10000,
+          message: `${rule.name} could not be deleted`,
+        })
       )
     })
 }
@@ -185,12 +195,22 @@ export const updateRuleStatus = (rule, status) => dispatch => {
   updateRuleStatusAPI(rule, status)
     .then(() => {
       dispatch(
-        publishNotification('success', `${rule.name} ${status} successfully`)
+        publishNotification({
+          type: 'success',
+          icon: 'checkmark',
+          duration: 5000,
+          message: `${rule.name} ${status} successfully`,
+        })
       )
     })
     .catch(() => {
       dispatch(
-        publishNotification('danger', `${rule.name} could not be ${status}`)
+        publishNotification({
+          type: 'error',
+          icon: 'alert-triangle',
+          duration: 10000,
+          message: `${rule.name} could not be ${status}`,
+        })
       )
     })
 }
@@ -198,7 +218,14 @@ export const updateRuleStatus = (rule, status) => dispatch => {
 export const createTask = (kapacitor, task) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    dispatch(publishNotification('success', 'TICKscript successfully created'))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'TICKscript successfully created',
+      })
+    )
     return data
   } catch (error) {
     if (!error) {
@@ -218,7 +245,14 @@ export const updateTask = (
 ) => async dispatch => {
   try {
     const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
-    dispatch(publishNotification('success', 'TICKscript saved'))
+    dispatch(
+      publishNotification({
+        type: 'success',
+        icon: 'checkmark',
+        duration: 5000,
+        message: 'TICKscript saved',
+      })
+    )
     return data
   } catch (error) {
     if (!error) {

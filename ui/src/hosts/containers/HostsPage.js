@@ -54,7 +54,7 @@ class HostsPage extends Component {
       console.error(error)
       publishNotification({
         icon: 'alert-triangle',
-        type: 'danger',
+        type: 'error',
         duration: 5000,
         message: hostsError,
       })
@@ -75,7 +75,7 @@ class HostsPage extends Component {
       const layoutError = 'Unable to get apps for hosts'
       publishNotification({
         icon: 'alert-triangle',
-        type: 'danger',
+        type: 'error',
         duration: 5000,
         message: layoutError,
       })

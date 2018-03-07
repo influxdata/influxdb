@@ -56,7 +56,7 @@ class KapacitorRule extends Component {
       })
       .catch(() => {
         publishNotification({
-          type: 'danger',
+          type: 'error',
           icon: 'alert-triangle',
           duration: 10000,
           text: 'There was a problem creating the rule',
@@ -82,7 +82,7 @@ class KapacitorRule extends Component {
       })
       .catch(e => {
         publishNotification({
-          type: 'danger',
+          type: 'error',
           icon: 'alert-triangle',
           duration: 10000,
           text: `There was a problem saving ${rule.name}: ${e.data.message}`,

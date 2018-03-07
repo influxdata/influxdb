@@ -145,7 +145,7 @@ class RowWrapper extends Component {
 
     if (tempVarAlreadyExists(tempVar, id)) {
       return publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: `Variable '${_tempVar}' already exists. Please enter a new value.`,

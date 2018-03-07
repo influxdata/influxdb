@@ -143,7 +143,7 @@ $notification-margin: 12px;
 .notification-warning {
   @include notification-styles($c-star,$c-pool,$g20-white,$c-neutrino,$g20-white);
 }
-.notification-danger {
+.notification-error {
   @include notification-styles($c-curacao,$c-star,$g20-white,$c-marmelade,$g20-white);
 }
 .notification-info {

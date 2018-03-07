@@ -101,7 +101,7 @@ class SourcePage extends Component {
     const error = this._parseError(err)
     console.error('Error: ', error)
     publishNotification({
-      type: 'danger',
+      type: 'error',
       icon: 'alert-triangle',
       duration: 10000,
       message: `${bannerText}: ${error}`,

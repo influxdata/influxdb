@@ -119,7 +119,7 @@ class TickscriptPage extends Component {
     } catch (error) {
       console.error(error)
       publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: error,

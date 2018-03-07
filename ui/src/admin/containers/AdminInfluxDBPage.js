@@ -76,7 +76,7 @@ class AdminInfluxDBPage extends Component {
     const {publishNotification} = this.props
     if (!isValidUser(user)) {
       publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: 'Username and/or password too short',
@@ -94,7 +94,7 @@ class AdminInfluxDBPage extends Component {
     const {publishNotification} = this.props
     if (!isValidRole(role)) {
       publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: 'Role name too short',

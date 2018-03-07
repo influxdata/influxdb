@@ -116,7 +116,7 @@ class DatabaseRow extends Component {
 
     if (!duration || (isRFDisplayed && !replication)) {
       publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: 'Fields cannot be empty',

@@ -91,7 +91,7 @@ class DashboardPage extends Component {
     if (!dashboard) {
       router.push(`/sources/${source.id}/dashboards`)
       return publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: `Dashboard ${dashboardID} could not be found`,

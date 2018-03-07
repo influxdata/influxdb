@@ -81,7 +81,7 @@ const Header = ({
   const onConfirm = db => {
     if (database.deleteCode !== `DELETE ${database.name}`) {
       return publishNotification({
-        type: 'danger',
+        type: 'error',
         icon: 'alert-triangle',
         duration: 10000,
         message: `Type DELETE ${database.name} to confirm`,
