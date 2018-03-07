@@ -153,7 +153,7 @@ const propTypes = {
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   synchronizer: func,
-  hoverTime: number,
+  hoverTime: string,
   onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,

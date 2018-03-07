@@ -142,7 +142,7 @@ RefreshingGraph.propTypes = {
   manualRefresh: number,
   templates: arrayOf(shape()),
   synchronizer: func,
-  hoverTime: number,
+  hoverTime: string,
   onSetHoverTime: func,
   type: string.isRequired,
   cellHeight: number,

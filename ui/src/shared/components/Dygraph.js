@@ -198,12 +198,16 @@ class Dygraph extends Component {
 
   highlightCallback = (e, x) => {
     const {onSetHoverTime} = this.props
-    onSetHoverTime(x)
+    if (onSetHoverTime) {
+      onSetHoverTime(x.toString())
+    }
   }
 
   unhighlightCallback = () => {
     const {onSetHoverTime} = this.props
-    onSetHoverTime(0)
+    if (onSetHoverTime) {
+      onSetHoverTime('0')
+    }
   }
 
   hashColorDygraphSeries = () => {
@@ -365,7 +369,7 @@ class Dygraph extends Component {
   }
 }
 
-const {array, arrayOf, bool, func, node, number, shape, string} = PropTypes
+const {array, arrayOf, bool, func, node, shape, string} = PropTypes
 
 Dygraph.defaultProps = {
   axes: {
@@ -420,7 +424,7 @@ Dygraph.propTypes = {
     lower: string.isRequired,
   }),
   synchronizer: func,
-  hoverTime: number,
+  hoverTime: string,
   onSetHoverTime: func,
   setResolution: func,
   dygraphRef: func,

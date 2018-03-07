@@ -26,13 +26,13 @@ class TableGraph extends Component {
 
   handleHover = (columnIndex, rowIndex) => () => {
     const {onSetHoverTime} = this.props
-    onSetHoverTime(this._data[rowIndex][0])
+    onSetHoverTime(this._data[rowIndex][0].toString())
     this.setState({hoveredColumnIndex: columnIndex, hoveredRowIndex: rowIndex})
   }
 
   handleMouseOut = () => {
     const {onSetHoverTime} = this.props
-    onSetHoverTime(0)
+    onSetHoverTime('0')
     this.setState({hoveredColumnIndex: -1, hoveredRowIndex: -1})
   }
 
@@ -95,12 +95,12 @@ class TableGraph extends Component {
   }
 }
 
-const {arrayOf, number, shape, func} = PropTypes
+const {arrayOf, number, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
   cellHeight: number,
   data: arrayOf(shape()),
-  hoverTime: number,
+  hoverTime: string,
   onSetHoverTime: func,
 }
 

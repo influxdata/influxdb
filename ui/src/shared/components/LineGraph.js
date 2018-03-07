@@ -190,7 +190,7 @@ LineGraph.propTypes = {
   }),
   isInDataExplorer: bool,
   synchronizer: func,
-  hoverTime: number,
+  hoverTime: string,
   onSetHoverTime: func,
   setResolution: func,
   cellHeight: number,

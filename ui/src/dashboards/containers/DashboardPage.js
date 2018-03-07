@@ -53,7 +53,7 @@ class DashboardPage extends Component {
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      hoverTime: 0,
+      hoverTime: '0',
     }
   }
 
