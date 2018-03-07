@@ -111,7 +111,7 @@ class OrganizationsTableRow extends Component {
               onConfirm={this.handleDeleteOrg}
               onClickOutside={this.handleDismissDeleteConfirmation}
               confirmLeft={true}
-              confirmHoverText="Delete"
+              confirmTitle="Delete"
             />
           : <OrganizationsTableRowDeleteButton
               organization={organization}
