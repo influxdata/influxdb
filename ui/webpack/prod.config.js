@@ -5,7 +5,6 @@ const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
-const CompressionPlugin = require('compression-webpack-plugin')
 
 const package = require('../package.json')
 const dependencies = package.dependencies
@@ -14,7 +13,7 @@ const babelLoader = {
   loader: 'babel-loader',
   options: {
     cacheDirectory: false,
-    presets: ['env', 'react', 'stage-0'],
+    presets: [['env', {modules: false}], 'react', 'stage-0'],
   },
 }
 
@@ -148,13 +147,6 @@ const config = {
     }),
     new webpack.optimize.CommonsChunkPlugin({
       name: 'manifest',
-    }),
-    new CompressionPlugin({
-      asset: '[path].gz[query]',
-      algorithm: 'gzip',
-      test: /\.js$|\.css$/,
-      threshold: 0,
-      minRatio: 0.8,
     }),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
