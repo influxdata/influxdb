@@ -185,11 +185,7 @@ export const deleteRule = rule => dispatch => {
     })
     .catch(() => {
       dispatch(
-<<<<<<< HEAD
         publishNotification(NOTIFY_ALERT_RULE_DELETION_FAILED(rule.name))
-=======
-        publishNotification('danger', `${rule.name} could not be deleted`)
->>>>>>> Replace addFlashMessage with publishNotification
       )
     })
 }
