@@ -3,6 +3,9 @@
 ### UI Improvements
 ### Bug Fixes
 
+## v1.4.2.2 [2018-03-07]
+### Bug Fixes
+1. [#2933](https://github.com/influxdata/chronograf/pull/2933): Include url in Kapacitor connection creation requests
 
 ## v1.4.2.1 [2018-02-28]
 ### Features
