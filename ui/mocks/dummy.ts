@@ -1,6 +1,6 @@
 export const kapacitor = {
   id: '1',
-  name: 'My Kapacitor',
+  name: 'Test Kapacitor',
   url: 'http://localhost:9092',
   active: true,
   links: {

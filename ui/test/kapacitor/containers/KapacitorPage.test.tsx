@@ -2,14 +2,14 @@ import React from 'react'
 import {KapacitorPage} from 'src/kapacitor/containers/KapacitorPage'
 import KapacitorForm from 'src/kapacitor/components/KapacitorForm'
 import {shallow} from 'enzyme'
-import {getKapacitor} from 'src/shared/apis'
+import {getKapacitor, pingKapacitor} from 'src/shared/apis'
 
 import {source, kapacitor} from 'test/resources'
-import * as dummy from 'mocks/dummy'
+import * as mocks from 'mocks/dummy'
 
 jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 
-const setup = async (override = {}, returnWrapper = true) => {
+const setup = (override = {}, returnWrapper = true) => {
   const props = {
     source: source,
     addFlashMessage: () => {},
@@ -29,7 +29,7 @@ const setup = async (override = {}, returnWrapper = true) => {
     }
   }
 
-  const wrapper = await shallow(<KapacitorPage {...props} />)
+  const wrapper = shallow(<KapacitorPage {...props} />)
 
   return {
     wrapper,
@@ -39,13 +39,13 @@ const setup = async (override = {}, returnWrapper = true) => {
 
 describe('Kapacitor.Containers.KapacitorPage', () => {
   describe('rendering', () => {
-    it('renders the KapacitorPage', async () => {
-      const {wrapper} = await setup()
+    it('renders the KapacitorPage', () => {
+      const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
     })
 
     it('renders the <KapacitorForm/>', async () => {
-      const {wrapper} = await setup()
+      const {wrapper} = setup()
       const form = wrapper.find(KapacitorForm)
 
       expect(form.exists()).toBe(true)
@@ -54,19 +54,23 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
 
   describe('instance methods', () => {
     describe('componentDidMount', () => {
-      describe('if there is no id in the params', () => {
-        it('does not get the kapacitor', () => {
+      describe('if it is a new kapacitor', () => {
+        it('does not get the kapacitor', async () => {
+          const {wrapper} = setup()
+          await wrapper.instance().componentDidMount()
           expect(getKapacitor).not.toHaveBeenCalled()
         })
       })
 
-      describe('if there is an id in the params', () => {
-        it('gets the kapacitor', async () => {
+      describe('if it is an existing kapacitor', () => {
+        it('gets the kapacitor info and sets the appropriate state', async () => {
           const params = {id: '1', hash: ''}
-          const {wrapper} = await setup({params})
+          const {wrapper} = setup({params})
 
-          expect(getKapacitor).toHaveBeenCalledWith(source, params.id)
-          expect(wrapper.state().kapacitor).toEqual(dummy.kapacitor)
+          await wrapper.instance().componentDidMount()
+
+          expect(wrapper.state().exists).toBe(true)
+          expect(wrapper.state().kapacitor).toEqual(mocks.kapacitor)
         })
       })
     })

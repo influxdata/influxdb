@@ -47,7 +47,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     super(props)
     this.state = {
       kapacitor: {
-        url: this._parseKapacitorURL(),
+        url: this.parseKapacitorURL(),
         name: defaultName,
         username: '',
         password: '',
@@ -68,8 +68,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
 
     try {
       const kapacitor = await getKapacitor(source, id)
-      this.setState({kapacitor})
-      this.checkKapacitorConnection(kapacitor)
+      await this.checkKapacitorConnection(kapacitor)
     } catch (err) {
       console.error('Could not get kapacitor: ', err)
       addFlashMessage({
@@ -164,7 +163,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   handleResetToDefaults = e => {
     e.preventDefault()
     const defaultState = {
-      url: this._parseKapacitorURL(),
+      url: this.parseKapacitorURL(),
       name: defaultName,
       username: '',
       password: '',
@@ -177,7 +176,21 @@ export class KapacitorPage extends PureComponent<Props, State> {
     this.setState({kapacitor: {...defaultState}})
   }
 
-  _parseKapacitorURL = () => {
+  private checkKapacitorConnection = async kapacitor => {
+    try {
+      await pingKapacitor(kapacitor)
+      console.log('what kapacitor are you getting: ', kapacitor)
+      this.setState({kapacitor, exists: true})
+    } catch (error) {
+      this.setState({exists: false})
+      this.props.addFlashMessage({
+        type: 'error',
+        text: 'Could not connect to Kapacitor. Check settings.',
+      })
+    }
+  }
+
+  private parseKapacitorURL = () => {
     const parser = document.createElement('a')
     parser.href = this.props.source.url
 
