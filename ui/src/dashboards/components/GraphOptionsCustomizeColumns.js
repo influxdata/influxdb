@@ -5,8 +5,8 @@ import uuid from 'uuid'
 
 const GraphOptionsCustomizeColumns = ({columns, onColumnRename}) => {
   return (
-    <div>
-      <label>Customize Columns</label>
+    <div className="graph-options-group">
+      <label className="form-label">Customize Columns</label>
       {columns.map(col => {
         return (
           <GraphOptionsCustomizableColumn

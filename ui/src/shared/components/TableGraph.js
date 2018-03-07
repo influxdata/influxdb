@@ -1,5 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 import {timeSeriesToTable} from 'src/utils/timeSeriesToDygraph'
 import {MultiGrid} from 'react-virtualized'
 
@@ -18,8 +19,25 @@ class TableGraph extends Component {
 
   cellRenderer = ({columnIndex, key, rowIndex, style}) => {
     const data = this._data
+    const columnCount = _.get(data, ['0', 'length'], 0)
+    const rowCount = data.length
+
+    const isFixedRow = rowIndex === 0 && columnIndex > 0
+    const isFixedColumn = rowIndex > 0 && columnIndex === 0
+    const isFixedCorner = rowIndex === 0 && columnIndex === 0
+    const isLastRow = rowIndex === rowCount - 1
+    const isLastColumn = columnIndex === columnCount - 1
+
+    const cellClass = classnames('table-graph-cell', {
+      'table-graph-cell__fixed-row': isFixedRow,
+      'table-graph-cell__fixed-column': isFixedColumn,
+      'table-graph-cell__fixed-corner': isFixedCorner,
+      'table-graph-cell__last-row': isLastRow,
+      'table-graph-cell__last-column': isLastColumn,
+    })
+
     return (
-      <div key={key} style={style}>
+      <div key={key} className={cellClass} style={style}>
         {data[rowIndex][columnIndex]}
       </div>
     )
@@ -30,13 +48,13 @@ class TableGraph extends Component {
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const COLUMN_WIDTH = 300
-    const ROW_HEIGHT = 50
+    const ROW_HEIGHT = 30
     const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
     const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
 
     return (
       <div
-        className="graph-container"
+        className="table-graph-container"
         ref={gridContainer => (this.gridContainer = gridContainer)}
       >
         {data.length > 1 &&
@@ -49,7 +67,9 @@ class TableGraph extends Component {
             height={tableHeight}
             rowCount={rowCount}
             rowHeight={ROW_HEIGHT}
-            width={tableWidth - 32}
+            width={tableWidth}
+            enableFixedColumnScroll={true}
+            enableFixedRowScroll={true}
           />}
       </div>
     )

@@ -1,0 +1,48 @@
+/*
+    Table Type Graphs in Dashboards
+    ----------------------------------------------------------------------------
+*/
+
+.table-graph-container {
+    position: absolute;
+    width: calc(100% - 32px);
+    height: calc(100% - 16px);
+    top: 8px;
+    left: 16px;
+    border: 2px solid $g5-pepper;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.table-graph-cell {
+    line-height: 30px;
+    padding: 0 6px;
+    font-size: 13px;
+    color: $g13-mist;
+    border: 1px solid $g5-pepper;
+
+    &__fixed-row,
+    &__fixed-column {
+        font-weight: 700;
+        color: $g16-pearl;
+        background-color: $g4-onyx;
+    }
+    &__fixed-row {
+        border-top: 0;
+    }
+    &__fixed-column {
+        border-left: 0;
+    }
+    &__fixed-corner {
+        border-top: 0;
+        border-left: 0;
+        color: $g18-cloud;
+        background-color: $g5-pepper;
+    }
+    &__last-row {
+        border-bottom: 0;
+    }
+    &__last-column {
+        border-right: 0;
+    }
+}

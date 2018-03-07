@@ -90,7 +90,7 @@ class AxesOptions extends Component {
           <h5 className="display-options--header">
             {menuOption} Controls
           </h5>
-          <form autoComplete="off" style={{margin: '0 -6px'}}>
+          <form autoComplete="off" className="form-group-wrapper">
             <div className="form-group col-sm-12">
               <label htmlFor="prefix">Title</label>
               <OptIn
