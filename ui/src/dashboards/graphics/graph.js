@@ -439,29 +439,71 @@ const GRAPH_SVGS = {
         y="0px"
         width="100%"
         height="100%"
-        viewBox="0 0 550 550"
+        viewBox="0 0 150 150"
       >
-        <g>
-          <path
-            className="viz-type-selector--graphic-line graphic-line-a"
-            d="M430.274,23.861H16.698C7.48,23.861,0,31.357,0,40.559v365.86c0,5.654,2.834,10.637,7.155,13.663v2.632h5.986   c1.146,0.252,2.332,0.401,3.557,0.401h413.576c1.214,0,2.396-0.149,3.545-0.401h0.821v-0.251   c7.082-1.938,12.336-8.362,12.336-16.044V40.564C446.977,31.357,439.478,23.861,430.274,23.861z M66,408.4H15.458   c-0.676-0.416-1.146-1.132-1.146-1.98v-43.35H66V408.4z M66,348.755H14.312v-47.01H66V348.755z M66,287.436H14.312v-49.632H66   V287.436z M66,223.491H14.312v-53.687H66V223.491z M66,155.49H14.312v-52.493H66V155.49z M186.497,408.4H80.318v-45.33h106.179   V408.4z M186.497,348.755H80.318v-47.01h106.179V348.755z M186.497,287.436H80.318v-49.632h106.179V287.436z M186.497,223.491   H80.318v-53.687h106.179V223.491z M186.497,155.49H80.318v-52.493h106.179V155.49z M186.497,88.68H80.318V38.17h106.179V88.68z    M308.195,408.4H200.812v-45.33h107.383V408.4z M308.195,348.755H200.812v-47.01h107.383V348.755z M308.195,287.436H200.812   v-49.632h107.383V287.436z M308.195,223.491H200.812v-53.687h107.383V223.491z M308.195,155.49H200.812v-52.493h107.383V155.49z    M308.195,88.68H200.812V38.17h107.383V88.68z M432.66,406.419c0,0.845-0.48,1.56-1.149,1.98h-109v-45.33H432.66V406.419z    M432.66,348.755H322.511v-47.01H432.66V348.755z M432.66,287.436H322.511v-49.632H432.66V287.436z M432.66,223.491H322.511   v-53.687H432.66V223.491z M432.66,155.49H322.511v-52.493H432.66V155.49z M432.66,88.68H322.511V38.17h107.764   c1.312,0,2.386,1.073,2.386,2.389V88.68z M175.854,276.251H89.938V246.37h85.915V276.251z M297.261,277.378h-85.915v-29.883h85.915   V277.378z M421.661,276.721h-85.914v-29.883h85.914V276.721z"
-          />
-        </g>
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
-        <g />
+        <path
+          className="viz-type-selector--graphic-fill graphic-fill-c"
+          d="M55.5,115H19.7c-1.7,0-3.1-1.4-3.1-3.1V61.7h38.9V115z"
+        />
+        <path
+          className="viz-type-selector--graphic-fill graphic-fill-b"
+          d="M133.4,61.7H55.5V35h74.8c1.7,0,3.1,1.4,3.1,3.1V61.7z"
+        />
+        <path
+          className="viz-type-selector--graphic-fill graphic-fill-a"
+          d="M55.5,61.7H16.6V38.1c0-1.7,1.4-3.1,3.1-3.1h35.9V61.7z"
+        />
+        <path
+          className="viz-type-selector--graphic-line graphic-line-c"
+          d="M16.6,88.3v23.6c0,1.7,1.4,3.1,3.1,3.1h35.9V88.3H16.6z"
+        />
+        <rect
+          className="viz-type-selector--graphic-line graphic-line-c"
+          x="16.6"
+          y="61.7"
+          width="38.9"
+          height="26.7"
+        />
+        <path
+          className="viz-type-selector--graphic-line graphic-line-b"
+          d="M94.5,35v26.7h38.9V38.1c0-1.7-1.4-3.1-3.1-3.1H94.5z"
+        />
+        <rect
+          className="viz-type-selector--graphic-line graphic-line-b"
+          x="55.5"
+          y="35"
+          width="38.9"
+          height="26.7"
+        />
+        <path
+          className="viz-type-selector--graphic-line graphic-line-d"
+          d="M94.5,115h35.9c1.7,0,3.1-1.4,3.1-3.1V88.3H94.5V115z"
+        />
+        <rect
+          className="viz-type-selector--graphic-line graphic-line-d"
+          x="55.5"
+          y="88.3"
+          width="38.9"
+          height="26.7"
+        />
+        <rect
+          className="viz-type-selector--graphic-line graphic-line-d"
+          x="94.5"
+          y="61.7"
+          width="38.9"
+          height="26.7"
+        />
+        <rect
+          className="viz-type-selector--graphic-line graphic-line-d"
+          x="55.5"
+          y="61.7"
+          width="38.9"
+          height="26.7"
+        />
+        <path
+          className="viz-type-selector--graphic-line graphic-line-a"
+          d="M55.5,35H19.7c-1.7,0-3.1,1.4-3.1,3.1v23.6h38.9V35z"
+        />
       </svg>
     </div>
   ),

@@ -17,13 +17,8 @@ const babelLoader = {
   loader: 'babel-loader',
   options: {
     cacheDirectory: true,
-    presets: ['env', 'react', 'stage-0'],
+    presets: [['env', {modules: false}], 'react', 'stage-0'],
   },
-}
-
-const log = function(x) {
-  console.log('IM LOGGIN HERE: ', x)
-  return x
 }
 
 module.exports = {
@@ -96,6 +91,7 @@ module.exports = {
         include: path.resolve(__dirname, '..', 'src'),
         exclude: /node_modules/,
         use: [
+          {loader: 'thread-loader'},
           {
             loader: 'babel-loader',
             options: {

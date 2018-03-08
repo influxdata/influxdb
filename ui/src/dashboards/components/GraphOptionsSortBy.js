@@ -7,8 +7,8 @@ const GraphOptionsSortBy = ({sortByOptions, onChooseSortBy}) =>
     <Dropdown
       items={sortByOptions}
       selected={sortByOptions[0].text}
-      buttonColor="btn-primary"
-      buttonSize="btn-xs"
+      buttonColor="btn-default"
+      buttonSize="btn-sm"
       className="dropdown-stretch"
       onChoose={onChooseSortBy}
     />

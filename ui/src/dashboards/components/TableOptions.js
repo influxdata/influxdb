@@ -66,12 +66,20 @@ class TableOptions extends Component {
 
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
-    const columns = ['hey', 'yo', 'what'].map(col => ({
+    const columns = [
+      'cpu.mean_usage_system',
+      'cpu.mean_usage_idle',
+      'cpu.mean_usage_user',
+    ].map(col => ({
       text: col,
       name: col,
       newName: '',
     }))
-    const tableSortByOptions = ['hey', 'yo', 'what'].map(col => ({text: col}))
+    const tableSortByOptions = [
+      'cpu.mean_usage_system',
+      'cpu.mean_usage_idle',
+      'cpu.mean_usage_user',
+    ].map(col => ({text: col}))
 
     return (
       <FancyScrollbar
@@ -80,7 +88,7 @@ class TableOptions extends Component {
       >
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Table Controls</h5>
-          <div className="gauge-controls">
+          <div className="form-group-wrapper">
             <GraphOptionsTimeFormat
               timeFormat={timeFormat}
               onTimeFormatChange={this.handleTimeFormatChange}
@@ -97,20 +105,22 @@ class TableOptions extends Component {
               singleStatType={singleStatType}
               onToggleTextWrapping={this.handleToggleTextWrapping}
             />
-            <GraphOptionsCustomizeColumns
-              columns={columns}
-              onColumnRename={this.handleColumnRename}
-            />
-            <GraphOptionsThresholds
-              onAddThreshold={this.handleAddThreshold}
-              disableAddThreshold={disableAddThreshold}
-              sortedColors={sortedColors}
-              formatColor={formatColor}
-              onChooseColor={this.handleChooseColor}
-              onValidateColorValue={this.handleValidateColorValue}
-              onUpdateColorValue={this.handleUpdateColorValue}
-              onDeleteThreshold={this.handleDeleteThreshold}
-            />
+          </div>
+          <GraphOptionsCustomizeColumns
+            columns={columns}
+            onColumnRename={this.handleColumnRename}
+          />
+          <GraphOptionsThresholds
+            onAddThreshold={this.handleAddThreshold}
+            disableAddThreshold={disableAddThreshold}
+            sortedColors={sortedColors}
+            formatColor={formatColor}
+            onChooseColor={this.handleChooseColor}
+            onValidateColorValue={this.handleValidateColorValue}
+            onUpdateColorValue={this.handleUpdateColorValue}
+            onDeleteThreshold={this.handleDeleteThreshold}
+          />
+          <div className="form-group-wrapper graph-options-group">
             <GraphOptionsThresholdColoring
               onToggleSingleStatType={this.handleToggleSingleStatType}
               singleStatColors={singleStatType}

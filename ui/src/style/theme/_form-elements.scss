@@ -8,10 +8,14 @@
   border: 2px solid $g5-pepper;
   border-radius: $radius;
   color: $g15-platinum;
+  letter-spacing: 0px;
   background-color: $g2-kevlar;
   font-weight: 600;
   box-shadow: none;
   outline: none;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
   transition:
     color 0.25s ease,
     background-color 0.25s ease,
@@ -188,7 +192,8 @@ textarea.form-control {
 .form-group > .btn {
   display: inline-block;
 }
-.form-group > label {
+.form-group > label,
+label.form-label {
   display: inline-block;
   font-size: 12px;
   font-weight: 600;

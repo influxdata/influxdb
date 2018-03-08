@@ -190,7 +190,7 @@ class GaugeOptions extends Component {
               />
             )}
           </div>
-          <div className="single-stat-controls">
+          <div className="graph-options-group form-group-wrapper">
             <div className="form-group col-xs-6">
               <label>Prefix</label>
               <input

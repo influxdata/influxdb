@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import moment from 'moment'
+import classnames from 'classnames'
 
 import InputClickToEdit from 'shared/components/InputClickToEdit'
 import {Dropdown} from 'src/shared/components/Dropdown'
@@ -43,9 +44,9 @@ class GraphOptionsTimeFormat extends Component {
       'For information on formatting, see http://momentjs.com/docs/#/parsing/string-format/'
 
     return (
-      <div className="gauge-controls--section">
+      <div className="form-group col-xs-12">
         <label>
-          Time Format{' '}
+          Time Format
           {customFormat &&
             <QuestionMarkTooltip
               tipID="Time Axis Format"
@@ -55,18 +56,21 @@ class GraphOptionsTimeFormat extends Component {
         <Dropdown
           items={formatOptions}
           selected={customFormat ? 'Custom' : format}
-          buttonColor="btn-primary"
+          buttonColor="btn-default"
           buttonSize="btn-xs"
           className="dropdown-stretch"
           onChoose={this.handleChooseFormat}
         />
         {customFormat &&
-          <InputClickToEdit
-            wrapperClass="fancytable--td"
-            value={format}
-            onUpdate={this.handleInputChange}
-            placeholder="Enter custom format..."
-          />}
+          <div className="column-controls--section">
+            <InputClickToEdit
+              wrapperClass="column-controls-input "
+              value={format}
+              onUpdate={this.handleInputChange}
+              placeholder="Enter custom format..."
+              appearAsNormalInput={true}
+            />
+          </div>}
       </div>
     )
   }

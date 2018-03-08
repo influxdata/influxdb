@@ -2,6 +2,7 @@ package oauth2
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
@@ -61,7 +62,19 @@ func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
 		DefaultOrganization DefaultOrg `json:"default_organization"`
 	}
 
-	resp, err := provider.Get(HerokuAccountRoute)
+	req, err := http.NewRequest("GET", HerokuAccountRoute, nil)
+	// Requests fail to Heroku unless this Accept header is set.
+	req.Header.Set("Accept", "application/vnd.heroku+json; version=3")
+	resp, err := provider.Do(req)
+	if resp.StatusCode/100 != 2 {
+		err := fmt.Errorf(
+			"Unable to GET user data from %s. Status: %s",
+			HerokuAccountRoute,
+			resp.Status,
+		)
+		h.Logger.Error("", err)
+		return "", err
+	}
 	if err != nil {
 		h.Logger.Error("Unable to communicate with Heroku. err:", err)
 		return "", err

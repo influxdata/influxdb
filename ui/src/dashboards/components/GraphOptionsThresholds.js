@@ -19,8 +19,8 @@ const GraphOptionsThresholds = ({
   onDeleteThreshold,
 }) => {
   return (
-    <div>
-      <label>Thresholds</label>
+    <div className="gauge-controls graph-options-group">
+      <label className="form-label">Thresholds</label>
       <button
         className="btn btn-sm btn-primary gauge-controls--add-threshold"
         onClick={onAddThreshold}

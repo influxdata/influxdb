@@ -1,6 +1,7 @@
 import React from 'react'
 import {Dropdown} from 'shared/components/Dropdown'
-import DropdownMenu from 'shared/components/DropdownMenu'
+import DropdownMenu, {DropdownMenuEmpty} from 'shared/components/DropdownMenu'
+import DropdownHead from 'shared/components/DropdownHead'
 import DropdownInput from 'shared/components/DropdownInput'
 
 import {mount} from 'enzyme'
@@ -38,17 +39,54 @@ const setup = (override = {}) => {
 describe('Components.Shared.Dropdown', () => {
   describe('rendering', () => {
     describe('initial render', () => {
-      it('renders the dropdown menu button', () => {
+      it('renders the <Dropdown/> button', () => {
         const {dropdown} = setup()
 
         expect(dropdown.exists()).toBe(true)
       })
 
-      it('does not show the list', () => {
+      it('does not show the <DropdownMenu/> list', () => {
         const {dropdown} = setup({items})
 
         const menu = dropdown.find(DropdownMenu)
         expect(menu.exists()).toBe(false)
+      })
+    })
+
+    describe('the <DropdownHead />', () => {
+      const {dropdown} = setup()
+      const head = dropdown.find(DropdownHead)
+
+      expect(head.exists()).toBe(true)
+    })
+
+    describe('when there are no items in the dropdown', () => {
+      it('renders the <DropdownMenuEmpty/> component', () => {
+        const {dropdown} = setup()
+        const empty = dropdown.find(DropdownMenuEmpty)
+
+        expect(empty.exists()).toBe(true)
+      })
+    })
+
+    describe('the <DropdownInput/>', () => {
+      it('does not display the input by default', () => {
+        const {dropdown} = setup()
+        const input = dropdown.find(DropdownInput)
+
+        expect(input.exists()).toBe(false)
+      })
+
+      it('displays the input when provided useAutoCompelete is true', () => {
+        const {dropdown} = setup({items, useAutoComplete: true})
+        let input = dropdown.find(DropdownInput)
+
+        expect(input.exists()).toBe(false)
+
+        dropdown.simulate('click')
+        input = dropdown.find(DropdownInput)
+
+        expect(input.exists()).toBe(true)
       })
     })
 
@@ -75,22 +113,6 @@ describe('Components.Shared.Dropdown', () => {
           const menu = dropdown.find(DropdownMenu)
           expect(dropdown.state().isOpen).toBe(false)
           expect(menu.exists()).toBe(false)
-        })
-      })
-
-      describe('the <DropdownInput/>', () => {
-        it('does not display the input by default', () => {
-          const {dropdown} = setup()
-          const input = dropdown.find(DropdownInput)
-
-          expect(input.exists()).toBe(false)
-        })
-
-        it('displays the input when provided useAutoCompelete is true', () => {
-          const {dropdown} = setup({items, useAutoComplete: true})
-          const input = dropdown.find(DropdownInput)
-
-          expect(input.exists()).toBe(false)
         })
       })
     })
@@ -200,6 +222,94 @@ describe('Components.Shared.Dropdown', () => {
         expect(dropdown.state().searchTerm).toBe(searchTerm)
         expect(dropdown.state().filteredItems).toEqual(filteredItems)
         expect(dropdown.state().highlightedItemIndex).toBe(highlightedItemIndex)
+      })
+    })
+
+    describe('handleFilterKeyPress', () => {
+      describe('when Enter is pressed and there are items', () => {
+        it('sets state of isOpen to false', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({isOpen: true})
+          expect(dropdown.state().isOpen).toBe(true)
+
+          dropdown.instance().handleFilterKeyPress({key: 'Enter'})
+          expect(dropdown.state().isOpen).toBe(false)
+        })
+
+        it('fires onChoose with the items at the highlighted index', () => {
+          const onChoose = jest.fn(item => item)
+          const highlightedItemIndex = 1
+          const {dropdown} = setup({items, onChoose})
+          dropdown.setState({highlightedItemIndex})
+
+          dropdown.instance().handleFilterKeyPress({key: 'Enter'})
+          expect(onChoose).toHaveBeenCalledTimes(1)
+          expect(onChoose.mock.calls[0][0]).toEqual(items[highlightedItemIndex])
+        })
+      })
+
+      describe('when Escape is pressed', () => {
+        it('sets isOpen state to false', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({isOpen: true})
+
+          expect(dropdown.state().isOpen).toBe(true)
+
+          dropdown.instance().handleFilterKeyPress({key: 'Escape'})
+
+          expect(dropdown.state().isOpen).toBe(false)
+        })
+      })
+
+      describe('when ArrowUp is pressed', () => {
+        it('decrements the highlightedItemIndex', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({highlightedItemIndex: 1})
+
+          dropdown.instance().handleFilterKeyPress({key: 'ArrowUp'})
+          expect(dropdown.state().highlightedItemIndex).toBe(0)
+        })
+
+        it('does not decrement highlightedItemIndex past 0', () => {
+          const {dropdown} = setup({items})
+          dropdown.setState({highlightedItemIndex: 0})
+
+          dropdown.instance().handleFilterKeyPress({key: 'ArrowUp'})
+          expect(dropdown.state().highlightedItemIndex).toBe(0)
+        })
+      })
+
+      describe('when ArrowDown is pressed', () => {
+        describe('if no highlight has been set', () => {
+          it('starts highlighted index at 0', () => {
+            const {dropdown} = setup({items})
+            expect(dropdown.state().highlightedItemIndex).toBe(null)
+
+            dropdown.instance().handleFilterKeyPress({key: 'ArrowDown'})
+            expect(dropdown.state().highlightedItemIndex).toBe(0)
+          })
+        })
+
+        describe('if highlightedItemIndex has been set', () => {
+          it('it increments the index', () => {
+            const {dropdown} = setup({items})
+            dropdown.setState({highlightedItemIndex: 0})
+
+            dropdown.instance().handleFilterKeyPress({key: 'ArrowDown'})
+            expect(dropdown.state().highlightedItemIndex).toBe(1)
+          })
+
+          describe('when highilghtedItemIndex is at the end of the list', () => {
+            it('does not exceed the list length', () => {
+              const {dropdown} = setup({items})
+              dropdown.setState({highlightedItemIndex: 1})
+
+              const expectedIndex = items.length - 1
+              dropdown.instance().handleFilterKeyPress({key: 'ArrowDown'})
+              expect(dropdown.state().highlightedItemIndex).toBe(expectedIndex)
+            })
+          })
+        })
       })
     })
   })
