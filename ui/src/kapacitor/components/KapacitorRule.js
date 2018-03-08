@@ -16,6 +16,8 @@ import {timeRanges} from 'shared/data/timeRanges'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
+import {ruleBuilderNotifications} from 'shared/copy/notificationsCopy'
+
 class KapacitorRule extends Component {
   constructor(props) {
     super(props)
@@ -47,20 +49,10 @@ class KapacitorRule extends Component {
     createRule(kapacitor, newRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        publishNotification({
-          type: 'success',
-          icon: 'checkmark',
-          duration: 5000,
-          message: 'Rule successfully created',
-        })
+        publishNotification(ruleBuilderNotifications.createSuccess)
       })
       .catch(() => {
-        publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: 'There was a problem creating the rule',
-        })
+        publishNotification(ruleBuilderNotifications.createFail)
       })
   }
 
@@ -73,20 +65,12 @@ class KapacitorRule extends Component {
     editRule(updatedRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        publishNotification({
-          type: 'success',
-          icon: 'checkmark',
-          duration: 5000,
-          message: `${rule.name} successfully saved!`,
-        })
+        publishNotification(ruleBuilderNotifications.updateSuccess(rule.name))
       })
       .catch(e => {
-        publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: `There was a problem saving ${rule.name}: ${e.data.message}`,
-        })
+        publishNotification(
+          ruleBuilderNotifications.updateFail(rule.name, e.data.message)
+        )
       })
   }
 
@@ -132,11 +116,11 @@ class KapacitorRule extends Component {
     }
 
     if (!buildInfluxQLQuery({}, query)) {
-      return 'Please select a Database, Measurement, and Field'
+      return ruleBuilderNotifications.validation.missingQuery
     }
 
     if (!rule.values.value) {
-      return 'Please enter a value in the Conditions section'
+      return ruleBuilderNotifications.validation.missingCondition
     }
 
     return ''
@@ -145,7 +129,7 @@ class KapacitorRule extends Component {
   deadmanValidation = () => {
     const {query} = this.props
     if (query && (!query.database || !query.measurement)) {
-      return 'Deadman rules require a Database and Measurement'
+      return ruleBuilderNotifications.validation.deadman
     }
 
     return ''

@@ -10,6 +10,7 @@ import {publishNotification as publishNotificationAction} from 'shared/actions/n
 import {formatRPDuration} from 'utils/formatting'
 import YesNoButtons from 'shared/components/YesNoButtons'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
+import {influxAdminValidationNotifications} from 'shared/copy/notificationsCopy'
 
 class DatabaseRow extends Component {
   constructor(props) {
@@ -115,12 +116,7 @@ class DatabaseRow extends Component {
     const replication = isRFDisplayed ? +this.replication.value.trim() : 1
 
     if (!duration || (isRFDisplayed && !replication)) {
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'Fields cannot be empty',
-      })
+      publishNotification(influxAdminValidationNotifications.createRP)
       return
     }
 

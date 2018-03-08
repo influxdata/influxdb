@@ -5,6 +5,8 @@ import {getLinksAsync} from 'shared/actions/links'
 import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
+import {multitenancyUserNotifications} from 'shared/copy/notificationsCopy'
+
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',
   payload: {
@@ -90,13 +92,12 @@ export const meChangeOrganizationAsync = (
       r => r.organization === me.currentOrganization.id
     )
     dispatch(
-      publishNotification({
-        type: 'success',
-        icon: 'checkmark',
-        duration: 5000,
-        message: `Now logged in to '${me.currentOrganization
-          .name}' as '${currentRole.name}'`,
-      })
+      publishNotification(
+        multitenancyUserNotifications.switchOrg(
+          me.currentOrganization.name,
+          currentRole.name
+        )
+      )
     )
     dispatch(meChangeOrganizationCompleted())
     dispatch(meGetCompleted({me, auth, logoutLink}))

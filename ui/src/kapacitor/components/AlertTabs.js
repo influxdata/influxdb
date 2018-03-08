@@ -27,6 +27,8 @@ import {
   VictorOpsConfig,
 } from './config'
 
+import {kapacitorConfigNotifications} from 'shared/copy/notificationsCopy'
+
 class AlertTabs extends Component {
   constructor(props) {
     super(props)
@@ -52,12 +54,7 @@ class AlertTabs extends Component {
       this.setState({configSections: sections})
     } catch (error) {
       this.setState({configSections: null})
-      this.props.publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'There was an error getting the Kapacitor config',
-      })
+      this.props.publishNotification(kapacitorConfigNotifications.refreshFail)
     }
   }
 
@@ -87,21 +84,15 @@ class AlertTabs extends Component {
           propsToSend
         )
         this.refreshKapacitorConfig(this.props.kapacitor)
-        this.props.publishNotification({
-          type: 'success',
-          icon: 'checkmark',
-          duration: 5000,
-          message: `Alert configuration for ${section} successfully saved.`,
-        })
+        this.props.publishNotification(
+          kapacitorConfigNotifications.saveEndpointSuccess(section)
+        )
         return true
       } catch ({data: {error}}) {
         const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
-        this.props.publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: `There was an error saving the alert configuration for ${section}: ${errorMsg}`,
-        })
+        this.props.publishNotification(
+          kapacitorConfigNotifications.saveEndpointFail(section, errorMsg)
+        )
         return false
       }
     }
@@ -113,27 +104,18 @@ class AlertTabs extends Component {
     try {
       const {data} = await testAlertOutput(this.props.kapacitor, section)
       if (data.success) {
-        this.props.publishNotification({
-          type: 'success',
-          icon: 'checkmark',
-          duration: 5000,
-          message: `Successfully triggered an alert to ${section}. If the alert does not reach its destination, please check your configuration settings.`,
-        })
+        this.props.publishNotification(
+          kapacitorConfigNotifications.testEndpointSucess(section)
+        )
       } else {
-        this.props.publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: `There was an error sending an alert to ${section}: ${data.message}`,
-        })
+        this.props.publishNotification(
+          kapacitorConfigNotifications.testEndpointFail(section, data.message)
+        )
       }
     } catch (error) {
-      this.props.publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: `There was an error sending an alert to ${section}.`,
-      })
+      this.props.publishNotification(
+        kapacitorConfigNotifications.testEndpointFail(section)
+      )
     }
   }
 

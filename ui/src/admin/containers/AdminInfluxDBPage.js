@@ -31,6 +31,8 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
+import {influxAdminValidationNotifications} from 'shared/copy/notificationsCopy'
+
 const isValidUser = user => {
   const minLen = 3
   return user.name.length >= minLen && user.password.length >= minLen
@@ -75,12 +77,7 @@ class AdminInfluxDBPage extends Component {
   handleSaveUser = async user => {
     const {publishNotification} = this.props
     if (!isValidUser(user)) {
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'Username and/or password too short',
-      })
+      publishNotification(influxAdminValidationNotifications.saveUser)
       return
     }
     if (user.isNew) {
@@ -93,12 +90,7 @@ class AdminInfluxDBPage extends Component {
   handleSaveRole = async role => {
     const {publishNotification} = this.props
     if (!isValidRole(role)) {
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'Role name too short',
-      })
+      publishNotification(influxAdminValidationNotifications.saveRole)
       return
     }
     if (role.isNew) {

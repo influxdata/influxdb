@@ -9,6 +9,7 @@ import {publishNotification} from './notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {HTTP_NOT_FOUND} from 'shared/constants'
+import {internalServerErrorNotifications} from 'shared/copy/notificationsCopy'
 
 export const loadSources = sources => ({
   type: 'LOAD_SOURCES',
@@ -71,14 +72,7 @@ export const removeAndLoadSources = source => async dispatch => {
     const {data: {sources: newSources}} = await getSourcesAJAX()
     dispatch(loadSources(newSources))
   } catch (err) {
-    dispatch(
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        mesasage: 'Internal Server Error. Check API Logs',
-      })
-    )
+    dispatch(publishNotification(internalServerErrorNotifications().checkLogs))
   }
 }
 
@@ -88,12 +82,9 @@ export const fetchKapacitorsAsync = source => async dispatch => {
     dispatch(fetchKapacitors(source, data.kapacitors))
   } catch (err) {
     dispatch(
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        mesasage: `Internal Server Error. Could not retrieve kapacitors for source ${source.id}.`,
-      })
+      publishNotification(
+        internalServerErrorNotifications(source.id).noKapacitors
+      )
     )
   }
 }
@@ -111,12 +102,9 @@ export const deleteKapacitorAsync = kapacitor => async dispatch => {
     dispatch(deleteKapacitor(kapacitor))
   } catch (err) {
     dispatch(
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'Internal Server Error. Could not delete Kapacitor config.',
-      })
+      publishNotification(
+        internalServerErrorNotifications().deleteKapacitorFail
+      )
     )
   }
 }

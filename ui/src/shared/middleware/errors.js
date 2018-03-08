@@ -4,6 +4,11 @@ import {authExpired} from 'shared/actions/auth'
 import {publishNotification} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
+import {
+  multitenancyUserNotifications,
+  sessionTimeoutNotification,
+  notificationWithAltText,
+} from 'shared/copy/notificationsCopy'
 
 const actionsAllowedDuringBlackout = [
   '@@',
@@ -36,23 +41,13 @@ const errorsMiddleware = store => next => action => {
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
         store.dispatch(
-          publishNotification({
-            type: alertType,
-            icon: 'circle',
-            duration: -1,
-            message,
-          })
+          publishNotification(multitenancyUserNotifications.unauthorized)
         )
       }
 
       if (organizationWasRemoved) {
         store.dispatch(
-          publishNotification({
-            type: alertType,
-            icon: 'circle',
-            duration: -1,
-            message: 'Your current organization was deleted.',
-          })
+          publishNotification(multitenancyUserNotifications.currentDeleted)
         )
 
         allowNotifications = false
@@ -60,14 +55,7 @@ const errorsMiddleware = store => next => action => {
           allowNotifications = true
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
-        store.dispatch(
-          publishNotification({
-            type: alertType,
-            icon: 'circle',
-            duration: -1,
-            message: 'Your session has timed out. Log in again to continue.',
-          })
-        )
+        store.dispatch(publishNotification(sessionTimeoutNotification))
 
         allowNotifications = false
         setTimeout(() => {
@@ -76,12 +64,7 @@ const errorsMiddleware = store => next => action => {
       }
     } else if (altText) {
       store.dispatch(
-        publishNotification({
-          type: alertType,
-          icon: 'circle',
-          duration: -1,
-          message: altText,
-        })
+        publishNotification(notificationWithAltText(alertType, altText))
       )
     } else {
       // TODO: actually do proper error handling

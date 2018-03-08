@@ -18,6 +18,10 @@ import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
+import {
+  multitenancyUserNotifications,
+  sourceNotifications,
+} from 'shared/copy/notificationsCopy'
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
@@ -85,13 +89,7 @@ class CheckSources extends Component {
     }
 
     if (!isFetching && isUsingAuth && !organizations.length) {
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message:
-          'You have been removed from all organizations. Please contact your administrator.',
-      })
+      publishNotification(multitenancyUserNotifications.removedFromAll)
       return router.push('/purgatory')
     }
 
@@ -99,12 +97,7 @@ class CheckSources extends Component {
       me.superAdmin &&
       !organizations.find(o => o.id === currentOrganization.id)
     ) {
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'You were removed from your current organization',
-      })
+      publishNotification(multitenancyUserNotifications.removedFromCurrent)
       return router.push('/purgatory')
     }
 
@@ -126,12 +119,7 @@ class CheckSources extends Component {
           return router.push(`/sources/${sources[0].id}/${restString}`)
         }
         // if you're a viewer and there are no sources, go to purgatory.
-        publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: 'Organization has no sources configured',
-        })
+        publishNotification(multitenancyUserNotifications.noSources)
         return router.push('/purgatory')
       }
 
@@ -156,18 +144,12 @@ class CheckSources extends Component {
         try {
           const newSources = await getSources()
           if (newSources.length) {
-            errorThrown(
-              error,
-              `Source ${source.name} is no longer available. Successfully connected to another source.`
-            )
+            errorThrown(error, sourceNotifications.unavailable(source.name))
           } else {
-            errorThrown(
-              error,
-              `Unable to connect to source ${source.name}. No other sources available.`
-            )
+            errorThrown(error, sourceNotifications.noneAvailable(source.name))
           }
         } catch (error2) {
-          errorThrown(error2, 'Unable to retrieve sources')
+          errorThrown(error2, sourceNotifications.retrievalFail)
         }
       }
     }

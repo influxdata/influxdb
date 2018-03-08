@@ -7,6 +7,7 @@ import {publishNotification as publishNotificationAction} from 'shared/actions/n
 
 import Dropdown from 'shared/components/Dropdown'
 
+import {chronografUserNotifications} from 'shared/copy/notificationsCopy'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 
@@ -64,12 +65,9 @@ class UsersTableRowNew extends Component {
 
     if (e.key === 'Enter') {
       if (preventCreate) {
-        return this.props.publishNotification({
-          type: 'warning',
-          icon: 'alert-triangle',
-          duration: 5000,
-          message: 'User must have a name and provider',
-        })
+        return this.props.publishNotification(
+          chronografUserNotifications.addUserValidation
+        )
       }
       this.handleConfirmCreateUser()
     }

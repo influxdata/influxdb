@@ -12,6 +12,8 @@ import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 import parseHandlersFromConfig from 'src/shared/parsing/parseHandlersFromConfig'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
+import {kapacitorConfigNotifications} from 'shared/copy/notificationsCopy'
+
 class KapacitorRulePage extends Component {
   constructor(props) {
     super(props)
@@ -33,12 +35,7 @@ class KapacitorRulePage extends Component {
 
     const kapacitor = await getActiveKapacitor(this.props.source)
     if (!kapacitor) {
-      return publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: "We couldn't find a configured Kapacitor for this source", // eslint-disable-line quotes
-      })
+      return publishNotification(kapacitorConfigNotifications.notFound)
     }
 
     try {
@@ -46,12 +43,7 @@ class KapacitorRulePage extends Component {
       const handlersFromConfig = parseHandlersFromConfig(kapacitorConfig)
       this.setState({kapacitor, handlersFromConfig})
     } catch (error) {
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'There was a problem communicating with Kapacitor',
-      })
+      publishNotification(kapacitorConfigNotifications.createFail)
       console.error(error)
       throw error
     }

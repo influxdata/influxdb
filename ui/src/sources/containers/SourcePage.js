@@ -19,6 +19,8 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import {DEFAULT_SOURCE} from 'shared/constants'
 const initialPath = '/sources/new'
 
+import {sourceNotifications} from 'shared/copy/notificationsCopy'
+
 class SourcePage extends Component {
   constructor(props) {
     super(props)
@@ -33,7 +35,7 @@ class SourcePage extends Component {
 
   componentDidMount() {
     const {editMode} = this.state
-    const {params} = this.props
+    const {params, publishNotification} = this.props
 
     if (!editMode) {
       return this.setState({isLoading: false})
@@ -47,7 +49,9 @@ class SourcePage extends Component {
         })
       })
       .catch(error => {
-        this.handleError('Could not connect to source', error)
+        publishNotification(
+          sourceNotifications.connectionError(this._parseError(error))
+        )
         this.setState({isLoading: false})
       })
   }
@@ -96,18 +100,6 @@ class SourcePage extends Component {
     this.setState(this._normalizeSource, this._updateSource)
   }
 
-  handleError = (bannerText, err) => {
-    const {publishNotification} = this.props
-    const error = this._parseError(err)
-    console.error('Error: ', error)
-    publishNotification({
-      type: 'error',
-      icon: 'alert-triangle',
-      duration: 10000,
-      message: `${bannerText}: ${error}`,
-    })
-  }
-
   gotoPurgatory = () => {
     const {router} = this.props
     router.push('/purgatory')
@@ -149,15 +141,12 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.addSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        publishNotification({
-          type: 'success',
-          icon: 'server2',
-          duration: 5000,
-          message: `InfluxDB ${source.name} available as a connection`,
-        })
+        publishNotification(sourceNotifications.createSuccess(source.name))
       })
       .catch(error => {
-        this.handleError('Unable to create InfluxDB connection', error)
+        publishNotification(
+          sourceNotifications.createFail(source.name, this._parseError(error))
+        )
       })
   }
 
@@ -168,15 +157,12 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.updateSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        publishNotification({
-          type: 'success',
-          icon: 'server2',
-          duration: 5000,
-          message: `InfluxDB connection ${source.name} updated`,
-        })
+        publishNotification(sourceNotifications.updateSuccess(source.name))
       })
       .catch(error => {
-        this.handleError('Unable to update InfluxDB connection', error)
+        publishNotification(
+          sourceNotifications.updateFail(source.name, this._parseError(error))
+        )
       })
   }
 

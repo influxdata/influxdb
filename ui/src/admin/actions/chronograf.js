@@ -18,12 +18,7 @@ import {
 
 import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
-import {
-  mappingDeletedNotification,
-  updateUserSuccessNotification,
-  deleteOrgSuccessNotification,
-  userRemovedFromOrgNotification,
-} from 'shared/copy/notificationsCopy'
+import {chronografUserNotifications} from 'shared/copy/notificationsCopy'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
 
@@ -185,7 +180,7 @@ export const deleteMappingAsync = mapping => async dispatch => {
     await deleteMappingAJAX(mapping)
     dispatch(
       publishNotification(
-        mappingDeletedNotification(mapping.id, mapping.scheme)
+        chronografUserNotifications.deleteMapping(mapping.id, mapping.scheme)
       )
     )
   } catch (error) {
@@ -243,7 +238,11 @@ export const updateUserAsync = (
       provider: null,
       scheme: null,
     })
-    dispatch(publishNotification(updateUserSuccessNotification(successMessage)))
+    dispatch(
+      publishNotification(
+        chronografUserNotifications.updateUser(successMessage)
+      )
+    )
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))
@@ -262,7 +261,7 @@ export const deleteUserAsync = (
     await deleteUserAJAX(user)
     dispatch(
       publishNotification(
-        userRemovedFromOrgNotification(user.name, isAbsoluteDelete)
+        chronografUserNotifications.deleteUser(user.name, isAbsoluteDelete)
       )
     )
   } catch (error) {
@@ -316,7 +315,9 @@ export const deleteOrganizationAsync = organization => async dispatch => {
   try {
     await deleteOrganizationAJAX(organization)
     dispatch(
-      publishNotification(deleteOrgSuccessNotification(organization.name))
+      publishNotification(
+        chronografUserNotifications.deleteOrg(organization.name)
+      )
     )
   } catch (error) {
     dispatch(errorThrown(error))

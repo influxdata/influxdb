@@ -13,6 +13,8 @@ import {
 } from 'shared/apis'
 import KapacitorForm from '../components/KapacitorForm'
 
+import {kapacitorConfigNotifications} from 'shared/copy/notificationsCopy'
+
 const defaultName = 'My Kapacitor'
 const kapacitorPort = '9092'
 
@@ -48,12 +50,7 @@ class KapacitorPage extends Component {
       this.setState({exists: true})
     } catch (error) {
       this.setState({exists: false})
-      this.props.publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        text: 'Could not connect to Kapacitor. Check settings.',
-      })
+      this.props.publishNotification(kapacitorConfigNotifications.connectFail)
     }
   }
 
@@ -85,12 +82,9 @@ class KapacitorPage extends Component {
     const isNew = !params.id
 
     if (isNew && isNameTaken) {
-      publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
-      })
+      publishNotification(
+        kapacitorConfigNotifications.alreadyTaken(kapacitor.name)
+      )
       return
     }
 
@@ -99,20 +93,10 @@ class KapacitorPage extends Component {
         .then(({data}) => {
           this.setState({kapacitor: data})
           this.checkKapacitorConnection(data)
-          publishNotification({
-            type: 'success',
-            icon: 'checkmark',
-            duration: 5000,
-            message: 'Kapacitor Updated!',
-          })
+          publishNotification(kapacitorConfigNotifications.updateSuccess)
         })
         .catch(() => {
-          publishNotification({
-            type: 'error',
-            icon: 'alert-triangle',
-            duration: 10000,
-            text: 'There was a problem updating the Kapacitor record',
-          })
+          publishNotification(kapacitorConfigNotifications.updateFail)
         })
     } else {
       createKapacitor(source, kapacitor)
@@ -121,20 +105,10 @@ class KapacitorPage extends Component {
           this.setState({kapacitor: data})
           this.checkKapacitorConnection(data)
           router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-          publishNotification({
-            type: 'success',
-            icon: 'checkmark',
-            duration: 5000,
-            text: 'Kapacitor Created! Configuring endpoints is optional.',
-          })
+          publishNotification(kapacitorConfigNotifications.createSuccess)
         })
         .catch(() => {
-          publishNotification({
-            type: 'error',
-            icon: 'alert-triangle',
-            duration: 10000,
-            text: 'There was a problem creating the Kapacitor record',
-          })
+          publishNotification(kapacitorConfigNotifications.createFail)
         })
     }
   }

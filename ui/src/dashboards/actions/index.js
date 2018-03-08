@@ -12,6 +12,7 @@ import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
+import {dashboardNotifications} from 'shared/copy/notificationsCopy'
 
 import {
   TEMPLATE_VARIABLE_SELECTED,
@@ -258,16 +259,14 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
   try {
     await deleteDashboardAJAX(dashboard)
     dispatch(
-      publishNotification({
-        type: 'success',
-        icon: 'checkmark',
-        duration: 5000,
-        message: 'Dashboard deleted successfully.',
-      })
+      publishNotification(dashboardNotifications.deleteSuccess(dashboard.name))
     )
   } catch (error) {
     dispatch(
-      errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`)
+      errorThrown(
+        error,
+        dashboardNotifications.deleteFail(dashboard.name, error.data.message)
+      )
     )
     dispatch(deleteDashboardFailed(dashboard))
   }

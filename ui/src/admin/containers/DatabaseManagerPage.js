@@ -9,6 +9,8 @@ import DatabaseManager from 'src/admin/components/DatabaseManager'
 import * as adminActionCreators from 'src/admin/actions/influxdb'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
+import {influxAdminValidationNotifications} from 'shared/copy/notificationsCopy'
+
 class DatabaseManagerPage extends Component {
   constructor(props) {
     super(props)
@@ -35,21 +37,11 @@ class DatabaseManagerPage extends Component {
   handleCreateDatabase = database => {
     const {actions, publishNotification, source, databases} = this.props
     if (!database.name) {
-      return publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'Database name cannot be blank',
-      })
+      return publishNotification(influxAdminValidationNotifications.dbNameBlank)
     }
 
     if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-      return publishNotification({
-        type: 'error',
-        icon: 'alert-triangle',
-        duration: 10000,
-        message: 'A database by this name already exists',
-      })
+      return publishNotification(influxAdminValidationNotifications.dbNameTaken)
     }
 
     actions.createDatabaseAsync(source.links.databases, database)
@@ -70,21 +62,15 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (!database.name) {
-        return publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: 'Database name cannot be blank',
-        })
+        return publishNotification(
+          influxAdminValidationNotifications.dbNameBlank
+        )
       }
 
       if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-        return publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: 'A database by this name already exists',
-        })
+        return publishNotification(
+          influxAdminValidationNotifications.dbNameTaken
+        )
       }
 
       actions.createDatabaseAsync(source.links.databases, database)
@@ -101,12 +87,9 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (database.deleteCode !== `DELETE ${database.name}`) {
-        return publishNotification({
-          type: 'error',
-          icon: 'alert-triangle',
-          duration: 10000,
-          message: `Please type DELETE ${database.name} to confirm`,
-        })
+        return publishNotification(
+          influxAdminValidationNotifications.deleteConfirm(database.name)
+        )
       }
 
       return actions.deleteDatabaseAsync(database)
