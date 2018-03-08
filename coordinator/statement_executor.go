@@ -1216,7 +1216,7 @@ func (e *StatementExecutor) writeInto(w pointsWriter, stmt *influxql.SelectState
 	// convert rows back to points. The Executors (both aggregate and raw) are complex
 	// enough that changing them to write back to the DB is going to be clumsy
 	//
-	// it might seem weird to have the write be in the QueryExecutor, but the interweaving of
+	// it might seem weird to have the write be in the Executor, but the interweaving of
 	// limitedRowWriter and ExecuteAggregate/Raw makes it ridiculously hard to make sure that the
 	// results will be the same as when queried normally.
 	name := stmt.Target.Measurement.Name

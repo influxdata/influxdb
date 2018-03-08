@@ -54,7 +54,7 @@ type TaskManager struct {
 	Logger *zap.Logger
 
 	// Used for managing and tracking running queries.
-	queries  map[uint64]*QueryTask
+	queries  map[uint64]*Task
 	nextID   uint64
 	mu       sync.RWMutex
 	shutdown bool
@@ -65,7 +65,7 @@ func NewTaskManager() *TaskManager {
 	return &TaskManager{
 		QueryTimeout: DefaultQueryTimeout,
 		Logger:       zap.NewNop(),
-		queries:      make(map[uint64]*QueryTask),
+		queries:      make(map[uint64]*Task),
 		nextID:       1,
 	}
 }
@@ -150,7 +150,7 @@ func (t *TaskManager) queryError(qid uint64, err error) {
 // query finishes running.
 //
 // After a query finishes running, the system is free to reuse a query id.
-func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt <-chan struct{}) (uint64, *QueryTask, error) {
+func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt <-chan struct{}) (uint64, *Task, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -163,7 +163,7 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt 
 	}
 
 	qid := t.nextID
-	query := &QueryTask{
+	query := &Task{
 		query:     q.String(),
 		database:  database,
 		status:    RunningTask,

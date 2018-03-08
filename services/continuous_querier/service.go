@@ -82,7 +82,7 @@ func (nullMonitor) WritePoints(models.Points) error { return nil }
 // Service manages continuous query execution.
 type Service struct {
 	MetaClient    metaClient
-	QueryExecutor *query.QueryExecutor
+	QueryExecutor *query.Executor
 	Monitor       Monitor
 	Config        *Config
 	RunInterval   time.Duration
@@ -420,7 +420,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *query.Result {
-	// Wrap the CQ's inner SELECT statement in a Query for the QueryExecutor.
+	// Wrap the CQ's inner SELECT statement in a Query for the Executor.
 	q := &influxql.Query{
 		Statements: influxql.Statements([]influxql.Statement{cq.q}),
 	}

@@ -70,7 +70,7 @@ type Server struct {
 	MetaClient *meta.Client
 
 	TSDBStore     *tsdb.Store
-	QueryExecutor *query.QueryExecutor
+	QueryExecutor *query.Executor
 	PointsWriter  *coordinator.PointsWriter
 	Subscriber    *subscriber.Service
 
@@ -178,7 +178,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter.TSDBStore = s.TSDBStore
 
 	// Initialize query executor.
-	s.QueryExecutor = query.NewQueryExecutor()
+	s.QueryExecutor = query.NewExecutor()
 	s.QueryExecutor.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient:  s.MetaClient,
 		TaskManager: s.QueryExecutor.TaskManager,

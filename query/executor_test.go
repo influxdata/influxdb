@@ -21,8 +21,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
-func NewQueryExecutor() *query.QueryExecutor {
-	return query.NewQueryExecutor()
+func NewQueryExecutor() *query.Executor {
+	return query.NewExecutor()
 }
 
 func TestQueryExecutor_AttachQuery(t *testing.T) {
