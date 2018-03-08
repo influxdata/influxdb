@@ -17,8 +17,8 @@ interface Props {
   organizations: Organization[]
   schemes?: Scheme[]
   rowIndex?: number
-  onCreate: (state: State) => {}
-  onCancel: () => {}
+  onCreate: (state: State) => void
+  onCancel: () => void
 }
 
 interface State {
