@@ -54,8 +54,6 @@ class Dygraph extends Component {
       logscale: y.scale === LOG,
       colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
-      unhighlightCallback: this.unhighlightCallback,
-      highlightCallback: this.highlightCallback,
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
@@ -139,8 +137,6 @@ class Dygraph extends Component {
     const updateOptions = {
       ...options,
       labels,
-      unhighlightCallback: this.unhighlightCallback,
-      highlightCallback: this.highlightCallback,
       file: timeSeries,
       logscale: y.scale === LOG,
       ylabel: this.getLabel('y'),
@@ -378,6 +374,8 @@ class Dygraph extends Component {
           }}
           className="dygraph-child-container"
           style={dygraphStyle}
+          onMouseMove={this.highlightCallback}
+          onMouseOut={this.unhighlightCallback}
         />
         {staticLegend &&
           <StaticLegend
