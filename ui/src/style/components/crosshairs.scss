@@ -1,58 +1,8 @@
-$crosshair-color: $g20-white;
-$crosshair-color__drag: $c-hydrogen;
-
-$window0: rgba($crosshair-color, 0);
-$window15: rgba($crosshair-color, 0.15);
-$window35: rgba($crosshair-color, 0.35);
-
-$active-window0: rgba($crosshair-color__drag, 0);
-$active-window15: rgba($crosshair-color__drag, 0.15);
-$active-window35: rgba($crosshair-color__drag, 0.35);
-
-$timestamp-font-size: 14px;
-$timestamp-font-weight: 600;
-
-.crosshair {
-  position: absolute;
-  top: 8px;
-  z-index: 3;
-  background-color: $crosshair-color;
-  height: calc(100% - 36px);
-  width: 2px;
-  transform: translateX(
-    -1px
-  ); // translate should always be half with width to horizontally center the crosshair pos
-  transition: background-color 0.25s ease;
-  visibility: visible;
-
-  &.dragging {
-    background-color: $crosshair-color__drag;
-    z-index: 4;
-  }
-}
-
-.crosshair-window {
-  position: absolute;
-  top: 8px;
-  background: linear-gradient(to bottom, $window15 0%, $window0 100%);
-  border-top: 2px dotted $window35;
-  z-index: 1;
-
-  &.active {
-    background: linear-gradient(
-      to bottom,
-      $active-window15 0%,
-      $active-window0 100%
-    );
-    border-top: 2px dotted $active-window35;
-  }
-}
-
 /*
-  New crosshairs
+  Crosshairs
   ------------------------------------------------------------------------------
 */
-.new-crosshair {
+.crosshair {
   position: absolute;
   z-index: 0;
   top: 8px;
@@ -62,46 +12,18 @@ $timestamp-font-weight: 600;
   opacity: 1;
 }
 
-.new-crosshair--crosshair {
+.crosshair--crosshair {
   opacity: 1;
   position: absolute;
   top: 0;
   height: calc(100% - 20px);
   width: 0.5px;
-  transform: translateX(-1px);
   background: linear-gradient(to bottom, $c-dreamsicle 0%, $c-dreamsicle 100%);
   transition: opacity 0.4s ease;
   z-index: 5;
   cursor: pointer;
 }
 
-.new-crosshair-tooltip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: linear-gradient(to bottom, $c-pool 0%, $c-ocean 100%);
-  border-radius: 4px;
-  padding: 6px 12px;
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-}
-
-.new-crosshair-helper {
-  white-space: nowrap;
-  font-size: 13px;
-  line-height: 13px;
-  font-weight: 600;
-  color: $c-neutrino;
-  margin-bottom: 4px;
-}
-
-.new-crosshair-timestamp {
-  white-space: nowrap;
-  font-size: $timestamp-font-size;
-  line-height: $timestamp-font-size;
-  font-weight: $timestamp-font-weight;
-  color: $g20-white;
+.crosshair--crosshair.hidden {
+  visibility: hidden;
 }

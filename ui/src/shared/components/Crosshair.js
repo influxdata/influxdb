@@ -1,5 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'shared/constants'
+import classnames from 'classnames'
 
 class Crosshair extends Component {
   render() {
@@ -14,12 +15,15 @@ class Crosshair extends Component {
     )
     const crosshairHeight = `calc(100% - ${staticLegendHeight +
       DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
+
     return (
-      <div className="new-crosshair" ref={el => handleCrosshairRef(el)}>
+      <div className="crosshair" ref={el => handleCrosshairRef(el)}>
         <div
-          className="new-crosshair--crosshair"
+          className={classnames('crosshair--crosshair', {
+            hidden: crosshairleft < 0,
+          })}
           style={{
-            left: crosshairleft + 1,
+            left: crosshairleft,
             height: crosshairHeight,
             zIndex: 1999,
           }}
