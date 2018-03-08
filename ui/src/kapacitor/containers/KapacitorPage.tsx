@@ -78,21 +78,8 @@ export class KapacitorPage extends PureComponent<Props, State> {
     }
   }
 
-  checkKapacitorConnection = async kapacitor => {
-    try {
-      await pingKapacitor(kapacitor)
-      this.setState({exists: true})
-    } catch (error) {
-      this.setState({exists: false})
-      this.props.addFlashMessage({
-        type: 'error',
-        text: 'Could not connect to Kapacitor. Check settings.',
-      })
-    }
-  }
-
-  handleInputChange = e => {
-    const {value, name} = e.target
+  handleInputChange = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    const {value, name} = e.target as HTMLFormElement
 
     this.setState(prevState => {
       const update = {[name]: value}
@@ -176,10 +163,9 @@ export class KapacitorPage extends PureComponent<Props, State> {
     this.setState({kapacitor: {...defaultState}})
   }
 
-  private checkKapacitorConnection = async kapacitor => {
+  private checkKapacitorConnection = async (kapacitor: Kapacitor) => {
     try {
       await pingKapacitor(kapacitor)
-      console.log('what kapacitor are you getting: ', kapacitor)
       this.setState({kapacitor, exists: true})
     } catch (error) {
       this.setState({exists: false})

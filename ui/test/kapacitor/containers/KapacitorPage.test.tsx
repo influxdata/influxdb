@@ -2,7 +2,7 @@ import React from 'react'
 import {KapacitorPage} from 'src/kapacitor/containers/KapacitorPage'
 import KapacitorForm from 'src/kapacitor/components/KapacitorForm'
 import {shallow} from 'enzyme'
-import {getKapacitor, pingKapacitor} from 'src/shared/apis'
+import {getKapacitor} from 'src/shared/apis'
 
 import {source, kapacitor} from 'test/resources'
 import * as mocks from 'mocks/dummy'
@@ -49,6 +49,17 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
       const form = wrapper.find(KapacitorForm)
 
       expect(form.exists()).toBe(true)
+    })
+
+    describe('if it is a new kapacitor', () => {
+      it('display the default kapacitor data', async () => {
+        const {wrapper} = setup()
+        const state = wrapper.state()
+
+        const form = wrapper.find(KapacitorForm)
+        const url = form.dive().find({'data-test': 'kapaUrl'})
+        expect(url.prop('value')).toBe(state.kapacitor.url)
+      })
     })
   })
 
