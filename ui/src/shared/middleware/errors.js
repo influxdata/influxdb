@@ -8,6 +8,7 @@ import {
   multitenancyUserNotifications,
   sessionTimeoutNotification,
   notificationWithAltText,
+  newVersionNotification,
 } from 'shared/copy/notificationsCopy'
 
 const actionsAllowedDuringBlackout = [
@@ -43,6 +44,10 @@ const errorsMiddleware = store => next => action => {
         store.dispatch(
           publishNotification(multitenancyUserNotifications.unauthorized)
         )
+      }
+
+      if (_.startsWith(message, 'Welcome to Chronograf')) {
+        store.dispatch(publishNotification(newVersionNotification(message)))
       }
 
       if (organizationWasRemoved) {

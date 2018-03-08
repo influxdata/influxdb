@@ -9,8 +9,7 @@ export const loadLocalStorage = errorsQueue => {
 
     // eslint-disable-next-line no-undef
     if (state.VERSION && state.VERSION !== VERSION) {
-      const errorText =
-        'New version of Chronograf detected. Local settings cleared.'
+      const errorText = `Welcome to Chronograf ${VERSION}. Local settings cleared.`
 
       console.log(errorText) // eslint-disable-line no-console
       errorsQueue.push(errorText)
