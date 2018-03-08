@@ -1,9 +1,13 @@
 package bolt
 
-import "github.com/boltdb/bolt"
+import (
+	"fmt"
+
+	"github.com/boltdb/bolt"
+)
 
 // SchemaVersionBucket stores ids of completed migrations
-const SchemaVersionBucket = []byte("SchemaVersions")
+var SchemaVersionBucket = []byte("SchemaVersions")
 
 // IsMigrationComplete checks for the presence of a particular migration id
 func IsMigrationComplete(db bolt.DB, id string) (bool, error) {
@@ -54,15 +58,16 @@ type Migration struct {
 
 // Migrate runs one migration's Up() function, if it has not already been run
 func (m Migration) Migrate(db bolt.DB) error {
-	complete, err := IsMigrationComplete(db, m.ID)
+	_, err := IsMigrationComplete(db, m.ID)
 	if err != nil {
 		return err
 	}
-	if complete {
-		return nil
-	}
+	// if complete {
+	// 	return nil
+	// }
 
-	client.logger.Info("Running migration (", m.ID, ")")
+	fmt.Println("Running a migration!")
+	// client.logger.Info("Running migration (", m.ID, ")")
 
 	if err = m.Up(db); err != nil {
 		return err

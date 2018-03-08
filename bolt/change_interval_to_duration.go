@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -20,47 +19,41 @@ var changeIntervalToDuration = Migration{
 	Down: down,
 }
 
+func updateDashboard(board *Dashboard) {
+	for _, cell := range board.Cells {
+		for _, query := range cell.Queries {
+			query.Command = strings.Replace(query.Command, ":interval:", "time(:interval:)", -1)
+		}
+	}
+}
+
 var up = func(db bolt.DB) error {
+	// For each dashboard
 	err := db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(DashboardsBucket)
-
-		fmt.Println("We're in the transaction")
-
+		bucket := tx.Bucket(dashboardBucket)
 		err := bucket.ForEach(func(id, data []byte) error {
 			board := &Dashboard{}
-
-			fmt.Println("New dashboard!")
 
 			err := proto.Unmarshal(data, board)
 			if err != nil {
 				log.Fatal("unmarshaling error: ", err)
 			}
 
-			fmt.Println("Parsed the dashboard!")
+			fmt.Println(board)
+			// Migrate the dashboard
+			updateDashboard(board)
 
-			for i, cell := range board.cells {
-				for i, query := range cell.queries {
-					query.Command = strings.Replace(query.Command, ":interval:", "time(:interval:)", -1)
-					cell.queries[i] = query
-				}
-				board.cells[i] = cell
-			}
+			fmt.Println(board)
 
-			fmt.Println("Updated the dashboard!")
+			// data, err = proto.Marshal(board)
+			// if err != nil {
+			// 	log.Fatal("marshaling error: ", err)
+			// }
 
-			data, err = proto.Marshal(board)
-			if err != nil {
-				log.Fatal("marshaling error: ", err)
-			}
-
-			fmt.Println("marshaled the dashboard!")
-
-			err = bucket.Put(id, data)
-			if err != nil {
-				log.Fatal("error updating dashboard: ", err)
-			}
-
-			fmt.Println("Updated the dashboard!")
+			// err = bucket.Put(id, data)
+			// if err != nil {
+			// 	log.Fatal("error updating dashboard: ", err)
+			// }
 
 			return nil
 		})
@@ -68,6 +61,8 @@ var up = func(db bolt.DB) error {
 		if err != nil {
 			log.Fatal("error updating dashboards: ", err)
 		}
+
+		return nil
 	})
 
 	if err != nil {
@@ -77,18 +72,54 @@ var up = func(db bolt.DB) error {
 	return nil
 }
 
-var down = func(ctx context.Context, client bolt.Client) error {
+var down = func(db bolt.DB) error {
 	return nil
 }
 
-var DashboardsBucket = []byte("Dashoard")
+var dashboardBucket = []byte("Dashoard")
 
 type Dashboard struct {
-	Cells []*DashboardCell `protobuf:"bytes,3,rep,name=cells" json:"cells,omitempty"`
+	ID           int64            `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Name         string           `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	Cells        []*DashboardCell `protobuf:"bytes,3,rep,name=cells" json:"cells,omitempty"`
+	Templates    string           `protobuf:"bytes,4,rep,name=templates" json:"templates,omitempty"`
+	Organization string           `protobuf:"bytes,5,opt,name=Organization,proto3" json:"Organization,omitempty"`
 }
+
+func (*Dashboard) ProtoMessage()    {}
+func (m *Dashboard) Reset()         { *m = Dashboard{} }
+func (m *Dashboard) String() string { return proto.CompactTextString(m) }
+
 type DashboardCell struct {
+	X       int32    `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
+	Y       int32    `protobuf:"varint,2,opt,name=y,proto3" json:"y,omitempty"`
+	W       int32    `protobuf:"varint,3,opt,name=w,proto3" json:"w,omitempty"`
+	H       int32    `protobuf:"varint,4,opt,name=h,proto3" json:"h,omitempty"`
 	Queries []*Query `protobuf:"bytes,5,rep,name=queries" json:"queries,omitempty"`
+	Name    string   `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Type    string   `protobuf:"bytes,7,opt,name=type,proto3" json:"type,omitempty"`
+	ID      string   `protobuf:"bytes,8,opt,name=ID,proto3" json:"ID,omitempty"`
+	Axes    string   `protobuf:"bytes,9,rep,name=axes" json:"axes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
+	Colors  string   `protobuf:"bytes,10,rep,name=colors" json:"colors,omitempty"`
+	Legend  string   `protobuf:"bytes,11,opt,name=legend" json:"legend,omitempty"`
 }
+
+func (m *DashboardCell) Reset()         { *m = DashboardCell{} }
+func (m *DashboardCell) String() string { return proto.CompactTextString(m) }
+func (*DashboardCell) ProtoMessage()    {}
+
 type Query struct {
-	Command string `protobuf:"bytes,1,opt,name=Command,proto3" json:"Command,omitempty"`
+	Command  string `protobuf:"bytes,1,opt,name=Command,proto3" json:"Command,omitempty"`
+	DB       string `protobuf:"bytes,2,opt,name=DB,proto3" json:"DB,omitempty"`
+	RP       string `protobuf:"bytes,3,opt,name=RP,proto3" json:"RP,omitempty"`
+	GroupBys string `protobuf:"bytes,4,rep,name=GroupBys" json:"GroupBys,omitempty"`
+	Wheres   string `protobuf:"bytes,5,rep,name=Wheres" json:"Wheres,omitempty"`
+	Label    string `protobuf:"bytes,6,opt,name=Label,proto3" json:"Label,omitempty"`
+	Range    string `protobuf:"bytes,7,opt,name=Range" json:"Range,omitempty"`
+	Source   string `protobuf:"bytes,8,opt,name=Source,proto3" json:"Source,omitempty"`
+	Shifts   string `protobuf:"bytes,9,rep,name=Shifts" json:"Shifts,omitempty"`
 }
+
+func (m *Query) Reset()         { *m = Query{} }
+func (m *Query) String() string { return proto.CompactTextString(m) }
+func (*Query) ProtoMessage()    {}

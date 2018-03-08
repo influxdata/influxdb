@@ -198,7 +198,7 @@ func (c *Client) migrate(ctx context.Context, build chronograf.BuildInfo) error 
 			return err
 		}
 
-		MigrateAll(c.db)
+		MigrateAll(*c.db)
 	}
 	return nil
 }
