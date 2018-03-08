@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 const VERTICAL = 'VERTICAL'
 const HORIZONTAL = 'HORIZONTAL'
 const GraphOptionsTimeAxis = ({TimeAxis, onToggleTimeAxis}) =>
-  <div className="form-group col-xs-6">
+  <div className="form-group col-xs-12 col-sm-6">
     <label>Time Axis</label>
     <ul className="nav nav-tablist nav-tablist-sm">
       <li

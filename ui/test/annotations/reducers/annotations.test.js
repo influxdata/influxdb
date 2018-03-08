@@ -30,12 +30,12 @@ const state = {
   annotations: [],
 }
 
-describe.only('Shared.Reducers.annotations', () => {
+describe('Shared.Reducers.annotations', () => {
   it('can load the annotations', () => {
     const expected = [{time: '0', duration: ''}]
     const actual = reducer(state, loadAnnotations(expected))
 
-    expect(actual.annotations).to.deep.equal(expected)
+    expect(actual.annotations).toEqual(expected)
   })
 
   it('can update an annotation', () => {
@@ -45,7 +45,7 @@ describe.only('Shared.Reducers.annotations', () => {
       updateAnnotation(expected[0])
     )
 
-    expect(actual.annotations).to.deep.equal(expected)
+    expect(actual.annotations).toEqual(expected)
   })
 
   it('can delete an annotation', () => {
@@ -55,13 +55,13 @@ describe.only('Shared.Reducers.annotations', () => {
       deleteAnnotation(a1)
     )
 
-    expect(actual.annotations).to.deep.equal(expected)
+    expect(actual.annotations).toEqual(expected)
   })
 
   it('can add an annotation', () => {
     const expected = [a1]
     const actual = reducer(state, addAnnotation(a1))
 
-    expect(actual.annotations).to.deep.equal(expected)
+    expect(actual.annotations).toEqual(expected)
   })
 })

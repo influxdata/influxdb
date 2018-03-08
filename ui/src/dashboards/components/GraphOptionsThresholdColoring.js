@@ -11,7 +11,7 @@ const GraphOptionsThresholdColoring = ({
   singleStatType,
 }) => {
   return (
-    <div>
+    <div className="form-group col-xs-12 col-md-6">
       <label>Threshold Coloring</label>
       <ul className="nav nav-tablist nav-tablist-sm">
         <li

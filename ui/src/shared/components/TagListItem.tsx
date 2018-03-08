@@ -1,39 +1,50 @@
-import React, {PropTypes} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
 
-const {string, arrayOf, func, bool} = PropTypes
-const TagListItem = React.createClass({
-  propTypes: {
-    tagKey: string.isRequired,
-    tagValues: arrayOf(string.isRequired).isRequired,
-    selectedTagValues: arrayOf(string.isRequired).isRequired,
-    isUsingGroupBy: bool,
-    onChooseTag: func.isRequired,
-    onGroupByTag: func.isRequired,
-  },
+interface Props {
+  tagKey: string
+  tagValues: string[]
+  selectedTagValues: string[]
+  isUsingGroupBy?: boolean
+  onChooseTag: ({key: string, value}) => void
+  onGroupByTag: (tagKey: string) => void
+}
 
-  getInitialState() {
-    return {
+interface State {
+  isOpen: boolean
+  filterText: string
+}
+
+class TagListItem extends PureComponent<Props, State> {
+  constructor(props) {
+    super(props)
+    this.state = {
       isOpen: false,
       filterText: '',
     }
-  },
 
-  handleChoose(tagValue) {
+    this.handleEscape = this.handleEscape.bind(this)
+    this.handleChoose = this.handleChoose.bind(this)
+    this.handleGroupBy = this.handleGroupBy.bind(this)
+    this.handleClickKey = this.handleClickKey.bind(this)
+    this.handleFilterText = this.handleFilterText.bind(this)
+  }
+
+  handleChoose(tagValue: string) {
     this.props.onChooseTag({key: this.props.tagKey, value: tagValue})
-  },
+  }
 
   handleClickKey() {
     this.setState({isOpen: !this.state.isOpen})
-  },
+  }
 
   handleFilterText(e) {
     e.stopPropagation()
     this.setState({
-      filterText: this.refs.filterText.value,
+      filterText: e.target.value,
     })
-  },
+  }
 
   handleEscape(e) {
     if (e.key !== 'Escape') {
@@ -44,7 +55,12 @@ const TagListItem = React.createClass({
     this.setState({
       filterText: '',
     })
-  },
+  }
+
+  handleGroupBy(e) {
+    e.stopPropagation()
+    this.props.onGroupByTag(this.props.tagKey)
+  }
 
   renderTagValues() {
     const {tagValues, selectedTagValues} = this.props
@@ -67,7 +83,7 @@ const TagListItem = React.createClass({
             onChange={this.handleFilterText}
             onKeyUp={this.handleEscape}
             spellCheck={false}
-            autoComplete={false}
+            autoComplete="false"
           />
           <span className="icon search" />
         </div>
@@ -91,12 +107,7 @@ const TagListItem = React.createClass({
         })}
       </div>
     )
-  },
-
-  handleGroupBy(e) {
-    e.stopPropagation()
-    this.props.onGroupByTag(this.props.tagKey)
-  },
+  }
 
   render() {
     const {tagKey, tagValues, isUsingGroupBy} = this.props
@@ -127,7 +138,7 @@ const TagListItem = React.createClass({
         {isOpen ? this.renderTagValues() : null}
       </div>
     )
-  },
-})
+  }
+}
 
 export default TagListItem
