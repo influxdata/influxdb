@@ -34,6 +34,7 @@ class Dygraph extends Component {
       isSynced: false,
       isHidden: true,
       staticLegendHeight: null,
+      isNotHovering: true,
     }
   }
 
@@ -203,9 +204,7 @@ class Dygraph extends Component {
   }
 
   eventToTimestamp = ({pageX: pxBetweenMouseAndPage}) => {
-    const {
-      left: pxBetweenGraphAndPage,
-    } = this.crosshairRef.getBoundingClientRect()
+    const {left: pxBetweenGraphAndPage} = this.graphRef.getBoundingClientRect()
     const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
     const timestamp = this.dygraph.toDataXCoord(graphXCoordinate)
     const clamped = this.clampWithinGraphTimerange(timestamp)
@@ -218,6 +217,7 @@ class Dygraph extends Component {
     if (onSetHoverTime) {
       onSetHoverTime(newTime)
     }
+    this.setState({isNotHovering: false})
   }
 
   unhighlightCallback = () => {
@@ -225,6 +225,7 @@ class Dygraph extends Component {
     if (onSetHoverTime) {
       onSetHoverTime('0')
     }
+    this.setState({isNotHovering: true})
   }
 
   hashColorDygraphSeries = () => {
@@ -328,7 +329,6 @@ class Dygraph extends Component {
   }
 
   handleAnnotationsRef = ref => (this.annotationsRef = ref)
-  handleCrosshairRef = ref => (this.crosshairRef = ref)
 
   handleReceiveStaticLegendHeight = staticLegendHeight => {
     this.setState({staticLegendHeight})
@@ -348,6 +348,7 @@ class Dygraph extends Component {
         height: `calc(100% - ${staticLegendHeight + cellVerticalPadding}px)`,
       }
     }
+
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         {this.dygraph &&
@@ -363,12 +364,12 @@ class Dygraph extends Component {
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
             />
-            <Crosshair
-              dygraph={this.dygraph}
-              staticLegendHeight={staticLegendHeight}
-              hoverTime={hoverTime}
-              handleCrosshairRef={this.handleCrosshairRef}
-            />
+            {this.state.isNotHovering &&
+              <Crosshair
+                dygraph={this.dygraph}
+                staticLegendHeight={staticLegendHeight}
+                hoverTime={hoverTime}
+              />}
           </div>}
         <div
           ref={r => {

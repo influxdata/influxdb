@@ -4,12 +4,7 @@ import classnames from 'classnames'
 
 class Crosshair extends Component {
   render() {
-    const {
-      dygraph,
-      staticLegendHeight,
-      hoverTime,
-      handleCrosshairRef,
-    } = this.props
+    const {dygraph, staticLegendHeight, hoverTime} = this.props
     const crosshairleft = Math.round(
       Math.max(-1000, dygraph.toDomXCoord(hoverTime)) || -1000 + 1
     )
@@ -17,7 +12,7 @@ class Crosshair extends Component {
       DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
 
     return (
-      <div className="crosshair" ref={el => handleCrosshairRef(el)}>
+      <div className="crosshair">
         <div
           className={classnames('crosshair--crosshair', {
             hidden: crosshairleft < 0,
@@ -39,7 +34,6 @@ Crosshair.propTypes = {
   dygraph: shape({}),
   staticLegendHeight: number,
   hoverTime: string,
-  handleCrosshairRef: func,
 }
 
 export default Crosshair
