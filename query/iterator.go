@@ -791,7 +791,6 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
 	opt.MaxSeriesN = sopt.MaxSeriesN
-	opt.InterruptCh = sopt.InterruptCh
 	opt.Authorizer = sopt.Authorizer
 
 	return opt, nil
