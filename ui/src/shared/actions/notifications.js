@@ -1,4 +1,3 @@
-// add comment
 export function publishNotification(notification) {
   return {
     type: 'PUBLISH_NOTIFICATION',
