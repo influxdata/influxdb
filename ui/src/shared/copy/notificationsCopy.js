@@ -12,6 +12,15 @@ const toTitleCase = str => {
 //  ----------------------------------------------------------------------------
 export const genericFailMessage = 'Could not communicate with server.'
 
+export const newVersionNotification = message => {
+  return {
+    type: 'info',
+    icon: 'cubo-uniform',
+    duration: -1,
+    message,
+  }
+}
+
 export const notificationWithAltText = (type, message) => {
   return {
     type,
