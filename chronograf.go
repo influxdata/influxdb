@@ -554,6 +554,23 @@ type DashboardCell struct {
 	Type       string           `json:"type"`
 	CellColors []CellColor      `json:"colors"`
 	Legend     Legend           `json:"legend"`
+	Options    Options          `json:"options,omitempty"`
+}
+
+// TableColumn is a column in a DashboardCell of type Table
+type TableColumn struct {
+	InternalName string `json:"internal"`
+	DisplayName  string `json:"display"`
+}
+
+// Should add options for different dashboard cell types
+// TableOptions is a type of Options for a DashboardCell with type Table
+type Options struct {
+	TimeFormat       string        `json:"format"`
+	VerticalTimeAxis bool          `json:"vertical"`
+	SortBy           TableColumn   `json:"sort"`
+	Wrapping         string        `json:"wrapping"`
+	ColumnNames      []TableColumn `json:"columns"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
