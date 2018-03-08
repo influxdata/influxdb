@@ -25,11 +25,6 @@ class GraphOptionsTimeFormat extends Component {
     customFormat: false,
   }
 
-  handleInputChange = value => {
-    const {onTimeFormatChange} = this.props
-    onTimeFormatChange(value)
-  }
-
   handleChooseFormat = formatOption => {
     if (formatOption.text === 'Custom') {
       this.setState({customFormat: true})
@@ -40,6 +35,7 @@ class GraphOptionsTimeFormat extends Component {
 
   render() {
     const {format, customFormat} = this.state
+    const {onTimeFormatChange} = this.props
     const tipContent =
       'For information on formatting, see http://momentjs.com/docs/#/parsing/string-format/'
 
@@ -66,7 +62,7 @@ class GraphOptionsTimeFormat extends Component {
             <InputClickToEdit
               wrapperClass="column-controls-input "
               value={format}
-              onUpdate={this.handleInputChange}
+              onUpdate={onTimeFormatChange}
               placeholder="Enter custom format..."
               appearAsNormalInput={true}
             />
