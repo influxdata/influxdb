@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter} from 'react-router'
 
 import {Source} from 'src/types'
@@ -78,8 +78,8 @@ export class KapacitorPage extends PureComponent<Props, State> {
     }
   }
 
-  handleInputChange = (e: React.SyntheticEvent<HTMLFormElement>) => {
-    const {value, name} = e.target as HTMLFormElement
+  handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const {value, name} = e.target
 
     this.setState(prevState => {
       const update = {[name]: value}

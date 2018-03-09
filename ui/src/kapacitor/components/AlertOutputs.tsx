@@ -4,10 +4,12 @@ import AlertTabs from 'src/kapacitor/components/AlertTabs'
 
 import {Kapacitor, Source} from 'src/types'
 
+type FlashMessage = {type: string; text: string}
+
 interface AlertOutPutProps {
   exists: boolean
   kapacitor: Kapacitor
-  addFlashMessage: () => void
+  addFlashMessage: (message: FlashMessage) => void
   source: Source
   hash: string
 }

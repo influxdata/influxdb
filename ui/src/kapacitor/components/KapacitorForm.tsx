@@ -1,7 +1,8 @@
-import React, {SFC} from 'react'
+import React, {SFC, ChangeEvent, MouseEvent} from 'react'
 
 import AlertOutputs from 'src/kapacitor/components/AlertOutputs'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import Input from 'src/kapacitor/components/KapacitorFormInput'
 
 import {Kapacitor, Source} from 'src/types'
 
@@ -10,10 +11,10 @@ type FlashMessage = {type: string; text: string}
 interface Props {
   kapacitor: Kapacitor
   exists: boolean
-  onReset: (e: React.SyntheticEvent<HTMLButtonElement>) => void
-  onSubmit: (e: React.SyntheticEvent<HTMLFormElement>) => void
-  onInputChange: (e: React.SyntheticEvent<HTMLFormElement>) => void
-  onChangeUrl: (e: React.SyntheticEvent<HTMLFormElement>) => void
+  onReset: (e: MouseEvent<HTMLButtonElement>) => void
+  onSubmit: (e: ChangeEvent<HTMLFormElement>) => void
+  onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onChangeUrl: (e: ChangeEvent<HTMLInputElement>) => void
   addFlashMessage: (message: FlashMessage) => void
   source: Source
   hash: string
@@ -52,32 +53,21 @@ const KapacitorForm: SFC<Props> = ({
               <div className="panel-body">
                 <form onSubmit={onSubmit}>
                   <div>
-                    <div className="form-group">
-                      <label htmlFor="kapaUrl">Kapacitor URL</label>
-                      <input
-                        className="form-control"
-                        id="kapaUrl"
-                        name="kapaUrl"
-                        placeholder={url}
-                        value={url}
-                        onChange={onChangeUrl}
-                        spellCheck={false}
-                        data-test="kapaUrl"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="name">Name</label>
-                      <input
-                        className="form-control"
-                        id="name"
-                        name="name"
-                        placeholder={name}
-                        value={name}
-                        onChange={onInputChange}
-                        spellCheck={false}
-                        maxLength={33}
-                      />
-                    </div>
+                    <Input
+                      name="kapaUrl"
+                      label="Kapacitor URL"
+                      value={url}
+                      placeholder={url}
+                      onChange={onChangeUrl}
+                    />
+                    <Input
+                      name="name"
+                      label="Name"
+                      value={name}
+                      placeholder={name}
+                      onChange={onInputChange}
+                      maxLength={33}
+                    />
                     <div className="form-group">
                       <label htmlFor="username">Username</label>
                       <input

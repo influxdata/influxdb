@@ -1,6 +1,7 @@
 import React from 'react'
 import {KapacitorPage} from 'src/kapacitor/containers/KapacitorPage'
 import KapacitorForm from 'src/kapacitor/components/KapacitorForm'
+import KapacitorFormInput from 'src/kapacitor/components/KapacitorFormInput'
 import {shallow} from 'enzyme'
 import {getKapacitor} from 'src/shared/apis'
 
@@ -9,7 +10,7 @@ import * as mocks from 'mocks/dummy'
 
 jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 
-const setup = (override = {}, returnWrapper = true) => {
+const setup = (override = {}) => {
   const props = {
     source: source,
     addFlashMessage: () => {},
@@ -21,12 +22,6 @@ const setup = (override = {}, returnWrapper = true) => {
     location: {pathname: '', hash: ''},
     params: {id: '', hash: ''},
     ...override,
-  }
-
-  if (!returnWrapper) {
-    return {
-      props,
-    }
   }
 
   const wrapper = shallow(<KapacitorPage {...props} />)
@@ -57,8 +52,38 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
         const state = wrapper.state()
 
         const form = wrapper.find(KapacitorForm)
-        const url = form.dive().find({'data-test': 'kapaUrl'})
-        expect(url.prop('value')).toBe(state.kapacitor.url)
+        const url = form
+          .dive()
+          .findWhere(n => n.props().value === state.kapacitor.url)
+        expect(url.exists()).toBe(true)
+      })
+    })
+  })
+
+  describe('user interactions ', () => {
+    describe('entering the url', () => {
+      it('renders the text that is inputted', () => {
+        const {wrapper} = setup()
+        const state = wrapper.state()
+        const event = {target: {value: 'new/url/'}}
+
+        wrapper.find(KapacitorFormInput)
+        let inputElement = wrapper
+          .find(KapacitorForm)
+          .dive()
+          .findWhere(n => n.props().value === state.kapacitor.url)
+          .dive()
+          .find('input')
+
+        inputElement.simulate('change', event)
+        wrapper.update()
+
+        inputElement = wrapper
+          .find(KapacitorForm)
+          .dive()
+          .findWhere(n => n.props().value === event.target.value)
+
+        expect(inputElement.exists()).toBe(true)
       })
     })
   })
