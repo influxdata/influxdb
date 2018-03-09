@@ -1,3 +1,10 @@
+v1.5.1 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#9542](https://github.com/influxdata/influxdb/pull/9542): Allow time variable to be case insensitive again.
+
 v1.5.0 [2017-03-06]
 -------------------
 
