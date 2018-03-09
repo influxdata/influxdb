@@ -50,3 +50,10 @@ export const updateAxes = axes => ({
     axes,
   },
 })
+
+export const updateOptions = options => ({
+  type: 'UPDATE_OPTIONS',
+  payload: {
+    options,
+  },
+})

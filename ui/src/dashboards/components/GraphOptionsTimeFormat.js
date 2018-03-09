@@ -26,10 +26,12 @@ class GraphOptionsTimeFormat extends Component {
   }
 
   handleChooseFormat = formatOption => {
+    const {onTimeFormatChange} = this.props
     if (formatOption.text === 'Custom') {
       this.setState({customFormat: true})
     } else {
       this.setState({format: formatOption.text, customFormat: false})
+      onTimeFormatChange(formatOption.text)
     }
   }
 

@@ -18,7 +18,7 @@ import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 import {
   updateSingleStatType,
   updateSingleStatColors,
-  updateAxes,
+  updateOptions,
 } from 'src/dashboards/actions/cellEditorOverlay'
 
 const formatColor = color => {
@@ -40,7 +40,8 @@ class TableOptions extends Component {
   handleChooseSortBy = () => {}
 
   handleTimeFormatChange = timeFormat => {
-    this.setState({...this.state, timeFormat})
+    const {options, handleUpdateOptions} = this.props
+    handleUpdateOptions({...options, timeFormat})
   }
 
   handleToggleTimeAxis = () => {}
@@ -151,16 +152,16 @@ TableOptions.propTypes = {
   ),
   handleUpdateSingleStatType: func.isRequired,
   handleUpdateSingleStatColors: func.isRequired,
-  handleUpdateAxes: func.isRequired,
-  axes: shape({}).isRequired,
+  handleUpdateOptions: func.isRequired,
+  options: shape({}).isRequired,
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatType, singleStatColors, cell: {axes}},
+  cellEditorOverlay: {singleStatType, singleStatColors, cell: {options}},
 }) => ({
   singleStatType,
   singleStatColors,
-  axes,
+  options,
 })
 
 const mapDispatchToProps = dispatch => ({
@@ -172,7 +173,7 @@ const mapDispatchToProps = dispatch => ({
     updateSingleStatColors,
     dispatch
   ),
-  handleUpdateAxes: bindActionCreators(updateAxes, dispatch),
+  handleUpdateOptions: bindActionCreators(updateOptions, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

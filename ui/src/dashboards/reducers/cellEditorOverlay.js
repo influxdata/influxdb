@@ -84,6 +84,13 @@ export default function cellEditorOverlay(state = initialState, action) {
 
       return {...state, cell}
     }
+
+    case 'UPDATE_OPTIONS': {
+      const {options} = action.payload
+      const cell = {...state.cell, options}
+
+      return {...state, cell}
+    }
   }
 
   return state
