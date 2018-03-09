@@ -1,10 +1,10 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
@@ -12,9 +12,7 @@ import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsText
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
 import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
-
 import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
-
 import {
   updateSingleStatType,
   updateSingleStatColors,
@@ -26,8 +24,42 @@ const formatColor = color => {
   return {hex, name}
 }
 
-class TableOptions extends Component {
-  state = {TimeAxis: 'VERTICAL', timeFormat: 'MM/DD/YYYY HH:mm:ss.ss'}
+type Color = {
+  type: string
+  hex: string
+  id: string
+  name: string
+  value: number
+}
+
+type TableColumn = {
+  internalName: string
+  displayName: string
+}
+
+type Options = {
+  timeFormat: string
+  verticalTimeAxis: boolean
+  sortBy: TableColumn
+  wrapping: string
+  columnNames: TableColumn[]
+}
+
+interface Props {
+  singleStatType: string
+  singleStatColors: Color[]
+  handleUpdateSingleStatType: () => string
+  handleUpdateSingleStatColors: () => void
+  handleUpdateOptions: (options: Options) => void
+  options: Options
+}
+
+interface State {
+  TimeAxis: string
+}
+
+class TableOptions extends PureComponent<Props, State> {
+  state = {TimeAxis: 'VERTICAL'}
 
   handleToggleSingleStatType = () => {}
 
@@ -55,13 +87,9 @@ class TableOptions extends Component {
   handleValidateColorValue = () => {}
 
   render() {
-    const {
-      singleStatColors,
-      singleStatType,
-      //   axes: {y: {prefix, suffix}},
-    } = this.props
+    const {singleStatColors, singleStatType, options: {timeFormat}} = this.props
 
-    const {timeFormat, TimeAxis} = this.state
+    const {TimeAxis} = this.state
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
 
@@ -124,36 +152,13 @@ class TableOptions extends Component {
           <div className="form-group-wrapper graph-options-group">
             <GraphOptionsThresholdColoring
               onToggleSingleStatType={this.handleToggleSingleStatType}
-              singleStatColors={singleStatType}
+              singleStatType={singleStatType}
             />
           </div>
         </div>
       </FancyScrollbar>
     )
   }
-}
-
-const {arrayOf, func, number, shape, string} = PropTypes
-
-TableOptions.defaultProps = {
-  colors: [],
-}
-
-TableOptions.propTypes = {
-  singleStatType: string.isRequired,
-  singleStatColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  handleUpdateSingleStatType: func.isRequired,
-  handleUpdateSingleStatColors: func.isRequired,
-  handleUpdateOptions: func.isRequired,
-  options: shape({}).isRequired,
 }
 
 const mapStateToProps = ({
