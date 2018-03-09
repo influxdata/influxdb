@@ -188,8 +188,10 @@ type BatchPoints interface {
 	AddPoint(p *Point)
 	// AddPoints adds the given points to the Batch of points.
 	AddPoints(ps []*Point)
-	// Points lists the points in the Batch.
-	Points() []*Point
+	// NumPoints returns the number of points currently in the Batch.
+	NumPoints() int
+	// ResetPoints drops all points in the Batch so that it can be reused. The configuration is unchanged.
+	ResetPoints()
 
 	// Precision returns the currently set precision of this Batch.
 	Precision() string
@@ -245,8 +247,12 @@ func (bp *batchpoints) AddPoints(ps []*Point) {
 	bp.points = append(bp.points, ps...)
 }
 
-func (bp *batchpoints) Points() []*Point {
-	return bp.points
+func (bp *batchpoints) ResetPoints() {
+	bp.points = bp.points[:0]
+}
+
+func (bp *batchpoints) NumPoints() int {
+	return len(bp.points)
 }
 
 func (bp *batchpoints) Precision() string {
