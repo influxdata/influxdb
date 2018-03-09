@@ -77,7 +77,6 @@ class LayoutRenderer extends Component {
       autoRefresh,
       manualRefresh,
       onDeleteCell,
-      synchronizer,
       onCancelEditCell,
       onSummonOverlayTechnologies,
       hoverTime,
@@ -132,7 +131,6 @@ class LayoutRenderer extends Component {
                     autoRefresh={autoRefresh}
                     resizeCoords={resizeCoords}
                     onDeleteCell={onDeleteCell}
-                    synchronizer={synchronizer}
                     hoverTime={hoverTime}
                     onSetHoverTime={onSetHoverTime}
                     manualRefresh={manualRefresh}
@@ -189,7 +187,6 @@ LayoutRenderer.propTypes = {
   onEditCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  synchronizer: func,
   hoverTime: string,
   onSetHoverTime: func,
   isStatusPage: bool,

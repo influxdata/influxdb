@@ -52,7 +52,6 @@ const Layout = (
     autoRefresh,
     manualRefresh,
     onDeleteCell,
-    synchronizer,
     resizeCoords,
     onCancelEditCell,
     onStopAddAnnotation,
@@ -86,7 +85,6 @@ const Layout = (
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
-          synchronizer={synchronizer}
           hoverTime={hoverTime}
           onSetHoverTime={onSetHoverTime}
           manualRefresh={manualRefresh}
@@ -152,7 +150,6 @@ const propTypes = {
   onEditCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  synchronizer: func,
   hoverTime: string,
   onSetHoverTime: func,
   isStatusPage: bool,

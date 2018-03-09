@@ -31,7 +31,6 @@ class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isSynced: false,
       isHidden: true,
       staticLegendHeight: null,
       isNotHovering: true,
@@ -92,11 +91,6 @@ class Dygraph extends Component {
 
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
-
-    // Simple opt-out for now, if a graph should not be synced
-    if (this.props.synchronizer) {
-      this.sync()
-    }
   }
 
   componentWillUnmount() {
@@ -237,13 +231,6 @@ class Dygraph extends Component {
     }
 
     return hashColorDygraphSeries
-  }
-
-  sync = () => {
-    if (!this.state.isSynced) {
-      this.props.synchronizer(this.dygraph)
-      this.setState({isSynced: true})
-    }
   }
 
   handleHideLegend = e => {
@@ -445,7 +432,6 @@ Dygraph.propTypes = {
   timeRange: shape({
     lower: string.isRequired,
   }),
-  synchronizer: func,
   hoverTime: string,
   onSetHoverTime: func,
   setResolution: func,

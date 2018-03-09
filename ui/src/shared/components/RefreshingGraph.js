@@ -28,7 +28,6 @@ const RefreshingGraph = ({
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
-  synchronizer,
   resizeCoords,
   editQueryStatus,
   grabDataForDownload,
@@ -119,7 +118,6 @@ const RefreshingGraph = ({
       timeRange={timeRange}
       autoRefresh={autoRefresh}
       isBarGraph={type === 'bar'}
-      synchronizer={synchronizer}
       hoverTime={hoverTime}
       onSetHoverTime={onSetHoverTime}
       resizeCoords={resizeCoords}
@@ -141,7 +139,6 @@ RefreshingGraph.propTypes = {
   autoRefresh: number.isRequired,
   manualRefresh: number,
   templates: arrayOf(shape()),
-  synchronizer: func,
   hoverTime: string,
   onSetHoverTime: func,
   type: string.isRequired,

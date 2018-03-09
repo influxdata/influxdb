@@ -15,7 +15,6 @@ const Dashboard = ({
   autoRefresh,
   manualRefresh,
   onDeleteCell,
-  synchronizer,
   onPositionChange,
   inPresentationMode,
   onOpenTemplateManager,
@@ -69,7 +68,6 @@ const Dashboard = ({
               manualRefresh={manualRefresh}
               hoverTime={hoverTime}
               onSetHoverTime={onSetHoverTime}
-              synchronizer={synchronizer}
               onDeleteCell={onDeleteCell}
               onPositionChange={onPositionChange}
               templates={templatesIncludingDashTime}
@@ -115,7 +113,6 @@ Dashboard.propTypes = {
   onPositionChange: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  synchronizer: func,
   hoverTime: string,
   onSetHoverTime: func,
   source: shape({

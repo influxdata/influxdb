@@ -83,22 +83,6 @@ class HostPage extends Component {
     }
   }
 
-  synchronizer = dygraph => {
-    const dygraphs = [...this.state.dygraphs, dygraph].filter(d => d.graphDiv)
-    const numGraphs = this.state.layouts.reduce((acc, {cells}) => {
-      return acc + cells.length
-    }, 0)
-
-    if (dygraphs.length === numGraphs) {
-      Dygraph.synchronize(dygraphs, {
-        selection: true,
-        zoom: false,
-        range: false,
-      })
-    }
-    this.setState({dygraphs})
-  }
-
   renderLayouts = layouts => {
     const {timeRange} = this.state
     const {source, autoRefresh, manualRefresh} = this.props
@@ -156,7 +140,6 @@ class HostPage extends Component {
         autoRefresh={autoRefresh}
         manualRefresh={manualRefresh}
         host={this.props.params.hostID}
-        synchronizer={this.synchronizer}
       />
     )
   }

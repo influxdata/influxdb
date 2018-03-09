@@ -48,7 +48,6 @@ class LineGraph extends Component {
       ruleValues,
       isBarGraph,
       resizeCoords,
-      synchronizer,
       isRefreshing,
       setResolution,
       isGraphFilled,
@@ -112,7 +111,6 @@ class LineGraph extends Component {
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          synchronizer={synchronizer}
           hoverTime={hoverTime}
           onSetHoverTime={onSetHoverTime}
           resizeCoords={resizeCoords}
@@ -189,7 +187,6 @@ LineGraph.propTypes = {
     lower: string.isRequired,
   }),
   isInDataExplorer: bool,
-  synchronizer: func,
   hoverTime: string,
   onSetHoverTime: func,
   setResolution: func,

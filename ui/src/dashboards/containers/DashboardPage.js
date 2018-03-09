@@ -238,34 +238,6 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
-  synchronizer = dygraph => {
-    const dygraphs = [...this.dygraphs, dygraph].filter(d => d.graphDiv)
-    const {dashboards, params: {dashboardID}} = this.props
-
-    const dashboard = dashboards.find(
-      d => d.id === idNormalizer(TYPE_ID, dashboardID)
-    )
-
-    // Get only the graphs that can sync the hover line
-    const graphsToSync = dashboard.cells.filter(c =>
-      DYGRAPH_CELL_TYPES.find(dct => dct === c.type)
-    )
-
-    if (
-      dashboard &&
-      dygraphs.length === graphsToSync.length &&
-      dygraphs.length > 1
-    ) {
-      Dygraph.synchronize(dygraphs, {
-        selection: true,
-        zoom: false,
-        range: false,
-      })
-    }
-
-    this.dygraphs = dygraphs
-  }
-
   handleSetHoverTime = hoverTime => {
     this.setState({hoverTime})
   }
@@ -445,7 +417,6 @@ class DashboardPage extends Component {
               manualRefresh={manualRefresh}
               onZoom={this.handleZoomedTimeRange}
               onAddCell={this.handleAddCell}
-              synchronizer={this.synchronizer}
               hoverTime={hoverTime}
               onSetHoverTime={this.handleSetHoverTime}
               inPresentationMode={inPresentationMode}
