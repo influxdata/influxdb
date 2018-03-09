@@ -72,9 +72,8 @@ const AJAX = async (
     // AJAX request and action creator.
     return links ? generateResponseWithLinks(response, links) : response
   } catch (error) {
-    const {response} = error
-
-    throw links ? generateResponseWithLinks(response, links) : response // eslint-disable-line no-throw-literal
+    console.error(error)
+    throw error
   }
 }
 
