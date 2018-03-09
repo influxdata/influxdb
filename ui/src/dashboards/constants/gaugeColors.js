@@ -134,9 +134,9 @@ export const DEFAULT_TABLE_COLORS = [
 export const DEFAULT_TABLE_OPTIONS = {
   timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
   verticalTimeAxis: false,
-  sortBy: 'time',
+  sortBy: {internalName: 'time', displayName: ''},
   wrapping: 'truncate',
-  columnNames: [],
+  columnNames: [{internalName: 'time', displayName: ''}],
 }
 
 export const validateSingleStatColors = (colors, type) => {

@@ -559,18 +559,17 @@ type DashboardCell struct {
 
 // TableColumn is a column in a DashboardCell of type Table
 type TableColumn struct {
-	InternalName string `json:"internal"`
-	DisplayName  string `json:"display"`
+	InternalName string `json:"internalName"`
+	DisplayName  string `json:"displayName"`
 }
 
-// Should add options for different dashboard cell types
-// TableOptions is a type of Options for a DashboardCell with type Table
+// Options is a type of Options for a DashboardCell with type Table
 type Options struct {
-	TimeFormat       string        `json:"format"`
-	VerticalTimeAxis bool          `json:"vertical"`
-	SortBy           TableColumn   `json:"sort"`
+	TimeFormat       string        `json:"timeFormat"`
+	VerticalTimeAxis bool          `json:"verticalTimeAxis"`
+	SortBy           TableColumn   `json:"sortBy"`
 	Wrapping         string        `json:"wrapping"`
-	ColumnNames      []TableColumn `json:"columns"`
+	ColumnNames      []TableColumn `json:"columnNames"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
