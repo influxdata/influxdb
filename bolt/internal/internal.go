@@ -263,6 +263,27 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			}
 		}
 
+		sortBy := &TableColumn{
+			InternalName: c.Options.SortBy.InternalName,
+			DisplayName:  c.Options.SortBy.DisplayName,
+		}
+
+		columnNames := make([]*TableColumn, len(c.Options.ColumnNames))
+		for i, column := range c.Options.ColumnNames {
+			columnNames[i] = &TableColumn{
+				InternalName: column.InternalName,
+				DisplayName:  column.DisplayName,
+			}
+		}
+
+		options := &Options{
+			TimeFormat:       c.Options.TimeFormat,
+			VerticalTimeAxis: c.Options.VerticalTimeAxis,
+			SortBy:           sortBy,
+			Wrapping:         c.Options.Wrapping,
+			ColumnNames:      columnNames,
+		}
+
 		cells[i] = &DashboardCell{
 			ID:      c.ID,
 			X:       c.X,
@@ -278,6 +299,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				Type:        c.Legend.Type,
 				Orientation: c.Legend.Orientation,
 			},
+			Options: options,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -404,6 +426,28 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			legend.Orientation = c.Legend.Orientation
 		}
 
+		options := chronograf.Options{}
+		if c.Options != nil {
+			sortBy := chronograf.TableColumn{}
+			if c.Options.SortBy != nil {
+				sortBy.InternalName = c.Options.SortBy.InternalName
+				sortBy.DisplayName = c.Options.SortBy.DisplayName
+			}
+			options.SortBy = sortBy
+
+			columnNames := make([]chronograf.TableColumn, len(c.Options.ColumnNames))
+			for i, column := range c.Options.ColumnNames {
+				columnNames[i] = chronograf.TableColumn{}
+				columnNames[i].InternalName = column.InternalName
+				columnNames[i].DisplayName = column.DisplayName
+			}
+			options.ColumnNames = columnNames
+			options.TimeFormat = c.Options.TimeFormat
+			options.VerticalTimeAxis = c.Options.VerticalTimeAxis
+			options.Wrapping = c.Options.Wrapping
+
+		}
+
 		cells[i] = chronograf.DashboardCell{
 			ID:         c.ID,
 			X:          c.X,
@@ -416,6 +460,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			Axes:       axes,
 			CellColors: colors,
 			Legend:     legend,
+			Options:    options,
 		}
 	}
 

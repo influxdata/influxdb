@@ -35,6 +35,9 @@ const (
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
 	ErrConfigNotFound                  = Error("cannot find configuration")
 	ErrAnnotationNotFound              = Error("annotation not found")
+	ErrInvalidCellOptionsText          = Error("invalid text wrapping option. Valid wrappings are 'truncate', 'wrap', and 'single line'")
+	ErrInvalidCellOptionsSort          = Error("cell options sortby cannot be empty'")
+	ErrInvalidCellOptionsColumns       = Error("cell options columns cannot be empty'")
 )
 
 // Error is a domain error encountered while processing chronograf requests
