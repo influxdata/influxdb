@@ -1,11 +1,13 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
-
-import InputClickToEdit from 'shared/components/InputClickToEdit'
+import React, {PureComponent} from 'react'
+import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import {Dropdown} from 'src/shared/components/Dropdown'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 
-const formatOptions = [
+interface TimeFormatOptions {
+  text: string
+}
+
+const formatOptions : TimeFormatOptions[] = [
   {text: 'MM/DD/YYYY HH:mm:ss.ss'},
   {text: 'MM/DD/YYYY HH:mm'},
   {text: 'MM/DD/YYYY'},
@@ -17,19 +19,32 @@ const formatOptions = [
   {text: 'Custom'},
 ]
 
-class GraphOptionsTimeFormat extends Component {
+interface Props {
+  timeFormat: string
+  onTimeFormatChange: (format: string) => void
+}
+
+interface State {
+  customFormat: boolean
+  format: string
+}
+
+class GraphOptionsTimeFormat extends PureComponent<Props, State> {
   state = {
-    format: this.props.timeFormat || 'MM/DD/YYYY HH:mm:ss.ss',
+    format: this.props.timeFormat || formatOptions[0].text,
     customFormat: false,
   }
 
-  handleChooseFormat = formatOption => {
-    const {onTimeFormatChange} = this.props
+  get onTimeFormatChange () {
+    return this.props.onTimeFormatChange
+  }
+
+  handleChooseFormat = (formatOption : TimeFormatOptions) => {
     if (formatOption.text === 'Custom') {
       this.setState({customFormat: true})
     } else {
       this.setState({format: formatOption.text, customFormat: false})
-      onTimeFormatChange(formatOption.text)
+      this.onTimeFormatChange(formatOption.text)
     }
   }
 
@@ -70,13 +85,6 @@ class GraphOptionsTimeFormat extends Component {
       </div>
     )
   }
-}
-
-const {func, string} = PropTypes
-
-GraphOptionsTimeFormat.propTypes = {
-  timeFormat: string,
-  onTimeFormatChange: func,
 }
 
 export default GraphOptionsTimeFormat
