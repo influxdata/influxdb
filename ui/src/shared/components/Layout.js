@@ -40,7 +40,7 @@ const Layout = (
   {
     host,
     cell,
-    cell: {h, axes, type, colors, legend},
+    cell: {h, axes, type, colors, legend, options},
     source,
     sources,
     onZoom,
@@ -77,6 +77,7 @@ const Layout = (
           inView={cell.inView}
           axes={axes}
           type={type}
+          options={options}
           staticLegend={IS_STATIC_LEGEND(legend)}
           cellHeight={h}
           onZoom={onZoom}

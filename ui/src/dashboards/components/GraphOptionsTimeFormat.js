@@ -1,7 +1,5 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
-import moment from 'moment'
-import classnames from 'classnames'
 
 import InputClickToEdit from 'shared/components/InputClickToEdit'
 import {Dropdown} from 'src/shared/components/Dropdown'
