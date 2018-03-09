@@ -21,6 +21,7 @@ const RefreshingGraph = ({
   onZoom,
   cellID,
   queries,
+  options,
   templates,
   timeRange,
   cellHeight,
@@ -93,8 +94,7 @@ const RefreshingGraph = ({
         resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
         cellID={cellID}
-        // prefix={prefix}
-        // suffix={suffix}
+        options={options}
         inView={inView}
       />
     )
@@ -159,6 +159,7 @@ RefreshingGraph.propTypes = {
   ),
   cellID: string,
   inView: bool,
+  options: shape({}),
 }
 
 RefreshingGraph.defaultProps = {

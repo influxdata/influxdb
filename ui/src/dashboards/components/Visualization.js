@@ -20,6 +20,7 @@ const DashVisualization = (
     resizerTopHeight,
     staticLegend,
     singleStatColors,
+    options,
   },
   {source: {links: {proxy}}}
 ) => {
@@ -33,6 +34,7 @@ const DashVisualization = (
           colors={stringifyColorValues(colors)}
           axes={axes}
           type={type}
+          options={options}
           queries={buildQueries(proxy, queryConfigs, timeRange)}
           templates={templates}
           autoRefresh={autoRefresh}
@@ -62,6 +64,7 @@ DashVisualization.propTypes = {
       bounds: arrayOf(string),
     }),
   }),
+  options: shape({}),
   resizerTopHeight: number,
   singleStatColors: arrayOf(
     shape({
@@ -93,12 +96,17 @@ DashVisualization.contextTypes = {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatColors, gaugeColors, cell: {type, axes}},
+  cellEditorOverlay: {
+    singleStatColors,
+    gaugeColors,
+    cell: {type, axes, options},
+  },
 }) => ({
   gaugeColors,
   singleStatColors,
   type,
   axes,
+  options,
 })
 
 export default connect(mapStateToProps, null)(DashVisualization)
