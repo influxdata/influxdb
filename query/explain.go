@@ -14,13 +14,13 @@ func (p *preparedStatement) Explain() (string, error) {
 	// Determine the cost of all iterators created as part of this plan.
 	ic := &explainIteratorCreator{ic: p.ic}
 	p.ic = ic
-	itrs, _, err := p.Select(context.Background())
+	cur, err := p.Select(context.Background())
 	p.ic = ic.ic
 
 	if err != nil {
 		return "", err
 	}
-	Iterators(itrs).Close()
+	cur.Close()
 
 	var buf bytes.Buffer
 	for i, node := range ic.nodes {

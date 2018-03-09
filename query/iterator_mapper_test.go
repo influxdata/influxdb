@@ -10,20 +10,43 @@ import (
 )
 
 func TestIteratorMapper(t *testing.T) {
-	val1itr := &FloatIterator{Points: []query.FloatPoint{
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 5, Value: 3},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 2, Value: 2},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 8, Value: 8},
-	}}
-
-	val2itr := &StringIterator{Points: []query.StringPoint{
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: "a"},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 5, Value: "c"},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 2, Value: "b"},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 8, Value: "h"},
-	}}
-	inputs := []query.Iterator{val1itr, val2itr}
+	cur := query.RowCursor([]query.Row{
+		{
+			Time: 0,
+			Series: query.Series{
+				Name: "cpu",
+				Tags: ParseTags("host=A"),
+			},
+			Values: []interface{}{float64(1), "a"},
+		},
+		{
+			Time: 5,
+			Series: query.Series{
+				Name: "cpu",
+				Tags: ParseTags("host=A"),
+			},
+			Values: []interface{}{float64(3), "c"},
+		},
+		{
+			Time: 2,
+			Series: query.Series{
+				Name: "cpu",
+				Tags: ParseTags("host=B"),
+			},
+			Values: []interface{}{float64(2), "b"},
+		},
+		{
+			Time: 8,
+			Series: query.Series{
+				Name: "cpu",
+				Tags: ParseTags("host=B"),
+			},
+			Values: []interface{}{float64(8), "h"},
+		},
+	}, []influxql.VarRef{
+		{Val: "val1", Type: influxql.Float},
+		{Val: "val2", Type: influxql.String},
+	})
 
 	opt := query.IteratorOptions{
 		Ascending: true,
@@ -32,7 +55,7 @@ func TestIteratorMapper(t *testing.T) {
 			{Val: "val2", Type: influxql.String},
 		},
 	}
-	itr := query.NewIteratorMapper(inputs, nil, []query.IteratorMap{
+	itr := query.NewIteratorMapper(cur, nil, []query.IteratorMap{
 		query.FieldMap(0),
 		query.FieldMap(1),
 		query.TagMap("host"),
@@ -46,18 +69,5 @@ func TestIteratorMapper(t *testing.T) {
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 8, Aux: []interface{}{float64(8), "h", "B"}}},
 	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
-	}
-
-	for i, input := range inputs {
-		switch input := input.(type) {
-		case *FloatIterator:
-			if !input.Closed {
-				t.Errorf("iterator %d not closed", i)
-			}
-		case *StringIterator:
-			if !input.Closed {
-				t.Errorf("iterator %d not closed", i)
-			}
-		}
 	}
 }

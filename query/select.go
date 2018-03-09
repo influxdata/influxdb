@@ -58,7 +58,7 @@ type ShardGroup interface {
 // Select is a prepared statement that is ready to be executed.
 type PreparedStatement interface {
 	// Select creates the Iterators that will be used to read the query.
-	Select(ctx context.Context) ([]Iterator, []string, error)
+	Select(ctx context.Context) (Cursor, error)
 
 	// Explain outputs the explain plan for this statement.
 	Explain() (string, error)
@@ -81,10 +81,10 @@ func Prepare(stmt *influxql.SelectStatement, shardMapper ShardMapper, opt Select
 
 // Select compiles, prepares, and then initiates execution of the query using the
 // default compile options.
-func Select(ctx context.Context, stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) ([]Iterator, []string, error) {
+func Select(ctx context.Context, stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) (Cursor, error) {
 	s, err := Prepare(stmt, shardMapper, opt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// Must be deferred so it runs after Select.
 	defer s.Close()
@@ -103,7 +103,7 @@ type preparedStatement struct {
 	now       time.Time
 }
 
-func (p *preparedStatement) Select(ctx context.Context) ([]Iterator, []string, error) {
+func (p *preparedStatement) Select(ctx context.Context) (Cursor, error) {
 	// TODO(jsternberg): Remove this hacky method of propagating now.
 	// Each level of the query should use a time range discovered during
 	// compilation, but that requires too large of a refactor at the moment.
@@ -113,7 +113,43 @@ func (p *preparedStatement) Select(ctx context.Context) ([]Iterator, []string, e
 	opt.InterruptCh = ctx.Done()
 	itrs, err := buildIterators(ctx, p.stmt, p.ic, opt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+
+	columns := make([]influxql.VarRef, len(p.columns))
+	offset := 0
+	if !p.stmt.OmitTime {
+		columns[0] = influxql.VarRef{
+			Val:  p.columns[0],
+			Type: influxql.Time,
+		}
+		offset++
+	}
+	for i, f := range p.stmt.Fields {
+		columns[i+offset] = influxql.VarRef{
+			Val:  p.columns[i+offset],
+			Type: influxql.EvalType(f.Expr, nil, nil),
+		}
+
+		if p.stmt.Target != nil {
+			continue
+		}
+
+		if call, ok := f.Expr.(*influxql.Call); ok && (call.Name == "top" || call.Name == "bottom") {
+			for j := 1; j < len(call.Args)-1; j++ {
+				offset++
+				columns[i+offset] = influxql.VarRef{
+					Val:  p.columns[i+offset],
+					Type: influxql.EvalType(call.Args[j], nil, nil),
+				}
+			}
+		}
+	}
+
+	cur := newCursor(itrs, columns, p.opt.Ascending)
+	cur.omitTime = p.stmt.OmitTime
+	if p.stmt.Location != nil {
+		cur.loc = p.stmt.Location
 	}
 
 	// If a monitor exists and we are told there is a maximum number of points,
@@ -124,7 +160,7 @@ func (p *preparedStatement) Select(ctx context.Context) ([]Iterator, []string, e
 			m.Monitor(monitor)
 		}
 	}
-	return itrs, p.columns, nil
+	return cur, nil
 }
 
 func (p *preparedStatement) Close() error {

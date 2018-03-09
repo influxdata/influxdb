@@ -1569,19 +1569,16 @@ type {{$k.name}}DedupeIterator struct {
 }
 
 type {{$k.name}}IteratorMapper struct {
-	e         *Emitter
-	buf       []interface{}
+	cur       Cursor
+	row       Row
 	driver    IteratorMap   // which iterator to use for the primary value, can be nil
 	fields    []IteratorMap // which iterator to use for an aux field
 	point     {{$k.Name}}Point
 }
 
-func new{{$k.Name}}IteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *{{$k.name}}IteratorMapper {
-	e := NewEmitter(itrs, opt.Ascending, 0)
-	e.OmitTime = true
+func new{{$k.Name}}IteratorMapper(cur Cursor, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *{{$k.name}}IteratorMapper {
 	return &{{$k.name}}IteratorMapper{
-		e:         e,
-		buf:       make([]interface{}, len(itrs)),
+		cur:       cur,
 		driver:    driver,
 		fields:    fields,
 		point:  {{$k.Name}}Point{
@@ -1591,17 +1588,19 @@ func new{{$k.Name}}IteratorMapper(itrs []Iterator, driver IteratorMap, fields []
 }
 
 func (itr *{{$k.name}}IteratorMapper) Next() (*{{$k.Name}}Point, error) {
-	t, name, tags, err := itr.e.loadBuf()
-	if err != nil || t == ZeroTime {
-		return nil, err
+	if !itr.cur.Scan(&itr.row) {
+		if err := itr.cur.Err(); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
-	itr.point.Time = t
-	itr.point.Name = name
-	itr.point.Tags = tags
 
-	itr.e.readInto(t, name, tags, itr.buf)
+	itr.point.Time = itr.row.Time
+	itr.point.Name = itr.row.Series.Name
+	itr.point.Tags = itr.row.Series.Tags
+
 	if itr.driver != nil {
-	if v := itr.driver.Value(tags, itr.buf); v != nil {
+	if v := itr.driver.Value(&itr.row); v != nil {
 			if v, ok := v.({{$k.Type}}); ok {
 				itr.point.Value = v
 				itr.point.Nil = false
@@ -1615,21 +1614,23 @@ func (itr *{{$k.name}}IteratorMapper) Next() (*{{$k.Name}}Point, error) {
 		}
 	}
 	for i, f := range itr.fields {
-		itr.point.Aux[i] = f.Value(tags, itr.buf)
+		itr.point.Aux[i] = f.Value(&itr.row)
 	}
 	return &itr.point, nil
 }
 
 func (itr *{{$k.name}}IteratorMapper) Stats() IteratorStats {
 	stats := IteratorStats{}
-	for _, itr := range itr.e.itrs {
-		stats.Add(itr.Stats())
+	if cur, ok := itr.cur.(*cursor); ok {
+		for _, itr := range cur.itrs {
+			stats.Add(itr.Stats())
+		}
 	}
 	return stats
 }
 
 func (itr *{{$k.name}}IteratorMapper) Close() error {
-	return itr.e.Close()
+	return itr.cur.Close()
 }
 
 type {{$k.name}}FilterIterator struct {

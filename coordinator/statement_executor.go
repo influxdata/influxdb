@@ -446,7 +446,7 @@ func (e *StatementExecutor) executeExplainAnalyzeStatement(q *influxql.ExplainSt
 	ctx = query.NewContextWithIterators(ctx, &aux)
 	start := time.Now()
 
-	itrs, columns, err := e.createIterators(ctx, stmt, ectx.ExecutionOptions)
+	cur, err := e.createIterators(ctx, stmt, ectx.ExecutionOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -454,13 +454,7 @@ func (e *StatementExecutor) executeExplainAnalyzeStatement(q *influxql.ExplainSt
 	iterTime := time.Since(start)
 
 	// Generate a row emitter from the iterator set.
-	em := query.NewEmitter(itrs, stmt.TimeAscending(), ectx.ChunkSize)
-	em.Columns = columns
-	if stmt.Location != nil {
-		em.Location = stmt.Location
-	}
-	em.OmitTime = stmt.OmitTime
-	em.EmitName = stmt.EmitName
+	em := query.NewEmitter(cur, ectx.ChunkSize)
 
 	// Emit rows to the results channel.
 	var writeN int64
@@ -543,19 +537,13 @@ func (e *StatementExecutor) executeSetPasswordUserStatement(q *influxql.SetPassw
 }
 
 func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) error {
-	itrs, columns, err := e.createIterators(ctx, stmt, ctx.ExecutionOptions)
+	cur, err := e.createIterators(ctx, stmt, ctx.ExecutionOptions)
 	if err != nil {
 		return err
 	}
 
 	// Generate a row emitter from the iterator set.
-	em := query.NewEmitter(itrs, stmt.TimeAscending(), ctx.ChunkSize)
-	em.Columns = columns
-	if stmt.Location != nil {
-		em.Location = stmt.Location
-	}
-	em.OmitTime = stmt.OmitTime
-	em.EmitName = stmt.EmitName
+	em := query.NewEmitter(cur, ctx.ChunkSize)
 	defer em.Close()
 
 	// Emit rows to the results channel.
@@ -634,7 +622,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	return nil
 }
 
-func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.SelectStatement, opt query.ExecutionOptions) ([]query.Iterator, []string, error) {
+func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.SelectStatement, opt query.ExecutionOptions) (query.Cursor, error) {
 	sopt := query.SelectOptions{
 		NodeID:      opt.NodeID,
 		MaxSeriesN:  e.MaxSelectSeriesN,
@@ -644,11 +632,11 @@ func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.
 	}
 
 	// Create a set of iterators from a selection.
-	itrs, columns, err := query.Select(ctx, stmt, e.ShardMapper, sopt)
+	cur, err := query.Select(ctx, stmt, e.ShardMapper, sopt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return itrs, columns, nil
+	return cur, nil
 }
 
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
