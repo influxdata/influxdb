@@ -7,7 +7,7 @@ interface TimeFormatOptions {
   text: string
 }
 
-const formatOptions : TimeFormatOptions[] = [
+const formatOptions: TimeFormatOptions[] = [
   {text: 'MM/DD/YYYY HH:mm:ss.ss'},
   {text: 'MM/DD/YYYY HH:mm'},
   {text: 'MM/DD/YYYY'},
@@ -30,16 +30,19 @@ interface State {
 }
 
 class GraphOptionsTimeFormat extends PureComponent<Props, State> {
-  state = {
-    format: this.props.timeFormat || formatOptions[0].text,
-    customFormat: false,
+  constructor(props: Props) {
+    super(props)
+    this.state = {
+      format: this.props.timeFormat || formatOptions[0].text,
+      customFormat: false,
+    }
   }
 
-  get onTimeFormatChange () {
+  get onTimeFormatChange() {
     return this.props.onTimeFormatChange
   }
 
-  handleChooseFormat = (formatOption : TimeFormatOptions) => {
+  handleChooseFormat = (formatOption: TimeFormatOptions) => {
     if (formatOption.text === 'Custom') {
       this.setState({customFormat: true})
     } else {
