@@ -6,9 +6,12 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
+	influxtoml "github.com/influxdata/influxdb/toml"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 )
@@ -151,40 +154,36 @@ enabled = true
 		t.Fatal(err)
 	}
 
-	if err := os.Setenv("INFLUXDB_UDP_BIND_ADDRESS", ":1234"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
+	getenv := func(s string) string {
+		switch s {
+		case "INFLUXDB_UDP_BIND_ADDRESS":
+			return ":1234"
+		case "INFLUXDB_UDP_0_BIND_ADDRESS":
+			return ":5555"
+		case "INFLUXDB_GRAPHITE_0_TEMPLATES_0":
+			return "override.* .template.0"
+		case "INFLUXDB_GRAPHITE_1_TEMPLATES":
+			return "override.* .template.1.1,override.* .template.1.2"
+		case "INFLUXDB_GRAPHITE_1_PROTOCOL":
+			return "udp"
+		case "INFLUXDB_COLLECTD_1_BIND_ADDRESS":
+			return ":1020"
+		case "INFLUXDB_OPENTSDB_0_BIND_ADDRESS":
+			return ":2020"
+		case "INFLUXDB_DATA_CACHE_MAX_MEMORY_SIZE":
+			// uint64 type
+			return "1000"
+		case "INFLUXDB_LOGGING_LEVEL":
+			// logging type
+			return "warn"
+		case "INFLUXDB_COORDINATOR_QUERY_TIMEOUT":
+			// duration type
+			return "1m"
+		}
+		return ""
 	}
 
-	if err := os.Setenv("INFLUXDB_UDP_0_BIND_ADDRESS", ":5555"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
-	}
-
-	if err := os.Setenv("INFLUXDB_GRAPHITE_0_TEMPLATES_0", "overide.* .template.0"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
-	}
-
-	if err := os.Setenv("INFLUXDB_GRAPHITE_1_TEMPLATES", "overide.* .template.1.1,overide.* .template.1.2"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
-	}
-
-	if err := os.Setenv("INFLUXDB_GRAPHITE_1_PROTOCOL", "udp"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
-	}
-
-	if err := os.Setenv("INFLUXDB_COLLECTD_1_BIND_ADDRESS", ":1020"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
-	}
-
-	if err := os.Setenv("INFLUXDB_OPENTSDB_0_BIND_ADDRESS", ":2020"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
-	}
-
-	// uint64 type
-	if err := os.Setenv("INFLUXDB_DATA_CACHE_MAX_MEMORY_SIZE", "1000"); err != nil {
-		t.Fatalf("failed to set env var: %v", err)
-	}
-
-	if err := c.ApplyEnvOverrides(os.Getenv); err != nil {
+	if err := c.ApplyEnvOverrides(getenv); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
 
@@ -196,11 +195,11 @@ enabled = true
 		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[1].BindAddress)
 	}
 
-	if len(c.GraphiteInputs[0].Templates) != 1 || c.GraphiteInputs[0].Templates[0] != "overide.* .template.0" {
+	if len(c.GraphiteInputs[0].Templates) != 1 || c.GraphiteInputs[0].Templates[0] != "override.* .template.0" {
 		t.Fatalf("unexpected graphite 0 templates: %+v", c.GraphiteInputs[0].Templates)
 	}
 
-	if len(c.GraphiteInputs[1].Templates) != 2 || c.GraphiteInputs[1].Templates[1] != "overide.* .template.1.2" {
+	if len(c.GraphiteInputs[1].Templates) != 2 || c.GraphiteInputs[1].Templates[1] != "override.* .template.1.2" {
 		t.Fatalf("unexpected graphite 1 templates: %+v", c.GraphiteInputs[1].Templates)
 	}
 
@@ -218,6 +217,14 @@ enabled = true
 
 	if c.Data.CacheMaxMemorySize != 1000 {
 		t.Fatalf("unexpected cache max memory size: %v", c.Data.CacheMaxMemorySize)
+	}
+
+	if c.Logging.Level != zapcore.WarnLevel {
+		t.Fatalf("unexpected logging level: %v", c.Logging.Level)
+	}
+
+	if c.Coordinator.QueryTimeout != influxtoml.Duration(time.Minute) {
+		t.Fatalf("unexpected query timeout: %v", c.Coordinator.QueryTimeout)
 	}
 }
 
