@@ -331,7 +331,7 @@ class Dygraph extends Component {
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         {this.dygraph &&
-          <div>
+          <div className="dygraph-addons">
             <Annotations
               dygraph={this.dygraph}
               annotationsRef={this.handleAnnotationsRef}
