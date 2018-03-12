@@ -91,7 +91,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     this.setState({kapacitor: {...this.state.kapacitor, url: e.target.value}})
   }
 
-  handleSubmit = e => {
+  handleSubmit = async e => {
     e.preventDefault()
     const {
       addFlashMessage,
@@ -114,36 +114,36 @@ export class KapacitorPage extends PureComponent<Props, State> {
     }
 
     if (params.id) {
-      updateKapacitor(kapacitor)
-        .then(({data}) => {
-          this.setState({kapacitor: data})
-          this.checkKapacitorConnection(data)
-          addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
+      try {
+        const {data} = await updateKapacitor(kapacitor)
+        this.setState({kapacitor: data})
+        this.checkKapacitorConnection(data)
+        addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
+      } catch (error) {
+        console.error(error)
+        addFlashMessage({
+          type: 'error',
+          text: 'There was a problem updating the Kapacitor record',
         })
-        .catch(() => {
-          addFlashMessage({
-            type: 'error',
-            text: 'There was a problem updating the Kapacitor record',
-          })
-        })
+      }
     } else {
-      createKapacitor(source, kapacitor)
-        .then(({data}) => {
-          // need up update kapacitor with info from server to AlertOutputs
-          this.setState({kapacitor: data})
-          this.checkKapacitorConnection(data)
-          router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-          addFlashMessage({
-            type: 'success',
-            text: 'Kapacitor Created! Configuring endpoints is optional.',
-          })
+      try {
+        const {data} = await createKapacitor(source, kapacitor)
+        // need up update kapacitor with info from server to AlertOutputs
+        this.setState({kapacitor: data})
+        this.checkKapacitorConnection(data)
+        router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
+        addFlashMessage({
+          type: 'success',
+          text: 'Kapacitor Created! Configuring endpoints is optional.',
         })
-        .catch(() => {
-          addFlashMessage({
-            type: 'error',
-            text: 'There was a problem creating the Kapacitor record',
-          })
+      } catch (error) {
+        console.error(error)
+        addFlashMessage({
+          type: 'error',
+          text: 'There was a problem creating the Kapacitor record',
         })
+      }
     }
   }
 
