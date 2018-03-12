@@ -30,11 +30,20 @@ const defaultCellAxes = {
   },
 }
 
+const defaultCellTableOptions = {
+  timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
+  verticalTimeAxis: true,
+  sortBy: {displayName: '', internalName: ''},
+  wrapping: 'truncate',
+  columnNames: {internaName: 'time', displayName: ''},
+}
+
 const defaultCell = {
   axes: defaultCellAxes,
   colors: [],
   name: defaultCellName,
   type: defaultCellType,
+  tableOptions: defaultCellTableOptions,
 }
 
 const defaultSingleStatType = getSingleStatType(defaultCell.colors)
@@ -52,9 +61,10 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
       gaugeColors: defaultGaugeColors,
       singleStatColors: defaultSingleStatColors,
       singleStatType: defaultSingleStatType,
+      tableOptions: defaultCellTableOptions,
     }
 
-    expect(actual.cell).toBe(expected.cell)
+    expect(actual.cell).toEqual(expected.cell)
     expect(actual.gaugeColors).toBe(expected.gaugeColors)
     expect(actual.singleStatColors).toBe(expected.singleStatColors)
     expect(actual.singleStatType).toBe(expected.singleStatType)
