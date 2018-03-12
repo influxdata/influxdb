@@ -1,5 +1,5 @@
 import React, {Component} from 'react'
-import {PropTypes} from 'prop-types'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'

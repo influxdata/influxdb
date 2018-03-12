@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import TagsAddButton from 'src/shared/components/TagsAddButton'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
