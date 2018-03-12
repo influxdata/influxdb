@@ -1,3 +1,14 @@
+v1.6.0 [unreleased]
+-------------------
+
+### Features
+
+-	[#9429](https://github.com/influxdata/influxdb/pull/9429): Support proxy environment variables in the influx client.
+
+### Bugfixes
+
+-	[#9553](https://github.com/influxdata/influxdb/pull/9553): Support setting the log level through the environment variable.
+
 v1.5.0 [2018-03-06]
 -------------------
 
