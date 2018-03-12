@@ -71,11 +71,21 @@ func TestSeriesFileCompactor(t *testing.T) {
 	}
 
 	// Compact in-place for each partition.
+	var seriesN int
 	for _, p := range sfile.Partitions() {
 		compactor := tsdb.NewSeriesPartitionCompactor()
 		if err := compactor.Compact(p); err != nil {
 			t.Fatal(err)
 		}
+
+		for _, stats := range compactor.Stats.SegmentStats {
+			seriesN += stats.SeriesN
+		}
+	}
+
+	// Verify total stats count matches inserted series count.
+	if seriesN != 10000 {
+		t.Fatalf("unexpected series count: %d", seriesN)
 	}
 
 	// Verify all series exist.

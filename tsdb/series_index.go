@@ -121,7 +121,7 @@ func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 		}
 
 		if err := segment.ForEachEntry(func(flag uint8, id uint64, offset int64, key []byte) error {
-			if offset <= idx.maxOffset {
+			if offset < idx.maxOffset {
 				return nil
 			}
 			idx.execEntry(flag, id, offset, key)

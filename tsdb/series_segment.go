@@ -362,6 +362,14 @@ func (hdr *SeriesSegmentHeader) WriteTo(w io.Writer) (n int64, err error) {
 	return buf.WriteTo(w)
 }
 
+// SeriesSegmentStats tracks series and tombstone stats a series segment.
+type SeriesSegmentStats struct {
+	SeriesN          int // total series count
+	DeletedSeriesN   int // count of series deleted by later tombstone
+	TombstoneN       int // total tombstone count
+	OrphanTombstoneN int // count of tombstones for removed series
+}
+
 func ReadSeriesEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) {
 	// If flag byte is zero then no more entries exist.
 	flag, data = uint8(data[0]), data[1:]

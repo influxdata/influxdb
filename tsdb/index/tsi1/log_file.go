@@ -136,11 +136,8 @@ func (f *LogFile) open() error {
 
 	// Move to the end of the file.
 	f.size = n
-	if _, err := file.Seek(n, io.SeekStart); err != nil {
-		return err
-	}
-
-	return nil
+	_, err = file.Seek(n, io.SeekStart)
+	return err
 }
 
 // Close shuts down the file handle and mmap.
