@@ -2634,7 +2634,7 @@ func (e *Engine) buildCursor(ctx context.Context, measurement, seriesKey string,
 	}
 
 	// Look up fields for measurement.
-	mf := e.fieldset.Fields(measurement)
+	mf := e.fieldset.FieldsByString(measurement)
 	if mf == nil {
 		return nil
 	}
