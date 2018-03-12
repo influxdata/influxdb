@@ -93,7 +93,9 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
       describe('if it is a new kapacitor', () => {
         it('does not get the kapacitor', async () => {
           const {wrapper} = setup()
+
           await wrapper.instance().componentDidMount()
+
           expect(getKapacitor).not.toHaveBeenCalled()
         })
       })
