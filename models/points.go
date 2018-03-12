@@ -1199,6 +1199,19 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 }
 
 func EscapeMeasurement(in []byte) []byte {
+	var escape bool
+	for _, v := range in {
+		// These contants are inlined from measurementEscapeCodes for performance
+		if v == ',' || v == ' ' {
+			escape = true
+			break
+		}
+	}
+
+	if !escape {
+		return in
+	}
+
 	for b, esc := range measurementEscapeCodes {
 		in = bytes.Replace(in, []byte{b}, esc, -1)
 	}
@@ -1206,6 +1219,10 @@ func EscapeMeasurement(in []byte) []byte {
 }
 
 func unescapeMeasurement(in []byte) []byte {
+	if bytes.IndexByte(in, '\\') == -1 {
+		return in
+	}
+
 	for b, esc := range measurementEscapeCodes {
 		in = bytes.Replace(in, esc, []byte{b}, -1)
 	}
@@ -1213,6 +1230,19 @@ func unescapeMeasurement(in []byte) []byte {
 }
 
 func escapeTag(in []byte) []byte {
+	var escape bool
+	for _, v := range in {
+		// These contants are inlined from tagEscapeCodes for performance
+		if v == ' ' || v == ',' || v == '=' {
+			escape = true
+			break
+		}
+	}
+
+	if !escape {
+		return in
+	}
+
 	for b, esc := range tagEscapeCodes {
 		if bytes.IndexByte(in, b) != -1 {
 			in = bytes.Replace(in, []byte{b}, esc, -1)
@@ -1543,7 +1573,16 @@ func parseTags(buf []byte) Tags {
 func MakeKey(name []byte, tags Tags) []byte {
 	// unescape the name and then re-escape it to avoid double escaping.
 	// The key should always be stored in escaped form.
-	return append(EscapeMeasurement(unescapeMeasurement(name)), tags.HashKey()...)
+	m := EscapeMeasurement(unescapeMeasurement(name))
+	t := tags.HashKey()
+
+	// Allocate b because name passed in could be an mmap'd slice which triggers
+	// a SIGBUS error when trying to append to it.  append see's a much higher
+	// cap and tries to write to a (possibly read-only mmap)
+	b := make([]byte, 0, len(m)+len(t))
+	b = append(b, m...)
+	b = append(b, t...)
+	return b
 }
 
 // SetTags replaces the tags for the point.
@@ -2052,35 +2091,31 @@ func (a Tags) HashKey() []byte {
 
 	// Type invariant: Tags are sorted
 
-	escaped := make(Tags, 0, len(a))
 	sz := 0
 	for _, t := range a {
-		ek := escapeTag(t.Key)
-		ev := escapeTag(t.Value)
-
-		if len(ev) > 0 {
-			escaped = append(escaped, Tag{Key: ek, Value: ev})
-			sz += len(ek) + len(ev)
+		if len(t.Value) == 0 {
+			continue
 		}
-	}
 
-	sz += len(escaped) + (len(escaped) * 2) // separators
+		sz += len(t.Key) + len(t.Value)
+	}
+	sz += len(a) * 2 // separators
 
 	// Generate marshaled bytes.
-	b := make([]byte, sz)
-	buf := b
-	idx := 0
-	for _, k := range escaped {
-		buf[idx] = ','
-		idx++
-		copy(buf[idx:idx+len(k.Key)], k.Key)
-		idx += len(k.Key)
-		buf[idx] = '='
-		idx++
-		copy(buf[idx:idx+len(k.Value)], k.Value)
-		idx += len(k.Value)
+
+	b := make([]byte, 0, sz)
+	for _, t := range a {
+		if len(t.Value) == 0 {
+			continue
+		}
+
+		b = append(b, ',')
+		b = append(b, escapeTag(t.Key)...)
+		b = append(b, '=')
+		b = append(b, escapeTag(t.Value)...)
+
 	}
-	return b[:idx]
+	return b
 }
 
 // CopyTags returns a shallow copy of tags.
