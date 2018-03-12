@@ -13,6 +13,7 @@ func getBuf(size int) *[]byte {
 	}
 	buf := x.(*[]byte)
 	if cap(*buf) < size {
+		bufPool.Put(x)
 		b := make([]byte, size)
 		return &b
 	}
