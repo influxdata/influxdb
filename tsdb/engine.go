@@ -155,6 +155,7 @@ type EngineOptions struct {
 
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
+	WALEnabled                  bool
 
 	Config       Config
 	SeriesIDSets SeriesIDSets
@@ -166,6 +167,7 @@ func NewEngineOptions() EngineOptions {
 		EngineVersion: DefaultEngine,
 		IndexVersion:  DefaultIndex,
 		Config:        NewConfig(),
+		WALEnabled:    true,
 	}
 }
 
