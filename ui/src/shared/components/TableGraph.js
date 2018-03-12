@@ -59,6 +59,7 @@ class TableGraph extends Component {
       rowIndex === parent.props.scrollToRow ||
       (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0) ||
       (columnIndex === hoveredColumnIndex && hoveredColumnIndex !== 0)
+    const dataIsNumerical = typeof data[rowIndex][columnIndex] === 'number'
 
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,
@@ -67,6 +68,7 @@ class TableGraph extends Component {
       'table-graph-cell__last-row': isLastRow,
       'table-graph-cell__last-column': isLastColumn,
       'table-graph-cell__highlight': isHighlighted,
+      'table-graph-cell__numerical': dataIsNumerical,
     })
 
     return (

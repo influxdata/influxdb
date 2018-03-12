@@ -21,6 +21,9 @@
   color: $g12-forge;
   border: 1px solid $g5-pepper;
 
+  &__numerical {
+    font-family: $code-font;
+  }
   &__fixed-row,
   &__fixed-column {
     font-weight: 700;
