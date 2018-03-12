@@ -48,7 +48,7 @@ type Options = {
 interface Props {
   singleStatType: string
   singleStatColors: Color[]
-  handleUpdateSingleStatType: () => string
+  handleUpdateSingleStatType: () => void
   handleUpdateSingleStatColors: () => void
   handleUpdateOptions: (options: Options) => void
   options: Options
@@ -58,7 +58,7 @@ interface State {
   TimeAxis: string
 }
 
-class TableOptions extends PureComponent<Props, State> {
+export class TableOptions extends PureComponent<Props, State> {
   state = {TimeAxis: 'VERTICAL'}
 
   handleToggleSingleStatType = () => {}
