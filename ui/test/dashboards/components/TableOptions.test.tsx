@@ -19,8 +19,8 @@ const setup = (override = {}) => {
     singleStatColors: [],
     handleUpdateSingleStatType: () => {},
     handleUpdateSingleStatColors: () => {},
-    handleUpdateOptions: () => {},
-    options: {
+    handleUpdateTableOptions: () => {},
+    tableOptions: {
       timeFormat: '',
       verticalTimeAxis: false,
       sortBy: {internalName: '', displayName: ''},
