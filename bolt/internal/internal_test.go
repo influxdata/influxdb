@@ -434,3 +434,37 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 		t.Fatalf("Dashboard protobuf copy error: diff follows:\n%s", cmp.Diff(expected, actual))
 	}
 }
+
+func Test_MarshalDashboard_WithEmptyCellType(t *testing.T) {
+	dashboard := chronograf.Dashboard{
+		ID: 1,
+		Cells: []chronograf.DashboardCell{
+			{
+				ID: "9b5367de-c552-4322-a9e8-7f384cbd235c",
+			},
+		},
+	}
+
+	expected := chronograf.Dashboard{
+		ID: 1,
+		Cells: []chronograf.DashboardCell{
+			{
+				ID:         "9b5367de-c552-4322-a9e8-7f384cbd235c",
+				Type:       "line",
+				Queries:    []chronograf.DashboardQuery{},
+				Axes:       map[string]chronograf.Axis{},
+				CellColors: []chronograf.CellColor{},
+			},
+		},
+		Templates: []chronograf.Template{},
+	}
+
+	var actual chronograf.Dashboard
+	if buf, err := internal.MarshalDashboard(dashboard); err != nil {
+		t.Fatal("Error marshaling dashboard: err", err)
+	} else if err := internal.UnmarshalDashboard(buf, &actual); err != nil {
+		t.Fatal("Error unmarshaling dashboard: err:", err)
+	} else if !cmp.Equal(expected, actual) {
+		t.Fatalf("Dashboard protobuf copy error: diff follows:\n%s", cmp.Diff(expected, actual))
+	}
+}
