@@ -58,6 +58,8 @@ export class KapacitorPage extends PureComponent<Props, State> {
       },
       exists: false,
     }
+
+    this.handleSubmit = this.handleSubmit.bind(this)
   }
 
   async componentDidMount() {
@@ -68,6 +70,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
 
     try {
       const kapacitor = await getKapacitor(source, id)
+      this.setState({kapacitor})
       await this.checkKapacitorConnection(kapacitor)
     } catch (err) {
       console.error('Could not get kapacitor: ', err)
@@ -91,7 +94,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     this.setState({kapacitor: {...this.state.kapacitor, url: e.target.value}})
   }
 
-  handleSubmit = async e => {
+  handleSubmit = e => {
     e.preventDefault()
     const {
       addFlashMessage,
@@ -100,6 +103,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
       params,
       router,
     } = this.props
+
     const {kapacitor} = this.state
     kapacitor.name = kapacitor.name.trim()
     const isNameTaken = kapacitors.some(k => k.name === kapacitor.name)
@@ -166,7 +170,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   private checkKapacitorConnection = async (kapacitor: Kapacitor) => {
     try {
       await pingKapacitor(kapacitor)
-      this.setState({kapacitor, exists: true})
+      this.setState({exists: true})
     } catch (error) {
       this.setState({exists: false})
       this.props.addFlashMessage({

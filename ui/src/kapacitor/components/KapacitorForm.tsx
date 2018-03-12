@@ -93,7 +93,11 @@ const KapacitorForm: SFC<Props> = ({
                     >
                       Reset
                     </button>
-                    <button className="btn btn-success" type="submit">
+                    <button
+                      className="btn btn-success"
+                      type="submit"
+                      data-test="submit-button"
+                    >
                       {exists ? 'Update' : 'Connect'}
                     </button>
                   </div>

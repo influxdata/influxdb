@@ -5,5 +5,6 @@ export const kapacitor = {
   active: true,
   links: {
     self: '/chronograf/v1/sources/47/kapacitors/1',
+    proxy: '/chronograf/v1/sources/47/kapacitors/1/proxy',
   },
 }

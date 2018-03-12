@@ -56,5 +56,6 @@ export const kapacitor = {
   active: false,
   links: {
     self: '/kapa/1',
+    proxy: '/proxy/kapacitor/1',
   },
 }

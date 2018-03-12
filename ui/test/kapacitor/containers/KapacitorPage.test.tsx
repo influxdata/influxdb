@@ -2,8 +2,8 @@ import React from 'react'
 import {KapacitorPage} from 'src/kapacitor/containers/KapacitorPage'
 import KapacitorForm from 'src/kapacitor/components/KapacitorForm'
 import KapacitorFormInput from 'src/kapacitor/components/KapacitorFormInput'
-import {shallow} from 'enzyme'
-import {getKapacitor} from 'src/shared/apis'
+import {mount} from 'enzyme'
+import {getKapacitor, createKapacitor, updateKapacitor} from 'src/shared/apis'
 
 import {source, kapacitor} from 'test/resources'
 import * as mocks from 'mocks/dummy'
@@ -24,7 +24,7 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  const wrapper = shallow(<KapacitorPage {...props} />)
+  const wrapper = mount(<KapacitorPage {...props} />)
 
   return {
     wrapper,
@@ -33,30 +33,21 @@ const setup = (override = {}) => {
 }
 
 describe('Kapacitor.Containers.KapacitorPage', () => {
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
   describe('rendering', () => {
     it('renders the KapacitorPage', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
     })
 
-    it('renders the <KapacitorForm/>', async () => {
+    it('renders the KapacitorForm', async () => {
       const {wrapper} = setup()
       const form = wrapper.find(KapacitorForm)
 
       expect(form.exists()).toBe(true)
-    })
-
-    describe('if it is a new kapacitor', () => {
-      it('display the default kapacitor data', async () => {
-        const {wrapper} = setup()
-        const state = wrapper.state()
-
-        const form = wrapper.find(KapacitorForm)
-        const url = form
-          .dive()
-          .findWhere(n => n.props().value === state.kapacitor.url)
-        expect(url.exists()).toBe(true)
-      })
     })
   })
 
@@ -64,26 +55,95 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
     describe('entering the url', () => {
       it('renders the text that is inputted', () => {
         const {wrapper} = setup()
-        const state = wrapper.state()
-        const event = {target: {value: 'new/url/'}}
+        const value = '/new/url'
+        const event = {target: {value}}
 
         wrapper.find(KapacitorFormInput)
-        let inputElement = wrapper
-          .find(KapacitorForm)
-          .dive()
-          .findWhere(n => n.props().value === state.kapacitor.url)
-          .dive()
-          .find('input')
+        let inputElement = wrapper.find('#kapaUrl')
 
         inputElement.simulate('change', event)
         wrapper.update()
 
-        inputElement = wrapper
-          .find(KapacitorForm)
-          .dive()
-          .findWhere(n => n.props().value === event.target.value)
+        inputElement = wrapper.find('#kapaUrl')
 
-        expect(inputElement.exists()).toBe(true)
+        expect(inputElement.prop('value')).toBe(value)
+      })
+    })
+
+    describe('entering the kapacitor name', () => {
+      it('renders the text that is inputted', () => {
+        const {wrapper} = setup()
+        const value = 'My New Kapacitor'
+        const event = {target: {value, name: 'name'}}
+
+        wrapper.find(KapacitorFormInput)
+        let inputElement = wrapper.find('#name')
+
+        inputElement.simulate('change', event)
+        wrapper.update()
+
+        inputElement = wrapper.find('#name')
+
+        expect(inputElement.prop('value')).toBe(value)
+      })
+    })
+
+    describe('entering the username', () => {
+      it('renders the text that is inputted', () => {
+        const {wrapper} = setup()
+        const value = 'user1'
+        const event = {target: {value, name: 'username'}}
+
+        wrapper.find(KapacitorFormInput)
+        let inputElement = wrapper.find('#username')
+
+        inputElement.simulate('change', event)
+        wrapper.update()
+
+        inputElement = wrapper.find('#username')
+
+        expect(inputElement.prop('value')).toBe(value)
+      })
+    })
+
+    describe('entering the password', () => {
+      it('renders the text that is inputted', () => {
+        const {wrapper} = setup()
+        const value = 'password'
+        const event = {target: {value, name: 'password'}}
+
+        wrapper.find(KapacitorFormInput)
+        let inputElement = wrapper.find('#password')
+
+        inputElement.simulate('change', event)
+        wrapper.update()
+
+        inputElement = wrapper.find('#password')
+
+        expect(inputElement.prop('value')).toBe(value)
+      })
+    })
+
+    describe('submitting the form', () => {
+      it('creates a new Kapacitor if there is no kapacitor', async () => {
+        const {wrapper} = setup()
+        const submit = wrapper.find({'data-test': 'submit-button'})
+
+        submit.simulate('submit')
+
+        expect(createKapacitor).toHaveBeenCalled()
+        expect(updateKapacitor).not.toHaveBeenCalled()
+      })
+
+      it('updates an existing Kapacitor if there is a kapacitor', () => {
+        const props = {params: {id: '1', hash: ''}}
+        const {wrapper} = setup(props)
+        const submit = wrapper.find({'data-test': 'submit-button'})
+
+        submit.simulate('submit')
+
+        expect(updateKapacitor).toHaveBeenCalled()
+        expect(createKapacitor).not.toHaveBeenCalled()
       })
     })
   })
