@@ -198,18 +198,16 @@ class Dygraph extends Component {
   }
 
   handleMouseMove = e => {
-    const {onSetHoverTime} = this.props
-    const newTime = this.eventToTimestamp(e)
-    if (onSetHoverTime) {
-      onSetHoverTime(newTime)
+    if (this.props.onSetHoverTime) {
+      const newTime = this.eventToTimestamp(e)
+      this.props.onSetHoverTime(newTime)
     }
     this.setState({isNotHovering: false})
   }
 
   handleMouseOut = () => {
-    const {onSetHoverTime} = this.props
-    if (onSetHoverTime) {
-      onSetHoverTime(NULL_HOVER_TIME)
+    if (this.props.onSetHoverTime) {
+      this.props.onSetHoverTime(NULL_HOVER_TIME)
     }
     this.setState({isNotHovering: true})
   }

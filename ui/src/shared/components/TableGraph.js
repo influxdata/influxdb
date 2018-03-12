@@ -32,16 +32,23 @@ class TableGraph extends Component {
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
-    this.props.onSetHoverTime(this._data[rowIndex][0].toString())
-    this.setState({hoveredColumnIndex: columnIndex, hoveredRowIndex: rowIndex})
+    if (this.props.onSetHoverTime) {
+      this.props.onSetHoverTime(this._data[rowIndex][0].toString())
+      this.setState({
+        hoveredColumnIndex: columnIndex,
+        hoveredRowIndex: rowIndex,
+      })
+    }
   }
 
   handleMouseOut = () => {
-    this.props.onSetHoverTime(NULL_HOVER_TIME)
-    this.setState({
-      hoveredColumnIndex: NULL_COLUMN_INDEX,
-      hoveredRowIndex: NULL_ROW_INDEX,
-    })
+    if (this.props.onSetHoverTime) {
+      this.props.onSetHoverTime(NULL_HOVER_TIME)
+      this.setState({
+        hoveredColumnIndex: NULL_COLUMN_INDEX,
+        hoveredRowIndex: NULL_ROW_INDEX,
+      })
+    }
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
@@ -59,7 +66,7 @@ class TableGraph extends Component {
       rowIndex === parent.props.scrollToRow ||
       (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0) ||
       (columnIndex === hoveredColumnIndex && hoveredColumnIndex !== 0)
-    const dataIsNumerical = typeof data[rowIndex][columnIndex] === 'number'
+    const dataIsNumerical = _.isNumber([rowIndex][columnIndex])
 
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,

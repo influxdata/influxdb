@@ -17,6 +17,7 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
+import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 import * as annotationActions from 'shared/actions/annotations'
@@ -52,7 +53,7 @@ class DashboardPage extends Component {
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      hoverTime: '0',
+      hoverTime: NULL_HOVER_TIME,
     }
   }
 
