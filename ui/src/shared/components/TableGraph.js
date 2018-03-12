@@ -21,7 +21,6 @@ class TableGraph extends Component {
   }
 
   componentWillUpdate(nextProps) {
-    // TODO: determine if in dataExplorer
     const {labels, data} = timeSeriesToTableGraph(nextProps.data)
     this._labels = labels
     this._data = data

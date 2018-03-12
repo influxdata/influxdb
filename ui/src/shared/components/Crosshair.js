@@ -28,7 +28,7 @@ class Crosshair extends Component {
   }
 }
 
-const {func, number, shape, string} = PropTypes
+const {number, shape, string} = PropTypes
 
 Crosshair.propTypes = {
   dygraph: shape({}),

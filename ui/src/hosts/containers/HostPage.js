@@ -4,8 +4,6 @@ import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 import classnames from 'classnames'
 
-import Dygraph from 'src/external/dygraph'
-
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'

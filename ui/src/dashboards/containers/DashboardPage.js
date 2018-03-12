@@ -4,7 +4,6 @@ import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import Dygraph from 'src/external/dygraph'
 
 import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -32,7 +31,7 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import {DASHBOARD_LAYOUT_ROW_HEIGHT, DYGRAPH_CELL_TYPES} from 'shared/constants'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
