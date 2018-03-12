@@ -69,6 +69,9 @@ type Point interface {
 	// Tags returns the tag set for the point.
 	Tags() Tags
 
+	// ForEachTag iterates over each tag invoking fn.  If fn return false, iteration stops.
+	ForEachTag(fn func(k, v []byte) bool)
+
 	// AddTag adds or replaces a tag value for a point.
 	AddTag(key, value string)
 
@@ -1459,6 +1462,10 @@ func (p *point) Tags() Tags {
 	}
 	p.cachedTags = parseTags(p.key)
 	return p.cachedTags
+}
+
+func (p *point) ForEachTag(fn func(k, v []byte) bool) {
+	walkTags(p.key, fn)
 }
 
 func (p *point) HasTag(tag []byte) bool {
