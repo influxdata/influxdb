@@ -2388,6 +2388,18 @@ func BenchmarkParseTags(b *testing.B) {
 	}
 }
 
+func BenchmarkMakeKey(b *testing.B) {
+	name := []byte("cpu")
+	tags := models.NewTags(map[string]string{
+		"host":   "server01",
+		"region": "us-west2",
+		"zone":   "a",
+	})
+	for i := 0; i < b.N; i++ {
+		models.MakeKey(name, tags)
+	}
+}
+
 func init() {
 	// Force uint support to be enabled for testing.
 	models.EnableUintSupport()
