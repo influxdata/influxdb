@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 
 class NameSection extends Component {
