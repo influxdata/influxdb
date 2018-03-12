@@ -1548,7 +1548,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
 
-	fields = mf.Fields("cpu")
+	fields = mf.FieldsByString("cpu")
 	field := fields.Field("value")
 	if field == nil {
 		t.Fatalf("field is null")
@@ -1593,7 +1593,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 		t.Fatal("NewMeasurementFieldSet expected error")
 	}
 
-	fields = mf.Fields("cpu")
+	fields = mf.FieldsByString("cpu")
 	if fields != nil {
 		t.Fatal("expecte fields to be nil")
 	}
@@ -1622,7 +1622,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
 
-	fields = mf.Fields("cpu")
+	fields = mf.FieldsByString("cpu")
 	field := fields.Field("value")
 	if field == nil {
 		t.Fatalf("field is null")

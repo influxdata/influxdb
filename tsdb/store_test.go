@@ -1138,18 +1138,24 @@ func TestStore_TagValues(t *testing.T) {
 			Name: "No WHERE clause",
 			Expr: &base,
 			Exp: []tsdb.TagValues{
+				createTagValues("cpu0", map[string][]string{"shard": {"s0"}}),
+				createTagValues("cpu1", map[string][]string{"shard": {"s1"}}),
 				createTagValues("cpu10", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
 				createTagValues("cpu11", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
 				createTagValues("cpu12", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu2", map[string][]string{"shard": {"s2"}}),
 			},
 		},
 		{
 			Name: "With WHERE clause",
 			Expr: baseWhere,
 			Exp: []tsdb.TagValues{
+				createTagValues("cpu0", map[string][]string{"shard": {"s0"}}),
+				createTagValues("cpu1", map[string][]string{"shard": {"s1"}}),
 				createTagValues("cpu10", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
 				createTagValues("cpu11", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
 				createTagValues("cpu12", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu2", map[string][]string{"shard": {"s2"}}),
 			},
 		},
 	}

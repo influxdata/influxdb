@@ -1405,6 +1405,9 @@ func (m *MeasurementFields) Field(name string) *Field {
 }
 
 func (m *MeasurementFields) HasField(name string) bool {
+	if m == nil {
+		return false
+	}
 	m.mu.RLock()
 	f := m.fields[name]
 	m.mu.RUnlock()
@@ -1480,7 +1483,15 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 }
 
 // Fields returns fields for a measurement by name.
-func (fs *MeasurementFieldSet) Fields(name string) *MeasurementFields {
+func (fs *MeasurementFieldSet) Fields(name []byte) *MeasurementFields {
+	fs.mu.RLock()
+	mf := fs.fields[string(name)]
+	fs.mu.RUnlock()
+	return mf
+}
+
+// FieldsByString returns fields for a measurment by name.
+func (fs *MeasurementFieldSet) FieldsByString(name string) *MeasurementFields {
 	fs.mu.RLock()
 	mf := fs.fields[name]
 	fs.mu.RUnlock()
