@@ -62,3 +62,31 @@
     border-color: $c-pool;
   }
 }
+
+.ReactVirtualized__Grid {
+  &:focus {
+    outline: none;
+  }
+  &::-webkit-scrollbar {
+    width: 0;
+
+    &-button {
+      background-color: #f00;
+    }
+    &-track {
+      background-color: #f00;
+    }
+    &-track-piece {
+      background-color: #f00;
+    }
+    &-thumb {
+      background-color: #fff;
+    }
+    &-corner {
+      background-color: #f00;
+    }
+  }
+  &::-webkit-resizer {
+    background-color: #f00;
+  }
+}
