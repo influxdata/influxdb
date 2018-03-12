@@ -113,6 +113,7 @@ type Config struct {
 	Precision        string
 	WriteConsistency string
 	UnsafeSsl        bool
+	Proxy            func(req *http.Request) (*url.URL, error)
 }
 
 // NewConfig will create a config to be used in connecting to the client
@@ -154,6 +155,7 @@ func NewClient(c Config) (*Client, error) {
 	}
 
 	tr := &http.Transport{
+		Proxy:           c.Proxy,
 		TLSClientConfig: tlsConfig,
 	}
 

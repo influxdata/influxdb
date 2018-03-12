@@ -859,3 +859,28 @@ func TestClientConcatURLPath(t *testing.T) {
 		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 }
+
+func TestClientProxy(t *testing.T) {
+	pinged := false
+	ts := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if got, want := req.URL.String(), "http://example.com:8086/ping"; got != want {
+			t.Errorf("invalid url in request: got=%s want=%s", got, want)
+		}
+		resp.WriteHeader(http.StatusNoContent)
+		pinged = true
+	}))
+	defer ts.Close()
+
+	proxyURL, _ := url.Parse(ts.URL)
+	c, _ := NewHTTPClient(HTTPConfig{
+		Addr:  "http://example.com:8086",
+		Proxy: http.ProxyURL(proxyURL),
+	})
+	if _, _, err := c.Ping(0); err != nil {
+		t.Fatalf("could not ping server: %s", err)
+	}
+
+	if !pinged {
+		t.Fatalf("no http request was received")
+	}
+}
