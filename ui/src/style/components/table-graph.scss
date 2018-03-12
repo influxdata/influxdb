@@ -18,13 +18,13 @@
   line-height: 30px;
   padding: 0 6px;
   font-size: 13px;
-  color: $g13-mist;
+  color: $g12-forge;
   border: 1px solid $g5-pepper;
 
   &__fixed-row,
   &__fixed-column {
     font-weight: 700;
-    color: $g16-pearl;
+    color: $g14-chromium;
     background-color: $g4-onyx;
   }
   &__fixed-row {
@@ -45,7 +45,17 @@
   &__last-column {
     border-right: 0;
   }
-  &__hovered {
-    // TODO:add stylign here.
+  &__highlight {
+    background-color: $g6-smoke;
+    color: $g16-pearl;
+  }
+  &__highlight:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
+    color: $g14-chromium;
+    background-color: $g6-smoke;
+  }
+  &:hover:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
+    color: $g20-white;
+    background-color: $g0-obsidian;
+    border-color: $c-pool;
   }
 }

@@ -55,10 +55,10 @@ class TableGraph extends Component {
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const isLastRow = rowIndex === rowCount - 1
     const isLastColumn = columnIndex === columnCount - 1
-    const isHovered =
+    const isHighlighted =
       rowIndex === parent.props.scrollToRow ||
-      rowIndex === hoveredRowIndex ||
-      columnIndex === hoveredColumnIndex
+      (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0) ||
+      (columnIndex === hoveredColumnIndex && hoveredColumnIndex !== 0)
 
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,
@@ -66,7 +66,7 @@ class TableGraph extends Component {
       'table-graph-cell__fixed-corner': isFixedCorner,
       'table-graph-cell__last-row': isLastRow,
       'table-graph-cell__last-column': isLastColumn,
-      'table-graph-cell__hovered': isHovered,
+      'table-graph-cell__highlight': isHighlighted,
     })
 
     return (
