@@ -24,11 +24,11 @@ export default function cellEditorOverlay(state = initialState, action) {
       const singleStatColors = validateSingleStatColors(colors, singleStatType)
       const gaugeColors = validateGaugeColors(colors)
 
-      const options = cell.options || initializeOptions(cell.type)
+      const tableOptions = cell.tableOptions || initializeOptions('table')
 
       return {
         ...state,
-        cell: {...cell, options},
+        cell: {...cell, tableOptions},
         singleStatType,
         singleStatColors,
         gaugeColors,
@@ -85,9 +85,9 @@ export default function cellEditorOverlay(state = initialState, action) {
       return {...state, cell}
     }
 
-    case 'UPDATE_OPTIONS': {
-      const {options} = action.payload
-      const cell = {...state.cell, options}
+    case 'UPDATE_TABLE_OPTIONS': {
+      const {tableOptions} = action.payload
+      const cell = {...state.cell, tableOptions}
 
       return {...state, cell}
     }

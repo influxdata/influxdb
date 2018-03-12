@@ -23,8 +23,10 @@ class TableGraph extends Component {
     const data = this._data
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
-    const {options} = this.props
-    const timeFormat = options ? options.timeFormat : 'MM/DD/YYYY HH:mm:ss.ss'
+    const {tableOptions} = this.props
+    const timeFormat = tableOptions
+      ? tableOptions.timeFormat
+      : 'MM/DD/YYYY HH:mm:ss.ss'
     const isTimeCell = columnIndex === 0 && rowIndex > 0
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
@@ -51,7 +53,7 @@ class TableGraph extends Component {
   }
 
   render() {
-    const {options} = this.props
+    const {tableOptions} = this.props
     const data = this._data
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
@@ -78,7 +80,9 @@ class TableGraph extends Component {
             width={tableWidth}
             enableFixedColumnScroll={true}
             enableFixedRowScroll={true}
-            timeFormat={options ? options.timeFormat : 'MM/DD/YYYY HH:mm:ss.ss'}
+            timeFormat={
+              tableOptions ? tableOptions.timeFormat : 'MM/DD/YYYY HH:mm:ss.ss'
+            }
           />}
       </div>
     )
@@ -90,7 +94,7 @@ const {arrayOf, number, shape} = PropTypes
 TableGraph.propTypes = {
   cellHeight: number,
   data: arrayOf(shape()),
-  options: shape({}),
+  tableOptions: shape({}),
 }
 
 export default TableGraph

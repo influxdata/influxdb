@@ -37,10 +37,10 @@ message DashboardCell {
 	map<string, Axis> axes      = 9; // Axes represent the graphical viewport for a cell's visualizations
 	repeated Color colors       = 10; // Colors represent encoding data values to color
 	Legend legend               = 11; // Legend is summary information for a cell
-	Options options				= 12; // Options for visualization of cell
+	TableOptions tableOptions	= 12; // TableOptions for visualization of cell with type 'table'
 }
 
-message Options {
+message TableOptions {
 	string timeFormat					= 1; // format for time
 	bool verticalTimeAxis 				= 2; // time axis should be a column not row
 	TableColumn sortBy					= 3; // which column should a table be sorted by

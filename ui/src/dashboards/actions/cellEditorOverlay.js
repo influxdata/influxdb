@@ -51,9 +51,9 @@ export const updateAxes = axes => ({
   },
 })
 
-export const updateOptions = options => ({
-  type: 'UPDATE_OPTIONS',
+export const updateTableOptions = tableOptions => ({
+  type: 'UPDATE_TABLE_OPTIONS',
   payload: {
-    options,
+    tableOptions,
   },
 })

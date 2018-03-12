@@ -264,23 +264,23 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 		}
 
 		sortBy := &TableColumn{
-			InternalName: c.Options.SortBy.InternalName,
-			DisplayName:  c.Options.SortBy.DisplayName,
+			InternalName: c.TableOptions.SortBy.InternalName,
+			DisplayName:  c.TableOptions.SortBy.DisplayName,
 		}
 
-		columnNames := make([]*TableColumn, len(c.Options.ColumnNames))
-		for i, column := range c.Options.ColumnNames {
+		columnNames := make([]*TableColumn, len(c.TableOptions.ColumnNames))
+		for i, column := range c.TableOptions.ColumnNames {
 			columnNames[i] = &TableColumn{
 				InternalName: column.InternalName,
 				DisplayName:  column.DisplayName,
 			}
 		}
 
-		options := &Options{
-			TimeFormat:       c.Options.TimeFormat,
-			VerticalTimeAxis: c.Options.VerticalTimeAxis,
+		tableOptions := &TableOptions{
+			TimeFormat:       c.TableOptions.TimeFormat,
+			VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
 			SortBy:           sortBy,
-			Wrapping:         c.Options.Wrapping,
+			Wrapping:         c.TableOptions.Wrapping,
 			ColumnNames:      columnNames,
 		}
 
@@ -299,7 +299,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				Type:        c.Legend.Type,
 				Orientation: c.Legend.Orientation,
 			},
-			Options: options,
+			TableOptions: tableOptions,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -426,41 +426,41 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			legend.Orientation = c.Legend.Orientation
 		}
 
-		options := chronograf.Options{}
-		if c.Options != nil {
+		tableOptions := chronograf.TableOptions{}
+		if c.TableOptions != nil {
 			sortBy := chronograf.TableColumn{}
-			if c.Options.SortBy != nil {
-				sortBy.InternalName = c.Options.SortBy.InternalName
-				sortBy.DisplayName = c.Options.SortBy.DisplayName
+			if c.TableOptions.SortBy != nil {
+				sortBy.InternalName = c.TableOptions.SortBy.InternalName
+				sortBy.DisplayName = c.TableOptions.SortBy.DisplayName
 			}
-			options.SortBy = sortBy
+			tableOptions.SortBy = sortBy
 
-			columnNames := make([]chronograf.TableColumn, len(c.Options.ColumnNames))
-			for i, column := range c.Options.ColumnNames {
+			columnNames := make([]chronograf.TableColumn, len(c.TableOptions.ColumnNames))
+			for i, column := range c.TableOptions.ColumnNames {
 				columnNames[i] = chronograf.TableColumn{}
 				columnNames[i].InternalName = column.InternalName
 				columnNames[i].DisplayName = column.DisplayName
 			}
-			options.ColumnNames = columnNames
-			options.TimeFormat = c.Options.TimeFormat
-			options.VerticalTimeAxis = c.Options.VerticalTimeAxis
-			options.Wrapping = c.Options.Wrapping
+			tableOptions.ColumnNames = columnNames
+			tableOptions.TimeFormat = c.TableOptions.TimeFormat
+			tableOptions.VerticalTimeAxis = c.TableOptions.VerticalTimeAxis
+			tableOptions.Wrapping = c.TableOptions.Wrapping
 
 		}
 
 		cells[i] = chronograf.DashboardCell{
-			ID:         c.ID,
-			X:          c.X,
-			Y:          c.Y,
-			W:          c.W,
-			H:          c.H,
-			Name:       c.Name,
-			Queries:    queries,
-			Type:       c.Type,
-			Axes:       axes,
-			CellColors: colors,
-			Legend:     legend,
-			Options:    options,
+			ID:           c.ID,
+			X:            c.X,
+			Y:            c.Y,
+			W:            c.W,
+			H:            c.H,
+			Name:         c.Name,
+			Queries:      queries,
+			Type:         c.Type,
+			Axes:         axes,
+			CellColors:   colors,
+			Legend:       legend,
+			TableOptions: tableOptions,
 		}
 	}
 

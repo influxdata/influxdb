@@ -546,18 +546,18 @@ type Legend struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	ID         string           `json:"i"`
-	X          int32            `json:"x"`
-	Y          int32            `json:"y"`
-	W          int32            `json:"w"`
-	H          int32            `json:"h"`
-	Name       string           `json:"name"`
-	Queries    []DashboardQuery `json:"queries"`
-	Axes       map[string]Axis  `json:"axes"`
-	Type       string           `json:"type"`
-	CellColors []CellColor      `json:"colors"`
-	Legend     Legend           `json:"legend"`
-	Options    Options          `json:"options,omitempty"`
+	ID           string           `json:"i"`
+	X            int32            `json:"x"`
+	Y            int32            `json:"y"`
+	W            int32            `json:"w"`
+	H            int32            `json:"h"`
+	Name         string           `json:"name"`
+	Queries      []DashboardQuery `json:"queries"`
+	Axes         map[string]Axis  `json:"axes"`
+	Type         string           `json:"type"`
+	CellColors   []CellColor      `json:"colors"`
+	Legend       Legend           `json:"legend"`
+	TableOptions TableOptions     `json:"tableOptions,omitempty"`
 }
 
 // TableColumn is a column in a DashboardCell of type Table
@@ -566,8 +566,8 @@ type TableColumn struct {
 	DisplayName  string `json:"displayName"`
 }
 
-// Options is a type of Options for a DashboardCell with type Table
-type Options struct {
+// TableOptions is a type of options for a DashboardCell with type Table
+type TableOptions struct {
 	TimeFormat       string        `json:"timeFormat"`
 	VerticalTimeAxis bool          `json:"verticalTimeAxis"`
 	SortBy           TableColumn   `json:"sortBy"`

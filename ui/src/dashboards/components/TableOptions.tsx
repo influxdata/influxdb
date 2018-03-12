@@ -16,7 +16,7 @@ import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 import {
   updateSingleStatType,
   updateSingleStatColors,
-  updateOptions,
+  updateTableOptions,
 } from 'src/dashboards/actions/cellEditorOverlay'
 
 const formatColor = color => {
@@ -50,8 +50,8 @@ interface Props {
   singleStatColors: Color[]
   handleUpdateSingleStatType: () => void
   handleUpdateSingleStatColors: () => void
-  handleUpdateOptions: (options: Options) => void
-  options: Options
+  handleUpdateTableOptions: (options: Options) => void
+  tableOptions: Options
 }
 
 interface State {
@@ -72,8 +72,8 @@ export class TableOptions extends PureComponent<Props, State> {
   handleChooseSortBy = () => {}
 
   handleTimeFormatChange = timeFormat => {
-    const {options, handleUpdateOptions} = this.props
-    handleUpdateOptions({...options, timeFormat})
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, timeFormat})
   }
 
   handleToggleTimeAxis = () => {}
@@ -87,8 +87,11 @@ export class TableOptions extends PureComponent<Props, State> {
   handleValidateColorValue = () => {}
 
   render() {
-    const {singleStatColors, singleStatType, options: {timeFormat}} = this.props
-
+    const {
+      singleStatColors,
+      singleStatType,
+      tableOptions: {timeFormat},
+    } = this.props
     const {TimeAxis} = this.state
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
@@ -162,11 +165,11 @@ export class TableOptions extends PureComponent<Props, State> {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatType, singleStatColors, cell: {options}},
+  cellEditorOverlay: {singleStatType, singleStatColors, cell: {tableOptions}},
 }) => ({
   singleStatType,
   singleStatColors,
-  options,
+  tableOptions,
 })
 
 const mapDispatchToProps = dispatch => ({
@@ -178,7 +181,7 @@ const mapDispatchToProps = dispatch => ({
     updateSingleStatColors,
     dispatch
   ),
-  handleUpdateOptions: bindActionCreators(updateOptions, dispatch),
+  handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

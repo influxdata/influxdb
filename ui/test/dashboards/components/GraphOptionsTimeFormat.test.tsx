@@ -1,7 +1,6 @@
 import React from 'react'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import {Dropdown} from 'src/shared/components/Dropdown'
-import DropdownMenu from 'src/shared/components/DropdownMenu'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import {shallow} from 'enzyme'

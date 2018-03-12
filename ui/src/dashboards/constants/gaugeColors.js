@@ -133,7 +133,7 @@ export const DEFAULT_TABLE_COLORS = [
 
 export const DEFAULT_TABLE_OPTIONS = {
   timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
-  verticalTimeAxis: false,
+  verticalTimeAxis: true,
   sortBy: {internalName: 'time', displayName: ''},
   wrapping: 'truncate',
   columnNames: [{internalName: 'time', displayName: ''}],
