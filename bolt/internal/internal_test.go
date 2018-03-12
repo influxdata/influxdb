@@ -368,7 +368,46 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 						Value: "100",
 					},
 				},
-				Type: "line",
+				Type: "bar",
+			},
+			{
+				ID:   "9b5367de-c552-4322-a9e8-7f384cbd235d",
+				X:    0,
+				Y:    0,
+				W:    4,
+				H:    4,
+				Name: "Super awesome query",
+				Queries: []chronograf.DashboardQuery{
+					{
+						Command: "select * from cpu",
+						Label:   "CPU Utilization",
+						Range: &chronograf.Range{
+							Upper: int64(100),
+						},
+						Shifts: []chronograf.TimeShift{},
+					},
+				},
+				Axes: map[string]chronograf.Axis{
+					"y": chronograf.Axis{
+						LegacyBounds: [2]int64{},
+					},
+				},
+				CellColors: []chronograf.CellColor{
+					{
+						ID:    "myid",
+						Type:  "min",
+						Hex:   "#234567",
+						Name:  "Laser",
+						Value: "0",
+					},
+					{
+						ID:    "id2",
+						Type:  "max",
+						Hex:   "#876543",
+						Name:  "Solitude",
+						Value: "100",
+					},
+				},
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -380,6 +419,48 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 		Cells: []chronograf.DashboardCell{
 			{
 				ID:   "9b5367de-c552-4322-a9e8-7f384cbd235c",
+				X:    0,
+				Y:    0,
+				W:    4,
+				H:    4,
+				Name: "Super awesome query",
+				Queries: []chronograf.DashboardQuery{
+					{
+						Command: "select * from cpu",
+						Label:   "CPU Utilization",
+						Range: &chronograf.Range{
+							Upper: int64(100),
+						},
+						Shifts: []chronograf.TimeShift{},
+					},
+				},
+				Axes: map[string]chronograf.Axis{
+					"y": chronograf.Axis{
+						Bounds: []string{},
+						Base:   "10",
+						Scale:  "linear",
+					},
+				},
+				CellColors: []chronograf.CellColor{
+					{
+						ID:    "myid",
+						Type:  "min",
+						Hex:   "#234567",
+						Name:  "Laser",
+						Value: "0",
+					},
+					{
+						ID:    "id2",
+						Type:  "max",
+						Hex:   "#876543",
+						Name:  "Solitude",
+						Value: "100",
+					},
+				},
+				Type: "bar",
+			},
+			{
+				ID:   "9b5367de-c552-4322-a9e8-7f384cbd235d",
 				X:    0,
 				Y:    0,
 				W:    4,
