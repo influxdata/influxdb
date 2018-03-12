@@ -94,7 +94,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     this.setState({kapacitor: {...this.state.kapacitor, url: e.target.value}})
   }
 
-  handleSubmit = e => {
+  handleSubmit = async e => {
     e.preventDefault()
     const {
       addFlashMessage,

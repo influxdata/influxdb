@@ -58,7 +58,6 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
         const value = '/new/url'
         const event = {target: {value}}
 
-        wrapper.find(KapacitorFormInput)
         let inputElement = wrapper.find('#kapaUrl')
 
         inputElement.simulate('change', event)
@@ -76,15 +75,14 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
         const value = 'My New Kapacitor'
         const event = {target: {value, name: 'name'}}
 
-        wrapper.find(KapacitorFormInput)
-        let inputElement = wrapper.find('#name')
+        let input = wrapper.find('#name')
 
-        inputElement.simulate('change', event)
+        input.simulate('change', event)
         wrapper.update()
 
-        inputElement = wrapper.find('#name')
+        input = wrapper.find('#name')
 
-        expect(inputElement.prop('value')).toBe(value)
+        expect(input.prop('value')).toBe(value)
       })
     })
 
@@ -94,15 +92,14 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
         const value = 'user1'
         const event = {target: {value, name: 'username'}}
 
-        wrapper.find(KapacitorFormInput)
-        let inputElement = wrapper.find('#username')
+        let input = wrapper.find('#username')
 
-        inputElement.simulate('change', event)
+        input.simulate('change', event)
         wrapper.update()
 
-        inputElement = wrapper.find('#username')
+        input = wrapper.find('#username')
 
-        expect(inputElement.prop('value')).toBe(value)
+        expect(input.prop('value')).toBe(value)
       })
     })
 
@@ -112,15 +109,14 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
         const value = 'password'
         const event = {target: {value, name: 'password'}}
 
-        wrapper.find(KapacitorFormInput)
-        let inputElement = wrapper.find('#password')
+        let input = wrapper.find('#password')
 
-        inputElement.simulate('change', event)
+        input.simulate('change', event)
         wrapper.update()
 
-        inputElement = wrapper.find('#password')
+        input = wrapper.find('#password')
 
-        expect(inputElement.prop('value')).toBe(value)
+        expect(input.prop('value')).toBe(value)
       })
     })
 
@@ -167,7 +163,6 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
 
           await wrapper.instance().componentDidMount()
 
-          expect(wrapper.state().exists).toBe(true)
           expect(wrapper.state().kapacitor).toEqual(mocks.kapacitor)
         })
       })
