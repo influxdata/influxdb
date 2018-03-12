@@ -445,11 +445,3 @@ export const cellSupportsAnnotations = cellType => {
   ]
   return !!supportedTypes.find(type => type === cellType)
 }
-
-export const DYGRAPH_CELL_TYPES = [
-  'line',
-  'line-stacked',
-  'line-stepplot',
-  'line-plus-single-stat',
-  'bar',
-]

@@ -15,7 +15,7 @@ import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
-
+import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 import {
   OPTIONS,
   LINE_COLORS,
@@ -188,20 +188,16 @@ class Dygraph extends Component {
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
   }
 
-  clampWithinGraphTimerange = timestamp => {
-    const [xRangeStart] = this.dygraph.xAxisRange()
-    return Math.max(xRangeStart, timestamp)
-  }
-
   eventToTimestamp = ({pageX: pxBetweenMouseAndPage}) => {
     const {left: pxBetweenGraphAndPage} = this.graphRef.getBoundingClientRect()
     const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
     const timestamp = this.dygraph.toDataXCoord(graphXCoordinate)
-    const clamped = this.clampWithinGraphTimerange(timestamp)
+    const [xRangeStart] = this.dygraph.xAxisRange()
+    const clamped = Math.max(xRangeStart, timestamp)
     return `${clamped}`
   }
 
-  highlightCallback = e => {
+  handleMouseMove = e => {
     const {onSetHoverTime} = this.props
     const newTime = this.eventToTimestamp(e)
     if (onSetHoverTime) {
@@ -210,10 +206,10 @@ class Dygraph extends Component {
     this.setState({isNotHovering: false})
   }
 
-  unhighlightCallback = () => {
+  handleMouseOut = () => {
     const {onSetHoverTime} = this.props
     if (onSetHoverTime) {
-      onSetHoverTime('0')
+      onSetHoverTime(NULL_HOVER_TIME)
     }
     this.setState({isNotHovering: true})
   }
@@ -361,8 +357,8 @@ class Dygraph extends Component {
           }}
           className="dygraph-child-container"
           style={dygraphStyle}
-          onMouseMove={this.highlightCallback}
-          onMouseOut={this.unhighlightCallback}
+          onMouseMove={this.handleMouseMove}
+          onMouseOut={this.handleMouseOut}
         />
         {staticLegend &&
           <StaticLegend

@@ -3,6 +3,11 @@ import _ from 'lodash'
 import classnames from 'classnames'
 
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
+import {
+  NULL_COLUMN_INDEX,
+  NULL_ROW_INDEX,
+  NULL_HOVER_TIME,
+} from 'src/shared/constants/tableGraph'
 
 import {MultiGrid} from 'react-virtualized'
 
@@ -10,8 +15,8 @@ class TableGraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      hoveredColumnIndex: -1,
-      hoveredRowIndex: -1,
+      hoveredColumnIndex: NULL_COLUMN_INDEX,
+      hoveredRowIndex: NULL_ROW_INDEX,
     }
   }
 
@@ -32,8 +37,11 @@ class TableGraph extends Component {
   }
 
   handleMouseOut = () => {
-    this.props.onSetHoverTime('0')
-    this.setState({hoveredColumnIndex: -1, hoveredRowIndex: -1})
+    this.props.onSetHoverTime(NULL_HOVER_TIME)
+    this.setState({
+      hoveredColumnIndex: NULL_COLUMN_INDEX,
+      hoveredRowIndex: NULL_ROW_INDEX,
+    })
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
@@ -99,21 +107,21 @@ class TableGraph extends Component {
       >
         {data.length > 1 &&
           <MultiGrid
-            fixedColumnCount={1}
-            fixedRowCount={1}
-            cellRenderer={this.cellRenderer}
             columnCount={columnCount}
             columnWidth={COLUMN_WIDTH}
-            height={tableHeight}
             rowCount={rowCount}
             rowHeight={ROW_HEIGHT}
+            height={tableHeight}
+            width={tableWidth}
+            fixedColumnCount={1}
+            fixedRowCount={1}
             enableFixedColumnScroll={true}
             enableFixedRowScroll={true}
+            scrollToRow={hoverTimeRow}
+            cellRenderer={this.cellRenderer}
             hoveredColumnIndex={hoveredColumnIndex}
             hoveredRowIndex={hoveredRowIndex}
-            scrollToRow={hoverTimeRow}
             hoverTime={hoverTime}
-            width={tableWidth}
           />}
       </div>
     )
