@@ -1,6 +1,7 @@
 package run
 
 import (
+	"encoding"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,7 +12,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/coordinator"
@@ -202,8 +202,17 @@ func (c *Config) ApplyEnvOverrides(getenv func(string) string) error {
 }
 
 func (c *Config) applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) error {
-	// If we have a pointer, dereference it
 	element := spec
+	// If spec is a named type and is addressable,
+	// check the address to see if it implements encoding.TextUnmarshaler.
+	if spec.Kind() != reflect.Ptr && spec.Type().Name() != "" && spec.CanAddr() {
+		v := spec.Addr()
+		if u, ok := v.Interface().(encoding.TextUnmarshaler); ok {
+			value := getenv(prefix)
+			return u.UnmarshalText([]byte(value))
+		}
+	}
+	// If we have a pointer, dereference it
 	if spec.Kind() == reflect.Ptr {
 		element = spec.Elem()
 	}
@@ -217,21 +226,9 @@ func (c *Config) applyEnvOverrides(getenv func(string) string, prefix string, sp
 		}
 		element.SetString(value)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		var intValue int64
-
-		// Handle toml.Duration
-		if element.Type().Name() == "Duration" {
-			dur, err := time.ParseDuration(value)
-			if err != nil {
-				return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
-			}
-			intValue = dur.Nanoseconds()
-		} else {
-			var err error
-			intValue, err = strconv.ParseInt(value, 0, element.Type().Bits())
-			if err != nil {
-				return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
-			}
+		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
+		if err != nil {
+			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
 		}
 		element.SetInt(intValue)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
