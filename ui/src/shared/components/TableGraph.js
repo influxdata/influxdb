@@ -27,20 +27,17 @@ class TableGraph extends Component {
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
-    const {onSetHoverTime} = this.props
-    onSetHoverTime(this._data[rowIndex][0].toString())
+    this.props.onSetHoverTime(this._data[rowIndex][0].toString())
     this.setState({hoveredColumnIndex: columnIndex, hoveredRowIndex: rowIndex})
   }
 
   handleMouseOut = () => {
-    const {onSetHoverTime} = this.props
-    onSetHoverTime('0')
+    this.props.onSetHoverTime('0')
     this.setState({hoveredColumnIndex: -1, hoveredRowIndex: -1})
   }
 
-  cellRenderer = ({columnIndex, key, rowIndex, style}) => {
+  cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
     const data = this._data
-    const {hoverTime} = this.props
     const {hoveredColumnIndex, hoveredRowIndex} = this.state
 
     const columnCount = _.get(data, ['0', 'length'], 0)
@@ -51,9 +48,9 @@ class TableGraph extends Component {
     const isLastRow = rowIndex === rowCount - 1
     const isLastColumn = columnIndex === columnCount - 1
     const isHovered =
-      data[rowIndex][0] === hoverTime ||
-      columnIndex === hoveredColumnIndex ||
-      rowIndex === hoveredRowIndex
+      rowIndex === parent.props.scrollToRow ||
+      rowIndex === hoveredRowIndex ||
+      columnIndex === hoveredColumnIndex
 
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,
@@ -71,14 +68,14 @@ class TableGraph extends Component {
         className={cellClass}
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
       >
-        {data[rowIndex][columnIndex]
-          ? data[rowIndex][columnIndex].toString()
-          : 'null'}
+        {`${data[rowIndex][columnIndex]}`}
       </div>
     )
   }
 
   render() {
+    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {hoverTime} = this.props
     const data = this._data
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
@@ -86,6 +83,14 @@ class TableGraph extends Component {
     const ROW_HEIGHT = 30
     const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
     const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
+
+    const hoverTimeRow =
+      data.length > 1 && hoverTime > 0
+        ? data.findIndex(
+            row => row[0] && _.isNumber(row[0]) && row[0] >= hoverTime
+          )
+        : undefined
+
     return (
       <div
         className="table-graph-container"
@@ -104,8 +109,9 @@ class TableGraph extends Component {
             rowHeight={ROW_HEIGHT}
             enableFixedColumnScroll={true}
             enableFixedRowScroll={true}
-            hoveredColumnIndex={this.state.hoveredColumnIndex}
-            hoveredRowIndex={this.state.hoveredRowIndex}
+            hoveredColumnIndex={hoveredColumnIndex}
+            hoveredRowIndex={hoveredRowIndex}
+            scrollToRow={hoverTimeRow}
             hoverTime={hoverTime}
             width={tableWidth}
           />}
