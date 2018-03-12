@@ -2,28 +2,28 @@
   Crosshairs
   ------------------------------------------------------------------------------
 */
-.crosshair {
+
+%crosshair-styles {
   position: absolute;
+  cursor: pointer;
+}
+
+.crosshair-container {
+  @extend %crosshair-styles;
   z-index: 0;
   top: 8px;
   width: calc(100% - 32px);
   height: calc(100% - 16px);
-  cursor: pointer;
-  opacity: 1;
 }
 
-.crosshair--crosshair {
-  opacity: 1;
-  position: absolute;
+.crosshair {
+  @extend %crosshair-styles;
   top: 0;
   height: calc(100% - 20px);
   width: 0.5px;
-  background: linear-gradient(to bottom, $c-dreamsicle 0%, $c-dreamsicle 100%);
-  transition: opacity 0.4s ease;
-  z-index: 5;
-  cursor: pointer;
+  background-color: $g14-chromium;
 }
 
-.crosshair--crosshair.hidden {
+.crosshair.hidden {
   visibility: hidden;
 }
