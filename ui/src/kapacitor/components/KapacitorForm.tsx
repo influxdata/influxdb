@@ -68,33 +68,22 @@ const KapacitorForm: SFC<Props> = ({
                       onChange={onInputChange}
                       maxLength={33}
                     />
-                    <div className="form-group">
-                      <label htmlFor="username">Username</label>
-                      <input
-                        className="form-control"
-                        id="username"
-                        name="username"
-                        placeholder="username"
-                        value={username || ''}
-                        onChange={onInputChange}
-                        spellCheck={false}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="password">Password</label>
-                      <input
-                        className="form-control"
-                        id="password"
-                        type="password"
-                        name="password"
-                        placeholder="password"
-                        value={password || ''}
-                        onChange={onInputChange}
-                        spellCheck={false}
-                      />
-                    </div>
+                    <Input
+                      name="username"
+                      label="Username"
+                      value={username || ''}
+                      placeholder={username}
+                      onChange={onInputChange}
+                    />
+                    <Input
+                      name="password"
+                      label="password"
+                      placeholder="password"
+                      value={password || ''}
+                      onChange={onInputChange}
+                      inputType="password"
+                    />
                   </div>
-
                   <div className="form-group form-group-submit col-xs-12 text-center">
                     <button
                       className="btn btn-default"

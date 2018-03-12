@@ -7,6 +7,7 @@ interface Props {
   placeholder: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
   maxLength?: number
+  inputType?: string
 }
 
 const KapacitorFormInput: SFC<Props> = ({
@@ -16,6 +17,7 @@ const KapacitorFormInput: SFC<Props> = ({
   placeholder,
   onChange,
   maxLength,
+  inputType,
 }) =>
   <div className="form-group">
     <label htmlFor={name}>
@@ -30,7 +32,12 @@ const KapacitorFormInput: SFC<Props> = ({
       onChange={onChange}
       placeholder={placeholder}
       maxLength={maxLength}
+      type={inputType}
     />
   </div>
+
+KapacitorFormInput.defaultProps = {
+  inputType: '',
+}
 
 export default KapacitorFormInput
