@@ -440,97 +440,23 @@ func Test_MarshalDashboard_WithEmptyCellType(t *testing.T) {
 		ID: 1,
 		Cells: []chronograf.DashboardCell{
 			{
-				ID:   "9b5367de-c552-4322-a9e8-7f384cbd235c",
-				X:    0,
-				Y:    0,
-				W:    4,
-				H:    4,
-				Name: "Super awesome query",
-				Queries: []chronograf.DashboardQuery{
-					{
-						Command: "select * from cpu",
-						Label:   "CPU Utilization",
-						Range: &chronograf.Range{
-							Upper: int64(100),
-						},
-						Shifts: []chronograf.TimeShift{},
-					},
-				},
-				Axes: map[string]chronograf.Axis{
-					"y": chronograf.Axis{
-						LegacyBounds: [2]int64{},
-					},
-				},
-				CellColors: []chronograf.CellColor{
-					{
-						ID:    "myid",
-						Type:  "min",
-						Hex:   "#234567",
-						Name:  "Laser",
-						Value: "0",
-					},
-					{
-						ID:    "id2",
-						Type:  "max",
-						Hex:   "#876543",
-						Name:  "Solitude",
-						Value: "100",
-					},
-				},
+				ID: "9b5367de-c552-4322-a9e8-7f384cbd235c",
 			},
 		},
-		Templates: []chronograf.Template{},
-		Name:      "Dashboard",
 	}
 
 	expected := chronograf.Dashboard{
 		ID: 1,
 		Cells: []chronograf.DashboardCell{
 			{
-				ID:   "9b5367de-c552-4322-a9e8-7f384cbd235c",
-				X:    0,
-				Y:    0,
-				W:    4,
-				H:    4,
-				Name: "Super awesome query",
-				Queries: []chronograf.DashboardQuery{
-					{
-						Command: "select * from cpu",
-						Label:   "CPU Utilization",
-						Range: &chronograf.Range{
-							Upper: int64(100),
-						},
-						Shifts: []chronograf.TimeShift{},
-					},
-				},
-				Axes: map[string]chronograf.Axis{
-					"y": chronograf.Axis{
-						Bounds: []string{},
-						Base:   "10",
-						Scale:  "linear",
-					},
-				},
-				CellColors: []chronograf.CellColor{
-					{
-						ID:    "myid",
-						Type:  "min",
-						Hex:   "#234567",
-						Name:  "Laser",
-						Value: "0",
-					},
-					{
-						ID:    "id2",
-						Type:  "max",
-						Hex:   "#876543",
-						Name:  "Solitude",
-						Value: "100",
-					},
-				},
-				Type: "line",
+				ID:         "9b5367de-c552-4322-a9e8-7f384cbd235c",
+				Type:       "line",
+				Queries:    []chronograf.DashboardQuery{},
+				Axes:       map[string]chronograf.Axis{},
+				CellColors: []chronograf.CellColor{},
 			},
 		},
 		Templates: []chronograf.Template{},
-		Name:      "Dashboard",
 	}
 
 	var actual chronograf.Dashboard
