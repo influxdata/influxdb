@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 const LogItemHTTPError = ({logItem}) =>
   <div className="logs-table--row" key={logItem.key}>
