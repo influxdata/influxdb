@@ -12,8 +12,8 @@ import {
 
 import KapacitorForm from '../components/KapacitorForm'
 
-const defaultName = 'My Kapacitor'
-const kapacitorPort = '9092'
+export const defaultName = 'My Kapacitor'
+export const kapacitorPort = '9092'
 
 type FlashMessage = {type: string; text: string}
 

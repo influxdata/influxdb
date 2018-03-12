@@ -1,5 +1,9 @@
 import React from 'react'
-import {KapacitorPage} from 'src/kapacitor/containers/KapacitorPage'
+import {
+  KapacitorPage,
+  defaultName,
+  kapacitorPort,
+} from 'src/kapacitor/containers/KapacitorPage'
 import KapacitorForm from 'src/kapacitor/components/KapacitorForm'
 import KapacitorFormInput from 'src/kapacitor/components/KapacitorFormInput'
 import {mount} from 'enzyme'
@@ -140,6 +144,37 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
 
         expect(updateKapacitor).toHaveBeenCalled()
         expect(createKapacitor).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('clicking the `reset` button', () => {
+      it('resets all inputs to their defaults', () => {
+        const {wrapper} = setup()
+
+        const url = wrapper.find('#kapaUrl')
+        const name = wrapper.find('#name')
+        const username = wrapper.find('#username')
+        const password = wrapper.find('#password')
+
+        const value = 'reset me'
+
+        // change all values to some non-default value
+        url.simulate('change', {target: {value}})
+        name.simulate('change', {target: {value, name: 'name'}})
+        username.simulate('change', {target: {value, name: 'username'}})
+        password.simulate('change', {target: {value, name: 'password'}})
+
+        const inputs = wrapper.find(KapacitorFormInput)
+        inputs.map(n => expect(n.find('input').prop('value')).toBe(value))
+
+        // reset
+        const reset = wrapper.find({'data-test': 'reset-button'})
+        reset.simulate('click')
+
+        expect(url.prop('value')).toBe(`https://localhost:${kapacitorPort}`)
+        expect(name.prop('value')).toBe(defaultName)
+        expect(username.prop('value')).toBe('')
+        expect(password.prop('value')).toBe('')
       })
     })
   })
