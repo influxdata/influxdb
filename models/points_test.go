@@ -2424,6 +2424,78 @@ func BenchmarkParseTags(b *testing.B) {
 	}
 }
 
+func BenchmarkEscapeMeasurement(b *testing.B) {
+	benchmarks := []struct {
+		m []byte
+	}{
+		{[]byte("this_is_a_test")},
+		{[]byte("this,is,a,test")},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(string(bm.m), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				models.EscapeMeasurement(bm.m)
+			}
+		})
+	}
+}
+
+func makeTags(key, val string, n int) models.Tags {
+	tags := make(models.Tags, n)
+	for i := range tags {
+		tags[i].Key = []byte(fmt.Sprintf("%s%03d", key, i))
+		tags[i].Value = []byte(fmt.Sprintf("%s%03d", val, i))
+	}
+	return tags
+}
+
+func BenchmarkTags_HashKey(b *testing.B) {
+	benchmarks := []struct {
+		name string
+		t    models.Tags
+	}{
+		{"5 tags-no esc", makeTags("tag_foo", "val_bar", 5)},
+		{"25 tags-no esc", makeTags("tag_foo", "val_bar", 25)},
+		{"5 tags-esc", makeTags("tag foo", "val bar", 5)},
+		{"25 tags-esc", makeTags("tag foo", "val bar", 25)},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				bm.t.HashKey()
+			}
+		})
+	}
+}
+
+func BenchmarkMakeKey(b *testing.B) {
+	benchmarks := []struct {
+		m []byte
+		t models.Tags
+	}{
+		{[]byte("this_is_a_test"), nil},
+		{[]byte("this,is,a,test"), nil},
+		{[]byte(`this\ is\ a\ test`), nil},
+
+		{[]byte("this_is_a_test"), makeTags("tag_foo", "val_bar", 8)},
+		{[]byte("this,is,a,test"), makeTags("tag_foo", "val_bar", 8)},
+		{[]byte("this_is_a_test"), makeTags("tag_foo", "val bar", 8)},
+		{[]byte("this,is,a,test"), makeTags("tag_foo", "val bar", 8)},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(string(bm.m), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				models.MakeKey(bm.m, bm.t)
+			}
+		})
+	}
+}
+
 func init() {
 	// Force uint support to be enabled for testing.
 	models.EnableUintSupport()
