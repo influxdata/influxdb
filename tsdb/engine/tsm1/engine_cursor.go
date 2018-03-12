@@ -12,7 +12,7 @@ import (
 
 func (e *Engine) CreateCursor(ctx context.Context, r *tsdb.CursorRequest) (tsdb.Cursor, error) {
 	// Look up fields for measurement.
-	mf := e.fieldset.Fields(r.Measurement)
+	mf := e.fieldset.FieldsByString(r.Measurement)
 	if mf == nil {
 		return nil, nil
 	}

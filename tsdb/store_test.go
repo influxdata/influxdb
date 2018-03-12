@@ -1138,18 +1138,24 @@ func TestStore_TagValues(t *testing.T) {
 			Name: "No WHERE clause",
 			Expr: &base,
 			Exp: []tsdb.TagValues{
-				createTagValues("cpu0", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
-				createTagValues("cpu1", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
-				createTagValues("cpu2", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu0", map[string][]string{"shard": {"s0"}}),
+				createTagValues("cpu1", map[string][]string{"shard": {"s1"}}),
+				createTagValues("cpu10", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu11", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu12", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu2", map[string][]string{"shard": {"s2"}}),
 			},
 		},
 		{
 			Name: "With WHERE clause",
 			Expr: baseWhere,
 			Exp: []tsdb.TagValues{
-				createTagValues("cpu0", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
-				createTagValues("cpu1", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
-				createTagValues("cpu2", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu0", map[string][]string{"shard": {"s0"}}),
+				createTagValues("cpu1", map[string][]string{"shard": {"s1"}}),
+				createTagValues("cpu10", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu11", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu12", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu2", map[string][]string{"shard": {"s2"}}),
 			},
 		},
 	}
@@ -1158,9 +1164,10 @@ func TestStore_TagValues(t *testing.T) {
 	setup := func(index string) []uint64 { // returns shard ids
 		s = MustOpenStore(index)
 
-		fmtStr := `cpu%[1]d,foo=a,ignoreme=nope,host=tv%[2]d,shard=s%[3]d value=1 %[4]d
-		cpu%[1]d,host=nofoo value=1 %[4]d
+		fmtStr := `cpu1%[1]d,foo=a,ignoreme=nope,host=tv%[2]d,shard=s%[3]d value=1 %[4]d
+	cpu1%[1]d,host=nofoo value=1 %[4]d
 	mem,host=nothanks value=1 %[4]d
+	cpu%[3]d,shard=s%[3]d,foo=a value=2 %[4]d
 	`
 		genPoints := func(sid int) []string {
 			var ts int
