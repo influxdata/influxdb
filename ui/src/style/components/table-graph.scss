@@ -15,11 +15,26 @@
 }
 
 .table-graph-cell {
-  line-height: 30px;
+  line-height: 28px; // Cell height - 2x border width
   padding: 0 6px;
   font-size: 13px;
   color: $g12-forge;
   border: 1px solid $g5-pepper;
+
+  // Blue Highlight
+  &:after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    z-index: 5;
+    border: 2px solid $c-pool;
+    border-radius: 3px;
+    visibility: hidden;
+    box-sizing: border-box;
+  }
 
   &__numerical {
     font-family: $code-font;
@@ -59,7 +74,7 @@
   &:hover:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
     color: $g20-white;
     background-color: $g0-obsidian;
-    border-color: $c-pool;
+    &:after {visibility: visible;}
   }
 }
 
