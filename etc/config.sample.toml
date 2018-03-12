@@ -72,7 +72,7 @@
   # CacheMaxMemorySize is the maximum size a shard's cache can
   # reach before it starts rejecting writes.
   # Valid size suffixes are k, m, or g (case insensitive, 1024 = 1k).
-  # Vaues without a size suffix are in bytes.
+  # Values without a size suffix are in bytes.
   # cache-max-memory-size = "1g"
 
   # CacheSnapshotMemorySize is the size at which the engine will
