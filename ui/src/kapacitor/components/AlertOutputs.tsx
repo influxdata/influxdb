@@ -6,7 +6,7 @@ import {Kapacitor, Source} from 'src/types'
 
 type FlashMessage = {type: string; text: string}
 
-interface AlertOutPutProps {
+interface AlertOutputProps {
   exists: boolean
   kapacitor: Kapacitor
   addFlashMessage: (message: FlashMessage) => void
@@ -14,7 +14,7 @@ interface AlertOutPutProps {
   hash: string
 }
 
-const AlertOutputs: SFC<AlertOutPutProps> = ({
+const AlertOutputs: SFC<AlertOutputProps> = ({
   exists,
   kapacitor,
   addFlashMessage,
