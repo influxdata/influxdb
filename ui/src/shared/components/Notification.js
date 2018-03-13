@@ -6,6 +6,8 @@ import classnames from 'classnames'
 
 import {dismissNotification as dismissNotificationAction} from 'shared/actions/notifications'
 
+import {NOTIFICATION_TRANSITION} from 'shared/constants/index'
+
 class Notification extends Component {
   constructor(props) {
     super(props)
@@ -39,7 +41,10 @@ class Notification extends Component {
     const {notification: {id}, dismissNotification} = this.props
 
     this.setState({dismiss: true})
-    this.deleteTimer = setTimeout(() => dismissNotification(id), 250)
+    this.deleteTimer = setTimeout(
+      () => dismissNotification(id),
+      NOTIFICATION_TRANSITION
+    )
   }
 
   render() {
