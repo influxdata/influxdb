@@ -1,4 +1,4 @@
-import React, {PureComponent, EventHandler, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 
 interface Props {
   wrapperClass: string
