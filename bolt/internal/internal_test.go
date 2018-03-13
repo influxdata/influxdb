@@ -472,6 +472,9 @@ func Test_MarshalDashboard_WithEmptyCellType(t *testing.T) {
 				Queries:    []chronograf.DashboardQuery{},
 				Axes:       map[string]chronograf.Axis{},
 				CellColors: []chronograf.CellColor{},
+				TableOptions: chronograf.TableOptions{
+					ColumnNames: []chronograf.TableColumn{},
+				},
 			},
 		},
 		Templates: []chronograf.Template{},
