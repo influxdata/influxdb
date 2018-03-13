@@ -3,8 +3,6 @@ import PropTypes from 'prop-types'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 import {ResizableBox} from 'react-resizable'
 
-import _ from 'lodash'
-
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
 import Layout from 'src/shared/components/Layout'
@@ -56,12 +54,8 @@ class LayoutRenderer extends Component {
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
-  handleCellResize = (__, oldCoords, resizeCoords) => {
-    if (_.isEqual(oldCoords, resizeCoords)) {
-      return
-    }
-
-    this.setState({resizeCoords})
+  handleCellResize = () => {
+    this.resizeCoords = this.setState({resizeCoords: new Date()})
   }
 
   render() {
