@@ -1,12 +1,12 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
 
-// Text Formatting helper
-const toTitleCase = str => {
-  return str.replace(/\w\S*/g, function(txt) {
-    return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-  })
-}
+import {
+  STRING_TO_TITLE_CASE,
+  FIVE_SECONDS,
+  TEN_SECONDS,
+  INFINITE,
+} from 'shared/constants/index'
 
 //  Misc Notifications
 //  ----------------------------------------------------------------------------
@@ -16,7 +16,7 @@ export const newVersionNotification = message => {
   return {
     type: 'info',
     icon: 'cubo-uniform',
-    duration: -1,
+    duration: INFINITE,
     message,
   }
 }
@@ -25,7 +25,7 @@ export const notificationWithAltText = (type, message) => {
   return {
     type,
     icon: 'triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message,
   }
 }
@@ -40,14 +40,14 @@ export const enterPresentationModeNotification = {
 export const dataExplorerWriteSuccess = {
   type: 'success',
   icon: 'checkmark',
-  duration: 5000,
+  duration: FIVE_SECONDS,
   message: 'Data was written successfully.',
 }
 
 export const sessionTimeoutNotification = {
   type: 'primary',
   icon: 'triangle',
-  duration: -1,
+  duration: INFINITE,
   message: 'Your session has timed out. Log in again to continue.',
 }
 
@@ -56,19 +56,19 @@ export const internalServerErrorNotifications = sourceID => {
     checkLogs: {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       mesasage: 'Internal Server Error. Check API Logs.',
     },
     noKapacitors: {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
     },
     deleteKapacitorFail: {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: 'Internal Server Error. Could not delete Kapacitor Connection.',
     },
   }
@@ -81,7 +81,7 @@ export const unableToGetHostsMessage = 'Unable to get Hosts.'
 export const unableToGetHostsNotification = {
   icon: 'alert-triangle',
   type: 'error',
-  duration: 5000,
+  duration: FIVE_SECONDS,
   message: unableToGetHostsMessage,
 }
 
@@ -90,7 +90,7 @@ export const unableToGetHostAppsMessage = 'Unable to get Apps for Hosts.'
 export const unableToGetHostAppsNotification = {
   icon: 'alert-triangle',
   type: 'error',
-  duration: 5000,
+  duration: FIVE_SECONDS,
   message: unableToGetHostAppsMessage,
 }
 
@@ -101,7 +101,7 @@ export const sourceNotifications = {
     return {
       type: 'success',
       icon: 'server2',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Connected to InfluxDB ${sourceName} successfully.`,
     }
   },
@@ -109,7 +109,7 @@ export const sourceNotifications = {
     return {
       type: 'error',
       icon: 'server2',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `Unable to connect to InfluxDB ${sourceName}: ${errorMessage}`,
     }
   },
@@ -117,7 +117,7 @@ export const sourceNotifications = {
     return {
       type: 'success',
       icon: 'server2',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Updated InfluxDB ${sourceName} Connection successfully.`,
     }
   },
@@ -125,7 +125,7 @@ export const sourceNotifications = {
     return {
       type: 'error',
       icon: 'server2',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `Failed to update InfluxDB ${sourceName} Connection: ${errorMessage}`,
     }
   },
@@ -133,7 +133,7 @@ export const sourceNotifications = {
     return {
       type: 'success',
       icon: 'server2',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `${sourceName} deleted successfully.`,
     }
   },
@@ -141,7 +141,7 @@ export const sourceNotifications = {
     return {
       type: 'error',
       icon: 'server2',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `There was a problem deleting ${sourceName}.`,
     }
   },
@@ -166,40 +166,40 @@ export const multitenancyUserNotifications = {
   removedFromCurrent: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: -1,
+    duration: INFINITE,
     message: 'You were removed from your current organization.',
   },
   removedFromAll: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: -1,
+    duration: INFINITE,
     message:
       'You have been removed from all organizations. Please contact your administrator.',
   },
   currentDeleted: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: -1,
+    duration: INFINITE,
     message: 'Your current organization was deleted.',
   },
   unauthorized: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: -1,
+    duration: INFINITE,
     message:
       'This organization is private. To gain access, you must be explicitly added by an administrator.',
   },
   noSources: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: -1,
+    duration: INFINITE,
     message: 'Organization has no sources configured.',
   },
   switchOrg: (orgName, roleName) => {
     return {
       type: 'primary',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Now logged in to '${orgName}' as '${roleName}'.`,
     }
   },
@@ -214,7 +214,7 @@ export const chronografUserNotifications = {
   addUserValidation: {
     type: 'warning',
     icon: 'alert-triangle',
-    duration: 5000,
+    duration: FIVE_SECONDS,
     message: 'User must have a Name and Provider.',
   },
   removeUser: (user, organization) => {
@@ -224,7 +224,7 @@ export const chronografUserNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `${user} has been removed from ${isAbsoluteDelete
         ? 'all organizations and deleted.'
         : 'the current organization.'}`,
@@ -234,7 +234,7 @@ export const chronografUserNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message,
     }
   },
@@ -242,7 +242,7 @@ export const chronografUserNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Mapping ${id}/${scheme} deleted successfully.`,
     }
   },
@@ -250,7 +250,7 @@ export const chronografUserNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Organization ${orgName} deleted successfully.`,
     }
   },
@@ -264,40 +264,48 @@ export const influxAdminNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
-      message: `${toTitleCase(objectType)} created successfully.`,
+      duration: FIVE_SECONDS,
+      message: `${STRING_TO_TITLE_CASE(objectType)} created successfully.`,
     }
   },
   createFail: (objectType, errorMessage) => {
-    return `Failed to create ${toTitleCase(objectType)}: ${errorMessage}`
+    return `Failed to create ${STRING_TO_TITLE_CASE(
+      objectType
+    )}: ${errorMessage}`
   },
   updateSuccess: objectType => {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
-      message: `${toTitleCase(objectType)} updated successfully.`,
+      duration: FIVE_SECONDS,
+      message: `${STRING_TO_TITLE_CASE(objectType)} updated successfully.`,
     }
   },
   updateFail: (objectType, errorMessage) => {
-    return `Failed to update ${toTitleCase(objectType)}: ${errorMessage}`
+    return `Failed to update ${STRING_TO_TITLE_CASE(
+      objectType
+    )}: ${errorMessage}`
   },
   deleteSuccess: (objectType, name) => {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
-      message: `${toTitleCase(objectType)} ${name} deleted successfully.`,
+      duration: FIVE_SECONDS,
+      message: `${STRING_TO_TITLE_CASE(
+        objectType
+      )} ${name} deleted successfully.`,
     }
   },
   deleteFail: (objectType, errorMessage) => {
-    return `Failed to delete ${toTitleCase(objectType)}: ${errorMessage}`
+    return `Failed to delete ${STRING_TO_TITLE_CASE(
+      objectType
+    )}: ${errorMessage}`
   },
   queriesError: message => {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message,
     }
   },
@@ -307,39 +315,39 @@ export const influxAdminValidationNotifications = {
   createRP: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'Fields cannot be empty.',
   },
   deleteConfirm: databaseName => {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `Type "DELETE ${databaseName}" to confirm.`,
     }
   },
   saveUser: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'Username and/or Password too short.',
   },
   saveRole: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'Role Name is too short.',
   },
   dbNameBlank: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'Database name cannot be blank.',
   },
   dbNameTaken: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'A Database by this name already exists.',
   },
 }
@@ -351,7 +359,7 @@ export const dashboardNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Dashboard ${name} deleted successfully.`,
     }
   },
@@ -362,7 +370,7 @@ export const dashboardNotifications = {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `Dashboard ${dashboardID} could not be found`,
     }
   },
@@ -370,7 +378,7 @@ export const dashboardNotifications = {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `Variable '${tempVarName}' already exists. Please enter a new value.`,
     }
   },
@@ -382,20 +390,20 @@ export const ruleBuilderNotifications = {
   createSuccess: {
     type: 'success',
     icon: 'checkmark',
-    duration: 5000,
+    duration: FIVE_SECONDS,
     message: 'Alert Rule created successfully.',
   },
   createFail: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'There was a problem creating the Alert Rule.',
   },
   deleteSuccess: ruleName => {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `${ruleName} deleted successfully.`,
     }
   },
@@ -403,7 +411,7 @@ export const ruleBuilderNotifications = {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `${ruleName} could not be deleted.`,
     }
   },
@@ -411,7 +419,7 @@ export const ruleBuilderNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `${ruleName} saved successfully.`,
     }
   },
@@ -419,7 +427,7 @@ export const ruleBuilderNotifications = {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `There was a problem saving ${ruleName}: ${errorMessage}`,
     }
   },
@@ -427,7 +435,7 @@ export const ruleBuilderNotifications = {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `${ruleName} ${status} successfully.`,
     }
   },
@@ -435,7 +443,7 @@ export const ruleBuilderNotifications = {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `${ruleName} could not be ${status}.`,
     }
   },
@@ -453,53 +461,53 @@ export const kapacitorConfigNotifications = {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `There is already a Kapacitor Connection named "${kapacitorName}".`,
     }
   },
   updateSuccess: {
     type: 'success',
     icon: 'checkmark',
-    duration: 5000,
+    duration: FIVE_SECONDS,
     message: 'Kapacitor Connection updated successfully.',
   },
   updateFail: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'There was a problem updating the Kapacitor Connection.',
   },
   createSuccess: {
     type: 'success',
     icon: 'checkmark',
-    duration: 5000,
+    duration: FIVE_SECONDS,
     message:
       'Connected to Kapacitor successfully! Configuring endpoints is optional.',
   },
   createFail: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'There was a problem connecting to Kapacitor.',
   },
   connectFail: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message:
       'Could not connect to Kapacitor. Check your connection settings in the Configuration page.',
   },
   notFound: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'We could not find a Kapacitor configuration for this source.',
   },
   saveEndpointSuccess: endpoint => {
     return {
       type: 'success',
       icon: 'checkmark',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Alert configuration for ${endpoint} saved successfully.`,
     }
   },
@@ -507,7 +515,7 @@ export const kapacitorConfigNotifications = {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `There was an error saving the alert configuration for ${endpoint}: ${errorMessage}`,
     }
   },
@@ -515,7 +523,7 @@ export const kapacitorConfigNotifications = {
     return {
       type: 'success',
       icon: 'pulse-c',
-      duration: 5000,
+      duration: FIVE_SECONDS,
       message: `Test Alert sent to ${endpoint}. If the Alert does not reach its destination, please check your endpoint configuration settings.`,
     }
   },
@@ -523,7 +531,7 @@ export const kapacitorConfigNotifications = {
     return {
       type: 'error',
       icon: 'pulse-c',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: `There was an error sending a Test Alert to ${endpoint}${errorMessage
         ? `: ${errorMessage}`
         : '.'}`,
@@ -532,7 +540,7 @@ export const kapacitorConfigNotifications = {
   refreshFail: {
     type: 'error',
     icon: 'alert-triangle',
-    duration: 10000,
+    duration: TEN_SECONDS,
     message: 'There was an error getting the Kapacitor configuration.',
   },
 }
@@ -543,14 +551,14 @@ export const tickscriptNotifications = {
   createSuccess: {
     type: 'success',
     icon: 'checkmark',
-    duration: 5000,
+    duration: FIVE_SECONDS,
     message: 'TICKscript successfully created.',
   },
   createFail: 'Failed to create TICKscript.',
   updateSuccess: {
     type: 'success',
     icon: 'checkmark',
-    duration: 5000,
+    duration: FIVE_SECONDS,
     message: 'TICKscript saved successfully.',
   },
   updateFail: 'TICKscript could not be saved.',
@@ -558,14 +566,14 @@ export const tickscriptNotifications = {
   loggingUnavailable: {
     type: 'warning',
     icon: 'alert-triangle',
-    duration: -1,
+    duration: INFINITE,
     message: 'Kapacitor version 1.4 required to view TICKscript logs',
   },
   loggingError: error => {
     return {
       type: 'error',
       icon: 'alert-triangle',
-      duration: 10000,
+      duration: TEN_SECONDS,
       message: error,
     }
   },
