@@ -81,6 +81,11 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", expected, res)
 		}
 
+		// it takes some time for _internal to be created, we want to make sure it's treated
+		// correctly.
+		// wait for the snapshot to write
+		time.Sleep(time.Second * 10)
+
 		// now backup
 		cmd := backup.NewCommand()
 		_, port, err := net.SplitHostPort(config.BindAddress)
