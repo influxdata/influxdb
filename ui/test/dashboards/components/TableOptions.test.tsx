@@ -22,7 +22,7 @@ const setup = (override = {}) => {
     handleUpdateTableOptions: () => {},
     tableOptions: {
       timeFormat: '',
-      verticalTimeAxis: false,
+      verticalTimeAxis: true,
       sortBy: {internalName: '', displayName: ''},
       wrapping: '',
       columnNames: [],
