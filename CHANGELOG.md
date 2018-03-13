@@ -4,6 +4,7 @@ v1.5.1 [unreleased]
 ### Bugfixes
 
 -	[#9542](https://github.com/influxdata/influxdb/pull/9542): Allow time variable to be case insensitive again.
+-	[#9564](https://github.com/influxdata/influxdb/pull/9564): Support setting the log level through the environment variable.
 
 v1.5.0 [2017-03-06]
 -------------------
