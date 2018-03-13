@@ -15,6 +15,9 @@
 
 ## v1.4.2.2 [2018-03-07]
 ### Bug Fixes
+1. [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
+1. [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
+1. [#2859](https://github.com/influxdata/chronograf/pull/2859): Enable Mappings save button when valid
 1.  [#2933](https://github.com/influxdata/chronograf/pull/2933): Include url in Kapacitor connection creation requests
 
 

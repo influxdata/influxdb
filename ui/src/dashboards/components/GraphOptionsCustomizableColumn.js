@@ -15,7 +15,7 @@ const GraphOptionsCustomizableColumn = ({
       <InputClickToEdit
         value={newColumnName}
         wrapperClass="column-controls-input"
-        onUpdate={onColumnRename}
+        onBlur={onColumnRename}
         placeholder="Rename..."
         appearAsNormalInput={true}
       />
