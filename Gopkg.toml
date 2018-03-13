@@ -62,7 +62,7 @@ required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto",
 
 [[constraint]]
   name = "golang.org/x/oauth2"
-  revision = "1e695b1c8febf17aad3bfa7bf0a819ef94b98ad5"
+  revision = "2f32c3ac0fa4fb807a0fcefb0b6f2468a0d99bd0"
 
 [[constraint]]
   name = "google.golang.org/api"

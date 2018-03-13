@@ -1,6 +1,7 @@
 package oauth2
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -13,15 +14,24 @@ import (
 
 var testTime = time.Date(1985, time.October, 25, 18, 0, 0, 0, time.UTC)
 
+type mockCallbackResponse struct {
+	AccessToken string `json:"access_token"`
+}
+
 // setupMuxTest produces an http.Client and an httptest.Server configured to
 // use a particular http.Handler selected from a AuthMux. As this selection is
 // done during the setup process, this configuration is performed by providing
 // a function, and returning the desired handler. Cleanup is still the
 // responsibility of the test writer, so the httptest.Server's Close() method
 // should be deferred.
-func setupMuxTest(selector func(*AuthMux) http.Handler) (*http.Client, *httptest.Server, *httptest.Server) {
+func setupMuxTest(response interface{}, selector func(*AuthMux) http.Handler) (*http.Client, *httptest.Server, *httptest.Server) {
 	provider := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("content-type", "application/json")
 		rw.WriteHeader(http.StatusOK)
+
+		body, _ := json.Marshal(response)
+
+		rw.Write(body)
 	}))
 
 	now := func() time.Time {
@@ -63,7 +73,9 @@ func teardownMuxTest(hc *http.Client, backend *httptest.Server, provider *httpte
 func Test_AuthMux_Logout_DeletesSessionCookie(t *testing.T) {
 	t.Parallel()
 
-	hc, ts, prov := setupMuxTest(func(j *AuthMux) http.Handler {
+	var response interface{}
+
+	hc, ts, prov := setupMuxTest(response, func(j *AuthMux) http.Handler {
 		return j.Logout()
 	})
 	defer teardownMuxTest(hc, ts, prov)
@@ -100,7 +112,9 @@ func Test_AuthMux_Logout_DeletesSessionCookie(t *testing.T) {
 func Test_AuthMux_Login_RedirectsToCorrectURL(t *testing.T) {
 	t.Parallel()
 
-	hc, ts, prov := setupMuxTest(func(j *AuthMux) http.Handler {
+	var response interface{}
+
+	hc, ts, prov := setupMuxTest(response, func(j *AuthMux) http.Handler {
 		return j.Login() // Use Login handler for httptest server.
 	})
 	defer teardownMuxTest(hc, ts, prov)
@@ -126,7 +140,8 @@ func Test_AuthMux_Login_RedirectsToCorrectURL(t *testing.T) {
 }
 
 func Test_AuthMux_Callback_SetsCookie(t *testing.T) {
-	hc, ts, prov := setupMuxTest(func(j *AuthMux) http.Handler {
+	response := mockCallbackResponse{AccessToken: "123"}
+	hc, ts, prov := setupMuxTest(response, func(j *AuthMux) http.Handler {
 		return j.Callback()
 	})
 	defer teardownMuxTest(hc, ts, prov)

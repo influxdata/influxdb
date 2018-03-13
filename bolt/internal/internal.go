@@ -404,6 +404,13 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			legend.Orientation = c.Legend.Orientation
 		}
 
+		// FIXME: this is merely for legacy cells and
+		//        should be removed as soon as possible
+		cellType := c.Type
+		if cellType == "" {
+			cellType = "line"
+		}
+
 		cells[i] = chronograf.DashboardCell{
 			ID:         c.ID,
 			X:          c.X,
@@ -412,7 +419,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			H:          c.H,
 			Name:       c.Name,
 			Queries:    queries,
-			Type:       c.Type,
+			Type:       cellType,
 			Axes:       axes,
 			CellColors: colors,
 			Legend:     legend,
