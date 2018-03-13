@@ -12,6 +12,8 @@ import {
 
 import {MultiGrid} from 'react-virtualized'
 
+const isEmpty = data => data.length <= 1
+
 class TableGraph extends Component {
   constructor(props) {
     super(props)
@@ -22,15 +24,20 @@ class TableGraph extends Component {
   }
 
   componentWillMount() {
-    this._labels = []
     this._data = [[]]
   }
 
   componentWillUpdate(nextProps) {
-    const {labels, data} = timeSeriesToTableGraph(nextProps.data)
-    this._labels = labels
+    const {data} = timeSeriesToTableGraph(nextProps.data)
     this._data = data
   }
+
+  calcHoverTimeRow = (data, hoverTime) =>
+    !isEmpty(data) && hoverTime !== NULL_HOVER_TIME
+      ? data.findIndex(
+          row => row[0] && _.isNumber(row[0]) && row[0] >= hoverTime
+        )
+      : undefined
 
   handleHover = (columnIndex, rowIndex) => () => {
     if (this.props.onSetHoverTime) {
@@ -101,13 +108,7 @@ class TableGraph extends Component {
     const ROW_HEIGHT = 30
     const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
     const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
-
-    const hoverTimeRow =
-      data.length > 1 && hoverTime > 0
-        ? data.findIndex(
-            row => row[0] && _.isNumber(row[0]) && row[0] >= hoverTime
-          )
-        : undefined
+    const hoverTimeRow = this.calcHoverTimeRow(data, hoverTime)
 
     return (
       <div
@@ -115,7 +116,7 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {data.length > 1 &&
+        {!isEmpty(data) &&
           <MultiGrid
             columnCount={columnCount}
             columnWidth={COLUMN_WIDTH}
