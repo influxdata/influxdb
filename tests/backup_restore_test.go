@@ -83,7 +83,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 
 		// it takes some time for _internal to be created, we want to make sure it's treated
 		// correctly.
-		// wait for the snapshot to write
 		time.Sleep(time.Second * 10)
 
 		// now backup
