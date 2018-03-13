@@ -93,9 +93,7 @@ class TableGraph extends Component {
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
       >
         {isFixedColumn
-          ? `${moment(data[rowIndex][columnIndex].toISOString()).format(
-              timeFormat
-            )}`
+          ? `${moment(data[rowIndex][columnIndex]).format(timeFormat)}`
           : `${data[rowIndex][columnIndex]}`}
       </div>
     )
