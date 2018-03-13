@@ -32,11 +32,14 @@ export const handleSuccess = (data, query, editQueryStatus) => {
 }
 
 export const handleError = (error, query, editQueryStatus) => {
-  const message = _.get(error, ['data', 'message'], error.toString())
+  const message = _.get(
+    error,
+    ['data', 'message'],
+    error.message || 'Could not retrieve data'
+  )
 
   // 400 from chrono server = fail
   editQueryStatus(query.id, {error: message})
-  console.error(error)
 }
 
 export const fetchTimeSeriesAsync = async (

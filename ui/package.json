@@ -1,6 +1,6 @@
 {
   "name": "chronograf-ui",
-  "version": "1.4.2-2",
+  "version": "1.4.2-3",
   "private": false,
   "license": "AGPL-3.0",
   "description": "",
@@ -62,7 +62,7 @@
     "enzyme-adapter-react-15": "^1.0.5",
     "eslint": "^3.14.1",
     "eslint-config-prettier": "^2.9.0",
-    "eslint-loader": "1.6.1",
+    "eslint-loader": "^2.0.0",
     "eslint-plugin-jest": "^21.12.2",
     "eslint-plugin-prettier": "^2.1.2",
     "eslint-plugin-react": "6.6.0",
