@@ -250,8 +250,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		return nil
 	case *influxql.Call:
 		if isMathFunction(expr) {
-			// TODO(jsternberg): Implement validation for any math functions.
-			return nil
+			return c.compileTrigFunction(expr)
 		}
 
 		// Register the function call in the list of function calls.
@@ -667,6 +666,13 @@ func (c *compiledField) compileTopBottom(call *influxql.Call) error {
 	}
 	c.global.TopBottomFunction = call.Name
 	return nil
+}
+
+func (c *compiledField) compileTrigFunction(expr *influxql.Call) error {
+	if exp, got := 1, len(expr.Args); exp != got {
+		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+	}
+	return c.compileExpr(expr.Args[0])
 }
 
 func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) error {
