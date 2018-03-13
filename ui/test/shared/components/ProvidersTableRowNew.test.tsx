@@ -31,8 +31,6 @@ const setup = (override = {}) => {
 }
 
 describe('Components.Shared.ProvidersTableRowNew', () => {
-  describe('rendering', () => {})
-
   describe('user interaction', () => {
     describe('provider and providerOrganization in state are null', () => {
       it('should have a disabled confirm button', () => {
@@ -101,6 +99,4 @@ describe('Components.Shared.ProvidersTableRowNew', () => {
       })
     })
   })
-
-  describe('instance methods', () => {})
 })

@@ -88,6 +88,4 @@ describe('Components.Shared.InputClickToEdit', () => {
       })
     })
   })
-
-  describe('instance methods', () => {})
 })

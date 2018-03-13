@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, EventHandler, MouseEvent} from 'react'
 
 interface Props {
   wrapperClass: string
@@ -52,36 +52,44 @@ class InputClickToEdit extends PureComponent<Props, State> {
     this.setState({isEditing: true})
   }
 
-  handleInputBlur(e) {
+  handleInputBlur(e: React.ChangeEvent<HTMLInputElement>) {
     const {onBlur, value} = this.props
-    if (value !== e.target.value) {
-      onBlur(e.target.value)
+    if (value !== e.currentTarget.value) {
+      onBlur(e.currentTarget.value)
     }
 
     this.setState({
       isEditing: false,
-      initialValue: e.target.value,
+      initialValue: e.currentTarget.value,
     })
   }
 
-  handleKeyDown = e => {
+  handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const {onBlur, value} = this.props
     if (e.key === 'Enter') {
-      this.handleInputBlur(e)
+      if (value !== e.currentTarget.value) {
+        onBlur(e.currentTarget.value)
+      }
+
+      this.setState({
+        isEditing: false,
+        initialValue: e.currentTarget.value,
+      })
     }
     if (e.key === 'Escape') {
       this.handleCancel()
     }
   }
 
-  handleChange = e => {
+  handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const {onChange} = this.props
     if (onChange) {
-      onChange(e.target.value)
+      onChange(e.currentTarget.value)
     }
   }
 
-  handleFocus = e => {
-    e.target.select()
+  handleFocus(e: React.ChangeEvent<HTMLInputElement>) {
+    e.currentTarget.select()
   }
 
   render() {
