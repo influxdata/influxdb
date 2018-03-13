@@ -3,7 +3,7 @@ export const source = {
   name: 'minikube-influx',
   type: 'influx',
   url: 'http://192.168.99.100:30400',
-  'default': true,
+  default: true,
   telegraf: 'telegraf',
   organization: 'default',
   role: 'viewer',
@@ -16,8 +16,8 @@ export const source = {
     permissions: '/chronograf/v1/sources/2/permissions',
     users: '/chronograf/v1/sources/2/users',
     databases: '/chronograf/v1/sources/2/dbs',
-    annotations: '/chronograf/v1/sources/2/annotations'
-  }
+    annotations: '/chronograf/v1/sources/2/annotations',
+  },
 }
 
 export const kapacitor = {
@@ -38,4 +38,17 @@ export const createKapacitorBody = {
   insecureSkipVerify: false,
   username: 'user',
   password: 'pass',
+}
+
+export const updateKapacitorBody = {
+  name: 'Test Kapacitor',
+  url: 'http://localhost:9092',
+  insecureSkipVerify: false,
+  username: 'user',
+  password: 'pass',
+  active: true,
+  links: {
+    self: '/chronograf/v1/sources/47/kapacitors/1',
+    proxy: '/chronograf/v1/sources/47/kapacitors/1/proxy',
+  },
 }

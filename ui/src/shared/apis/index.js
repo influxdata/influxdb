@@ -126,6 +126,7 @@ export function updateKapacitor({
   username,
   password,
   active,
+  insecureSkipVerify,
 }) {
   return AJAX({
     url: links.self,
@@ -136,6 +137,7 @@ export function updateKapacitor({
       username,
       password,
       active,
+      insecureSkipVerify,
     },
   })
 }
