@@ -1,9 +1,19 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 
-import InputClickToEdit from 'shared/components/InputClickToEdit'
+import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
-class GraphOptionsCustomizableColumn extends Component {
+type Column = {
+  internalName: string
+  displayName: string
+}
+
+interface Props {
+  internalName: string
+  displayName: string
+  onColumnRename: (column: Column) => void
+}
+
+class GraphOptionsCustomizableColumn extends PureComponent<Props, {}> {
   constructor(props) {
     super(props)
 
@@ -33,14 +43,6 @@ class GraphOptionsCustomizableColumn extends Component {
       </div>
     )
   }
-}
-
-const {func, string} = PropTypes
-
-GraphOptionsCustomizableColumn.propTypes = {
-  internalName: string,
-  displayName: string,
-  onColumnRename: func,
 }
 
 export default GraphOptionsCustomizableColumn
