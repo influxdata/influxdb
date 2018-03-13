@@ -824,12 +824,20 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 	return engine.CreateIterator(ctx, m.Name, opt)
 }
 
-func (s *Shard) CreateCursor(ctx context.Context, r *CursorRequest) (Cursor, error) {
+func (s *Shard) CreateSeriesCursor(ctx context.Context, cond influxql.Expr) (SeriesCursor, error) {
+	index, err := s.Index()
+	if err != nil {
+		return nil, err
+	}
+	return newSeriesCursor(IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}, cond)
+}
+
+func (s *Shard) CreateCursorIterator(ctx context.Context) (CursorIterator, error) {
 	engine, err := s.engine()
 	if err != nil {
 		return nil, err
 	}
-	return engine.CreateCursor(ctx, r)
+	return engine.CreateCursorIterator(ctx)
 }
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
@@ -1333,6 +1341,28 @@ func (a Shards) IteratorCost(measurement string, opt query.IteratorOptions) (que
 	}
 	wg.Wait()
 	return costs, costerr
+}
+
+func (a Shards) CreateSeriesCursor(ctx context.Context, cond influxql.Expr) (_ SeriesCursor, err error) {
+	var (
+		idxs  []Index
+		sfile *SeriesFile
+	)
+	for _, sh := range a {
+		var idx Index
+		if idx, err = sh.Index(); err == nil {
+			idxs = append(idxs, idx)
+		}
+		if sfile == nil {
+			sfile, _ = sh.seriesFile()
+		}
+	}
+
+	if sfile == nil {
+		return nil, errors.New("CreateSeriesCursor: no series file")
+	}
+
+	return newSeriesCursor(IndexSet{Indexes: idxs, SeriesFile: sfile}, cond)
 }
 
 func (a Shards) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {

@@ -37,8 +37,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
-//go:generate tmpl -data=@iterator.gen.go.tmpldata batch_cursor.gen.go.tmpl
+//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl batch_cursor.gen.go.tmpl cursor_iterator.gen.go.tmpl
 //go:generate tmpl -data=@file_store.gen.go.tmpldata file_store.gen.go.tmpl
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
@@ -1956,11 +1955,10 @@ func (s *compactionStrategy) Apply() {
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup() {
 	group := s.group
-	start := time.Now()
 	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group")
 	defer logEnd()
 
-	log.Info("Beginning compaction", zap.Int("tsm1_files", len(group)))
+	log.Info("Beginning compaction", zap.Int("tsm1_files_n", len(group)))
 	for i, f := range group {
 		log.Info("Compacting file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
 	}
@@ -2004,9 +2002,7 @@ func (s *compactionStrategy) compactGroup() {
 		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
 	}
 	log.Info("Finished compacting files",
-		zap.Int("groups", len(group)),
-		zap.Int("files", len(files)),
-		zap.Duration("duration", time.Since(start)))
+		zap.Int("tsm1_files_n", len(files)))
 	atomic.AddInt64(s.successStat, 1)
 }
 
@@ -2821,22 +2817,19 @@ func SeriesFieldKeyBytes(seriesKey, field string) []byte {
 }
 
 var (
-	blockToFieldType = []influxql.DataType{
+	blockToFieldType = [8]influxql.DataType{
 		BlockFloat64:  influxql.Float,
 		BlockInteger:  influxql.Integer,
 		BlockBoolean:  influxql.Boolean,
 		BlockString:   influxql.String,
 		BlockUnsigned: influxql.Unsigned,
+		5:             influxql.Unknown,
+		6:             influxql.Unknown,
+		7:             influxql.Unknown,
 	}
 )
 
-func BlockTypeToInfluxQLDataType(typ byte) influxql.DataType {
-	if int(typ) < len(blockToFieldType) {
-		return blockToFieldType[typ]
-	}
-
-	return influxql.Unknown
-}
+func BlockTypeToInfluxQLDataType(typ byte) influxql.DataType { return blockToFieldType[typ&7] }
 
 // SeriesAndFieldFromCompositeKey returns the series key and the field key extracted from the composite key.
 func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {

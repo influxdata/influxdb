@@ -58,7 +58,7 @@ func (m *Main) Run(args ...string) error {
 			return fmt.Errorf("query: %s", err)
 		}
 	default:
-		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx_inspect help' for usage`+"\n\n", name)
+		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'store help' for usage`+"\n\n", name)
 	}
 
 	return nil

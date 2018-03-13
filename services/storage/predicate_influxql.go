@@ -202,35 +202,40 @@ func (v *nodeToExprVisitor) pop2() (influxql.Expr, influxql.Expr) {
 
 type hasRefs struct {
 	refs  []string
-	found bool
+	found []bool
+}
+
+func (v *hasRefs) allFound() bool {
+	for _, val := range v.found {
+		if !val {
+			return false
+		}
+	}
+	return true
 }
 
 func (v *hasRefs) Visit(node influxql.Node) influxql.Visitor {
-	if v.found {
+	if v.allFound() {
 		return nil
 	}
 
 	if n, ok := node.(*influxql.VarRef); ok {
-		for _, r := range v.refs {
-			if r == n.Val {
-				v.found = true
-				return nil
+		for i, r := range v.refs {
+			if !v.found[i] && r == n.Val {
+				v.found[i] = true
+				if v.allFound() {
+					return nil
+				}
 			}
 		}
 	}
 	return v
 }
 
-func HasFieldKey(expr influxql.Expr) bool {
-	refs := hasRefs{refs: []string{"_field"}}
+func HasFieldKeyOrValue(expr influxql.Expr) (bool, bool) {
+	refs := hasRefs{refs: []string{"_field", "$"}, found: make([]bool, 2)}
 	influxql.Walk(&refs, expr)
-	return refs.found
-}
-
-func HasFieldKeyOrValue(expr influxql.Expr) bool {
-	refs := hasRefs{refs: []string{"_field", "$"}}
-	influxql.Walk(&refs, expr)
-	return refs.found
+	return refs.found[0], refs.found[1]
 }
 
 func RewriteExprRemoveFieldKeyAndValue(expr influxql.Expr) influxql.Expr {

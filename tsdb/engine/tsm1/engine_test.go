@@ -1395,13 +1395,18 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 
-			cur, err := e.CreateCursor(context.Background(), &tsdb.CursorRequest{
-				Measurement: "cpu",
-				Series:      "cpu,host=A",
-				Field:       "value",
-				Ascending:   true,
-				StartTime:   2,
-				EndTime:     11,
+			q, err := e.CreateCursorIterator(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cur, err := q.Next(context.Background(), &tsdb.CursorRequest{
+				Name:      []byte("cpu"),
+				Tags:      models.ParseTags([]byte("cpu,host=A")),
+				Field:     "value",
+				Ascending: true,
+				StartTime: 2,
+				EndTime:   11,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -1449,13 +1454,18 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 
-			cur, err := e.CreateCursor(context.Background(), &tsdb.CursorRequest{
-				Measurement: "cpu",
-				Series:      "cpu,host=A",
-				Field:       "value",
-				Ascending:   false,
-				StartTime:   2,
-				EndTime:     11,
+			q, err := e.CreateCursorIterator(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cur, err := q.Next(context.Background(), &tsdb.CursorRequest{
+				Name:      []byte("cpu"),
+				Tags:      models.ParseTags([]byte("cpu,host=A")),
+				Field:     "value",
+				Ascending: false,
+				StartTime: 2,
+				EndTime:   11,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -1486,7 +1496,7 @@ func makeBlockTypeSlice(n int) []byte {
 var blockType = influxql.Unknown
 
 func BenchmarkBlockTypeToInfluxQLDataType(b *testing.B) {
-	t := makeBlockTypeSlice(100)
+	t := makeBlockTypeSlice(1000)
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < len(t); j++ {
 			blockType = tsm1.BlockTypeToInfluxQLDataType(t[j])
