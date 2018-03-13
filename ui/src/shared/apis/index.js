@@ -104,7 +104,7 @@ export const deleteKapacitor = async kapacitor => {
 
 export function createKapacitor(
   source,
-  {url, name = 'My Kapacitor', username, password}
+  {url, name = 'My Kapacitor', username, password, insecureSkipVerify}
 ) {
   return AJAX({
     url: source.links.kapacitors,
@@ -114,6 +114,7 @@ export function createKapacitor(
       url,
       username,
       password,
+      insecureSkipVerify,
     },
   })
 }
