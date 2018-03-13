@@ -1,10 +1,10 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import Dygraph from 'src/external/dygraph'
 
 import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -18,6 +18,7 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishNotification} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
+import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 import * as annotationActions from 'shared/actions/annotations'
@@ -53,6 +54,7 @@ class DashboardPage extends Component {
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
       windowHeight: window.innerHeight,
+      hoverTime: NULL_HOVER_TIME,
     }
   }
 
@@ -237,30 +239,8 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
-  synchronizer = dygraph => {
-    const dygraphs = [...this.dygraphs, dygraph].filter(d => d.graphDiv)
-    const {dashboards, params: {dashboardID}} = this.props
-
-    const dashboard = dashboards.find(
-      d => d.id === idNormalizer(TYPE_ID, dashboardID)
-    )
-
-    // Get only the graphs that can sync the hover line
-    const graphsToSync = dashboard.cells.filter(c => c.type !== 'single-stat')
-
-    if (
-      dashboard &&
-      dygraphs.length === graphsToSync.length &&
-      dygraphs.length > 1
-    ) {
-      Dygraph.synchronize(dygraphs, {
-        selection: true,
-        zoom: false,
-        range: false,
-      })
-    }
-
-    this.dygraphs = dygraphs
+  handleSetHoverTime = hoverTime => {
+    this.setState({hoverTime})
   }
 
   handleToggleTempVarControls = () => {
@@ -276,9 +256,8 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {zoomedTimeRange} = this.state
+    const {zoomedTimeRange, hoverTime} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
-
     const {
       source,
       sources,
@@ -439,7 +418,8 @@ class DashboardPage extends Component {
               manualRefresh={manualRefresh}
               onZoom={this.handleZoomedTimeRange}
               onAddCell={this.handleAddCell}
-              synchronizer={this.synchronizer}
+              hoverTime={hoverTime}
+              onSetHoverTime={this.handleSetHoverTime}
               inPresentationMode={inPresentationMode}
               onPositionChange={this.handleUpdatePosition}
               onSelectTemplate={this.handleSelectTemplate}

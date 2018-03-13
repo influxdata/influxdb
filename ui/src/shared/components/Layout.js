@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
@@ -52,12 +53,13 @@ const Layout = (
     autoRefresh,
     manualRefresh,
     onDeleteCell,
-    synchronizer,
     resizeCoords,
     onCancelEditCell,
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
+    hoverTime,
+    onSetHoverTime,
   },
   {source: defaultSource}
 ) =>
@@ -85,7 +87,8 @@ const Layout = (
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
-          synchronizer={synchronizer}
+          hoverTime={hoverTime}
+          onSetHoverTime={onSetHoverTime}
           manualRefresh={manualRefresh}
           onStopAddAnnotation={onStopAddAnnotation}
           grabDataForDownload={grabDataForDownload}
@@ -149,7 +152,8 @@ const propTypes = {
   onEditCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,

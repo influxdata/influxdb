@@ -1,4 +1,4 @@
 import {Query} from './query'
-import {Source} from './sources'
+import {Source, Kapacitor} from './sources'
 
-export {Query, Source}
+export {Query, Source, Kapacitor}

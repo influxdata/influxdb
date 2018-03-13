@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import moment from 'moment'
 import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'

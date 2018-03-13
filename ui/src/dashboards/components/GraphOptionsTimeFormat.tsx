@@ -83,7 +83,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
             <InputClickToEdit
               wrapperClass="column-controls-input "
               value={format}
-              onUpdate={onTimeFormatChange}
+              onBlur={onTimeFormatChange}
+              onChange={onTimeFormatChange}
               placeholder="Enter custom format..."
               appearAsNormalInput={true}
             />

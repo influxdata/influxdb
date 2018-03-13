@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'

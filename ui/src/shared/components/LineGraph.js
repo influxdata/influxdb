@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
 import shallowCompare from 'react-addons-shallow-compare'
 
@@ -48,7 +49,6 @@ class LineGraph extends Component {
       ruleValues,
       isBarGraph,
       resizeCoords,
-      synchronizer,
       isRefreshing,
       setResolution,
       isGraphFilled,
@@ -58,6 +58,8 @@ class LineGraph extends Component {
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
+      hoverTime,
+      onSetHoverTime,
     } = this.props
 
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
@@ -110,7 +112,8 @@ class LineGraph extends Component {
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          synchronizer={synchronizer}
+          hoverTime={hoverTime}
+          onSetHoverTime={onSetHoverTime}
           resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
@@ -185,7 +188,8 @@ LineGraph.propTypes = {
     lower: string.isRequired,
   }),
   isInDataExplorer: bool,
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   setResolution: func,
   cellHeight: number,
   cell: shape(),
