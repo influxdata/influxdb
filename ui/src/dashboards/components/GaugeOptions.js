@@ -164,9 +164,9 @@ class GaugeOptions extends Component {
       >
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Gauge Controls</h5>
-          <div className="gauge-controls">
+          <div className="thresholds-list">
             <button
-              className="btn btn-sm btn-primary gauge-controls--add-threshold"
+              className="btn btn-sm btn-primary"
               onClick={this.handleAddThreshold}
               disabled={disableAddThreshold}
             >

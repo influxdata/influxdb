@@ -53,14 +53,14 @@ class Threshold extends Component {
     const selectedColor = {hex, name}
 
     let label = 'Threshold'
-    let labelClass = 'gauge-controls--label-editable'
+    let labelClass = 'threshold-item--label__editable'
     let canBeDeleted = true
 
     if (visualizationType === 'gauge') {
       labelClass =
         isMin || isMax
-          ? 'gauge-controls--label'
-          : 'gauge-controls--label-editable'
+          ? 'threshold-item--label'
+          : 'threshold-item--label__editable'
       canBeDeleted = !(isMin || isMax)
     }
 
@@ -72,17 +72,17 @@ class Threshold extends Component {
     }
 
     const inputClass = valid
-      ? 'form-control input-sm gauge-controls--input'
-      : 'form-control input-sm gauge-controls--input form-volcano'
+      ? 'form-control input-sm threshold-item--input'
+      : 'form-control input-sm threshold-item--input form-volcano'
 
     return (
-      <div className="gauge-controls--section">
+      <div className="threshold-item">
         <div className={labelClass}>
           {label}
         </div>
         {canBeDeleted
           ? <button
-              className="btn btn-default btn-sm btn-square gauge-controls--delete"
+              className="btn btn-default btn-sm btn-square"
               onClick={onDeleteThreshold(threshold)}
             >
               <span className="icon remove" />
