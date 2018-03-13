@@ -28,7 +28,34 @@ const formatColor = color => {
 }
 
 class TableOptions extends Component {
-  state = {TimeAxis: 'VERTICAL', TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss'}
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      TimeAxis: 'VERTICAL',
+      TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss',
+      columns: [],
+    }
+  }
+
+  componentWillMount() {
+    const {queries} = this.props
+    let columns = [{internalName: 'time', displayName: ''}]
+
+    for (let i = 0; i < queries.length; i++) {
+      const q = queries[i]
+      const measurement = q.queryConfig.measurement
+      const fields = q.queryConfig.fields
+      for (let j = 0; j < fields.length; j++) {
+        columns = [
+          ...columns,
+          {internalName: `${measurement}.${fields[j].alias}`, displayName: ''},
+        ]
+      }
+    }
+
+    this.setState({columns})
+  }
 
   handleToggleSingleStatType = () => {}
 
@@ -46,7 +73,13 @@ class TableOptions extends Component {
 
   handleToggleTextWrapping = () => {}
 
-  handleColumnRename = () => {}
+  handleColumnRename = column => {
+    // NOTE: should use redux state instead of component state
+    const columns = this.state.columns.map(
+      op => (op.internalName === column.internalName ? column : op)
+    )
+    this.setState({columns})
+  }
 
   handleUpdateColorValue = () => {}
 
@@ -59,26 +92,17 @@ class TableOptions extends Component {
       //   axes: {y: {prefix, suffix}},
     } = this.props
 
-    const {TimeFormat, TimeAxis} = this.state
+    const {TimeFormat, TimeAxis, columns} = this.state
 
-    const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
-
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
-
-    const columns = [
-      'cpu.mean_usage_system',
-      'cpu.mean_usage_idle',
-      'cpu.mean_usage_user',
-    ].map(col => ({
-      text: col,
-      name: col,
-      newName: '',
-    }))
     const tableSortByOptions = [
       'cpu.mean_usage_system',
       'cpu.mean_usage_idle',
       'cpu.mean_usage_user',
     ].map(col => ({text: col}))
+
+    const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
+
+    const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
     return (
       <FancyScrollbar
@@ -152,14 +176,16 @@ TableOptions.propTypes = {
   handleUpdateSingleStatColors: func.isRequired,
   handleUpdateAxes: func.isRequired,
   axes: shape({}).isRequired,
+  queries: arrayOf(shape()),
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatType, singleStatColors, cell: {axes}},
+  cellEditorOverlay: {singleStatType, singleStatColors, cell: {axes, queries}},
 }) => ({
   singleStatType,
   singleStatColors,
   axes,
+  queries,
 })
 
 const mapDispatchToProps = dispatch => ({

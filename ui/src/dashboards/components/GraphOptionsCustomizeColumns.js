@@ -12,8 +12,8 @@ const GraphOptionsCustomizeColumns = ({columns, onColumnRename}) => {
         return (
           <GraphOptionsCustomizableColumn
             key={uuid.v4()}
-            originalColumnName={col.name}
-            newColumnName={col.newName}
+            internalName={col.internalName}
+            displayName={col.displayName}
             onColumnRename={onColumnRename}
           />
         )
@@ -26,8 +26,8 @@ const {arrayOf, func, shape, string} = PropTypes
 GraphOptionsCustomizeColumns.propTypes = {
   columns: arrayOf(
     shape({
-      name: string,
-      newName: string,
+      internalName: string,
+      displayName: string,
     })
   ),
   onColumnRename: func,
