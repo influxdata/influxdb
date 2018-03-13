@@ -70,14 +70,14 @@ type {{.name}}MultiShardBatchCursor struct {
 	tsdb.{{.Name}}BatchCursor
 	ctx    context.Context
 	filter *{{.name}}FilterBatchCursor
-	shards []*tsdb.Shard
+	itrs   tsdb.CursorIterators
 	req    *tsdb.CursorRequest
 	err    error
 	limit  uint64
 	count  uint64
 }
 
-func new{{.Name}}MultiShardBatchCursor(ctx context.Context, cur tsdb.{{.Name}}BatchCursor, rr *readRequest, req *tsdb.CursorRequest, shards []*tsdb.Shard, cond expression) *{{.name}}MultiShardBatchCursor {
+func new{{.Name}}MultiShardBatchCursor(ctx context.Context, cur tsdb.{{.Name}}BatchCursor, rr *readRequest, req *tsdb.CursorRequest, itrs tsdb.CursorIterators, cond expression) *{{.name}}MultiShardBatchCursor {
 	var filter *{{.name}}FilterBatchCursor
 	if cond != nil {
 		filter = new{{.Name}}FilterBatchCursor(cond)
@@ -90,7 +90,7 @@ func new{{.Name}}MultiShardBatchCursor(ctx context.Context, cur tsdb.{{.Name}}Ba
 		ctx:    ctx,
 		filter: filter,
 		req:    req,
-		shards: shards,
+		itrs:   itrs,
 		limit:  rr.limit,
 	}
 
@@ -98,7 +98,6 @@ func new{{.Name}}MultiShardBatchCursor(ctx context.Context, cur tsdb.{{.Name}}Ba
 }
 
 func (c *{{.name}}MultiShardBatchCursor) Err() error        { return c.err }
-func (c *{{.name}}MultiShardBatchCursor) SeriesKey() string { return c.req.Series }
 
 func (c *{{.name}}MultiShardBatchCursor) Next() (key []int64, value []{{.Type}}) {
 	for {
@@ -121,17 +120,17 @@ func (c *{{.name}}MultiShardBatchCursor) Next() (key []int64, value []{{.Type}})
 }
 
 func (c *{{.name}}MultiShardBatchCursor) nextBatchCursor() bool {
-	if len(c.shards) == 0 {
+	if len(c.itrs) == 0 {
 		return false
 	}
 
 	c.{{.Name}}BatchCursor.Close()
 
-	var shard *tsdb.Shard
+	var itr tsdb.CursorIterator
 	var cur tsdb.Cursor
-	for cur == nil && len(c.shards) > 0 {
-		shard, c.shards = c.shards[0], c.shards[1:]
-		cur, _ = shard.CreateCursor(c.ctx, c.req)
+	for cur == nil && len(c.itrs) > 0 {
+		itr, c.itrs = c.itrs[0], c.itrs[1:]
+		cur, _ = itr.Next(c.ctx, c.req)
 	}
 
 	var ok bool
@@ -141,7 +140,7 @@ func (c *{{.name}}MultiShardBatchCursor) nextBatchCursor() bool {
 		if !ok {
 			cur.Close()
 			next = {{.Name}}EmptyBatchCursor
-			c.shards = nil
+			c.itrs = nil
 			c.err = errors.New("expected {{.name}} cursor")
 		} else {
 			if c.filter != nil {
@@ -161,6 +160,8 @@ func (c *{{.name}}MultiShardBatchCursor) nextBatchCursor() bool {
 
 type {{.name}}SumBatchCursor struct {
 	tsdb.{{.Name}}BatchCursor
+	ts [1]int64
+	vs [1]{{.Type}}
 }
 
 func (c *{{.name}}SumBatchCursor) Next() (key []int64, value []{{.Type}}) {
@@ -178,7 +179,9 @@ func (c *{{.name}}SumBatchCursor) Next() (key []int64, value []{{.Type}}) {
     	}
 		ks, vs = c.{{.Name}}BatchCursor.Next()
     	if len(ks) == 0 {
-    		return []int64{ts}, []{{.Type}}{acc}
+			c.ts[0] = ts
+			c.vs[0] = acc
+			return c.ts[:], c.vs[:]
     	}
 	}
 }
@@ -212,7 +215,6 @@ var {{.Name}}EmptyBatchCursor tsdb.{{.Name}}BatchCursor = &{{.name}}EmptyBatchCu
 
 func (*{{.name}}EmptyBatchCursor) Err() error { return nil }
 func (*{{.name}}EmptyBatchCursor) Close() {}
-func (*{{.name}}EmptyBatchCursor) SeriesKey() string { return "" }
 func (*{{.name}}EmptyBatchCursor) Next() (key []int64, value []{{.Type}}) { return nil, nil }
 
 {{end}}

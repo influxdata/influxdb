@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Command represents the program execution for "influx_inspect export".
+// Command represents the program execution for "store query".
 type Command struct {
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer

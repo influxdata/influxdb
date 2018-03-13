@@ -64,12 +64,12 @@ func newCountBatchCursor(cur tsdb.Cursor) tsdb.Cursor {
 
 func newMultiShardBatchCursor(ctx context.Context, row seriesRow, rr *readRequest) tsdb.Cursor {
 	req := &tsdb.CursorRequest{
-		Measurement: row.measurement,
-		Series:      row.key,
-		Field:       row.field,
-		Ascending:   rr.asc,
-		StartTime:   rr.start,
-		EndTime:     rr.end,
+		Name:      row.name,
+		Tags:      row.stags,
+		Field:     row.field,
+		Ascending: rr.asc,
+		StartTime: rr.start,
+		EndTime:   rr.end,
 	}
 
 	var cond expression
@@ -77,11 +77,11 @@ func newMultiShardBatchCursor(ctx context.Context, row seriesRow, rr *readReques
 		cond = &astExpr{row.valueCond}
 	}
 
-	var shard *tsdb.Shard
+	var shard tsdb.CursorIterator
 	var cur tsdb.Cursor
-	for cur == nil && len(row.shards) > 0 {
-		shard, row.shards = row.shards[0], row.shards[1:]
-		cur, _ = shard.CreateCursor(ctx, req)
+	for cur == nil && len(row.query) > 0 {
+		shard, row.query = row.query[0], row.query[1:]
+		cur, _ = shard.Next(ctx, req)
 	}
 
 	if cur == nil {
@@ -90,15 +90,15 @@ func newMultiShardBatchCursor(ctx context.Context, row seriesRow, rr *readReques
 
 	switch c := cur.(type) {
 	case tsdb.IntegerBatchCursor:
-		return newIntegerMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
+		return newIntegerMultiShardBatchCursor(ctx, c, rr, req, row.query, cond)
 	case tsdb.FloatBatchCursor:
-		return newFloatMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
+		return newFloatMultiShardBatchCursor(ctx, c, rr, req, row.query, cond)
 	case tsdb.UnsignedBatchCursor:
-		return newUnsignedMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
+		return newUnsignedMultiShardBatchCursor(ctx, c, rr, req, row.query, cond)
 	case tsdb.StringBatchCursor:
-		return newStringMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
+		return newStringMultiShardBatchCursor(ctx, c, rr, req, row.query, cond)
 	case tsdb.BooleanBatchCursor:
-		return newBooleanMultiShardBatchCursor(ctx, c, rr, req, row.shards, cond)
+		return newBooleanMultiShardBatchCursor(ctx, c, rr, req, row.query, cond)
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}

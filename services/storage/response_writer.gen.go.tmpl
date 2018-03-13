@@ -6,13 +6,33 @@ import (
 
 
 {{range .}}
+func (w *responseWriter) get{{.Name}}PointsFrame() *ReadResponse_Frame_{{.Name}}Points {
+	var res *ReadResponse_Frame_{{.Name}}Points
+	if len(w.buffer.{{.Name}}) > 0 {
+		i := len(w.buffer.{{.Name}}) - 1
+		res = w.buffer.{{.Name}}[i]
+		w.buffer.{{.Name}}[i] = nil
+		w.buffer.{{.Name}} = w.buffer.{{.Name}}[:i]
+	} else {
+		res = &ReadResponse_Frame_{{.Name}}Points{&ReadResponse_{{.Name}}PointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]{{.Type}}, 0, batchSize)}}
+	}
+
+	return res
+}
+
+func (w *responseWriter) put{{.Name}}PointsFrame(f *ReadResponse_Frame_{{.Name}}Points) {
+	f.{{.Name}}Points.Timestamps = f.{{.Name}}Points.Timestamps[:0]
+	f.{{.Name}}Points.Values = f.{{.Name}}Points.Values[:0]
+	w.buffer.{{.Name}} = append(w.buffer.{{.Name}}, f)
+}
 
 func (w *responseWriter) stream{{.Name}}Points(cur tsdb.{{.Name}}BatchCursor) {
 	w.sf.DataType = DataType{{.Name}}
 	ss := len(w.res.Frames) - 1
 
-	frame := &ReadResponse_{{.Name}}PointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]{{.Type}}, 0, batchSize)}
-	w.res.Frames = append(w.res.Frames, ReadResponse_Frame{&ReadResponse_Frame_{{.Name}}Points{frame}})
+	p := w.get{{.Name}}PointsFrame()
+	frame := p.{{.Name}}Points
+	w.res.Frames = append(w.res.Frames, ReadResponse_Frame{p})
 
 	var (
 		seriesValueCount = 0
@@ -40,8 +60,9 @@ func (w *responseWriter) stream{{.Name}}Points(cur tsdb.{{.Name}}BatchCursor) {
 				}
 			}
 
-			frame = &ReadResponse_{{.Name}}PointsFrame{Timestamps: make([]int64, 0, batchSize), Values: make([]{{.Type}}, 0, batchSize)}
-			w.res.Frames = append(w.res.Frames, ReadResponse_Frame{&ReadResponse_Frame_{{.Name}}Points{frame}})
+			p = w.get{{.Name}}PointsFrame()
+			frame = p.{{.Name}}Points
+			w.res.Frames = append(w.res.Frames, ReadResponse_Frame{p})
 		}
 	}
 	cur.Close()
@@ -50,7 +71,7 @@ func (w *responseWriter) stream{{.Name}}Points(cur tsdb.{{.Name}}BatchCursor) {
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
-		// no points collected, strip series frame
+		w.putSeriesFrame(w.res.Frames[ss].Data.(*ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
 		w.flushFrames()
