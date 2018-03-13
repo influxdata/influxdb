@@ -4,45 +4,104 @@
 */
 
 .table-graph-container {
-    position: absolute;
-    width: calc(100% - 32px);
-    height: calc(100% - 16px);
-    top: 8px;
-    left: 16px;
-    border: 2px solid $g5-pepper;
-    border-radius: 3px;
-    overflow: hidden;
+  position: absolute;
+  width: calc(100% - 32px);
+  height: calc(100% - 16px);
+  top: 8px;
+  left: 16px;
+  border: 2px solid $g5-pepper;
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .table-graph-cell {
-    line-height: 30px;
-    padding: 0 6px;
-    font-size: 13px;
-    color: $g13-mist;
-    border: 1px solid $g5-pepper;
+  line-height: 28px; // Cell height - 2x border width
+  padding: 0 6px;
+  font-size: 13px;
+  color: $g12-forge;
+  border: 1px solid $g5-pepper;
 
-    &__fixed-row,
-    &__fixed-column {
-        font-weight: 700;
-        color: $g16-pearl;
-        background-color: $g4-onyx;
+  // Blue Highlight
+  &:after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    z-index: 5;
+    border: 2px solid $c-pool;
+    border-radius: 3px;
+    visibility: hidden;
+    box-sizing: border-box;
+  }
+
+  &__numerical {
+    font-family: $code-font;
+  }
+  &__fixed-row,
+  &__fixed-column {
+    font-weight: 700;
+    color: $g14-chromium;
+    background-color: $g4-onyx;
+  }
+  &__fixed-row {
+    border-top: 0;
+  }
+  &__fixed-column {
+    border-left: 0;
+  }
+  &__fixed-corner {
+    border-top: 0;
+    border-left: 0;
+    color: $g18-cloud;
+    background-color: $g5-pepper;
+  }
+  &__last-row {
+    border-bottom: 0;
+  }
+  &__last-column {
+    border-right: 0;
+  }
+  &__highlight {
+    background-color: $g6-smoke;
+    color: $g16-pearl;
+  }
+  &__highlight:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
+    color: $g14-chromium;
+    background-color: $g6-smoke;
+  }
+  &:hover:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
+    color: $g20-white;
+    background-color: $g0-obsidian;
+    &:after {visibility: visible;}
+  }
+}
+
+.ReactVirtualized__Grid {
+  &:focus {
+    outline: none;
+  }
+  &::-webkit-scrollbar {
+    width: 0;
+
+    &-button {
+      background-color: #f00;
     }
-    &__fixed-row {
-        border-top: 0;
+    &-track {
+      background-color: #f00;
     }
-    &__fixed-column {
-        border-left: 0;
+    &-track-piece {
+      background-color: #f00;
     }
-    &__fixed-corner {
-        border-top: 0;
-        border-left: 0;
-        color: $g18-cloud;
-        background-color: $g5-pepper;
+    &-thumb {
+      background-color: #fff;
     }
-    &__last-row {
-        border-bottom: 0;
+    &-corner {
+      background-color: #f00;
     }
-    &__last-column {
-        border-right: 0;
-    }
+  }
+  &::-webkit-resizer {
+    background-color: #f00;
+  }
 }
