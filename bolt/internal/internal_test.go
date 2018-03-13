@@ -76,12 +76,13 @@ func TestMarshalSourceWithSecret(t *testing.T) {
 
 func TestMarshalServer(t *testing.T) {
 	v := chronograf.Server{
-		ID:       12,
-		SrcID:    2,
-		Name:     "Fountain of Truth",
-		Username: "docbrown",
-		Password: "1 point twenty-one g1g@w@tts",
-		URL:      "http://oldmanpeabody.mall.io:9092",
+		ID:                 12,
+		SrcID:              2,
+		Name:               "Fountain of Truth",
+		Username:           "docbrown",
+		Password:           "1 point twenty-one g1g@w@tts",
+		URL:                "http://oldmanpeabody.mall.io:9092",
+		InsecureSkipVerify: true,
 	}
 
 	var vv chronograf.Server
