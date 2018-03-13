@@ -57,6 +57,9 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     const tipContent =
       'For information on formatting, see http://momentjs.com/docs/#/parsing/string-format/'
 
+    const formatOption = formatOptions.find(op => op.text === format)
+    const showCustom = !formatOption || customFormat
+
     return (
       <div className="form-group col-xs-12">
         <label>
@@ -69,13 +72,13 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
         </label>
         <Dropdown
           items={formatOptions}
-          selected={customFormat ? 'Custom' : format}
+          selected={showCustom ? 'Custom' : format}
           buttonColor="btn-default"
           buttonSize="btn-xs"
           className="dropdown-stretch"
           onChoose={this.handleChooseFormat}
         />
-        {customFormat &&
+        {showCustom &&
           <div className="column-controls--section">
             <InputClickToEdit
               wrapperClass="column-controls-input "
