@@ -1,7 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
-import Resizeable from 'react-component-resizable'
+import {ResizableBox} from 'react-resizable'
 
 import _ from 'lodash'
 
@@ -87,7 +87,11 @@ class LayoutRenderer extends Component {
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <Resizeable onResize={this.handleCellResize}>
+      <ResizableBox
+        height={Infinity}
+        width={Infinity}
+        onResize={this.handleCellResize}
+      >
         <Authorized
           requiredRole={EDITOR_ROLE}
           propsOverride={{
@@ -142,7 +146,7 @@ class LayoutRenderer extends Component {
             )}
           </GridLayout>
         </Authorized>
-      </Resizeable>
+      </ResizableBox>
     )
   }
 }
