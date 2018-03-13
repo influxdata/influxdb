@@ -19,7 +19,7 @@ import {
   unableToGetHostsNotification,
   unableToGetHostAppsMessage,
   unableToGetHostAppsNotification,
-} from 'shared/copy/notificationsCopy'
+} from 'shared/copy/notifications'
 
 class HostsPage extends Component {
   constructor(props) {

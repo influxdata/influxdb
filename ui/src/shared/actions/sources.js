@@ -9,7 +9,7 @@ import {publishNotification} from './notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {HTTP_NOT_FOUND} from 'shared/constants'
-import {internalServerErrorNotifications} from 'shared/copy/notificationsCopy'
+import {internalServerErrorNotifications} from 'shared/copy/notifications'
 
 export const loadSources = sources => ({
   type: 'LOAD_SOURCES',

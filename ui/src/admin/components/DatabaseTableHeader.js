@@ -6,7 +6,7 @@ import {bindActionCreators} from 'redux'
 
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
-import {influxAdminValidationNotifications} from 'shared/copy/notificationsCopy'
+import {influxAdminValidationNotifications} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
   database,

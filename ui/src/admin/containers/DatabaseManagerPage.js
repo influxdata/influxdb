@@ -9,7 +9,7 @@ import DatabaseManager from 'src/admin/components/DatabaseManager'
 import * as adminActionCreators from 'src/admin/actions/influxdb'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {influxAdminValidationNotifications} from 'shared/copy/notificationsCopy'
+import {influxAdminValidationNotifications} from 'shared/copy/notifications'
 
 class DatabaseManagerPage extends Component {
   constructor(props) {

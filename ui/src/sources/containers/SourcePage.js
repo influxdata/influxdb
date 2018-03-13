@@ -19,7 +19,7 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import {DEFAULT_SOURCE} from 'shared/constants'
 const initialPath = '/sources/new'
 
-import {sourceNotifications} from 'shared/copy/notificationsCopy'
+import {sourceNotifications} from 'shared/copy/notifications'
 
 class SourcePage extends Component {
   constructor(props) {

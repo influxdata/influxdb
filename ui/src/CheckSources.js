@@ -21,7 +21,7 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 import {
   multitenancyUserNotifications,
   sourceNotifications,
-} from 'shared/copy/notificationsCopy'
+} from 'shared/copy/notifications'
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.

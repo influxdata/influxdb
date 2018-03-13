@@ -31,7 +31,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {influxAdminValidationNotifications} from 'shared/copy/notificationsCopy'
+import {influxAdminValidationNotifications} from 'shared/copy/notifications'
 
 const isValidUser = user => {
   const minLen = 3

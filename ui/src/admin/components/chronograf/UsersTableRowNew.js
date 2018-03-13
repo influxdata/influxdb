@@ -7,7 +7,7 @@ import {publishNotification as publishNotificationAction} from 'shared/actions/n
 
 import Dropdown from 'shared/components/Dropdown'
 
-import {chronografUserNotifications} from 'shared/copy/notificationsCopy'
+import {chronografUserNotifications} from 'shared/copy/notifications'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 

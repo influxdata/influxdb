@@ -9,7 +9,7 @@ import {
   sessionTimeoutNotification,
   notificationWithAltText,
   newVersionNotification,
-} from 'shared/copy/notificationsCopy'
+} from 'shared/copy/notifications'
 
 const actionsAllowedDuringBlackout = [
   '@@',

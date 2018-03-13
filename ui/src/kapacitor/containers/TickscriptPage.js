@@ -11,7 +11,7 @@ import {getActiveKapacitor} from 'src/shared/apis'
 import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {tickscriptNotifications} from 'shared/copy/notificationsCopy'
+import {tickscriptNotifications} from 'shared/copy/notifications'
 
 class TickscriptPage extends Component {
   constructor(props) {

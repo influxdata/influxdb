@@ -24,7 +24,7 @@ import generateTemplateVariableQuery from 'src/dashboards/utils/templateVariable
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {dashboardNotifications} from 'shared/copy/notificationsCopy'
+import {dashboardNotifications} from 'shared/copy/notifications'
 
 const compact = values => uniq(values).filter(value => /\S/.test(value))
 

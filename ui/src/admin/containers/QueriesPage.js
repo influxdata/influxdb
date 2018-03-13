@@ -12,7 +12,7 @@ import QueriesTable from 'src/admin/components/QueriesTable'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showQueriesParser from 'shared/parsing/showQueries'
 import {TIMES} from 'src/admin/constants'
-import {influxAdminNotifications} from 'shared/copy/notificationsCopy'
+import {influxAdminNotifications} from 'shared/copy/notifications'
 
 import {
   loadQueries as loadQueriesAction,

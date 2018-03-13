@@ -12,7 +12,7 @@ import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
-import {dashboardNotifications} from 'shared/copy/notificationsCopy'
+import {dashboardNotifications} from 'shared/copy/notifications'
 
 import {
   TEMPLATE_VARIABLE_SELECTED,

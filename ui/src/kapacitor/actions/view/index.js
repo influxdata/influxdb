@@ -14,7 +14,7 @@ import {errorThrown} from 'shared/actions/errors'
 import {
   ruleBuilderNotifications,
   tickscriptNotifications,
-} from 'shared/copy/notificationsCopy'
+} from 'shared/copy/notifications'
 
 const loadQuery = query => ({
   type: 'KAPA_LOAD_QUERY',

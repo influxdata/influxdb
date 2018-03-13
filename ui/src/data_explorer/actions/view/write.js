@@ -3,7 +3,7 @@ import {writeLineProtocol as writeLineProtocolAJAX} from 'src/data_explorer/apis
 import {errorThrown} from 'shared/actions/errors'
 import {publishNotification} from 'shared/actions/notifications'
 
-import {dataExplorerWriteSuccess} from 'shared/copy/notificationsCopy'
+import {dataExplorerWriteSuccess} from 'shared/copy/notifications'
 
 export const writeLineProtocolAsync = (source, db, data) => async dispatch => {
   try {

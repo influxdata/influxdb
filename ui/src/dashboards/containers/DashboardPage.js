@@ -34,7 +34,7 @@ import {
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
-import {dashboardNotifications} from 'shared/copy/notificationsCopy'
+import {dashboardNotifications} from 'shared/copy/notifications'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {

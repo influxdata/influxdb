@@ -16,7 +16,7 @@ import {timeRanges} from 'shared/data/timeRanges'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {ruleBuilderNotifications} from 'shared/copy/notificationsCopy'
+import {ruleBuilderNotifications} from 'shared/copy/notifications'
 
 class KapacitorRule extends Component {
   constructor(props) {

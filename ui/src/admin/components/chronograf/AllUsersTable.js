@@ -16,7 +16,7 @@ const {
   colActions,
 } = ALL_USERS_TABLE
 
-import {chronografUserNotifications} from 'shared/copy/notificationsCopy'
+import {chronografUserNotifications} from 'shared/copy/notifications'
 
 class AllUsersTable extends Component {
   constructor(props) {

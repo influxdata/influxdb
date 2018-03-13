@@ -13,7 +13,7 @@ import {
 } from 'shared/apis'
 import KapacitorForm from '../components/KapacitorForm'
 
-import {kapacitorConfigNotifications} from 'shared/copy/notificationsCopy'
+import {kapacitorConfigNotifications} from 'shared/copy/notifications'
 
 const defaultName = 'My Kapacitor'
 const kapacitorPort = '9092'

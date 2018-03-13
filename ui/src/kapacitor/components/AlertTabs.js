@@ -27,7 +27,7 @@ import {
   VictorOpsConfig,
 } from './config'
 
-import {kapacitorConfigNotifications} from 'shared/copy/notificationsCopy'
+import {kapacitorConfigNotifications} from 'shared/copy/notifications'
 
 class AlertTabs extends Component {
   constructor(props) {

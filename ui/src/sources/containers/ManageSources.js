@@ -15,7 +15,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
-import {sourceNotifications} from 'shared/copy/notificationsCopy'
+import {sourceNotifications} from 'shared/copy/notifications'
 
 const V_NUMBER = VERSION // eslint-disable-line no-undef
 

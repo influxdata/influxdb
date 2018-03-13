@@ -10,7 +10,7 @@ import {publishNotification as publishNotificationAction} from 'shared/actions/n
 import {formatRPDuration} from 'utils/formatting'
 import YesNoButtons from 'shared/components/YesNoButtons'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
-import {influxAdminValidationNotifications} from 'shared/copy/notificationsCopy'
+import {influxAdminValidationNotifications} from 'shared/copy/notifications'
 
 class DatabaseRow extends Component {
   constructor(props) {

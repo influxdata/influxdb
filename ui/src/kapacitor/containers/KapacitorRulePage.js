@@ -12,7 +12,7 @@ import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 import parseHandlersFromConfig from 'src/shared/parsing/parseHandlersFromConfig'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {kapacitorConfigNotifications} from 'shared/copy/notificationsCopy'
+import {kapacitorConfigNotifications} from 'shared/copy/notifications'
 
 class KapacitorRulePage extends Component {
   constructor(props) {

@@ -5,7 +5,7 @@ import {getLinksAsync} from 'shared/actions/links'
 import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
-import {multitenancyUserNotifications} from 'shared/copy/notificationsCopy'
+import {multitenancyUserNotifications} from 'shared/copy/notifications'
 
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',

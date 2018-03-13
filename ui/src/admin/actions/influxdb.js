@@ -21,7 +21,7 @@ import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
-import {influxAdminNotifications} from 'shared/copy/notificationsCopy'
+import {influxAdminNotifications} from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
 import _ from 'lodash'
