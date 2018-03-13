@@ -54,13 +54,7 @@ interface Props {
   tableOptions: Options
 }
 
-interface State {
-  TimeAxis: string
-}
-
-export class TableOptions extends PureComponent<Props, State> {
-  state = {TimeAxis: 'VERTICAL'}
-
+export class TableOptions extends PureComponent<Props, {}> {
   handleToggleSingleStatType = () => {}
 
   handleAddThreshold = () => {}
@@ -92,10 +86,9 @@ export class TableOptions extends PureComponent<Props, State> {
       singleStatType,
       tableOptions: {timeFormat},
     } = this.props
-    const {TimeAxis} = this.state
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
-
+    const TimeAxis = 'vertical'
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
     const columns = [

@@ -8,6 +8,7 @@ import {
   NULL_COLUMN_INDEX,
   NULL_ROW_INDEX,
   NULL_HOVER_TIME,
+  TIME_FORMAT_DEFAULT,
 } from 'src/shared/constants/tableGraph'
 
 import {MultiGrid} from 'react-virtualized'
@@ -62,10 +63,11 @@ class TableGraph extends Component {
     const {tableOptions} = this.props
     const timeFormat = tableOptions
       ? tableOptions.timeFormat
-      : 'MM/DD/YYYY HH:mm:ss.ss'
+      : TIME_FORMAT_DEFAULT
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = rowIndex > 0 && columnIndex === 0
+    const isTimeData = isFixedColumn
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const isLastRow = rowIndex === rowCount - 1
     const isLastColumn = columnIndex === columnCount - 1
@@ -92,7 +94,7 @@ class TableGraph extends Component {
         className={cellClass}
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
       >
-        {isFixedColumn
+        {isTimeData
           ? `${moment(data[rowIndex][columnIndex]).format(timeFormat)}`
           : `${data[rowIndex][columnIndex]}`}
       </div>
@@ -136,7 +138,7 @@ class TableGraph extends Component {
             enableFixedColumnScroll={true}
             enableFixedRowScroll={true}
             timeFormat={
-              tableOptions ? tableOptions.timeFormat : 'MM/DD/YYYY HH:mm:ss.ss'
+              tableOptions ? tableOptions.timeFormat : TIME_FORMAT_DEFAULT
             }
             scrollToRow={hoverTimeRow}
             cellRenderer={this.cellRenderer}

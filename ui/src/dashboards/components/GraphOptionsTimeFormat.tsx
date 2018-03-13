@@ -2,22 +2,15 @@ import React, {PureComponent} from 'react'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import {Dropdown} from 'src/shared/components/Dropdown'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
+import {
+  FORMAT_OPTIONS,
+  TIME_FORMAT_DEFAULT,
+  TIME_FORMAT_CUSTOM,
+} from 'src/shared/constants/tableGraph'
 
 interface TimeFormatOptions {
   text: string
 }
-
-const formatOptions: TimeFormatOptions[] = [
-  {text: 'MM/DD/YYYY HH:mm:ss.ss'},
-  {text: 'MM/DD/YYYY HH:mm'},
-  {text: 'MM/DD/YYYY'},
-  {text: 'h:mm:ss A'},
-  {text: 'h:mm A'},
-  {text: 'MMMM D, YYYY'},
-  {text: 'MMMM D, YYYY h:mm A'},
-  {text: 'dddd, MMMM D, YYYY h:mm A'},
-  {text: 'Custom'},
-]
 
 interface Props {
   timeFormat: string
@@ -33,7 +26,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = {
-      format: this.props.timeFormat || formatOptions[0].text,
+      format: this.props.timeFormat || TIME_FORMAT_DEFAULT,
       customFormat: false,
     }
   }
@@ -43,7 +36,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
   }
 
   handleChooseFormat = (formatOption: TimeFormatOptions) => {
-    if (formatOption.text === 'Custom') {
+    if (formatOption.text === TIME_FORMAT_CUSTOM) {
       this.setState({customFormat: true})
     } else {
       this.setState({format: formatOption.text, customFormat: false})
@@ -57,7 +50,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     const tipContent =
       'For information on formatting, see http://momentjs.com/docs/#/parsing/string-format/'
 
-    const formatOption = formatOptions.find(op => op.text === format)
+    const formatOption = FORMAT_OPTIONS.find(op => op.text === format)
     const showCustom = !formatOption || customFormat
 
     return (
@@ -71,8 +64,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
             />}
         </label>
         <Dropdown
-          items={formatOptions}
-          selected={showCustom ? 'Custom' : format}
+          items={FORMAT_OPTIONS}
+          selected={showCustom ? TIME_FORMAT_CUSTOM : format}
           buttonColor="btn-default"
           buttonSize="btn-xs"
           className="dropdown-stretch"

@@ -10,6 +10,7 @@ import {
   updateGaugeColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
+import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/TableGraph'
 
 import {
   validateGaugeColors,
@@ -30,20 +31,12 @@ const defaultCellAxes = {
   },
 }
 
-const defaultCellTableOptions = {
-  timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
-  verticalTimeAxis: true,
-  sortBy: {displayName: '', internalName: ''},
-  wrapping: 'truncate',
-  columnNames: {internaName: 'time', displayName: ''},
-}
-
 const defaultCell = {
   axes: defaultCellAxes,
   colors: [],
   name: defaultCellName,
   type: defaultCellType,
-  tableOptions: defaultCellTableOptions,
+  tableOptions: DEFAULT_TABLE_OPTIONS,
 }
 
 const defaultSingleStatType = getSingleStatType(defaultCell.colors)
@@ -61,7 +54,7 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
       gaugeColors: defaultGaugeColors,
       singleStatColors: defaultSingleStatColors,
       singleStatType: defaultSingleStatType,
-      tableOptions: defaultCellTableOptions,
+      tableOptions: DEFAULT_TABLE_OPTIONS,
     }
 
     expect(actual.cell).toEqual(expected.cell)
