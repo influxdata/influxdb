@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 interface Props {
   wrapperClass: string
@@ -52,19 +52,19 @@ class InputClickToEdit extends PureComponent<Props, State> {
     this.setState({isEditing: true})
   }
 
-  handleInputBlur(e: React.ChangeEvent<HTMLInputElement>) {
+  handleInputBlur(e: ChangeEvent<HTMLInputElement>) {
     const {onBlur, value} = this.props
-    if (value !== e.currentTarget.value) {
-      onBlur(e.currentTarget.value)
+    if (value !== e.target.value) {
+      onBlur(e.target.value)
     }
 
     this.setState({
       isEditing: false,
-      initialValue: e.currentTarget.value,
+      initialValue: e.target.value,
     })
   }
 
-  handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     const {onBlur, value} = this.props
     if (e.key === 'Enter') {
       if (value !== e.currentTarget.value) {
@@ -81,15 +81,15 @@ class InputClickToEdit extends PureComponent<Props, State> {
     }
   }
 
-  handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  handleChange(e: ChangeEvent<HTMLInputElement>) {
     const {onChange} = this.props
     if (onChange) {
-      onChange(e.currentTarget.value)
+      onChange(e.target.value)
     }
   }
 
-  handleFocus(e: React.ChangeEvent<HTMLInputElement>) {
-    e.currentTarget.select()
+  handleFocus(e: ChangeEvent<HTMLInputElement>) {
+    e.target.select()
   }
 
   render() {
