@@ -13,7 +13,7 @@ import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptions
 import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
 import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
 
-import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
+import {MAX_THRESHOLDS} from 'shared/constants/thresholds'
 
 import {
   updateSingleStatType,

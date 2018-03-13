@@ -15,7 +15,7 @@ import {
   validateGaugeColors,
   validateSingleStatColors,
   getSingleStatType,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 
 const defaultCellType = 'line'
 const defaultCellName = 'defaultCell'

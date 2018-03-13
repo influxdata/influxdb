@@ -16,7 +16,7 @@ import {
   DEFAULT_VALUE_MAX,
   MAX_THRESHOLDS,
   SINGLE_STAT_BASE,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 
 const formatColor = color => {
   const {hex, name} = color

@@ -2,10 +2,7 @@ import React, {PropTypes} from 'react'
 import Threshold from 'src/dashboards/components/Threshold'
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {
-  GAUGE_COLORS,
-  SINGLE_STAT_BASE,
-} from 'src/dashboards/constants/gaugeColors'
+import {GAUGE_COLORS, SINGLE_STAT_BASE} from 'shared/constants/thresholds'
 
 // TODO: Needs major refactoring to make thresholds a much more general component to be shared between single stat, gauge, and table.
 const GraphOptionsThresholds = ({

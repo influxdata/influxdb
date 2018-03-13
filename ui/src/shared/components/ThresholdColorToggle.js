@@ -4,10 +4,7 @@ import {bindActionCreators} from 'redux'
 
 import {updateSingleStatType} from 'src/dashboards/actions/cellEditorOverlay'
 
-import {
-  SINGLE_STAT_TEXT,
-  SINGLE_STAT_BG,
-} from 'src/dashboards/constants/gaugeColors'
+import {SINGLE_STAT_TEXT, SINGLE_STAT_BG} from 'shared/constants/thresholds'
 
 class ThresholdColorToggle extends Component {
   handleToggleSingleStatType = newType => () => {

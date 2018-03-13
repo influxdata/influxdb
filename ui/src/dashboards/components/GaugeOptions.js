@@ -13,7 +13,7 @@ import {
   GAUGE_COLORS,
   MAX_THRESHOLDS,
   MIN_THRESHOLDS,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 
 import {
   updateGaugeColors,

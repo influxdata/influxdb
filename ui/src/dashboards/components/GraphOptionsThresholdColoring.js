@@ -1,9 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import {
-  SINGLE_STAT_BG,
-  SINGLE_STAT_TEXT,
-} from 'src/dashboards/constants/gaugeColors'
+import {SINGLE_STAT_BG, SINGLE_STAT_TEXT} from 'shared/constants/thresholds'
 
 // TODO: Needs major refactoring to make thresholds a much more general component to be shared between single stat, gauge, and table.
 const GraphOptionsThresholdColoring = ({

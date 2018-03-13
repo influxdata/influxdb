@@ -5,7 +5,7 @@ import {
   validateGaugeColors,
   validateSingleStatColors,
   getSingleStatType,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 
 export const initialState = {
   cell: null,

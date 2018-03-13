@@ -5,7 +5,7 @@ import RefreshingGraph from 'shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
 
-import {stringifyColorValues} from 'src/dashboards/constants/gaugeColors'
+import {stringifyColorValues} from 'shared/constants/thresholds'
 
 const DashVisualization = (
   {

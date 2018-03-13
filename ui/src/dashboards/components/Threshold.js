@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {GAUGE_COLORS} from 'src/dashboards/constants/gaugeColors'
+import {GAUGE_COLORS} from 'shared/constants/thresholds'
 
 class Threshold extends Component {
   constructor(props) {

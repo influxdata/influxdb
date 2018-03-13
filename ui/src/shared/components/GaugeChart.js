@@ -5,7 +5,7 @@ import Gauge from 'shared/components/Gauge'
 import {
   DEFAULT_GAUGE_COLORS,
   stringifyColorValues,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 
 class GaugeChart extends PureComponent {

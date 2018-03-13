@@ -23,7 +23,7 @@ import {
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {AUTO_GROUP_BY} from 'shared/constants'
-import {stringifyColorValues} from 'src/dashboards/constants/gaugeColors'
+import {stringifyColorValues} from 'shared/constants/thresholds'
 
 class CellEditorOverlay extends Component {
   constructor(props) {

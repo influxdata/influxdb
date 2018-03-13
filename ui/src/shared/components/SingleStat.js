@@ -4,7 +4,7 @@ import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'shared/constants'
-import {SINGLE_STAT_TEXT} from 'src/dashboards/constants/gaugeColors'
+import {SINGLE_STAT_TEXT} from 'shared/constants/thresholds'
 import {generateSingleStatHexs} from 'shared/constants/colorOperations'
 
 class SingleStat extends PureComponent {

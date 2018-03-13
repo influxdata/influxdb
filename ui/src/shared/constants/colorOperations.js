@@ -1,8 +1,5 @@
 import _ from 'lodash'
-import {
-  GAUGE_COLORS,
-  SINGLE_STAT_BASE,
-} from 'src/dashboards/constants/gaugeColors'
+import {GAUGE_COLORS, SINGLE_STAT_BASE} from 'shared/constants/thresholds'
 
 const hexToRgb = hex => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
