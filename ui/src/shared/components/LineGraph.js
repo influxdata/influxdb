@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
 import shallowCompare from 'react-addons-shallow-compare'
 

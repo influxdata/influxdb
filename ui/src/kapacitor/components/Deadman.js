@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {PERIODS} from 'src/kapacitor/constants'
 import Dropdown from 'shared/components/Dropdown'
 

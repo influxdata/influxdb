@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
 
 const LayoutCellHeader = ({isEditable, cellName}) => {

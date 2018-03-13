@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import Dropdown from 'shared/components/Dropdown'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'

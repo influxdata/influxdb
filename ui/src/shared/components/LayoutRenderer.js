@@ -1,8 +1,7 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
-import Resizeable from 'react-component-resizable'
-
-import _ from 'lodash'
+import {ResizableBox} from 'react-resizable'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -55,12 +54,8 @@ class LayoutRenderer extends Component {
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
-  handleCellResize = (__, oldCoords, resizeCoords) => {
-    if (_.isEqual(oldCoords, resizeCoords)) {
-      return
-    }
-
-    this.setState({resizeCoords})
+  handleCellResize = () => {
+    this.resizeCoords = this.setState({resizeCoords: new Date()})
   }
 
   render() {
@@ -86,7 +81,11 @@ class LayoutRenderer extends Component {
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <Resizeable onResize={this.handleCellResize}>
+      <ResizableBox
+        height={Infinity}
+        width={Infinity}
+        onResize={this.handleCellResize}
+      >
         <Authorized
           requiredRole={EDITOR_ROLE}
           propsOverride={{
@@ -141,7 +140,7 @@ class LayoutRenderer extends Component {
             )}
           </GridLayout>
         </Authorized>
-      </Resizeable>
+      </ResizableBox>
     )
   }
 }

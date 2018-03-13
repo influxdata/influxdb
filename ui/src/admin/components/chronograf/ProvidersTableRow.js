@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'

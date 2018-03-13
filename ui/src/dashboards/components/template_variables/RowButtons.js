@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
 
 const RowButtons = ({onStartEdit, isEditing, onCancelEdit, onDelete, id}) => {

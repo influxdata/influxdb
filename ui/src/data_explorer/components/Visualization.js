@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'

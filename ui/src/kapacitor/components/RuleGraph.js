@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import buildInfluxQLQuery from 'utils/influxql'
 import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'

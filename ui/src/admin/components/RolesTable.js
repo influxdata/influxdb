@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import RoleRow from 'src/admin/components/RoleRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 import FilterBar from 'src/admin/components/FilterBar'

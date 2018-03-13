@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import Dropdown from 'shared/components/Dropdown'
 import {showTagKeys} from 'shared/apis/metaQuery'

@@ -1,5 +1,6 @@
 /* eslint-disable no-magic-numbers */
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
