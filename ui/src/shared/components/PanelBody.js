@@ -1,6 +1,7 @@
 import React from 'react'
+import PropTypes from 'prop-types'
 
-const {node} = React.PropTypes
+const {node} = PropTypes
 const PanelBody = React.createClass({
   propTypes: {
     children: node.isRequired,

@@ -1,7 +1,8 @@
 import React from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
-const {func, bool, string} = React.PropTypes
+const {func, bool, string} = PropTypes
 const ResizeHandle = React.createClass({
   propTypes: {
     onHandleStartDrag: func.isRequired,
