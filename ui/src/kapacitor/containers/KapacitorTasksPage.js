@@ -12,7 +12,6 @@ export const KapacitorTasksPage = React.createClass({
         kapacitors: PropTypes.string.isRequired,
       }).isRequired,
     }).isRequired,
-    addFlashMessage: PropTypes.func,
   },
 
   getInitialState() {

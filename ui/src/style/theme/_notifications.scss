@@ -1,0 +1,154 @@
+/*
+   Notifications
+   -----------------------------------------------------------------------------
+*/
+
+$notification-margin: 12px;
+
+.notification-center {
+  position: fixed;
+  right: $notification-margin;
+  width: 360px;
+  top: $chronograf-page-header-height + $notification-margin;
+  z-index: 9999;
+}
+
+.notification-center__presentation-mode {
+  @extend .notification-center;
+  top: $notification-margin;
+}
+
+.notification {
+  border-style: solid;
+  border-width: 0;
+  border-radius: $ix-radius;
+  position: relative;
+  padding: 12px 40px;
+  @extend %no-user-select;
+  transform: translateX(105%);
+  transition:
+    transform 0.25s ease 0.25s,
+    opacity 0.25s ease;
+
+  > span.icon {
+   position: absolute;
+   top: 50%;
+   left: 20px;
+   transform: translate(-50%,-50%);
+   font-size: $ix-text-base-2;
+ }
+}
+
+.notification-message {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 16px;
+}
+
+.notification-close {
+  outline: none;
+  position: absolute;
+  top: 50%;
+  border: 0;
+  background-color: transparent;
+  transform: translateY(-50%);
+  right: ($ix-marg-c - $ix-marg-a);
+  font-size: $ix-text-base;
+  width: 20px;
+  height: 20px;
+  opacity: 0.25;
+  transition:
+    opacity 0.25s ease;
+
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g20-white;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+
+  &:hover {
+    cursor: pointer;
+    opacity: 1;
+  }
+}
+.notification-container {
+  overflow: hidden;
+  height: 0;
+  transition: height 0.25s ease;
+
+  &.show .notification {
+    transform: translateX(0);
+  }
+  &.notification-dismissed {
+    height: 0 !important;
+    .notification {opacity: 0;}
+  }
+}
+
+
+//  Mixin for Alert Themes
+//  ----------------------------------------------------------------------------
+@mixin notification-styles(
+  $bg-color,
+  $bg-color-2,
+  $text-color,
+  $link-color,
+  $link-hover) {
+  font-size: 16px;
+
+  @include gradient-h($bg-color,$bg-color-2);
+  color: $text-color;
+
+  a:link,
+  a:visited {
+    color: $link-color;
+    font-weight: 700;
+    text-decoration: underline;
+    transition:
+      color 0.25s ease;
+  }
+  a:hover {
+    color: $link-hover;
+    border-color: $link-hover;
+  }
+  span.icon {
+    color: $text-color;
+  }
+  .notification-close:before,
+  .notification-close:after {
+    background-color: $text-color;
+  }
+}
+
+//  Alert Themes
+//  ----------------------------------------------------------------------------
+.notification-success {
+  @include notification-styles($c-rainforest,$c-pool,$g20-white,$c-wasabi,$g20-white);
+}
+.notification-primary {
+  @include notification-styles($c-pool,$c-ocean,$g20-white,$c-neutrino,$g20-white);
+}
+.notification-warning {
+  @include notification-styles($c-star,$c-pool,$g20-white,$c-neutrino,$g20-white);
+}
+.notification-error {
+  @include notification-styles($c-curacao,$c-star,$g20-white,$c-marmelade,$g20-white);
+}
+.notification-info {
+  @include notification-styles($g20-white,$g16-pearl,$g8-storm,$ix-link-default,$ix-link-default-hover);
+}
+.notification-dark {
+  @include notification-styles($c-sapphire,$c-shadow,$c-moonstone,$ix-link-default,$ix-link-default-hover);
+}

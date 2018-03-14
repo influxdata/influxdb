@@ -15,9 +15,17 @@ import {showDatabases} from 'shared/apis/metaQuery'
 
 import {getSourcesAsync} from 'shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishNotification} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
+import {
+  NOTIFY_SOURCE_NO_LONGER_AVAILABLE,
+  NOTIFY_NO_SOURCES_AVAILABLE,
+  NOTIFY_UNABLE_TO_RETRIEVE_SOURCES,
+  NOTIFY_USER_REMOVED_FROM_ALL_ORGS,
+  NOTIFY_USER_REMOVED_FROM_CURRENT_ORG,
+  NOTIFY_ORG_HAS_NO_SOURCES,
+} from 'shared/copy/notifications'
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
@@ -85,10 +93,7 @@ class CheckSources extends Component {
     }
 
     if (!isFetching && isUsingAuth && !organizations.length) {
-      notify(
-        'error',
-        'You have been removed from all organizations. Please contact your administrator.'
-      )
+      notify(NOTIFY_USER_REMOVED_FROM_ALL_ORGS)
       return router.push('/purgatory')
     }
 
@@ -96,7 +101,7 @@ class CheckSources extends Component {
       me.superAdmin &&
       !organizations.find(o => o.id === currentOrganization.id)
     ) {
-      notify('error', 'You were removed from your current organization')
+      notify(NOTIFY_USER_REMOVED_FROM_CURRENT_ORG)
       return router.push('/purgatory')
     }
 
@@ -118,7 +123,7 @@ class CheckSources extends Component {
           return router.push(`/sources/${sources[0].id}/${restString}`)
         }
         // if you're a viewer and there are no sources, go to purgatory.
-        notify('error', 'Organization has no sources configured')
+        notify(NOTIFY_ORG_HAS_NO_SOURCES)
         return router.push('/purgatory')
       }
 
@@ -143,18 +148,12 @@ class CheckSources extends Component {
         try {
           const newSources = await getSources()
           if (newSources.length) {
-            errorThrown(
-              error,
-              `Source ${source.name} is no longer available. Successfully connected to another source.`
-            )
+            errorThrown(error, NOTIFY_SOURCE_NO_LONGER_AVAILABLE(source.name))
           } else {
-            errorThrown(
-              error,
-              `Unable to connect to source ${source.name}. No other sources available.`
-            )
+            errorThrown(error, NOTIFY_NO_SOURCES_AVAILABLE(source.name))
           }
         } catch (error2) {
-          errorThrown(error2, 'Unable to retrieve sources')
+          errorThrown(error2, NOTIFY_UNABLE_TO_RETRIEVE_SOURCES)
         }
       }
     }
@@ -248,7 +247,7 @@ const mapStateToProps = ({sources, auth}) => ({
 const mapDispatchToProps = dispatch => ({
   getSources: bindActionCreators(getSourcesAsync, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
-  notify: bindActionCreators(publishNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
