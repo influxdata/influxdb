@@ -2,9 +2,12 @@
 
 ### Features
 
+1.  [#2973](https://github.com/influxdata/chronograf/pull/2973): Add unsafe SSL to Kapacitor UI configuration
+
 ### UI Improvements
 
 ### Bug Fixes
+
 1.  [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
 1.  [#2953](https://github.com/influxdata/chronograf/pull/2953): Fix error reporting in DataExplorer
 1.  [#2947](https://github.com/influxdata/chronograf/pull/2947): Fix Okta oauth2 provider support
