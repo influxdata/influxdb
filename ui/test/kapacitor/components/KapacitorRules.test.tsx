@@ -29,7 +29,7 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
   })
 
   describe('rendering', () => {
-    it('renders the KapacitorRules', () => {
+    it('renders KapacitorRules', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
     })
