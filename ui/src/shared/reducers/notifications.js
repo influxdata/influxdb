@@ -5,14 +5,12 @@ export const notifications = (state = initialState, action) => {
   switch (action.type) {
     case 'PUBLISH_NOTIFICATION': {
       const {notification} = action.payload
-      const publishedNotification = [
-        {
-          ...notification,
-          id: uuid.v4(),
-        },
-      ]
+      const publishedNotification = {
+        ...notification,
+        id: uuid.v4(),
+      }
 
-      return [...publishedNotification, ...state]
+      return [publishedNotification, ...state]
     }
 
     case 'DISMISS_NOTIFICATION': {

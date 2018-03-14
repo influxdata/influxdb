@@ -4,12 +4,9 @@ import AlertTabs from 'src/kapacitor/components/AlertTabs'
 
 import {Kapacitor, Source} from 'src/types'
 
-type FlashMessage = {type: string; text: string}
-
 interface AlertOutputProps {
   exists: boolean
   kapacitor: Kapacitor
-  addFlashMessage: (message: FlashMessage) => void
   source: Source
   hash: string
 }
@@ -17,19 +14,11 @@ interface AlertOutputProps {
 const AlertOutputs: SFC<AlertOutputProps> = ({
   exists,
   kapacitor,
-  addFlashMessage,
   source,
   hash,
 }) => {
   if (exists) {
-    return (
-      <AlertTabs
-        source={source}
-        kapacitor={kapacitor}
-        addFlashMessage={addFlashMessage}
-        hash={hash}
-      />
-    )
+    return <AlertTabs source={source} kapacitor={kapacitor} hash={hash} />
   }
 
   return (

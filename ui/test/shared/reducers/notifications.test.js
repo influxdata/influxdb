@@ -1,4 +1,4 @@
-import reducer, {initialState} from 'shared/reducers/notifications'
+import {initialState, notifications} from 'shared/reducers/notifications'
 
 import {
   publishNotification,
@@ -21,17 +21,40 @@ const exampleNotifications = [exampleNotification]
 
 describe('Shared.Reducers.notifications', () => {
   it('should publish a notification', () => {
-    const actual = reducer(
+    const [actual] = notifications(
       initialState,
       publishNotification(exampleNotification)
     )
-    const expected = [...initialState, exampleNotification]
 
-    expect(actual).toEqual(expected)
+    const [expected] = [exampleNotification, ...initialState]
+
+    expect(actual.type).toEqual(expected.type)
+    expect(actual.icon).toEqual(expected.icon)
+    expect(actual.message).toEqual(expected.message)
+    expect(actual.duration).toEqual(expected.duration)
+  })
+
+  describe('adding more than one notification', () => {
+    it('should put the new notification at the beggining of the list', () => {
+      const newNotification = {
+        type: 'error',
+        message: 'new notification',
+        duration: FIVE_SECONDS,
+        icon: 'zap',
+      }
+
+      const actual = notifications(
+        exampleNotifications,
+        publishNotification(newNotification)
+      )
+
+      expect(actual.length).toBe(2)
+      expect(actual[0].message).toEqual(newNotification.message)
+    })
   })
 
   it('should dismiss a notification', () => {
-    const actual = reducer(
+    const actual = notifications(
       exampleNotifications,
       dismissNotification(notificationID)
     )

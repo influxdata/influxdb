@@ -43,13 +43,18 @@ export function pingKapacitor(kapacitor) {
   })
 }
 
-export function getKapacitor(source, kapacitorID) {
-  return AJAX({
-    url: `${source.links.kapacitors}/${kapacitorID}`,
-    method: 'GET',
-  }).then(({data}) => {
+export const getKapacitor = async (source, kapacitorID) => {
+  try {
+    const {data} = AJAX({
+      url: `${source.links.kapacitors}/${kapacitorID}`,
+      method: 'GET',
+    })
+
     return data
-  })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const getActiveKapacitor = async source => {

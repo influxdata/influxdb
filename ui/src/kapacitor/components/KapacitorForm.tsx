@@ -6,8 +6,6 @@ import Input from 'src/kapacitor/components/KapacitorFormInput'
 
 import {Kapacitor, Source} from 'src/types'
 
-type FlashMessage = {type: string; text: string}
-
 interface Props {
   kapacitor: Kapacitor
   exists: boolean
@@ -15,7 +13,6 @@ interface Props {
   onSubmit: (e: ChangeEvent<HTMLFormElement>) => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
   onChangeUrl: (e: ChangeEvent<HTMLInputElement>) => void
-  addFlashMessage: (message: FlashMessage) => void
   source: Source
   hash: string
 }
@@ -28,7 +25,6 @@ const KapacitorForm: SFC<Props> = ({
   onSubmit,
   exists,
   onInputChange,
-  addFlashMessage,
   source,
   hash,
 }) =>
@@ -110,7 +106,6 @@ const KapacitorForm: SFC<Props> = ({
               <AlertOutputs
                 exists={exists}
                 kapacitor={kapacitor}
-                addFlashMessage={addFlashMessage}
                 source={source}
                 hash={hash}
               />

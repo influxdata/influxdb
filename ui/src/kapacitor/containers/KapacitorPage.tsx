@@ -29,12 +29,14 @@ export const defaultName = 'My Kapacitor'
 export const kapacitorPort = '9092'
 
 type Notification = {
-  id: string
+  id?: string
   type: string
   icon: string
   duration: number
   message: string
 }
+
+type NotificationFunc = () => Notification
 
 interface Kapacitor {
   url: string
@@ -49,7 +51,7 @@ interface Kapacitor {
 
 interface Props {
   source: Source
-  publishNotification: (notificationMessage: (notification: Notification)) => Notification
+  publishNotification: (message: Notification | NotificationFunc) => void
   kapacitor: Kapacitor
   router: {push: (url: string) => void}
   location: {pathname: string; hash: string}
@@ -189,7 +191,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 
   render() {
-    const {source, publishNotification, location, params} = this.props
+    const {source, location, params} = this.props
     const hash = (location && location.hash) || (params && params.hash) || ''
     const {kapacitor, exists} = this.state
 
