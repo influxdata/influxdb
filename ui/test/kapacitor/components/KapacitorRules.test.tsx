@@ -38,11 +38,18 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
       expect(wrapper.exists()).toBe(true)
     })
 
-    it('renders two tables', () => {
+    it('renders KapacitorRulesTable', () => {
       const {wrapper} = setup()
 
       const kapacitorRulesTable = wrapper.find('KapacitorRulesTable')
       expect(kapacitorRulesTable.length).toEqual(1)
+
+      const tasksTable = wrapper.find('TasksTable')
+      expect(tasksTable.length).toEqual(1)
+    })
+
+    it('renders TasksTable', () => {
+      const {wrapper} = setup()
 
       const tasksTable = wrapper.find('TasksTable')
       expect(tasksTable.length).toEqual(1)
