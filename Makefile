@@ -101,7 +101,7 @@ gotestrace:
 	go test -race ./...
 
 jstest:
-	cd ui && yarn test
+	cd ui && yarn test --runInBand
 
 run: ${BINARY}
 	./chronograf
