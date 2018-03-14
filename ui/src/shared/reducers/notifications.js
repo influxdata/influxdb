@@ -4,10 +4,10 @@ export const initialState = []
 export const notifications = (state = initialState, action) => {
   switch (action.type) {
     case 'PUBLISH_NOTIFICATION': {
-      const {notifcation} = action.payload
+      const {notification} = action.payload
       const publishedNotification = [
         {
-          ...notifcation,
+          ...notification,
           id: uuid.v4(),
         },
       ]
