@@ -15,11 +15,11 @@ class Notification extends Component {
     this.state = {
       opacity: 1,
       height: 0,
-      dismiss: false,
+      dismissed: false,
     }
   }
 
-  componentDidMount = () => {
+  componentDidMount() {
     const {notification: {duration}} = this.props
 
     // Trigger animation in
@@ -32,7 +32,7 @@ class Notification extends Component {
     }
   }
 
-  componentWillUnmount = () => {
+  componentWillUnmount() {
     clearTimeout(this.dismissTimer)
     clearTimeout(this.deleteTimer)
   }
@@ -40,7 +40,7 @@ class Notification extends Component {
   handleDismiss = () => {
     const {notification: {id}, dismissNotification} = this.props
 
-    this.setState({dismiss: true})
+    this.setState({dismissed: true})
     this.deleteTimer = setTimeout(
       () => dismissNotification(id),
       NOTIFICATION_TRANSITION
@@ -49,11 +49,11 @@ class Notification extends Component {
 
   render() {
     const {notification: {type, message, icon}} = this.props
-    const {height, dismiss} = this.state
+    const {height, dismissed} = this.state
 
     const notificationContainerClass = classnames('notification-container', {
       show: !!height,
-      'notification-dismissed': dismiss,
+      'notification-dismissed': dismissed,
     })
     const notificationClass = `notification notification-${type}`
     const notificationMargin = 4
@@ -87,7 +87,7 @@ Notification.propTypes = {
     message: string.isRequired,
     duration: number.isRequired,
     icon: string.isRequired,
-  }),
+  }).isRequired,
   dismissNotification: func.isRequired,
 }
 
