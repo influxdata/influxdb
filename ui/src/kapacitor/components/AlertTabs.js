@@ -27,7 +27,13 @@ import {
   VictorOpsConfig,
 } from './config'
 
-import {kapacitorConfigNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_REFRESH_KAPACITOR_FAILED,
+  NOTIFY_ALERT_ENDPOINT_SAVED,
+  NOTIFY_ALERT_ENDPOINT_SAVE_FAILED,
+  NOTIFY_TEST_ALERT_SENT,
+  NOTIFY_TEST_ALERT_FAILED,
+} from 'shared/copy/notifications'
 
 class AlertTabs extends Component {
   constructor(props) {
@@ -54,7 +60,7 @@ class AlertTabs extends Component {
       this.setState({configSections: sections})
     } catch (error) {
       this.setState({configSections: null})
-      this.props.publishNotification(kapacitorConfigNotifications.refreshFail)
+      this.props.publishNotification(NOTIFY_REFRESH_KAPACITOR_FAILED)
     }
   }
 
@@ -84,14 +90,12 @@ class AlertTabs extends Component {
           propsToSend
         )
         this.refreshKapacitorConfig(this.props.kapacitor)
-        this.props.publishNotification(
-          kapacitorConfigNotifications.saveEndpointSuccess(section)
-        )
+        this.props.publishNotification(NOTIFY_ALERT_ENDPOINT_SAVED(section))
         return true
       } catch ({data: {error}}) {
         const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
         this.props.publishNotification(
-          kapacitorConfigNotifications.saveEndpointFail(section, errorMsg)
+          NOTIFY_ALERT_ENDPOINT_SAVE_FAILED(section, errorMsg)
         )
         return false
       }
@@ -104,18 +108,14 @@ class AlertTabs extends Component {
     try {
       const {data} = await testAlertOutput(this.props.kapacitor, section)
       if (data.success) {
-        this.props.publishNotification(
-          kapacitorConfigNotifications.testEndpointSucess(section)
-        )
+        this.props.publishNotification(NOTIFY_TEST_ALERT_SENT(section))
       } else {
         this.props.publishNotification(
-          kapacitorConfigNotifications.testEndpointFail(section, data.message)
+          NOTIFY_TEST_ALERT_FAILED(section, data.message)
         )
       }
     } catch (error) {
-      this.props.publishNotification(
-        kapacitorConfigNotifications.testEndpointFail(section)
-      )
+      this.props.publishNotification(NOTIFY_TEST_ALERT_FAILED(section))
     }
   }
 

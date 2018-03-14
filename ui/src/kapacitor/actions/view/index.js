@@ -12,8 +12,14 @@ import {
 import {errorThrown} from 'shared/actions/errors'
 
 import {
-  ruleBuilderNotifications,
-  tickscriptNotifications,
+  NOTIFY_ALERT_RULE_DELETED,
+  NOTIFY_ALERT_RULE_DELETION_FAILED,
+  NOTIFY_ALERT_RULE_STATUS_UPDATED,
+  NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED,
+  NOTIFY_TICKSCRIPT_CREATED,
+  NOTIFY_TICKSCRIPT_CREATION_FAILED,
+  NOTIFY_TICKSCRIPT_UPDATED,
+  NOTIFY_TICKSCRIPT_UPDATE_FAILED,
 } from 'shared/copy/notifications'
 
 const loadQuery = query => ({
@@ -175,13 +181,11 @@ export const deleteRule = rule => dispatch => {
   deleteRuleAPI(rule)
     .then(() => {
       dispatch(deleteRuleSuccess(rule.id))
-      dispatch(
-        publishNotification(ruleBuilderNotifications.deleteSuccess(rule.name))
-      )
+      dispatch(publishNotification(NOTIFY_ALERT_RULE_DELETED(rule.name)))
     })
     .catch(() => {
       dispatch(
-        publishNotification(ruleBuilderNotifications.deleteFail(rule.name))
+        publishNotification(NOTIFY_ALERT_RULE_DELETION_FAILED(rule.name))
       )
     })
 }
@@ -190,15 +194,13 @@ export const updateRuleStatus = (rule, status) => dispatch => {
   updateRuleStatusAPI(rule, status)
     .then(() => {
       dispatch(
-        publishNotification(
-          ruleBuilderNotifications.toggleStatusSuccess(rule.name, status)
-        )
+        publishNotification(NOTIFY_ALERT_RULE_STATUS_UPDATED(rule.name, status))
       )
     })
     .catch(() => {
       dispatch(
         publishNotification(
-          ruleBuilderNotifications.toggleStatusFail(rule.name, status)
+          NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED(rule.name, status)
         )
       )
     })
@@ -207,11 +209,11 @@ export const updateRuleStatus = (rule, status) => dispatch => {
 export const createTask = (kapacitor, task) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    dispatch(publishNotification(tickscriptNotifications.createSuccess))
+    dispatch(publishNotification(NOTIFY_TICKSCRIPT_CREATED))
     return data
   } catch (error) {
     if (!error) {
-      dispatch(errorThrown(tickscriptNotifications.createFail))
+      dispatch(errorThrown(NOTIFY_TICKSCRIPT_CREATION_FAILED))
       return
     }
 
@@ -227,11 +229,11 @@ export const updateTask = (
 ) => async dispatch => {
   try {
     const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
-    dispatch(publishNotification(tickscriptNotifications.updateSuccess))
+    dispatch(publishNotification(NOTIFY_TICKSCRIPT_UPDATED))
     return data
   } catch (error) {
     if (!error) {
-      dispatch(errorThrown(tickscriptNotifications.updateFail))
+      dispatch(errorThrown(NOTIFY_TICKSCRIPT_UPDATE_FAILED))
       return
     }
     return error.data

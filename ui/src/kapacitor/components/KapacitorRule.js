@@ -16,7 +16,15 @@ import {timeRanges} from 'shared/data/timeRanges'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {ruleBuilderNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_ALERT_RULE_CREATED,
+  NOTIFY_ALERT_RULE_CREATION_FAILED,
+  NOTIFY_ALERT_RULE_UPDATED,
+  NOTIFY_ALERT_RULE_UPDATE_FAILED,
+  NOTIFY_ALERT_RULE_REQUIRES_QUERY,
+  NOTIFY_ALERT_RULE_REQUIRES_CONDITION_VALUE,
+  NOTIFY_ALERT_RULE_DEADMAN_INVALID,
+} from 'shared/copy/notifications'
 
 class KapacitorRule extends Component {
   constructor(props) {
@@ -49,10 +57,10 @@ class KapacitorRule extends Component {
     createRule(kapacitor, newRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        publishNotification(ruleBuilderNotifications.createSuccess)
+        publishNotification(NOTIFY_ALERT_RULE_CREATED)
       })
       .catch(() => {
-        publishNotification(ruleBuilderNotifications.createFail)
+        publishNotification(NOTIFY_ALERT_RULE_CREATION_FAILED)
       })
   }
 
@@ -65,11 +73,11 @@ class KapacitorRule extends Component {
     editRule(updatedRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        publishNotification(ruleBuilderNotifications.updateSuccess(rule.name))
+        publishNotification(NOTIFY_ALERT_RULE_UPDATED(rule.name))
       })
       .catch(e => {
         publishNotification(
-          ruleBuilderNotifications.updateFail(rule.name, e.data.message)
+          NOTIFY_ALERT_RULE_UPDATE_FAILED(rule.name, e.data.message)
         )
       })
   }
@@ -116,11 +124,11 @@ class KapacitorRule extends Component {
     }
 
     if (!buildInfluxQLQuery({}, query)) {
-      return ruleBuilderNotifications.validation.missingQuery
+      return NOTIFY_ALERT_RULE_REQUIRES_QUERY
     }
 
     if (!rule.values.value) {
-      return ruleBuilderNotifications.validation.missingCondition
+      return NOTIFY_ALERT_RULE_REQUIRES_CONDITION_VALUE
     }
 
     return ''
@@ -129,7 +137,7 @@ class KapacitorRule extends Component {
   deadmanValidation = () => {
     const {query} = this.props
     if (query && (!query.database || !query.measurement)) {
-      return ruleBuilderNotifications.validation.deadman
+      return NOTIFY_ALERT_RULE_DEADMAN_INVALID
     }
 
     return ''

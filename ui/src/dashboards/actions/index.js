@@ -12,7 +12,10 @@ import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
-import {dashboardNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_DASHBOARD_DELETED,
+  NOTIFY_DASHBOARD_DELETE_FAILED,
+} from 'shared/copy/notifications'
 
 import {
   TEMPLATE_VARIABLE_SELECTED,
@@ -258,14 +261,12 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
   dispatch(deleteDashboard(dashboard))
   try {
     await deleteDashboardAJAX(dashboard)
-    dispatch(
-      publishNotification(dashboardNotifications.deleteSuccess(dashboard.name))
-    )
+    dispatch(publishNotification(NOTIFY_DASHBOARD_DELETED(dashboard.name)))
   } catch (error) {
     dispatch(
       errorThrown(
         error,
-        dashboardNotifications.deleteFail(dashboard.name, error.data.message)
+        NOTIFY_DASHBOARD_DELETE_FAILED(dashboard.name, error.data.message)
       )
     )
     dispatch(deleteDashboardFailed(dashboard))

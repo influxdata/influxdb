@@ -19,7 +19,13 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import {DEFAULT_SOURCE} from 'shared/constants'
 const initialPath = '/sources/new'
 
-import {sourceNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_ERROR_CONNECTING_TO_SOURCE,
+  NOTIFY_SOURCE_CREATION_SUCCEEDED,
+  NOTIFY_SOURCE_CREATION_FAILED,
+  NOTIFY_SOURCE_UPDATED,
+  NOTIFY_SOURCE_UPDATE_FAILED,
+} from 'shared/copy/notifications'
 
 class SourcePage extends Component {
   constructor(props) {
@@ -50,7 +56,7 @@ class SourcePage extends Component {
       })
       .catch(error => {
         publishNotification(
-          sourceNotifications.connectionError(this._parseError(error))
+          NOTIFY_ERROR_CONNECTING_TO_SOURCE(this._parseError(error))
         )
         this.setState({isLoading: false})
       })
@@ -141,11 +147,11 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.addSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        publishNotification(sourceNotifications.createSuccess(source.name))
+        publishNotification(NOTIFY_SOURCE_CREATION_SUCCEEDED(source.name))
       })
       .catch(error => {
         publishNotification(
-          sourceNotifications.createFail(source.name, this._parseError(error))
+          NOTIFY_SOURCE_CREATION_FAILED(source.name, this._parseError(error))
         )
       })
   }
@@ -157,11 +163,11 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.updateSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        publishNotification(sourceNotifications.updateSuccess(source.name))
+        publishNotification(NOTIFY_SOURCE_UPDATED(source.name))
       })
       .catch(error => {
         publishNotification(
-          sourceNotifications.updateFail(source.name, this._parseError(error))
+          NOTIFY_SOURCE_UPDATE_FAILED(source.name, this._parseError(error))
         )
       })
   }

@@ -15,10 +15,8 @@ import {setAutoRefresh} from 'shared/actions/app'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
 import {
-  unableToGetHostsMessage,
-  unableToGetHostsNotification,
-  unableToGetHostAppsMessage,
-  unableToGetHostAppsNotification,
+  NOTIFY_UNABLE_TO_GET_HOSTS,
+  NOTIFY_UNABLE_TO_GET_APPS,
 } from 'shared/copy/notifications'
 
 class HostsPage extends Component {
@@ -35,7 +33,7 @@ class HostsPage extends Component {
   async fetchHostsData() {
     const {source, links, publishNotification} = this.props
     const {telegrafSystemInterval} = await getEnv(links.environment)
-    const hostsError = unableToGetHostsMessage
+    const hostsError = NOTIFY_UNABLE_TO_GET_HOSTS.message
     try {
       const hosts = await getCpuAndLoadForHosts(
         source.links.proxy,
@@ -59,7 +57,7 @@ class HostsPage extends Component {
       })
     } catch (error) {
       console.error(error)
-      publishNotification(unableToGetHostsNotification)
+      publishNotification(NOTIFY_UNABLE_TO_GET_HOSTS)
       this.setState({
         hostsError,
         hostsLoading: false,
@@ -74,8 +72,8 @@ class HostsPage extends Component {
     const {data} = await getLayouts()
     this.layouts = data.layouts
     if (!this.layouts) {
-      const layoutError = unableToGetHostAppsMessage
-      publishNotification(unableToGetHostAppsNotification)
+      const layoutError = NOTIFY_UNABLE_TO_GET_APPS.message
+      publishNotification(NOTIFY_UNABLE_TO_GET_APPS)
       this.setState({
         hostsError: layoutError,
         hostsLoading: false,

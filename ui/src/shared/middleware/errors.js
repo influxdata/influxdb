@@ -5,10 +5,11 @@ import {publishNotification} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
 import {
-  multitenancyUserNotifications,
-  sessionTimeoutNotification,
-  notificationWithAltText,
-  newVersionNotification,
+  NOTIFY_SESSION_TIMED_OUT,
+  NOTIFY_ERR_WITH_ALT_TEXT,
+  NOTIFY_NEW_VERSION,
+  NOTIFY_ORG_IS_PRIVATE,
+  NOTIFY_CURRENT_ORG_DELETED,
 } from 'shared/copy/notifications'
 
 const actionsAllowedDuringBlackout = [
@@ -41,26 +42,22 @@ const errorsMiddleware = store => next => action => {
         message ===
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
-        store.dispatch(
-          publishNotification(multitenancyUserNotifications.unauthorized)
-        )
+        store.dispatch(publishNotification(NOTIFY_ORG_IS_PRIVATE))
       }
 
       if (_.startsWith(message, 'Welcome to Chronograf')) {
-        store.dispatch(publishNotification(newVersionNotification(message)))
+        store.dispatch(publishNotification(NOTIFY_NEW_VERSION(message)))
       }
 
       if (organizationWasRemoved) {
-        store.dispatch(
-          publishNotification(multitenancyUserNotifications.currentDeleted)
-        )
+        store.dispatch(publishNotification(NOTIFY_CURRENT_ORG_DELETED))
 
         allowNotifications = false
         setTimeout(() => {
           allowNotifications = true
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
-        store.dispatch(publishNotification(sessionTimeoutNotification))
+        store.dispatch(publishNotification(NOTIFY_SESSION_TIMED_OUT))
 
         allowNotifications = false
         setTimeout(() => {
@@ -69,7 +66,7 @@ const errorsMiddleware = store => next => action => {
       }
     } else if (altText) {
       store.dispatch(
-        publishNotification(notificationWithAltText(alertType, altText))
+        publishNotification(NOTIFY_ERR_WITH_ALT_TEXT(alertType, altText))
       )
     } else {
       // TODO: actually do proper error handling

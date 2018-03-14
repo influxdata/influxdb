@@ -13,7 +13,14 @@ import {
 } from 'shared/apis'
 import KapacitorForm from '../components/KapacitorForm'
 
-import {kapacitorConfigNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_KAPACITOR_CONNECTION_FAILED,
+  NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN,
+  NOTIFY_KAPACITOR_UPDATED,
+  NOTIFY_KAPACITOR_UPDATE_FAILED,
+  NOTIFY_KAPACITOR_CREATED,
+  NOTIFY_KAPACITOR_CREATION_FAILED,
+} from 'shared/copy/notifications'
 
 const defaultName = 'My Kapacitor'
 const kapacitorPort = '9092'
@@ -50,7 +57,7 @@ class KapacitorPage extends Component {
       this.setState({exists: true})
     } catch (error) {
       this.setState({exists: false})
-      this.props.publishNotification(kapacitorConfigNotifications.connectFail)
+      this.props.publishNotification(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
   }
 
@@ -82,9 +89,7 @@ class KapacitorPage extends Component {
     const isNew = !params.id
 
     if (isNew && isNameTaken) {
-      publishNotification(
-        kapacitorConfigNotifications.alreadyTaken(kapacitor.name)
-      )
+      publishNotification(NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN(kapacitor.name))
       return
     }
 
@@ -93,10 +98,10 @@ class KapacitorPage extends Component {
         .then(({data}) => {
           this.setState({kapacitor: data})
           this.checkKapacitorConnection(data)
-          publishNotification(kapacitorConfigNotifications.updateSuccess)
+          publishNotification(NOTIFY_KAPACITOR_UPDATED)
         })
         .catch(() => {
-          publishNotification(kapacitorConfigNotifications.updateFail)
+          publishNotification(NOTIFY_KAPACITOR_UPDATE_FAILED)
         })
     } else {
       createKapacitor(source, kapacitor)
@@ -105,10 +110,10 @@ class KapacitorPage extends Component {
           this.setState({kapacitor: data})
           this.checkKapacitorConnection(data)
           router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-          publishNotification(kapacitorConfigNotifications.createSuccess)
+          publishNotification(NOTIFY_KAPACITOR_CREATED)
         })
         .catch(() => {
-          publishNotification(kapacitorConfigNotifications.createFail)
+          publishNotification(NOTIFY_KAPACITOR_CREATION_FAILED)
         })
     }
   }

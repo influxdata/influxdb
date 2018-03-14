@@ -19,8 +19,12 @@ import {publishNotification as publishNotificationAction} from 'shared/actions/n
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
 import {
-  multitenancyUserNotifications,
-  sourceNotifications,
+  NOTIFY_SOURCE_NO_LONGER_AVAILABLE,
+  NOTIFY_NO_SOURCES_AVAILABLE,
+  NOTIFY_UNABLE_TO_RETRIEVE_SOURCES,
+  NOTIFY_USER_REMOVED_FROM_ALL_ORGS,
+  NOTIFY_USER_REMOVED_FROM_CURRENT_ORG,
+  NOTIFY_ORG_HAS_NO_SOURCES,
 } from 'shared/copy/notifications'
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
@@ -89,7 +93,7 @@ class CheckSources extends Component {
     }
 
     if (!isFetching && isUsingAuth && !organizations.length) {
-      publishNotification(multitenancyUserNotifications.removedFromAll)
+      publishNotification(NOTIFY_USER_REMOVED_FROM_ALL_ORGS)
       return router.push('/purgatory')
     }
 
@@ -97,7 +101,7 @@ class CheckSources extends Component {
       me.superAdmin &&
       !organizations.find(o => o.id === currentOrganization.id)
     ) {
-      publishNotification(multitenancyUserNotifications.removedFromCurrent)
+      publishNotification(NOTIFY_USER_REMOVED_FROM_CURRENT_ORG)
       return router.push('/purgatory')
     }
 
@@ -119,7 +123,7 @@ class CheckSources extends Component {
           return router.push(`/sources/${sources[0].id}/${restString}`)
         }
         // if you're a viewer and there are no sources, go to purgatory.
-        publishNotification(multitenancyUserNotifications.noSources)
+        publishNotification(NOTIFY_ORG_HAS_NO_SOURCES)
         return router.push('/purgatory')
       }
 
@@ -144,12 +148,12 @@ class CheckSources extends Component {
         try {
           const newSources = await getSources()
           if (newSources.length) {
-            errorThrown(error, sourceNotifications.unavailable(source.name))
+            errorThrown(error, NOTIFY_SOURCE_NO_LONGER_AVAILABLE(source.name))
           } else {
-            errorThrown(error, sourceNotifications.noneAvailable(source.name))
+            errorThrown(error, NOTIFY_NO_SOURCES_AVAILABLE(source.name))
           }
         } catch (error2) {
-          errorThrown(error2, sourceNotifications.retrievalFail)
+          errorThrown(error2, NOTIFY_UNABLE_TO_RETRIEVE_SOURCES)
         }
       }
     }

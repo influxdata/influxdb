@@ -9,7 +9,11 @@ import DatabaseManager from 'src/admin/components/DatabaseManager'
 import * as adminActionCreators from 'src/admin/actions/influxdb'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {influxAdminValidationNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED,
+  NOTIFY_DATABASE_NAME_ALREADY_EXISTS,
+  NOTIFY_DATABASE_NAME_INVALID,
+} from 'shared/copy/notifications'
 
 class DatabaseManagerPage extends Component {
   constructor(props) {
@@ -37,11 +41,11 @@ class DatabaseManagerPage extends Component {
   handleCreateDatabase = database => {
     const {actions, publishNotification, source, databases} = this.props
     if (!database.name) {
-      return publishNotification(influxAdminValidationNotifications.dbNameBlank)
+      return publishNotification(NOTIFY_DATABASE_NAME_INVALID)
     }
 
     if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-      return publishNotification(influxAdminValidationNotifications.dbNameTaken)
+      return publishNotification(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
     }
 
     actions.createDatabaseAsync(source.links.databases, database)
@@ -62,15 +66,11 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (!database.name) {
-        return publishNotification(
-          influxAdminValidationNotifications.dbNameBlank
-        )
+        return publishNotification(NOTIFY_DATABASE_NAME_INVALID)
       }
 
       if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-        return publishNotification(
-          influxAdminValidationNotifications.dbNameTaken
-        )
+        return publishNotification(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
       }
 
       actions.createDatabaseAsync(source.links.databases, database)
@@ -88,7 +88,7 @@ class DatabaseManagerPage extends Component {
     if (key === 'Enter') {
       if (database.deleteCode !== `DELETE ${database.name}`) {
         return publishNotification(
-          influxAdminValidationNotifications.deleteConfirm(database.name)
+          NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name)
         )
       }
 

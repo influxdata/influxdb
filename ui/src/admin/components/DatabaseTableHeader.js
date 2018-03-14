@@ -6,7 +6,7 @@ import {bindActionCreators} from 'redux'
 
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
-import {influxAdminValidationNotifications} from 'shared/copy/notifications'
+import {NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
   database,
@@ -82,7 +82,7 @@ const Header = ({
   const onConfirm = db => {
     if (database.deleteCode !== `DELETE ${database.name}`) {
       return publishNotification(
-        influxAdminValidationNotifications.deleteConfirm(database.name)
+        NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name)
       )
     }
 

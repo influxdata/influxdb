@@ -21,7 +21,36 @@ import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 import {publishNotification} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
-import {influxAdminNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_DB_USER_CREATED,
+  NOTIFY_DB_USER_CREATION_FAILED,
+  NOTIFY_DB_USER_DELETED,
+  NOTIFY_DB_USER_DELETION_FAILED,
+  NOTIFY_DB_USER_PERMISSIONS_UPDATED,
+  NOTIFY_DB_USER_PERMISSIONS_UPDATE_FAILED,
+  NOTIFY_DB_USER_ROLES_UPDATED,
+  NOTIFY_DB_USER_ROLES_UPDATE_FAILED,
+  NOTIFY_DB_USER_PASSWORD_UPDATED,
+  NOTIFY_DB_USER_PASSWORD_UPDATE_FAILED,
+  NOTIFY_DATABASE_CREATED,
+  NOTIFY_DATABASE_CREATION_FAILED,
+  NOTIFY_DATABASE_DELETED,
+  NOTIFY_DATABASE_DELETION_FAILED,
+  NOTIFY_ROLE_CREATED,
+  NOTIFY_ROLE_CREATION_FAILED,
+  NOTIFY_ROLE_DELETED,
+  NOTIFY_ROLE_DELETION_FAILED,
+  NOTIFY_ROLE_USERS_UPDATED,
+  NOTIFY_ROLE_USERS_UPDATE_FAILED,
+  NOTIFY_ROLE_PERMISSIONS_UPDATED,
+  NOTIFY_ROLE_PERMISSIONS_UPDATE_FAILED,
+  NOTIFY_RETENTION_POLICY_CREATED,
+  NOTIFY_RETENTION_POLICY_CREATION_FAILED,
+  NOTIFY_RETENTION_POLICY_DELETED,
+  NOTIFY_RETENTION_POLICY_DELETION_FAILED,
+  NOTIFY_RETENTION_POLICY_UPDATED,
+  NOTIFY_RETENTION_POLICY_UPDATE_FAILED,
+} from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
 import _ from 'lodash'
@@ -278,16 +307,11 @@ export const loadDBsAndRPsAsync = url => async dispatch => {
 export const createUserAsync = (url, user) => async dispatch => {
   try {
     const {data} = await createUserAJAX(url, user)
-    dispatch(
-      publishNotification(influxAdminNotifications.createSuccess('user'))
-    )
+    dispatch(publishNotification(NOTIFY_DB_USER_CREATED))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.createFail('user', error.data.message)
-      )
+      errorThrown(error, NOTIFY_DB_USER_CREATION_FAILED(error.data.message))
     )
     // undo optimistic update
     setTimeout(() => dispatch(deleteUser(user)), REVERT_STATE_DELAY)
@@ -297,16 +321,11 @@ export const createUserAsync = (url, user) => async dispatch => {
 export const createRoleAsync = (url, role) => async dispatch => {
   try {
     const {data} = await createRoleAJAX(url, role)
-    dispatch(
-      publishNotification(influxAdminNotifications.createSuccess('role'))
-    )
+    dispatch(publishNotification(NOTIFY_ROLE_CREATED))
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.createFail('role', error.data.message)
-      )
+      errorThrown(error, NOTIFY_ROLE_CREATION_FAILED(error.data.message))
     )
     // undo optimistic update
     setTimeout(() => dispatch(deleteRole(role)), REVERT_STATE_DELAY)
@@ -317,15 +336,10 @@ export const createDatabaseAsync = (url, database) => async dispatch => {
   try {
     const {data} = await createDatabaseAJAX(url, database)
     dispatch(syncDatabase(database, data))
-    dispatch(
-      publishNotification(influxAdminNotifications.createSuccess('database'))
-    )
+    dispatch(publishNotification(NOTIFY_DATABASE_CREATED))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.createFail('database', error.data.message)
-      )
+      errorThrown(error, NOTIFY_DATABASE_CREATION_FAILED(error.data.message))
     )
     // undo optimistic update
     setTimeout(() => dispatch(removeDatabase(database)), REVERT_STATE_DELAY)
@@ -341,20 +355,11 @@ export const createRetentionPolicyAsync = (
       database.links.retentionPolicies,
       retentionPolicy
     )
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.createSuccess('retention policy')
-      )
-    )
+    dispatch(publishNotification(NOTIFY_RETENTION_POLICY_CREATED))
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        influxAdminNotifications.createFail(
-          'retention policy',
-          error.data.message
-        )
-      )
+      errorThrown(NOTIFY_RETENTION_POLICY_CREATION_FAILED(error.data.message))
     )
     // undo optimistic update
     setTimeout(
@@ -373,20 +378,13 @@ export const updateRetentionPolicyAsync = (
     dispatch(editRetentionPolicyRequested(database, oldRP, newRP))
     const {data} = await updateRetentionPolicyAJAX(oldRP.links.self, newRP)
     dispatch(editRetentionPolicyCompleted(database, oldRP, data))
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.updateSuccess('retention policy')
-      )
-    )
+    dispatch(publishNotification(NOTIFY_RETENTION_POLICY_UPDATED))
   } catch (error) {
     dispatch(editRetentionPolicyFailed(database, oldRP))
     dispatch(
       errorThrown(
         error,
-        influxAdminNotifications.updateFail(
-          'retention policy',
-          error.data.message
-        )
+        NOTIFY_RETENTION_POLICY_UPDATE_FAILED(error.data.message)
       )
     )
   }
@@ -409,17 +407,10 @@ export const deleteRoleAsync = role => async dispatch => {
   dispatch(deleteRole(role))
   try {
     await deleteRoleAJAX(role.links.self)
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.deleteSuccess('role', role.name)
-      )
-    )
+    dispatch(publishNotification(NOTIFY_ROLE_DELETED(role.name)))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.deleteFail('role', error.data.message)
-      )
+      errorThrown(error, NOTIFY_ROLE_DELETION_FAILED(error.data.message))
     )
   }
 }
@@ -428,17 +419,10 @@ export const deleteUserAsync = user => async dispatch => {
   dispatch(deleteUser(user))
   try {
     await deleteUserAJAX(user.links.self)
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.deleteSuccess('user', user.name)
-      )
-    )
+    dispatch(publishNotification(NOTIFY_DB_USER_DELETED(user.name)))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.deleteFail('user', error.data.message)
-      )
+      errorThrown(error, NOTIFY_DB_USER_DELETION_FAILED(error.data.message))
     )
   }
 }
@@ -447,17 +431,10 @@ export const deleteDatabaseAsync = database => async dispatch => {
   dispatch(removeDatabase(database))
   try {
     await deleteDatabaseAJAX(database.links.self)
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.deleteSuccess('database', database.name)
-      )
-    )
+    dispatch(publishNotification(NOTIFY_DATABASE_DELETED(database.name)))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.deleteFail('database', error.data.message)
-      )
+      errorThrown(error, NOTIFY_DATABASE_DELETION_FAILED(error.data.message))
     )
   }
 }
@@ -470,21 +447,13 @@ export const deleteRetentionPolicyAsync = (
   try {
     await deleteRetentionPolicyAJAX(retentionPolicy.links.self)
     dispatch(
-      publishNotification(
-        influxAdminNotifications.deleteSuccess(
-          'retention policy',
-          retentionPolicy.name
-        )
-      )
+      publishNotification(NOTIFY_RETENTION_POLICY_DELETED(retentionPolicy.name))
     )
   } catch (error) {
     dispatch(
       errorThrown(
         error,
-        influxAdminNotifications.deleteFail(
-          'retention policy',
-          error.data.message
-        )
+        NOTIFY_RETENTION_POLICY_DELETION_FAILED(error.data.message)
       )
     )
   }
@@ -497,16 +466,11 @@ export const updateRoleUsersAsync = (role, users) => async dispatch => {
       users,
       role.permissions
     )
-    dispatch(
-      publishNotification(influxAdminNotifications.updateSuccess('role users'))
-    )
+    dispatch(publishNotification(NOTIFY_ROLE_USERS_UPDATED))
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.updateFail('role', error.data.message)
-      )
+      errorThrown(error, NOTIFY_ROLE_USERS_UPDATE_FAILED(error.data.message))
     )
   }
 }
@@ -521,17 +485,13 @@ export const updateRolePermissionsAsync = (
       role.users,
       permissions
     )
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.updateSuccess('role permissions')
-      )
-    )
+    dispatch(publishNotification(NOTIFY_ROLE_PERMISSIONS_UPDATED))
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
       errorThrown(
         error,
-        influxAdminNotifications.updateFail('role', error.data.message)
+        NOTIFY_ROLE_PERMISSIONS_UPDATE_FAILED(error.data.message)
       )
     )
   }
@@ -543,17 +503,13 @@ export const updateUserPermissionsAsync = (
 ) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {permissions})
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.updateSuccess('user permissions')
-      )
-    )
+    dispatch(publishNotification(NOTIFY_DB_USER_PERMISSIONS_UPDATED))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
       errorThrown(
         error,
-        influxAdminNotifications.updateFail('user', error.data.message)
+        NOTIFY_DB_USER_PERMISSIONS_UPDATE_FAILED(error.data.message)
       )
     )
   }
@@ -562,16 +518,11 @@ export const updateUserPermissionsAsync = (
 export const updateUserRolesAsync = (user, roles) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {roles})
-    dispatch(
-      publishNotification(influxAdminNotifications.updateSuccess('user roles'))
-    )
+    dispatch(publishNotification(NOTIFY_DB_USER_ROLES_UPDATED))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        influxAdminNotifications.updateFail('user', error.data.message)
-      )
+      errorThrown(error, NOTIFY_DB_USER_ROLES_UPDATE_FAILED(error.data.message))
     )
   }
 }
@@ -579,17 +530,13 @@ export const updateUserRolesAsync = (user, roles) => async dispatch => {
 export const updateUserPasswordAsync = (user, password) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {password})
-    dispatch(
-      publishNotification(
-        influxAdminNotifications.updateSuccess('user password')
-      )
-    )
+    dispatch(publishNotification(NOTIFY_DB_USER_PASSWORD_UPDATED))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
       errorThrown(
         error,
-        influxAdminNotifications.updateFail('user', error.data.message)
+        NOTIFY_DB_USER_PASSWORD_UPDATE_FAILED(error.data.message)
       )
     )
   }

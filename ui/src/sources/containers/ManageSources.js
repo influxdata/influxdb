@@ -15,7 +15,10 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
-import {sourceNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_SOURCE_DELETED,
+  NOTIFY_SOURCE_DELETE_FAILED,
+} from 'shared/copy/notifications'
 
 const V_NUMBER = VERSION // eslint-disable-line no-undef
 
@@ -43,9 +46,9 @@ class ManageSources extends Component {
 
     try {
       this.props.removeAndLoadSources(source)
-      publishNotification(sourceNotifications.deleteSuccess(source.name))
+      publishNotification(NOTIFY_SOURCE_DELETED(source.name))
     } catch (e) {
-      publishNotification(sourceNotifications.deleteFail(source.name))
+      publishNotification(NOTIFY_SOURCE_DELETE_FAILED(source.name))
     }
   }
 

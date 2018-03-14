@@ -24,7 +24,7 @@ import generateTemplateVariableQuery from 'src/dashboards/utils/templateVariable
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {dashboardNotifications} from 'shared/copy/notifications'
+import {NOTIFY_TEMP_VAR_ALREADY_EXISTS} from 'shared/copy/notifications'
 
 const compact = values => uniq(values).filter(value => /\S/.test(value))
 
@@ -146,9 +146,7 @@ class RowWrapper extends Component {
     const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
 
     if (tempVarAlreadyExists(tempVar, id)) {
-      return publishNotification(
-        dashboardNotifications.tempVarAlreadyExists(_tempVar)
-      )
+      return publishNotification(NOTIFY_TEMP_VAR_ALREADY_EXISTS(_tempVar))
     }
 
     this.setState({

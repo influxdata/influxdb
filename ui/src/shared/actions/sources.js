@@ -9,7 +9,11 @@ import {publishNotification} from './notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {HTTP_NOT_FOUND} from 'shared/constants'
-import {internalServerErrorNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_SERVER_ERROR,
+  NOTIFY_COULD_NOT_RETRIEVE_KAPACITORS,
+  NOTIFY_COULD_NOT_DELETE_KAPACITOR,
+} from 'shared/copy/notifications'
 
 export const loadSources = sources => ({
   type: 'LOAD_SOURCES',
@@ -72,7 +76,7 @@ export const removeAndLoadSources = source => async dispatch => {
     const {data: {sources: newSources}} = await getSourcesAJAX()
     dispatch(loadSources(newSources))
   } catch (err) {
-    dispatch(publishNotification(internalServerErrorNotifications().checkLogs))
+    dispatch(publishNotification(NOTIFY_SERVER_ERROR))
   }
 }
 
@@ -82,9 +86,7 @@ export const fetchKapacitorsAsync = source => async dispatch => {
     dispatch(fetchKapacitors(source, data.kapacitors))
   } catch (err) {
     dispatch(
-      publishNotification(
-        internalServerErrorNotifications(source.id).noKapacitors
-      )
+      publishNotification(NOTIFY_COULD_NOT_RETRIEVE_KAPACITORS(source.id))
     )
   }
 }
@@ -101,11 +103,7 @@ export const deleteKapacitorAsync = kapacitor => async dispatch => {
     await deleteKapacitorAJAX(kapacitor)
     dispatch(deleteKapacitor(kapacitor))
   } catch (err) {
-    dispatch(
-      publishNotification(
-        internalServerErrorNotifications().deleteKapacitorFail
-      )
-    )
+    dispatch(publishNotification(NOTIFY_COULD_NOT_DELETE_KAPACITOR))
   }
 }
 

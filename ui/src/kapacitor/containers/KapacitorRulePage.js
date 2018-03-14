@@ -12,7 +12,10 @@ import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 import parseHandlersFromConfig from 'src/shared/parsing/parseHandlersFromConfig'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
-import {kapacitorConfigNotifications} from 'shared/copy/notifications'
+import {
+  NOTIFY_KAPACITOR_CREATION_FAILED,
+  NOTIFY_COULD_NOT_FIND_KAPACITOR,
+} from 'shared/copy/notifications'
 
 class KapacitorRulePage extends Component {
   constructor(props) {
@@ -35,7 +38,7 @@ class KapacitorRulePage extends Component {
 
     const kapacitor = await getActiveKapacitor(this.props.source)
     if (!kapacitor) {
-      return publishNotification(kapacitorConfigNotifications.notFound)
+      return publishNotification(NOTIFY_COULD_NOT_FIND_KAPACITOR)
     }
 
     try {
@@ -43,7 +46,7 @@ class KapacitorRulePage extends Component {
       const handlersFromConfig = parseHandlersFromConfig(kapacitorConfig)
       this.setState({kapacitor, handlersFromConfig})
     } catch (error) {
-      publishNotification(kapacitorConfigNotifications.createFail)
+      publishNotification(NOTIFY_KAPACITOR_CREATION_FAILED)
       console.error(error)
       throw error
     }
