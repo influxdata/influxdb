@@ -15,6 +15,7 @@ const defaultProps = {
   dataLabels: [],
   handleUpdateTableOptions: () => {},
   onResetFocus: () => {},
+  queryConfigs: [],
   tableOptions: {
     columnNames: [],
     fieldNames: [],

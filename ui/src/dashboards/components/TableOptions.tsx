@@ -36,7 +36,18 @@ interface Options {
   fixFirstColumn: boolean
 }
 
+type QueryConfig = {
+  measurement: string
+  fields: [
+    {
+      alias: string
+      value: string
+    }
+  ]
+}
+
 interface Props {
+  queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void
