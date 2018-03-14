@@ -2,8 +2,6 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
-import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
-import TasksTable from 'src/kapacitor/components/TasksTable'
 
 import {source, kapacitorRules} from 'test/resources'
 
