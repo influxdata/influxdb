@@ -35,5 +35,10 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
     })
+
+    it('renders two tables', () => {
+      const {wrapper} = setup()
+      expect(wrapper.find('.panel-body').length).toEqual(2)
+    })
   })
 })
