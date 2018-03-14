@@ -27,7 +27,7 @@ describe('Shared.Reducers.notifications', () => {
     )
     const expected = [...initialState, exampleNotification]
 
-    expect(actual).to.equal(expected)
+    expect(actual).toEqual(expected)
   })
 
   it('should dismiss a notification', () => {
@@ -36,6 +36,6 @@ describe('Shared.Reducers.notifications', () => {
       dismissNotification(notificationID)
     )
 
-    expect(actual.length).to.be(0)
+    expect(actual.length).toBe(0)
   })
 })
