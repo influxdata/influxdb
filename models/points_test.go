@@ -96,6 +96,42 @@ func BenchmarkMarshal(b *testing.B) {
 		tags.HashKey()
 	}
 }
+func TestPoint_Tags(t *testing.T) {
+	examples := []struct {
+		Point string
+		Tags  models.Tags
+	}{
+		{`cpu value=1`, models.Tags{}},
+		{"cpu,tag0=v0 value=1", models.NewTags(map[string]string{"tag0": "v0"})},
+		{"cpu,tag0=v0,tag1=v0 value=1", models.NewTags(map[string]string{"tag0": "v0", "tag1": "v0"})},
+		{`cpu,tag0=v\ 0 value=1`, models.NewTags(map[string]string{"tag0": "v 0"})},
+		{`cpu,tag0=v\ 0\ 1,tag1=v2 value=1`, models.NewTags(map[string]string{"tag0": "v 0 1", "tag1": "v2"})},
+		{`cpu,tag0=\, value=1`, models.NewTags(map[string]string{"tag0": ","})},
+		{`cpu,ta\ g0=\, value=1`, models.NewTags(map[string]string{"ta g0": ","})},
+		{`cpu,tag0=\,1 value=1`, models.NewTags(map[string]string{"tag0": ",1"})},
+		{`cpu,tag0=1\"\",t=k value=1`, models.NewTags(map[string]string{"tag0": `1\"\"`, "t": "k"})},
+	}
+
+	for _, example := range examples {
+		t.Run(example.Point, func(t *testing.T) {
+			pts, err := models.ParsePointsString(example.Point)
+			if err != nil {
+				t.Fatal(err)
+			} else if len(pts) != 1 {
+				t.Fatalf("parsed %d points, expected 1", len(pts))
+			}
+
+			// Repeat to test Tags() caching
+			for i := 0; i < 2; i++ {
+				tags := pts[0].Tags()
+				if !reflect.DeepEqual(tags, example.Tags) {
+					t.Fatalf("got %#v (%s), expected %#v", tags, tags.String(), example.Tags)
+				}
+			}
+
+		})
+	}
+}
 
 func TestPoint_StringSize(t *testing.T) {
 	testPoint_cube(t, func(p models.Point) {
