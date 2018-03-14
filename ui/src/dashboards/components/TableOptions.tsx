@@ -45,9 +45,18 @@ type Options = {
   columnNames: TableColumn[]
 }
 
+type QueryConfig = {
+  measurement: string
+  fields: [{
+    alias: string
+    value: string
+  }]
+}
+
 interface Props {
   singleStatType: string
   singleStatColors: Color[]
+  queryConfigs: QueryConfig[]
   handleUpdateSingleStatType: () => void
   handleUpdateSingleStatColors: () => void
   handleUpdateTableOptions: (options: Options) => void
