@@ -1,11 +1,10 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
@@ -13,27 +12,61 @@ import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsText
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
 import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
-
 import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
-
 import {
   updateSingleStatType,
   updateSingleStatColors,
-  updateAxes,
+  updateTableOptions,
 } from 'src/dashboards/actions/cellEditorOverlay'
+
+type Color = {
+  type: string
+  hex: string
+  id: string
+  name: string
+  value: number
+}
+
+type TableColumn = {
+  internalName: string
+  displayName: string
+}
+
+type Options = {
+  timeFormat: string
+  verticalTimeAxis: boolean
+  sortBy: TableColumn
+  wrapping: string
+  columnNames: TableColumn[]
+}
+
+type Query = {
+  queryConfig: {measurement: string; fields: [{alias: string}]}
+}
+interface Props {
+  singleStatType: string
+  singleStatColors: Color[]
+  handleUpdateSingleStatType: () => void
+  handleUpdateSingleStatColors: () => void
+  handleUpdateTableOptions: (options: Options) => void
+  tableOptions: Options
+  queries: Query[]
+}
+
+interface State {
+  columns: TableColumn[]
+}
 
 const formatColor = color => {
   const {hex, name} = color
   return {hex, name}
 }
 
-class TableOptions extends Component {
+export class TableOptions extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
     this.state = {
-      TimeAxis: 'VERTICAL',
-      TimeFormat: 'mm/dd/yyyy HH:mm:ss.ss',
       columns: [],
     }
   }
@@ -67,18 +100,22 @@ class TableOptions extends Component {
 
   handleChooseSortBy = () => {}
 
-  handleTimeFormatChange = () => {}
+  handleTimeFormatChange = timeFormat => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, timeFormat})
+  }
 
   handleToggleTimeAxis = () => {}
 
   handleToggleTextWrapping = () => {}
 
   handleColumnRename = column => {
+    const {columns} = this.state
     // NOTE: should use redux state instead of component state
-    const columns = this.state.columns.map(
+    const updatedColumns = columns.map(
       op => (op.internalName === column.internalName ? column : op)
     )
-    this.setState({columns})
+    this.setState({columns: updatedColumns})
   }
 
   handleUpdateColorValue = () => {}
@@ -89,20 +126,19 @@ class TableOptions extends Component {
     const {
       singleStatColors,
       singleStatType,
-      //   axes: {y: {prefix, suffix}},
+      tableOptions: {timeFormat},
     } = this.props
 
-    const {TimeFormat, TimeAxis, columns} = this.state
+    const {columns} = this.state
+    const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
+    const TimeAxis = 'vertical'
+    const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
     const tableSortByOptions = [
       'cpu.mean_usage_system',
       'cpu.mean_usage_idle',
       'cpu.mean_usage_user',
     ].map(col => ({text: col}))
-
-    const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
-
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
     return (
       <FancyScrollbar
@@ -113,7 +149,7 @@ class TableOptions extends Component {
           <h5 className="display-options--header">Table Controls</h5>
           <div className="form-group-wrapper">
             <GraphOptionsTimeFormat
-              TimeFormat={TimeFormat}
+              timeFormat={timeFormat}
               onTimeFormatChange={this.handleTimeFormatChange}
             />
             <GraphOptionsTimeAxis
@@ -146,7 +182,7 @@ class TableOptions extends Component {
           <div className="form-group-wrapper graph-options-group">
             <GraphOptionsThresholdColoring
               onToggleSingleStatType={this.handleToggleSingleStatType}
-              singleStatColors={singleStatType}
+              singleStatType={singleStatType}
             />
           </div>
         </div>
@@ -155,36 +191,16 @@ class TableOptions extends Component {
   }
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
-
-TableOptions.defaultProps = {
-  colors: [],
-}
-
-TableOptions.propTypes = {
-  singleStatType: string.isRequired,
-  singleStatColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  handleUpdateSingleStatType: func.isRequired,
-  handleUpdateSingleStatColors: func.isRequired,
-  handleUpdateAxes: func.isRequired,
-  axes: shape({}).isRequired,
-  queries: arrayOf(shape()),
-}
-
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatType, singleStatColors, cell: {axes, queries}},
+  cellEditorOverlay: {
+    singleStatType,
+    singleStatColors,
+    cell: {tableOptions, queries},
+  },
 }) => ({
   singleStatType,
   singleStatColors,
-  axes,
+  tableOptions,
   queries,
 })
 
@@ -197,7 +213,7 @@ const mapDispatchToProps = dispatch => ({
     updateSingleStatColors,
     dispatch
   ),
-  handleUpdateAxes: bindActionCreators(updateAxes, dispatch),
+  handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

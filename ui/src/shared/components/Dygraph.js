@@ -34,7 +34,7 @@ class Dygraph extends Component {
     this.state = {
       isHidden: true,
       staticLegendHeight: null,
-      isNotHovering: true,
+      isHoveringThisGraph: false,
     }
   }
 
@@ -203,14 +203,14 @@ class Dygraph extends Component {
       const newTime = this.eventToTimestamp(e)
       this.props.onSetHoverTime(newTime)
     }
-    this.setState({isNotHovering: false})
+    this.setState({isHoveringThisGraph: true})
   }
 
   handleMouseOut = () => {
     if (this.props.onSetHoverTime) {
       this.props.onSetHoverTime(NULL_HOVER_TIME)
     }
-    this.setState({isNotHovering: true})
+    this.setState({isHoveringThisGraph: false})
   }
 
   hashColorDygraphSeries = () => {
@@ -313,7 +313,7 @@ class Dygraph extends Component {
   }
 
   render() {
-    const {isHidden, staticLegendHeight} = this.state
+    const {isHidden, staticLegendHeight, isHoveringThisGraph} = this.state
     const {staticLegend, children, hoverTime} = this.props
     const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
@@ -342,7 +342,7 @@ class Dygraph extends Component {
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
             />
-            {this.state.isNotHovering &&
+            {!isHoveringThisGraph &&
               <Crosshair
                 dygraph={this.dygraph}
                 staticLegendHeight={staticLegendHeight}
