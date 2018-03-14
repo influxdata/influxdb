@@ -12,12 +12,16 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
+	"github.com/influxdata/influxdb/toml"
+	"strings"
 )
 
 func TestServer_BackupAndRestore(t *testing.T) {
 	config := NewConfig()
 	config.Data.Engine = "tsm1"
 	config.BindAddress = freePort()
+	config.Monitor.StoreEnabled = true
+	config.Monitor.StoreInterval = toml.Duration(time.Second)
 
 	fullBackupDir, _ := ioutil.TempDir("", "backup")
 	defer os.RemoveAll(fullBackupDir)
@@ -79,6 +83,15 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		}
 		if res != expected {
 			t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", expected, res)
+		}
+
+		for !strings.Contains(res, "_internal") {
+			res, err = s.Query(`SHOW DATABASES`)
+			if err != nil {
+				t.Fatalf("error querying: %s", err.Error())
+			}
+			// technically not necessary, but no reason to crush the CPU for polling
+			time.Sleep(time.Second)
 		}
 
 		// now backup
