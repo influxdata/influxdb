@@ -13,6 +13,10 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+var DefaultTypeMapper = influxql.MultiTypeMapper(
+	FunctionTypeMapper{},
+)
+
 // SelectOptions are options that customize the select call.
 type SelectOptions struct {
 	// Authorizer is used to limit access to data
@@ -125,10 +129,15 @@ func (p *preparedStatement) Select(ctx context.Context) (Cursor, error) {
 		}
 		offset++
 	}
+
+	valuer := influxql.TypeValuerEval{
+		TypeMapper: DefaultTypeMapper,
+	}
 	for i, f := range p.stmt.Fields {
+		typ, _ := valuer.EvalType(f.Expr)
 		columns[i+offset] = influxql.VarRef{
 			Val:  p.columns[i+offset],
-			Type: influxql.EvalType(f.Expr, nil, nil),
+			Type: typ,
 		}
 
 		if p.stmt.Target != nil {
@@ -138,9 +147,10 @@ func (p *preparedStatement) Select(ctx context.Context) (Cursor, error) {
 		if call, ok := f.Expr.(*influxql.Call); ok && (call.Name == "top" || call.Name == "bottom") {
 			for j := 1; j < len(call.Args)-1; j++ {
 				offset++
+				typ, _ := valuer.EvalType(call.Args[j])
 				columns[i+offset] = influxql.VarRef{
 					Val:  p.columns[i+offset],
-					Type: influxql.EvalType(call.Args[j], nil, nil),
+					Type: typ,
 				}
 			}
 		}

@@ -10,6 +10,49 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+// FieldMapper is a FieldMapper that wraps another FieldMapper and exposes
+// the functions implemented by the query engine.
+type FieldMapper struct {
+	influxql.FieldMapper
+}
+
+func (m FieldMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
+	if mapper, ok := m.FieldMapper.(influxql.CallTypeMapper); ok {
+		typ, err := mapper.CallType(name, args)
+		if err != nil {
+			return influxql.Unknown, err
+		} else if typ != influxql.Unknown {
+			return typ, nil
+		}
+	}
+
+	// Use the default FunctionTypeMapper for the query engine.
+	typmap := FunctionTypeMapper{}
+	return typmap.CallType(name, args)
+}
+
+type FunctionTypeMapper struct{}
+
+func (FunctionTypeMapper) MapType(measurement *influxql.Measurement, field string) influxql.DataType {
+	return influxql.Unknown
+}
+
+func (FunctionTypeMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
+	// If the function is not implemented by the embedded field mapper, then
+	// see if we implement the function and return the type here.
+	switch name {
+	case "mean", "median", "integral", "stddev":
+		return influxql.Float, nil
+	case "count":
+		return influxql.Integer, nil
+	case "elapsed":
+		return influxql.Integer, nil
+	default:
+		// TODO(jsternberg): Do not use default for this.
+		return args[0], nil
+	}
+}
+
 // FloatMeanReducer calculates the mean of the aggregated points.
 type FloatMeanReducer struct {
 	sum   float64

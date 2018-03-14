@@ -836,7 +836,8 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	}
 
 	// Rewrite wildcards, if any exist.
-	stmt, err := c.stmt.RewriteFields(shards)
+	mapper := FieldMapper{FieldMapper: shards}
+	stmt, err := c.stmt.RewriteFields(mapper)
 	if err != nil {
 		shards.Close()
 		return nil, err
