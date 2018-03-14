@@ -36,16 +36,22 @@ export function deleteSource(source) {
   })
 }
 
-export function pingKapacitor(kapacitor) {
-  return AJAX({
-    method: 'GET',
-    url: kapacitor.links.ping,
-  })
+export const pingKapacitor = async kapacitor => {
+  try {
+    const data = await AJAX({
+      method: 'GET',
+      url: kapacitor.links.ping,
+    })
+    return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const getKapacitor = async (source, kapacitorID) => {
   try {
-    const {data} = AJAX({
+    const {data} = await AJAX({
       url: `${source.links.kapacitors}/${kapacitorID}`,
       method: 'GET',
     })
@@ -134,7 +140,12 @@ export function updateKapacitor({
 }
 
 export const getKapacitorConfig = async kapacitor => {
-  return await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
+  try {
+    return await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const getKapacitorConfigSection = (kapacitor, section) => {

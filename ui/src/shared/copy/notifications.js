@@ -456,7 +456,7 @@ export const NOTIFY_ALERT_ENDPOINT_SAVED = endpoint => ({
 })
 
 export const NOTIFY_ALERT_ENDPOINT_SAVE_FAILED = (endpoint, errorMessage) => ({
-  ...defaultSuccessNotification,
+  ...defaultErrorNotification,
   message: `There was an error saving the alert configuration for ${endpoint}: ${errorMessage}`,
 })
 

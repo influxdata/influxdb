@@ -6,6 +6,16 @@ import Input from 'src/kapacitor/components/KapacitorFormInput'
 
 import {Kapacitor, Source} from 'src/types'
 
+export interface Notification {
+  id?: string
+  type: string
+  icon: string
+  duration: number
+  message: string
+}
+
+type NotificationFunc = () => Notification
+
 interface Props {
   kapacitor: Kapacitor
   exists: boolean
@@ -15,6 +25,7 @@ interface Props {
   onChangeUrl: (e: ChangeEvent<HTMLInputElement>) => void
   source: Source
   hash: string
+  publishNotification: (message: Notification | NotificationFunc) => void
 }
 
 const KapacitorForm: SFC<Props> = ({
@@ -27,6 +38,7 @@ const KapacitorForm: SFC<Props> = ({
   onInputChange,
   source,
   hash,
+  publishNotification,
 }) =>
   <div className="page">
     <div className="page-header">
@@ -102,14 +114,13 @@ const KapacitorForm: SFC<Props> = ({
             </div>
           </div>
           <div className="col-md-9">
-            {
-              <AlertOutputs
-                exists={exists}
-                kapacitor={kapacitor}
-                source={source}
-                hash={hash}
-              />
-            }
+            <AlertOutputs
+              hash={hash}
+              exists={exists}
+              source={source}
+              kapacitor={kapacitor}
+              publishNotification={publishNotification}
+            />
           </div>
         </div>
       </div>

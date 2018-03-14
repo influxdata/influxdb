@@ -1,10 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
-import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
 import {
@@ -331,8 +328,4 @@ AlertTabs.propTypes = {
   hash: string.isRequired,
 }
 
-const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
-})
-
-export default connect(null, mapDispatchToProps)(AlertTabs)
+export default AlertTabs

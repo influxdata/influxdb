@@ -28,7 +28,7 @@ import {
 export const defaultName = 'My Kapacitor'
 export const kapacitorPort = '9092'
 
-type Notification = {
+export interface Notification {
   id?: string
   type: string
   icon: string
@@ -36,7 +36,7 @@ type Notification = {
   message: string
 }
 
-type NotificationFunc = () => Notification
+export type NotificationFunc = () => Notification
 
 interface Kapacitor {
   url: string
@@ -93,8 +93,8 @@ export class KapacitorPage extends PureComponent<Props, State> {
       const kapacitor = await getKapacitor(source, id)
       this.setState({kapacitor})
       await this.checkKapacitorConnection(kapacitor)
-    } catch (err) {
-      console.error('Could not get kapacitor: ', err)
+    } catch (error) {
+      console.error('Could not get kapacitor: ', error)
       publishNotification(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
   }
@@ -178,6 +178,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
       await pingKapacitor(kapacitor)
       this.setState({exists: true})
     } catch (error) {
+      console.error(error)
       this.setState({exists: false})
       this.props.publishNotification(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
@@ -191,7 +192,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 
   render() {
-    const {source, location, params} = this.props
+    const {source, location, params, publishNotification} = this.props
     const hash = (location && location.hash) || (params && params.hash) || ''
     const {kapacitor, exists} = this.state
 
@@ -205,6 +206,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
         onChangeUrl={this.handleChangeUrl}
         onReset={this.handleResetToDefaults}
         onInputChange={this.handleInputChange}
+        publishNotification={publishNotification}
       />
     )
   }

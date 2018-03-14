@@ -4,21 +4,40 @@ import AlertTabs from 'src/kapacitor/components/AlertTabs'
 
 import {Kapacitor, Source} from 'src/types'
 
+export interface Notification {
+  id?: string
+  type: string
+  icon: string
+  duration: number
+  message: string
+}
+
+type NotificationFunc = () => Notification
+
 interface AlertOutputProps {
   exists: boolean
   kapacitor: Kapacitor
   source: Source
   hash: string
+  publishNotification: (message: Notification | NotificationFunc) => void
 }
 
 const AlertOutputs: SFC<AlertOutputProps> = ({
-  exists,
-  kapacitor,
-  source,
   hash,
+  exists,
+  source,
+  kapacitor,
+  publishNotification,
 }) => {
   if (exists) {
-    return <AlertTabs source={source} kapacitor={kapacitor} hash={hash} />
+    return (
+      <AlertTabs
+        hash={hash}
+        source={source}
+        kapacitor={kapacitor}
+        publishNotification={publishNotification}
+      />
+    )
   }
 
   return (

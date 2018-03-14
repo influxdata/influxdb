@@ -199,6 +199,7 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
           await wrapper.instance().componentDidMount()
 
           expect(wrapper.state().kapacitor).toEqual(mocks.kapacitor)
+          expect(wrapper.state().exists).toBe(true)
         })
       })
     })
