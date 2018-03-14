@@ -7,7 +7,7 @@ import {source, kapacitorRules} from 'test/resources'
 
 jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 
-const setup = (override = {}) => {
+const setup = () => {
   const props = {
     source,
     rules: kapacitorRules,
