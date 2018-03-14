@@ -80,11 +80,11 @@ running the following:
     gvm install go1.9.2
     gvm use go1.9.2 --default
 
-Installing GDM
+Installing Dep
 -------------
-InfluxDB uses [gdm](https://github.com/sparrc/gdm) to manage dependencies.  Install it by running the following:
+InfluxDB uses [dep](https://github.com/golang/dep) to manage dependencies.  Install it by running the following:
 
-    go get github.com/sparrc/gdm
+    go get github.com/golang/dep/cmd/dep
 
 Revision Control Systems
 -------------
@@ -126,7 +126,7 @@ Make sure you have Go installed and the project structure as shown above. To the
 
 ```bash
 cd $GOPATH/src/github.com/influxdata/influxdb
-gdm restore
+dep ensure
 ```
 
 To then build and install the binaries, run the following command.

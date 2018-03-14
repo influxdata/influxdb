@@ -24,9 +24,9 @@ install:
  - cd C:\gopath\src\github.com\influxdata\influxdb
  - go version
  - go env
- - go get github.com/sparrc/gdm
+ - go get github.com/golang/dep/cmd/dep
  - cd C:\gopath\src\github.com\influxdata\influxdb
- - gdm restore
+ - dep ensure -vendor-only
 
 # To run your custom scripts instead of automatic MSBuild
 build_script:

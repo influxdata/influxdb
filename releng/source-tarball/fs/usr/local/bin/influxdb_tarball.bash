@@ -45,7 +45,7 @@ fi
 
 cd influxdb
 git checkout "$SHA"
-gdm restore
+dep ensure -vendor-only
 cd ..
 
 # Emit version metadata to appropriate files.
