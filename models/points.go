@@ -1551,12 +1551,12 @@ func parseTags(buf []byte) Tags {
 		return nil
 	}
 
-	tags := make(Tags, bytes.Count(buf, []byte(",")))
-	p := 0
+	// Series keys can contain escaped commas, therefore the number of commas
+	// in a series key only gives an estimation of the upper bound on the number
+	// of tags.
+	tags := make(Tags, 0, bytes.Count(buf, []byte(",")))
 	walkTags(buf, func(key, value []byte) bool {
-		tags[p].Key = key
-		tags[p].Value = value
-		p++
+		tags = append(tags, Tag{Key: key, Value: value})
 		return true
 	})
 	return tags
