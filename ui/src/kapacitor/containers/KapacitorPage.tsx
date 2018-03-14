@@ -1,5 +1,9 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter} from 'react-router'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import {publishNotification as publishNotificationAction} from 'src/shared/actions/notifications'
 
 import {Source} from 'src/types'
 
@@ -12,10 +16,25 @@ import {
 
 import KapacitorForm from '../components/KapacitorForm'
 
+import {
+  NOTIFY_KAPACITOR_CONNECTION_FAILED,
+  NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN,
+  NOTIFY_KAPACITOR_UPDATED,
+  NOTIFY_KAPACITOR_UPDATE_FAILED,
+  NOTIFY_KAPACITOR_CREATED,
+  NOTIFY_KAPACITOR_CREATION_FAILED,
+} from 'src/shared/copy/notifications'
+
 export const defaultName = 'My Kapacitor'
 export const kapacitorPort = '9092'
 
-type FlashMessage = {type: string; text: string}
+type Notification = {
+  id: string
+  type: string
+  icon: string
+  duration: number
+  message: string
+}
 
 interface Kapacitor {
   url: string
@@ -30,7 +49,7 @@ interface Kapacitor {
 
 interface Props {
   source: Source
-  addFlashMessage: (message: FlashMessage) => void
+  publishNotification: (notificationMessage: (notification: Notification)) => Notification
   kapacitor: Kapacitor
   router: {push: (url: string) => void}
   location: {pathname: string; hash: string}
@@ -63,7 +82,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 
   async componentDidMount() {
-    const {source, params: {id}, addFlashMessage} = this.props
+    const {source, params: {id}, publishNotification} = this.props
     if (!id) {
       return
     }
@@ -74,10 +93,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
       await this.checkKapacitorConnection(kapacitor)
     } catch (err) {
       console.error('Could not get kapacitor: ', err)
-      addFlashMessage({
-        type: 'error',
-        text: 'Could not connect to Kapacitor',
-      })
+      publishNotification(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
   }
 
@@ -97,7 +113,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   handleSubmit = async e => {
     e.preventDefault()
     const {
-      addFlashMessage,
+      publishNotification,
       source,
       source: {kapacitors = []},
       params,
@@ -110,10 +126,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     const isNew = !params.id
 
     if (isNew && isNameTaken) {
-      addFlashMessage({
-        type: 'error',
-        text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
-      })
+      publishNotification(NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN)
       return
     }
 
@@ -122,13 +135,10 @@ export class KapacitorPage extends PureComponent<Props, State> {
         const {data} = await updateKapacitor(kapacitor)
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
-        addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
+        publishNotification(NOTIFY_KAPACITOR_UPDATED)
       } catch (error) {
         console.error(error)
-        addFlashMessage({
-          type: 'error',
-          text: 'There was a problem updating the Kapacitor record',
-        })
+        publishNotification(NOTIFY_KAPACITOR_UPDATE_FAILED)
       }
     } else {
       try {
@@ -137,16 +147,10 @@ export class KapacitorPage extends PureComponent<Props, State> {
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
         router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-        addFlashMessage({
-          type: 'success',
-          text: 'Kapacitor Created! Configuring endpoints is optional.',
-        })
+        publishNotification(NOTIFY_KAPACITOR_CREATED)
       } catch (error) {
         console.error(error)
-        addFlashMessage({
-          type: 'error',
-          text: 'There was a problem creating the Kapacitor record',
-        })
+        publishNotification(NOTIFY_KAPACITOR_CREATION_FAILED)
       }
     }
   }
@@ -173,10 +177,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
       this.setState({exists: true})
     } catch (error) {
       this.setState({exists: false})
-      this.props.addFlashMessage({
-        type: 'error',
-        text: 'Could not connect to Kapacitor. Check settings.',
-      })
+      this.props.publishNotification(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
   }
 
@@ -188,7 +189,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 
   render() {
-    const {source, addFlashMessage, location, params} = this.props
+    const {source, publishNotification, location, params} = this.props
     const hash = (location && location.hash) || (params && params.hash) || ''
     const {kapacitor, exists} = this.state
 
@@ -199,7 +200,6 @@ export class KapacitorPage extends PureComponent<Props, State> {
         exists={exists}
         kapacitor={kapacitor}
         onSubmit={this.handleSubmit}
-        addFlashMessage={addFlashMessage}
         onChangeUrl={this.handleChangeUrl}
         onReset={this.handleResetToDefaults}
         onInputChange={this.handleInputChange}
@@ -208,4 +208,8 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 }
 
-export default withRouter(KapacitorPage)
+const mapDispatchToProps = dispatch => ({
+  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(withRouter(KapacitorPage))

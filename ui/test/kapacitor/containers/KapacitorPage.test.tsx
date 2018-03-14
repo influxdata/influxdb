@@ -17,7 +17,7 @@ jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 const setup = (override = {}) => {
   const props = {
     source: source,
-    addFlashMessage: () => {},
+    publishNotification: () => {},
     kapacitor,
     router: {
       push: () => {},
