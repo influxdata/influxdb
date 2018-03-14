@@ -64,7 +64,7 @@
 
 [[constraint]]
   name = "github.com/influxdata/influxql"
-  revision = "c0a433ab09b6da369995baf2ee9e5303a5ab69e4"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/influxdata/usage-client"
