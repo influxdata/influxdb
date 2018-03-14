@@ -1,9 +1,11 @@
-import reducer, {initialState} from 'src/shared/reducers/notifications'
+import reducer, {initialState} from 'shared/reducers/notifications'
 
 import {
   publishNotification,
   dismissNotification,
-} from 'src/shared/actions/notifications'
+} from 'shared/actions/notifications'
+
+import {FIVE_SECONDS} from 'shared/constants/index'
 
 const notificationID = '000'
 
@@ -11,11 +13,11 @@ const exampleNotification = {
   id: notificationID,
   type: 'success',
   message: 'Hell yeah you are a real notification!',
-  duration: 5000, // -1 stays until dismissed
+  duration: FIVE_SECONDS,
   icon: 'zap',
 }
 
-const exampleNotifications = [exampleNotification] // -> []
+const exampleNotifications = [exampleNotification]
 
 describe('Shared.Reducers.notifications', () => {
   it('should publish a notification', () => {
