@@ -1,16 +1,13 @@
 package run
 
 import (
-	"encoding"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
-	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -29,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
+	itoml "github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
@@ -195,123 +193,7 @@ func (c *Config) Validate() error {
 
 // ApplyEnvOverrides apply the environment configuration on top of the config.
 func (c *Config) ApplyEnvOverrides(getenv func(string) string) error {
-	if getenv == nil {
-		getenv = os.Getenv
-	}
-	return c.applyEnvOverrides(getenv, "INFLUXDB", reflect.ValueOf(c), "")
-}
-
-func (c *Config) applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) error {
-	element := spec
-	// If spec is a named type and is addressable,
-	// check the address to see if it implements encoding.TextUnmarshaler.
-	if spec.Kind() != reflect.Ptr && spec.Type().Name() != "" && spec.CanAddr() {
-		v := spec.Addr()
-		if u, ok := v.Interface().(encoding.TextUnmarshaler); ok {
-			value := getenv(prefix)
-			return u.UnmarshalText([]byte(value))
-		}
-	}
-	// If we have a pointer, dereference it
-	if spec.Kind() == reflect.Ptr {
-		element = spec.Elem()
-	}
-
-	value := getenv(prefix)
-
-	switch element.Kind() {
-	case reflect.String:
-		if len(value) == 0 {
-			return nil
-		}
-		element.SetString(value)
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		intValue, err := strconv.ParseInt(value, 0, element.Type().Bits())
-		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
-		}
-		element.SetInt(intValue)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
-		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
-		}
-		element.SetUint(intValue)
-	case reflect.Bool:
-		boolValue, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
-		}
-		element.SetBool(boolValue)
-	case reflect.Float32, reflect.Float64:
-		floatValue, err := strconv.ParseFloat(value, element.Type().Bits())
-		if err != nil {
-			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
-		}
-		element.SetFloat(floatValue)
-	case reflect.Slice:
-		// If the type is s slice, apply to each using the index as a suffix, e.g. GRAPHITE_0, GRAPHITE_0_TEMPLATES_0 or GRAPHITE_0_TEMPLATES="item1,item2"
-		for j := 0; j < element.Len(); j++ {
-			f := element.Index(j)
-			if err := c.applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
-				return err
-			}
-
-			if err := c.applyEnvOverrides(getenv, fmt.Sprintf("%s_%d", prefix, j), f, structKey); err != nil {
-				return err
-			}
-		}
-
-		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
-		if element.Len() == 0 && len(value) > 0 {
-			rules := strings.Split(value, ",")
-
-			for _, rule := range rules {
-				element.Set(reflect.Append(element, reflect.ValueOf(rule)))
-			}
-		}
-	case reflect.Struct:
-		typeOfSpec := element.Type()
-		for i := 0; i < element.NumField(); i++ {
-			field := element.Field(i)
-
-			// Skip any fields that we cannot set
-			if !field.CanSet() && field.Kind() != reflect.Slice {
-				continue
-			}
-
-			fieldName := typeOfSpec.Field(i).Name
-
-			configName := typeOfSpec.Field(i).Tag.Get("toml")
-			// Replace hyphens with underscores to avoid issues with shells
-			configName = strings.Replace(configName, "-", "_", -1)
-
-			envKey := strings.ToUpper(configName)
-			if prefix != "" {
-				envKey = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
-			}
-
-			// If it's a sub-config, recursively apply
-			if field.Kind() == reflect.Struct || field.Kind() == reflect.Ptr ||
-				field.Kind() == reflect.Slice || field.Kind() == reflect.Array {
-				if err := c.applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
-					return err
-				}
-				continue
-			}
-
-			value := getenv(envKey)
-			// Skip any fields we don't have a value to set
-			if len(value) == 0 {
-				continue
-			}
-
-			if err := c.applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return itoml.ApplyEnvOverrides(getenv, "INFLUXDB", c)
 }
 
 // Diagnostics returns a diagnostics representation of Config.
