@@ -2,7 +2,7 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
-import Notification from 'src/shared/components/Notification'
+import Notification from 'shared/components/Notification'
 
 const Notifications = ({notifications, inPresentationMode}) =>
   <div
