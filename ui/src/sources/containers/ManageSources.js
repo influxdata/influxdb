@@ -9,7 +9,7 @@ import {
   setActiveKapacitorAsync,
   deleteKapacitorAsync,
 } from 'shared/actions/sources'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -42,13 +42,13 @@ class ManageSources extends Component {
   }
 
   handleDeleteSource = source => () => {
-    const {publishNotification} = this.props
+    const {notify} = this.props
 
     try {
       this.props.removeAndLoadSources(source)
-      publishNotification(NOTIFY_SOURCE_DELETED(source.name))
+      notify(NOTIFY_SOURCE_DELETED(source.name))
     } catch (e) {
-      publishNotification(NOTIFY_SOURCE_DELETE_FAILED(source.name))
+      notify(NOTIFY_SOURCE_DELETE_FAILED(source.name))
     }
   }
 
@@ -101,7 +101,7 @@ ManageSources.propTypes = {
     }),
   }),
   sources: array,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
   removeAndLoadSources: func.isRequired,
   fetchKapacitors: func.isRequired,
   setActiveKapacitor: func.isRequired,
@@ -117,7 +117,7 @@ const mapDispatchToProps = dispatch => ({
   fetchKapacitors: bindActionCreators(fetchKapacitorsAsync, dispatch),
   setActiveKapacitor: bindActionCreators(setActiveKapacitorAsync, dispatch),
   deleteKapacitor: bindActionCreators(deleteKapacitorAsync, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(ManageSources)

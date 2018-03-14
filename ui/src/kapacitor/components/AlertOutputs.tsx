@@ -19,7 +19,7 @@ interface AlertOutputProps {
   kapacitor: Kapacitor
   source: Source
   hash: string
-  publishNotification: (message: Notification | NotificationFunc) => void
+  notify: (message: Notification | NotificationFunc) => void
 }
 
 const AlertOutputs: SFC<AlertOutputProps> = ({
@@ -27,7 +27,7 @@ const AlertOutputs: SFC<AlertOutputProps> = ({
   exists,
   source,
   kapacitor,
-  publishNotification,
+  notify,
 }) => {
   if (exists) {
     return (
@@ -35,7 +35,7 @@ const AlertOutputs: SFC<AlertOutputProps> = ({
         hash={hash}
         source={source}
         kapacitor={kapacitor}
-        publishNotification={publishNotification}
+        notify={notify}
       />
     )
   }

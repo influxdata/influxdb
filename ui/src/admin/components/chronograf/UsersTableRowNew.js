@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import Dropdown from 'shared/components/Dropdown'
 
@@ -65,7 +65,7 @@ class UsersTableRowNew extends Component {
 
     if (e.key === 'Enter') {
       if (preventCreate) {
-        return this.props.publishNotification(
+        return this.props.notify(
           NOTIFY_CHRONOGRAF_USER_MISSING_NAME_AND_PROVIDER
         )
       }
@@ -149,11 +149,11 @@ UsersTableRowNew.propTypes = {
   }),
   onBlur: func.isRequired,
   onCreateUser: func.isRequired,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(UsersTableRowNew)

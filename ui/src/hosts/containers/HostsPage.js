@@ -12,7 +12,7 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'
 import {setAutoRefresh} from 'shared/actions/app'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
   NOTIFY_UNABLE_TO_GET_HOSTS,
@@ -31,7 +31,7 @@ class HostsPage extends Component {
   }
 
   async fetchHostsData() {
-    const {source, links, publishNotification} = this.props
+    const {source, links, notify} = this.props
     const {telegrafSystemInterval} = await getEnv(links.environment)
     const hostsError = NOTIFY_UNABLE_TO_GET_HOSTS.message
     try {
@@ -57,7 +57,7 @@ class HostsPage extends Component {
       })
     } catch (error) {
       console.error(error)
-      publishNotification(NOTIFY_UNABLE_TO_GET_HOSTS)
+      notify(NOTIFY_UNABLE_TO_GET_HOSTS)
       this.setState({
         hostsError,
         hostsLoading: false,
@@ -66,14 +66,14 @@ class HostsPage extends Component {
   }
 
   async componentDidMount() {
-    const {publishNotification, autoRefresh} = this.props
+    const {notify, autoRefresh} = this.props
 
     this.setState({hostsLoading: true}) // Only print this once
     const {data} = await getLayouts()
     this.layouts = data.layouts
     if (!this.layouts) {
       const layoutError = NOTIFY_UNABLE_TO_GET_APPS.message
-      publishNotification(NOTIFY_UNABLE_TO_GET_APPS)
+      notify(NOTIFY_UNABLE_TO_GET_APPS)
       this.setState({
         hostsError: layoutError,
         hostsLoading: false,
@@ -179,7 +179,7 @@ HostsPage.propTypes = {
   manualRefresh: number,
   onChooseAutoRefresh: func.isRequired,
   onManualRefresh: func.isRequired,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 HostsPage.defaultProps = {
@@ -188,7 +188,7 @@ HostsPage.defaultProps = {
 
 const mapDispatchToProps = dispatch => ({
   onChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(

@@ -3,7 +3,7 @@ import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {publishNotification as publishNotificationAction} from 'src/shared/actions/notifications'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import {Source} from 'src/types'
 
@@ -51,7 +51,7 @@ interface Kapacitor {
 
 interface Props {
   source: Source
-  publishNotification: (message: Notification | NotificationFunc) => void
+  notify: (message: Notification | NotificationFunc) => void
   kapacitor: Kapacitor
   router: {push: (url: string) => void}
   location: {pathname: string; hash: string}
@@ -84,7 +84,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 
   async componentDidMount() {
-    const {source, params: {id}, publishNotification} = this.props
+    const {source, params: {id}, notify} = this.props
     if (!id) {
       return
     }
@@ -95,7 +95,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
       await this.checkKapacitorConnection(kapacitor)
     } catch (error) {
       console.error('Could not get kapacitor: ', error)
-      publishNotification(NOTIFY_KAPACITOR_CONNECTION_FAILED)
+      notify(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
   }
 
@@ -115,7 +115,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   handleSubmit = async e => {
     e.preventDefault()
     const {
-      publishNotification,
+      notify,
       source,
       source: {kapacitors = []},
       params,
@@ -128,7 +128,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     const isNew = !params.id
 
     if (isNew && isNameTaken) {
-      publishNotification(NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN)
+      notify(NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN)
       return
     }
 
@@ -137,10 +137,10 @@ export class KapacitorPage extends PureComponent<Props, State> {
         const {data} = await updateKapacitor(kapacitor)
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
-        publishNotification(NOTIFY_KAPACITOR_UPDATED)
+        notify(NOTIFY_KAPACITOR_UPDATED)
       } catch (error) {
         console.error(error)
-        publishNotification(NOTIFY_KAPACITOR_UPDATE_FAILED)
+        notify(NOTIFY_KAPACITOR_UPDATE_FAILED)
       }
     } else {
       try {
@@ -149,10 +149,10 @@ export class KapacitorPage extends PureComponent<Props, State> {
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
         router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-        publishNotification(NOTIFY_KAPACITOR_CREATED)
+        notify(NOTIFY_KAPACITOR_CREATED)
       } catch (error) {
         console.error(error)
-        publishNotification(NOTIFY_KAPACITOR_CREATION_FAILED)
+        notify(NOTIFY_KAPACITOR_CREATION_FAILED)
       }
     }
   }
@@ -180,7 +180,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     } catch (error) {
       console.error(error)
       this.setState({exists: false})
-      this.props.publishNotification(NOTIFY_KAPACITOR_CONNECTION_FAILED)
+      this.props.notify(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
   }
 
@@ -192,7 +192,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 
   render() {
-    const {source, location, params, publishNotification} = this.props
+    const {source, location, params, notify} = this.props
     const hash = (location && location.hash) || (params && params.hash) || ''
     const {kapacitor, exists} = this.state
 
@@ -206,14 +206,14 @@ export class KapacitorPage extends PureComponent<Props, State> {
         onChangeUrl={this.handleChangeUrl}
         onReset={this.handleResetToDefaults}
         onInputChange={this.handleInputChange}
-        publishNotification={publishNotification}
+        notify={notify}
       />
     )
   }
 }
 
 const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(withRouter(KapacitorPage))

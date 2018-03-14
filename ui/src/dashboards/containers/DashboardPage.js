@@ -16,7 +16,7 @@ import TemplateVariableManager from 'src/dashboards/components/template_variable
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
@@ -73,7 +73,7 @@ class DashboardPage extends Component {
       meRole,
       isUsingAuth,
       router,
-      publishNotification,
+      notify,
       getAnnotationsAsync,
       timeRange,
     } = this.props
@@ -91,7 +91,7 @@ class DashboardPage extends Component {
 
     if (!dashboard) {
       router.push(`/sources/${source.id}/dashboards`)
-      return publishNotification(NOTIFY_DASHBOARD_NOT_FOUND(dashboardID))
+      return notify(NOTIFY_DASHBOARD_NOT_FOUND(dashboardID))
     }
 
     // Refresh and persists influxql generated template variable values.
@@ -507,7 +507,7 @@ DashboardPage.propTypes = {
   meRole: string,
   isUsingAuth: bool.isRequired,
   router: shape().isRequired,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
   getAnnotationsAsync: func.isRequired,
   handleShowCellEditorOverlay: func.isRequired,
   handleHideCellEditorOverlay: func.isRequired,
@@ -569,7 +569,7 @@ const mapDispatchToProps = dispatch => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
   getAnnotationsAsync: bindActionCreators(
     annotationActions.getAnnotationsAsync,
     dispatch

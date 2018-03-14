@@ -1,4 +1,4 @@
-export const publishNotification = notification => ({
+export const notify = notification => ({
   type: 'PUBLISH_NOTIFICATION',
   payload: {notification},
 })

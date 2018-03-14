@@ -2,7 +2,7 @@ import {getMe as getMeAJAX, updateMe as updateMeAJAX} from 'shared/apis/auth'
 
 import {getLinksAsync} from 'shared/actions/links'
 
-import {publishNotification} from 'shared/actions/notifications'
+import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {NOTIFY_USER_SWITCHED_ORGS} from 'shared/copy/notifications'
@@ -92,7 +92,7 @@ export const meChangeOrganizationAsync = (
       r => r.organization === me.currentOrganization.id
     )
     dispatch(
-      publishNotification(
+      notify(
         NOTIFY_USER_SWITCHED_ORGS(me.currentOrganization.name, currentRole.name)
       )
     )

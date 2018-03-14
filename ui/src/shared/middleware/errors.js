@@ -1,7 +1,7 @@
 import _ from 'lodash'
 
 import {authExpired} from 'shared/actions/auth'
-import {publishNotification} from 'shared/actions/notifications'
+import {notify} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
 import {
@@ -42,22 +42,22 @@ const errorsMiddleware = store => next => action => {
         message ===
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
-        store.dispatch(publishNotification(NOTIFY_ORG_IS_PRIVATE))
+        store.dispatch(notify(NOTIFY_ORG_IS_PRIVATE))
       }
 
       if (_.startsWith(message, 'Welcome to Chronograf')) {
-        store.dispatch(publishNotification(NOTIFY_NEW_VERSION(message)))
+        store.dispatch(notify(NOTIFY_NEW_VERSION(message)))
       }
 
       if (organizationWasRemoved) {
-        store.dispatch(publishNotification(NOTIFY_CURRENT_ORG_DELETED))
+        store.dispatch(notify(NOTIFY_CURRENT_ORG_DELETED))
 
         allowNotifications = false
         setTimeout(() => {
           allowNotifications = true
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
-        store.dispatch(publishNotification(NOTIFY_SESSION_TIMED_OUT))
+        store.dispatch(notify(NOTIFY_SESSION_TIMED_OUT))
 
         allowNotifications = false
         setTimeout(() => {
@@ -65,12 +65,10 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       }
     } else if (altText) {
-      store.dispatch(
-        publishNotification(NOTIFY_ERR_WITH_ALT_TEXT(alertType, altText))
-      )
+      store.dispatch(notify(NOTIFY_ERR_WITH_ALT_TEXT(alertType, altText)))
     } else {
       // TODO: actually do proper error handling
-      // store.dispatch(publishNotification({type: alertType, 'Cannot communicate with server.'))
+      // store.dispatch(notify({type: alertType, 'Cannot communicate with server.'))
     }
   }
 

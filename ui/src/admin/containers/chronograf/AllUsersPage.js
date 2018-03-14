@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import * as configActionCreators from 'shared/actions/config'
-import {publishNotification as publishNotificationAction} from 'shared/dispatchers'
+import {notify as notifyAction} from 'shared/dispatchers'
 
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
 
@@ -73,7 +73,7 @@ class AllUsersPage extends Component {
       authConfig,
       actionsConfig,
       links,
-      publishNotification,
+      notify,
     } = this.props
 
     return (
@@ -88,7 +88,7 @@ class AllUsersPage extends Component {
         links={links}
         authConfig={authConfig}
         actionsConfig={actionsConfig}
-        publishNotification={publishNotification}
+        notify={notify}
         isLoading={this.state.isLoading}
       />
     )
@@ -121,7 +121,7 @@ AllUsersPage.propTypes = {
   authConfig: shape({
     superAdminNewUsers: bool,
   }),
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({
@@ -138,7 +138,7 @@ const mapStateToProps = ({
 const mapDispatchToProps = dispatch => ({
   actionsAdmin: bindActionCreators(adminChronografActionCreators, dispatch),
   actionsConfig: bindActionCreators(configActionCreators, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AllUsersPage)

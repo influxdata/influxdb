@@ -8,7 +8,7 @@ import {
   runTemplateVariableQuery,
 } from 'src/dashboards/apis'
 
-import {publishNotification} from 'shared/actions/notifications'
+import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
@@ -261,7 +261,7 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
   dispatch(deleteDashboard(dashboard))
   try {
     await deleteDashboardAJAX(dashboard)
-    dispatch(publishNotification(NOTIFY_DASHBOARD_DELETED(dashboard.name)))
+    dispatch(notify(NOTIFY_DASHBOARD_DELETED(dashboard.name)))
   } catch (error) {
     dispatch(
       errorThrown(

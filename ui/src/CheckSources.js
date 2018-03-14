@@ -15,7 +15,7 @@ import {showDatabases} from 'shared/apis/metaQuery'
 
 import {getSourcesAsync} from 'shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
 import {
@@ -78,7 +78,7 @@ class CheckSources extends Component {
       errorThrown,
       sources,
       auth: {isUsingAuth, me, me: {organizations = [], currentOrganization}},
-      publishNotification,
+      notify,
       getSources,
     } = nextProps
     const {isFetching} = nextState
@@ -93,7 +93,7 @@ class CheckSources extends Component {
     }
 
     if (!isFetching && isUsingAuth && !organizations.length) {
-      publishNotification(NOTIFY_USER_REMOVED_FROM_ALL_ORGS)
+      notify(NOTIFY_USER_REMOVED_FROM_ALL_ORGS)
       return router.push('/purgatory')
     }
 
@@ -101,7 +101,7 @@ class CheckSources extends Component {
       me.superAdmin &&
       !organizations.find(o => o.id === currentOrganization.id)
     ) {
-      publishNotification(NOTIFY_USER_REMOVED_FROM_CURRENT_ORG)
+      notify(NOTIFY_USER_REMOVED_FROM_CURRENT_ORG)
       return router.push('/purgatory')
     }
 
@@ -123,7 +123,7 @@ class CheckSources extends Component {
           return router.push(`/sources/${sources[0].id}/${restString}`)
         }
         // if you're a viewer and there are no sources, go to purgatory.
-        publishNotification(NOTIFY_ORG_HAS_NO_SOURCES)
+        notify(NOTIFY_ORG_HAS_NO_SOURCES)
         return router.push('/purgatory')
       }
 
@@ -222,7 +222,7 @@ CheckSources.propTypes = {
       }),
     }),
   }),
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 CheckSources.childContextTypes = {
@@ -247,7 +247,7 @@ const mapStateToProps = ({sources, auth}) => ({
 const mapDispatchToProps = dispatch => ({
   getSources: bindActionCreators(getSourcesAsync, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(

@@ -25,7 +25,7 @@ interface Props {
   onChangeUrl: (e: ChangeEvent<HTMLInputElement>) => void
   source: Source
   hash: string
-  publishNotification: (message: Notification | NotificationFunc) => void
+  notify: (message: Notification | NotificationFunc) => void
 }
 
 const KapacitorForm: SFC<Props> = ({
@@ -38,7 +38,7 @@ const KapacitorForm: SFC<Props> = ({
   onInputChange,
   source,
   hash,
-  publishNotification,
+  notify,
 }) =>
   <div className="page">
     <div className="page-header">
@@ -119,7 +119,7 @@ const KapacitorForm: SFC<Props> = ({
               exists={exists}
               source={source}
               kapacitor={kapacitor}
-              publishNotification={publishNotification}
+              notify={notify}
             />
           </div>
         </div>

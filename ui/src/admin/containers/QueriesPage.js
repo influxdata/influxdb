@@ -20,7 +20,7 @@ import {
   killQueryAsync,
 } from 'src/admin/actions/influxdb'
 
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 class QueriesPage extends Component {
   componentDidMount() {
@@ -40,13 +40,11 @@ class QueriesPage extends Component {
   }
 
   updateQueries = () => {
-    const {source, publishNotification, loadQueries} = this.props
+    const {source, notify, loadQueries} = this.props
     showDatabases(source.links.proxy).then(resp => {
       const {databases, errors} = showDatabasesParser(resp.data)
       if (errors.length) {
-        errors.forEach(message =>
-          publishNotification(NOTIFY_QUERIES_ERROR(message))
-        )
+        errors.forEach(message => notify(NOTIFY_QUERIES_ERROR(message)))
         return
       }
 
@@ -58,7 +56,7 @@ class QueriesPage extends Component {
           const result = showQueriesParser(queryResponse.data)
           if (result.errors.length) {
             result.errors.forEach(message =>
-              publishNotification(NOTIFY_QUERIES_ERROR(message))
+              notify(NOTIFY_QUERIES_ERROR(message))
             )
           }
 
@@ -98,7 +96,7 @@ QueriesPage.propTypes = {
   queryIDToKill: string,
   setQueryToKill: func,
   killQuery: func,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {queries, queryIDToKill}}) => ({
@@ -110,7 +108,7 @@ const mapDispatchToProps = dispatch => ({
   loadQueries: bindActionCreators(loadQueriesAction, dispatch),
   setQueryToKill: bindActionCreators(setQueryToKillAction, dispatch),
   killQuery: bindActionCreators(killQueryAsync, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(QueriesPage)

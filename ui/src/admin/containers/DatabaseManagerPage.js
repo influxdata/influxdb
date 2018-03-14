@@ -7,7 +7,7 @@ import _ from 'lodash'
 import DatabaseManager from 'src/admin/components/DatabaseManager'
 
 import * as adminActionCreators from 'src/admin/actions/influxdb'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
   NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED,
@@ -39,13 +39,13 @@ class DatabaseManagerPage extends Component {
   }
 
   handleCreateDatabase = database => {
-    const {actions, publishNotification, source, databases} = this.props
+    const {actions, notify, source, databases} = this.props
     if (!database.name) {
-      return publishNotification(NOTIFY_DATABASE_NAME_INVALID)
+      return notify(NOTIFY_DATABASE_NAME_INVALID)
     }
 
     if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-      return publishNotification(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
+      return notify(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
     }
 
     actions.createDatabaseAsync(source.links.databases, database)
@@ -58,7 +58,7 @@ class DatabaseManagerPage extends Component {
 
   handleKeyDownDatabase = database => e => {
     const {key} = e
-    const {actions, publishNotification, source, databases} = this.props
+    const {actions, notify, source, databases} = this.props
 
     if (key === 'Escape') {
       actions.removeDatabase(database)
@@ -66,11 +66,11 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (!database.name) {
-        return publishNotification(NOTIFY_DATABASE_NAME_INVALID)
+        return notify(NOTIFY_DATABASE_NAME_INVALID)
       }
 
       if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-        return publishNotification(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
+        return notify(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
       }
 
       actions.createDatabaseAsync(source.links.databases, database)
@@ -79,7 +79,7 @@ class DatabaseManagerPage extends Component {
 
   handleDatabaseDeleteConfirm = database => e => {
     const {key, target: {value}} = e
-    const {actions, publishNotification} = this.props
+    const {actions, notify} = this.props
 
     if (key === 'Escape') {
       return actions.removeDatabaseDeleteCode(database)
@@ -87,7 +87,7 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (database.deleteCode !== `DELETE ${database.name}`) {
-        return publishNotification(
+        return notify(
           NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name)
         )
       }
@@ -99,10 +99,10 @@ class DatabaseManagerPage extends Component {
   }
 
   render() {
-    const {source, databases, actions, publishNotification} = this.props
+    const {source, databases, actions, notify} = this.props
     return (
       <DatabaseManager
-        publishNotification={publishNotification}
+        notify={notify}
         databases={databases}
         isRFDisplayed={!!source.metaUrl}
         addDatabase={actions.addDatabase}
@@ -161,7 +161,7 @@ DatabaseManagerPage.propTypes = {
     removeRetentionPolicy: func,
     deleteRetentionPolicyAsync: func,
   }),
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {databases, retentionPolicies}}) => ({
@@ -171,7 +171,7 @@ const mapStateToProps = ({adminInfluxDB: {databases, retentionPolicies}}) => ({
 
 const mapDispatchToProps = dispatch => ({
   actions: bindActionCreators(adminActionCreators, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DatabaseManagerPage)

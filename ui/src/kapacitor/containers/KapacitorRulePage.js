@@ -10,7 +10,7 @@ import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 import parseHandlersFromConfig from 'src/shared/parsing/parseHandlersFromConfig'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
   NOTIFY_KAPACITOR_CREATION_FAILED,
@@ -28,7 +28,7 @@ class KapacitorRulePage extends Component {
   }
 
   async componentDidMount() {
-    const {params, source, ruleActions, publishNotification} = this.props
+    const {params, source, ruleActions, notify} = this.props
 
     if (params.ruleID === 'new') {
       ruleActions.loadDefaultRule()
@@ -38,7 +38,7 @@ class KapacitorRulePage extends Component {
 
     const kapacitor = await getActiveKapacitor(this.props.source)
     if (!kapacitor) {
-      return publishNotification(NOTIFY_COULD_NOT_FIND_KAPACITOR)
+      return notify(NOTIFY_COULD_NOT_FIND_KAPACITOR)
     }
 
     try {
@@ -46,7 +46,7 @@ class KapacitorRulePage extends Component {
       const handlersFromConfig = parseHandlersFromConfig(kapacitorConfig)
       this.setState({kapacitor, handlersFromConfig})
     } catch (error) {
-      publishNotification(NOTIFY_KAPACITOR_CREATION_FAILED)
+      notify(NOTIFY_KAPACITOR_CREATION_FAILED)
       console.error(error)
       throw error
     }
@@ -97,7 +97,7 @@ KapacitorRulePage.propTypes = {
       self: string.isRequired,
     }),
   }),
-  publishNotification: func,
+  notify: func,
   rules: shape({}).isRequired,
   queryConfigs: shape({}).isRequired,
   ruleActions: shape({
@@ -126,7 +126,7 @@ const mapStateToProps = ({rules, kapacitorQueryConfigs: queryConfigs}) => ({
 
 const mapDispatchToProps = dispatch => ({
   ruleActions: bindActionCreators(kapacitorRuleActionCreators, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
   queryConfigActions: bindActionCreators(
     kapacitorQueryConfigActionCreators,
     dispatch

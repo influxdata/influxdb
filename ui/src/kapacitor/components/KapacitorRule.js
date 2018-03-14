@@ -14,7 +14,7 @@ import {createRule, editRule} from 'src/kapacitor/apis'
 import buildInfluxQLQuery from 'utils/influxql'
 import {timeRanges} from 'shared/data/timeRanges'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
   NOTIFY_ALERT_RULE_CREATED,
@@ -40,14 +40,7 @@ class KapacitorRule extends Component {
   }
 
   handleCreate = pathname => {
-    const {
-      publishNotification,
-      queryConfigs,
-      rule,
-      source,
-      router,
-      kapacitor,
-    } = this.props
+    const {notify, queryConfigs, rule, source, router, kapacitor} = this.props
 
     const newRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -57,15 +50,15 @@ class KapacitorRule extends Component {
     createRule(kapacitor, newRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        publishNotification(NOTIFY_ALERT_RULE_CREATED)
+        notify(NOTIFY_ALERT_RULE_CREATED)
       })
       .catch(() => {
-        publishNotification(NOTIFY_ALERT_RULE_CREATION_FAILED)
+        notify(NOTIFY_ALERT_RULE_CREATION_FAILED)
       })
   }
 
   handleEdit = pathname => {
-    const {publishNotification, queryConfigs, rule, router, source} = this.props
+    const {notify, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     })
@@ -73,12 +66,10 @@ class KapacitorRule extends Component {
     editRule(updatedRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        publishNotification(NOTIFY_ALERT_RULE_UPDATED(rule.name))
+        notify(NOTIFY_ALERT_RULE_UPDATED(rule.name))
       })
       .catch(e => {
-        publishNotification(
-          NOTIFY_ALERT_RULE_UPDATE_FAILED(rule.name, e.data.message)
-        )
+        notify(NOTIFY_ALERT_RULE_UPDATE_FAILED(rule.name, e.data.message))
       })
   }
 
@@ -240,7 +231,7 @@ KapacitorRule.propTypes = {
   queryConfigs: shape({}).isRequired,
   queryConfigActions: shape({}).isRequired,
   ruleActions: shape({}).isRequired,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
   ruleID: string.isRequired,
   handlersFromConfig: arrayOf(shape({})).isRequired,
   router: shape({
@@ -251,7 +242,7 @@ KapacitorRule.propTypes = {
 }
 
 const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(KapacitorRule)

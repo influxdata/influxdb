@@ -1,6 +1,6 @@
 import uuid from 'uuid'
 import {getActiveKapacitor} from 'shared/apis'
-import {publishNotification} from 'shared/actions/notifications'
+import {notify} from 'shared/actions/notifications'
 import {
   getRules,
   getRule as getRuleAJAX,
@@ -181,27 +181,21 @@ export const deleteRule = rule => dispatch => {
   deleteRuleAPI(rule)
     .then(() => {
       dispatch(deleteRuleSuccess(rule.id))
-      dispatch(publishNotification(NOTIFY_ALERT_RULE_DELETED(rule.name)))
+      dispatch(notify(NOTIFY_ALERT_RULE_DELETED(rule.name)))
     })
     .catch(() => {
-      dispatch(
-        publishNotification(NOTIFY_ALERT_RULE_DELETION_FAILED(rule.name))
-      )
+      dispatch(notify(NOTIFY_ALERT_RULE_DELETION_FAILED(rule.name)))
     })
 }
 
 export const updateRuleStatus = (rule, status) => dispatch => {
   updateRuleStatusAPI(rule, status)
     .then(() => {
-      dispatch(
-        publishNotification(NOTIFY_ALERT_RULE_STATUS_UPDATED(rule.name, status))
-      )
+      dispatch(notify(NOTIFY_ALERT_RULE_STATUS_UPDATED(rule.name, status)))
     })
     .catch(() => {
       dispatch(
-        publishNotification(
-          NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED(rule.name, status)
-        )
+        notify(NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED(rule.name, status))
       )
     })
 }
@@ -209,7 +203,7 @@ export const updateRuleStatus = (rule, status) => dispatch => {
 export const createTask = (kapacitor, task) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    dispatch(publishNotification(NOTIFY_TICKSCRIPT_CREATED))
+    dispatch(notify(NOTIFY_TICKSCRIPT_CREATED))
     return data
   } catch (error) {
     if (!error) {
@@ -229,7 +223,7 @@ export const updateTask = (
 ) => async dispatch => {
   try {
     const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
-    dispatch(publishNotification(NOTIFY_TICKSCRIPT_UPDATED))
+    dispatch(notify(NOTIFY_TICKSCRIPT_UPDATED))
     return data
   } catch (error) {
     if (!error) {

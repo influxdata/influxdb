@@ -9,7 +9,7 @@ import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
 import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
   NOTIFY_TICKSCRIPT_LOGGING_UNAVAILABLE,
@@ -41,7 +41,7 @@ class TickscriptPage extends Component {
   }
 
   fetchChunkedLogs = async (kapacitor, ruleID) => {
-    const {publishNotification} = this.props
+    const {notify} = this.props
 
     try {
       const version = await pingKapacitorVersion(kapacitor)
@@ -50,7 +50,7 @@ class TickscriptPage extends Component {
         this.setState({
           areLogsEnabled: false,
         })
-        publishNotification(NOTIFY_TICKSCRIPT_LOGGING_UNAVAILABLE)
+        notify(NOTIFY_TICKSCRIPT_LOGGING_UNAVAILABLE)
         return
       }
 
@@ -119,7 +119,7 @@ class TickscriptPage extends Component {
       }
     } catch (error) {
       console.error(error)
-      publishNotification(NOTIFY_TICKSCRIPT_LOGGING_ERROR(error))
+      notify(NOTIFY_TICKSCRIPT_LOGGING_ERROR(error))
       throw error
     }
   }
@@ -275,7 +275,7 @@ TickscriptPage.propTypes = {
     ruleID: string,
   }).isRequired,
   rules: arrayOf(shape()),
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = state => {
@@ -287,7 +287,7 @@ const mapStateToProps = state => {
 const mapDispatchToProps = dispatch => ({
   kapacitorActions: bindActionCreators(kapactiorActionCreators, dispatch),
   errorActions: bindActionCreators(errorActionCreators, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TickscriptPage)

@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import onClickOutside from 'react-onclickoutside'
 
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {formatRPDuration} from 'utils/formatting'
 import YesNoButtons from 'shared/components/YesNoButtons'
@@ -105,7 +105,7 @@ class DatabaseRow extends Component {
 
   getInputValues = () => {
     const {
-      publishNotification,
+      notify,
       retentionPolicy: {name: currentName},
       isRFDisplayed,
     } = this.props
@@ -116,7 +116,7 @@ class DatabaseRow extends Component {
     const replication = isRFDisplayed ? +this.replication.value.trim() : 1
 
     if (!duration || (isRFDisplayed && !replication)) {
-      publishNotification(NOTIFY_RETENTION_POLICY_CANT_HAVE_EMPTY_FIELDS)
+      notify(NOTIFY_RETENTION_POLICY_CANT_HAVE_EMPTY_FIELDS)
       return
     }
 
@@ -267,12 +267,12 @@ DatabaseRow.propTypes = {
   onCreate: func,
   onUpdate: func,
   onDelete: func,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
   isRFDisplayed: bool,
 }
 
 const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(onClickOutside(DatabaseRow))

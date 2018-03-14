@@ -4,14 +4,14 @@ import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import {NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
   database,
   onEdit,
-  publishNotification,
+  notify,
   onKeyDown,
   onConfirm,
   onCancel,
@@ -36,7 +36,7 @@ const DatabaseTableHeader = ({
 
   return (
     <Header
-      publishNotification={publishNotification}
+      notify={notify}
       database={database}
       onCancel={onRemoveDeleteCode}
       onConfirm={onConfirm}
@@ -50,7 +50,7 @@ const DatabaseTableHeader = ({
 }
 
 const Header = ({
-  publishNotification,
+  notify,
   database,
   onCancel,
   onDelete,
@@ -81,9 +81,7 @@ const Header = ({
 
   const onConfirm = db => {
     if (database.deleteCode !== `DELETE ${database.name}`) {
-      return publishNotification(
-        NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name)
-      )
+      return notify(NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name))
     }
 
     onDelete(db)
@@ -143,7 +141,7 @@ const {func, shape, bool} = PropTypes
 
 DatabaseTableHeader.propTypes = {
   onEdit: func,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
   database: shape(),
   onKeyDown: func,
   onCancel: func,
@@ -157,7 +155,7 @@ DatabaseTableHeader.propTypes = {
 }
 
 Header.propTypes = {
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
   onConfirm: func,
   onCancel: func,
   onDelete: func,
@@ -178,7 +176,7 @@ EditHeader.propTypes = {
 }
 
 const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(DatabaseTableHeader)

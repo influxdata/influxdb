@@ -8,7 +8,7 @@ import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
 } from 'shared/actions/sources'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -41,7 +41,7 @@ class SourcePage extends Component {
 
   componentDidMount() {
     const {editMode} = this.state
-    const {params, publishNotification} = this.props
+    const {params, notify} = this.props
 
     if (!editMode) {
       return this.setState({isLoading: false})
@@ -55,9 +55,7 @@ class SourcePage extends Component {
         })
       })
       .catch(error => {
-        publishNotification(
-          NOTIFY_ERROR_CONNECTING_TO_SOURCE(this._parseError(error))
-        )
+        notify(NOTIFY_ERROR_CONNECTING_TO_SOURCE(this._parseError(error)))
         this.setState({isLoading: false})
       })
   }
@@ -142,15 +140,15 @@ class SourcePage extends Component {
 
   _createSource = () => {
     const {source} = this.state
-    const {publishNotification} = this.props
+    const {notify} = this.props
     createSource(source)
       .then(({data: sourceFromServer}) => {
         this.props.addSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        publishNotification(NOTIFY_SOURCE_CREATION_SUCCEEDED(source.name))
+        notify(NOTIFY_SOURCE_CREATION_SUCCEEDED(source.name))
       })
       .catch(error => {
-        publishNotification(
+        notify(
           NOTIFY_SOURCE_CREATION_FAILED(source.name, this._parseError(error))
         )
       })
@@ -158,15 +156,15 @@ class SourcePage extends Component {
 
   _updateSource = () => {
     const {source} = this.state
-    const {publishNotification} = this.props
+    const {notify} = this.props
     updateSource(source)
       .then(({data: sourceFromServer}) => {
         this.props.updateSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        publishNotification(NOTIFY_SOURCE_UPDATED(source.name))
+        notify(NOTIFY_SOURCE_UPDATED(source.name))
       })
       .catch(error => {
-        publishNotification(
+        notify(
           NOTIFY_SOURCE_UPDATE_FAILED(source.name, this._parseError(error))
         )
       })
@@ -269,13 +267,13 @@ SourcePage.propTypes = {
       redirectPath: string,
     }).isRequired,
   }).isRequired,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
   addSource: func.isRequired,
   updateSource: func.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
   addSource: bindActionCreators(addSourceAction, dispatch),
   updateSource: bindActionCreators(updateSourceAction, dispatch),
 })

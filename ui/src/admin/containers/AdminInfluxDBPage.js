@@ -29,7 +29,7 @@ import AdminTabs from 'src/admin/components/AdminTabs'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
   NOTIFY_ROLE_NAME_INVALID,
@@ -78,9 +78,9 @@ class AdminInfluxDBPage extends Component {
   }
 
   handleSaveUser = async user => {
-    const {publishNotification} = this.props
+    const {notify} = this.props
     if (!isValidUser(user)) {
-      publishNotification(NOTIFY_DB_USER_NAME_PASSWORD_INVALID)
+      notify(NOTIFY_DB_USER_NAME_PASSWORD_INVALID)
       return
     }
     if (user.isNew) {
@@ -91,9 +91,9 @@ class AdminInfluxDBPage extends Component {
   }
 
   handleSaveRole = async role => {
-    const {publishNotification} = this.props
+    const {notify} = this.props
     if (!isValidRole(role)) {
-      publishNotification(NOTIFY_ROLE_NAME_INVALID)
+      notify(NOTIFY_ROLE_NAME_INVALID)
       return
     }
     if (role.isNew) {
@@ -234,7 +234,7 @@ AdminInfluxDBPage.propTypes = {
   updateUserPermissions: func,
   updateUserRoles: func,
   updateUserPassword: func,
-  publishNotification: func.isRequired,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {users, roles, permissions}}) => ({
@@ -270,7 +270,7 @@ const mapDispatchToProps = dispatch => ({
   ),
   updateUserRoles: bindActionCreators(updateUserRolesAsync, dispatch),
   updateUserPassword: bindActionCreators(updateUserPasswordAsync, dispatch),
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminInfluxDBPage)

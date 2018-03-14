@@ -1,9 +1,6 @@
 import {initialState, notifications} from 'shared/reducers/notifications'
 
-import {
-  publishNotification,
-  dismissNotification,
-} from 'shared/actions/notifications'
+import {notify, dismissNotification} from 'shared/actions/notifications'
 
 import {FIVE_SECONDS} from 'shared/constants/index'
 
@@ -21,10 +18,7 @@ const exampleNotifications = [exampleNotification]
 
 describe('Shared.Reducers.notifications', () => {
   it('should publish a notification', () => {
-    const [actual] = notifications(
-      initialState,
-      publishNotification(exampleNotification)
-    )
+    const [actual] = notifications(initialState, notify(exampleNotification))
 
     const [expected] = [exampleNotification, ...initialState]
 
@@ -45,7 +39,7 @@ describe('Shared.Reducers.notifications', () => {
 
       const actual = notifications(
         exampleNotifications,
-        publishNotification(newNotification)
+        notify(newNotification)
       )
 
       expect(actual.length).toBe(2)
