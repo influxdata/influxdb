@@ -10,7 +10,7 @@ import {
   updateGaugeColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
-import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/TableGraph'
+import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
 
 import {
   validateGaugeColors,
