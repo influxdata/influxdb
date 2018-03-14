@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
+	"github.com/influxdata/influxdb/toml"
 	"strings"
 )
 
@@ -20,6 +21,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	config.Data.Engine = "tsm1"
 	config.BindAddress = freePort()
 	config.Monitor.StoreEnabled = true
+	config.Monitor.StoreInterval = toml.Duration(time.Second)
 
 	fullBackupDir, _ := ioutil.TempDir("", "backup")
 	defer os.RemoveAll(fullBackupDir)
