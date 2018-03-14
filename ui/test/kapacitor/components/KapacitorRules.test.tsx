@@ -5,8 +5,6 @@ import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 
 import {source, kapacitorRules} from 'test/resources'
 
-jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
-
 const setup = () => {
   const props = {
     source,
