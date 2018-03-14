@@ -30,6 +30,10 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 			layout.Cells[idx].Axes = make(map[string]chronograf.Axis, len(axes))
 		}
 
+		if cell.CellColors == nil {
+			layout.Cells[idx].CellColors = []chronograf.CellColor{}
+		}
+
 		for _, axis := range axes {
 			if _, found := cell.Axes[axis]; !found {
 				layout.Cells[idx].Axes[axis] = chronograf.Axis{
