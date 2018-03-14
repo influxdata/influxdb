@@ -10,10 +10,13 @@
 1.  [#2947](https://github.com/influxdata/chronograf/pull/2947): Fix Okta oauth2 provider support
 1.  [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
 1.  [#2919](https://github.com/influxdata/chronograf/pull/2919): Automatically add graph type 'line' to any graph missing a type
+1.  [#2970](https://github.com/influxdata/chronograf/pull/2970): Fix hanging browser on docker host dashboard
 
 ## v1.4.2.3 [2018-03-08]
 
 ## v1.4.2.2 [2018-03-07]
+1. [#2910](https://github.com/influxdata/chronograf/pull/2910): Redesign system notifications
+
 ### Bug Fixes
 1. [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
 1. [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth

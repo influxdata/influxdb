@@ -136,7 +136,6 @@
     "redux-auth-wrapper": "^1.0.0",
     "redux-thunk": "^1.0.3",
     "rome": "^2.1.22",
-    "updeep": "^0.13.0",
     "uuid": "^3.2.1"
   }
 }

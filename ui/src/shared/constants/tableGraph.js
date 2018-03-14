@@ -15,7 +15,7 @@ export const FORMAT_OPTIONS = [
   {text: 'MMMM D, YYYY'},
   {text: 'MMMM D, YYYY h:mm A'},
   {text: 'dddd, MMMM D, YYYY h:mm A'},
-  {text: TIME_FORMAT_DEFAULT},
+  {text: TIME_FORMAT_CUSTOM},
 ]
 
 export const DEFAULT_TABLE_OPTIONS = {

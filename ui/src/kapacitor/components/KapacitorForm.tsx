@@ -6,7 +6,15 @@ import Input from 'src/kapacitor/components/KapacitorFormInput'
 
 import {Kapacitor, Source} from 'src/types'
 
-type FlashMessage = {type: string; text: string}
+export interface Notification {
+  id?: string
+  type: string
+  icon: string
+  duration: number
+  message: string
+}
+
+type NotificationFunc = () => Notification
 
 interface Props {
   kapacitor: Kapacitor
@@ -15,9 +23,9 @@ interface Props {
   onSubmit: (e: ChangeEvent<HTMLFormElement>) => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
   onChangeUrl: (e: ChangeEvent<HTMLInputElement>) => void
-  addFlashMessage: (message: FlashMessage) => void
   source: Source
   hash: string
+  notify: (message: Notification | NotificationFunc) => void
 }
 
 const KapacitorForm: SFC<Props> = ({
@@ -28,9 +36,9 @@ const KapacitorForm: SFC<Props> = ({
   onSubmit,
   exists,
   onInputChange,
-  addFlashMessage,
   source,
   hash,
+  notify,
 }) =>
   <div className="page">
     <div className="page-header">
@@ -106,15 +114,13 @@ const KapacitorForm: SFC<Props> = ({
             </div>
           </div>
           <div className="col-md-9">
-            {
-              <AlertOutputs
-                exists={exists}
-                kapacitor={kapacitor}
-                addFlashMessage={addFlashMessage}
-                source={source}
-                hash={hash}
-              />
-            }
+            <AlertOutputs
+              hash={hash}
+              exists={exists}
+              source={source}
+              kapacitor={kapacitor}
+              notify={notify}
+            />
           </div>
         </div>
       </div>

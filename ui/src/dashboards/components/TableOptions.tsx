@@ -40,17 +40,24 @@ type Options = {
   columnNames: TableColumn[]
 }
 
-type Query = {
-  queryConfig: {measurement: string; fields: [{alias: string}]}
+type QueryConfig = {
+  measurement: string
+  fields: [
+    {
+      alias: string
+      value: string
+    }
+  ]
 }
+
 interface Props {
   singleStatType: string
   singleStatColors: Color[]
+  queryConfigs: QueryConfig[]
   handleUpdateSingleStatType: () => void
   handleUpdateSingleStatColors: () => void
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
-  queries: Query[]
 }
 
 interface State {
@@ -72,13 +79,13 @@ export class TableOptions extends PureComponent<Props, State> {
   }
 
   componentWillMount() {
-    const {queries} = this.props
+    const {queryConfigs} = this.props
     let columns = [{internalName: 'time', displayName: ''}]
 
-    for (let i = 0; i < queries.length; i++) {
-      const q = queries[i]
-      const measurement = q.queryConfig.measurement
-      const fields = q.queryConfig.fields
+    for (let i = 0; i < queryConfigs.length; i++) {
+      const q = queryConfigs[i]
+      const measurement = q.measurement
+      const fields = q.fields
       for (let j = 0; j < fields.length; j++) {
         columns = [
           ...columns,
@@ -86,7 +93,6 @@ export class TableOptions extends PureComponent<Props, State> {
         ]
       }
     }
-
     this.setState({columns})
   }
 
@@ -111,7 +117,6 @@ export class TableOptions extends PureComponent<Props, State> {
 
   handleColumnRename = column => {
     const {columns} = this.state
-    // NOTE: should use redux state instead of component state
     const updatedColumns = columns.map(
       op => (op.internalName === column.internalName ? column : op)
     )
@@ -192,16 +197,11 @@ export class TableOptions extends PureComponent<Props, State> {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {
-    singleStatType,
-    singleStatColors,
-    cell: {tableOptions, queries},
-  },
+  cellEditorOverlay: {singleStatType, singleStatColors, cell: {tableOptions}},
 }) => ({
   singleStatType,
   singleStatColors,
   tableOptions,
-  queries,
 })
 
 const mapDispatchToProps = dispatch => ({

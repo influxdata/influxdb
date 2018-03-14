@@ -12,6 +12,12 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'
 import {setAutoRefresh} from 'shared/actions/app'
+import {notify as notifyAction} from 'shared/actions/notifications'
+
+import {
+  NOTIFY_UNABLE_TO_GET_HOSTS,
+  NOTIFY_UNABLE_TO_GET_APPS,
+} from 'shared/copy/notifications'
 
 class HostsPage extends Component {
   constructor(props) {
@@ -25,9 +31,9 @@ class HostsPage extends Component {
   }
 
   async fetchHostsData() {
-    const {source, links, addFlashMessage} = this.props
+    const {source, links, notify} = this.props
     const {telegrafSystemInterval} = await getEnv(links.environment)
-    const hostsError = 'Unable to get hosts'
+    const hostsError = NOTIFY_UNABLE_TO_GET_HOSTS.message
     try {
       const hosts = await getCpuAndLoadForHosts(
         source.links.proxy,
@@ -51,7 +57,7 @@ class HostsPage extends Component {
       })
     } catch (error) {
       console.error(error)
-      addFlashMessage({type: 'error', text: hostsError})
+      notify(NOTIFY_UNABLE_TO_GET_HOSTS)
       this.setState({
         hostsError,
         hostsLoading: false,
@@ -60,14 +66,14 @@ class HostsPage extends Component {
   }
 
   async componentDidMount() {
-    const {addFlashMessage, autoRefresh} = this.props
+    const {notify, autoRefresh} = this.props
 
     this.setState({hostsLoading: true}) // Only print this once
     const {data} = await getLayouts()
     this.layouts = data.layouts
     if (!this.layouts) {
-      const layoutError = 'Unable to get apps for hosts'
-      addFlashMessage({type: 'error', text: layoutError})
+      const layoutError = NOTIFY_UNABLE_TO_GET_APPS.message
+      notify(NOTIFY_UNABLE_TO_GET_APPS)
       this.setState({
         hostsError: layoutError,
         hostsLoading: false,
@@ -169,11 +175,11 @@ HostsPage.propTypes = {
   links: shape({
     environment: string.isRequired,
   }),
-  addFlashMessage: func,
   autoRefresh: number.isRequired,
   manualRefresh: number,
   onChooseAutoRefresh: func.isRequired,
   onManualRefresh: func.isRequired,
+  notify: func.isRequired,
 }
 
 HostsPage.defaultProps = {
@@ -182,6 +188,7 @@ HostsPage.defaultProps = {
 
 const mapDispatchToProps = dispatch => ({
   onChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(

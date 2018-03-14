@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import ProvidersTable from 'src/admin/components/chronograf/ProvidersTable'
 
@@ -96,7 +96,7 @@ const mapStateToProps = ({
 
 const mapDispatchToProps = dispatch => ({
   actions: bindActionCreators(adminChronografActionCreators, dispatch),
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(ProvidersPage)

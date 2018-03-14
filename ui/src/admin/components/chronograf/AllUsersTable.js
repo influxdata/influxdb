@@ -16,6 +16,11 @@ const {
   colActions,
 } = ALL_USERS_TABLE
 
+import {
+  NOTIFY_CHRONOGRAF_USER_ADDED_TO_ORG,
+  NOTIFY_CHRONOGRAF_USER_REMOVED_FROM_ORG,
+} from 'shared/copy/notifications'
+
 class AllUsersTable extends Component {
   constructor(props) {
     super(props)
@@ -47,7 +52,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      `${user.name} has been added to ${organization.name}`
+      NOTIFY_CHRONOGRAF_USER_ADDED_TO_ORG(user.name, organization.name)
     )
   }
 
@@ -61,7 +66,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      `${user.name} has been removed from ${name}`
+      NOTIFY_CHRONOGRAF_USER_REMOVED_FROM_ORG(user.name, name)
     )
   }
 
@@ -84,7 +89,6 @@ class AllUsersTable extends Component {
       onCreateUser,
       authConfig,
       meID,
-      notify,
       onDeleteUser,
       isLoading,
     } = this.props
@@ -154,7 +158,6 @@ class AllUsersTable extends Component {
                     organizations={organizations}
                     onBlur={this.handleBlurCreateUserRow}
                     onCreateUser={onCreateUser}
-                    notify={notify}
                   />
                 : null}
             </tbody>
@@ -209,7 +212,6 @@ AllUsersTable.propTypes = {
     superAdminNewUsers: bool,
   }),
   meID: string.isRequired,
-  notify: func.isRequired,
   isLoading: bool.isRequired,
 }
 

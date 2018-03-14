@@ -17,7 +17,7 @@ jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 const setup = (override = {}) => {
   const props = {
     source: source,
-    addFlashMessage: () => {},
+    notify: () => {},
     kapacitor,
     router: {
       push: () => {},
@@ -199,6 +199,7 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
           await wrapper.instance().componentDidMount()
 
           expect(wrapper.state().kapacitor).toEqual(mocks.kapacitor)
+          expect(wrapper.state().exists).toBe(true)
         })
       })
     })

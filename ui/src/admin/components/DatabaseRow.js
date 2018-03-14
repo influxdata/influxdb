@@ -1,10 +1,16 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import onClickOutside from 'react-onclickoutside'
+
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {formatRPDuration} from 'utils/formatting'
 import YesNoButtons from 'shared/components/YesNoButtons'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
+import {NOTIFY_RETENTION_POLICY_CANT_HAVE_EMPTY_FIELDS} from 'shared/copy/notifications'
 
 class DatabaseRow extends Component {
   constructor(props) {
@@ -110,7 +116,7 @@ class DatabaseRow extends Component {
     const replication = isRFDisplayed ? +this.replication.value.trim() : 1
 
     if (!duration || (isRFDisplayed && !replication)) {
-      notify('error', 'Fields cannot be empty')
+      notify(NOTIFY_RETENTION_POLICY_CANT_HAVE_EMPTY_FIELDS)
       return
     }
 
@@ -261,8 +267,12 @@ DatabaseRow.propTypes = {
   onCreate: func,
   onUpdate: func,
   onDelete: func,
-  notify: func,
+  notify: func.isRequired,
   isRFDisplayed: bool,
 }
 
-export default onClickOutside(DatabaseRow)
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(onClickOutside(DatabaseRow))

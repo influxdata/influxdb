@@ -9,8 +9,9 @@ export const loadLocalStorage = errorsQueue => {
 
     // eslint-disable-next-line no-undef
     if (state.VERSION && state.VERSION !== VERSION) {
-      const errorText =
-        'New version of Chronograf detected. Local settings cleared.'
+      // eslint-disable-next-line no-undef
+      const version = VERSION ? ` (${VERSION})` : ''
+      const errorText = `Welcome to the latest Chronograf ${version}. Local settings cleared.`
 
       console.log(errorText) // eslint-disable-line no-console
       errorsQueue.push(errorText)
@@ -52,7 +53,6 @@ export const saveToLocalStorage = ({
   timeRange,
   dataExplorer,
   dashTimeV1: {ranges},
-  dismissedNotifications,
 }) => {
   try {
     const appPersisted = Object.assign({}, {app: {persisted}})
@@ -67,7 +67,6 @@ export const saveToLocalStorage = ({
         dataExplorer,
         VERSION, // eslint-disable-line no-undef
         dashTimeV1,
-        dismissedNotifications,
       })
     )
   } catch (err) {

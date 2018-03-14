@@ -17,6 +17,7 @@ const setup = (override = {}) => {
   const props = {
     singleStatType: '',
     singleStatColors: [],
+    queryConfigs: [],
     handleUpdateSingleStatType: () => {},
     handleUpdateSingleStatColors: () => {},
     handleUpdateTableOptions: () => {},
