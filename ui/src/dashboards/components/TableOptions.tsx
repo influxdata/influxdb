@@ -18,11 +18,7 @@ import {
   updateSingleStatColors,
   updateTableOptions,
 } from 'src/dashboards/actions/cellEditorOverlay'
-
-const formatColor = color => {
-  const {hex, name} = color
-  return {hex, name}
-}
+import {TIME_COLUMN_DEFAULT} from 'src/shared/constants/tableGraph'
 
 type Color = {
   type: string
@@ -47,10 +43,12 @@ type Options = {
 
 type QueryConfig = {
   measurement: string
-  fields: [{
-    alias: string
-    value: string
-  }]
+  fields: [
+    {
+      alias: string
+      value: string
+    }
+  ]
 }
 
 interface Props {
@@ -63,7 +61,42 @@ interface Props {
   tableOptions: Options
 }
 
+const formatColor = color => {
+  const {hex, name} = color
+  return {hex, name}
+}
+
 export class TableOptions extends PureComponent<Props, {}> {
+  constructor(props) {
+    super(props)
+  }
+
+  componentWillMount() {
+    const {queryConfigs, handleUpdateTableOptions, tableOptions} = this.props
+    const {columnNames} = tableOptions
+    const timeColumn =
+      (columnNames && columnNames.find(c => c.internalName === 'time')) ||
+      TIME_COLUMN_DEFAULT
+
+    const columns = [
+      timeColumn,
+      ..._.flatten(
+        queryConfigs.map(qc => {
+          const {measurement, fields} = qc
+          return fields.map(f => {
+            const internalName = `${measurement}.${f.alias}`
+            const existing = columnNames.find(
+              c => c.internalName === internalName
+            )
+            return existing || {internalName, displayName: ''}
+          })
+        })
+      ),
+    ]
+
+    handleUpdateTableOptions({...tableOptions, columnNames: columns})
+  }
+
   handleToggleSingleStatType = () => {}
 
   handleAddThreshold = () => {}
@@ -83,7 +116,14 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   handleToggleTextWrapping = () => {}
 
-  handleColumnRename = () => {}
+  handleColumnRename = column => {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const {columnNames} = tableOptions
+    const updatedColumns = columnNames.map(
+      op => (op.internalName === column.internalName ? column : op)
+    )
+    handleUpdateTableOptions({...tableOptions, columnNames: updatedColumns})
+  }
 
   handleUpdateColorValue = () => {}
 
@@ -93,22 +133,13 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {
       singleStatColors,
       singleStatType,
-      tableOptions: {timeFormat},
+      tableOptions: {timeFormat, columnNames: columns},
     } = this.props
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
     const TimeAxis = 'vertical'
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
-    const columns = [
-      'cpu.mean_usage_system',
-      'cpu.mean_usage_idle',
-      'cpu.mean_usage_user',
-    ].map(col => ({
-      text: col,
-      name: col,
-      newName: '',
-    }))
     const tableSortByOptions = [
       'cpu.mean_usage_system',
       'cpu.mean_usage_idle',
