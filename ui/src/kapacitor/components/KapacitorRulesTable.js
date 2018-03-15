@@ -2,6 +2,7 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import {Link} from 'react-router'
 import _ from 'lodash'
+import uuid from 'uuid'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {parseAlertNodeList} from 'src/shared/parsing/parseHandlersFromRule'
@@ -33,7 +34,7 @@ const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
       {_.sortBy(rules, r => r.name.toLowerCase()).map(rule => {
         return (
           <RuleRow
-            key={rule.id}
+            key={uuid.v4()}
             rule={rule}
             source={source}
             onDelete={onDelete}
