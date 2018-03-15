@@ -3,6 +3,9 @@ import PropTypes from 'prop-types'
 import _ from 'lodash'
 import classnames from 'classnames'
 
+import {MultiGrid} from 'react-virtualized'
+import moment from 'moment'
+
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
 import {
   NULL_COLUMN_INDEX,
@@ -10,9 +13,7 @@ import {
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
 } from 'src/shared/constants/tableGraph'
-
-import {MultiGrid} from 'react-virtualized'
-import moment from 'moment'
+import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
 const isEmpty = data => data.length <= 1
 
@@ -61,9 +62,10 @@ class TableGraph extends Component {
     }
   }
 
-  cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
+  cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
     const data = this._data
     const {hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {colors} = this.props
 
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
@@ -82,7 +84,22 @@ class TableGraph extends Component {
       rowIndex === parent.props.scrollToRow ||
       (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0) ||
       (columnIndex === hoveredColumnIndex && hoveredColumnIndex !== 0)
-    const dataIsNumerical = _.isNumber([rowIndex][columnIndex])
+    const dataIsNumerical = _.isNumber(data[rowIndex][columnIndex])
+
+    let cellStyle = style
+
+    if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
+      const {bgColor, textColor} = generateThresholdsListHexs(
+        colors,
+        data[rowIndex][columnIndex]
+      )
+
+      cellStyle = {
+        ...style,
+        backgroundColor: bgColor,
+        color: textColor,
+      }
+    }
 
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,
@@ -97,7 +114,7 @@ class TableGraph extends Component {
     return (
       <div
         key={key}
-        style={style}
+        style={cellStyle}
         className={cellClass}
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
       >
@@ -160,6 +177,15 @@ TableGraph.propTypes = {
   tableOptions: shape({}),
   hoverTime: string,
   onSetHoverTime: func,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
 }
 
 export default TableGraph

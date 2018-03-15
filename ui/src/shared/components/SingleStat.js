@@ -5,8 +5,7 @@ import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'shared/constants'
-import {THRESHOLD_TYPE_TEXT} from 'shared/constants/thresholds'
-import {generateSingleStatHexs} from 'shared/constants/colorOperations'
+import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
 class SingleStat extends PureComponent {
   render() {
@@ -33,15 +32,11 @@ class SingleStat extends PureComponent {
     const lastValue = lastValues(data)[1]
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
-    const colorizeText = !!colors.find(
-      color => color.type === THRESHOLD_TYPE_TEXT
-    )
 
-    const {bgColor, textColor} = generateSingleStatHexs(
+    const {bgColor, textColor} = generateThresholdsListHexs(
       colors,
-      lineGraph,
-      colorizeText,
-      lastValue
+      lastValue,
+      lineGraph
     )
 
     const backgroundColor = bgColor
