@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import * as configActionCreators from 'shared/actions/config'
-import {notify as notifyAction} from 'shared/dispatchers'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
 
