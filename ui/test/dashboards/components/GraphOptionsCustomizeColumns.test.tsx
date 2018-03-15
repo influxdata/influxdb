@@ -22,7 +22,7 @@ describe('Dashboards.Components.GraphOptionsCustomizeColumns', () => {
   describe('rendering', () => {
     it('displays label and all columns passed in', () => {
       const columns = [TIME_COLUMN_DEFAULT]
-      const {wrapper} = setup(columns)
+      const {wrapper} = setup({columns})
       const label = wrapper.find('label')
       const customizableColumns = wrapper.find(GraphOptionsCustomizableColumn)
 
