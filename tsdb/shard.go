@@ -811,7 +811,13 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 			return nil, err
 		}
 		indexSet := IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}
-		return NewSeriesPointIterator(indexSet, opt)
+
+		itr, err := NewSeriesPointIterator(indexSet, opt)
+		if err != nil {
+			return nil, err
+		}
+
+		return query.NewInterruptIterator(itr, opt.InterruptCh), nil
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
 	}
