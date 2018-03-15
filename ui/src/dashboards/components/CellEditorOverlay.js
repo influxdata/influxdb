@@ -120,13 +120,25 @@ class CellEditorOverlay extends Component {
     })
 
     let colors = []
-    if (cell.type === 'gauge') {
-      colors = stringifyColorValues(gaugeColors)
-    } else if (
-      cell.type === 'single-stat' ||
-      cell.type === 'line-plus-single-stat'
-    ) {
-      colors = stringifyColorValues(singleStatColors)
+
+    switch (cell.type) {
+      case 'gauge': {
+        colors = stringifyColorValues(gaugeColors)
+        break
+      }
+      case 'single-stat': {
+        colors = stringifyColorValues(singleStatColors)
+        break
+      }
+      case 'line-plus-single-stat': {
+        colors = stringifyColorValues(singleStatColors)
+        break
+      }
+      case 'table': {
+        debugger
+        colors = stringifyColorValues(singleStatColors)
+        break
+      }
     }
 
     this.props.onSave({
