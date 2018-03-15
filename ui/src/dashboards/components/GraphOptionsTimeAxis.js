@@ -1,29 +1,30 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-const VERTICAL = 'VERTICAL'
-const HORIZONTAL = 'HORIZONTAL'
-const GraphOptionsTimeAxis = ({TimeAxis, onToggleTimeAxis}) =>
+const GraphOptionsTimeAxis = ({verticalTimeAxis, onToggleVerticalTimeAxis}) =>
   <div className="form-group col-xs-12 col-sm-6">
     <label>Time Axis</label>
     <ul className="nav nav-tablist nav-tablist-sm">
       <li
-        className={`${TimeAxis === VERTICAL ? 'active' : ''}`}
-        onClick={onToggleTimeAxis}
+        className={`${verticalTimeAxis ? 'active' : ''}`}
+        onClick={onToggleVerticalTimeAxis(true)}
       >
         Vertical
       </li>
       <li
-        className={`${TimeAxis === HORIZONTAL ? 'active' : ''}`}
-        onClick={onToggleTimeAxis}
+        className={`${!verticalTimeAxis ? 'active' : ''}`}
+        onClick={onToggleVerticalTimeAxis(false)}
       >
         Horizontal
       </li>
     </ul>
   </div>
 
-const {func, string} = PropTypes
+const {bool, func} = PropTypes
 
-GraphOptionsTimeAxis.propTypes = {TimeAxis: string, onToggleTimeAxis: func}
+GraphOptionsTimeAxis.propTypes = {
+  verticalTimeAxis: bool,
+  onToggleVerticalTimeAxis: func,
+}
 
 export default GraphOptionsTimeAxis

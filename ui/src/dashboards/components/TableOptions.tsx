@@ -16,7 +16,7 @@ import {MAX_THRESHOLDS} from 'src/dashboards/constants/gaugeColors'
 import {
   updateSingleStatType,
   updateSingleStatColors,
-  updateTableOptions,
+  updateTableOptions
 } from 'src/dashboards/actions/cellEditorOverlay'
 
 const formatColor = color => {
@@ -79,7 +79,10 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateTableOptions({...tableOptions, timeFormat})
   }
 
-  handleToggleTimeAxis = () => {}
+  onToggleVerticalTimeAxis = verticalTimeAxis => () => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
+  }
 
   handleToggleTextWrapping = () => {}
 
@@ -90,14 +93,9 @@ export class TableOptions extends PureComponent<Props, {}> {
   handleValidateColorValue = () => {}
 
   render() {
-    const {
-      singleStatColors,
-      singleStatType,
-      tableOptions: {timeFormat},
-    } = this.props
+    const {singleStatColors, singleStatType, tableOptions: {timeFormat, verticalTimeAxis}} = this.props
 
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
-    const TimeAxis = 'vertical'
     const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
     const columns = [
@@ -128,8 +126,8 @@ export class TableOptions extends PureComponent<Props, {}> {
               onTimeFormatChange={this.handleTimeFormatChange}
             />
             <GraphOptionsTimeAxis
-              TimeAxis={TimeAxis}
-              onToggleTimeAxis={this.handleToggleTimeAxis}
+              verticalTimeAxis={verticalTimeAxis}
+              onToggleVerticalTimeAxis={this.onToggleVerticalTimeAxis}
             />
             <GraphOptionsSortBy
               sortByOptions={tableSortByOptions}

@@ -131,14 +131,6 @@ export const DEFAULT_TABLE_COLORS = [
   },
 ]
 
-export const DEFAULT_TABLE_OPTIONS = {
-  timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
-  verticalTimeAxis: true,
-  sortBy: {internalName: 'time', displayName: ''},
-  wrapping: 'truncate',
-  columnNames: [{internalName: 'time', displayName: ''}],
-}
-
 export const validateSingleStatColors = (colors, type) => {
   if (!colors || colors.length === 0) {
     return DEFAULT_SINGLESTAT_COLORS
@@ -194,15 +186,6 @@ export const validateGaugeColors = colors => {
   formattedColors[formattedColors.length - 1].type = COLOR_TYPE_MAX
 
   return formattedColors
-}
-
-export const initializeOptions = cellType => {
-  switch (cellType) {
-    case 'table':
-      return DEFAULT_TABLE_OPTIONS
-    default:
-      return {}
-  }
 }
 
 export const stringifyColorValues = colors => {

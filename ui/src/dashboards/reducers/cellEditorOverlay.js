@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 import {
   SINGLE_STAT_TEXT,
   DEFAULT_SINGLESTAT_COLORS,
@@ -5,8 +7,9 @@ import {
   validateGaugeColors,
   validateSingleStatColors,
   getSingleStatType,
-  initializeOptions,
 } from 'src/dashboards/constants/gaugeColors'
+
+import {initializeOptions} from 'src/shared/constants/tableGraph'
 
 export const initialState = {
   cell: null,
@@ -24,7 +27,9 @@ export default function cellEditorOverlay(state = initialState, action) {
       const singleStatColors = validateSingleStatColors(colors, singleStatType)
       const gaugeColors = validateGaugeColors(colors)
 
-      const tableOptions = cell.tableOptions || initializeOptions('table')
+      const tableOptions = _.get(cell, ['tableOptions', 'timeFormat'], '')
+        ? cell.tableOptions
+        : initializeOptions('table')
 
       return {
         ...state,
