@@ -4,14 +4,14 @@ import {
   DEFAULT_GAUGE_COLORS,
   validateGaugeColors,
   validateSingleStatColors,
-  getSingleStatType,
+  getThresholdsListType,
 } from 'shared/constants/thresholds'
 
 import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 
 export const initialState = {
   cell: null,
-  singleStatType: SINGLE_STAT_TEXT,
+  thresholdsListType: SINGLE_STAT_TEXT,
   singleStatColors: DEFAULT_SINGLESTAT_COLORS,
   gaugeColors: DEFAULT_GAUGE_COLORS,
 }
@@ -21,8 +21,11 @@ export default function cellEditorOverlay(state = initialState, action) {
     case 'SHOW_CELL_EDITOR_OVERLAY': {
       const {cell, cell: {colors}} = action.payload
 
-      const singleStatType = getSingleStatType(colors)
-      const singleStatColors = validateSingleStatColors(colors, singleStatType)
+      const thresholdsListType = getThresholdsListType(colors)
+      const singleStatColors = validateSingleStatColors(
+        colors,
+        thresholdsListType
+      )
       const gaugeColors = validateGaugeColors(colors)
 
       const tableOptions = cell.tableOptions || initializeOptions('table')
@@ -30,7 +33,7 @@ export default function cellEditorOverlay(state = initialState, action) {
       return {
         ...state,
         cell: {...cell, tableOptions},
-        singleStatType,
+        thresholdsListType,
         singleStatColors,
         gaugeColors,
       }
@@ -63,14 +66,14 @@ export default function cellEditorOverlay(state = initialState, action) {
     }
 
     case 'UPDATE_SINGLE_STAT_TYPE': {
-      const {singleStatType} = action.payload
+      const {thresholdsListType} = action.payload
 
       const singleStatColors = state.singleStatColors.map(color => ({
         ...color,
-        type: singleStatType,
+        type: thresholdsListType,
       }))
 
-      return {...state, singleStatType, singleStatColors}
+      return {...state, thresholdsListType, singleStatColors}
     }
 
     case 'UPDATE_GAUGE_COLORS': {

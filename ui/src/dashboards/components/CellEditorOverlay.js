@@ -375,7 +375,7 @@ CellEditorOverlay.propTypes = {
   }).isRequired,
   dashboardID: string.isRequired,
   sources: arrayOf(shape()),
-  singleStatType: string.isRequired,
+  thresholdsListType: string.isRequired,
   singleStatColors: arrayOf(shape({}).isRequired).isRequired,
   gaugeColors: arrayOf(shape({}).isRequired).isRequired,
 }

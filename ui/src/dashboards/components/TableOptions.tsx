@@ -9,7 +9,7 @@ import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
-import ThresholdsColorToggle from 'src/shared/components/ThresholdsColorToggle'
+import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 
@@ -105,9 +105,9 @@ export class TableOptions extends PureComponent<Props, {}> {
             columns={columns}
             onColumnRename={this.handleColumnRename}
           />
-          <ThresholdsList onResetFocus={onResetFocus} />
+          <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">
-            <ThresholdsColorToggle containerClass="form-group col-xs-6" />
+            <ThresholdsListTypeToggle containerClass="form-group col-xs-6" />
           </div>
         </div>
       </FancyScrollbar>

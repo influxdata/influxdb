@@ -6,7 +6,7 @@ import {
   changeCellType,
   renameCell,
   updateSingleStatColors,
-  updateSingleStatType,
+  updateThresholdsListType,
   updateGaugeColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
@@ -15,7 +15,7 @@ import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
 import {
   validateGaugeColors,
   validateSingleStatColors,
-  getSingleStatType,
+  getThresholdsListType,
 } from 'shared/constants/thresholds'
 
 const defaultCellType = 'line'
@@ -39,10 +39,10 @@ const defaultCell = {
   tableOptions: DEFAULT_TABLE_OPTIONS,
 }
 
-const defaultSingleStatType = getSingleStatType(defaultCell.colors)
+const defaultThresholdsListType = getThresholdsListType(defaultCell.colors)
 const defaultSingleStatColors = validateSingleStatColors(
   defaultCell.colors,
-  defaultSingleStatType
+  defaultThresholdsListType
 )
 const defaultGaugeColors = validateGaugeColors(defaultCell.colors)
 
@@ -53,14 +53,14 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
       cell: defaultCell,
       gaugeColors: defaultGaugeColors,
       singleStatColors: defaultSingleStatColors,
-      singleStatType: defaultSingleStatType,
+      thresholdsListType: defaultThresholdsListType,
       tableOptions: DEFAULT_TABLE_OPTIONS,
     }
 
     expect(actual.cell).toEqual(expected.cell)
     expect(actual.gaugeColors).toBe(expected.gaugeColors)
     expect(actual.singleStatColors).toBe(expected.singleStatColors)
-    expect(actual.singleStatType).toBe(expected.singleStatType)
+    expect(actual.thresholdsListType).toBe(expected.thresholdsListType)
   })
 
   it('should hide cell editor overlay', () => {
@@ -97,11 +97,11 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
   it('should toggle the single stat type', () => {
     const actual = reducer(
       initialState,
-      updateSingleStatType(defaultSingleStatType)
+      updateThresholdsListType(defaultThresholdsListType)
     )
-    const expected = defaultSingleStatType
+    const expected = defaultThresholdsListType
 
-    expect(actual.singleStatType).toBe(expected)
+    expect(actual.thresholdsListType).toBe(expected)
   })
 
   it('should update the cell gauge colors', () => {

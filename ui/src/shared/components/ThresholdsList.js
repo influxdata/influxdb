@@ -27,7 +27,7 @@ class ThresholdsList extends Component {
   handleAddThreshold = () => {
     const {
       singleStatColors,
-      singleStatType,
+      thresholdsListType,
       handleUpdateSingleStatColors,
       onResetFocus,
     } = this.props
@@ -47,7 +47,7 @@ class ThresholdsList extends Component {
     }
 
     const newThreshold = {
-      type: singleStatType,
+      type: thresholdsListType,
       id: uuid.v4(),
       value: randomValue,
       hex: GAUGE_COLORS[randomColor].hex,
@@ -158,7 +158,7 @@ ThresholdsList.defaultProps = {
   showListHeading: false,
 }
 ThresholdsList.propTypes = {
-  singleStatType: string.isRequired,
+  thresholdsListType: string.isRequired,
   singleStatColors: arrayOf(
     shape({
       type: string.isRequired,
@@ -174,9 +174,9 @@ ThresholdsList.propTypes = {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatType, singleStatColors},
+  cellEditorOverlay: {thresholdsListType, singleStatColors},
 }) => ({
-  singleStatType,
+  thresholdsListType,
   singleStatColors,
 })
 

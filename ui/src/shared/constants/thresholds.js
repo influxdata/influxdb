@@ -156,7 +156,7 @@ export const validateSingleStatColors = (colors, type) => {
   return containsBaseColor ? formattedColors : formattedColorsWithBase
 }
 
-export const getSingleStatType = colors => {
+export const getThresholdsListType = colors => {
   const type = _.get(colors, ['0', 'type'], false)
 
   if (type) {

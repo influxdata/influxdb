@@ -30,10 +30,10 @@ export const updateSingleStatColors = singleStatColors => ({
   },
 })
 
-export const updateSingleStatType = singleStatType => ({
+export const updateThresholdsListType = thresholdsListType => ({
   type: 'UPDATE_SINGLE_STAT_TYPE',
   payload: {
-    singleStatType,
+    thresholdsListType,
   },
 })
 
