@@ -106,7 +106,7 @@ class CellEditorOverlay extends Component {
 
   handleSaveCell = () => {
     const {queriesWorkingDraft, staticLegend} = this.state
-    const {cell, singleStatColors, gaugeColors} = this.props
+    const {cell, thresholdsListColors, gaugeColors} = this.props
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
@@ -127,15 +127,15 @@ class CellEditorOverlay extends Component {
         break
       }
       case 'single-stat': {
-        colors = stringifyColorValues(singleStatColors)
+        colors = stringifyColorValues(thresholdsListColors)
         break
       }
       case 'line-plus-single-stat': {
-        colors = stringifyColorValues(singleStatColors)
+        colors = stringifyColorValues(thresholdsListColors)
         break
       }
       case 'table': {
-        colors = stringifyColorValues(singleStatColors)
+        colors = stringifyColorValues(thresholdsListColors)
         break
       }
     }
@@ -387,7 +387,7 @@ CellEditorOverlay.propTypes = {
   dashboardID: string.isRequired,
   sources: arrayOf(shape()),
   thresholdsListType: string.isRequired,
-  singleStatColors: arrayOf(shape({}).isRequired).isRequired,
+  thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
   gaugeColors: arrayOf(shape({}).isRequired).isRequired,
 }
 

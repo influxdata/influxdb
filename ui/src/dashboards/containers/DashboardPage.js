@@ -274,7 +274,7 @@ class DashboardPage extends Component {
       onManualRefresh,
       cellQueryStatus,
       thresholdsListType,
-      singleStatColors,
+      thresholdsListColors,
       dashboardActions,
       inPresentationMode,
       handleChooseAutoRefresh,
@@ -381,7 +381,7 @@ class DashboardPage extends Component {
               templates={templatesIncludingDashTime}
               editQueryStatus={dashboardActions.editCellQueryStatus}
               thresholdsListType={thresholdsListType}
-              singleStatColors={singleStatColors}
+              thresholdsListColors={thresholdsListColors}
               gaugeColors={gaugeColors}
             />
           : null}
@@ -513,7 +513,7 @@ DashboardPage.propTypes = {
   handleHideCellEditorOverlay: func.isRequired,
   selectedCell: shape({}),
   thresholdsListType: string.isRequired,
-  singleStatColors: arrayOf(shape({}).isRequired).isRequired,
+  thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
   gaugeColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
@@ -530,7 +530,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     cellEditorOverlay: {
       cell,
       thresholdsListType,
-      singleStatColors,
+      thresholdsListColors,
       gaugeColors,
     },
   } = state
@@ -560,7 +560,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     showTemplateControlBar,
     selectedCell,
     thresholdsListType,
-    singleStatColors,
+    thresholdsListColors,
     gaugeColors,
   }
 }

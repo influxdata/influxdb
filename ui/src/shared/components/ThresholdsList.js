@@ -8,7 +8,7 @@ import uuid from 'uuid'
 import Threshold from 'src/dashboards/components/Threshold'
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {updateSingleStatColors} from 'src/dashboards/actions/cellEditorOverlay'
+import {updateThresholdsListColors} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {
   GAUGE_COLORS,
@@ -26,9 +26,9 @@ const formatColor = color => {
 class ThresholdsList extends Component {
   handleAddThreshold = () => {
     const {
-      singleStatColors,
+      thresholdsListColors,
       thresholdsListType,
-      handleUpdateSingleStatColors,
+      handleUpdateThresholdsListColors,
       onResetFocus,
     } = this.props
 
@@ -39,8 +39,8 @@ class ThresholdsList extends Component {
 
     let randomValue = _.round(_.random(minValue, maxValue, true), 2)
 
-    if (singleStatColors.length > 0) {
-      const colorsValues = _.mapValues(singleStatColors, 'value')
+    if (thresholdsListColors.length > 0) {
+      const colorsValues = _.mapValues(thresholdsListColors, 'value')
       do {
         randomValue = _.round(_.random(minValue, maxValue, true), 2)
       } while (_.includes(colorsValues, randomValue))
@@ -55,65 +55,65 @@ class ThresholdsList extends Component {
     }
 
     const updatedColors = _.sortBy(
-      [...singleStatColors, newThreshold],
+      [...thresholdsListColors, newThreshold],
       color => color.value
     )
 
-    handleUpdateSingleStatColors(updatedColors)
+    handleUpdateThresholdsListColors(updatedColors)
     onResetFocus()
   }
 
   handleDeleteThreshold = threshold => () => {
-    const {handleUpdateSingleStatColors, onResetFocus} = this.props
-    const singleStatColors = this.props.singleStatColors.filter(
+    const {handleUpdateThresholdsListColors, onResetFocus} = this.props
+    const thresholdsListColors = this.props.thresholdsListColors.filter(
       color => color.id !== threshold.id
     )
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
+    const sortedColors = _.sortBy(thresholdsListColors, color => color.value)
 
-    handleUpdateSingleStatColors(sortedColors)
+    handleUpdateThresholdsListColors(sortedColors)
     onResetFocus()
   }
 
   handleChooseColor = threshold => chosenColor => {
-    const {handleUpdateSingleStatColors} = this.props
+    const {handleUpdateThresholdsListColors} = this.props
 
-    const singleStatColors = this.props.singleStatColors.map(
+    const thresholdsListColors = this.props.thresholdsListColors.map(
       color =>
         color.id === threshold.id
           ? {...color, hex: chosenColor.hex, name: chosenColor.name}
           : color
     )
 
-    handleUpdateSingleStatColors(singleStatColors)
+    handleUpdateThresholdsListColors(thresholdsListColors)
   }
 
   handleUpdateColorValue = (threshold, value) => {
-    const {handleUpdateSingleStatColors} = this.props
+    const {handleUpdateThresholdsListColors} = this.props
 
-    const singleStatColors = this.props.singleStatColors.map(
+    const thresholdsListColors = this.props.thresholdsListColors.map(
       color => (color.id === threshold.id ? {...color, value} : color)
     )
 
-    handleUpdateSingleStatColors(singleStatColors)
+    handleUpdateThresholdsListColors(thresholdsListColors)
   }
 
   handleValidateColorValue = (threshold, targetValue) => {
-    const {singleStatColors} = this.props
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
+    const {thresholdsListColors} = this.props
+    const sortedColors = _.sortBy(thresholdsListColors, color => color.value)
 
     return !sortedColors.some(color => color.value === targetValue)
   }
 
   handleSortColors = () => {
-    const {singleStatColors, handleUpdateSingleStatColors} = this.props
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
+    const {thresholdsListColors, handleUpdateThresholdsListColors} = this.props
+    const sortedColors = _.sortBy(thresholdsListColors, color => color.value)
 
-    handleUpdateSingleStatColors(sortedColors)
+    handleUpdateThresholdsListColors(sortedColors)
   }
 
   render() {
-    const {singleStatColors, showListHeading} = this.props
-    const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
+    const {thresholdsListColors, showListHeading} = this.props
+    const disableAddThreshold = thresholdsListColors.length > MAX_THRESHOLDS
 
     return (
       <div className="thresholds-list">
@@ -125,7 +125,7 @@ class ThresholdsList extends Component {
         >
           <span className="icon plus" /> Add Threshold
         </button>
-        {singleStatColors.map(
+        {thresholdsListColors.map(
           color =>
             color.id === THRESHOLD_TYPE_BASE
               ? <div className="threshold-item" key={color.id}>
@@ -159,7 +159,7 @@ ThresholdsList.defaultProps = {
 }
 ThresholdsList.propTypes = {
   thresholdsListType: string.isRequired,
-  singleStatColors: arrayOf(
+  thresholdsListColors: arrayOf(
     shape({
       type: string.isRequired,
       hex: string.isRequired,
@@ -168,21 +168,21 @@ ThresholdsList.propTypes = {
       value: number.isRequired,
     }).isRequired
   ),
-  handleUpdateSingleStatColors: func.isRequired,
+  handleUpdateThresholdsListColors: func.isRequired,
   onResetFocus: func.isRequired,
   showListHeading: bool,
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {thresholdsListType, singleStatColors},
+  cellEditorOverlay: {thresholdsListType, thresholdsListColors},
 }) => ({
   thresholdsListType,
-  singleStatColors,
+  thresholdsListColors,
 })
 
 const mapDispatchToProps = dispatch => ({
-  handleUpdateSingleStatColors: bindActionCreators(
-    updateSingleStatColors,
+  handleUpdateThresholdsListColors: bindActionCreators(
+    updateThresholdsListColors,
     dispatch
   ),
 })

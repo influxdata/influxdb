@@ -131,7 +131,7 @@ export const DEFAULT_TABLE_COLORS = [
   },
 ]
 
-export const validateSingleStatColors = (colors, type) => {
+export const validateThresholdsListColors = (colors, type) => {
   if (!colors || colors.length === 0) {
     return DEFAULT_SINGLESTAT_COLORS
   }

@@ -20,12 +20,12 @@ const DashVisualization = (
     editQueryStatus,
     resizerTopHeight,
     staticLegend,
-    singleStatColors,
+    thresholdsListColors,
     tableOptions,
   },
   {source: {links: {proxy}}}
 ) => {
-  const colors = type === 'gauge' ? gaugeColors : singleStatColors
+  const colors = type === 'gauge' ? gaugeColors : thresholdsListColors
 
   return (
     <div className="graph">
@@ -67,7 +67,7 @@ DashVisualization.propTypes = {
   }),
   tableOptions: shape({}),
   resizerTopHeight: number,
-  singleStatColors: arrayOf(
+  thresholdsListColors: arrayOf(
     shape({
       type: string.isRequired,
       hex: string.isRequired,
@@ -98,13 +98,13 @@ DashVisualization.contextTypes = {
 
 const mapStateToProps = ({
   cellEditorOverlay: {
-    singleStatColors,
+    thresholdsListColors,
     gaugeColors,
     cell: {type, axes, tableOptions},
   },
 }) => ({
   gaugeColors,
-  singleStatColors,
+  thresholdsListColors,
   type,
   axes,
   tableOptions,

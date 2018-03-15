@@ -3,7 +3,7 @@ import {
   DEFAULT_SINGLESTAT_COLORS,
   DEFAULT_GAUGE_COLORS,
   validateGaugeColors,
-  validateSingleStatColors,
+  validateThresholdsListColors,
   getThresholdsListType,
 } from 'shared/constants/thresholds'
 
@@ -12,7 +12,7 @@ import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 export const initialState = {
   cell: null,
   thresholdsListType: THRESHOLD_TYPE_TEXT,
-  singleStatColors: DEFAULT_SINGLESTAT_COLORS,
+  thresholdsListColors: DEFAULT_SINGLESTAT_COLORS,
   gaugeColors: DEFAULT_GAUGE_COLORS,
 }
 
@@ -22,7 +22,7 @@ export default function cellEditorOverlay(state = initialState, action) {
       const {cell, cell: {colors}} = action.payload
 
       const thresholdsListType = getThresholdsListType(colors)
-      const singleStatColors = validateSingleStatColors(
+      const thresholdsListColors = validateThresholdsListColors(
         colors,
         thresholdsListType
       )
@@ -34,7 +34,7 @@ export default function cellEditorOverlay(state = initialState, action) {
         ...state,
         cell: {...cell, tableOptions},
         thresholdsListType,
-        singleStatColors,
+        thresholdsListColors,
         gaugeColors,
       }
     }
@@ -59,21 +59,21 @@ export default function cellEditorOverlay(state = initialState, action) {
       return {...state, cell}
     }
 
-    case 'UPDATE_SINGLE_STAT_COLORS': {
-      const {singleStatColors} = action.payload
+    case 'UPDATE_THRESHOLDS_LIST_COLORS': {
+      const {thresholdsListColors} = action.payload
 
-      return {...state, singleStatColors}
+      return {...state, thresholdsListColors}
     }
 
-    case 'UPDATE_SINGLE_STAT_TYPE': {
+    case 'UPDATE_THRESHOLDS_LIST_TYPE': {
       const {thresholdsListType} = action.payload
 
-      const singleStatColors = state.singleStatColors.map(color => ({
+      const thresholdsListColors = state.thresholdsListColors.map(color => ({
         ...color,
         type: thresholdsListType,
       }))
 
-      return {...state, thresholdsListType, singleStatColors}
+      return {...state, thresholdsListType, thresholdsListColors}
     }
 
     case 'UPDATE_GAUGE_COLORS': {

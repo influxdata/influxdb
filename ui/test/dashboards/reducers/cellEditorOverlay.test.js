@@ -5,7 +5,7 @@ import {
   hideCellEditorOverlay,
   changeCellType,
   renameCell,
-  updateSingleStatColors,
+  updateThresholdsListColors,
   updateThresholdsListType,
   updateGaugeColors,
   updateAxes,
@@ -14,7 +14,7 @@ import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
 
 import {
   validateGaugeColors,
-  validateSingleStatColors,
+  validateThresholdsListColors,
   getThresholdsListType,
 } from 'shared/constants/thresholds'
 
@@ -40,7 +40,7 @@ const defaultCell = {
 }
 
 const defaultThresholdsListType = getThresholdsListType(defaultCell.colors)
-const defaultSingleStatColors = validateSingleStatColors(
+const defaultThresholdsListColors = validateThresholdsListColors(
   defaultCell.colors,
   defaultThresholdsListType
 )
@@ -52,14 +52,14 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
     const expected = {
       cell: defaultCell,
       gaugeColors: defaultGaugeColors,
-      singleStatColors: defaultSingleStatColors,
+      thresholdsListColors: defaultThresholdsListColors,
       thresholdsListType: defaultThresholdsListType,
       tableOptions: DEFAULT_TABLE_OPTIONS,
     }
 
     expect(actual.cell).toEqual(expected.cell)
     expect(actual.gaugeColors).toBe(expected.gaugeColors)
-    expect(actual.singleStatColors).toBe(expected.singleStatColors)
+    expect(actual.thresholdsListColors).toBe(expected.thresholdsListColors)
     expect(actual.thresholdsListType).toBe(expected.thresholdsListType)
   })
 
@@ -87,11 +87,11 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
   it('should update the cell single stat colors', () => {
     const actual = reducer(
       initialState,
-      updateSingleStatColors(defaultSingleStatColors)
+      updateThresholdsListColors(defaultThresholdsListColors)
     )
-    const expected = defaultSingleStatColors
+    const expected = defaultThresholdsListColors
 
-    expect(actual.singleStatColors).toBe(expected)
+    expect(actual.thresholdsListColors).toBe(expected)
   })
 
   it('should toggle the single stat type', () => {

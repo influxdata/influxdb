@@ -23,15 +23,15 @@ export const renameCell = cellName => ({
   },
 })
 
-export const updateSingleStatColors = singleStatColors => ({
-  type: 'UPDATE_SINGLE_STAT_COLORS',
+export const updateThresholdsListColors = thresholdsListColors => ({
+  type: 'UPDATE_THRESHOLDS_LIST_COLORS',
   payload: {
-    singleStatColors,
+    thresholdsListColors,
   },
 })
 
 export const updateThresholdsListType = thresholdsListType => ({
-  type: 'UPDATE_SINGLE_STAT_TYPE',
+  type: 'UPDATE_THRESHOLDS_LIST_TYPE',
   payload: {
     thresholdsListType,
   },
