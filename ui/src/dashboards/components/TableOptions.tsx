@@ -75,7 +75,8 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {queryConfigs, handleUpdateTableOptions, tableOptions} = this.props
     const {columnNames} = tableOptions
     const timeColumn =
-      columnNames.find(c => c.internalName === 'time') || TIME_COLUMN_DEFAULT
+      (columnNames && columnNames.find(c => c.internalName === 'time')) ||
+      TIME_COLUMN_DEFAULT
     let columns = [timeColumn]
 
     for (let i = 0; i < queryConfigs.length; i++) {
