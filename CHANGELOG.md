@@ -10,6 +10,7 @@ v1.6.0 [unreleased]
 -	[#9553](https://github.com/influxdata/influxdb/pull/9553): Support setting the log level through the environment variable.
 -	[#9551](https://github.com/influxdata/influxdb/pull/9551): Fix panic when checking fieldsets.
 -	[#9573](https://github.com/influxdata/influxdb/pull/9573): Ensure correct number of tags parsed when commas used.
+-	[#9580](https://github.com/influxdata/influxdb/pull/9580): Fix data race in WAL.
 
 v1.5.0 [2018-03-06]
 -------------------
