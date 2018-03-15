@@ -24,10 +24,6 @@ const setup = () => {
 }
 
 describe('Kapacitor.Containers.KapacitorRules', () => {
-  afterEach(() => {
-    jest.clearAllMocks()
-  })
-
   describe('rendering', () => {
     it('renders KapacitorRules', () => {
       const {wrapper} = setup()

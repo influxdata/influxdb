@@ -22,10 +22,6 @@ const setup = () => {
 }
 
 describe('Kapacitor.Components.TasksTable', () => {
-  afterEach(() => {
-    jest.clearAllMocks()
-  })
-
   describe('rendering', () => {
     it('renders the TasksTable', () => {
       const {wrapper} = setup()
