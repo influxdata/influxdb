@@ -901,7 +901,14 @@ func (w *DeleteWALEntry) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary deserializes the byte slice into w.
 func (w *DeleteWALEntry) UnmarshalBinary(b []byte) error {
-	w.Keys = bytes.Split(b, []byte("\n"))
+	if len(b) == 0 {
+		return nil
+	}
+
+	// b originates from a pool. Copy what needs to be retained.
+	buf := make([]byte, len(b))
+	copy(buf, b)
+	w.Keys = bytes.Split(buf, []byte("\n"))
 	return nil
 }
 
@@ -977,7 +984,11 @@ func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
 		if i+sz > len(b) {
 			return ErrWALCorrupt
 		}
-		w.Keys = append(w.Keys, b[i:i+sz])
+
+		// b originates from a pool. Copy what needs to be retained.
+		buf := make([]byte, sz)
+		copy(buf, b[i:i+sz])
+		w.Keys = append(w.Keys, buf)
 		i += sz
 	}
 	return nil

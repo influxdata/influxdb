@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/golang/snappy"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
@@ -681,6 +683,51 @@ func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 		err := w.UnmarshalBinary(truncated)
 		if err != nil && err != tsm1.ErrWALCorrupt {
 			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+}
+
+func TestDeleteWALEntry_UnmarshalBinary(t *testing.T) {
+	examples := []struct {
+		In  []string
+		Out [][]byte
+	}{
+		{
+			In:  []string{""},
+			Out: nil,
+		},
+		{
+			In:  []string{"foo"},
+			Out: [][]byte{[]byte("foo")},
+		},
+		{
+			In:  []string{"foo", "bar"},
+			Out: [][]byte{[]byte("foo"), []byte("bar")},
+		},
+		{
+			In:  []string{"foo", "bar", "z", "abc"},
+			Out: [][]byte{[]byte("foo"), []byte("bar"), []byte("z"), []byte("abc")},
+		},
+		{
+			In:  []string{"foo", "bar", "z", "a"},
+			Out: [][]byte{[]byte("foo"), []byte("bar"), []byte("z"), []byte("a")},
+		},
+	}
+
+	for i, example := range examples {
+		w := &tsm1.DeleteWALEntry{Keys: slices.StringsToBytes(example.In...)}
+		b, err := w.MarshalBinary()
+		if err != nil {
+			t.Fatalf("[example %d] unexpected error, got %v", i, err)
+		}
+
+		out := &tsm1.DeleteWALEntry{}
+		if err := out.UnmarshalBinary(b); err != nil {
+			t.Fatalf("[example %d] %v", i, err)
+		}
+
+		if !reflect.DeepEqual(example.Out, out.Keys) {
+			t.Errorf("[example %d] got %v, expected %v", i, out.Keys, example.Out)
 		}
 	}
 }
