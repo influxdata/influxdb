@@ -57,19 +57,53 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
 
   describe('user interactions ', () => {
     describe('entering the url', () => {
-      it('renders the text that is inputted', () => {
-        const {wrapper} = setup()
-        const value = '/new/url'
-        const event = {target: {value}}
+      describe('with a http url', () => {
+        it('renders the text that is inputted', () => {
+          const {wrapper} = setup()
+          const value = 'http://example.com'
+          const event = {target: {value}}
 
-        let inputElement = wrapper.find('#kapaUrl')
+          let inputElement = wrapper.find('#kapaUrl')
 
-        inputElement.simulate('change', event)
-        wrapper.update()
+          inputElement.simulate('change', event)
 
-        inputElement = wrapper.find('#kapaUrl')
+          inputElement = wrapper.find('#kapaUrl')
+          const secureCheckbox = wrapper.find('#insecureSkipVerifyCheckbox')
 
-        expect(inputElement.prop('value')).toBe(value)
+          expect(secureCheckbox.exists()).toBe(false)
+          expect(inputElement.prop('value')).toBe(value)
+        })
+      })
+
+      describe('with a https url', () => {
+        let inputElement, secureCheckbox, wrapper
+        const value = 'https://example.com'
+
+        beforeEach(() => {
+          wrapper = setup().wrapper
+          const event = {target: {value}}
+
+          inputElement = wrapper.find('#kapaUrl')
+          inputElement.simulate('change', event)
+          inputElement = wrapper.find('#kapaUrl')
+          secureCheckbox = wrapper.find('#insecureSkipVerifyCheckbox')
+        })
+
+        describe('checking the insecure skip verify checkbox', () => {
+          it("changes the state", () => {
+            const checked = true
+            const event = {target: {checked}}
+
+            secureCheckbox.simulate('change', event)
+            secureCheckbox = wrapper.find('#insecureSkipVerifyCheckbox')
+            expect(secureCheckbox.prop('checked')).toBe(true)
+          })
+        })
+
+        it('renders the https secure checkbox', () => {
+          expect(secureCheckbox.exists()).toBe(true)
+          expect(inputElement.prop('value')).toBe(value)
+        })
       })
     })
 

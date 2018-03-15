@@ -4,6 +4,7 @@ import AlertOutputs from 'src/kapacitor/components/AlertOutputs'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import Input from 'src/kapacitor/components/KapacitorFormInput'
 
+import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
 import {Kapacitor, Source} from 'src/types'
 
 export interface Notification {
@@ -22,6 +23,7 @@ interface Props {
   onReset: (e: MouseEvent<HTMLButtonElement>) => void
   onSubmit: (e: ChangeEvent<HTMLFormElement>) => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onCheckboxChange: (e: ChangeEvent<HTMLInputElement>) => void
   onChangeUrl: (e: ChangeEvent<HTMLInputElement>) => void
   source: Source
   hash: string
@@ -32,10 +34,11 @@ const KapacitorForm: SFC<Props> = ({
   onChangeUrl,
   onReset,
   kapacitor,
-  kapacitor: {url, name, username, password},
+  kapacitor: {url, name, username, password, insecureSkipVerify},
   onSubmit,
   exists,
   onInputChange,
+  onCheckboxChange,
   source,
   hash,
   notify,
@@ -92,6 +95,22 @@ const KapacitorForm: SFC<Props> = ({
                       inputType="password"
                     />
                   </div>
+                  {url.startsWith('https') &&
+                    <div className="form-group col-xs-12">
+                      <div className="form-control-static">
+                        <input
+                          type="checkbox"
+                          id="insecureSkipVerifyCheckbox"
+                          name="insecureSkipVerify"
+                          checked={insecureSkipVerify}
+                          onChange={onCheckboxChange}
+                        />
+                        <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
+                      </div>
+                      <label className="form-helper">
+                        {insecureSkipVerifyText}
+                      </label>
+                    </div>}
                   <div className="form-group form-group-submit col-xs-12 text-center">
                     <button
                       className="btn btn-default"

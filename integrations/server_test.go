@@ -164,7 +164,8 @@ func TestServer(t *testing.T) {
   "id": "5000",
   "name": "Kapa 1",
   "url": "http://localhost:9092",
-  "active": true,
+	"active": true,
+	"insecureSkipVerify": false,
   "links": {
     "proxy": "/chronograf/v1/sources/5000/kapacitors/5000/proxy",
     "self": "/chronograf/v1/sources/5000/kapacitors/5000",
@@ -222,7 +223,8 @@ func TestServer(t *testing.T) {
       "id": "5000",
       "name": "Kapa 1",
       "url": "http://localhost:9092",
-      "active": true,
+			"active": true,
+			"insecureSkipVerify": false,
       "links": {
         "proxy": "/chronograf/v1/sources/5000/kapacitors/5000/proxy",
         "self": "/chronograf/v1/sources/5000/kapacitors/5000",

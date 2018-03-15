@@ -54,6 +54,7 @@ export const kapacitor = {
   username: 'influx',
   password: '',
   active: false,
+  insecureSkipVerify: false,
   links: {
     self: '/kapa/1',
     proxy: '/proxy/kapacitor/1',
