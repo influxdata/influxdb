@@ -135,7 +135,6 @@ class CellEditorOverlay extends Component {
         break
       }
       case 'table': {
-        debugger
         colors = stringifyColorValues(singleStatColors)
         break
       }
