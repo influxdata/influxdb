@@ -8,18 +8,14 @@ import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
-import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
+import ThresholdsList from 'src/shared/components/ThresholdsList'
 import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
 
 import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
-    singleStatType: '',
-    singleStatColors: [],
     queryConfigs: [],
-    handleUpdateSingleStatType: () => {},
-    handleUpdateSingleStatColors: () => {},
     handleUpdateTableOptions: () => {},
     tableOptions: {
       timeFormat: '',
@@ -48,7 +44,7 @@ describe('Dashboards.Components.TableOptions', () => {
       const graphOptionsCustomizeColumns = wrapper.find(
         GraphOptionsCustomizeColumns
       )
-      const graphOptionsThresholds = wrapper.find(GraphOptionsThresholds)
+      const thresholdsList = wrapper.find(ThresholdsList)
       const graphOptionsThresholdColoring = wrapper.find(
         GraphOptionsThresholdColoring
       )
@@ -59,7 +55,7 @@ describe('Dashboards.Components.TableOptions', () => {
       expect(graphOptionsSortBy.exists()).toBe(true)
       expect(graphOptionsTextWrapping.exists()).toBe(true)
       expect(graphOptionsCustomizeColumns.exists()).toBe(true)
-      expect(graphOptionsThresholds.exists()).toBe(true)
+      expect(thresholdsList.exists()).toBe(true)
       expect(graphOptionsThresholdColoring.exists()).toBe(true)
     })
   })
