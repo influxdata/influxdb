@@ -24,6 +24,7 @@ const setup = (override = {}) => {
       wrapping: '',
       columnNames: [],
     },
+    onResetFocus: () => {},
     ...override,
   }
 
