@@ -6,7 +6,7 @@ import {updateSingleStatType} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {SINGLE_STAT_TEXT, SINGLE_STAT_BG} from 'shared/constants/thresholds'
 
-class ThresholdColorToggle extends Component {
+class ThresholdsColorToggle extends Component {
   handleToggleSingleStatType = newType => () => {
     const {handleUpdateSingleStatType} = this.props
 
@@ -39,7 +39,7 @@ class ThresholdColorToggle extends Component {
 }
 const {func, string} = PropTypes
 
-ThresholdColorToggle.propTypes = {
+ThresholdsColorToggle.propTypes = {
   singleStatType: string.isRequired,
   handleUpdateSingleStatType: func.isRequired,
   containerClass: string.isRequired,
@@ -56,5 +56,5 @@ const mapDispatchToProps = dispatch => ({
   ),
 })
 export default connect(mapStateToProps, mapDispatchToProps)(
-  ThresholdColorToggle
+  ThresholdsColorToggle
 )

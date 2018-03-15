@@ -9,7 +9,7 @@ import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
-import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
+import ThresholdsColorToggle from 'src/dashboards/components/ThresholdsColorToggle'
 
 import {shallow} from 'enzyme'
 
@@ -45,9 +45,7 @@ describe('Dashboards.Components.TableOptions', () => {
         GraphOptionsCustomizeColumns
       )
       const thresholdsList = wrapper.find(ThresholdsList)
-      const graphOptionsThresholdColoring = wrapper.find(
-        GraphOptionsThresholdColoring
-      )
+      const thresholdsColorToggle = wrapper.find(ThresholdsColorToggle)
 
       expect(fancyScrollbar.exists()).toBe(true)
       expect(graphOptionsTimeFormat.exists()).toBe(true)
@@ -56,7 +54,7 @@ describe('Dashboards.Components.TableOptions', () => {
       expect(graphOptionsTextWrapping.exists()).toBe(true)
       expect(graphOptionsCustomizeColumns.exists()).toBe(true)
       expect(thresholdsList.exists()).toBe(true)
-      expect(graphOptionsThresholdColoring.exists()).toBe(true)
+      expect(thresholdsColorToggle.exists()).toBe(true)
     })
   })
 })

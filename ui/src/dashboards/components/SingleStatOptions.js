@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import ThresholdsList from 'shared/components/ThresholdsList'
-import ThresholdColorToggle from 'shared/components/ThresholdColorToggle'
+import ThresholdsColorToggle from 'shared/components/ThresholdsColorToggle'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 
@@ -56,7 +56,7 @@ class SingleStatOptions extends Component {
                 maxLength="5"
               />
             </div>
-            <ThresholdColorToggle containerClass="form-group col-xs-6" />
+            <ThresholdsColorToggle containerClass="form-group col-xs-6" />
           </div>
         </div>
       </FancyScrollbar>
