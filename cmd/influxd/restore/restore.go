@@ -402,6 +402,14 @@ func (cmd *Command) uploadShardsPortable() error {
 		if cmd.sourceDatabase == "" || cmd.sourceDatabase == file.Database {
 			if cmd.backupRetention == "" || cmd.backupRetention == file.Policy {
 				if cmd.shard == 0 || cmd.shard == file.ShardID {
+					oldID := file.ShardID
+					// if newID not found then this shard's metadata was NOT imported
+					// and should be skipped
+					newID, ok := cmd.shardIDMap[oldID]
+					if !ok {
+						cmd.StdoutLogger.Printf("Meta info not found for shard %d on database %s. Skipping shard file %s", oldID, file.Database, file.FileName)
+						continue
+					}
 					cmd.StdoutLogger.Printf("Restoring shard %d live from backup %s\n", file.ShardID, file.FileName)
 					f, err := os.Open(filepath.Join(cmd.backupFilesPath, file.FileName))
 					if err != nil {
@@ -419,7 +427,7 @@ func (cmd *Command) uploadShardsPortable() error {
 						targetDB = file.Database
 					}
 
-					if err := cmd.client.UploadShard(file.ShardID, cmd.shardIDMap[file.ShardID], targetDB, cmd.restoreRetention, tr); err != nil {
+					if err := cmd.client.UploadShard(oldID, newID, targetDB, cmd.restoreRetention, tr); err != nil {
 						f.Close()
 						return err
 					}
@@ -454,12 +462,20 @@ func (cmd *Command) uploadShardsLegacy() error {
 		if err != nil {
 			return err
 		}
+
+		// if newID not found then this shard's metadata was NOT imported
+		// and should be skipped
+		newID, ok := cmd.shardIDMap[shardID]
+		if !ok {
+			cmd.StdoutLogger.Printf("Meta info not found for shard %d. Skipping shard file %s", shardID, fn)
+			continue
+		}
 		f, err := os.Open(fn)
 		if err != nil {
 			return err
 		}
 		tr := tar.NewReader(f)
-		if err := cmd.client.UploadShard(shardID, cmd.shardIDMap[shardID], cmd.destinationDatabase, cmd.restoreRetention, tr); err != nil {
+		if err := cmd.client.UploadShard(shardID, newID, cmd.destinationDatabase, cmd.restoreRetention, tr); err != nil {
 			f.Close()
 			return err
 		}
