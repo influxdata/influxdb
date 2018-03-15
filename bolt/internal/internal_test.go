@@ -193,6 +193,10 @@ func Test_MarshalDashboard(t *testing.T) {
 						Value: "100",
 					},
 				},
+				TableOptions: chronograf.TableOptions{
+					TimeFormat:  "",
+					ColumnNames: []chronograf.TableColumn{},
+				},
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -255,6 +259,9 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 					Type:        "static",
 					Orientation: "bottom",
 				},
+				TableOptions: chronograf.TableOptions{
+					TimeFormat: "MM:DD:YYYY",
+				},
 				Type: "line",
 			},
 		},
@@ -308,6 +315,10 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 				Legend: chronograf.Legend{
 					Type:        "static",
 					Orientation: "bottom",
+				},
+				TableOptions: chronograf.TableOptions{
+					TimeFormat:  "MM:DD:YYYY",
+					ColumnNames: []chronograf.TableColumn{},
 				},
 				Type: "line",
 			},
@@ -369,6 +380,9 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 					},
 				},
 				Type: "line",
+				TableOptions: chronograf.TableOptions{
+					TimeFormat: "MM:DD:YYYY",
+				},
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -418,6 +432,10 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 						Value: "100",
 					},
 				},
+				TableOptions: chronograf.TableOptions{
+					TimeFormat:  "MM:DD:YYYY",
+					ColumnNames: []chronograf.TableColumn{},
+				},
 				Type: "line",
 			},
 		},
@@ -454,6 +472,9 @@ func Test_MarshalDashboard_WithEmptyCellType(t *testing.T) {
 				Queries:    []chronograf.DashboardQuery{},
 				Axes:       map[string]chronograf.Axis{},
 				CellColors: []chronograf.CellColor{},
+				TableOptions: chronograf.TableOptions{
+					ColumnNames: []chronograf.TableColumn{},
+				},
 			},
 		},
 		Templates: []chronograf.Template{},

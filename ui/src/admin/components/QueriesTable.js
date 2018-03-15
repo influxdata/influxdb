@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import QueryRow from 'src/admin/components/QueryRow'
 import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'

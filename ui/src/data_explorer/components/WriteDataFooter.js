@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 const submitButton = 'btn btn-sm btn-success write-data-form--submit'
 const spinner = 'btn-spinner'

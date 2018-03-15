@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import {emptyGraphCopy} from 'src/shared/copy/cell'
 
@@ -21,6 +22,7 @@ const RefreshingGraph = ({
   onZoom,
   cellID,
   queries,
+  tableOptions,
   templates,
   timeRange,
   cellHeight,
@@ -28,10 +30,11 @@ const RefreshingGraph = ({
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
-  synchronizer,
   resizeCoords,
   editQueryStatus,
   grabDataForDownload,
+  hoverTime,
+  onSetHoverTime,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
@@ -93,8 +96,9 @@ const RefreshingGraph = ({
         resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
         cellID={cellID}
-        // prefix={prefix}
-        // suffix={suffix}
+        tableOptions={tableOptions}
+        hoverTime={hoverTime}
+        onSetHoverTime={onSetHoverTime}
         inView={inView}
       />
     )
@@ -117,7 +121,8 @@ const RefreshingGraph = ({
       timeRange={timeRange}
       autoRefresh={autoRefresh}
       isBarGraph={type === 'bar'}
-      synchronizer={synchronizer}
+      hoverTime={hoverTime}
+      onSetHoverTime={onSetHoverTime}
       resizeCoords={resizeCoords}
       staticLegend={staticLegend}
       displayOptions={displayOptions}
@@ -137,7 +142,8 @@ RefreshingGraph.propTypes = {
   autoRefresh: number.isRequired,
   manualRefresh: number,
   templates: arrayOf(shape()),
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   type: string.isRequired,
   cellHeight: number,
   resizerTopHeight: number,
@@ -159,6 +165,7 @@ RefreshingGraph.propTypes = {
   ),
   cellID: string,
   inView: bool,
+  tableOptions: shape({}),
 }
 
 RefreshingGraph.defaultProps = {

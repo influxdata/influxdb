@@ -38,6 +38,10 @@ const findNearestCrossedThreshold = (colors, lastValue) => {
   return nearestCrossedThreshold
 }
 
+export const stringifyColorValues = colors => {
+  return colors.map(color => ({...color, value: `${color.value}`}))
+}
+
 export const generateSingleStatHexs = (
   colors,
   containsLineGraph,

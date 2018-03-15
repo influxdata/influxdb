@@ -10,6 +10,7 @@ import {
   updateGaugeColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
+import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
 
 import {
   validateGaugeColors,
@@ -35,6 +36,7 @@ const defaultCell = {
   colors: [],
   name: defaultCellName,
   type: defaultCellType,
+  tableOptions: DEFAULT_TABLE_OPTIONS,
 }
 
 const defaultSingleStatType = getSingleStatType(defaultCell.colors)
@@ -52,9 +54,10 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
       gaugeColors: defaultGaugeColors,
       singleStatColors: defaultSingleStatColors,
       singleStatType: defaultSingleStatType,
+      tableOptions: DEFAULT_TABLE_OPTIONS,
     }
 
-    expect(actual.cell).toBe(expected.cell)
+    expect(actual.cell).toEqual(expected.cell)
     expect(actual.gaugeColors).toBe(expected.gaugeColors)
     expect(actual.singleStatColors).toBe(expected.singleStatColors)
     expect(actual.singleStatType).toBe(expected.singleStatType)

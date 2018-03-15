@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
@@ -41,6 +42,7 @@ class DisplayOptions extends Component {
       staticLegend,
       onToggleStaticLegend,
       onResetFocus,
+      queryConfigs,
     } = this.props
     switch (type) {
       case 'gauge':
@@ -48,7 +50,7 @@ class DisplayOptions extends Component {
       case 'single-stat':
         return <SingleStatOptions onResetFocus={onResetFocus} />
       case 'table':
-        return <TableOptions />
+        return <TableOptions queryConfigs={queryConfigs} />
       default:
         return (
           <AxesOptions

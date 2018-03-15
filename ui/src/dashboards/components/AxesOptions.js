@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -7,12 +8,15 @@ import Input from 'src/dashboards/components/DisplayOptionsInput'
 import {Tabber, Tab} from 'src/dashboards/components/Tabber'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {DISPLAY_OPTIONS, TOOLTIP_CONTENT} from 'src/dashboards/constants'
+import {
+  AXES_SCALE_OPTIONS,
+  TOOLTIP_Y_VALUE_FORMAT,
+} from 'src/dashboards/constants/cellEditor'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 
-const {LINEAR, LOG, BASE_2, BASE_10} = DISPLAY_OPTIONS
+const {LINEAR, LOG, BASE_2, BASE_10} = AXES_SCALE_OPTIONS
 const getInputMin = scale => (scale === LOG ? '0' : null)
 
 class AxesOptions extends Component {
@@ -139,7 +143,7 @@ class AxesOptions extends Component {
             <Tabber
               labelText="Y-Value's Format"
               tipID="Y-Values's Format"
-              tipContent={TOOLTIP_CONTENT.FORMAT}
+              tipContent={TOOLTIP_Y_VALUE_FORMAT}
             >
               <Tab
                 text="K/M/B"

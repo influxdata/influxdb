@@ -1,10 +1,10 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import DatabaseTable from 'src/admin/components/DatabaseTable'
 
 const DatabaseManager = ({
   databases,
-  notify,
   isRFDisplayed,
   isAddDBDisabled,
   addDatabase,
@@ -45,7 +45,6 @@ const DatabaseManager = ({
           <DatabaseTable
             key={db.links.self}
             database={db}
-            notify={notify}
             isRFDisplayed={isRFDisplayed}
             onEditDatabase={onEditDatabase}
             onKeyDownDatabase={onKeyDownDatabase}
@@ -73,7 +72,6 @@ const {arrayOf, bool, func, shape} = PropTypes
 
 DatabaseManager.propTypes = {
   databases: arrayOf(shape()),
-  notify: func,
   addDatabase: func,
   isRFDisplayed: bool,
   isAddDBDisabled: bool,

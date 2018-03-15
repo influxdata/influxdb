@@ -16,7 +16,7 @@ const cells = {
   responseIndex: new Array(DEFAULT_SIZE),
 }
 
-export default function timeSeriesToDygraph(raw = [], isInDataExplorer) {
+const timeSeriesTransform = (raw = []) => {
   // collect results from each influx response
   const results = reduce(
     raw,
@@ -139,6 +139,15 @@ export default function timeSeriesToDygraph(raw = [], isInDataExplorer) {
   }
   const sortedTimeSeries = _.sortBy(timeSeries, 'time')
 
+  return {
+    sortedLabels,
+    sortedTimeSeries,
+  }
+}
+
+export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
+  const {sortedLabels, sortedTimeSeries} = timeSeriesTransform(raw)
+
   const dygraphSeries = reduce(
     sortedLabels,
     (acc, {label, responseIndex}) => {
@@ -147,7 +156,6 @@ export default function timeSeriesToDygraph(raw = [], isInDataExplorer) {
           axis: responseIndex === 0 ? 'y' : 'y2',
         }
       }
-
       return acc
     },
     {}
@@ -163,10 +171,16 @@ export default function timeSeriesToDygraph(raw = [], isInDataExplorer) {
   }
 }
 
-export const timeSeriesToTable = data => {
-  const {labels, timeSeries} = timeSeriesToDygraph(data, false)
-  const tableData = timeSeries.length
-    ? timeSeries.map(row => row.map(cell => (cell ? cell.toString() : 'null')))
-    : [[]]
-  return {labels, data: [labels, ...tableData]}
+export const timeSeriesToTableGraph = raw => {
+  const {sortedLabels, sortedTimeSeries} = timeSeriesTransform(raw)
+
+  const labels = ['time', ...map(sortedLabels, ({label}) => label)]
+
+  const tableData = map(sortedTimeSeries, ({time, values}) => [time, ...values])
+
+  return {
+    data: tableData.length ? [labels, ...tableData] : [[]],
+  }
 }
+
+export default timeSeriesToDygraph

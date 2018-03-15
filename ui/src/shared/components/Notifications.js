@@ -1,110 +1,39 @@
-import React, {Component, PropTypes} from 'react'
-import classnames from 'classnames'
-import {withRouter} from 'react-router'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
-import {getNotificationID} from 'src/shared/reducers/notifications'
+import Notification from 'shared/components/Notification'
 
-import {
-  publishNotification as publishNotificationAction,
-  dismissNotification as dismissNotificationAction,
-  dismissAllNotifications as dismissAllNotificationsAction,
-} from 'shared/actions/notifications'
+const Notifications = ({notifications, inPresentationMode}) =>
+  <div
+    className={`${inPresentationMode
+      ? 'notification-center__presentation-mode'
+      : 'notification-center'}`}
+  >
+    {notifications.map(n => <Notification key={n.id} notification={n} />)}
+  </div>
 
-class Notifications extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.location.pathname !== this.props.location.pathname) {
-      this.props.dismissAllNotifications()
-    }
-  }
-
-  renderNotification = (type, message) => {
-    const isDismissed = this.props.dismissedNotifications[
-      getNotificationID(message, type)
-    ]
-    if (!message || isDismissed) {
-      return null
-    }
-    const cls = classnames('alert', {
-      'alert-danger': type === 'error',
-      'alert-success': type === 'success',
-      'alert-warning': type === 'warning',
-    })
-    return (
-      <div className={cls} role="alert">
-        {message}
-        {this.renderDismiss(type)}
-      </div>
-    )
-  }
-
-  handleDismiss = type => () => this.props.dismissNotification(type)
-
-  renderDismiss = type => {
-    return (
-      <button
-        className="close"
-        data-dismiss="alert"
-        aria-label="Close"
-        onClick={this.handleDismiss(type)}
-      >
-        <span className="icon remove" />
-      </button>
-    )
-  }
-
-  render() {
-    const {success, error, warning} = this.props.notifications
-    if (!success && !error && !warning) {
-      return null
-    }
-
-    return (
-      <div className="flash-messages">
-        {this.renderNotification('success', success)}
-        {this.renderNotification('error', error)}
-        {this.renderNotification('warning', warning)}
-      </div>
-    )
-  }
-}
-
-const {func, shape, string} = PropTypes
+const {arrayOf, bool, number, shape, string} = PropTypes
 
 Notifications.propTypes = {
-  location: shape({
-    pathname: string.isRequired,
-  }).isRequired,
-  publishNotification: func.isRequired,
-  dismissNotification: func.isRequired,
-  dismissAllNotifications: func.isRequired,
-  notifications: shape({
-    success: string,
-    error: string,
-    warning: string,
-  }),
-  dismissedNotifications: shape({}),
+  notifications: arrayOf(
+    shape({
+      id: string.isRequired,
+      type: string.isRequired,
+      message: string.isRequired,
+      duration: number.isRequired,
+      icon: string,
+    })
+  ),
+  inPresentationMode: bool,
 }
 
-const mapStateToProps = ({notifications, dismissedNotifications}) => ({
+const mapStateToProps = ({
   notifications,
-  dismissedNotifications,
+  app: {ephemeral: {inPresentationMode}},
+}) => ({
+  notifications,
+  inPresentationMode,
 })
 
-const mapDispatchToProps = dispatch => ({
-  publishNotification: bindActionCreators(publishNotificationAction, dispatch),
-  dismissNotification: bindActionCreators(dismissNotificationAction, dispatch),
-  dismissAllNotifications: bindActionCreators(
-    dismissAllNotificationsAction,
-    dispatch
-  ),
-})
-
-export default connect(mapStateToProps, mapDispatchToProps)(
-  withRouter(Notifications)
-)
+export default connect(mapStateToProps, null)(Notifications)

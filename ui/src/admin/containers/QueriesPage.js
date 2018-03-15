@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -11,13 +12,15 @@ import QueriesTable from 'src/admin/components/QueriesTable'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showQueriesParser from 'shared/parsing/showQueries'
 import {TIMES} from 'src/admin/constants'
+import {NOTIFY_QUERIES_ERROR} from 'shared/copy/notifications'
+
 import {
   loadQueries as loadQueriesAction,
   setQueryToKill as setQueryToKillAction,
   killQueryAsync,
 } from 'src/admin/actions/influxdb'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 class QueriesPage extends Component {
   componentDidMount() {
@@ -41,7 +44,7 @@ class QueriesPage extends Component {
     showDatabases(source.links.proxy).then(resp => {
       const {databases, errors} = showDatabasesParser(resp.data)
       if (errors.length) {
-        errors.forEach(message => notify('error', message))
+        errors.forEach(message => notify(NOTIFY_QUERIES_ERROR(message)))
         return
       }
 
@@ -52,7 +55,9 @@ class QueriesPage extends Component {
         queryResponses.forEach(queryResponse => {
           const result = showQueriesParser(queryResponse.data)
           if (result.errors.length) {
-            result.errors.forEach(message => notify('error', message))
+            result.errors.forEach(message =>
+              notify(NOTIFY_QUERIES_ERROR(message))
+            )
           }
 
           allQueries.push(...result.queries)
@@ -91,7 +96,7 @@ QueriesPage.propTypes = {
   queryIDToKill: string,
   setQueryToKill: func,
   killQuery: func,
-  notify: func,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {queries, queryIDToKill}}) => ({
@@ -103,7 +108,7 @@ const mapDispatchToProps = dispatch => ({
   loadQueries: bindActionCreators(loadQueriesAction, dispatch),
   setQueryToKill: bindActionCreators(setQueryToKillAction, dispatch),
   killQuery: bindActionCreators(killQueryAsync, dispatch),
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(QueriesPage)

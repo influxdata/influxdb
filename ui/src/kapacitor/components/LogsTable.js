@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import LogsTableRow from 'src/kapacitor/components/LogsTableRow'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'

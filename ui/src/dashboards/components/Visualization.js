@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
 import RefreshingGraph from 'shared/components/RefreshingGraph'
@@ -20,6 +21,7 @@ const DashVisualization = (
     resizerTopHeight,
     staticLegend,
     singleStatColors,
+    tableOptions,
   },
   {source: {links: {proxy}}}
 ) => {
@@ -33,6 +35,7 @@ const DashVisualization = (
           colors={stringifyColorValues(colors)}
           axes={axes}
           type={type}
+          tableOptions={tableOptions}
           queries={buildQueries(proxy, queryConfigs, timeRange)}
           templates={templates}
           autoRefresh={autoRefresh}
@@ -62,6 +65,7 @@ DashVisualization.propTypes = {
       bounds: arrayOf(string),
     }),
   }),
+  tableOptions: shape({}),
   resizerTopHeight: number,
   singleStatColors: arrayOf(
     shape({
@@ -93,12 +97,17 @@ DashVisualization.contextTypes = {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {singleStatColors, gaugeColors, cell: {type, axes}},
+  cellEditorOverlay: {
+    singleStatColors,
+    gaugeColors,
+    cell: {type, axes, tableOptions},
+  },
 }) => ({
   gaugeColors,
   singleStatColors,
   type,
   axes,
+  tableOptions,
 })
 
 export default connect(mapStateToProps, null)(DashVisualization)

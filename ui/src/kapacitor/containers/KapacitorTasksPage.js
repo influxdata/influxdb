@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 export const KapacitorTasksPage = React.createClass({
   propTypes: {
@@ -11,7 +12,6 @@ export const KapacitorTasksPage = React.createClass({
         kapacitors: PropTypes.string.isRequired,
       }).isRequired,
     }).isRequired,
-    addFlashMessage: PropTypes.func,
   },
 
   getInitialState() {

@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
@@ -40,7 +41,7 @@ const Layout = (
   {
     host,
     cell,
-    cell: {h, axes, type, colors, legend},
+    cell: {h, axes, type, colors, legend, tableOptions},
     source,
     sources,
     onZoom,
@@ -52,12 +53,13 @@ const Layout = (
     autoRefresh,
     manualRefresh,
     onDeleteCell,
-    synchronizer,
     resizeCoords,
     onCancelEditCell,
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
+    hoverTime,
+    onSetHoverTime,
   },
   {source: defaultSource}
 ) =>
@@ -77,6 +79,7 @@ const Layout = (
           inView={cell.inView}
           axes={axes}
           type={type}
+          tableOptions={tableOptions}
           staticLegend={IS_STATIC_LEGEND(legend)}
           cellHeight={h}
           onZoom={onZoom}
@@ -84,7 +87,8 @@ const Layout = (
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
-          synchronizer={synchronizer}
+          hoverTime={hoverTime}
+          onSetHoverTime={onSetHoverTime}
           manualRefresh={manualRefresh}
           onStopAddAnnotation={onStopAddAnnotation}
           grabDataForDownload={grabDataForDownload}
@@ -148,7 +152,8 @@ const propTypes = {
   onEditCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,

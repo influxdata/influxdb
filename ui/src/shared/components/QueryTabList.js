@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import QueryMakerTab from 'src/data_explorer/components/QueryMakerTab'
 import buildInfluxQLQuery from 'utils/influxql'
 
