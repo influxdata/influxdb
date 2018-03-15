@@ -115,8 +115,11 @@ class ThresholdsList extends Component {
     const {thresholdsListColors, showListHeading} = this.props
     const disableAddThreshold = thresholdsListColors.length > MAX_THRESHOLDS
 
+    const thresholdsListClass = `thresholds-list${showListHeading &&
+      ' graph-options-group'}`
+
     return (
-      <div className="thresholds-list">
+      <div className={thresholdsListClass}>
         {showListHeading && <label className="form-label">Thresholds</label>}
         <button
           className="btn btn-sm btn-primary"
