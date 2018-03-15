@@ -752,12 +752,20 @@ func (itr *seriesPointIterator) readSeriesKeys(name []byte) error {
 
 	// Slurp all series keys.
 	itr.keys = itr.keys[:0]
-	for {
+	for i := 0; ; i++ {
 		elem, err := sitr.Next()
 		if err != nil {
 			return err
 		} else if elem.SeriesID == 0 {
 			break
+		}
+
+		// Periodically check for interrupt.
+		if i&0xFF == 0xFF {
+			select {
+			case <-itr.opt.InterruptCh:
+				return itr.Close()
+			}
 		}
 
 		key := itr.indexSet.SeriesFile.SeriesKey(elem.SeriesID)
