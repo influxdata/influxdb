@@ -9,6 +9,7 @@ import {
   NULL_ROW_INDEX,
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
+  TIME_COLUMN_DEFAULT,
 } from 'src/shared/constants/tableGraph'
 
 import {MultiGrid} from 'react-virtualized'
@@ -71,6 +72,9 @@ class TableGraph extends Component {
     const timeFormat = tableOptions
       ? tableOptions.timeFormat
       : TIME_FORMAT_DEFAULT
+    const columnNames = tableOptions
+      ? tableOptions.columnNames
+      : [TIME_COLUMN_DEFAULT]
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = rowIndex > 0 && columnIndex === 0
@@ -94,6 +98,13 @@ class TableGraph extends Component {
       'table-graph-cell__numerical': dataIsNumerical,
     })
 
+    const cellData = data[rowIndex][columnIndex]
+    const foundColumn = columnNames.find(
+      column => column.internalName === cellData
+    )
+    const columnName =
+      foundColumn && (foundColumn.displayName || foundColumn.internalName)
+
     return (
       <div
         key={key}
@@ -102,8 +113,8 @@ class TableGraph extends Component {
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
       >
         {isTimeData
-          ? `${moment(data[rowIndex][columnIndex]).format(timeFormat)}`
-          : `${data[rowIndex][columnIndex]}`}
+          ? `${moment(cellData).format(timeFormat)}`
+          : columnName || `${cellData}`}
       </div>
     )
   }
@@ -140,6 +151,9 @@ class TableGraph extends Component {
             enableFixedRowScroll={true}
             timeFormat={
               tableOptions ? tableOptions.timeFormat : TIME_FORMAT_DEFAULT
+            }
+            columnNames={
+              tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
             }
             scrollToRow={hoverTimeRow}
             cellRenderer={this.cellRenderer}

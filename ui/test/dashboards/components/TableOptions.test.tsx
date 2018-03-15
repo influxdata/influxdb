@@ -28,7 +28,6 @@ const setup = (override = {}) => {
       wrapping: '',
       columnNames: [],
     },
-    queries: [],
     ...override,
   }
 
