@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import Threshold from 'src/dashboards/components/Threshold'
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {GAUGE_COLORS, SINGLE_STAT_BASE} from 'shared/constants/thresholds'
+import {GAUGE_COLORS, THRESHOLD_TYPE_BASE} from 'shared/constants/thresholds'
 
 // TODO: Needs major refactoring to make thresholds a much more general component to be shared between single stat, gauge, and table.
 const GraphOptionsThresholds = ({
@@ -28,7 +28,7 @@ const GraphOptionsThresholds = ({
       </button>
       {sortedColors.map(
         color =>
-          color.id === SINGLE_STAT_BASE
+          color.id === THRESHOLD_TYPE_BASE
             ? <div className="gauge-controls--section" key={color.id}>
                 <div className="gauge-controls--label">Base Color</div>
                 <ColorDropdown

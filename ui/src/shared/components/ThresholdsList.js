@@ -15,7 +15,7 @@ import {
   DEFAULT_VALUE_MIN,
   DEFAULT_VALUE_MAX,
   MAX_THRESHOLDS,
-  SINGLE_STAT_BASE,
+  THRESHOLD_TYPE_BASE,
 } from 'shared/constants/thresholds'
 
 const formatColor = color => {
@@ -127,7 +127,7 @@ class ThresholdsList extends Component {
         </button>
         {singleStatColors.map(
           color =>
-            color.id === SINGLE_STAT_BASE
+            color.id === THRESHOLD_TYPE_BASE
               ? <div className="threshold-item" key={color.id}>
                   <div className="threshold-item--label">Base Color</div>
                   <ColorDropdown

@@ -1,7 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-import {SINGLE_STAT_BG, SINGLE_STAT_TEXT} from 'shared/constants/thresholds'
+import {THRESHOLD_TYPE_BG, THRESHOLD_TYPE_TEXT} from 'shared/constants/thresholds'
 
 // TODO: Needs major refactoring to make thresholds a much more general component to be shared between single stat, gauge, and table.
 const GraphOptionsThresholdColoring = ({
@@ -13,14 +13,14 @@ const GraphOptionsThresholdColoring = ({
       <label>Threshold Coloring</label>
       <ul className="nav nav-tablist nav-tablist-sm">
         <li
-          className={`${thresholdsListType === SINGLE_STAT_BG ? 'active' : ''}`}
-          onClick={onToggleThresholdsListType(SINGLE_STAT_BG)}
+          className={`${thresholdsListType === THRESHOLD_TYPE_BG ? 'active' : ''}`}
+          onClick={onToggleThresholdsListType(THRESHOLD_TYPE_BG)}
         >
           Background
         </li>
         <li
-          className={`${thresholdsListType === SINGLE_STAT_TEXT ? 'active' : ''}`}
-          onClick={onToggleThresholdsListType(SINGLE_STAT_TEXT)}
+          className={`${thresholdsListType === THRESHOLD_TYPE_TEXT ? 'active' : ''}`}
+          onClick={onToggleThresholdsListType(THRESHOLD_TYPE_TEXT)}
         >
           Text
         </li>

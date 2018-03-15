@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import {GAUGE_COLORS, SINGLE_STAT_BASE} from 'shared/constants/thresholds'
+import {GAUGE_COLORS, THRESHOLD_TYPE_BASE} from 'shared/constants/thresholds'
 
 const hexToRgb = hex => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -55,7 +55,7 @@ export const generateSingleStatHexs = (
   }
 
   // baseColor is expected in all cases
-  const baseColor = colors.find(color => (color.id = SINGLE_STAT_BASE)) || {
+  const baseColor = colors.find(color => (color.id = THRESHOLD_TYPE_BASE)) || {
     hex: defaultColoring.textColor,
   }
 

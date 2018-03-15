@@ -98,6 +98,7 @@ export class TableOptions extends PureComponent<Props, {}> {
               onChooseSortBy={this.handleChooseSortBy}
             />
             <GraphOptionsTextWrapping
+              thresholdsListType="background"
               onToggleTextWrapping={this.handleToggleTextWrapping}
             />
           </div>

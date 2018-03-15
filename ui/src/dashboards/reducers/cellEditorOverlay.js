@@ -1,5 +1,5 @@
 import {
-  SINGLE_STAT_TEXT,
+  THRESHOLD_TYPE_TEXT,
   DEFAULT_SINGLESTAT_COLORS,
   DEFAULT_GAUGE_COLORS,
   validateGaugeColors,
@@ -11,7 +11,7 @@ import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 
 export const initialState = {
   cell: null,
-  thresholdsListType: SINGLE_STAT_TEXT,
+  thresholdsListType: THRESHOLD_TYPE_TEXT,
   singleStatColors: DEFAULT_SINGLESTAT_COLORS,
   gaugeColors: DEFAULT_GAUGE_COLORS,
 }

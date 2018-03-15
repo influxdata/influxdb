@@ -4,7 +4,10 @@ import {bindActionCreators} from 'redux'
 
 import {updateThresholdsListType} from 'src/dashboards/actions/cellEditorOverlay'
 
-import {SINGLE_STAT_TEXT, SINGLE_STAT_BG} from 'shared/constants/thresholds'
+import {
+  THRESHOLD_TYPE_TEXT,
+  THRESHOLD_TYPE_BG,
+} from 'shared/constants/thresholds'
 
 class ThresholdsListTypeToggle extends Component {
   handleToggleThresholdsListType = newType => () => {
@@ -21,18 +24,18 @@ class ThresholdsListTypeToggle extends Component {
         <label>Threshold Coloring</label>
         <ul className="nav nav-tablist nav-tablist-sm">
           <li
-            className={`${thresholdsListType === SINGLE_STAT_BG
+            className={`${thresholdsListType === THRESHOLD_TYPE_BG
               ? 'active'
               : ''}`}
-            onClick={this.handleToggleThresholdsListType(SINGLE_STAT_BG)}
+            onClick={this.handleToggleThresholdsListType(THRESHOLD_TYPE_BG)}
           >
             Background
           </li>
           <li
-            className={`${thresholdsListType === SINGLE_STAT_TEXT
+            className={`${thresholdsListType === THRESHOLD_TYPE_TEXT
               ? 'active'
               : ''}`}
-            onClick={this.handleToggleThresholdsListType(SINGLE_STAT_TEXT)}
+            onClick={this.handleToggleThresholdsListType(THRESHOLD_TYPE_TEXT)}
           >
             Text
           </li>
