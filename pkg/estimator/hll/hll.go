@@ -18,10 +18,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/bits"
 	"sort"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/influxdb/pkg/bits"
 	"github.com/influxdata/influxdb/pkg/estimator"
 )
 
