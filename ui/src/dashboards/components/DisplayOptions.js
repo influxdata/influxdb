@@ -50,7 +50,12 @@ class DisplayOptions extends Component {
       case 'single-stat':
         return <SingleStatOptions onResetFocus={onResetFocus} />
       case 'table':
-        return <TableOptions queryConfigs={queryConfigs} />
+        return (
+          <TableOptions
+            onResetFocus={onResetFocus}
+            queryConfigs={queryConfigs}
+          />
+        )
       default:
         return (
           <AxesOptions

@@ -2,37 +2,16 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import _ from 'lodash'
-
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
-import GraphOptionsThresholds from 'src/dashboards/components/GraphOptionsThresholds'
+import ThresholdsList from 'src/shared/components/ThresholdsList'
 import GraphOptionsThresholdColoring from 'src/dashboards/components/GraphOptionsThresholdColoring'
 
-import {MAX_THRESHOLDS} from 'src/shared/constants/thresholds'
-
-import {
-  updateSingleStatType,
-  updateSingleStatColors,
-  updateTableOptions,
-} from 'src/dashboards/actions/cellEditorOverlay'
-
-const formatColor = color => {
-  const {hex, name} = color
-  return {hex, name}
-}
-
-type Color = {
-  type: string
-  hex: string
-  id: string
-  name: string
-  value: number
-}
+import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 
 type TableColumn = {
   internalName: string
@@ -58,24 +37,13 @@ type QueryConfig = {
 }
 
 interface Props {
-  singleStatType: string
-  singleStatColors: Color[]
   queryConfigs: QueryConfig[]
-  handleUpdateSingleStatType: () => void
-  handleUpdateSingleStatColors: () => void
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
+  onResetFocus: () => void
 }
 
 export class TableOptions extends PureComponent<Props, {}> {
-  handleToggleSingleStatType = () => {}
-
-  handleAddThreshold = () => {}
-
-  handleDeleteThreshold = () => () => {}
-
-  handleChooseColor = () => () => {}
-
   handleChooseSortBy = () => {}
 
   handleTimeFormatChange = timeFormat => {
@@ -89,20 +57,10 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   handleColumnRename = () => {}
 
-  handleUpdateColorValue = () => {}
-
-  handleValidateColorValue = () => {}
-
   render() {
-    const {
-      singleStatColors,
-      singleStatType,
-      tableOptions: {timeFormat},
-    } = this.props
+    const {tableOptions: {timeFormat}, onResetFocus} = this.props
 
-    const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
     const TimeAxis = 'vertical'
-    const sortedColors = _.sortBy(singleStatColors, color => color.value)
 
     const columns = [
       'cpu.mean_usage_system',
@@ -140,7 +98,6 @@ export class TableOptions extends PureComponent<Props, {}> {
               onChooseSortBy={this.handleChooseSortBy}
             />
             <GraphOptionsTextWrapping
-              singleStatType={singleStatType}
               onToggleTextWrapping={this.handleToggleTextWrapping}
             />
           </div>
@@ -148,21 +105,9 @@ export class TableOptions extends PureComponent<Props, {}> {
             columns={columns}
             onColumnRename={this.handleColumnRename}
           />
-          <GraphOptionsThresholds
-            onAddThreshold={this.handleAddThreshold}
-            disableAddThreshold={disableAddThreshold}
-            sortedColors={sortedColors}
-            formatColor={formatColor}
-            onChooseColor={this.handleChooseColor}
-            onValidateColorValue={this.handleValidateColorValue}
-            onUpdateColorValue={this.handleUpdateColorValue}
-            onDeleteThreshold={this.handleDeleteThreshold}
-          />
+          <ThresholdsList onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">
-            <GraphOptionsThresholdColoring
-              onToggleSingleStatType={this.handleToggleSingleStatType}
-              singleStatType={singleStatType}
-            />
+            <GraphOptionsThresholdColoring />
           </div>
         </div>
       </FancyScrollbar>
@@ -170,23 +115,11 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 }
 
-const mapStateToProps = ({
-  cellEditorOverlay: {singleStatType, singleStatColors, cell: {tableOptions}},
-}) => ({
-  singleStatType,
-  singleStatColors,
+const mapStateToProps = ({cellEditorOverlay: {cell: {tableOptions}}}) => ({
   tableOptions,
 })
 
 const mapDispatchToProps = dispatch => ({
-  handleUpdateSingleStatType: bindActionCreators(
-    updateSingleStatType,
-    dispatch
-  ),
-  handleUpdateSingleStatColors: bindActionCreators(
-    updateSingleStatColors,
-    dispatch
-  ),
   handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
 })
 
