@@ -112,11 +112,12 @@ class ThresholdsList extends Component {
   }
 
   render() {
-    const {singleStatColors} = this.props
+    const {singleStatColors, showListHeading} = this.props
     const disableAddThreshold = singleStatColors.length > MAX_THRESHOLDS
 
     return (
       <div className="thresholds-list">
+        {showListHeading && <label className="form-label">Thresholds</label>}
         <button
           className="btn btn-sm btn-primary"
           onClick={this.handleAddThreshold}
@@ -151,8 +152,11 @@ class ThresholdsList extends Component {
     )
   }
 }
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
+ThresholdsList.defaultProps = {
+  showListHeading: false,
+}
 ThresholdsList.propTypes = {
   singleStatType: string.isRequired,
   singleStatColors: arrayOf(
@@ -166,6 +170,7 @@ ThresholdsList.propTypes = {
   ),
   handleUpdateSingleStatColors: func.isRequired,
   onResetFocus: func.isRequired,
+  showListHeading: bool,
 }
 
 const mapStateToProps = ({
