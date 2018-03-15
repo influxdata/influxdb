@@ -53,7 +53,6 @@ export const generateThresholdsListHexs = (
 ) => {
   const defaultColoring = {bgColor: null, textColor: GAUGE_COLORS[11].hex}
   const lastValueNumber = Number(lastValue) || 0
-  console.log(lastValueNumber)
 
   if (!colors.length || !lastValue) {
     return defaultColoring
