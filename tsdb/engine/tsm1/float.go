@@ -13,9 +13,9 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"math/bits"
 
 	"github.com/dgryski/go-bitstream"
-	"github.com/influxdata/influxdb/pkg/bits"
 )
 
 // Note: an uncompressed format is not yet implemented.
