@@ -408,6 +408,15 @@ func (s *Shard) Index() (Index, error) {
 	return s.index, nil
 }
 
+func (s *Shard) seriesFile() (*SeriesFile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	return s.sfile, nil
+}
+
 // IsIdle return true if the shard is not receiving writes and is fully compacted.
 func (s *Shard) IsIdle() bool {
 	engine, err := s.engine()
@@ -802,7 +811,7 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 			return nil, err
 		}
 		indexSet := IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}
-		return NewSeriesPointIterator(indexSet, engine.MeasurementFieldSet(), opt)
+		return NewSeriesPointIterator(indexSet, opt)
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
 	}
@@ -1207,6 +1216,11 @@ func (a Shards) MapType(measurement, field string) influxql.DataType {
 }
 
 func (a Shards) CreateIterator(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+	switch measurement.SystemIterator {
+	case "_series":
+		return a.createSeriesIterator(ctx, opt)
+	}
+
 	itrs := make([]query.Iterator, 0, len(a))
 	for _, sh := range a {
 		itr, err := sh.CreateIterator(ctx, measurement, opt)
@@ -1235,6 +1249,28 @@ func (a Shards) CreateIterator(ctx context.Context, measurement *influxql.Measur
 		}
 	}
 	return query.Iterators(itrs).Merge(opt)
+}
+
+func (a Shards) createSeriesIterator(ctx context.Context, opt query.IteratorOptions) (_ query.Iterator, err error) {
+	var (
+		idxs  = make([]Index, 0, len(a))
+		sfile *SeriesFile
+	)
+	for _, sh := range a {
+		var idx Index
+		if idx, err = sh.Index(); err == nil {
+			idxs = append(idxs, idx)
+		}
+		if sfile == nil {
+			sfile, _ = sh.seriesFile()
+		}
+	}
+
+	if sfile == nil {
+		return nil, errors.New("createSeriesIterator: no series file")
+	}
+
+	return NewSeriesPointIterator(IndexSet{Indexes: idxs, SeriesFile: sfile}, opt)
 }
 
 func (a Shards) IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {

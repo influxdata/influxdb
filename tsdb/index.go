@@ -643,7 +643,6 @@ func (itr *seriesIDDifferenceIterator) Next() (_ SeriesIDElem, err error) {
 type seriesPointIterator struct {
 	once     sync.Once
 	indexSet IndexSet
-	fieldset *MeasurementFieldSet
 	mitr     MeasurementIterator
 	keys     [][]byte
 	opt      query.IteratorOptions
@@ -652,7 +651,7 @@ type seriesPointIterator struct {
 }
 
 // newSeriesPointIterator returns a new instance of seriesPointIterator.
-func NewSeriesPointIterator(indexSet IndexSet, fieldset *MeasurementFieldSet, opt query.IteratorOptions) (_ query.Iterator, err error) {
+func NewSeriesPointIterator(indexSet IndexSet, opt query.IteratorOptions) (_ query.Iterator, err error) {
 	// Only equality operators are allowed.
 	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
 		switch n := n.(type) {
@@ -676,7 +675,6 @@ func NewSeriesPointIterator(indexSet IndexSet, fieldset *MeasurementFieldSet, op
 
 	return &seriesPointIterator{
 		indexSet: indexSet,
-		fieldset: fieldset,
 		mitr:     mitr,
 		point: query.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
