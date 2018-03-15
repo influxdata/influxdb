@@ -6,6 +6,7 @@ v1.5.1 [unreleased]
 -	[#9542](https://github.com/influxdata/influxdb/pull/9542): Allow time variable to be case insensitive again.
 -	[#9564](https://github.com/influxdata/influxdb/pull/9564): Support setting the log level through the environment variable.
 -	[#9575](https://github.com/influxdata/influxdb/pull/9575): Ensure correct number of tags parsed.
+-	[#9566](https://github.com/influxdata/influxdb/pull/9566): Fix panic when checking fieldsets.
 
 v1.5.0 [2017-03-06]
 -------------------
