@@ -77,23 +77,22 @@ export class TableOptions extends PureComponent<Props, {}> {
     const timeColumn =
       (columnNames && columnNames.find(c => c.internalName === 'time')) ||
       TIME_COLUMN_DEFAULT
-    let columns = [timeColumn]
 
-    for (let i = 0; i < queryConfigs.length; i++) {
-      const q = queryConfigs[i]
-      const measurement = q.measurement
-      const fields = q.fields
-      for (let j = 0; j < fields.length; j++) {
-        const internalName = `${measurement}.${fields[j].alias}`
-        const existingColumn = columnNames.find(
-          c => c.internalName === internalName
-        )
-        columns = [
-          ...columns,
-          existingColumn || {internalName, displayName: ''},
-        ]
-      }
-    }
+    const columns = [
+      timeColumn,
+      ..._.flatten(
+        queryConfigs.map(qc => {
+          const {measurement, fields} = qc
+          return fields.map(f => {
+            const internalName = `${measurement}.${f.alias}`
+            const existing = columnNames.find(
+              c => c.internalName === internalName
+            )
+            return existing || {internalName, displayName: ''}
+          })
+        })
+      ),
+    ]
 
     handleUpdateTableOptions({...tableOptions, columnNames: columns})
   }
