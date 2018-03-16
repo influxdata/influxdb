@@ -1,6 +1,8 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
+import _ from 'lodash'
+
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 
 import {source, kapacitorRules} from 'test/resources'
@@ -12,14 +14,14 @@ const setup = () => {
     hasKapacitor: true,
     loading: false,
     onDelete: () => {},
-    onChangeRuleStatus: () => {}
+    onChangeRuleStatus: () => {},
   }
 
   const wrapper = shallow(<KapacitorRules {...props} />)
 
   return {
     wrapper,
-    props
+    props,
   }
 }
 
@@ -45,6 +47,30 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
 
       const tasksTable = wrapper.find('TasksTable')
       expect(tasksTable.length).toEqual(1)
+    })
+
+    it('renders each rule/task checkboxes with unique "id" attribute', () => {
+      const {wrapper} = setup()
+
+      const kapacitorRulesTableRowsIDs = wrapper
+        .find('KapacitorRulesTable')
+        .dive()
+        .find('tbody')
+        .children()
+        .map(child => child.dive().find({type: 'checkbox'}).props().id)
+
+      const tasksTableIDs = wrapper
+        .find('TasksTable')
+        .dive()
+        .find('tbody')
+        .children()
+        .map(child => child.dive().find({type: 'checkbox'}).props().id)
+
+      const allCheckboxesIDs = kapacitorRulesTableRowsIDs.concat(tasksTableIDs)
+
+      const containsAnyDuplicate = arr => _.uniq(arr).length !== arr.length
+
+      expect(containsAnyDuplicate(allCheckboxesIDs)).toEqual(false)
     })
   })
 })
