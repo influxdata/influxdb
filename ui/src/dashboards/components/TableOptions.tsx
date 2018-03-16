@@ -21,6 +21,7 @@ import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 type TableColumn = {
   internalName: string
   displayName: string
+  visible: boolean
 }
 
 type Options = {
@@ -74,7 +75,7 @@ export class TableOptions extends PureComponent<Props, {}> {
           const existing = this.columnNames.find(
             c => c.internalName === internalName
           )
-          return existing || {internalName, displayName: ''}
+          return existing || {internalName, displayName: '', visible: true}
         })
       })
     )
@@ -92,7 +93,11 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   handleChooseSortBy = option => {
     const {tableOptions, handleUpdateTableOptions} = this.props
-    const sortBy = {displayName: option.text, internalName: option.key}
+    const sortBy = {
+      displayName: option.text,
+      internalName: option.key,
+      visible: true,
+    }
 
     handleUpdateTableOptions({...tableOptions, sortBy})
   }
@@ -115,7 +120,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateTableOptions({...tableOptions, fixFirstColumn})
   }
 
-  handleColumnRename = column => {
+  handleColumnUpdate = column => {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {columnNames} = tableOptions
     const updatedColumns = columnNames.map(
@@ -173,7 +178,7 @@ export class TableOptions extends PureComponent<Props, {}> {
           </div>
           <GraphOptionsCustomizeColumns
             columns={columns}
-            onColumnRename={this.handleColumnRename}
+            onColumnUpdate={this.handleColumnUpdate}
           />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">

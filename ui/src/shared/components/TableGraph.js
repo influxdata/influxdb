@@ -24,24 +24,54 @@ class TableGraph extends Component {
     this.state = {
       data: [[]],
       unzippedData: [[]],
+      visibleData: [[]],
       hoveredColumnIndex: NULL_COLUMN_INDEX,
       hoveredRowIndex: NULL_ROW_INDEX,
       sortByColumnIndex: -1,
+      invisibleFieldIndices: [],
     }
   }
 
   componentWillReceiveProps(nextProps) {
     const {data, unzippedData} = timeSeriesToTableGraph(nextProps.data)
 
-    const {tableOptions: {sortBy: {internalName}}} = nextProps
+    const {
+      tableOptions: {sortBy: {internalName}, columnNames, verticalTimeAxis},
+    } = nextProps
     const sortByColumnIndex = _.indexOf(data[0], internalName)
 
-    const sortedData = _.sortBy(_.drop(data, 1), sortByColumnIndex)
+    const sortedData = [
+      data[0],
+      ..._.sortBy(_.drop(data, 1), sortByColumnIndex),
+    ]
+
+    if (verticalTimeAxis) {
+      const visibleColumns = {}
+      const filteredData = sortedData.map((row, i) => {
+        return row.filter((col, j) => {
+          if (i === 0) {
+            const foundColumn = columnNames.find(
+              column => column.internalName === col
+            )
+            visibleColumns[j] = foundColumn && foundColumn.visible
+          }
+          return visibleColumns[j]
+        })
+      })
+      const visibleData = filteredData[0].length ? filteredData : [[]]
+    }
+
     this.setState({
-      data: [data[0], ...sortedData],
+      data: sortedData,
+      visibleData,
       unzippedData,
       sortByColumnIndex,
     })
+  }
+
+  componentWillMount() {
+    this._data = [[]]
+    this._visibleData = [[]]
   }
 
   calcHoverTimeIndex = (data, hoverTime, verticalTimeAxis) => {
@@ -101,11 +131,17 @@ class TableGraph extends Component {
       FIX_FIRST_COLUMN_DEFAULT
     )
 
+    const timeField = columnNames.find(
+      column => column.internalName === TIME_COLUMN_DEFAULT.internalName
+    )
+
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
-    const isTimeData = tableOptions.verticalTimeAxis
-      ? rowIndex > 0 && columnIndex === 0
-      : isFixedRow
+    const isTimeData =
+      timeField.visible &&
+      (tableOptions.verticalTimeAxis
+        ? rowIndex > 0 && columnIndex === 0
+        : isFixedRow)
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const isLastRow = rowIndex === rowCount - 1
     const isLastColumn = columnIndex === columnCount - 1
@@ -168,7 +204,9 @@ class TableGraph extends Component {
 
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
 
-    const data = verticalTimeAxis ? this.state.data : this.state.unzippedData
+    const data = verticalTimeAxis
+      ? this.state.visibleData
+      : this.state.unzippedData
 
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
@@ -193,7 +231,7 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {!isEmpty(data) &&
+        {!isEmpty(visibleData) &&
           <MultiGrid
             columnCount={columnCount}
             columnWidth={COLUMN_WIDTH}

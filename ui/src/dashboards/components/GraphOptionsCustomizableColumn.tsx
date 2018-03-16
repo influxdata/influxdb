@@ -12,7 +12,7 @@ interface Props {
   internalName: string
   displayName: string
   visible: boolean
-  onColumnRename: (column: Column) => void
+  onColumnUpdate: (column: Column) => void
 }
 
 class GraphOptionsCustomizableColumn extends PureComponent<Props, {}> {
@@ -24,26 +24,26 @@ class GraphOptionsCustomizableColumn extends PureComponent<Props, {}> {
   }
 
   handleColumnRename(rename: string) {
-    const {onColumnRename, internalName, visible} = this.props
-    onColumnRename({internalName, displayName: rename, visible})
+    const {onColumnUpdate, internalName, visible} = this.props
+    onColumnUpdate({internalName, displayName: rename, visible})
   }
 
   handleToggleVisible() {
-    const {onColumnRename, internalName, displayName, visible} = this.props
-    onColumnRename({internalName, displayName, visible: !visible})
+    const {onColumnUpdate, internalName, displayName, visible} = this.props
+    onColumnUpdate({internalName, displayName, visible: !visible})
   }
 
   render() {
     const {internalName, displayName, visible} = this.props
-    console.log('VISIBLE:', visible)
 
     return (
       <div className="column-controls--section">
         <div
-          className="column-controls--label"
-          onClick={this.handleToggleVisible}
+          className={
+            visible ? 'column-controls--label' : 'column-controls--label-hidden'
+          }
         >
-          <span className="icon eye" />
+          <span className="icon eye" onClick={this.handleToggleVisible} />
           {internalName}
         </div>
         <InputClickToEdit
@@ -52,6 +52,7 @@ class GraphOptionsCustomizableColumn extends PureComponent<Props, {}> {
           onBlur={this.handleColumnRename}
           placeholder="Rename..."
           appearAsNormalInput={true}
+          disabled={!visible}
         />
       </div>
     )

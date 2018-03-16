@@ -11,12 +11,12 @@ type Column = {
 
 interface Props {
   columns: Column[]
-  onColumnRename: (column: Column) => void
+  onColumnUpdate: (column: Column) => void
 }
 
 const GraphOptionsCustomizeColumns: SFC<Props> = ({
   columns,
-  onColumnRename,
+  onColumnUpdate,
 }) => {
   return (
     <div className="graph-options-group">
@@ -28,7 +28,7 @@ const GraphOptionsCustomizeColumns: SFC<Props> = ({
             internalName={col.internalName}
             displayName={col.displayName}
             visible={col.visible}
-            onColumnRename={onColumnRename}
+            onColumnUpdate={onColumnUpdate}
           />
         )
       })}

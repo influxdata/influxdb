@@ -9,7 +9,8 @@ const setup = (override = {}) => {
   const props = {
     internalName: '',
     displayName: '',
-    onColumnRename: () => {},
+    visible: true,
+    onColumnUpdate: () => {},
     ...override,
   }
 
@@ -42,17 +43,17 @@ describe('Dashboards.Components.GraphOptionsCustomizableColumn', () => {
   })
 
   describe('instance methods', () => {
-    describe('#handleColumnRename', () => {
-      it('calls onColumnRename once', () => {
-        const onColumnRename = jest.fn()
+    describe('#handleColumnUpdate', () => {
+      it('calls onColumnUpdate once', () => {
+        const onColumnUpdate = jest.fn()
         const internalName = 'test'
-        const {instance} = setup({onColumnRename, internalName})
+        const {instance} = setup({onColumnUpdate, internalName})
         const rename = 'TEST'
 
         instance.handleColumnRename(rename)
 
-        expect(onColumnRename).toHaveBeenCalledTimes(1)
-        expect(onColumnRename).toHaveBeenCalledWith({
+        expect(onColumnUpdate).toHaveBeenCalledTimes(1)
+        expect(onColumnUpdate).toHaveBeenCalledWith({
           internalName,
           displayName: rename,
         })

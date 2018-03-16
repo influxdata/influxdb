@@ -9,7 +9,7 @@ import {shallow} from 'enzyme'
 const setup = (override = {}) => {
   const props = {
     columns: [],
-    onColumnRename: () => {},
+    onColumnUpdate: () => {},
     ...override,
   }
 
