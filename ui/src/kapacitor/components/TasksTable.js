@@ -53,13 +53,13 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
     <td style={{width: colEnabled}} className="text-center">
       <div className="dark-checkbox">
         <input
-          id={`kapacitor-enabled ${task.id}`}
+          id={`kapacitor-task-row-task-enabled ${task.id}`}
           className="form-control-static"
           type="checkbox"
           defaultChecked={task.status === 'enabled'}
           onClick={onChangeRuleStatus(task)}
         />
-        <label htmlFor={`kapacitor-enabled ${task.id}`} />
+        <label htmlFor={`kapacitor-task-row-task-enabled ${task.id}`} />
       </div>
     </td>
     <td style={{width: colActions}} className="text-right">
