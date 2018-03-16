@@ -44,6 +44,7 @@ interface Kapacitor {
   username: string
   password: string
   active: boolean
+  insecureSkipVerify: boolean
   links: {
     self: string
   }
@@ -67,17 +68,8 @@ export class KapacitorPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      kapacitor: {
-        url: this.parseKapacitorURL(),
-        name: defaultName,
-        username: '',
-        password: '',
-        active: false,
-        links: {
-          self: '',
-        },
-      },
-      exists: false,
+      kapacitor: this.defaultKapacitor,
+      exists: false
     }
 
     this.handleSubmit = this.handleSubmit.bind(this)
@@ -97,6 +89,17 @@ export class KapacitorPage extends PureComponent<Props, State> {
       console.error('Could not get kapacitor: ', error)
       notify(NOTIFY_KAPACITOR_CONNECTION_FAILED)
     }
+  }
+
+  handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const {checked} = e.target
+
+    this.setState({
+      kapacitor: {
+        ...this.state.kapacitor,
+        insecureSkipVerify: checked
+      }
+    })
   }
 
   handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -159,18 +162,21 @@ export class KapacitorPage extends PureComponent<Props, State> {
 
   handleResetToDefaults = e => {
     e.preventDefault()
-    const defaultState = {
+    this.setState({kapacitor: {...this.defaultKapacitor}})
+  }
+
+  private get defaultKapacitor() {
+    return {
       url: this.parseKapacitorURL(),
       name: defaultName,
       username: '',
       password: '',
       active: false,
+      insecureSkipVerify: false,
       links: {
         self: '',
       },
     }
-
-    this.setState({kapacitor: {...defaultState}})
   }
 
   private checkKapacitorConnection = async (kapacitor: Kapacitor) => {
@@ -207,6 +213,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
         onReset={this.handleResetToDefaults}
         onInputChange={this.handleInputChange}
         notify={notify}
+        onCheckboxChange={this.handleCheckboxChange}
       />
     )
   }

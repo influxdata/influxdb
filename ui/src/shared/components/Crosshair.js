@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'shared/constants'
 import {NULL_HOVER_TIME} from 'shared/constants/tableGraph'
 

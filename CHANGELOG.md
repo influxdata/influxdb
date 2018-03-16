@@ -2,9 +2,12 @@
 
 ### Features
 
+1.  [#2973](https://github.com/influxdata/chronograf/pull/2973): Add unsafe SSL to Kapacitor UI configuration
+
 ### UI Improvements
 
 ### Bug Fixes
+
 1.  [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
 1.  [#2953](https://github.com/influxdata/chronograf/pull/2953): Fix error reporting in DataExplorer
 1.  [#2947](https://github.com/influxdata/chronograf/pull/2947): Fix Okta oauth2 provider support
@@ -18,11 +21,11 @@
 1. [#2910](https://github.com/influxdata/chronograf/pull/2910): Redesign system notifications
 
 ### Bug Fixes
-1. [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
-1. [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
-1. [#2859](https://github.com/influxdata/chronograf/pull/2859): Enable Mappings save button when valid
-1.  [#2933](https://github.com/influxdata/chronograf/pull/2933): Include url in Kapacitor connection creation requests
 
+1.  [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
+1.  [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
+1.  [#2859](https://github.com/influxdata/chronograf/pull/2859): Enable Mappings save button when valid
+1.  [#2933](https://github.com/influxdata/chronograf/pull/2933): Include url in Kapacitor connection creation requests
 
 ## v1.4.2.1 [2018-02-28]
 

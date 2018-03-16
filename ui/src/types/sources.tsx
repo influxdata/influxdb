@@ -31,6 +31,7 @@ export interface Kapacitor {
   name: string
   username?: string
   password?: string
+  insecureSkipVerify: boolean
   active: boolean
   links: {
     self: string

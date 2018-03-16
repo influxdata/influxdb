@@ -6,6 +6,8 @@ export const NULL_HOVER_TIME = '0'
 export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.ss'
 export const TIME_FORMAT_CUSTOM = 'Custom'
 
+export const TIME_COLUMN_DEFAULT = {internalName: 'time', displayName: ''}
+
 export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_DEFAULT},
   {text: 'MM/DD/YYYY HH:mm'},
@@ -21,7 +23,7 @@ export const FORMAT_OPTIONS = [
 export const DEFAULT_TABLE_OPTIONS = {
   timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
   verticalTimeAxis: true,
-  sortBy: {internalName: 'time', displayName: ''},
+  sortBy: TIME_COLUMN_DEFAULT,
   wrapping: 'truncate',
-  columnNames: [{internalName: 'time', displayName: ''}],
+  columnNames: [TIME_COLUMN_DEFAULT],
 }
