@@ -126,14 +126,8 @@ class CellEditorOverlay extends Component {
         colors = stringifyColorValues(gaugeColors)
         break
       }
-      case 'single-stat': {
-        colors = stringifyColorValues(thresholdsListColors)
-        break
-      }
-      case 'line-plus-single-stat': {
-        colors = stringifyColorValues(thresholdsListColors)
-        break
-      }
+      case 'single-stat':
+      case 'line-plus-single-stat':
       case 'table': {
         colors = stringifyColorValues(thresholdsListColors)
         break
