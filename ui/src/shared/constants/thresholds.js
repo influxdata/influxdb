@@ -111,7 +111,7 @@ export const DEFAULT_GAUGE_COLORS = [
   },
 ]
 
-export const DEFAULT_SINGLESTAT_COLORS = [
+export const DEFAULT_THRESHOLDS_LIST_COLORS = [
   {
     type: THRESHOLD_TYPE_TEXT,
     hex: GAUGE_COLORS[11].hex,
@@ -133,7 +133,7 @@ export const DEFAULT_TABLE_COLORS = [
 
 export const validateThresholdsListColors = (colors, type) => {
   if (!colors || colors.length === 0) {
-    return DEFAULT_SINGLESTAT_COLORS
+    return DEFAULT_THRESHOLDS_LIST_COLORS
   }
 
   let containsBaseColor = false
@@ -150,7 +150,7 @@ export const validateThresholdsListColors = (colors, type) => {
 
   const formattedColorsWithBase = [
     ...formattedColors,
-    DEFAULT_SINGLESTAT_COLORS[0],
+    DEFAULT_THRESHOLDS_LIST_COLORS[0],
   ]
 
   return containsBaseColor ? formattedColors : formattedColorsWithBase
