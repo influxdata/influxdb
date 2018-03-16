@@ -72,5 +72,31 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
 
       expect(containsAnyDuplicate(allCheckboxesIDs)).toEqual(false)
     })
+
+    it('renders each rule/task table row label with unique "for" attribute', () => {
+      const {wrapper} = setup()
+
+      const kapacitorRulesTableRowsLabelFors = wrapper
+        .find('KapacitorRulesTable')
+        .dive()
+        .find('tbody')
+        .children()
+        .map(child => child.dive().find('label').props().htmlFor)
+
+      const tasksTableLabelFors = wrapper
+        .find('TasksTable')
+        .dive()
+        .find('tbody')
+        .children()
+        .map(child => child.dive().find('label').props().htmlFor)
+
+      const allCheckboxesLabelFors = kapacitorRulesTableRowsLabelFors.concat(
+        tasksTableLabelFors
+      )
+
+      const containsAnyDuplicate = arr => _.uniq(arr).length !== arr.length
+
+      expect(containsAnyDuplicate(allCheckboxesLabelFors)).toEqual(false)
+    })
   })
 })
