@@ -27,12 +27,3 @@ export const DEFAULT_TABLE_OPTIONS = {
   wrapping: 'truncate',
   columnNames: [TIME_COLUMN_DEFAULT],
 }
-
-export const initializeOptions = cellType => {
-  switch (cellType) {
-    case 'table':
-      return DEFAULT_TABLE_OPTIONS
-    default:
-      return {}
-  }
-}

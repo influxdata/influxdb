@@ -1,17 +1,18 @@
 import {
-  SINGLE_STAT_TEXT,
-  DEFAULT_SINGLESTAT_COLORS,
+  THRESHOLD_TYPE_TEXT,
+  DEFAULT_THRESHOLDS_LIST_COLORS,
   DEFAULT_GAUGE_COLORS,
   validateGaugeColors,
-  validateSingleStatColors,
-  getSingleStatType,
-  initializeOptions,
-} from 'src/dashboards/constants/gaugeColors'
+  validateThresholdsListColors,
+  getThresholdsListType,
+} from 'shared/constants/thresholds'
+
+import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 
 export const initialState = {
   cell: null,
-  singleStatType: SINGLE_STAT_TEXT,
-  singleStatColors: DEFAULT_SINGLESTAT_COLORS,
+  thresholdsListType: THRESHOLD_TYPE_TEXT,
+  thresholdsListColors: DEFAULT_THRESHOLDS_LIST_COLORS,
   gaugeColors: DEFAULT_GAUGE_COLORS,
 }
 
@@ -20,8 +21,11 @@ export default function cellEditorOverlay(state = initialState, action) {
     case 'SHOW_CELL_EDITOR_OVERLAY': {
       const {cell, cell: {colors}} = action.payload
 
-      const singleStatType = getSingleStatType(colors)
-      const singleStatColors = validateSingleStatColors(colors, singleStatType)
+      const thresholdsListType = getThresholdsListType(colors)
+      const thresholdsListColors = validateThresholdsListColors(
+        colors,
+        thresholdsListType
+      )
       const gaugeColors = validateGaugeColors(colors)
 
       const tableOptions = cell.tableOptions || initializeOptions('table')
@@ -29,8 +33,8 @@ export default function cellEditorOverlay(state = initialState, action) {
       return {
         ...state,
         cell: {...cell, tableOptions},
-        singleStatType,
-        singleStatColors,
+        thresholdsListType,
+        thresholdsListColors,
         gaugeColors,
       }
     }
@@ -55,21 +59,21 @@ export default function cellEditorOverlay(state = initialState, action) {
       return {...state, cell}
     }
 
-    case 'UPDATE_SINGLE_STAT_COLORS': {
-      const {singleStatColors} = action.payload
+    case 'UPDATE_THRESHOLDS_LIST_COLORS': {
+      const {thresholdsListColors} = action.payload
 
-      return {...state, singleStatColors}
+      return {...state, thresholdsListColors}
     }
 
-    case 'UPDATE_SINGLE_STAT_TYPE': {
-      const {singleStatType} = action.payload
+    case 'UPDATE_THRESHOLDS_LIST_TYPE': {
+      const {thresholdsListType} = action.payload
 
-      const singleStatColors = state.singleStatColors.map(color => ({
+      const thresholdsListColors = state.thresholdsListColors.map(color => ({
         ...color,
-        type: singleStatType,
+        type: thresholdsListType,
       }))
 
-      return {...state, singleStatType, singleStatColors}
+      return {...state, thresholdsListType, thresholdsListColors}
     }
 
     case 'UPDATE_GAUGE_COLORS': {
