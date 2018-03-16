@@ -1,15 +1,44 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
-import * as configActionCreators from 'shared/actions/config'
-import {notify as notifyAction} from 'shared/actions/notifications'
+import * as configActionCreators from 'src/shared/actions/config'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
+import {AuthLinks, User, Organization} from 'src/types'
 
-class AllUsersPage extends Component {
+interface Props {
+  notify: () => void
+  links: AuthLinks
+  meID: string
+  users: User[]
+  organizations: Organization[]
+  actionsAdmin: {
+    loadUsersAsync: (link: string) => void
+    loadOrganizationsAsync: (link: string) => void
+    createUserAsync: (link: string, user: User) => void
+    updateUserAsync: (user: User, updatedUser: User, message: string) => void
+    deleteUserAsync: (
+      user: User,
+      deleteObj: {isAbsoluteDelete: boolean}
+    ) => void
+  }
+  actionsConfig: {
+    getAuthConfigAsync: (link: string) => void
+    updateAuthConfigAsync: () => void
+  }
+  authConfig: {
+    superAdminNewUsers: boolean
+  }
+}
+
+interface State {
+  isLoading: boolean
+}
+
+export class AllUsersPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -21,6 +50,22 @@ class AllUsersPage extends Component {
   componentDidMount() {
     const {links, actionsConfig: {getAuthConfigAsync}} = this.props
     getAuthConfigAsync(links.config.auth)
+  }
+
+  async componentWillMount() {
+    const {
+      links,
+      actionsAdmin: {loadOrganizationsAsync, loadUsersAsync},
+    } = this.props
+
+    this.setState({isLoading: true})
+
+    await Promise.all([
+      loadOrganizationsAsync(links.organizations),
+      loadUsersAsync(links.allUsers),
+    ])
+
+    this.setState({isLoading: false})
   }
 
   handleCreateUser = user => {
@@ -49,79 +94,34 @@ class AllUsersPage extends Component {
     deleteUserAsync(user, {isAbsoluteDelete: true})
   }
 
-  async componentWillMount() {
-    const {
-      links,
-      actionsAdmin: {loadOrganizationsAsync, loadUsersAsync},
-    } = this.props
-
-    this.setState({isLoading: true})
-
-    await Promise.all([
-      loadOrganizationsAsync(links.organizations),
-      loadUsersAsync(links.allUsers),
-    ])
-
-    this.setState({isLoading: false})
-  }
-
   render() {
     const {
-      organizations,
       meID,
       users,
-      authConfig,
-      actionsConfig,
       links,
       notify,
+      authConfig,
+      actionsConfig,
+      organizations,
     } = this.props
 
     return (
       <AllUsersTable
         meID={meID}
         users={users}
+        links={links}
+        notify={notify}
+        authConfig={authConfig}
+        actionsConfig={actionsConfig}
         organizations={organizations}
+        isLoading={this.state.isLoading}
+        onDeleteUser={this.handleDeleteUser}
         onCreateUser={this.handleCreateUser}
         onUpdateUserRoles={this.handleUpdateUserRoles}
         onUpdateUserSuperAdmin={this.handleUpdateUserSuperAdmin}
-        onDeleteUser={this.handleDeleteUser}
-        links={links}
-        authConfig={authConfig}
-        actionsConfig={actionsConfig}
-        notify={notify}
-        isLoading={this.state.isLoading}
       />
     )
   }
-}
-
-const {arrayOf, bool, func, shape, string} = PropTypes
-
-AllUsersPage.propTypes = {
-  links: shape({
-    users: string.isRequired,
-    config: shape({
-      auth: string.isRequired,
-    }).isRequired,
-  }),
-  meID: string.isRequired,
-  users: arrayOf(shape),
-  organizations: arrayOf(shape),
-  actionsAdmin: shape({
-    loadUsersAsync: func.isRequired,
-    loadOrganizationsAsync: func.isRequired,
-    createUserAsync: func.isRequired,
-    updateUserAsync: func.isRequired,
-    deleteUserAsync: func.isRequired,
-  }),
-  actionsConfig: shape({
-    getAuthConfigAsync: func.isRequired,
-    updateAuthConfigAsync: func.isRequired,
-  }),
-  authConfig: shape({
-    superAdminNewUsers: bool,
-  }),
-  notify: func.isRequired,
 }
 
 const mapStateToProps = ({
