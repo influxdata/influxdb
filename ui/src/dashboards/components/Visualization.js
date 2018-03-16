@@ -6,7 +6,7 @@ import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
 
-import {stringifyColorValues} from 'shared/constants/colorOperations'
+import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 
 const DashVisualization = (
   {
