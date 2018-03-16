@@ -109,6 +109,7 @@ message Server {
 	int64 SrcID             = 6; // SrcID is the ID of the data source
 	bool Active             = 7; // is this the currently active server for the source
 	string Organization     = 8; // Organization is the organization ID that resource belongs to
+	bool InsecureSkipVerify = 9; // InsecureSkipVerify accepts any certificate from the client
 }
 
 message Layout {

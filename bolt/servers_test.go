@@ -20,22 +20,24 @@ func TestServerStore(t *testing.T) {
 
 	srcs := []chronograf.Server{
 		chronograf.Server{
-			Name:         "Of Truth",
-			SrcID:        10,
-			Username:     "marty",
-			Password:     "I❤️  jennifer parker",
-			URL:          "toyota-hilux.lyon-estates.local",
-			Active:       false,
-			Organization: "133",
+			Name:               "Of Truth",
+			SrcID:              10,
+			Username:           "marty",
+			Password:           "I❤️  jennifer parker",
+			URL:                "toyota-hilux.lyon-estates.local",
+			Active:             false,
+			Organization:       "133",
+			InsecureSkipVerify: true,
 		},
 		chronograf.Server{
-			Name:         "HipToBeSquare",
-			SrcID:        12,
-			Username:     "calvinklein",
-			Password:     "chuck b3rry",
-			URL:          "toyota-hilux.lyon-estates.local",
-			Active:       false,
-			Organization: "133",
+			Name:               "HipToBeSquare",
+			SrcID:              12,
+			Username:           "calvinklein",
+			Password:           "chuck b3rry",
+			URL:                "toyota-hilux.lyon-estates.local",
+			Active:             false,
+			Organization:       "133",
+			InsecureSkipVerify: false,
 		},
 	}
 

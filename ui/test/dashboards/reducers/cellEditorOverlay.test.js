@@ -5,8 +5,8 @@ import {
   hideCellEditorOverlay,
   changeCellType,
   renameCell,
-  updateSingleStatColors,
-  updateSingleStatType,
+  updateThresholdsListColors,
+  updateThresholdsListType,
   updateGaugeColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
@@ -14,9 +14,9 @@ import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
 
 import {
   validateGaugeColors,
-  validateSingleStatColors,
-  getSingleStatType,
-} from 'src/dashboards/constants/gaugeColors'
+  validateThresholdsListColors,
+  getThresholdsListType,
+} from 'shared/constants/thresholds'
 
 const defaultCellType = 'line'
 const defaultCellName = 'defaultCell'
@@ -39,10 +39,10 @@ const defaultCell = {
   tableOptions: DEFAULT_TABLE_OPTIONS,
 }
 
-const defaultSingleStatType = getSingleStatType(defaultCell.colors)
-const defaultSingleStatColors = validateSingleStatColors(
+const defaultThresholdsListType = getThresholdsListType(defaultCell.colors)
+const defaultThresholdsListColors = validateThresholdsListColors(
   defaultCell.colors,
-  defaultSingleStatType
+  defaultThresholdsListType
 )
 const defaultGaugeColors = validateGaugeColors(defaultCell.colors)
 
@@ -52,15 +52,15 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
     const expected = {
       cell: defaultCell,
       gaugeColors: defaultGaugeColors,
-      singleStatColors: defaultSingleStatColors,
-      singleStatType: defaultSingleStatType,
+      thresholdsListColors: defaultThresholdsListColors,
+      thresholdsListType: defaultThresholdsListType,
       tableOptions: DEFAULT_TABLE_OPTIONS,
     }
 
     expect(actual.cell).toEqual(expected.cell)
     expect(actual.gaugeColors).toBe(expected.gaugeColors)
-    expect(actual.singleStatColors).toBe(expected.singleStatColors)
-    expect(actual.singleStatType).toBe(expected.singleStatType)
+    expect(actual.thresholdsListColors).toBe(expected.thresholdsListColors)
+    expect(actual.thresholdsListType).toBe(expected.thresholdsListType)
   })
 
   it('should hide cell editor overlay', () => {
@@ -87,21 +87,21 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
   it('should update the cell single stat colors', () => {
     const actual = reducer(
       initialState,
-      updateSingleStatColors(defaultSingleStatColors)
+      updateThresholdsListColors(defaultThresholdsListColors)
     )
-    const expected = defaultSingleStatColors
+    const expected = defaultThresholdsListColors
 
-    expect(actual.singleStatColors).toBe(expected)
+    expect(actual.thresholdsListColors).toBe(expected)
   })
 
   it('should toggle the single stat type', () => {
     const actual = reducer(
       initialState,
-      updateSingleStatType(defaultSingleStatType)
+      updateThresholdsListType(defaultThresholdsListType)
     )
-    const expected = defaultSingleStatType
+    const expected = defaultThresholdsListType
 
-    expect(actual.singleStatType).toBe(expected)
+    expect(actual.thresholdsListType).toBe(expected)
   })
 
   it('should update the cell gauge colors', () => {

@@ -2,30 +2,39 @@ import React from 'react'
 import PropTypes from 'prop-types'
 
 import {
-  SINGLE_STAT_BG,
-  SINGLE_STAT_TEXT,
-} from 'src/dashboards/constants/gaugeColors'
+  THRESHOLD_TYPE_BG,
+  THRESHOLD_TYPE_TEXT,
+} from 'shared/constants/thresholds'
 
 // TODO: Needs major refactoring to make thresholds a much more general component to be shared between single stat, gauge, and table.
-const GraphOptionsTextWrapping = ({singleStatType, onToggleTextWrapping}) => {
+const GraphOptionsTextWrapping = ({
+  thresholdsListType,
+  onToggleTextWrapping,
+}) => {
   return (
     <div className="form-group col-xs-12">
       <label>Text Wrapping</label>
       <ul className="nav nav-tablist nav-tablist-sm">
         <li
-          className={`${singleStatType === SINGLE_STAT_BG ? 'active' : ''}`}
+          className={`${thresholdsListType === THRESHOLD_TYPE_BG
+            ? 'active'
+            : ''}`}
           onClick={onToggleTextWrapping}
         >
           Truncate
         </li>
         <li
-          className={`${singleStatType === SINGLE_STAT_TEXT ? 'active' : ''}`}
+          className={`${thresholdsListType === THRESHOLD_TYPE_TEXT
+            ? 'active'
+            : ''}`}
           onClick={onToggleTextWrapping}
         >
           Wrap
         </li>
         <li
-          className={`${singleStatType === SINGLE_STAT_BG ? 'active' : ''}`}
+          className={`${thresholdsListType === THRESHOLD_TYPE_BG
+            ? 'active'
+            : ''}`}
           onClick={onToggleTextWrapping}
         >
           Single Line
@@ -37,7 +46,7 @@ const GraphOptionsTextWrapping = ({singleStatType, onToggleTextWrapping}) => {
 const {func, string} = PropTypes
 
 GraphOptionsTextWrapping.propTypes = {
-  singleStatType: string,
+  thresholdsListType: string,
   onToggleTextWrapping: func,
 }
 

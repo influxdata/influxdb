@@ -280,4 +280,8 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
   width: calc(100% + 12px);
   margin-left: -6px;
   margin-right: -6px;
+
+  .form-group:last-of-type {
+    margin-bottom: 0;
+  }
 }

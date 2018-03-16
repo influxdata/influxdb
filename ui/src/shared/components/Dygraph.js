@@ -13,7 +13,7 @@ import Annotations from 'src/shared/components/Annotations'
 import Crosshair from 'src/shared/components/Crosshair'
 
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
-import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
+import {AXES_SCALE_OPTIONS} from 'src/dashboards/constants/cellEditor'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
@@ -26,7 +26,7 @@ import {
   hasherino,
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
-const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
+const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 class Dygraph extends Component {
   constructor(props) {
