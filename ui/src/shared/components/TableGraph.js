@@ -45,9 +45,10 @@ class TableGraph extends Component {
       ..._.sortBy(_.drop(data, 1), sortByColumnIndex),
     ]
 
+    let filteredData = [[]]
     if (verticalTimeAxis) {
       const visibleColumns = {}
-      const filteredData = sortedData.map((row, i) => {
+      filteredData = sortedData.map((row, i) => {
         return row.filter((col, j) => {
           if (i === 0) {
             const foundColumn = columnNames.find(
@@ -58,8 +59,16 @@ class TableGraph extends Component {
           return visibleColumns[j]
         })
       })
-      const visibleData = filteredData[0].length ? filteredData : [[]]
+    } else {
+      filteredData = data.filter(row => {
+        const foundField = columnNames.find(
+          column => column.internalName === row[0]
+        )
+        return foundField && foundField.visible
+      })
     }
+
+    const visibleData = filteredData[0].length ? filteredData : [[]]
 
     this.setState({
       data: sortedData,
