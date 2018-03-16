@@ -1,10 +1,4 @@
-export const DEFAULT_TABLE_OPTIONS = {
-  timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
-  verticalTimeAxis: true,
-  sortBy: {internalName: 'time', displayName: ''},
-  wrapping: 'single-line',
-  columnNames: [{internalName: 'time', displayName: ''}],
-}
+import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
 
 export const initializeOptions = cellType => {
   switch (cellType) {
