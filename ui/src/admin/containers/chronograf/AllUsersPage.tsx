@@ -7,7 +7,7 @@ import * as configActionCreators from 'src/shared/actions/config'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
-import {AuthLinks, User, Organization} from 'src/types'
+import {AuthLinks, User, Role, Organization} from 'src/types'
 
 interface Props {
   notify: () => void
@@ -68,18 +68,22 @@ export class AllUsersPage extends PureComponent<Props, State> {
     this.setState({isLoading: false})
   }
 
-  handleCreateUser = user => {
+  handleCreateUser = (user: User) => {
     const {links, actionsAdmin: {createUserAsync}} = this.props
     createUserAsync(links.allUsers, user)
   }
 
-  handleUpdateUserRoles = (user, roles, successMessage) => {
+  handleUpdateUserRoles = (
+    user: User,
+    roles: Role[],
+    successMessage: string
+  ) => {
     const {actionsAdmin: {updateUserAsync}} = this.props
     const updatedUser = {...user, roles}
     updateUserAsync(user, updatedUser, successMessage)
   }
 
-  handleUpdateUserSuperAdmin = (user, superAdmin) => {
+  handleUpdateUserSuperAdmin = (user: User, superAdmin: boolean) => {
     const {actionsAdmin: {updateUserAsync}} = this.props
     const updatedUser = {...user, superAdmin}
     updateUserAsync(
@@ -89,7 +93,7 @@ export class AllUsersPage extends PureComponent<Props, State> {
     )
   }
 
-  handleDeleteUser = user => {
+  handleDeleteUser = (user: User) => {
     const {actionsAdmin: {deleteUserAsync}} = this.props
     deleteUserAsync(user, {isAbsoluteDelete: true})
   }
