@@ -1,4 +1,4 @@
-v1.5.1 [unreleased]
+v1.5.1 [2018-03-16]
 -------------------
 
 ### Bugfixes
@@ -9,7 +9,7 @@ v1.5.1 [unreleased]
 -	[#9566](https://github.com/influxdata/influxdb/pull/9566): Fix panic when checking fieldsets.
 -	[#9587](https://github.com/influxdata/influxdb/pull/9587): Fix data race in WAL.
 
-v1.5.0 [2017-03-06]
+v1.5.0 [2018-03-06]
 -------------------
 
 ### Breaking changes
