@@ -268,6 +268,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 		sortBy := &TableColumn{
 			InternalName: c.TableOptions.SortBy.InternalName,
 			DisplayName:  c.TableOptions.SortBy.DisplayName,
+			Visible:      c.TableOptions.SortBy.Visible,
 		}
 
 		columnNames := make([]*TableColumn, len(c.TableOptions.ColumnNames))
@@ -275,6 +276,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			columnNames[i] = &TableColumn{
 				InternalName: column.InternalName,
 				DisplayName:  column.DisplayName,
+				Visible:      column.Visible,
 			}
 		}
 
@@ -435,6 +437,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			if c.TableOptions.SortBy != nil {
 				sortBy.InternalName = c.TableOptions.SortBy.InternalName
 				sortBy.DisplayName = c.TableOptions.SortBy.DisplayName
+				sortBy.Visible = c.TableOptions.SortBy.Visible
 			}
 			tableOptions.SortBy = sortBy
 
@@ -443,6 +446,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				columnNames[i] = chronograf.TableColumn{}
 				columnNames[i].InternalName = column.InternalName
 				columnNames[i].DisplayName = column.DisplayName
+				columnNames[i].Visible = column.Visible
 			}
 			tableOptions.ColumnNames = columnNames
 			tableOptions.TimeFormat = c.TableOptions.TimeFormat

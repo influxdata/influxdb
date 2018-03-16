@@ -52,6 +52,7 @@ message TableOptions {
 message TableColumn {
 	string internalName     = 1; // name of column
 	string displayName      = 2; // what column is renamed to
+	bool visible			= 3; // Represents whether TableColumn is visible
 }
 
 message Color {

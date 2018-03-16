@@ -564,6 +564,7 @@ type DashboardCell struct {
 type TableColumn struct {
 	InternalName string `json:"internalName"`
 	DisplayName  string `json:"displayName"`
+	Visible      bool   `json:"visible"`
 }
 
 // TableOptions is a type of options for a DashboardCell with type Table
