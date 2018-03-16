@@ -4,7 +4,7 @@ import PropTypes from 'prop-types'
 import _ from 'lodash'
 import uuid from 'uuid'
 
-import ResizeContainer from 'shared/components/ResizeContainer'
+import ResizeContainer from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/dashboards/components/QueryMaker'
 import Visualization from 'src/dashboards/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
@@ -21,10 +21,10 @@ import {
   removeUnselectedTemplateValues,
   TYPE_QUERY_CONFIG,
 } from 'src/dashboards/constants'
-import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
+import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
-import {AUTO_GROUP_BY} from 'shared/constants'
-import {stringifyColorValues} from 'shared/constants/colorOperations'
+import {AUTO_GROUP_BY} from 'src/shared/constants'
+import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
