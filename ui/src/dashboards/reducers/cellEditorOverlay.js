@@ -11,6 +11,8 @@ import {
 
 import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 
+import {initializeOptions} from 'src/shared/constants/tableGraph'
+
 export const initialState = {
   cell: null,
   thresholdsListType: THRESHOLD_TYPE_TEXT,

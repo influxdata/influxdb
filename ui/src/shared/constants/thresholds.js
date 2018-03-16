@@ -13,8 +13,6 @@ export const THRESHOLD_TYPE_TEXT = 'text'
 export const THRESHOLD_TYPE_BG = 'background'
 export const THRESHOLD_TYPE_BASE = 'base'
 
-export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.ss'
-
 export const THRESHOLD_COLORS = [
   {
     hex: '#BF3D5E',
@@ -118,16 +116,6 @@ export const DEFAULT_THRESHOLDS_LIST_COLORS = [
     id: THRESHOLD_TYPE_BASE,
     name: THRESHOLD_COLORS[11].name,
     value: -999999999999999999,
-  },
-]
-
-export const DEFAULT_TABLE_COLORS = [
-  {
-    type: THRESHOLD_TYPE_BG,
-    hex: THRESHOLD_COLORS[18].hex,
-    id: THRESHOLD_TYPE_BASE,
-    name: THRESHOLD_COLORS[18].name,
-    value: 0,
   },
 ]
 

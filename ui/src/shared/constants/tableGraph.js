@@ -6,7 +6,11 @@ export const NULL_HOVER_TIME = '0'
 export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.ss'
 export const TIME_FORMAT_CUSTOM = 'Custom'
 
-export const TIME_COLUMN_DEFAULT = {internalName: 'time', displayName: ''}
+export const TIME_COLUMN_DEFAULT = {
+  internalName: 'time',
+  displayName: '',
+  visible: true,
+}
 
 export const FIX_FIRST_COLUMN_DEFAULT = true
 

@@ -6,6 +6,7 @@ import uuid from 'uuid'
 type Column = {
   internalName: string
   displayName: string
+  visible: boolean
 }
 
 interface Props {
@@ -26,6 +27,7 @@ const GraphOptionsCustomizeColumns: SFC<Props> = ({
             key={uuid.v4()}
             internalName={col.internalName}
             displayName={col.displayName}
+            visible={col.visible}
             onColumnRename={onColumnRename}
           />
         )
