@@ -127,7 +127,7 @@ class TableGraph extends Component {
 
   render() {
     const {hoveredColumnIndex, hoveredRowIndex} = this.state
-    const {hoverTime, tableOptions} = this.props
+    const {hoverTime, tableOptions, colors} = this.props
     const data = this._data
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
@@ -163,6 +163,7 @@ class TableGraph extends Component {
             hoveredColumnIndex={hoveredColumnIndex}
             hoveredRowIndex={hoveredRowIndex}
             hoverTime={hoverTime}
+            colors={colors}
           />}
       </div>
     )
