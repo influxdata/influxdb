@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {GAUGE_COLORS} from 'shared/constants/thresholds'
+import {THRESHOLD_COLORS} from 'shared/constants/thresholds'
 
 class Threshold extends Component {
   constructor(props) {
@@ -99,7 +99,7 @@ class Threshold extends Component {
           ref={r => (this.thresholdInputRef = r)}
         />
         <ColorDropdown
-          colors={GAUGE_COLORS}
+          colors={THRESHOLD_COLORS}
           selected={selectedColor}
           onChoose={onChooseColor(threshold)}
           disabled={isMax && disableMaxColor}

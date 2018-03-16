@@ -15,7 +15,7 @@ export const THRESHOLD_TYPE_BASE = 'base'
 
 export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.ss'
 
-export const GAUGE_COLORS = [
+export const THRESHOLD_COLORS = [
   {
     hex: '#BF3D5E',
     name: 'ruby',
@@ -97,16 +97,16 @@ export const GAUGE_COLORS = [
 export const DEFAULT_GAUGE_COLORS = [
   {
     type: COLOR_TYPE_MIN,
-    hex: GAUGE_COLORS[11].hex,
+    hex: THRESHOLD_COLORS[11].hex,
     id: '0',
-    name: GAUGE_COLORS[11].name,
+    name: THRESHOLD_COLORS[11].name,
     value: DEFAULT_VALUE_MIN,
   },
   {
     type: COLOR_TYPE_MAX,
-    hex: GAUGE_COLORS[14].hex,
+    hex: THRESHOLD_COLORS[14].hex,
     id: '1',
-    name: GAUGE_COLORS[14].name,
+    name: THRESHOLD_COLORS[14].name,
     value: DEFAULT_VALUE_MAX,
   },
 ]
@@ -114,9 +114,9 @@ export const DEFAULT_GAUGE_COLORS = [
 export const DEFAULT_THRESHOLDS_LIST_COLORS = [
   {
     type: THRESHOLD_TYPE_TEXT,
-    hex: GAUGE_COLORS[11].hex,
+    hex: THRESHOLD_COLORS[11].hex,
     id: THRESHOLD_TYPE_BASE,
-    name: GAUGE_COLORS[11].name,
+    name: THRESHOLD_COLORS[11].name,
     value: -999999999999999999,
   },
 ]
@@ -124,9 +124,9 @@ export const DEFAULT_THRESHOLDS_LIST_COLORS = [
 export const DEFAULT_TABLE_COLORS = [
   {
     type: THRESHOLD_TYPE_BG,
-    hex: GAUGE_COLORS[18].hex,
+    hex: THRESHOLD_COLORS[18].hex,
     id: THRESHOLD_TYPE_BASE,
-    name: GAUGE_COLORS[18].name,
+    name: THRESHOLD_COLORS[18].name,
     value: 0,
   },
 ]

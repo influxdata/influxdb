@@ -11,7 +11,7 @@ import ColorDropdown from 'shared/components/ColorDropdown'
 import {updateThresholdsListColors} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {
-  GAUGE_COLORS,
+  THRESHOLD_COLORS,
   DEFAULT_VALUE_MIN,
   DEFAULT_VALUE_MAX,
   MAX_THRESHOLDS,
@@ -32,7 +32,7 @@ class ThresholdsList extends Component {
       onResetFocus,
     } = this.props
 
-    const randomColor = _.random(0, GAUGE_COLORS.length - 1)
+    const randomColor = _.random(0, THRESHOLD_COLORS.length - 1)
 
     const maxValue = DEFAULT_VALUE_MIN
     const minValue = DEFAULT_VALUE_MAX
@@ -50,8 +50,8 @@ class ThresholdsList extends Component {
       type: thresholdsListType,
       id: uuid.v4(),
       value: randomValue,
-      hex: GAUGE_COLORS[randomColor].hex,
-      name: GAUGE_COLORS[randomColor].name,
+      hex: THRESHOLD_COLORS[randomColor].hex,
+      name: THRESHOLD_COLORS[randomColor].name,
     }
 
     const updatedColors = _.sortBy(
@@ -141,7 +141,7 @@ class ThresholdsList extends Component {
               ? <div className="threshold-item" key={color.id}>
                   <div className="threshold-item--label">Base Color</div>
                   <ColorDropdown
-                    colors={GAUGE_COLORS}
+                    colors={THRESHOLD_COLORS}
                     selected={formatColor(color)}
                     onChoose={this.handleChooseColor(color)}
                     stretchToFit={true}

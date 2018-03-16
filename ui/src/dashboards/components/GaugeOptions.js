@@ -11,7 +11,7 @@ import Threshold from 'src/dashboards/components/Threshold'
 
 import {
   COLOR_TYPE_THRESHOLD,
-  GAUGE_COLORS,
+  THRESHOLD_COLORS,
   MAX_THRESHOLDS,
   MIN_THRESHOLDS,
 } from 'shared/constants/thresholds'
@@ -27,7 +27,7 @@ class GaugeOptions extends Component {
     const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     if (sortedColors.length <= MAX_THRESHOLDS) {
-      const randomColor = _.random(0, GAUGE_COLORS.length - 1)
+      const randomColor = _.random(0, THRESHOLD_COLORS.length - 1)
 
       const maxValue = sortedColors[sortedColors.length - 1].value
       const minValue = sortedColors[0].value
@@ -43,8 +43,8 @@ class GaugeOptions extends Component {
         type: COLOR_TYPE_THRESHOLD,
         id: uuid.v4(),
         value: randomValue,
-        hex: GAUGE_COLORS[randomColor].hex,
-        name: GAUGE_COLORS[randomColor].name,
+        hex: THRESHOLD_COLORS[randomColor].hex,
+        name: THRESHOLD_COLORS[randomColor].name,
       }
 
       const updatedColors = _.sortBy(

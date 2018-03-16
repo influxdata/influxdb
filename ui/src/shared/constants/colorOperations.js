@@ -1,6 +1,6 @@
 import _ from 'lodash'
 import {
-  GAUGE_COLORS,
+  THRESHOLD_COLORS,
   THRESHOLD_TYPE_BASE,
   THRESHOLD_TYPE_TEXT,
 } from 'shared/constants/thresholds'
@@ -51,7 +51,7 @@ export const generateThresholdsListHexs = (
   lastValue,
   containsLineGraph
 ) => {
-  const defaultColoring = {bgColor: null, textColor: GAUGE_COLORS[11].hex}
+  const defaultColoring = {bgColor: null, textColor: THRESHOLD_COLORS[11].hex}
   const lastValueNumber = Number(lastValue) || 0
 
   if (!colors.length || !lastValue) {
