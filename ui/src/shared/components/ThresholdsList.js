@@ -64,11 +64,18 @@ class ThresholdsList extends Component {
   }
 
   handleDeleteThreshold = threshold => () => {
-    const {handleUpdateThresholdsListColors, onResetFocus} = this.props
-    const thresholdsListColors = this.props.thresholdsListColors.filter(
+    const {
+      handleUpdateThresholdsListColors,
+      onResetFocus,
+      thresholdsListColors,
+    } = this.props
+    const updatedThresholdsListColors = thresholdsListColors.filter(
       color => color.id !== threshold.id
     )
-    const sortedColors = _.sortBy(thresholdsListColors, color => color.value)
+    const sortedColors = _.sortBy(
+      updatedThresholdsListColors,
+      color => color.value
+    )
 
     handleUpdateThresholdsListColors(sortedColors)
     onResetFocus()
