@@ -138,7 +138,7 @@ class ThresholdsList extends Component {
         {thresholdsListColors.map(
           color =>
             color.id === THRESHOLD_TYPE_BASE
-              ? <div className="threshold-item" key={color.id}>
+              ? <div className="threshold-item" key={uuid.v4()}>
                   <div className="threshold-item--label">Base Color</div>
                   <ColorDropdown
                     colors={THRESHOLD_COLORS}
