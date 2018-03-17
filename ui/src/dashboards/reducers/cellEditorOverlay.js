@@ -30,9 +30,11 @@ export default function cellEditorOverlay(state = initialState, action) {
       )
       const gaugeColors = validateGaugeColors(colors)
 
-      const tableOptions = _.get(cell, ['tableOptions', 'timeFormat'], '')
-        ? cell.tableOptions
-        : initializeOptions('table')
+      const tableOptions = _.get(
+        cell,
+        'tableOptions',
+        initializeOptions('table')
+      )
 
       return {
         ...state,
