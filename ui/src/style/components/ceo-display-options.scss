@@ -207,7 +207,7 @@ $graph-type--gutter: 4px;
 }
 
 .gauge-controls--section,
-.column-controls--section {
+.field-controls--section {
   width: 100%;
   display: flex;
   flex-wrap: nowrap;
@@ -257,7 +257,7 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
 }
 
 
-.column-controls--label, .column-controls--label-hidden {
+.field-controls--label, .field-controls--label-hidden {
   @extend %gauge-controls-label-styles;
   color: $g16-pearl;
   background-color: $g4-onyx;
@@ -271,10 +271,10 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
     }
   }
 }
-.column-controls--label-hidden {
+.field-controls--label-hidden {
   color: $g0-obsidian;
 }
-.column-controls-input {
+.field-controls-input {
   flex: 1 0 0;
   display: flex;
   align-items: center;

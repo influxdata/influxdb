@@ -7,7 +7,7 @@ import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFo
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
-import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
+import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
@@ -49,9 +49,9 @@ const defaultProps = {
   tableOptions: {
     timeFormat: '',
     verticalTimeAxis: true,
-    sortBy: {internalName: '', displayName: ''},
+    sortBy: {internalName: '', displayName: '', visible: true},
     wrapping: '',
-    columnNames: [],
+    fieldNames: [],
     fixFirstColumn: true,
   },
   onResetFocus: () => {},
@@ -97,7 +97,7 @@ describe('Dashboards.Components.TableOptions', () => {
           },
         ]
 
-        expect(instance.computedColumnNames).toEqual(expected)
+        expect(instance.computedFieldNames).toEqual(expected)
       })
     })
   })
@@ -136,8 +136,8 @@ describe('Dashboards.Components.TableOptions', () => {
       const graphOptionsFixFirstColumn = wrapper.find(
         GraphOptionsFixFirstColumn
       )
-      const graphOptionsCustomizeColumns = wrapper.find(
-        GraphOptionsCustomizeColumns
+      const graphOptionsCustomizeFields = wrapper.find(
+        GraphOptionsCustomizeFields
       )
       const thresholdsList = wrapper.find(ThresholdsList)
       const thresholdsListTypeToggle = wrapper.find(ThresholdsListTypeToggle)
@@ -152,7 +152,7 @@ describe('Dashboards.Components.TableOptions', () => {
       expect(graphOptionsSortBy.exists()).toBe(true)
       expect(graphOptionsTextWrapping.exists()).toBe(true)
       expect(graphOptionsFixFirstColumn.exists()).toBe(true)
-      expect(graphOptionsCustomizeColumns.exists()).toBe(true)
+      expect(graphOptionsCustomizeFields.exists()).toBe(true)
       expect(thresholdsList.exists()).toBe(true)
       expect(thresholdsListTypeToggle.exists()).toBe(true)
     })

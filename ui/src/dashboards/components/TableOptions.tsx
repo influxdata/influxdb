@@ -10,15 +10,15 @@ import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
-import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
+import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
-import {TIME_COLUMN_DEFAULT} from 'src/shared/constants/tableGraph'
+import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 
-type TableColumn = {
+type RenamableField = {
   internalName: string
   displayName: string
   visible: boolean
@@ -27,9 +27,9 @@ type TableColumn = {
 type Options = {
   timeFormat: string
   verticalTimeAxis: boolean
-  sortBy: TableColumn
+  sortBy: RenamableField
   wrapping: string
-  columnNames: TableColumn[]
+  fieldNames: RenamableField[]
   fixFirstColumn: boolean
 }
 
@@ -53,27 +53,26 @@ export class TableOptions extends PureComponent<Props, {}> {
     super(props)
   }
 
-  get columnNames() {
-    const {tableOptions: {columnNames}} = this.props
-    return columnNames || []
+  get fieldNames() {
+    const {tableOptions: {fieldNames}} = this.props
+    return fieldNames || []
   }
 
   get timeColumn() {
     return (
-      this.columnNames.find(c => c.internalName === 'time') ||
-      TIME_COLUMN_DEFAULT
+      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
     )
   }
 
-  get computedColumnNames() {
+  get computedFieldNames() {
     const {queryConfigs} = this.props
 
     const queryFields = _.flatten(
       queryConfigs.map(({measurement, fields}) => {
         return fields.map(({alias}) => {
           const internalName = `${measurement}.${alias}`
-          const existing = this.columnNames.find(
-            c => c.internalName === internalName
+          const existing = this.fieldNames.find(
+            f => f.internalName === internalName
           )
           return existing || {internalName, displayName: '', visible: true}
         })
@@ -87,7 +86,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {handleUpdateTableOptions, tableOptions} = this.props
     handleUpdateTableOptions({
       ...tableOptions,
-      columnNames: this.computedColumnNames,
+      fieldNames: this.computedFieldNames,
     })
   }
 
@@ -120,28 +119,23 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateTableOptions({...tableOptions, fixFirstColumn})
   }
 
-  handleColumnUpdate = column => {
+  handleFieldUpdate = field => {
     const {handleUpdateTableOptions, tableOptions} = this.props
-    const {columnNames} = tableOptions
-    const updatedColumns = columnNames.map(
-      op => (op.internalName === column.internalName ? column : op)
+    const {fieldNames} = tableOptions
+    const updatedFields = fieldNames.map(
+      op => (op.internalName === field.internalName ? field : op)
     )
-    handleUpdateTableOptions({...tableOptions, columnNames: updatedColumns})
+    handleUpdateTableOptions({...tableOptions, fieldNames: updatedFields})
   }
 
   render() {
     const {
-      tableOptions: {
-        timeFormat,
-        columnNames: columns,
-        verticalTimeAxis,
-        fixFirstColumn,
-      },
+      tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
       onResetFocus,
       tableOptions,
     } = this.props
 
-    const tableSortByOptions = this.computedColumnNames.map(col => ({
+    const tableSortByOptions = this.computedFieldNames.map(col => ({
       text: col.displayName || col.internalName,
       key: col.internalName,
     }))
@@ -163,7 +157,7 @@ export class TableOptions extends PureComponent<Props, {}> {
               onToggleVerticalTimeAxis={this.onToggleVerticalTimeAxis}
             />
             <GraphOptionsSortBy
-              selected={tableOptions.sortBy || TIME_COLUMN_DEFAULT}
+              selected={tableOptions.sortBy || TIME_FIELD_DEFAULT}
               sortByOptions={tableSortByOptions}
               onChooseSortBy={this.handleChooseSortBy}
             />
@@ -176,9 +170,9 @@ export class TableOptions extends PureComponent<Props, {}> {
               onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
             />
           </div>
-          <GraphOptionsCustomizeColumns
-            columns={columns}
-            onColumnUpdate={this.handleColumnUpdate}
+          <GraphOptionsCustomizeFields
+            fields={fieldNames}
+            onFieldUpdate={this.handleFieldUpdate}
           />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">

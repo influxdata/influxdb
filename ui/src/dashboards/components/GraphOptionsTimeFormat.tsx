@@ -72,9 +72,9 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
           onChoose={this.handleChooseFormat}
         />
         {showCustom &&
-          <div className="column-controls--section">
+          <div className="field-controls--section">
             <InputClickToEdit
-              wrapperClass="column-controls-input "
+              wrapperClass="field-controls-input "
               value={format}
               onBlur={onTimeFormatChange}
               onChange={onTimeFormatChange}

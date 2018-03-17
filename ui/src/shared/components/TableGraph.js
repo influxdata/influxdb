@@ -13,10 +13,35 @@ import {
   NULL_ROW_INDEX,
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
-  TIME_COLUMN_DEFAULT,
+  TIME_FIELD_DEFAULT,
   FIX_FIRST_COLUMN_DEFAULT,
 } from 'src/shared/constants/tableGraph'
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
+
+const filterInvisibleRows = (data, verticalTimeAxis, fieldNames) => {
+  let visibleData = [[]]
+  if (verticalTimeAxis) {
+    const visibleColumns = {}
+    visibleData = data.map((row, i) => {
+      return row.filter((col, j) => {
+        if (i === 0) {
+          const foundField = fieldNames.find(
+            field => field.internalName === col
+          )
+          visibleColumns[j] = foundField && foundField.visible
+        }
+        return visibleColumns[j]
+      })
+    })
+  } else {
+    visibleData = data.filter(row => {
+      const foundField = fieldNames.find(field => field.internalName === row[0])
+      return foundField && foundField.visible
+    })
+  }
+
+  return visibleData[0].length ? visibleData : [[]]
+}
 
 class TableGraph extends Component {
   constructor(props) {
@@ -36,7 +61,7 @@ class TableGraph extends Component {
     const {data, unzippedData} = timeSeriesToTableGraph(nextProps.data)
 
     const {
-      tableOptions: {sortBy: {internalName}, columnNames, verticalTimeAxis},
+      tableOptions: {sortBy: {internalName}, fieldNames, verticalTimeAxis},
     } = nextProps
     const sortByColumnIndex = _.indexOf(data[0], internalName)
 
@@ -45,30 +70,11 @@ class TableGraph extends Component {
       ..._.sortBy(_.drop(data, 1), sortByColumnIndex),
     ]
 
-    let filteredData = [[]]
-    if (verticalTimeAxis) {
-      const visibleColumns = {}
-      filteredData = sortedData.map((row, i) => {
-        return row.filter((col, j) => {
-          if (i === 0) {
-            const foundColumn = columnNames.find(
-              column => column.internalName === col
-            )
-            visibleColumns[j] = foundColumn && foundColumn.visible
-          }
-          return visibleColumns[j]
-        })
-      })
-    } else {
-      filteredData = data.filter(row => {
-        const foundField = columnNames.find(
-          column => column.internalName === row[0]
-        )
-        return foundField && foundField.visible
-      })
-    }
-
-    const visibleData = filteredData[0].length ? filteredData : [[]]
+    const visibleData = filterInvisibleRows(
+      sortedData,
+      verticalTimeAxis,
+      fieldNames
+    )
 
     this.setState({
       data: sortedData,
@@ -76,11 +82,6 @@ class TableGraph extends Component {
       unzippedData,
       sortByColumnIndex,
     })
-  }
-
-  componentWillMount() {
-    this._data = [[]]
-    this._visibleData = [[]]
   }
 
   calcHoverTimeIndex = (data, hoverTime, verticalTimeAxis) => {
@@ -131,17 +132,15 @@ class TableGraph extends Component {
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
-    const columnNames = _.get(tableOptions, 'columnNames', [
-      TIME_COLUMN_DEFAULT,
-    ])
+    const columnNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
     const fixFirstColumn = _.get(
       tableOptions,
       'fixFirstColumn',
       FIX_FIRST_COLUMN_DEFAULT
     )
 
-    const timeField = columnNames.find(
-      column => column.internalName === TIME_COLUMN_DEFAULT.internalName
+    const timeField = fieldNames.find(
+      field => field.internalName === TIME_FIELD_DEFAULT.internalName
     )
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
@@ -187,11 +186,10 @@ class TableGraph extends Component {
     })
 
     const cellData = data[rowIndex][columnIndex]
-    const foundColumn = columnNames.find(
-      column => column.internalName === cellData
-    )
-    const columnName =
-      foundColumn && (foundColumn.displayName || foundColumn.internalName)
+
+    const foundField = fieldNames.find(field => field.internalName === cellData)
+    const fieldName =
+      foundField && (foundField.displayName || foundField.internalName)
 
     return (
       <div
@@ -202,7 +200,7 @@ class TableGraph extends Component {
       >
         {isTimeData
           ? `${moment(cellData).format(timeFormat)}`
-          : columnName || `${cellData}`}
+          : fieldName || `${cellData}`}
       </div>
     )
   }
@@ -255,8 +253,8 @@ class TableGraph extends Component {
             timeFormat={
               tableOptions ? tableOptions.timeFormat : TIME_FORMAT_DEFAULT
             }
-            columnNames={
-              tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
+            fieldNames={
+              tableOptions ? tableOptions.fieldNames : [TIME_FIELD_DEFAULT]
             }
             scrollToRow={scrollToRow}
             scrollToColumn={scrollToColumn}
