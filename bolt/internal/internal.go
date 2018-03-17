@@ -265,18 +265,18 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			}
 		}
 
-		sortBy := &TableColumn{
+		sortBy := &RenamableField{
 			InternalName: c.TableOptions.SortBy.InternalName,
 			DisplayName:  c.TableOptions.SortBy.DisplayName,
 			Visible:      c.TableOptions.SortBy.Visible,
 		}
 
-		columnNames := make([]*TableColumn, len(c.TableOptions.ColumnNames))
-		for i, column := range c.TableOptions.ColumnNames {
-			columnNames[i] = &TableColumn{
-				InternalName: column.InternalName,
-				DisplayName:  column.DisplayName,
-				Visible:      column.Visible,
+		fieldNames := make([]*RenamableField, len(c.TableOptions.FieldNames))
+		for i, field := range c.TableOptions.FieldNames {
+			fieldNames[i] = &RenamableField{
+				InternalName: field.InternalName,
+				DisplayName:  field.DisplayName,
+				Visible:      field.Visible,
 			}
 		}
 
@@ -285,7 +285,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
 			SortBy:           sortBy,
 			Wrapping:         c.TableOptions.Wrapping,
-			ColumnNames:      columnNames,
+			FieldNames:       fieldNames,
 			FixFirstColumn:   c.TableOptions.FixFirstColumn,
 		}
 
@@ -433,7 +433,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 		tableOptions := chronograf.TableOptions{}
 		if c.TableOptions != nil {
-			sortBy := chronograf.TableColumn{}
+			sortBy := chronograf.RenamableField{}
 			if c.TableOptions.SortBy != nil {
 				sortBy.InternalName = c.TableOptions.SortBy.InternalName
 				sortBy.DisplayName = c.TableOptions.SortBy.DisplayName
@@ -441,14 +441,14 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			}
 			tableOptions.SortBy = sortBy
 
-			columnNames := make([]chronograf.TableColumn, len(c.TableOptions.ColumnNames))
-			for i, column := range c.TableOptions.ColumnNames {
-				columnNames[i] = chronograf.TableColumn{}
-				columnNames[i].InternalName = column.InternalName
-				columnNames[i].DisplayName = column.DisplayName
-				columnNames[i].Visible = column.Visible
+			fieldNames := make([]chronograf.RenamableField, len(c.TableOptions.FieldNames))
+			for i, field := range c.TableOptions.FieldNames {
+				fieldNames[i] = chronograf.RenamableField{}
+				fieldNames[i].InternalName = field.InternalName
+				fieldNames[i].DisplayName = field.DisplayName
+				fieldNames[i].Visible = field.Visible
 			}
-			tableOptions.ColumnNames = columnNames
+			tableOptions.FieldNames = fieldNames
 			tableOptions.TimeFormat = c.TableOptions.TimeFormat
 			tableOptions.VerticalTimeAxis = c.TableOptions.VerticalTimeAxis
 			tableOptions.Wrapping = c.TableOptions.Wrapping

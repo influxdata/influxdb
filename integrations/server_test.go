@@ -552,7 +552,7 @@ func TestServer(t *testing.T) {
 					"visible": false
 				},
 				"wrapping": "",
-				"columnNames": null,
+				"fieldNames": null,
 				"fixFirstColumn": false
 			},
       "links": {
@@ -803,7 +803,7 @@ func TestServer(t *testing.T) {
 							"visible":false
 						},
 						"wrapping":"",
-						"columnNames":null,
+						"fieldNames":null,
 						"fixFirstColumn":false
 					},
           "legend":{
