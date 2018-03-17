@@ -33,7 +33,11 @@ class TableGraph extends Component {
 
   componentWillUpdate(nextProps) {
     const {data} = timeSeriesToTableGraph(nextProps.data)
-    this._data = data
+    if (_.get(this, ['props', 'tableOptions', 'verticalTimeAxis'], true)) {
+      this._data = data
+      return
+    }
+    this._data = _.unzip(data)
   }
 
   calcHoverTimeRow = (data, hoverTime) =>
