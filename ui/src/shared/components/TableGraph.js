@@ -49,7 +49,7 @@ class TableGraph extends Component {
         row => row[0] && _.isNumber(row[0]) && row[0] >= hoverTime
       )
     }
-    return data[0].findIndex(d => d >= hoverTime)
+    return data[0].findIndex(d => _.isNumber(d) && d >= hoverTime)
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
