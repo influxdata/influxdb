@@ -8531,12 +8531,6 @@ upath@^1.0.0:
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/upath/-/upath-1.0.4.tgz#ee2321ba0a786c50973db043a50b7bcba822361d"
 
-updeep@^0.13.0:
-  version "0.13.0"
-  resolved "https://registry.yarnpkg.com/updeep/-/updeep-0.13.0.tgz#8fe46d3802711b7f265f7cc6c03f21b240e9d632"
-  dependencies:
-    lodash "^4.2.0"
-
 upper-case@^1.1.1:
   version "1.1.3"
   resolved "https://registry.yarnpkg.com/upper-case/-/upper-case-1.1.3.tgz#f6b4501c2ec4cdd26ba78be7222961de77621598"

@@ -7,6 +7,7 @@ export interface Kapacitor {
   username?: string
   password?: string
   active: boolean
+  insecureSkipVerify: boolean
   links: {
     self: string
   }

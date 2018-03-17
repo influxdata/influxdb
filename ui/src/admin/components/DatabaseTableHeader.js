@@ -1,7 +1,12 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import {notify as notifyAction} from 'shared/actions/notifications'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
+import {NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
   database,
@@ -76,7 +81,7 @@ const Header = ({
 
   const onConfirm = db => {
     if (database.deleteCode !== `DELETE ${database.name}`) {
-      return notify('error', `Type DELETE ${database.name} to confirm`)
+      return notify(NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name))
     }
 
     onDelete(db)
@@ -136,7 +141,7 @@ const {func, shape, bool} = PropTypes
 
 DatabaseTableHeader.propTypes = {
   onEdit: func,
-  notify: func,
+  notify: func.isRequired,
   database: shape(),
   onKeyDown: func,
   onCancel: func,
@@ -150,7 +155,7 @@ DatabaseTableHeader.propTypes = {
 }
 
 Header.propTypes = {
-  notify: func,
+  notify: func.isRequired,
   onConfirm: func,
   onCancel: func,
   onDelete: func,
@@ -170,4 +175,8 @@ EditHeader.propTypes = {
   isRFDisplayed: bool,
 }
 
-export default DatabaseTableHeader
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(DatabaseTableHeader)

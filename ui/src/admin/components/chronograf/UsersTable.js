@@ -35,14 +35,7 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {
-      organization,
-      users,
-      onCreateUser,
-      meID,
-      notify,
-      isLoading,
-    } = this.props
+    const {organization, users, onCreateUser, meID, isLoading} = this.props
 
     const {isCreatingUser} = this.state
     const {colRole, colProvider, colScheme, colActions} = USERS_TABLE
@@ -83,7 +76,6 @@ class UsersTable extends Component {
                     organization={organization}
                     onBlur={this.handleBlurCreateUserRow}
                     onCreateUser={onCreateUser}
-                    notify={notify}
                   />
                 : null}
               {users.length
@@ -138,7 +130,6 @@ UsersTable.propTypes = {
   onUpdateUserRole: func.isRequired,
   onDeleteUser: func.isRequired,
   meID: string.isRequired,
-  notify: func.isRequired,
   isLoading: bool.isRequired,
 }
 

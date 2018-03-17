@@ -16,7 +16,7 @@ type postKapacitorRequest struct {
 	URL                *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
 	Username           string  `json:"username,omitempty"` // Username for authentication to kapacitor
 	Password           string  `json:"password,omitempty"`
-	InsecureSkipVerify bool    `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
+	InsecureSkipVerify bool    `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
 	Active             bool    `json:"active"`
 	Organization       string  `json:"organization"` // Organization is the organization ID that resource belongs to
 }
@@ -55,7 +55,7 @@ type kapacitor struct {
 	URL                string    `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092)
 	Username           string    `json:"username,omitempty"` // Username for authentication to kapacitor
 	Password           string    `json:"password,omitempty"`
-	InsecureSkipVerify bool      `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
+	InsecureSkipVerify bool      `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
 	Active             bool      `json:"active"`
 	Links              kapaLinks `json:"links"` // Links are URI locations related to kapacitor
 }
@@ -225,7 +225,7 @@ type patchKapacitorRequest struct {
 	URL                *string `json:"url,omitempty"`      // URL for the kapacitor
 	Username           *string `json:"username,omitempty"` // Username for kapacitor auth
 	Password           *string `json:"password,omitempty"`
-	InsecureSkipVerify *bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
+	InsecureSkipVerify *bool   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the kapacitor is accepted.
 	Active             *bool   `json:"active"`
 }
 

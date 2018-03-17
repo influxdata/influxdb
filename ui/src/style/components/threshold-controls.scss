@@ -1,0 +1,60 @@
+/*
+  Threshold Controls
+  ------------------------------------------------------------------------------
+  Used primarily within the Cell Editor Overlay for Single Stat, Gauge,
+  and Table type cells
+*/
+
+.thresholds-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.threshold-item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  height: 30px;
+  margin-top: 8px;
+
+  > * {
+    margin-left: 4px;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+}
+
+%threshold-item--label-styles {
+  height: 30px;
+  line-height: 30px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 11px;
+  border-radius: 4px;
+  @include no-user-select();
+}
+
+.threshold-item--label {
+  @extend %threshold-item--label-styles;
+  color: $g11-sidewalk;
+  background-color: $g4-onyx;
+  width: 120px;
+}
+
+.threshold-item--label__editable {
+  @extend %threshold-item--label-styles;
+  color: $g16-pearl;
+  width: 90px;
+}
+
+.threshold-item--input {
+  flex: 1 0 0;
+}
+
+.threshold-item .color-dropdown.color-dropdown--stretch {
+  width: auto;
+  flex: 1 0 0;
+}

@@ -4,9 +4,18 @@ import AlertOutputs from 'src/kapacitor/components/AlertOutputs'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import Input from 'src/kapacitor/components/KapacitorFormInput'
 
+import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
 import {Kapacitor, Source} from 'src/types'
 
-type FlashMessage = {type: string; text: string}
+export interface Notification {
+  id?: string
+  type: string
+  icon: string
+  duration: number
+  message: string
+}
+
+type NotificationFunc = () => Notification
 
 interface Props {
   kapacitor: Kapacitor
@@ -14,23 +23,25 @@ interface Props {
   onReset: (e: MouseEvent<HTMLButtonElement>) => void
   onSubmit: (e: ChangeEvent<HTMLFormElement>) => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onCheckboxChange: (e: ChangeEvent<HTMLInputElement>) => void
   onChangeUrl: (e: ChangeEvent<HTMLInputElement>) => void
-  addFlashMessage: (message: FlashMessage) => void
   source: Source
   hash: string
+  notify: (message: Notification | NotificationFunc) => void
 }
 
 const KapacitorForm: SFC<Props> = ({
   onChangeUrl,
   onReset,
   kapacitor,
-  kapacitor: {url, name, username, password},
+  kapacitor: {url, name, username, password, insecureSkipVerify},
   onSubmit,
   exists,
   onInputChange,
-  addFlashMessage,
+  onCheckboxChange,
   source,
   hash,
+  notify,
 }) =>
   <div className="page">
     <div className="page-header">
@@ -84,6 +95,22 @@ const KapacitorForm: SFC<Props> = ({
                       inputType="password"
                     />
                   </div>
+                  {url.startsWith('https') &&
+                    <div className="form-group col-xs-12">
+                      <div className="form-control-static">
+                        <input
+                          type="checkbox"
+                          id="insecureSkipVerifyCheckbox"
+                          name="insecureSkipVerify"
+                          checked={insecureSkipVerify}
+                          onChange={onCheckboxChange}
+                        />
+                        <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
+                      </div>
+                      <label className="form-helper">
+                        {insecureSkipVerifyText}
+                      </label>
+                    </div>}
                   <div className="form-group form-group-submit col-xs-12 text-center">
                     <button
                       className="btn btn-default"
@@ -106,15 +133,13 @@ const KapacitorForm: SFC<Props> = ({
             </div>
           </div>
           <div className="col-md-9">
-            {
-              <AlertOutputs
-                exists={exists}
-                kapacitor={kapacitor}
-                addFlashMessage={addFlashMessage}
-                source={source}
-                hash={hash}
-              />
-            }
+            <AlertOutputs
+              hash={hash}
+              exists={exists}
+              source={source}
+              kapacitor={kapacitor}
+              notify={notify}
+            />
           </div>
         </div>
       </div>

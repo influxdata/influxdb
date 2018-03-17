@@ -16,7 +16,7 @@ import TemplateVariableManager from 'src/dashboards/components/template_variable
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishNotification} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
@@ -34,6 +34,7 @@ import {
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
+import {NOTIFY_DASHBOARD_NOT_FOUND} from 'shared/copy/notifications'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -90,7 +91,7 @@ class DashboardPage extends Component {
 
     if (!dashboard) {
       router.push(`/sources/${source.id}/dashboards`)
-      return notify('error', `Dashboard ${dashboardID} could not be found`)
+      return notify(NOTIFY_DASHBOARD_NOT_FOUND(dashboardID))
     }
 
     // Refresh and persists influxql generated template variable values.
@@ -272,8 +273,8 @@ class DashboardPage extends Component {
       manualRefresh,
       onManualRefresh,
       cellQueryStatus,
-      singleStatType,
-      singleStatColors,
+      thresholdsListType,
+      thresholdsListColors,
       dashboardActions,
       inPresentationMode,
       handleChooseAutoRefresh,
@@ -379,8 +380,8 @@ class DashboardPage extends Component {
               onCancel={handleHideCellEditorOverlay}
               templates={templatesIncludingDashTime}
               editQueryStatus={dashboardActions.editCellQueryStatus}
-              singleStatType={singleStatType}
-              singleStatColors={singleStatColors}
+              thresholdsListType={thresholdsListType}
+              thresholdsListColors={thresholdsListColors}
               gaugeColors={gaugeColors}
             />
           : null}
@@ -511,8 +512,8 @@ DashboardPage.propTypes = {
   handleShowCellEditorOverlay: func.isRequired,
   handleHideCellEditorOverlay: func.isRequired,
   selectedCell: shape({}),
-  singleStatType: string.isRequired,
-  singleStatColors: arrayOf(shape({}).isRequired).isRequired,
+  thresholdsListType: string.isRequired,
+  thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
   gaugeColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
@@ -526,7 +527,12 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
-    cellEditorOverlay: {cell, singleStatType, singleStatColors, gaugeColors},
+    cellEditorOverlay: {
+      cell,
+      thresholdsListType,
+      thresholdsListColors,
+      gaugeColors,
+    },
   } = state
 
   const meRole = _.get(me, 'role', null)
@@ -553,8 +559,8 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     inPresentationMode,
     showTemplateControlBar,
     selectedCell,
-    singleStatType,
-    singleStatColors,
+    thresholdsListType,
+    thresholdsListColors,
     gaugeColors,
   }
 }
@@ -568,7 +574,7 @@ const mapDispatchToProps = dispatch => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
-  notify: bindActionCreators(publishNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
   getAnnotationsAsync: bindActionCreators(
     annotationActions.getAnnotationsAsync,
     dispatch

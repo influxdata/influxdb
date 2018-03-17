@@ -29,7 +29,6 @@
 @import 'layout/page-header';
 @import 'layout/sidebar';
 @import 'layout/overlay';
-@import 'layout/flash-messages';
 
 // Components
 @import 'components/annotations';
@@ -69,6 +68,7 @@
 @import 'components/source-selector';
 @import 'components/tables';
 @import 'components/table-graph';
+@import 'components/threshold-controls';
 @import 'components/kapacitor-logs-table';
 
 // Pages

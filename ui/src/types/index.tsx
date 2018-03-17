@@ -1,5 +1,6 @@
-import { Kapacitor, AlertRule } from "./kapacitor"
-import { Query, QueryConfig } from "./query"
-import { Source } from "./sources"
+import {AuthLinks, Role, User, Organization} from './auth'
+import {AlertRule, Kapacitor} from "./kapacitor"
+import {Query, QueryConfig} from "./query"
+import {Source} from "./sources"
 
-export { Kapacitor, AlertRule, Query, QueryConfig, Source }
+export {AuthLinks, Role, User, Organization, AlertRule, Kapacitor, Query, QueryConfig, Source, }
