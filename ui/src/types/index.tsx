@@ -1,4 +1,5 @@
-import {Query} from './query'
-import {Source, Kapacitor} from './sources'
+import { Kapacitor, AlertRule } from "./kapacitor"
+import { Query, QueryConfig } from "./query"
+import { Source } from "./sources"
 
-export {Query, Source, Kapacitor}
+export { Kapacitor, AlertRule, Query, QueryConfig, Source }
