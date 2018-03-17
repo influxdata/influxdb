@@ -5,21 +5,24 @@
 ### UI Improvements
 
 ### Bug Fixes
+
 1.  [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
 1.  [#2953](https://github.com/influxdata/chronograf/pull/2953): Fix error reporting in DataExplorer
 1.  [#2947](https://github.com/influxdata/chronograf/pull/2947): Fix Okta oauth2 provider support
 1.  [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
 1.  [#2919](https://github.com/influxdata/chronograf/pull/2919): Automatically add graph type 'line' to any graph missing a type
+1.  [#3006](https://github.com/influxdata/chronograf/pull/3006): Fix Kapacitor Rules task enabled checkboxes to only toggle exactly as clicked
 
 ## v1.4.2.3 [2018-03-08]
 
 ## v1.4.2.2 [2018-03-07]
-### Bug Fixes
-1. [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
-1. [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
-1. [#2859](https://github.com/influxdata/chronograf/pull/2859): Enable Mappings save button when valid
-1.  [#2933](https://github.com/influxdata/chronograf/pull/2933): Include url in Kapacitor connection creation requests
 
+### Bug Fixes
+
+1.  [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
+1.  [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
+1.  [#2859](https://github.com/influxdata/chronograf/pull/2859): Enable Mappings save button when valid
+1.  [#2933](https://github.com/influxdata/chronograf/pull/2933): Include url in Kapacitor connection creation requests
 
 ## v1.4.2.1 [2018-02-28]
 
