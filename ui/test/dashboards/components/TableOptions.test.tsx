@@ -13,18 +13,51 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 
 import {shallow} from 'enzyme'
 
+const queryConfigs = [
+  {
+    measurement: "dev",
+    fields: [
+      {
+        alias: "boom",
+        value: "test"
+      },
+      {
+        alias: "again",
+        value: "again"
+      },
+    ]
+  },
+  {
+    measurement: "prod",
+    fields: [
+      {
+        alias: "boom",
+        value: "test"
+      },
+      {
+        alias: "again",
+        value: "again"
+      },
+    ]
+  }
+]
+
+const defaultProps = {
+  queryConfigs: queryConfigs,
+  handleUpdateTableOptions: () => {},
+  tableOptions: {
+    timeFormat: '',
+    verticalTimeAxis: true,
+    sortBy: {internalName: '', displayName: ''},
+    wrapping: '',
+    columnNames: [],
+  },
+  onResetFocus: () => {},
+}
+
 const setup = (override = {}) => {
   const props = {
-    queryConfigs: [],
-    handleUpdateTableOptions: () => {},
-    tableOptions: {
-      timeFormat: '',
-      verticalTimeAxis: true,
-      sortBy: {internalName: '', displayName: ''},
-      wrapping: '',
-      columnNames: [],
-    },
-    onResetFocus: () => {},
+    ...defaultProps,
     ...override,
   }
 
@@ -34,9 +67,65 @@ const setup = (override = {}) => {
 }
 
 describe('Dashboards.Components.TableOptions', () => {
+  describe('getters', () => {
+    describe('computedColumnNames', () => {
+      it('returns the correct column names', () => {
+        const instance = new TableOptions(defaultProps)
+
+        const expected = [
+          {
+            displayName: '',
+            internalName: 'time',
+          },
+          {
+            displayName: '',
+            internalName: 'dev.boom',
+          },
+          {
+            displayName: '',
+            internalName: 'dev.again',
+          },
+          {
+            displayName: '',
+            internalName: 'prod.boom',
+          },
+          {
+            displayName: '',
+            internalName: 'prod.again',
+          },
+        ]
+
+        expect(instance.computedColumnNames).toEqual(expected)
+      })
+    })
+  })
+
   describe('rendering', () => {
     it('should render all components', () => {
-      const {wrapper} = setup()
+      const queryConfigs = [
+        {
+          measurement: "dev",
+          fields: [
+            {
+              alias: "boom",
+              value: "test"
+            },
+          ]
+        }
+      ]
+
+      const expectedSortOptions = [
+        {
+          key: 'time',
+          text: 'time',
+        },
+        {
+          key: 'dev.boom',
+          text: 'dev.boom',
+        },
+      ]
+
+      const {wrapper} = setup({ queryConfigs })
       const fancyScrollbar = wrapper.find(FancyScrollbar)
       const graphOptionsTimeFormat = wrapper.find(GraphOptionsTimeFormat)
       const graphOptionsTimeAxis = wrapper.find(GraphOptionsTimeAxis)
@@ -47,6 +136,8 @@ describe('Dashboards.Components.TableOptions', () => {
       )
       const thresholdsList = wrapper.find(ThresholdsList)
       const thresholdsListTypeToggle = wrapper.find(ThresholdsListTypeToggle)
+
+      expect(graphOptionsSortBy.props().sortByOptions).toEqual(expectedSortOptions)
 
       expect(fancyScrollbar.exists()).toBe(true)
       expect(graphOptionsTimeFormat.exists()).toBe(true)
