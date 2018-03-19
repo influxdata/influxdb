@@ -23,7 +23,7 @@ const setup = () => {
 
 describe('Kapacitor.Components.TasksTable', () => {
   describe('rendering', () => {
-    it('renders the TasksTable', () => {
+    it('renders TasksTable', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
     })

@@ -4,6 +4,8 @@ import {shallow} from 'enzyme'
 import _ from 'lodash'
 
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
+import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
+import TasksTable from 'src/kapacitor/components/TasksTable'
 
 import {source, kapacitorRules} from 'test/resources'
 
@@ -35,17 +37,17 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
     it('renders KapacitorRulesTable', () => {
       const {wrapper} = setup()
 
-      const kapacitorRulesTable = wrapper.find('KapacitorRulesTable')
+      const kapacitorRulesTable = wrapper.find(KapacitorRulesTable)
       expect(kapacitorRulesTable.length).toEqual(1)
 
-      const tasksTable = wrapper.find('TasksTable')
+      const tasksTable = wrapper.find(TasksTable)
       expect(tasksTable.length).toEqual(1)
     })
 
     it('renders TasksTable', () => {
       const {wrapper} = setup()
 
-      const tasksTable = wrapper.find('TasksTable')
+      const tasksTable = wrapper.find(TasksTable)
       expect(tasksTable.length).toEqual(1)
     })
 
@@ -53,14 +55,14 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
       const {wrapper} = setup()
 
       const kapacitorRulesTableRowsIDs = wrapper
-        .find('KapacitorRulesTable')
+        .find(KapacitorRulesTable)
         .dive()
         .find('tbody')
         .children()
         .map(child => child.dive().find({type: 'checkbox'}).props().id)
 
       const tasksTableIDs = wrapper
-        .find('TasksTable')
+        .find(TasksTable)
         .dive()
         .find('tbody')
         .children()
@@ -77,14 +79,14 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
       const {wrapper} = setup()
 
       const kapacitorRulesTableRowsLabelFors = wrapper
-        .find('KapacitorRulesTable')
+        .find(KapacitorRulesTable)
         .dive()
         .find('tbody')
         .children()
         .map(child => child.dive().find('label').props().htmlFor)
 
       const tasksTableLabelFors = wrapper
-        .find('TasksTable')
+        .find(TasksTable)
         .dive()
         .find('tbody')
         .children()
