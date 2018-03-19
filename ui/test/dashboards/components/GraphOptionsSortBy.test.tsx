@@ -7,7 +7,10 @@ import Dropdown from 'src/shared/components/Dropdown'
 const defaultProps = {
   sortByOptions: [],
   onChooseSortBy: () => {},
-  selected: ''
+  selected: {
+    internalName: 'boom',
+    displayName: 'here',
+  }
 }
 
 const setup = (override = {}) => {
@@ -25,8 +28,19 @@ describe('Dashboards.Components.GraphOptionsSortBy', () => {
       const dropdown = wrapper.find(Dropdown)
       const label = wrapper.find('label')
 
+      expect(dropdown.props().selected).toEqual('here')
       expect(dropdown.exists()).toBe(true)
       expect(label.exists()).toBe(true)
+    })
+
+    describe('when selected display name is not available', () => {
+      it('render internal name as selected', () => {
+        const {wrapper} = setup({selected: {internalName: 'boom'}})
+
+        const dropdown = wrapper.find(Dropdown)
+
+        expect(dropdown.props().selected).toEqual('boom')
+      })
     })
   })
 })

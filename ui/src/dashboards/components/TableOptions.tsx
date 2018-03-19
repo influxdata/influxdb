@@ -145,7 +145,7 @@ export class TableOptions extends PureComponent<Props, {}> {
               onToggleTimeAxis={this.handleToggleTimeAxis}
             />
             <GraphOptionsSortBy
-              selected={tableOptions.sortBy.internalName || TIME_COLUMN_DEFAULT.internalName}
+              selected={tableOptions.sortBy || TIME_COLUMN_DEFAULT}
               sortByOptions={tableSortByOptions}
               onChooseSortBy={this.handleChooseSortBy}
             />

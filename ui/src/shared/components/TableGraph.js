@@ -24,7 +24,7 @@ class TableGraph extends Component {
       data: [[]],
       hoveredColumnIndex: NULL_COLUMN_INDEX,
       hoveredRowIndex: NULL_ROW_INDEX,
-      columnIndex: -1,
+      sortByColumnIndex: -1,
     }
   }
 
@@ -32,10 +32,10 @@ class TableGraph extends Component {
     const {data} = timeSeriesToTableGraph(nextProps.data)
 
     const {tableOptions: {sortBy: {internalName}}} = nextProps
-    const columnIndex = _.indexOf(data[0], internalName)
+    const sortByColumnIndex = _.indexOf(data[0], internalName)
 
-    const sortedData = _.sortBy(_.drop(data, 1), columnIndex)
-    this.setState({data: [data[0], ...sortedData], columnIndex})
+    const sortedData = _.sortBy(_.drop(data, 1), sortByColumnIndex)
+    this.setState({data: [data[0], ...sortedData], sortByColumnIndex})
   }
 
   calcHoverTimeRow = (data, hoverTime) =>
@@ -137,7 +137,7 @@ class TableGraph extends Component {
   }
 
   render() {
-    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {sortByColumnIndex, hoveredColumnIndex, hoveredRowIndex} = this.state
     const {hoverTime, tableOptions, colors} = this.props
     const {data} = this.state
     const columnCount = _.get(data, ['0', 'length'], 0)
@@ -175,7 +175,7 @@ class TableGraph extends Component {
             columnNames={
               tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
             }
-            columnIndex={columnIndex}
+            sortByColumnIndex={sortByColumnIndex}
             scrollToRow={hoverTimeRow}
             cellRenderer={this.cellRenderer}
             hoveredColumnIndex={hoveredColumnIndex}
