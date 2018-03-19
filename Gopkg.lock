@@ -8,9 +8,11 @@
     "cdtime",
     "network"
   ]
-  revision = "e84e8af5356e7f47485bbc95c96da6dd7984a67e"
+  revision = "2ce144541b8903101fb8f1483cc0497a68798122"
+  version = "v0.3.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/BurntSushi/toml"
   packages = ["."]
   revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
@@ -18,7 +20,8 @@
 [[projects]]
   name = "github.com/RoaringBitmap/roaring"
   packages = ["."]
-  revision = "cefad6e4f79d4fa5d1d758ff937dde300641ccfa"
+  revision = "d6540aab65a17321470b1661bfc52da1823871e9"
+  version = "v0.4.3"
 
 [[projects]]
   name = "github.com/beorn7/perks"
@@ -33,12 +36,14 @@
 [[projects]]
   name = "github.com/boltdb/bolt"
   packages = ["."]
-  revision = "4b1ebc1869ad66568b313d0dc410e2be72670dda"
+  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
+  version = "v1.3.1"
 
 [[projects]]
   name = "github.com/cespare/xxhash"
   packages = ["."]
-  revision = "1b6d2e40c16ba0dfce5c8eac2480ad6e7394819b"
+  revision = "5c37fe3735342a2e0d01c87a907579987c8936cc"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -48,7 +53,8 @@
 [[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
-  revision = "24c63f56522a87ec5339cc3567883f1039378fdb"
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
 
 [[projects]]
   name = "github.com/dgryski/go-bitstream"
@@ -70,7 +76,8 @@
     "sortkeys",
     "types"
   ]
-  revision = "1c2b16bc280d6635de6c52fc1471ab962dc36ec9"
+  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -93,7 +100,6 @@
   revision = "18107e6c56edb2d51f965f7d68e59404f0daee54"
 
 [[projects]]
-  branch = "master"
   name = "github.com/influxdata/influxql"
   packages = [
     ".",
@@ -124,7 +130,8 @@
 [[projects]]
   name = "github.com/jsternberg/zap-logfmt"
   packages = ["."]
-  revision = "5ea53862c7fa897f44ae0b3004283308c0b0c9d1"
+  revision = "ac4bd917e18a4548ce6e0e765b29a4e7f397b0b6"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/jwilder/encoding"
@@ -132,6 +139,7 @@
   revision = "27894731927e49b0a9023f00312be26733744815"
 
 [[projects]]
+  branch = "master"
   name = "github.com/mattn/go-isatty"
   packages = ["."]
   revision = "6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c"
@@ -148,18 +156,20 @@
   revision = "90eadee771aeab36e8bf796039b8c261bebebe4f"
 
 [[projects]]
+  branch = "master"
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
     "ext",
     "log"
   ]
-  revision = "1361b9cd60be79c4c3a7fa9841b3c132e40066a7"
+  revision = "328fceb7548c744337cd010914152b74eaf4c4ab"
 
 [[projects]]
   name = "github.com/paulbellamy/ratecounter"
   packages = ["."]
-  revision = "5a11f585a31379765c190c033b6ad39956584447"
+  revision = "524851a93235ac051e3540563ed7909357fe24ab"
+  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/peterh/liner"
@@ -202,14 +212,16 @@
   revision = "a6e9df898b1336106c743392c48ee0b71f5c4efa"
 
 [[projects]]
+  branch = "master"
   name = "github.com/retailnext/hllpp"
   packages = ["."]
-  revision = "38a7bb71b483e855d35010808143beaf05b67f9d"
+  revision = "101a6d2f8b52abfc409ac188958e7e7be0116331"
 
 [[projects]]
   name = "github.com/tinylib/msgp"
   packages = ["msgp"]
-  revision = "ad0ff2e232ad2e37faf67087fb24bf8d04a8ce20"
+  revision = "b2b6a672cf1e5b90748f79b8b81fc8c5cf0571a1"
+  version = "1.0.2"
 
 [[projects]]
   name = "github.com/willf/bitset"
@@ -244,6 +256,7 @@
     "zaptest/observer"
   ]
   revision = "35aad584952c3e7020db7b839f6b102de6271f89"
+  version = "v1.7.1"
 
 [[projects]]
   name = "golang.org/x/crypto"
@@ -292,6 +305,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3baaaa0663cc9e763da37b23e154b367e6bb0364da34c91cb4daf02fedf2dfc5"
+  inputs-digest = "a5da843ef395612bf314e73c8edc9605e55fd0428a73fe8e94370caa17231cb2"
   solver-name = "gps-cdcl"
   solver-version = 1

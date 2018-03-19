@@ -1,174 +1,66 @@
 [[constraint]]
   name = "collectd.org"
-  revision = "e84e8af5356e7f47485bbc95c96da6dd7984a67e"
+  version = "0.3.0"
 
 [[constraint]]
   name = "github.com/BurntSushi/toml"
-  revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/RoaringBitmap/roaring"
-  revision = "cefad6e4f79d4fa5d1d758ff937dde300641ccfa"
-
-[[override]]
-  name = "github.com/beorn7/perks"
-  revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
-
-[[constraint]]
-  name = "github.com/bmizerany/pat"
-  revision = "c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c"
+  version = "0.4.3"
 
 [[constraint]]
   name = "github.com/boltdb/bolt"
-  revision = "4b1ebc1869ad66568b313d0dc410e2be72670dda"
+  version = "1.3.1"
 
 [[constraint]]
   name = "github.com/cespare/xxhash"
-  revision = "1b6d2e40c16ba0dfce5c8eac2480ad6e7394819b"
-
-[[constraint]]
-  name = "github.com/davecgh/go-spew"
-  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "1.0.0"
 
 [[constraint]]
   name = "github.com/dgrijalva/jwt-go"
-  revision = "24c63f56522a87ec5339cc3567883f1039378fdb"
-
-[[constraint]]
-  name = "github.com/dgryski/go-bitstream"
-  revision = "7d46cd22db7004f0cceb6f7975824b560cf0e486"
-
-[[override]]
-  name = "github.com/glycerine/go-unsnap-stream"
-  revision = "62a9a9eb44fd8932157b1a8ace2149eff5971af6"
+  version = "3.2.0"
 
 [[constraint]]
   name = "github.com/gogo/protobuf"
-  revision = "1c2b16bc280d6635de6c52fc1471ab962dc36ec9"
-
-[[override]]
-  name = "github.com/golang/protobuf"
-  revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
+  version = "1.0.0"
 
 [[constraint]]
   name = "github.com/golang/snappy"
   revision = "d9eb7a3d35ec988b8585d4a0068e462c27d28380"
 
 [[constraint]]
-  name = "github.com/google/go-cmp"
-  revision = "18107e6c56edb2d51f965f7d68e59404f0daee54"
-
-[[constraint]]
   name = "github.com/influxdata/influxql"
-  branch = "master"
-
-[[constraint]]
-  name = "github.com/influxdata/usage-client"
-  revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
-
-[[override]]
-  name = "github.com/influxdata/yamux"
-  revision = "1f58ded512de5feabbe30b60c7d33a7a896c5f16"
-
-[[constraint]]
-  name = "github.com/influxdata/yarpc"
-  revision = "036268cdec22b7074cd6d50cc6d7315c667063c7"
-
-[[constraint]]
-  name = "github.com/jsternberg/zap-logfmt"
-  revision = "5ea53862c7fa897f44ae0b3004283308c0b0c9d1"
-
-[[constraint]]
-  name = "github.com/jwilder/encoding"
-  revision = "27894731927e49b0a9023f00312be26733744815"
+  revision = "53bc9c15f65bea9e4b9f6cc5d9c5327d4077bdc5"
 
 [[constraint]]
   name = "github.com/mattn/go-isatty"
-  revision = "6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c"
-
-[[override]]
-  name = "github.com/matttproud/golang_protobuf_extensions"
-  revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/opentracing/opentracing-go"
-  revision = "1361b9cd60be79c4c3a7fa9841b3c132e40066a7"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/paulbellamy/ratecounter"
-  revision = "5a11f585a31379765c190c033b6ad39956584447"
-
-[[constraint]]
-  name = "github.com/peterh/liner"
-  revision = "88609521dc4b6c858fd4c98b628147da928ce4ac"
-
-[[override]]
-  name = "github.com/philhofer/fwd"
-  revision = "1612a298117663d7bc9a760ae20d383413859798"
-
-[[constraint]]
-  name = "github.com/prometheus/client_golang"
-  revision = "661e31bf844dfca9aeba15f27ea8aa0d485ad212"
-
-[[override]]
-  name = "github.com/prometheus/client_model"
-  revision = "99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c"
-
-[[override]]
-  name = "github.com/prometheus/common"
-  revision = "2e54d0b93cba2fd133edc32211dcc32c06ef72ca"
-
-[[override]]
-  name = "github.com/prometheus/procfs"
-  revision = "a6e9df898b1336106c743392c48ee0b71f5c4efa"
+  version = "0.2.0"
 
 [[constraint]]
   name = "github.com/retailnext/hllpp"
-  revision = "38a7bb71b483e855d35010808143beaf05b67f9d"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/tinylib/msgp"
-  revision = "ad0ff2e232ad2e37faf67087fb24bf8d04a8ce20"
-
-[[constraint]]
-  name = "github.com/xlab/treeprint"
-  revision = "06dfc6fa17cdde904617990a0c2d89e3e332dbb3"
-
-[[override]]
-  name = "go.uber.org/atomic"
-  revision = "54f72d32435d760d5604f17a82e2435b28dc4ba5"
-
-[[override]]
-  name = "go.uber.org/multierr"
-  revision = "fb7d312c2c04c34f0ad621048bbb953b168f9ff6"
+  version = "1.0.2"
 
 [[constraint]]
   name = "go.uber.org/zap"
-  revision = "35aad584952c3e7020db7b839f6b102de6271f89"
+  version = "1.7.1"
 
 [[constraint]]
-  name = "golang.org/x/crypto"
-  revision = "9477e0b78b9ac3d0b03822fd95422e2fe07627cd"
-
-[[override]]
-  name = "golang.org/x/net"
-  revision = "9dfe39835686865bff950a07b394c12a98ddc811"
-
-[[constraint]]
-  name = "golang.org/x/sync"
-  revision = "fd80eb99c8f653c847d294a001bdf2a3a6f768f5"
-
-[[constraint]]
-  name = "golang.org/x/sys"
-  revision = "062cd7e4e68206d8bab9b18396626e855c992658"
-
-[[constraint]]
-  name = "golang.org/x/text"
-  revision = "a71fd10341b064c10f4a81ceac72bcf70f26ea34"
-
-[[constraint]]
-  name = "golang.org/x/time"
-  revision = "6dc17368e09b0e8634d71cac8168d853e869a0c7"
+  name = "github.com/jsternberg/zap-logfmt"
+  version = "1.0.0"
 
 [prune]
   go-tests = true
