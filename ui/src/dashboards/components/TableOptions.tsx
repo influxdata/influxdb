@@ -50,34 +50,13 @@ export class TableOptions extends PureComponent<Props, {}> {
     super(props)
   }
 
-<<<<<<< HEAD
-  componentWillMount() {
-    const {queryConfigs, handleUpdateTableOptions, tableOptions} = this.props
-    const {columnNames} = tableOptions
-    const timeColumn = (columnNames && columnNames.find(c => c.internalName === 'time')) || TIME_COLUMN_DEFAULT
-
-    const columns = [
-      timeColumn,
-      ..._.flatten(
-        queryConfigs.map(qc => {
-          const {measurement, fields} = qc
-          return fields.map(f => {
-            const internalName = `${measurement}.${f.alias}`
-            const existing = columnNames.find(c => c.internalName === internalName)
-            return existing || {internalName, displayName: ''}
-          })
-        })
-      )
-    ]
-=======
   get columnNames() {
     const {tableOptions: {columnNames}} = this.props
-
     return columnNames || []
   }
 
   get timeColumn() {
-    return (this.columnNames.find(c => c.internalName === 'time')) || TIME_COLUMN_DEFAULT
+    return this.columnNames.find(c => c.internalName === 'time') || TIME_COLUMN_DEFAULT
   }
 
   get computedColumnNames() {
@@ -87,29 +66,19 @@ export class TableOptions extends PureComponent<Props, {}> {
       queryConfigs.map(({measurement, fields}) => {
         return fields.map(({alias}) => {
           const internalName = `${measurement}.${alias}`
-          const existing = this.columnNames.find(
-            c => c.internalName === internalName
-          )
+          const existing = this.columnNames.find(c => c.internalName === internalName)
           return existing || {internalName, displayName: ''}
         })
-      }))
+      })
+    )
 
     return [this.timeColumn, ...queryFields]
   }
->>>>>>> master
 
   componentWillMount() {
     const {handleUpdateTableOptions, tableOptions} = this.props
     handleUpdateTableOptions({...tableOptions, columnNames: this.computedColumnNames})
   }
-
-  handleToggleSingleStatType = () => {}
-
-  handleAddThreshold = () => {}
-
-  handleDeleteThreshold = () => () => {}
-
-  handleChooseColor = () => () => {}
 
   handleChooseSortBy = option => {
     const {tableOptions, handleUpdateTableOptions} = this.props
@@ -138,24 +107,11 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   render() {
-<<<<<<< HEAD
-    const {tableOptions: {timeFormat, columnNames: columns, verticalTimeAxis}, onResetFocus} = this.props
-
-    const tableSortByOptions = ['cpu.mean_usage_system', 'cpu.mean_usage_idle', 'cpu.mean_usage_user'].map(col => ({
-      text: col
-=======
-    const {
-      tableOptions: {timeFormat, columnNames: columns},
-      onResetFocus,
-      tableOptions,
-    } = this.props
-
-    const TimeAxis = 'vertical'
+    const {tableOptions: {timeFormat, columnNames: columns, verticalTimeAxis}, onResetFocus, tableOptions} = this.props
 
     const tableSortByOptions = this.computedColumnNames.map(col => ({
       text: col.displayName || col.internalName,
-      key: col.internalName,
->>>>>>> master
+      key: col.internalName
     }))
 
     return (
@@ -165,20 +121,14 @@ export class TableOptions extends PureComponent<Props, {}> {
           <div className="form-group-wrapper">
             <GraphOptionsTimeFormat timeFormat={timeFormat} onTimeFormatChange={this.handleTimeFormatChange} />
             <GraphOptionsTimeAxis
-<<<<<<< HEAD
               verticalTimeAxis={verticalTimeAxis}
               onToggleVerticalTimeAxis={this.onToggleVerticalTimeAxis}
-=======
-              TimeAxis={TimeAxis}
-              onToggleTimeAxis={this.handleToggleTimeAxis}
             />
             <GraphOptionsSortBy
               selected={tableOptions.sortBy || TIME_COLUMN_DEFAULT}
               sortByOptions={tableSortByOptions}
               onChooseSortBy={this.handleChooseSortBy}
->>>>>>> master
             />
-            <GraphOptionsSortBy sortByOptions={tableSortByOptions} onChooseSortBy={this.handleChooseSortBy} />
             <GraphOptionsTextWrapping
               thresholdsListType="background"
               onToggleTextWrapping={this.handleToggleTextWrapping}
