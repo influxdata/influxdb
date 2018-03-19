@@ -62,6 +62,10 @@
   name = "github.com/jsternberg/zap-logfmt"
   version = "1.0.0"
 
+[[constraint]]
+  name = "github.com/prometheus/client_golang"
+  revision = "661e31bf844dfca9aeba15f27ea8aa0d485ad212"
+
 [prune]
   go-tests = true
   unused-packages = true
