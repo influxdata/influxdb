@@ -24,14 +24,16 @@
   version = "v0.4.3"
 
 [[projects]]
+  branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
   revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
 
 [[projects]]
+  branch = "master"
   name = "github.com/bmizerany/pat"
   packages = ["."]
-  revision = "c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c"
+  revision = "6226ea591a40176dd3ff9cd8eff81ed6ca721a00"
 
 [[projects]]
   name = "github.com/boltdb/bolt"
@@ -49,6 +51,7 @@
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/dgrijalva/jwt-go"
@@ -57,11 +60,13 @@
   version = "v3.2.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/dgryski/go-bitstream"
   packages = ["."]
-  revision = "7d46cd22db7004f0cceb6f7975824b560cf0e486"
+  revision = "9f22ccc24718d9643ac427c8c897ae1a01575783"
 
 [[projects]]
+  branch = "master"
   name = "github.com/glycerine/go-unsnap-stream"
   packages = ["."]
   revision = "62a9a9eb44fd8932157b1a8ace2149eff5971af6"
@@ -82,7 +87,8 @@
 [[projects]]
   name = "github.com/golang/protobuf"
   packages = ["proto"]
-  revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
+  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/golang/snappy"
@@ -95,9 +101,11 @@
     "cmp",
     "cmp/cmpopts",
     "cmp/internal/diff",
+    "cmp/internal/function",
     "cmp/internal/value"
   ]
-  revision = "18107e6c56edb2d51f965f7d68e59404f0daee54"
+  revision = "3af367b6b30c263d47e8895973edcca9a49cf029"
+  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/influxdata/influxql"
@@ -108,16 +116,19 @@
   revision = "53bc9c15f65bea9e4b9f6cc5d9c5327d4077bdc5"
 
 [[projects]]
+  branch = "master"
   name = "github.com/influxdata/usage-client"
   packages = ["v1"]
   revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
 
 [[projects]]
+  branch = "master"
   name = "github.com/influxdata/yamux"
   packages = ["."]
   revision = "1f58ded512de5feabbe30b60c7d33a7a896c5f16"
 
 [[projects]]
+  branch = "master"
   name = "github.com/influxdata/yarpc"
   packages = [
     ".",
@@ -125,7 +136,7 @@
     "status",
     "yarpcproto"
   ]
-  revision = "036268cdec22b7074cd6d50cc6d7315c667063c7"
+  revision = "f0da2db138cad2fb425541938fc28dd5a5bc6918"
 
 [[projects]]
   name = "github.com/jsternberg/zap-logfmt"
@@ -134,9 +145,10 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/jwilder/encoding"
   packages = ["simple8b"]
-  revision = "27894731927e49b0a9023f00312be26733744815"
+  revision = "b4e1701a28efcc637d9afcca7d38e495fe909a09"
 
 [[projects]]
   branch = "master"
@@ -147,7 +159,8 @@
 [[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
-  revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
+  revision = "3247c84500bff8d9fb6d579d800f20b3e091582c"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -172,14 +185,16 @@
   version = "v0.2.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/peterh/liner"
   packages = ["."]
-  revision = "88609521dc4b6c858fd4c98b628147da928ce4ac"
+  revision = "6106ee4fe3e8435f18cd10e34557e5e50f0e792a"
 
 [[projects]]
   name = "github.com/philhofer/fwd"
   packages = ["."]
-  revision = "1612a298117663d7bc9a760ae20d383413859798"
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/prometheus/client_golang"
@@ -190,26 +205,31 @@
   revision = "661e31bf844dfca9aeba15f27ea8aa0d485ad212"
 
 [[projects]]
+  branch = "master"
   name = "github.com/prometheus/client_model"
   packages = ["go"]
   revision = "99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c"
 
 [[projects]]
+  branch = "master"
   name = "github.com/prometheus/common"
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
     "model"
   ]
-  revision = "2e54d0b93cba2fd133edc32211dcc32c06ef72ca"
+  revision = "e4aa40a9169a88835b849a6efb71e05dc04b88f0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/prometheus/procfs"
   packages = [
     ".",
+    "internal/util",
+    "nfs",
     "xfs"
   ]
-  revision = "a6e9df898b1336106c743392c48ee0b71f5c4efa"
+  revision = "54d17b57dd7d4a3aa092476596b3f8a933bde349"
 
 [[projects]]
   branch = "master"
@@ -230,19 +250,22 @@
   version = "v1.1.3"
 
 [[projects]]
+  branch = "master"
   name = "github.com/xlab/treeprint"
   packages = ["."]
-  revision = "06dfc6fa17cdde904617990a0c2d89e3e332dbb3"
+  revision = "f3a15cfd24bf976c724324cb6846a8b54b88b639"
 
 [[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
-  revision = "54f72d32435d760d5604f17a82e2435b28dc4ba5"
+  revision = "8474b86a5a6f79c443ce4b2992817ff32cf208b8"
+  version = "v1.3.1"
 
 [[projects]]
   name = "go.uber.org/multierr"
   packages = ["."]
-  revision = "fb7d312c2c04c34f0ad621048bbb953b168f9ff6"
+  revision = "3c4937480c32f4c13a875a1829af76c98ca3d40a"
+  version = "v1.1.0"
 
 [[projects]]
   name = "go.uber.org/zap"
@@ -259,28 +282,35 @@
   version = "v1.7.1"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
     "blowfish",
     "ssh/terminal"
   ]
-  revision = "9477e0b78b9ac3d0b03822fd95422e2fe07627cd"
+  revision = "c3a3ad6d03f7a915c0f7e194b7152974bb73d287"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "9dfe39835686865bff950a07b394c12a98ddc811"
+  revision = "92b859f39abd2d91a854c9f9c4621b2f5054a92d"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/sync"
   packages = ["errgroup"]
-  revision = "fd80eb99c8f653c847d294a001bdf2a3a6f768f5"
+  revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix"]
-  revision = "062cd7e4e68206d8bab9b18396626e855c992658"
+  packages = [
+    "unix",
+    "windows"
+  ]
+  revision = "d8e400bc7db4870d786864138af681469693d18c"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -295,16 +325,18 @@
     "transform",
     "unicode/cldr"
   ]
-  revision = "a71fd10341b064c10f4a81ceac72bcf70f26ea34"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/time"
   packages = ["rate"]
-  revision = "6dc17368e09b0e8634d71cac8168d853e869a0c7"
+  revision = "26559e0f760e39c24d730d3224364aef164ee23f"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a5da843ef395612bf314e73c8edc9605e55fd0428a73fe8e94370caa17231cb2"
+  inputs-digest = "24a09b8e892a864f31c3cd636006c3f8bcd9eea046b08c1a8d93b9da5b7206c6"
   solver-name = "gps-cdcl"
   solver-version = 1
