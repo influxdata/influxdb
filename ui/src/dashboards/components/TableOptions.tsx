@@ -29,14 +29,12 @@ type Options = {
   columnNames: TableColumn[]
 }
 
-type QueryConfig = {
+interface QueryConfig {
   measurement: string
-  fields: [
-    {
-      alias: string
-      value: string
-    }
-  ]
+  fields: {
+    alias: string
+    value: string
+  }[]
 }
 
 interface Props {
@@ -51,33 +49,52 @@ export class TableOptions extends PureComponent<Props, {}> {
     super(props)
   }
 
-  componentWillMount() {
-    const {queryConfigs, handleUpdateTableOptions, tableOptions} = this.props
-    const {columnNames} = tableOptions
-    const timeColumn =
-      (columnNames && columnNames.find(c => c.internalName === 'time')) ||
-      TIME_COLUMN_DEFAULT
+  get columnNames() {
+    const {tableOptions: {columnNames}} = this.props
 
-    const columns = [
-      timeColumn,
-      ..._.flatten(
-        queryConfigs.map(qc => {
-          const {measurement, fields} = qc
-          return fields.map(f => {
-            const internalName = `${measurement}.${f.alias}`
-            const existing = columnNames.find(
-              c => c.internalName === internalName
-            )
-            return existing || {internalName, displayName: ''}
-          })
-        })
-      ),
-    ]
-
-    handleUpdateTableOptions({...tableOptions, columnNames: columns})
+    return columnNames || []
   }
 
-  handleChooseSortBy = () => {}
+  get timeColumn() {
+    return (this.columnNames.find(c => c.internalName === 'time')) || TIME_COLUMN_DEFAULT
+  }
+
+  get computedColumnNames() {
+    const {queryConfigs} = this.props
+
+    const queryFields = _.flatten(
+      queryConfigs.map(({measurement, fields}) => {
+        return fields.map(({alias}) => {
+          const internalName = `${measurement}.${alias}`
+          const existing = this.columnNames.find(
+            c => c.internalName === internalName
+          )
+          return existing || {internalName, displayName: ''}
+        })
+      }))
+
+    return [this.timeColumn, ...queryFields]
+  }
+
+  componentWillMount() {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, columnNames: this.computedColumnNames})
+  }
+
+  handleToggleSingleStatType = () => {}
+
+  handleAddThreshold = () => {}
+
+  handleDeleteThreshold = () => () => {}
+
+  handleChooseColor = () => () => {}
+
+  handleChooseSortBy = option => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    const sortBy = {displayName: option.text, internalName: option.key}
+
+    handleUpdateTableOptions({...tableOptions, sortBy})
+  }
 
   handleTimeFormatChange = timeFormat => {
     const {tableOptions, handleUpdateTableOptions} = this.props
@@ -101,15 +118,15 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {
       tableOptions: {timeFormat, columnNames: columns},
       onResetFocus,
+      tableOptions,
     } = this.props
 
     const TimeAxis = 'vertical'
 
-    const tableSortByOptions = [
-      'cpu.mean_usage_system',
-      'cpu.mean_usage_idle',
-      'cpu.mean_usage_user',
-    ].map(col => ({text: col}))
+    const tableSortByOptions = this.computedColumnNames.map(col => ({
+      text: col.displayName || col.internalName,
+      key: col.internalName,
+    }))
 
     return (
       <FancyScrollbar
@@ -128,6 +145,7 @@ export class TableOptions extends PureComponent<Props, {}> {
               onToggleTimeAxis={this.handleToggleTimeAxis}
             />
             <GraphOptionsSortBy
+              selected={tableOptions.sortBy || TIME_COLUMN_DEFAULT}
               sortByOptions={tableSortByOptions}
               onChooseSortBy={this.handleChooseSortBy}
             />

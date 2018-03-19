@@ -2,6 +2,7 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 import classnames from 'classnames'
+import isEmpty from 'lodash/isEmpty'
 
 import {MultiGrid} from 'react-virtualized'
 import moment from 'moment'
@@ -16,24 +17,25 @@ import {
 } from 'src/shared/constants/tableGraph'
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
-const isEmpty = data => data.length <= 1
-
 class TableGraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
+      data: [[]],
       hoveredColumnIndex: NULL_COLUMN_INDEX,
       hoveredRowIndex: NULL_ROW_INDEX,
+      sortByColumnIndex: -1,
     }
   }
 
-  componentWillMount() {
-    this._data = [[]]
-  }
-
-  componentWillUpdate(nextProps) {
+  componentWillReceiveProps(nextProps) {
     const {data} = timeSeriesToTableGraph(nextProps.data)
-    this._data = data
+
+    const {tableOptions: {sortBy: {internalName}}} = nextProps
+    const sortByColumnIndex = _.indexOf(data[0], internalName)
+
+    const sortedData = _.sortBy(_.drop(data, 1), sortByColumnIndex)
+    this.setState({data: [data[0], ...sortedData], sortByColumnIndex})
   }
 
   calcHoverTimeRow = (data, hoverTime) =>
@@ -45,7 +47,8 @@ class TableGraph extends Component {
 
   handleHover = (columnIndex, rowIndex) => () => {
     if (this.props.onSetHoverTime) {
-      this.props.onSetHoverTime(this._data[rowIndex][0].toString())
+      const {data} = this.state
+      this.props.onSetHoverTime(data[rowIndex][0].toString())
       this.setState({
         hoveredColumnIndex: columnIndex,
         hoveredRowIndex: rowIndex,
@@ -63,20 +66,17 @@ class TableGraph extends Component {
     }
   }
 
-  cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
-    const data = this._data
-    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+  cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
+    const {hoveredColumnIndex, hoveredRowIndex, data} = this.state
     const {colors} = this.props
 
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const {tableOptions} = this.props
-    const timeFormat = tableOptions
-      ? tableOptions.timeFormat
-      : TIME_FORMAT_DEFAULT
-    const columnNames = tableOptions
-      ? tableOptions.columnNames
-      : [TIME_COLUMN_DEFAULT]
+    const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
+    const columnNames = _.get(tableOptions, 'columnNames', [
+      TIME_COLUMN_DEFAULT,
+    ])
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = rowIndex > 0 && columnIndex === 0
@@ -137,16 +137,19 @@ class TableGraph extends Component {
   }
 
   render() {
-    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {sortByColumnIndex, hoveredColumnIndex, hoveredRowIndex} = this.state
     const {hoverTime, tableOptions, colors} = this.props
-    const data = this._data
+    const {data} = this.state
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const COLUMN_WIDTH = 300
     const ROW_HEIGHT = 30
     const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
     const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
-    const hoverTimeRow = this.calcHoverTimeRow(data, hoverTime)
+    const hoverTimeRow =
+      hoveredRowIndex === NULL_ROW_INDEX
+        ? this.calcHoverTimeRow(data, hoverTime)
+        : hoveredRowIndex
 
     return (
       <div
@@ -172,6 +175,7 @@ class TableGraph extends Component {
             columnNames={
               tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
             }
+            sortByColumnIndex={sortByColumnIndex}
             scrollToRow={hoverTimeRow}
             cellRenderer={this.cellRenderer}
             hoveredColumnIndex={hoveredColumnIndex}
