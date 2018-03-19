@@ -284,6 +284,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			SortBy:           sortBy,
 			Wrapping:         c.TableOptions.Wrapping,
 			ColumnNames:      columnNames,
+			FixFirstColumn:   c.TableOptions.FixFirstColumn,
 		}
 
 		cells[i] = &DashboardCell{
@@ -447,6 +448,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			tableOptions.TimeFormat = c.TableOptions.TimeFormat
 			tableOptions.VerticalTimeAxis = c.TableOptions.VerticalTimeAxis
 			tableOptions.Wrapping = c.TableOptions.Wrapping
+			tableOptions.FixFirstColumn = c.TableOptions.FixFirstColumn
 
 		}
 

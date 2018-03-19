@@ -26,4 +26,5 @@ export const DEFAULT_TABLE_OPTIONS = {
   sortBy: TIME_COLUMN_DEFAULT,
   wrapping: 'truncate',
   columnNames: [TIME_COLUMN_DEFAULT],
+  fixFirstColumn: true,
 }
