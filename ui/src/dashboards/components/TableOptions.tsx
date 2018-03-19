@@ -30,14 +30,12 @@ type Options = {
   columnNames: TableColumn[]
 }
 
-type QueryConfig = {
+interface QueryConfig {
   measurement: string
-  fields: [
-    {
-      alias: string
-      value: string
-    }
-  ]
+  fields: {
+    alias: string
+    value: string
+  }[]
 }
 
 interface Props {
@@ -52,6 +50,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     super(props)
   }
 
+<<<<<<< HEAD
   componentWillMount() {
     const {queryConfigs, handleUpdateTableOptions, tableOptions} = this.props
     const {columnNames} = tableOptions
@@ -70,11 +69,54 @@ export class TableOptions extends PureComponent<Props, {}> {
         })
       )
     ]
+=======
+  get columnNames() {
+    const {tableOptions: {columnNames}} = this.props
 
-    handleUpdateTableOptions({...tableOptions, columnNames: columns})
+    return columnNames || []
   }
 
-  handleChooseSortBy = () => {}
+  get timeColumn() {
+    return (this.columnNames.find(c => c.internalName === 'time')) || TIME_COLUMN_DEFAULT
+  }
+
+  get computedColumnNames() {
+    const {queryConfigs} = this.props
+
+    const queryFields = _.flatten(
+      queryConfigs.map(({measurement, fields}) => {
+        return fields.map(({alias}) => {
+          const internalName = `${measurement}.${alias}`
+          const existing = this.columnNames.find(
+            c => c.internalName === internalName
+          )
+          return existing || {internalName, displayName: ''}
+        })
+      }))
+
+    return [this.timeColumn, ...queryFields]
+  }
+>>>>>>> master
+
+  componentWillMount() {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, columnNames: this.computedColumnNames})
+  }
+
+  handleToggleSingleStatType = () => {}
+
+  handleAddThreshold = () => {}
+
+  handleDeleteThreshold = () => () => {}
+
+  handleChooseColor = () => () => {}
+
+  handleChooseSortBy = option => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    const sortBy = {displayName: option.text, internalName: option.key}
+
+    handleUpdateTableOptions({...tableOptions, sortBy})
+  }
 
   handleTimeFormatChange = timeFormat => {
     const {tableOptions, handleUpdateTableOptions} = this.props
@@ -96,10 +138,24 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   render() {
+<<<<<<< HEAD
     const {tableOptions: {timeFormat, columnNames: columns, verticalTimeAxis}, onResetFocus} = this.props
 
     const tableSortByOptions = ['cpu.mean_usage_system', 'cpu.mean_usage_idle', 'cpu.mean_usage_user'].map(col => ({
       text: col
+=======
+    const {
+      tableOptions: {timeFormat, columnNames: columns},
+      onResetFocus,
+      tableOptions,
+    } = this.props
+
+    const TimeAxis = 'vertical'
+
+    const tableSortByOptions = this.computedColumnNames.map(col => ({
+      text: col.displayName || col.internalName,
+      key: col.internalName,
+>>>>>>> master
     }))
 
     return (
@@ -109,8 +165,18 @@ export class TableOptions extends PureComponent<Props, {}> {
           <div className="form-group-wrapper">
             <GraphOptionsTimeFormat timeFormat={timeFormat} onTimeFormatChange={this.handleTimeFormatChange} />
             <GraphOptionsTimeAxis
+<<<<<<< HEAD
               verticalTimeAxis={verticalTimeAxis}
               onToggleVerticalTimeAxis={this.onToggleVerticalTimeAxis}
+=======
+              TimeAxis={TimeAxis}
+              onToggleTimeAxis={this.handleToggleTimeAxis}
+            />
+            <GraphOptionsSortBy
+              selected={tableOptions.sortBy || TIME_COLUMN_DEFAULT}
+              sortByOptions={tableSortByOptions}
+              onChooseSortBy={this.handleChooseSortBy}
+>>>>>>> master
             />
             <GraphOptionsSortBy sortByOptions={tableSortByOptions} onChooseSortBy={this.handleChooseSortBy} />
             <GraphOptionsTextWrapping
