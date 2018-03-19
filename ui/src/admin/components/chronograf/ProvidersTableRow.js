@@ -71,13 +71,15 @@ class ProvidersTableRow extends Component {
     const isDefaultMapping = DEFAULT_MAPPING_ID === mapping.id
     return (
       <div className="fancytable--row">
-        <Dropdown
-          items={schemes}
-          onChoose={this.handleChooseScheme}
-          selected={scheme}
-          className="fancytable--td provider--scheme"
-          disabled={isDefaultMapping}
-        />
+        <div className="fancytable--td provider--scheme">
+          <Dropdown
+            items={schemes}
+            onChoose={this.handleChooseScheme}
+            selected={scheme}
+            className="dropdown-stretch"
+            disabled={isDefaultMapping}
+          />
+        </div>
         <InputClickToEdit
           value={provider}
           wrapperClass="fancytable--td provider--provider"
