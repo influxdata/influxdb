@@ -10,6 +10,7 @@ import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
+
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
@@ -51,12 +52,14 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   get columnNames() {
     const {tableOptions: {columnNames}} = this.props
-
     return columnNames || []
   }
 
   get timeColumn() {
-    return (this.columnNames.find(c => c.internalName === 'time')) || TIME_COLUMN_DEFAULT
+    return (
+      this.columnNames.find(c => c.internalName === 'time') ||
+      TIME_COLUMN_DEFAULT
+    )
   }
 
   get computedColumnNames() {
@@ -71,23 +74,19 @@ export class TableOptions extends PureComponent<Props, {}> {
           )
           return existing || {internalName, displayName: ''}
         })
-      }))
+      })
+    )
 
     return [this.timeColumn, ...queryFields]
   }
 
   componentWillMount() {
     const {handleUpdateTableOptions, tableOptions} = this.props
-    handleUpdateTableOptions({...tableOptions, columnNames: this.computedColumnNames})
+    handleUpdateTableOptions({
+      ...tableOptions,
+      columnNames: this.computedColumnNames
+    })
   }
-
-  handleToggleSingleStatType = () => {}
-
-  handleAddThreshold = () => {}
-
-  handleDeleteThreshold = () => () => {}
-
-  handleChooseColor = () => () => {}
 
   handleChooseSortBy = option => {
     const {tableOptions, handleUpdateTableOptions} = this.props
@@ -101,7 +100,10 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateTableOptions({...tableOptions, timeFormat})
   }
 
-  handleToggleTimeAxis = () => {}
+  onToggleVerticalTimeAxis = verticalTimeAxis => () => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
+  }
 
   handleToggleTextWrapping = () => {}
 
@@ -116,16 +118,14 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   render() {
     const {
-      tableOptions: {timeFormat, columnNames: columns},
+      tableOptions: {timeFormat, columnNames: columns, verticalTimeAxis},
       onResetFocus,
-      tableOptions,
+      tableOptions
     } = this.props
-
-    const TimeAxis = 'vertical'
 
     const tableSortByOptions = this.computedColumnNames.map(col => ({
       text: col.displayName || col.internalName,
-      key: col.internalName,
+      key: col.internalName
     }))
 
     return (
@@ -141,8 +141,8 @@ export class TableOptions extends PureComponent<Props, {}> {
               onTimeFormatChange={this.handleTimeFormatChange}
             />
             <GraphOptionsTimeAxis
-              TimeAxis={TimeAxis}
-              onToggleTimeAxis={this.handleToggleTimeAxis}
+              verticalTimeAxis={verticalTimeAxis}
+              onToggleVerticalTimeAxis={this.onToggleVerticalTimeAxis}
             />
             <GraphOptionsSortBy
               selected={tableOptions.sortBy || TIME_COLUMN_DEFAULT}
@@ -169,11 +169,11 @@ export class TableOptions extends PureComponent<Props, {}> {
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell: {tableOptions}}}) => ({
-  tableOptions,
+  tableOptions
 })
 
 const mapDispatchToProps = dispatch => ({
-  handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
+  handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch)
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

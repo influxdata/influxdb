@@ -21,8 +21,8 @@ export const FORMAT_OPTIONS = [
 ]
 
 export const DEFAULT_TABLE_OPTIONS = {
-  timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
   verticalTimeAxis: true,
+  timeFormat: TIME_FORMAT_DEFAULT,
   sortBy: TIME_COLUMN_DEFAULT,
   wrapping: 'truncate',
   columnNames: [TIME_COLUMN_DEFAULT],

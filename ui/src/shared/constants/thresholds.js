@@ -187,3 +187,7 @@ export const validateGaugeColors = colors => {
 
   return formattedColors
 }
+
+export const stringifyColorValues = colors => {
+  return colors.map(color => ({...color, value: `${color.value}`}))
+}

@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 import {
   THRESHOLD_TYPE_TEXT,
   DEFAULT_THRESHOLDS_LIST_COLORS,
@@ -28,7 +30,11 @@ export default function cellEditorOverlay(state = initialState, action) {
       )
       const gaugeColors = validateGaugeColors(colors)
 
-      const tableOptions = cell.tableOptions || initializeOptions('table')
+      const tableOptions = _.get(
+        cell,
+        'tableOptions',
+        initializeOptions('table')
+      )
 
       return {
         ...state,
