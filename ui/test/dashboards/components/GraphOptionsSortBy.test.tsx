@@ -28,7 +28,7 @@ describe('Dashboards.Components.GraphOptionsSortBy', () => {
       const dropdown = wrapper.find(Dropdown)
       const label = wrapper.find('label')
 
-      expect(dropdown.props().selected).toEqual('here')
+      expect(dropdown.props()['selected']).toEqual('here')
       expect(dropdown.exists()).toBe(true)
       expect(label.exists()).toBe(true)
     })
@@ -39,7 +39,7 @@ describe('Dashboards.Components.GraphOptionsSortBy', () => {
 
         const dropdown = wrapper.find(Dropdown)
 
-        expect(dropdown.props().selected).toEqual('boom')
+        expect(dropdown.props()['selected']).toEqual('boom')
       })
     })
   })
