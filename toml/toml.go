@@ -180,9 +180,24 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 				continue
 			}
 
-			fieldName := typeOfSpec.Field(i).Name
+			structField := typeOfSpec.Field(i)
+			fieldName := structField.Name
 
-			configName := typeOfSpec.Field(i).Tag.Get("toml")
+			configName := structField.Tag.Get("toml")
+			if configName == "-" {
+				// Skip fields with tag `toml:"-"`.
+				continue
+			}
+
+			if configName == "" && structField.Anonymous {
+				// Embedded field without a toml tag.
+				// Don't modify prefix.
+				if err := applyEnvOverrides(getenv, prefix, field, fieldName); err != nil {
+					return err
+				}
+				continue
+			}
+
 			// Replace hyphens with underscores to avoid issues with shells
 			configName = strings.Replace(configName, "-", "_", -1)
 

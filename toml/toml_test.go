@@ -94,6 +94,8 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_FLOAT64":       "12.5",
 		"X_NESTED_STRING": "a nested string",
 		"X_NESTED_INT":    "13",
+		"X_ES":            "an embedded string",
+		"X__":             "-1", // This value should not be applied to the "ignored" field with toml tag -.
 	}
 
 	env := func(s string) string {
@@ -103,6 +105,9 @@ func TestEnvOverride_Builtins(t *testing.T) {
 	type nested struct {
 		Str string `toml:"string"`
 		Int int    `toml:"int"`
+	}
+	type Embedded struct {
+		ES string `toml:"es"`
 	}
 	type all struct {
 		Str     string         `toml:"string"`
@@ -121,6 +126,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		Float32 float32        `toml:"float32"`
 		Float64 float64        `toml:"float64"`
 		Nested  nested         `toml:"nested"`
+
+		Embedded
+
+		Ignored int `toml:"-"`
 	}
 
 	var got all
@@ -148,6 +157,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 			Str: "a nested string",
 			Int: 13,
 		},
+		Embedded: Embedded{
+			ES: "an embedded string",
+		},
+		Ignored: 0,
 	}
 
 	if diff := cmp.Diff(got, exp); diff != "" {
