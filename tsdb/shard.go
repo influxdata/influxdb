@@ -1221,6 +1221,11 @@ func (a Shards) MapType(measurement, field string) influxql.DataType {
 	return typ
 }
 
+func (a Shards) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
+	typmap := query.CallTypeMapper{}
+	return typmap.CallType(name, args)
+}
+
 func (a Shards) CreateIterator(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	switch measurement.SystemIterator {
 	case "_series":

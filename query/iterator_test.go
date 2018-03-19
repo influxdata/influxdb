@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -767,44 +766,6 @@ func TestLimitIterator_Boolean(t *testing.T) {
 
 	if !input.Closed {
 		t.Error("iterator not closed")
-	}
-}
-
-// Ensure auxiliary iterators can be created for auxilary fields.
-func TestFloatAuxIterator(t *testing.T) {
-	itr := query.NewAuxIterator(
-		&FloatIterator{Points: []query.FloatPoint{
-			{Time: 0, Value: 1, Aux: []interface{}{float64(100), float64(200)}},
-			{Time: 1, Value: 2, Aux: []interface{}{float64(500), math.NaN()}},
-		}},
-		query.IteratorOptions{Aux: []influxql.VarRef{{Val: "f0", Type: influxql.Float}, {Val: "f1", Type: influxql.Float}}},
-	)
-
-	itrs := []query.Iterator{
-		itr,
-		itr.Iterator("f0", influxql.Unknown),
-		itr.Iterator("f1", influxql.Unknown),
-		itr.Iterator("f0", influxql.Unknown),
-	}
-	itr.Start()
-
-	if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]query.Point{
-		{
-			&query.FloatPoint{Time: 0, Value: 1, Aux: []interface{}{float64(100), float64(200)}},
-			&query.FloatPoint{Time: 0, Value: float64(100)},
-			&query.FloatPoint{Time: 0, Value: float64(200)},
-			&query.FloatPoint{Time: 0, Value: float64(100)},
-		},
-		{
-			&query.FloatPoint{Time: 1, Value: 2, Aux: []interface{}{float64(500), math.NaN()}},
-			&query.FloatPoint{Time: 1, Value: float64(500)},
-			&query.FloatPoint{Time: 1, Value: math.NaN()},
-			&query.FloatPoint{Time: 1, Value: float64(500)},
-		},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
 

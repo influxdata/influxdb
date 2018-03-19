@@ -491,6 +491,95 @@ type floatSortedMergeHeapItem struct {
 	itr   FloatIterator
 }
 
+// floatIteratorScanner scans the results of a FloatIterator into a map.
+type floatIteratorScanner struct {
+	input        *bufFloatIterator
+	err          error
+	keys         []string
+	defaultValue interface{}
+}
+
+// newFloatIteratorScanner creates a new IteratorScanner.
+func newFloatIteratorScanner(input FloatIterator, keys []string, defaultValue interface{}) *floatIteratorScanner {
+	return &floatIteratorScanner{
+		input:        newBufFloatIterator(input),
+		keys:         keys,
+		defaultValue: defaultValue,
+	}
+}
+
+func (s *floatIteratorScanner) Peek() (int64, string, Tags) {
+	if s.err != nil {
+		return ZeroTime, "", Tags{}
+	}
+
+	p, err := s.input.peek()
+	if err != nil {
+		s.err = err
+		return ZeroTime, "", Tags{}
+	} else if p == nil {
+		return ZeroTime, "", Tags{}
+	}
+	return p.Time, p.Name, p.Tags
+}
+
+func (s *floatIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[string]interface{}) {
+	if s.err != nil {
+		return
+	}
+
+	p, err := s.input.Next()
+	if err != nil {
+		s.err = err
+		return
+	} else if p == nil {
+		s.useDefaults(m)
+		return
+	} else if p.Time != ts || p.Name != name || !p.Tags.Equals(&tags) {
+		s.useDefaults(m)
+		s.input.unread(p)
+		return
+	}
+
+	if k := s.keys[0]; k != "" {
+		if p.Nil {
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		} else {
+			m[k] = p.Value
+		}
+	}
+	for i, v := range p.Aux {
+		k := s.keys[i+1]
+		switch v.(type) {
+		case float64, int64, uint64, string, bool:
+			m[k] = v
+		default:
+			// Insert the fill value if one was specified.
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		}
+	}
+}
+
+func (s *floatIteratorScanner) useDefaults(m map[string]interface{}) {
+	if s.defaultValue == SkipDefault {
+		return
+	}
+	for _, k := range s.keys {
+		if k == "" {
+			continue
+		}
+		m[k] = s.defaultValue
+	}
+}
+
+func (s *floatIteratorScanner) Stats() IteratorStats { return s.input.Stats() }
+func (s *floatIteratorScanner) Err() error           { return s.err }
+func (s *floatIteratorScanner) Close() error         { return s.input.Close() }
+
 // floatParallelIterator represents an iterator that pulls data in a separate goroutine.
 type floatParallelIterator struct {
 	input FloatIterator
@@ -901,172 +990,6 @@ func (itr *floatCloseInterruptIterator) Next() (*FloatPoint, error) {
 			return nil, err
 		}
 	}
-	return p, nil
-}
-
-// auxFloatPoint represents a combination of a point and an error for the AuxIterator.
-type auxFloatPoint struct {
-	point *FloatPoint
-	err   error
-}
-
-// floatAuxIterator represents a float implementation of AuxIterator.
-type floatAuxIterator struct {
-	input      *bufFloatIterator
-	output     chan auxFloatPoint
-	fields     *auxIteratorFields
-	background bool
-	closer     sync.Once
-}
-
-func newFloatAuxIterator(input FloatIterator, opt IteratorOptions) *floatAuxIterator {
-	return &floatAuxIterator{
-		input:  newBufFloatIterator(input),
-		output: make(chan auxFloatPoint, 1),
-		fields: newAuxIteratorFields(opt),
-	}
-}
-
-func (itr *floatAuxIterator) Background() {
-	itr.background = true
-	itr.Start()
-	go DrainIterator(itr)
-}
-
-func (itr *floatAuxIterator) Start()               { go itr.stream() }
-func (itr *floatAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-
-func (itr *floatAuxIterator) Close() error {
-	var err error
-	itr.closer.Do(func() { err = itr.input.Close() })
-	return err
-}
-
-func (itr *floatAuxIterator) Next() (*FloatPoint, error) {
-	p := <-itr.output
-	return p.point, p.err
-}
-func (itr *floatAuxIterator) Iterator(name string, typ influxql.DataType) Iterator {
-	return itr.fields.iterator(name, typ)
-}
-
-func (itr *floatAuxIterator) stream() {
-	for {
-		// Read next point.
-		p, err := itr.input.Next()
-		if err != nil {
-			itr.output <- auxFloatPoint{err: err}
-			itr.fields.sendError(err)
-			break
-		} else if p == nil {
-			break
-		}
-
-		// Send point to output and to each field iterator.
-		itr.output <- auxFloatPoint{point: p}
-		if ok := itr.fields.send(p); !ok && itr.background {
-			break
-		}
-	}
-
-	close(itr.output)
-	itr.fields.close()
-}
-
-// floatChanIterator represents a new instance of floatChanIterator.
-type floatChanIterator struct {
-	buf struct {
-		i      int
-		filled bool
-		points [2]FloatPoint
-	}
-	err  error
-	cond *sync.Cond
-	done bool
-}
-
-func (itr *floatChanIterator) Stats() IteratorStats { return IteratorStats{} }
-
-func (itr *floatChanIterator) Close() error {
-	itr.cond.L.Lock()
-	// Mark the channel iterator as done and signal all waiting goroutines to start again.
-	itr.done = true
-	itr.cond.Broadcast()
-	// Do not defer the unlock so we don't create an unnecessary allocation.
-	itr.cond.L.Unlock()
-	return nil
-}
-
-func (itr *floatChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Wait for either the iterator to be done (so we don't have to set the value)
-	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Do not set the value and return false to signal that the iterator is closed.
-	// Do this after the above wait as the above for loop may have exited because
-	// the iterator was closed.
-	if itr.done {
-		return false
-	}
-
-	switch v := value.(type) {
-	case float64:
-		itr.buf.points[itr.buf.i] = FloatPoint{Name: name, Tags: tags, Time: time, Value: v}
-
-	case int64:
-		itr.buf.points[itr.buf.i] = FloatPoint{Name: name, Tags: tags, Time: time, Value: float64(v)}
-
-	default:
-		itr.buf.points[itr.buf.i] = FloatPoint{Name: name, Tags: tags, Time: time, Nil: true}
-	}
-	itr.buf.filled = true
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-	return true
-}
-
-func (itr *floatChanIterator) setErr(err error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-	itr.err = err
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-}
-
-func (itr *floatChanIterator) Next() (*FloatPoint, error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Check for an error and return one if there.
-	if itr.err != nil {
-		return nil, itr.err
-	}
-
-	// Wait until either a value is available in the buffer or
-	// the iterator is closed.
-	for !itr.done && !itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Return nil once the channel is done and the buffer is empty.
-	if itr.done && !itr.buf.filled {
-		return nil, nil
-	}
-
-	// Always read from the buffer if it exists, even if the iterator
-	// is closed. This prevents the last value from being truncated by
-	// the parent iterator.
-	p := &itr.buf.points[itr.buf.i]
-	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
-	itr.buf.filled = false
-	itr.cond.Signal()
 	return p, nil
 }
 
@@ -3280,13 +3203,7 @@ func (itr *floatIteratorMapper) Next() (*FloatPoint, error) {
 }
 
 func (itr *floatIteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	if cur, ok := itr.cur.(*cursor); ok {
-		for _, itr := range cur.itrs {
-			stats.Add(itr.Stats())
-		}
-	}
-	return stats
+	return itr.cur.Stats()
 }
 
 func (itr *floatIteratorMapper) Close() error {
@@ -3904,6 +3821,95 @@ type integerSortedMergeHeapItem struct {
 	itr   IntegerIterator
 }
 
+// integerIteratorScanner scans the results of a IntegerIterator into a map.
+type integerIteratorScanner struct {
+	input        *bufIntegerIterator
+	err          error
+	keys         []string
+	defaultValue interface{}
+}
+
+// newIntegerIteratorScanner creates a new IteratorScanner.
+func newIntegerIteratorScanner(input IntegerIterator, keys []string, defaultValue interface{}) *integerIteratorScanner {
+	return &integerIteratorScanner{
+		input:        newBufIntegerIterator(input),
+		keys:         keys,
+		defaultValue: defaultValue,
+	}
+}
+
+func (s *integerIteratorScanner) Peek() (int64, string, Tags) {
+	if s.err != nil {
+		return ZeroTime, "", Tags{}
+	}
+
+	p, err := s.input.peek()
+	if err != nil {
+		s.err = err
+		return ZeroTime, "", Tags{}
+	} else if p == nil {
+		return ZeroTime, "", Tags{}
+	}
+	return p.Time, p.Name, p.Tags
+}
+
+func (s *integerIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[string]interface{}) {
+	if s.err != nil {
+		return
+	}
+
+	p, err := s.input.Next()
+	if err != nil {
+		s.err = err
+		return
+	} else if p == nil {
+		s.useDefaults(m)
+		return
+	} else if p.Time != ts || p.Name != name || !p.Tags.Equals(&tags) {
+		s.useDefaults(m)
+		s.input.unread(p)
+		return
+	}
+
+	if k := s.keys[0]; k != "" {
+		if p.Nil {
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		} else {
+			m[k] = p.Value
+		}
+	}
+	for i, v := range p.Aux {
+		k := s.keys[i+1]
+		switch v.(type) {
+		case float64, int64, uint64, string, bool:
+			m[k] = v
+		default:
+			// Insert the fill value if one was specified.
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		}
+	}
+}
+
+func (s *integerIteratorScanner) useDefaults(m map[string]interface{}) {
+	if s.defaultValue == SkipDefault {
+		return
+	}
+	for _, k := range s.keys {
+		if k == "" {
+			continue
+		}
+		m[k] = s.defaultValue
+	}
+}
+
+func (s *integerIteratorScanner) Stats() IteratorStats { return s.input.Stats() }
+func (s *integerIteratorScanner) Err() error           { return s.err }
+func (s *integerIteratorScanner) Close() error         { return s.input.Close() }
+
 // integerParallelIterator represents an iterator that pulls data in a separate goroutine.
 type integerParallelIterator struct {
 	input IntegerIterator
@@ -4314,169 +4320,6 @@ func (itr *integerCloseInterruptIterator) Next() (*IntegerPoint, error) {
 			return nil, err
 		}
 	}
-	return p, nil
-}
-
-// auxIntegerPoint represents a combination of a point and an error for the AuxIterator.
-type auxIntegerPoint struct {
-	point *IntegerPoint
-	err   error
-}
-
-// integerAuxIterator represents a integer implementation of AuxIterator.
-type integerAuxIterator struct {
-	input      *bufIntegerIterator
-	output     chan auxIntegerPoint
-	fields     *auxIteratorFields
-	background bool
-	closer     sync.Once
-}
-
-func newIntegerAuxIterator(input IntegerIterator, opt IteratorOptions) *integerAuxIterator {
-	return &integerAuxIterator{
-		input:  newBufIntegerIterator(input),
-		output: make(chan auxIntegerPoint, 1),
-		fields: newAuxIteratorFields(opt),
-	}
-}
-
-func (itr *integerAuxIterator) Background() {
-	itr.background = true
-	itr.Start()
-	go DrainIterator(itr)
-}
-
-func (itr *integerAuxIterator) Start()               { go itr.stream() }
-func (itr *integerAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-
-func (itr *integerAuxIterator) Close() error {
-	var err error
-	itr.closer.Do(func() { err = itr.input.Close() })
-	return err
-}
-
-func (itr *integerAuxIterator) Next() (*IntegerPoint, error) {
-	p := <-itr.output
-	return p.point, p.err
-}
-func (itr *integerAuxIterator) Iterator(name string, typ influxql.DataType) Iterator {
-	return itr.fields.iterator(name, typ)
-}
-
-func (itr *integerAuxIterator) stream() {
-	for {
-		// Read next point.
-		p, err := itr.input.Next()
-		if err != nil {
-			itr.output <- auxIntegerPoint{err: err}
-			itr.fields.sendError(err)
-			break
-		} else if p == nil {
-			break
-		}
-
-		// Send point to output and to each field iterator.
-		itr.output <- auxIntegerPoint{point: p}
-		if ok := itr.fields.send(p); !ok && itr.background {
-			break
-		}
-	}
-
-	close(itr.output)
-	itr.fields.close()
-}
-
-// integerChanIterator represents a new instance of integerChanIterator.
-type integerChanIterator struct {
-	buf struct {
-		i      int
-		filled bool
-		points [2]IntegerPoint
-	}
-	err  error
-	cond *sync.Cond
-	done bool
-}
-
-func (itr *integerChanIterator) Stats() IteratorStats { return IteratorStats{} }
-
-func (itr *integerChanIterator) Close() error {
-	itr.cond.L.Lock()
-	// Mark the channel iterator as done and signal all waiting goroutines to start again.
-	itr.done = true
-	itr.cond.Broadcast()
-	// Do not defer the unlock so we don't create an unnecessary allocation.
-	itr.cond.L.Unlock()
-	return nil
-}
-
-func (itr *integerChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Wait for either the iterator to be done (so we don't have to set the value)
-	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Do not set the value and return false to signal that the iterator is closed.
-	// Do this after the above wait as the above for loop may have exited because
-	// the iterator was closed.
-	if itr.done {
-		return false
-	}
-
-	switch v := value.(type) {
-	case int64:
-		itr.buf.points[itr.buf.i] = IntegerPoint{Name: name, Tags: tags, Time: time, Value: v}
-
-	default:
-		itr.buf.points[itr.buf.i] = IntegerPoint{Name: name, Tags: tags, Time: time, Nil: true}
-	}
-	itr.buf.filled = true
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-	return true
-}
-
-func (itr *integerChanIterator) setErr(err error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-	itr.err = err
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-}
-
-func (itr *integerChanIterator) Next() (*IntegerPoint, error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Check for an error and return one if there.
-	if itr.err != nil {
-		return nil, itr.err
-	}
-
-	// Wait until either a value is available in the buffer or
-	// the iterator is closed.
-	for !itr.done && !itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Return nil once the channel is done and the buffer is empty.
-	if itr.done && !itr.buf.filled {
-		return nil, nil
-	}
-
-	// Always read from the buffer if it exists, even if the iterator
-	// is closed. This prevents the last value from being truncated by
-	// the parent iterator.
-	p := &itr.buf.points[itr.buf.i]
-	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
-	itr.buf.filled = false
-	itr.cond.Signal()
 	return p, nil
 }
 
@@ -6690,13 +6533,7 @@ func (itr *integerIteratorMapper) Next() (*IntegerPoint, error) {
 }
 
 func (itr *integerIteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	if cur, ok := itr.cur.(*cursor); ok {
-		for _, itr := range cur.itrs {
-			stats.Add(itr.Stats())
-		}
-	}
-	return stats
+	return itr.cur.Stats()
 }
 
 func (itr *integerIteratorMapper) Close() error {
@@ -7314,6 +7151,95 @@ type unsignedSortedMergeHeapItem struct {
 	itr   UnsignedIterator
 }
 
+// unsignedIteratorScanner scans the results of a UnsignedIterator into a map.
+type unsignedIteratorScanner struct {
+	input        *bufUnsignedIterator
+	err          error
+	keys         []string
+	defaultValue interface{}
+}
+
+// newUnsignedIteratorScanner creates a new IteratorScanner.
+func newUnsignedIteratorScanner(input UnsignedIterator, keys []string, defaultValue interface{}) *unsignedIteratorScanner {
+	return &unsignedIteratorScanner{
+		input:        newBufUnsignedIterator(input),
+		keys:         keys,
+		defaultValue: defaultValue,
+	}
+}
+
+func (s *unsignedIteratorScanner) Peek() (int64, string, Tags) {
+	if s.err != nil {
+		return ZeroTime, "", Tags{}
+	}
+
+	p, err := s.input.peek()
+	if err != nil {
+		s.err = err
+		return ZeroTime, "", Tags{}
+	} else if p == nil {
+		return ZeroTime, "", Tags{}
+	}
+	return p.Time, p.Name, p.Tags
+}
+
+func (s *unsignedIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[string]interface{}) {
+	if s.err != nil {
+		return
+	}
+
+	p, err := s.input.Next()
+	if err != nil {
+		s.err = err
+		return
+	} else if p == nil {
+		s.useDefaults(m)
+		return
+	} else if p.Time != ts || p.Name != name || !p.Tags.Equals(&tags) {
+		s.useDefaults(m)
+		s.input.unread(p)
+		return
+	}
+
+	if k := s.keys[0]; k != "" {
+		if p.Nil {
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		} else {
+			m[k] = p.Value
+		}
+	}
+	for i, v := range p.Aux {
+		k := s.keys[i+1]
+		switch v.(type) {
+		case float64, int64, uint64, string, bool:
+			m[k] = v
+		default:
+			// Insert the fill value if one was specified.
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		}
+	}
+}
+
+func (s *unsignedIteratorScanner) useDefaults(m map[string]interface{}) {
+	if s.defaultValue == SkipDefault {
+		return
+	}
+	for _, k := range s.keys {
+		if k == "" {
+			continue
+		}
+		m[k] = s.defaultValue
+	}
+}
+
+func (s *unsignedIteratorScanner) Stats() IteratorStats { return s.input.Stats() }
+func (s *unsignedIteratorScanner) Err() error           { return s.err }
+func (s *unsignedIteratorScanner) Close() error         { return s.input.Close() }
+
 // unsignedParallelIterator represents an iterator that pulls data in a separate goroutine.
 type unsignedParallelIterator struct {
 	input UnsignedIterator
@@ -7724,169 +7650,6 @@ func (itr *unsignedCloseInterruptIterator) Next() (*UnsignedPoint, error) {
 			return nil, err
 		}
 	}
-	return p, nil
-}
-
-// auxUnsignedPoint represents a combination of a point and an error for the AuxIterator.
-type auxUnsignedPoint struct {
-	point *UnsignedPoint
-	err   error
-}
-
-// unsignedAuxIterator represents a unsigned implementation of AuxIterator.
-type unsignedAuxIterator struct {
-	input      *bufUnsignedIterator
-	output     chan auxUnsignedPoint
-	fields     *auxIteratorFields
-	background bool
-	closer     sync.Once
-}
-
-func newUnsignedAuxIterator(input UnsignedIterator, opt IteratorOptions) *unsignedAuxIterator {
-	return &unsignedAuxIterator{
-		input:  newBufUnsignedIterator(input),
-		output: make(chan auxUnsignedPoint, 1),
-		fields: newAuxIteratorFields(opt),
-	}
-}
-
-func (itr *unsignedAuxIterator) Background() {
-	itr.background = true
-	itr.Start()
-	go DrainIterator(itr)
-}
-
-func (itr *unsignedAuxIterator) Start()               { go itr.stream() }
-func (itr *unsignedAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-
-func (itr *unsignedAuxIterator) Close() error {
-	var err error
-	itr.closer.Do(func() { err = itr.input.Close() })
-	return err
-}
-
-func (itr *unsignedAuxIterator) Next() (*UnsignedPoint, error) {
-	p := <-itr.output
-	return p.point, p.err
-}
-func (itr *unsignedAuxIterator) Iterator(name string, typ influxql.DataType) Iterator {
-	return itr.fields.iterator(name, typ)
-}
-
-func (itr *unsignedAuxIterator) stream() {
-	for {
-		// Read next point.
-		p, err := itr.input.Next()
-		if err != nil {
-			itr.output <- auxUnsignedPoint{err: err}
-			itr.fields.sendError(err)
-			break
-		} else if p == nil {
-			break
-		}
-
-		// Send point to output and to each field iterator.
-		itr.output <- auxUnsignedPoint{point: p}
-		if ok := itr.fields.send(p); !ok && itr.background {
-			break
-		}
-	}
-
-	close(itr.output)
-	itr.fields.close()
-}
-
-// unsignedChanIterator represents a new instance of unsignedChanIterator.
-type unsignedChanIterator struct {
-	buf struct {
-		i      int
-		filled bool
-		points [2]UnsignedPoint
-	}
-	err  error
-	cond *sync.Cond
-	done bool
-}
-
-func (itr *unsignedChanIterator) Stats() IteratorStats { return IteratorStats{} }
-
-func (itr *unsignedChanIterator) Close() error {
-	itr.cond.L.Lock()
-	// Mark the channel iterator as done and signal all waiting goroutines to start again.
-	itr.done = true
-	itr.cond.Broadcast()
-	// Do not defer the unlock so we don't create an unnecessary allocation.
-	itr.cond.L.Unlock()
-	return nil
-}
-
-func (itr *unsignedChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Wait for either the iterator to be done (so we don't have to set the value)
-	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Do not set the value and return false to signal that the iterator is closed.
-	// Do this after the above wait as the above for loop may have exited because
-	// the iterator was closed.
-	if itr.done {
-		return false
-	}
-
-	switch v := value.(type) {
-	case uint64:
-		itr.buf.points[itr.buf.i] = UnsignedPoint{Name: name, Tags: tags, Time: time, Value: v}
-
-	default:
-		itr.buf.points[itr.buf.i] = UnsignedPoint{Name: name, Tags: tags, Time: time, Nil: true}
-	}
-	itr.buf.filled = true
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-	return true
-}
-
-func (itr *unsignedChanIterator) setErr(err error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-	itr.err = err
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-}
-
-func (itr *unsignedChanIterator) Next() (*UnsignedPoint, error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Check for an error and return one if there.
-	if itr.err != nil {
-		return nil, itr.err
-	}
-
-	// Wait until either a value is available in the buffer or
-	// the iterator is closed.
-	for !itr.done && !itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Return nil once the channel is done and the buffer is empty.
-	if itr.done && !itr.buf.filled {
-		return nil, nil
-	}
-
-	// Always read from the buffer if it exists, even if the iterator
-	// is closed. This prevents the last value from being truncated by
-	// the parent iterator.
-	p := &itr.buf.points[itr.buf.i]
-	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
-	itr.buf.filled = false
-	itr.cond.Signal()
 	return p, nil
 }
 
@@ -10100,13 +9863,7 @@ func (itr *unsignedIteratorMapper) Next() (*UnsignedPoint, error) {
 }
 
 func (itr *unsignedIteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	if cur, ok := itr.cur.(*cursor); ok {
-		for _, itr := range cur.itrs {
-			stats.Add(itr.Stats())
-		}
-	}
-	return stats
+	return itr.cur.Stats()
 }
 
 func (itr *unsignedIteratorMapper) Close() error {
@@ -10724,6 +10481,95 @@ type stringSortedMergeHeapItem struct {
 	itr   StringIterator
 }
 
+// stringIteratorScanner scans the results of a StringIterator into a map.
+type stringIteratorScanner struct {
+	input        *bufStringIterator
+	err          error
+	keys         []string
+	defaultValue interface{}
+}
+
+// newStringIteratorScanner creates a new IteratorScanner.
+func newStringIteratorScanner(input StringIterator, keys []string, defaultValue interface{}) *stringIteratorScanner {
+	return &stringIteratorScanner{
+		input:        newBufStringIterator(input),
+		keys:         keys,
+		defaultValue: defaultValue,
+	}
+}
+
+func (s *stringIteratorScanner) Peek() (int64, string, Tags) {
+	if s.err != nil {
+		return ZeroTime, "", Tags{}
+	}
+
+	p, err := s.input.peek()
+	if err != nil {
+		s.err = err
+		return ZeroTime, "", Tags{}
+	} else if p == nil {
+		return ZeroTime, "", Tags{}
+	}
+	return p.Time, p.Name, p.Tags
+}
+
+func (s *stringIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[string]interface{}) {
+	if s.err != nil {
+		return
+	}
+
+	p, err := s.input.Next()
+	if err != nil {
+		s.err = err
+		return
+	} else if p == nil {
+		s.useDefaults(m)
+		return
+	} else if p.Time != ts || p.Name != name || !p.Tags.Equals(&tags) {
+		s.useDefaults(m)
+		s.input.unread(p)
+		return
+	}
+
+	if k := s.keys[0]; k != "" {
+		if p.Nil {
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		} else {
+			m[k] = p.Value
+		}
+	}
+	for i, v := range p.Aux {
+		k := s.keys[i+1]
+		switch v.(type) {
+		case float64, int64, uint64, string, bool:
+			m[k] = v
+		default:
+			// Insert the fill value if one was specified.
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		}
+	}
+}
+
+func (s *stringIteratorScanner) useDefaults(m map[string]interface{}) {
+	if s.defaultValue == SkipDefault {
+		return
+	}
+	for _, k := range s.keys {
+		if k == "" {
+			continue
+		}
+		m[k] = s.defaultValue
+	}
+}
+
+func (s *stringIteratorScanner) Stats() IteratorStats { return s.input.Stats() }
+func (s *stringIteratorScanner) Err() error           { return s.err }
+func (s *stringIteratorScanner) Close() error         { return s.input.Close() }
+
 // stringParallelIterator represents an iterator that pulls data in a separate goroutine.
 type stringParallelIterator struct {
 	input StringIterator
@@ -11120,169 +10966,6 @@ func (itr *stringCloseInterruptIterator) Next() (*StringPoint, error) {
 			return nil, err
 		}
 	}
-	return p, nil
-}
-
-// auxStringPoint represents a combination of a point and an error for the AuxIterator.
-type auxStringPoint struct {
-	point *StringPoint
-	err   error
-}
-
-// stringAuxIterator represents a string implementation of AuxIterator.
-type stringAuxIterator struct {
-	input      *bufStringIterator
-	output     chan auxStringPoint
-	fields     *auxIteratorFields
-	background bool
-	closer     sync.Once
-}
-
-func newStringAuxIterator(input StringIterator, opt IteratorOptions) *stringAuxIterator {
-	return &stringAuxIterator{
-		input:  newBufStringIterator(input),
-		output: make(chan auxStringPoint, 1),
-		fields: newAuxIteratorFields(opt),
-	}
-}
-
-func (itr *stringAuxIterator) Background() {
-	itr.background = true
-	itr.Start()
-	go DrainIterator(itr)
-}
-
-func (itr *stringAuxIterator) Start()               { go itr.stream() }
-func (itr *stringAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-
-func (itr *stringAuxIterator) Close() error {
-	var err error
-	itr.closer.Do(func() { err = itr.input.Close() })
-	return err
-}
-
-func (itr *stringAuxIterator) Next() (*StringPoint, error) {
-	p := <-itr.output
-	return p.point, p.err
-}
-func (itr *stringAuxIterator) Iterator(name string, typ influxql.DataType) Iterator {
-	return itr.fields.iterator(name, typ)
-}
-
-func (itr *stringAuxIterator) stream() {
-	for {
-		// Read next point.
-		p, err := itr.input.Next()
-		if err != nil {
-			itr.output <- auxStringPoint{err: err}
-			itr.fields.sendError(err)
-			break
-		} else if p == nil {
-			break
-		}
-
-		// Send point to output and to each field iterator.
-		itr.output <- auxStringPoint{point: p}
-		if ok := itr.fields.send(p); !ok && itr.background {
-			break
-		}
-	}
-
-	close(itr.output)
-	itr.fields.close()
-}
-
-// stringChanIterator represents a new instance of stringChanIterator.
-type stringChanIterator struct {
-	buf struct {
-		i      int
-		filled bool
-		points [2]StringPoint
-	}
-	err  error
-	cond *sync.Cond
-	done bool
-}
-
-func (itr *stringChanIterator) Stats() IteratorStats { return IteratorStats{} }
-
-func (itr *stringChanIterator) Close() error {
-	itr.cond.L.Lock()
-	// Mark the channel iterator as done and signal all waiting goroutines to start again.
-	itr.done = true
-	itr.cond.Broadcast()
-	// Do not defer the unlock so we don't create an unnecessary allocation.
-	itr.cond.L.Unlock()
-	return nil
-}
-
-func (itr *stringChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Wait for either the iterator to be done (so we don't have to set the value)
-	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Do not set the value and return false to signal that the iterator is closed.
-	// Do this after the above wait as the above for loop may have exited because
-	// the iterator was closed.
-	if itr.done {
-		return false
-	}
-
-	switch v := value.(type) {
-	case string:
-		itr.buf.points[itr.buf.i] = StringPoint{Name: name, Tags: tags, Time: time, Value: v}
-
-	default:
-		itr.buf.points[itr.buf.i] = StringPoint{Name: name, Tags: tags, Time: time, Nil: true}
-	}
-	itr.buf.filled = true
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-	return true
-}
-
-func (itr *stringChanIterator) setErr(err error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-	itr.err = err
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-}
-
-func (itr *stringChanIterator) Next() (*StringPoint, error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Check for an error and return one if there.
-	if itr.err != nil {
-		return nil, itr.err
-	}
-
-	// Wait until either a value is available in the buffer or
-	// the iterator is closed.
-	for !itr.done && !itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Return nil once the channel is done and the buffer is empty.
-	if itr.done && !itr.buf.filled {
-		return nil, nil
-	}
-
-	// Always read from the buffer if it exists, even if the iterator
-	// is closed. This prevents the last value from being truncated by
-	// the parent iterator.
-	p := &itr.buf.points[itr.buf.i]
-	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
-	itr.buf.filled = false
-	itr.cond.Signal()
 	return p, nil
 }
 
@@ -13496,13 +13179,7 @@ func (itr *stringIteratorMapper) Next() (*StringPoint, error) {
 }
 
 func (itr *stringIteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	if cur, ok := itr.cur.(*cursor); ok {
-		for _, itr := range cur.itrs {
-			stats.Add(itr.Stats())
-		}
-	}
-	return stats
+	return itr.cur.Stats()
 }
 
 func (itr *stringIteratorMapper) Close() error {
@@ -14120,6 +13797,95 @@ type booleanSortedMergeHeapItem struct {
 	itr   BooleanIterator
 }
 
+// booleanIteratorScanner scans the results of a BooleanIterator into a map.
+type booleanIteratorScanner struct {
+	input        *bufBooleanIterator
+	err          error
+	keys         []string
+	defaultValue interface{}
+}
+
+// newBooleanIteratorScanner creates a new IteratorScanner.
+func newBooleanIteratorScanner(input BooleanIterator, keys []string, defaultValue interface{}) *booleanIteratorScanner {
+	return &booleanIteratorScanner{
+		input:        newBufBooleanIterator(input),
+		keys:         keys,
+		defaultValue: defaultValue,
+	}
+}
+
+func (s *booleanIteratorScanner) Peek() (int64, string, Tags) {
+	if s.err != nil {
+		return ZeroTime, "", Tags{}
+	}
+
+	p, err := s.input.peek()
+	if err != nil {
+		s.err = err
+		return ZeroTime, "", Tags{}
+	} else if p == nil {
+		return ZeroTime, "", Tags{}
+	}
+	return p.Time, p.Name, p.Tags
+}
+
+func (s *booleanIteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[string]interface{}) {
+	if s.err != nil {
+		return
+	}
+
+	p, err := s.input.Next()
+	if err != nil {
+		s.err = err
+		return
+	} else if p == nil {
+		s.useDefaults(m)
+		return
+	} else if p.Time != ts || p.Name != name || !p.Tags.Equals(&tags) {
+		s.useDefaults(m)
+		s.input.unread(p)
+		return
+	}
+
+	if k := s.keys[0]; k != "" {
+		if p.Nil {
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		} else {
+			m[k] = p.Value
+		}
+	}
+	for i, v := range p.Aux {
+		k := s.keys[i+1]
+		switch v.(type) {
+		case float64, int64, uint64, string, bool:
+			m[k] = v
+		default:
+			// Insert the fill value if one was specified.
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		}
+	}
+}
+
+func (s *booleanIteratorScanner) useDefaults(m map[string]interface{}) {
+	if s.defaultValue == SkipDefault {
+		return
+	}
+	for _, k := range s.keys {
+		if k == "" {
+			continue
+		}
+		m[k] = s.defaultValue
+	}
+}
+
+func (s *booleanIteratorScanner) Stats() IteratorStats { return s.input.Stats() }
+func (s *booleanIteratorScanner) Err() error           { return s.err }
+func (s *booleanIteratorScanner) Close() error         { return s.input.Close() }
+
 // booleanParallelIterator represents an iterator that pulls data in a separate goroutine.
 type booleanParallelIterator struct {
 	input BooleanIterator
@@ -14516,169 +14282,6 @@ func (itr *booleanCloseInterruptIterator) Next() (*BooleanPoint, error) {
 			return nil, err
 		}
 	}
-	return p, nil
-}
-
-// auxBooleanPoint represents a combination of a point and an error for the AuxIterator.
-type auxBooleanPoint struct {
-	point *BooleanPoint
-	err   error
-}
-
-// booleanAuxIterator represents a boolean implementation of AuxIterator.
-type booleanAuxIterator struct {
-	input      *bufBooleanIterator
-	output     chan auxBooleanPoint
-	fields     *auxIteratorFields
-	background bool
-	closer     sync.Once
-}
-
-func newBooleanAuxIterator(input BooleanIterator, opt IteratorOptions) *booleanAuxIterator {
-	return &booleanAuxIterator{
-		input:  newBufBooleanIterator(input),
-		output: make(chan auxBooleanPoint, 1),
-		fields: newAuxIteratorFields(opt),
-	}
-}
-
-func (itr *booleanAuxIterator) Background() {
-	itr.background = true
-	itr.Start()
-	go DrainIterator(itr)
-}
-
-func (itr *booleanAuxIterator) Start()               { go itr.stream() }
-func (itr *booleanAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
-
-func (itr *booleanAuxIterator) Close() error {
-	var err error
-	itr.closer.Do(func() { err = itr.input.Close() })
-	return err
-}
-
-func (itr *booleanAuxIterator) Next() (*BooleanPoint, error) {
-	p := <-itr.output
-	return p.point, p.err
-}
-func (itr *booleanAuxIterator) Iterator(name string, typ influxql.DataType) Iterator {
-	return itr.fields.iterator(name, typ)
-}
-
-func (itr *booleanAuxIterator) stream() {
-	for {
-		// Read next point.
-		p, err := itr.input.Next()
-		if err != nil {
-			itr.output <- auxBooleanPoint{err: err}
-			itr.fields.sendError(err)
-			break
-		} else if p == nil {
-			break
-		}
-
-		// Send point to output and to each field iterator.
-		itr.output <- auxBooleanPoint{point: p}
-		if ok := itr.fields.send(p); !ok && itr.background {
-			break
-		}
-	}
-
-	close(itr.output)
-	itr.fields.close()
-}
-
-// booleanChanIterator represents a new instance of booleanChanIterator.
-type booleanChanIterator struct {
-	buf struct {
-		i      int
-		filled bool
-		points [2]BooleanPoint
-	}
-	err  error
-	cond *sync.Cond
-	done bool
-}
-
-func (itr *booleanChanIterator) Stats() IteratorStats { return IteratorStats{} }
-
-func (itr *booleanChanIterator) Close() error {
-	itr.cond.L.Lock()
-	// Mark the channel iterator as done and signal all waiting goroutines to start again.
-	itr.done = true
-	itr.cond.Broadcast()
-	// Do not defer the unlock so we don't create an unnecessary allocation.
-	itr.cond.L.Unlock()
-	return nil
-}
-
-func (itr *booleanChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Wait for either the iterator to be done (so we don't have to set the value)
-	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Do not set the value and return false to signal that the iterator is closed.
-	// Do this after the above wait as the above for loop may have exited because
-	// the iterator was closed.
-	if itr.done {
-		return false
-	}
-
-	switch v := value.(type) {
-	case bool:
-		itr.buf.points[itr.buf.i] = BooleanPoint{Name: name, Tags: tags, Time: time, Value: v}
-
-	default:
-		itr.buf.points[itr.buf.i] = BooleanPoint{Name: name, Tags: tags, Time: time, Nil: true}
-	}
-	itr.buf.filled = true
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-	return true
-}
-
-func (itr *booleanChanIterator) setErr(err error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-	itr.err = err
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-}
-
-func (itr *booleanChanIterator) Next() (*BooleanPoint, error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Check for an error and return one if there.
-	if itr.err != nil {
-		return nil, itr.err
-	}
-
-	// Wait until either a value is available in the buffer or
-	// the iterator is closed.
-	for !itr.done && !itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Return nil once the channel is done and the buffer is empty.
-	if itr.done && !itr.buf.filled {
-		return nil, nil
-	}
-
-	// Always read from the buffer if it exists, even if the iterator
-	// is closed. This prevents the last value from being truncated by
-	// the parent iterator.
-	p := &itr.buf.points[itr.buf.i]
-	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
-	itr.buf.filled = false
-	itr.cond.Signal()
 	return p, nil
 }
 
@@ -16892,13 +16495,7 @@ func (itr *booleanIteratorMapper) Next() (*BooleanPoint, error) {
 }
 
 func (itr *booleanIteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	if cur, ok := itr.cur.(*cursor); ok {
-		for _, itr := range cur.itrs {
-			stats.Add(itr.Stats())
-		}
-	}
-	return stats
+	return itr.cur.Stats()
 }
 
 func (itr *booleanIteratorMapper) Close() error {

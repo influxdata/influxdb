@@ -29,14 +29,14 @@ func MonitorFromContext(ctx context.Context) Monitor {
 
 // PointLimitMonitor is a query monitor that exits when the number of points
 // emitted exceeds a threshold.
-func PointLimitMonitor(itrs Iterators, interval time.Duration, limit int) MonitorFunc {
+func PointLimitMonitor(cur Cursor, interval time.Duration, limit int) MonitorFunc {
 	return func(closing <-chan struct{}) error {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				stats := itrs.Stats()
+				stats := cur.Stats()
 				if stats.PointN >= limit {
 					return ErrMaxSelectPointsLimitExceeded(stats.PointN, limit)
 				}
