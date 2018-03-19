@@ -25,12 +25,13 @@ class KapacitorRulesPage extends Component {
     this.setState({loading: false, hasKapacitor: !!kapacitor})
   }
 
-  handleDeleteRule = rule => () => {
+  handleDeleteRule = rule => {
     const {actions} = this.props
+
     actions.deleteRule(rule)
   }
 
-  handleRuleStatus = rule => () => {
+  handleRuleStatus = rule => {
     const {actions} = this.props
     const status = rule.status === 'enabled' ? 'disabled' : 'enabled'
 

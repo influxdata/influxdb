@@ -1,4 +1,4 @@
-import React, {PureComponent, SFC, MouseEvent} from 'react'
+import React, {PureComponent, SFC, ChangeEvent} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
@@ -65,15 +65,28 @@ const KapacitorRulesTable: SFC<KapacitorRulesTableProps> = ({
   </table>
 )
 
-const handleDelete = (rule, onDelete) => onDelete(rule)
-
 class RuleRow extends PureComponent<RuleRowProps> {
-  handleClickRuleStatusEnabled(_: MouseEvent<HTMLInputElement>) {
-    return (rule: AlertRule) => this.props.onChangeRuleStatus(rule)
+  constructor(props) {
+    super(props)
+
+    this.handleClickRuleStatusEnabled = this.handleClickRuleStatusEnabled.bind(this)
+    this.handleDelete = this.handleDelete.bind(this)
+  }
+
+  handleClickRuleStatusEnabled(rule: AlertRule) {
+    return (_: ChangeEvent<HTMLInputElement>) => {
+      this.props.onChangeRuleStatus(rule)
+    }
+  }
+
+  handleDelete(rule: AlertRule) {
+    return () => {
+      this.props.onDelete(rule)
+    }
   }
 
   render() {
-    const {rule, source, onDelete} = this.props
+    const {rule, source} = this.props
 
     return (
       <tr key={rule.id}>
@@ -93,8 +106,8 @@ class RuleRow extends PureComponent<RuleRowProps> {
               id={`kapacitor-rule-row-task-enabled ${rule.id}`}
               className="form-control-static"
               type="checkbox"
-              defaultChecked={rule.status === 'enabled'}
-              onClick={this.handleClickRuleStatusEnabled}
+              checked={rule.status === 'enabled'}
+              onChange={this.handleClickRuleStatusEnabled(rule)}
             />
             <label htmlFor={`kapacitor-rule-row-task-enabled ${rule.id}`} />
           </div>
@@ -105,7 +118,7 @@ class RuleRow extends PureComponent<RuleRowProps> {
             type="btn-danger"
             size="btn-xs"
             customClass="table--show-on-row-hover"
-            confirmAction={handleDelete(rule, onDelete)}
+            confirmAction={this.handleDelete(rule)}
           />
         </td>
       </tr>

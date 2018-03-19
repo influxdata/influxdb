@@ -1,4 +1,4 @@
-import React, {PureComponent, SFC, MouseEvent} from 'react'
+import React, {PureComponent, SFC, ChangeEvent} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
@@ -55,15 +55,24 @@ const TasksTable: SFC<TasksTableProps> = ({
   </table>
 )
 
-const handleDelete = (task, onDelete) => onDelete(task)
 
 class TaskRow extends PureComponent<TaskRowProps> {
-  handleClickRuleStatusEnabled(_: MouseEvent<HTMLInputElement>) {
-    return (rule: AlertRule) => this.props.onChangeRuleStatus(rule)
+  handleClickRuleStatusEnabled(task: AlertRule) {
+    return (_: ChangeEvent<HTMLInputElement>) => {
+      console.log('TaskRow toggle', task)
+      this.props.onChangeRuleStatus(task)
+    }
+  }
+
+  handleDelete(task: AlertRule) {
+    return () => {
+      console.log('TaskRow delete', task)
+      this.props.onDelete(task)
+    }
   }
 
   render() {
-    const {task, source, onDelete} = this.props
+    const {task, source} = this.props
 
     return (
       <tr key={task.id}>
@@ -84,8 +93,8 @@ class TaskRow extends PureComponent<TaskRowProps> {
               id={`kapacitor-task-row-task-enabled ${task.id}`}
               className="form-control-static"
               type="checkbox"
-              defaultChecked={task.status === 'enabled'}
-              onClick={this.handleClickRuleStatusEnabled}
+              checked={task.status === 'enabled'}
+              onChange={this.handleClickRuleStatusEnabled(task)}
             />
             <label htmlFor={`kapacitor-task-row-task-enabled ${task.id}`} />
           </div>
@@ -96,7 +105,7 @@ class TaskRow extends PureComponent<TaskRowProps> {
             type="btn-danger"
             size="btn-xs"
             customClass="table--show-on-row-hover"
-            confirmAction={handleDelete(task, onDelete)}
+            confirmAction={this.handleDelete(task)}
           />
         </td>
       </tr>
