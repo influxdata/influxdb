@@ -2,16 +2,20 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
+const disabledClass = disabled => (disabled ? ' disabled' : '')
+
 const DropdownHead = ({
   iconName,
   selected,
   buttonSize,
   toggleStyle,
   buttonColor,
-  disabledClass,
+  disabled,
 }) =>
   <div
-    className={`btn dropdown-toggle ${buttonSize} ${buttonColor} ${disabledClass}`}
+    className={`btn dropdown-toggle ${buttonSize} ${buttonColor}${disabledClass(
+      disabled
+    )}`}
     style={toggleStyle}
   >
     {iconName && <span className={classnames('icon', {[iconName]: true})} />}
@@ -21,15 +25,15 @@ const DropdownHead = ({
     <span className="caret" />
   </div>
 
-const {string, shape} = PropTypes
+const {bool, string, shape} = PropTypes
 
 DropdownHead.propTypes = {
   iconName: string,
-  selected: string,
-  buttonSize: string,
+  selected: string.isRequired,
+  buttonSize: string.isRequired,
   toggleStyle: shape(),
-  buttonColor: string,
-  disabledClass: string,
+  buttonColor: string.isRequired,
+  disabled: bool,
 }
 
 export default DropdownHead

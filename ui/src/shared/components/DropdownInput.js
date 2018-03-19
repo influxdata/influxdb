@@ -1,17 +1,21 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
+const disabledClass = disabled => (disabled ? ' disabled' : '')
+
 const DropdownInput = ({
   searchTerm,
   buttonSize,
   buttonColor,
   toggleStyle,
-  disabledClass,
+  disabled,
   onFilterChange,
   onFilterKeyPress,
 }) =>
   <div
-    className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor} ${disabledClass}`}
+    className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor}${disabledClass(
+      disabled
+    )}`}
     style={toggleStyle}
   >
     <input
@@ -29,14 +33,14 @@ const DropdownInput = ({
 
 export default DropdownInput
 
-const {func, shape, string} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 DropdownInput.propTypes = {
   searchTerm: string,
   buttonSize: string,
   buttonColor: string,
   toggleStyle: shape({}),
-  disabledClass: string,
-  onFilterChange: func,
-  onFilterKeyPress: func,
+  disabled: bool,
+  onFilterChange: func.isRequired,
+  onFilterKeyPress: func.isRequired,
 }
