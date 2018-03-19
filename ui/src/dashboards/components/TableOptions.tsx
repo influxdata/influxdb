@@ -9,6 +9,7 @@ import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFo
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
+import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 
 import ThresholdsList from 'src/shared/components/ThresholdsList'
@@ -28,6 +29,7 @@ type Options = {
   sortBy: TableColumn
   wrapping: string
   columnNames: TableColumn[]
+  fixFirstColumn: boolean
 }
 
 interface QueryConfig {
@@ -84,7 +86,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {handleUpdateTableOptions, tableOptions} = this.props
     handleUpdateTableOptions({
       ...tableOptions,
-      columnNames: this.computedColumnNames
+      columnNames: this.computedColumnNames,
     })
   }
 
@@ -107,6 +109,12 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   handleToggleTextWrapping = () => {}
 
+  handleToggleFixFirstColumn = () => {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const fixFirstColumn = !tableOptions.fixFirstColumn
+    handleUpdateTableOptions({...tableOptions, fixFirstColumn})
+  }
+
   handleColumnRename = column => {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {columnNames} = tableOptions
@@ -118,14 +126,19 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   render() {
     const {
-      tableOptions: {timeFormat, columnNames: columns, verticalTimeAxis},
+      tableOptions: {
+        timeFormat,
+        columnNames: columns,
+        verticalTimeAxis,
+        fixFirstColumn,
+      },
       onResetFocus,
-      tableOptions
+      tableOptions,
     } = this.props
 
     const tableSortByOptions = this.computedColumnNames.map(col => ({
       text: col.displayName || col.internalName,
-      key: col.internalName
+      key: col.internalName,
     }))
 
     return (
@@ -153,6 +166,10 @@ export class TableOptions extends PureComponent<Props, {}> {
               thresholdsListType="background"
               onToggleTextWrapping={this.handleToggleTextWrapping}
             />
+            <GraphOptionsFixFirstColumn
+              fixed={fixFirstColumn}
+              onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
+            />
           </div>
           <GraphOptionsCustomizeColumns
             columns={columns}
@@ -169,11 +186,11 @@ export class TableOptions extends PureComponent<Props, {}> {
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell: {tableOptions}}}) => ({
-  tableOptions
+  tableOptions,
 })
 
 const mapDispatchToProps = dispatch => ({
-  handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch)
+  handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

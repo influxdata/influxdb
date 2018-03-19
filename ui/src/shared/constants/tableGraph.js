@@ -8,6 +8,8 @@ export const TIME_FORMAT_CUSTOM = 'Custom'
 
 export const TIME_COLUMN_DEFAULT = {internalName: 'time', displayName: ''}
 
+export const FIX_FIRST_COLUMN_DEFAULT = true
+
 export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_DEFAULT},
   {text: 'MM/DD/YYYY HH:mm'},
@@ -26,5 +28,5 @@ export const DEFAULT_TABLE_OPTIONS = {
   sortBy: TIME_COLUMN_DEFAULT,
   wrapping: 'truncate',
   columnNames: [TIME_COLUMN_DEFAULT],
-  fixFirstColumn: true,
+  fixFirstColumn: FIX_FIRST_COLUMN_DEFAULT,
 }
