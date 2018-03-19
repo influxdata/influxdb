@@ -1,4 +1,4 @@
-import { QueryConfig } from "./"
+import {QueryConfig} from "./"
 
 export interface Kapacitor {
   id?: string

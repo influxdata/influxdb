@@ -1,4 +1,4 @@
-import { Kapacitor } from "./"
+import {Kapacitor} from "./"
 
 export interface Source {
   id: string
