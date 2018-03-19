@@ -32,12 +32,10 @@ class TableGraph extends Component {
   }
 
   componentWillUpdate(nextProps) {
-    const {data} = timeSeriesToTableGraph(nextProps.data)
-    if (_.get(this, ['props', 'tableOptions', 'verticalTimeAxis'], true)) {
-      this._data = data
-      return
-    }
-    this._data = _.unzip(data)
+    const {data, unzippedData} = timeSeriesToTableGraph(nextProps.data)
+
+    this._data = data
+    this._unzippedData = unzippedData
   }
 
   calcHoverTimeIndex = (data, hoverTime, verticalTimeAxis) => {
@@ -76,10 +74,11 @@ class TableGraph extends Component {
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
-    const data = this._data
+    const data = _.get(this.props, ['tableOptions', 'verticalTimeAxis'], true)
+      ? this._data
+      : this._unzippedData
     const {hoveredColumnIndex, hoveredRowIndex} = this.state
     const {colors} = this.props
-
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const {tableOptions} = this.props
@@ -156,7 +155,11 @@ class TableGraph extends Component {
     const {hoverTime, tableOptions, colors} = this.props
 
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
-    const data = this._data
+
+    const data = _.get(this.props, ['tableOptions', 'verticalTimeAxis'], true)
+      ? this._data
+      : this._unzippedData
+
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const COLUMN_WIDTH = 300
