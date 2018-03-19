@@ -18,17 +18,19 @@ const GraphOptionsCustomizeFields: SFC<Props> = ({fields, onFieldUpdate}) => {
   return (
     <div className="graph-options-group">
       <label className="form-label">Customize Fields</label>
-      {fields.map(field => {
-        return (
-          <GraphOptionsCustomizableField
-            key={uuid.v4()}
-            internalName={field.internalName}
-            displayName={field.displayName}
-            visible={field.visible}
-            onFieldUpdate={onFieldUpdate}
-          />
-        )
-      })}
+      <div className="field-controls--group">
+        {fields.map(field => {
+          return (
+            <GraphOptionsCustomizableField
+              key={uuid.v4()}
+              internalName={field.internalName}
+              displayName={field.displayName}
+              visible={field.visible}
+              onFieldUpdate={onFieldUpdate}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }

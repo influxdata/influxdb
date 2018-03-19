@@ -123,7 +123,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {fieldNames} = tableOptions
     const updatedFields = fieldNames.map(
-      op => (op.internalName === field.internalName ? field : op)
+      f => (f.internalName === field.internalName ? field : f)
     )
     handleUpdateTableOptions({...tableOptions, fieldNames: updatedFields})
   }

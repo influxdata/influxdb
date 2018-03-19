@@ -256,7 +256,10 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
   flex: 1 0 0;
 }
 
-
+.field-controls--group {
+  max-height: 235px;
+  overflow-y: scroll;
+}
 .field-controls--label, .field-controls--label-hidden {
   @extend %gauge-controls-label-styles;
   color: $g16-pearl;
