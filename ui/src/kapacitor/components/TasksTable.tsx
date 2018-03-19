@@ -1,4 +1,4 @@
-import React, {PureComponent, SFC, ChangeEvent} from 'react'
+import React, {PureComponent, SFC} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
@@ -58,15 +58,13 @@ const TasksTable: SFC<TasksTableProps> = ({
 
 class TaskRow extends PureComponent<TaskRowProps> {
   handleClickRuleStatusEnabled(task: AlertRule) {
-    return (_: ChangeEvent<HTMLInputElement>) => {
-      console.log('TaskRow toggle', task)
+    return () => {
       this.props.onChangeRuleStatus(task)
     }
   }
 
   handleDelete(task: AlertRule) {
     return () => {
-      console.log('TaskRow delete', task)
       this.props.onDelete(task)
     }
   }

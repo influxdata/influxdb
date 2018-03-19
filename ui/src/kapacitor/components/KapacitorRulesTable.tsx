@@ -1,4 +1,4 @@
-import React, {PureComponent, SFC, ChangeEvent} from 'react'
+import React, {PureComponent, SFC} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
@@ -74,7 +74,7 @@ class RuleRow extends PureComponent<RuleRowProps> {
   }
 
   handleClickRuleStatusEnabled(rule: AlertRule) {
-    return (_: ChangeEvent<HTMLInputElement>) => {
+    return () => {
       this.props.onChangeRuleStatus(rule)
     }
   }
