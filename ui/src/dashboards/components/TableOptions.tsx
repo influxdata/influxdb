@@ -56,7 +56,10 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   get timeColumn() {
-    return this.columnNames.find(c => c.internalName === 'time') || TIME_COLUMN_DEFAULT
+    return (
+      this.columnNames.find(c => c.internalName === 'time') ||
+      TIME_COLUMN_DEFAULT
+    )
   }
 
   get computedColumnNames() {
@@ -66,7 +69,9 @@ export class TableOptions extends PureComponent<Props, {}> {
       queryConfigs.map(({measurement, fields}) => {
         return fields.map(({alias}) => {
           const internalName = `${measurement}.${alias}`
-          const existing = this.columnNames.find(c => c.internalName === internalName)
+          const existing = this.columnNames.find(
+            c => c.internalName === internalName
+          )
           return existing || {internalName, displayName: ''}
         })
       })
@@ -77,7 +82,10 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   componentWillMount() {
     const {handleUpdateTableOptions, tableOptions} = this.props
-    handleUpdateTableOptions({...tableOptions, columnNames: this.computedColumnNames})
+    handleUpdateTableOptions({
+      ...tableOptions,
+      columnNames: this.computedColumnNames
+    })
   }
 
   handleChooseSortBy = option => {
@@ -102,12 +110,18 @@ export class TableOptions extends PureComponent<Props, {}> {
   handleColumnRename = column => {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {columnNames} = tableOptions
-    const updatedColumns = columnNames.map(op => (op.internalName === column.internalName ? column : op))
+    const updatedColumns = columnNames.map(
+      op => (op.internalName === column.internalName ? column : op)
+    )
     handleUpdateTableOptions({...tableOptions, columnNames: updatedColumns})
   }
 
   render() {
-    const {tableOptions: {timeFormat, columnNames: columns, verticalTimeAxis}, onResetFocus, tableOptions} = this.props
+    const {
+      tableOptions: {timeFormat, columnNames: columns, verticalTimeAxis},
+      onResetFocus,
+      tableOptions
+    } = this.props
 
     const tableSortByOptions = this.computedColumnNames.map(col => ({
       text: col.displayName || col.internalName,
@@ -115,11 +129,17 @@ export class TableOptions extends PureComponent<Props, {}> {
     }))
 
     return (
-      <FancyScrollbar className="display-options--cell y-axis-controls" autoHide={false}>
+      <FancyScrollbar
+        className="display-options--cell y-axis-controls"
+        autoHide={false}
+      >
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Table Controls</h5>
           <div className="form-group-wrapper">
-            <GraphOptionsTimeFormat timeFormat={timeFormat} onTimeFormatChange={this.handleTimeFormatChange} />
+            <GraphOptionsTimeFormat
+              timeFormat={timeFormat}
+              onTimeFormatChange={this.handleTimeFormatChange}
+            />
             <GraphOptionsTimeAxis
               verticalTimeAxis={verticalTimeAxis}
               onToggleVerticalTimeAxis={this.onToggleVerticalTimeAxis}
@@ -134,7 +154,10 @@ export class TableOptions extends PureComponent<Props, {}> {
               onToggleTextWrapping={this.handleToggleTextWrapping}
             />
           </div>
-          <GraphOptionsCustomizeColumns columns={columns} onColumnRename={this.handleColumnRename} />
+          <GraphOptionsCustomizeColumns
+            columns={columns}
+            onColumnRename={this.handleColumnRename}
+          />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">
             <ThresholdsListTypeToggle containerClass="form-group col-xs-6" />
