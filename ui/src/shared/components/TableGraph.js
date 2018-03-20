@@ -133,7 +133,7 @@ class TableGraph extends Component {
 
     const sortedData = [
       data[0],
-      ..._.sortBy(_.drop(data, 1), clicktoSortFieldIndex),
+      ..._.orderBy(_.drop(data, 1), clicktoSortFieldIndex, [DEFAULT_SORT]),
     ]
     this.setState({
       data: sortedData,
