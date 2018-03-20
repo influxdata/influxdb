@@ -14,6 +14,7 @@ import {
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
   TIME_COLUMN_DEFAULT,
+  FIX_FIRST_COLUMN_DEFAULT,
 } from 'src/shared/constants/tableGraph'
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
@@ -56,10 +57,10 @@ class TableGraph extends Component {
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
-    const {onSetHoverTime, tableOptions} = this.props
-    const {data} = this.state
+    const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
+    const data = verticalTimeAxis ? this.state.data : this.state.unzippedData
     if (onSetHoverTime) {
-      const hoverTime = tableOptions.verticalTimeAxis
+      const hoverTime = verticalTimeAxis
         ? data[rowIndex][0]
         : data[0][columnIndex]
       onSetHoverTime(hoverTime.toString())
@@ -80,24 +81,30 @@ class TableGraph extends Component {
     }
   }
 
-  cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
-    const data = _.get(this.props, ['tableOptions', 'verticalTimeAxis'], true)
+  cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
+    const {colors, tableOptions} = this.props
+    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+
+    const data = _.get(tableOptions, 'verticalTimeAxis', true)
       ? this.state.data
       : this.state.unzippedData
-    const {hoveredColumnIndex, hoveredRowIndex} = this.state
-    const {colors} = this.props
+
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
-    const {tableOptions} = this.props
     const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
     const columnNames = _.get(tableOptions, 'columnNames', [
       TIME_COLUMN_DEFAULT,
     ])
+    const fixFirstColumn = _.get(
+      tableOptions,
+      'fixFirstColumn',
+      FIX_FIRST_COLUMN_DEFAULT
+    )
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
-    const isFixedColumn = rowIndex > 0 && columnIndex === 0
+    const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
     const isTimeData = tableOptions.verticalTimeAxis
-      ? isFixedColumn
+      ? rowIndex > 0 && columnIndex === 0
       : isFixedRow
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const isLastRow = rowIndex === rowCount - 1
@@ -173,6 +180,12 @@ class TableGraph extends Component {
       hoveredRowIndex === NULL_ROW_INDEX
         ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
         : hoveredRowIndex
+    const fixedColumnCount = tableOptions.fixFirstColumn ? 1 : undefined
+    const hoveringThisTable = hoveredColumnIndex !== NULL_COLUMN_INDEX
+    const scrollToRow =
+      !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
+    const scrollToColumn =
+      !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
 
     return (
       <div
@@ -188,7 +201,7 @@ class TableGraph extends Component {
             rowHeight={ROW_HEIGHT}
             height={tableHeight}
             width={tableWidth}
-            fixedColumnCount={1}
+            fixedColumnCount={fixedColumnCount}
             fixedRowCount={1}
             enableFixedColumnScroll={true}
             enableFixedRowScroll={true}
@@ -198,8 +211,8 @@ class TableGraph extends Component {
             columnNames={
               tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
             }
-            scrollToRow={verticalTimeAxis ? hoverTimeIndex : undefined}
-            scrollToColumn={verticalTimeAxis ? undefined : hoverTimeIndex}
+            scrollToRow={scrollToRow}
+            scrollToColumn={scrollToColumn}
             verticalTimeAxis={verticalTimeAxis}
             sortByColumnIndex={sortByColumnIndex}
             cellRenderer={this.cellRenderer}

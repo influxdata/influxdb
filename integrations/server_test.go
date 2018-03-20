@@ -550,7 +550,8 @@ func TestServer(t *testing.T) {
 					"internalName": "",
 					"displayName": ""},
 				"wrapping": "",
-				"columnNames": null
+				"columnNames": null,
+				"fixFirstColumn": false
 			},
       "links": {
         "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
@@ -799,7 +800,8 @@ func TestServer(t *testing.T) {
 							"displayName":""
 						},
 						"wrapping":"",
-						"columnNames":null
+						"columnNames":null,
+						"fixFirstColumn":false
 					},
           "legend":{
               "type": "static",
