@@ -22,6 +22,7 @@ const DashVisualization = (
     staticLegend,
     thresholdsListColors,
     tableOptions,
+    setDataLabels,
   },
   {source: {links: {proxy}}}
 ) => {
@@ -42,6 +43,7 @@ const DashVisualization = (
           editQueryStatus={editQueryStatus}
           resizerTopHeight={resizerTopHeight}
           staticLegend={staticLegend}
+          setDataLabels={setDataLabels}
         />
       </div>
     </div>
@@ -86,6 +88,7 @@ DashVisualization.propTypes = {
     }).isRequired
   ),
   staticLegend: bool,
+  setDataLabels: func,
 }
 
 DashVisualization.contextTypes = {

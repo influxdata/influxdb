@@ -43,6 +43,7 @@ class DisplayOptions extends Component {
       onToggleStaticLegend,
       onResetFocus,
       queryConfigs,
+      dataLabels,
     } = this.props
     switch (type) {
       case 'gauge':
@@ -54,6 +55,7 @@ class DisplayOptions extends Component {
           <TableOptions
             onResetFocus={onResetFocus}
             queryConfigs={queryConfigs}
+            dataLabels={dataLabels}
           />
         )
       default:
@@ -93,6 +95,7 @@ DisplayOptions.propTypes = {
   onToggleStaticLegend: func.isRequired,
   staticLegend: bool,
   onResetFocus: func.isRequired,
+  dataLabels: arrayOf(string),
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({

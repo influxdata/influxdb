@@ -180,6 +180,7 @@ export const timeSeriesToTableGraph = raw => {
   const data = tableData.length ? [labels, ...tableData] : [[]]
   const unzippedData = _.unzip(data)
   return {
+    labels,
     data,
     unzippedData,
   }

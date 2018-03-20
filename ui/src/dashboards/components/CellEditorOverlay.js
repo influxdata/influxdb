@@ -48,6 +48,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
       staticLegend: IS_STATIC_LEGEND(legend),
+      dataLabels: [],
     }
   }
 
@@ -259,6 +260,10 @@ class CellEditorOverlay extends Component {
     this.overlayRef.focus()
   }
 
+  setDataLabels = dataLabels => {
+    this.setState({dataLabels})
+  }
+
   render() {
     const {
       onCancel,
@@ -273,6 +278,7 @@ class CellEditorOverlay extends Component {
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
       staticLegend,
+      dataLabels,
     } = this.state
 
     const queryActions = {
@@ -305,6 +311,7 @@ class CellEditorOverlay extends Component {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             staticLegend={staticLegend}
+            setDataLabels={this.setDataLabels}
           />
           <CEOBottom>
             <OverlayControls
@@ -324,6 +331,7 @@ class CellEditorOverlay extends Component {
                   onToggleStaticLegend={this.handleToggleStaticLegend}
                   staticLegend={staticLegend}
                   onResetFocus={this.handleResetFocus}
+                  dataLabels={dataLabels}
                 />
               : <QueryMaker
                   source={this.getSource()}

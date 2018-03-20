@@ -46,6 +46,7 @@ interface Props {
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void
+  dataLabels: string[]
 }
 
 export class TableOptions extends PureComponent<Props, {}> {
@@ -65,21 +66,12 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   get computedFieldNames() {
-    const {queryConfigs} = this.props
+    const {dataLabels} = this.props
 
-    const queryFields = _.flatten(
-      queryConfigs.map(({measurement, fields}) => {
-        return fields.map(({alias}) => {
-          const internalName = `${measurement}.${alias}`
-          const existing = this.fieldNames.find(
-            f => f.internalName === internalName
-          )
-          return existing || {internalName, displayName: '', visible: true}
-        })
-      })
-    )
-
-    return [this.timeColumn, ...queryFields]
+    return dataLabels.map(label => {
+      const existing = this.fieldNames.find(f => f.internalName === label)
+      return existing || {internalName: label, displayName: '', visible: true}
+    })
   }
 
   componentWillMount() {
@@ -133,6 +125,7 @@ export class TableOptions extends PureComponent<Props, {}> {
       tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
       onResetFocus,
       tableOptions,
+      dataLabels,
     } = this.props
 
     const tableSortByOptions = this.computedFieldNames.map(col => ({

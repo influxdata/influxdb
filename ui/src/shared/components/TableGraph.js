@@ -29,7 +29,7 @@ const filterInvisibleRows = (data, fieldNames) => {
 
 const filterInvisibleColumns = (data, fieldNames) => {
   const visibleColumns = {}
-  visibleData = data.map((row, i) => {
+  const visibleData = data.map((row, i) => {
     return row.filter((col, j) => {
       if (i === 0) {
         const foundField = fieldNames.find(field => field.internalName === col)
@@ -57,18 +57,22 @@ class TableGraph extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    const {data, unzippedData} = timeSeriesToTableGraph(nextProps.data)
+    const {labels, data, unzippedData} = timeSeriesToTableGraph(nextProps.data)
     const {
       tableOptions: {sortBy: {internalName}, fieldNames, verticalTimeAxis},
+      setDataLabels,
     } = nextProps
-
     if (!isEmpty(data[0])) {
+      if (setDataLabels) {
+        setDataLabels(labels)
+      }
+
+      const sortByColumnIndex = _.indexOf(data[0], internalName)
+
       const sortedData = [
         data[0],
         ..._.sortBy(_.drop(data, 1), sortByColumnIndex),
       ]
-
-      const sortByColumnIndex = _.indexOf(data[0], internalName)
 
       const visibleData = verticalTimeAxis
         ? filterInvisibleColumns(sortedData, fieldNames)
@@ -287,6 +291,7 @@ TableGraph.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  setDataLabels: func,
 }
 
 export default TableGraph
