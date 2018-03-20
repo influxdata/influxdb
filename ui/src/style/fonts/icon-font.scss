@@ -30,6 +30,8 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
+  &.eye-closed:before {content: "\e956";}
+  &.eye-open:before {content: "\e957";}
   &.clipboard:before {content: "\e954";}
   &.erlenmeyer:before {content: "\e955";}
   &.access-key:before {content: "\e921";}
