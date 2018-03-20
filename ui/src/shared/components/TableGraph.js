@@ -57,10 +57,10 @@ class TableGraph extends Component {
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
-    const {onSetHoverTime, tableOptions} = this.props
-    const {data} = this.state
+    const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
+    const data = verticalTimeAxis ? this.state.data : this.state.unzippedData
     if (onSetHoverTime) {
-      const hoverTime = tableOptions.verticalTimeAxis
+      const hoverTime = verticalTimeAxis
         ? data[rowIndex][0]
         : data[0][columnIndex]
       onSetHoverTime(hoverTime.toString())
@@ -181,6 +181,11 @@ class TableGraph extends Component {
         ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
         : hoveredRowIndex
     const fixedColumnCount = tableOptions.fixFirstColumn ? 1 : undefined
+    const hoveringThisTable = hoveredColumnIndex !== NULL_COLUMN_INDEX
+    const scrollToRow =
+      !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
+    const scrollToColumn =
+      !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
 
     return (
       <div
@@ -206,8 +211,8 @@ class TableGraph extends Component {
             columnNames={
               tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
             }
-            scrollToRow={verticalTimeAxis ? hoverTimeIndex : undefined}
-            scrollToColumn={verticalTimeAxis ? undefined : hoverTimeIndex}
+            scrollToRow={scrollToRow}
+            scrollToColumn={scrollToColumn}
             verticalTimeAxis={verticalTimeAxis}
             sortByColumnIndex={sortByColumnIndex}
             cellRenderer={this.cellRenderer}
