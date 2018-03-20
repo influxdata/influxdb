@@ -78,22 +78,27 @@ describe('Dashboards.Components.TableOptions', () => {
           {
             displayName: '',
             internalName: 'time',
+            visible: true,
           },
           {
             displayName: '',
             internalName: 'dev.boom',
+            visible: true,
           },
           {
             displayName: '',
             internalName: 'dev.again',
+            visible: true,
           },
           {
             displayName: '',
             internalName: 'prod.boom',
+            visible: true,
           },
           {
             displayName: '',
             internalName: 'prod.again',
+            visible: true,
           },
         ]
 
