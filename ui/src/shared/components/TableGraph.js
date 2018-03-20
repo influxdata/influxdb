@@ -17,7 +17,7 @@ import {
   ASCENDING,
   DESCENDING,
 } from 'src/shared/constants/tableGraph'
-const DEFAULT_SORT = DESCENDING
+const DEFAULT_SORT = ASCENDING
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
@@ -121,7 +121,7 @@ class TableGraph extends Component {
 
     if (clickToSortFieldIndex === newIndex) {
       const direction =
-        clicktoSortDirection === DESCENDING ? ASCENDING : DESCENDING
+        clicktoSortDirection === ASCENDING ? DESCENDING : ASCENDING
       const sortedData = [
         data[0],
         ..._.orderBy(_.drop(data, 1), clickToSortFieldIndex, [direction]),
