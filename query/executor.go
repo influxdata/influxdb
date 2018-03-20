@@ -152,14 +152,6 @@ func NewContextWithIterators(ctx context.Context, itr *Iterators) context.Contex
 	return context.WithValue(ctx, iteratorsContextKey, itr)
 }
 
-// tryAddAuxIteratorToContext will capture itr in the *Iterators slice, when configured
-// with a call to NewContextWithIterators.
-func tryAddAuxIteratorToContext(ctx context.Context, itr AuxIterator) {
-	if v, ok := ctx.Value(iteratorsContextKey).(*Iterators); ok {
-		*v = append(*v, itr)
-	}
-}
-
 // StatementExecutor executes a statement within the Executor.
 type StatementExecutor interface {
 	// ExecuteStatement executes a statement. Results should be sent to the

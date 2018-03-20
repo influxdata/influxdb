@@ -1,7 +1,6 @@
 package query
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/influxdata/influxql"
@@ -73,6 +72,9 @@ type Cursor interface {
 	// the previous values will be overwritten while using the same memory.
 	Scan(row *Row) bool
 
+	// Stats returns the IteratorStats from the underlying iterators.
+	Stats() IteratorStats
+
 	// Err returns any errors that were encountered from scanning the rows.
 	Err() error
 
@@ -81,188 +83,6 @@ type Cursor interface {
 
 	// Close closes the underlying resources that the cursor is using.
 	Close() error
-}
-
-type cursor struct {
-	buf       []Point
-	itrs      []Iterator
-	ascending bool
-
-	series Series
-	err    error
-
-	columns  []influxql.VarRef
-	omitTime bool
-	loc      *time.Location
-}
-
-func newCursor(itrs []Iterator, columns []influxql.VarRef, ascending bool) *cursor {
-	return &cursor{
-		buf:       make([]Point, len(itrs)),
-		itrs:      itrs,
-		ascending: ascending,
-		columns:   columns,
-		loc:       time.UTC,
-	}
-}
-
-func (cur *cursor) Scan(row *Row) bool {
-	// Immediately end the scan if there are no iterators.
-	if len(cur.itrs) == 0 {
-		return false
-	}
-
-	t, name, tags, err := cur.loadBuf()
-	if err != nil {
-		cur.err = err
-		return false
-	}
-
-	if t == ZeroTime {
-		return false
-	}
-	row.Time = t
-
-	// Check to see if the name or tags have changed.
-	// If they have, copy them over and update the series id.
-	if name != cur.series.Name || tags.ID() != cur.series.Tags.ID() {
-		cur.series.id++
-		cur.series.Name = name
-		cur.series.Tags = tags
-	}
-	row.Series = cur.series
-
-	// If the row values is not large enough, allocate a slice.
-	if len(row.Values) < len(cur.columns) {
-		row.Values = make([]interface{}, len(cur.columns))
-	}
-	if !cur.omitTime {
-		row.Values[0] = time.Unix(0, t).In(cur.loc)
-		cur.readInto(t, name, tags, row.Values[1:])
-	} else {
-		cur.readInto(t, name, tags, row.Values)
-	}
-	return true
-}
-
-// loadBuf reads in points into empty buffer slots.
-// Returns the next time/name/tags to emit for.
-func (cur *cursor) loadBuf() (t int64, name string, tags Tags, err error) {
-	t = ZeroTime
-
-	for i := range cur.itrs {
-		// Load buffer, if empty.
-		if cur.buf[i] == nil {
-			cur.buf[i], err = cur.readIterator(cur.itrs[i])
-			if err != nil {
-				break
-			}
-		}
-
-		// Skip if buffer is empty.
-		p := cur.buf[i]
-		if p == nil {
-			continue
-		}
-		itrTime, itrName, itrTags := p.time(), p.name(), p.tags()
-		// Initialize range values if not set.
-		if t == ZeroTime {
-			t, name, tags = itrTime, itrName, itrTags
-			continue
-		}
-
-		// Update range values if lower and emitter is in time ascending order.
-		if cur.ascending {
-			if (itrName < name) || (itrName == name && itrTags.ID() < tags.ID()) || (itrName == name && itrTags.ID() == tags.ID() && itrTime < t) {
-				t, name, tags = itrTime, itrName, itrTags
-			}
-			continue
-		}
-
-		// Update range values if higher and emitter is in time descending order.
-		if (itrName > name) || (itrName == name && itrTags.ID() > tags.ID()) || (itrName == name && itrTags.ID() == tags.ID() && itrTime > t) {
-			t, name, tags = itrTime, itrName, itrTags
-		}
-	}
-	return
-}
-
-func (cur *cursor) readInto(t int64, name string, tags Tags, values []interface{}) {
-	for i, p := range cur.buf {
-		// Skip if buffer is empty.
-		if p == nil {
-			values[i] = nil
-			continue
-		}
-
-		// Skip point if it doesn't match time/name/tags.
-		pTags := p.tags()
-		if p.time() != t || p.name() != name || !pTags.Equals(&tags) {
-			values[i] = nil
-			continue
-		}
-
-		// Read point value.
-		values[i] = p.value()
-
-		// Clear buffer.
-		cur.buf[i] = nil
-	}
-}
-
-// readIterator reads the next point from itr.
-func (cur *cursor) readIterator(itr Iterator) (Point, error) {
-	if itr == nil {
-		return nil, nil
-	}
-
-	switch itr := itr.(type) {
-	case FloatIterator:
-		if p, err := itr.Next(); err != nil {
-			return nil, err
-		} else if p != nil {
-			return p, nil
-		}
-	case IntegerIterator:
-		if p, err := itr.Next(); err != nil {
-			return nil, err
-		} else if p != nil {
-			return p, nil
-		}
-	case UnsignedIterator:
-		if p, err := itr.Next(); err != nil {
-			return nil, err
-		} else if p != nil {
-			return p, nil
-		}
-	case StringIterator:
-		if p, err := itr.Next(); err != nil {
-			return nil, err
-		} else if p != nil {
-			return p, nil
-		}
-	case BooleanIterator:
-		if p, err := itr.Next(); err != nil {
-			return nil, err
-		} else if p != nil {
-			return p, nil
-		}
-	default:
-		panic(fmt.Sprintf("unsupported iterator: %T", itr))
-	}
-	return nil, nil
-}
-
-func (cur *cursor) Err() error {
-	return cur.err
-}
-
-func (cur *cursor) Columns() []influxql.VarRef {
-	return cur.columns
-}
-
-func (cur *cursor) Close() error {
-	return Iterators(cur.itrs).Close()
 }
 
 // RowCursor returns a Cursor that iterates over Rows.
@@ -295,6 +115,10 @@ func (cur *rowCursor) Scan(row *Row) bool {
 	return true
 }
 
+func (cur *rowCursor) Stats() IteratorStats {
+	return IteratorStats{}
+}
+
 func (cur *rowCursor) Err() error {
 	return nil
 }
@@ -305,6 +129,195 @@ func (cur *rowCursor) Columns() []influxql.VarRef {
 
 func (cur *rowCursor) Close() error {
 	return nil
+}
+
+type scannerFunc func(m map[string]interface{}) (int64, string, Tags)
+
+type scannerCursorBase struct {
+	fields []influxql.Expr
+	m      map[string]interface{}
+
+	series  Series
+	columns []influxql.VarRef
+	loc     *time.Location
+
+	scan scannerFunc
+}
+
+func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location) scannerCursorBase {
+	typmap := FunctionTypeMapper{}
+	exprs := make([]influxql.Expr, len(fields))
+	columns := make([]influxql.VarRef, len(fields))
+	for i, f := range fields {
+		exprs[i] = f.Expr
+		columns[i] = influxql.VarRef{
+			Val:  f.Name(),
+			Type: influxql.EvalType(f.Expr, nil, typmap),
+		}
+	}
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	return scannerCursorBase{
+		fields:  exprs,
+		m:       make(map[string]interface{}),
+		columns: columns,
+		loc:     loc,
+		scan:    scan,
+	}
+}
+
+func (cur *scannerCursorBase) Scan(row *Row) bool {
+	ts, name, tags := cur.scan(cur.m)
+	if ts == ZeroTime {
+		return false
+	}
+
+	row.Time = ts
+	if name != cur.series.Name || tags.ID() != cur.series.Tags.ID() {
+		cur.series.Name = name
+		cur.series.Tags = tags
+		cur.series.id++
+	}
+	row.Series = cur.series
+
+	if len(cur.columns) > len(row.Values) {
+		row.Values = make([]interface{}, len(cur.columns))
+	}
+
+	valuer := influxql.ValuerEval{
+		Valuer: &MathValuer{
+			Valuer: influxql.MapValuer(cur.m),
+		},
+		IntegerFloatDivision: true,
+	}
+	for i, expr := range cur.fields {
+		// A special case if the field is time to reduce memory allocations.
+		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
+			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
+			continue
+		}
+		row.Values[i] = valuer.Eval(expr)
+	}
+	return true
+}
+
+func (cur *scannerCursorBase) Columns() []influxql.VarRef {
+	return cur.columns
+}
+
+var _ Cursor = (*scannerCursor)(nil)
+
+type scannerCursor struct {
+	scanner IteratorScanner
+	scannerCursorBase
+}
+
+func newScannerCursor(s IteratorScanner, fields []*influxql.Field, opt IteratorOptions) *scannerCursor {
+	cur := &scannerCursor{scanner: s}
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	return cur
+}
+
+func (s *scannerCursor) scan(m map[string]interface{}) (int64, string, Tags) {
+	ts, name, tags := s.scanner.Peek()
+	if ts == ZeroTime {
+		return ts, name, tags
+	}
+	s.scanner.ScanAt(ts, name, tags, m)
+	return ts, name, tags
+}
+
+func (cur *scannerCursor) Stats() IteratorStats {
+	return cur.scanner.Stats()
+}
+
+func (cur *scannerCursor) Err() error {
+	return cur.scanner.Err()
+}
+
+func (cur *scannerCursor) Close() error {
+	return cur.scanner.Close()
+}
+
+var _ Cursor = (*multiScannerCursor)(nil)
+
+type multiScannerCursor struct {
+	scanners  []IteratorScanner
+	err       error
+	ascending bool
+	scannerCursorBase
+}
+
+func newMultiScannerCursor(scanners []IteratorScanner, fields []*influxql.Field, opt IteratorOptions) *multiScannerCursor {
+	cur := &multiScannerCursor{
+		scanners:  scanners,
+		ascending: opt.Ascending,
+	}
+	cur.scannerCursorBase = newScannerCursorBase(cur.scan, fields, opt.Location)
+	return cur
+}
+
+func (cur *multiScannerCursor) scan(m map[string]interface{}) (ts int64, name string, tags Tags) {
+	ts = ZeroTime
+	for _, s := range cur.scanners {
+		curTime, curName, curTags := s.Peek()
+		if curTime == ZeroTime {
+			if err := s.Err(); err != nil {
+				cur.err = err
+				return ZeroTime, "", Tags{}
+			}
+			continue
+		}
+
+		if ts == ZeroTime {
+			ts, name, tags = curTime, curName, curTags
+			continue
+		}
+
+		if cur.ascending {
+			if (curName < name) || (curName == name && curTags.ID() < tags.ID()) || (curName == name && curTags.ID() == tags.ID() && curTime < ts) {
+				ts, name, tags = curTime, curName, curTags
+			}
+			continue
+		}
+
+		if (curName > name) || (curName == name && curTags.ID() > tags.ID()) || (curName == name && curTags.ID() == tags.ID() && curTime > ts) {
+			ts, name, tags = curTime, curName, curTags
+		}
+	}
+
+	if ts == ZeroTime {
+		return ts, name, tags
+	}
+
+	for _, s := range cur.scanners {
+		s.ScanAt(ts, name, tags, m)
+	}
+	return ts, name, tags
+}
+
+func (cur *multiScannerCursor) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, s := range cur.scanners {
+		stats.Add(s.Stats())
+	}
+	return stats
+}
+
+func (cur *multiScannerCursor) Err() error {
+	return cur.err
+}
+
+func (cur *multiScannerCursor) Close() error {
+	var err error
+	for _, s := range cur.scanners {
+		if e := s.Close(); e != nil && err == nil {
+			err = e
+		}
+	}
+	return err
 }
 
 // DrainCursor will read and discard all values from a Cursor and return the error

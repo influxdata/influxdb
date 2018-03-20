@@ -490,6 +490,95 @@ type {{$k.name}}SortedMergeHeapItem struct {
 	itr       {{$k.Name}}Iterator
 }
 
+// {{$k.name}}IteratorScanner scans the results of a {{$k.Name}}Iterator into a map.
+type {{$k.name}}IteratorScanner struct {
+	input        *buf{{$k.Name}}Iterator
+	err          error
+	keys         []string
+	defaultValue interface{}
+}
+
+// new{{$k.Name}}IteratorScanner creates a new IteratorScanner.
+func new{{$k.Name}}IteratorScanner(input {{$k.Name}}Iterator, keys []string, defaultValue interface{}) *{{$k.name}}IteratorScanner {
+	return &{{$k.name}}IteratorScanner{
+		input: newBuf{{$k.Name}}Iterator(input),
+		keys: keys,
+		defaultValue: defaultValue,
+	}
+}
+
+func (s *{{$k.name}}IteratorScanner) Peek() (int64, string, Tags) {
+	if s.err != nil {
+		return ZeroTime, "", Tags{}
+	}
+
+	p, err := s.input.peek()
+	if err != nil {
+		s.err = err
+		return ZeroTime, "", Tags{}
+	} else if p == nil {
+		return ZeroTime, "", Tags{}
+	}
+	return p.Time, p.Name, p.Tags
+}
+
+func (s *{{$k.name}}IteratorScanner) ScanAt(ts int64, name string, tags Tags, m map[string]interface{}) {
+	if s.err != nil {
+		return
+	}
+
+	p, err := s.input.Next()
+	if err != nil {
+		s.err = err
+		return
+	} else if p == nil {
+		s.useDefaults(m)
+		return
+	} else if p.Time != ts || p.Name != name || !p.Tags.Equals(&tags) {
+		s.useDefaults(m)
+		s.input.unread(p)
+		return
+	}
+
+	if k := s.keys[0]; k != "" {
+		if p.Nil {
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		} else {
+			m[k] = p.Value
+		}
+	}
+	for i, v := range p.Aux {
+		k := s.keys[i+1]
+		switch v.(type) {
+		case float64, int64, uint64, string, bool:
+			m[k] = v
+		default:
+			// Insert the fill value if one was specified.
+			if s.defaultValue != SkipDefault {
+				m[k] = s.defaultValue
+			}
+		}
+	}
+}
+
+func (s *{{$k.name}}IteratorScanner) useDefaults(m map[string]interface{}) {
+	if s.defaultValue == SkipDefault {
+		return
+	}
+	for _, k := range s.keys {
+    if k == "" {
+      continue
+    }
+		m[k] = s.defaultValue
+	}
+}
+
+func (s *{{$k.name}}IteratorScanner) Stats() IteratorStats { return s.input.Stats() }
+func (s *{{$k.name}}IteratorScanner) Err() error { return s.err }
+func (s *{{$k.name}}IteratorScanner) Close() error { return s.input.Close() }
+
 // {{$k.name}}ParallelIterator represents an iterator that pulls data in a separate goroutine.
 type {{$k.name}}ParallelIterator struct {
 	input   {{$k.Name}}Iterator
@@ -903,170 +992,6 @@ func (itr *{{$k.name}}CloseInterruptIterator) Next() (*{{$k.Name}}Point, error) 
 			return nil, err
 		}
 	}
-	return p, nil
-}
-
-// aux{{$k.Name}}Point represents a combination of a point and an error for the AuxIterator.
-type aux{{$k.Name}}Point struct {
-	point *{{$k.Name}}Point
-	err   error
-}
-
-// {{$k.name}}AuxIterator represents a {{$k.name}} implementation of AuxIterator.
-type {{$k.name}}AuxIterator struct {
-	input      *buf{{$k.Name}}Iterator
-	output     chan aux{{$k.Name}}Point
-	fields     *auxIteratorFields
-	background bool
-	closer     sync.Once
-}
-
-func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, opt IteratorOptions) *{{$k.name}}AuxIterator {
-	return &{{$k.name}}AuxIterator{
-		input:  newBuf{{$k.Name}}Iterator(input),
-		output: make(chan aux{{$k.Name}}Point, 1),
-		fields: newAuxIteratorFields(opt),
-	}
-}
-
-func (itr *{{$k.name}}AuxIterator) Background() {
-	itr.background = true
-	itr.Start()
-	go DrainIterator(itr)
-}
-
-func (itr *{{$k.name}}AuxIterator) Start()                           { go itr.stream() }
-func (itr *{{$k.name}}AuxIterator) Stats() IteratorStats             { return itr.input.Stats() }
-
-func (itr *{{$k.name}}AuxIterator) Close() error {
-	var err error
-	itr.closer.Do(func() { err = itr.input.Close() })
-	return err
-}
-
-func (itr *{{$k.name}}AuxIterator) Next() (*{{$k.Name}}Point, error) {
-	p := <-itr.output
-	return p.point, p.err
-}
-func (itr *{{$k.name}}AuxIterator) Iterator(name string, typ influxql.DataType) Iterator    { return itr.fields.iterator(name, typ) }
-
-func (itr *{{.name}}AuxIterator) stream() {
-	for {
-		// Read next point.
-		p, err := itr.input.Next()
-		if err != nil {
-			itr.output <- aux{{$k.Name}}Point{err: err}
-			itr.fields.sendError(err)
-			break
-		} else if p == nil {
-			break
-		}
-
-		// Send point to output and to each field iterator.
-		itr.output <- aux{{$k.Name}}Point{point: p}
-		if ok := itr.fields.send(p); !ok && itr.background {
-			break
-		}
-	}
-
-	close(itr.output)
-	itr.fields.close()
-}
-
-// {{$k.name}}ChanIterator represents a new instance of {{$k.name}}ChanIterator.
-type {{$k.name}}ChanIterator struct {
-	buf struct {
-		i      int
-		filled bool
-		points [2]{{$k.Name}}Point
-	}
-	err  error
-	cond *sync.Cond
-	done bool
-}
-
-func (itr *{{$k.name}}ChanIterator) Stats() IteratorStats { return IteratorStats{} }
-
-func (itr *{{$k.name}}ChanIterator) Close() error {
-	itr.cond.L.Lock()
-	// Mark the channel iterator as done and signal all waiting goroutines to start again.
-	itr.done = true
-	itr.cond.Broadcast()
-	// Do not defer the unlock so we don't create an unnecessary allocation.
-	itr.cond.L.Unlock()
-	return nil
-}
-
-func (itr *{{$k.name}}ChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Wait for either the iterator to be done (so we don't have to set the value)
-	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Do not set the value and return false to signal that the iterator is closed.
-	// Do this after the above wait as the above for loop may have exited because
-	// the iterator was closed.
-	if itr.done {
-		return false
-	}
-
-	switch v := value.(type) {
-	case {{$k.Type}}:
-		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: v}
-{{if eq $k.Name "Float"}}
-	case int64:
-		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: float64(v)}
-{{end}}
-	default:
-		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Nil: true}
-	}
-	itr.buf.filled = true
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-	return true
-}
-
-func (itr *{{$k.name}}ChanIterator) setErr(err error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-	itr.err = err
-
-	// Signal to all waiting goroutines that a new value is ready to read.
-	itr.cond.Signal()
-}
-
-func (itr *{{$k.name}}ChanIterator) Next() (*{{$k.Name}}Point, error) {
-	itr.cond.L.Lock()
-	defer itr.cond.L.Unlock()
-
-	// Check for an error and return one if there.
-	if itr.err != nil {
-		return nil, itr.err
-	}
-
-	// Wait until either a value is available in the buffer or
-	// the iterator is closed.
-	for !itr.done && !itr.buf.filled {
-		itr.cond.Wait()
-	}
-
-	// Return nil once the channel is done and the buffer is empty.
-	if itr.done && !itr.buf.filled {
-		return nil, nil
-	}
-
-	// Always read from the buffer if it exists, even if the iterator
-	// is closed. This prevents the last value from being truncated by
-	// the parent iterator.
-	p := &itr.buf.points[itr.buf.i]
-	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
-	itr.buf.filled = false
-	itr.cond.Signal()
 	return p, nil
 }
 
@@ -1620,13 +1545,7 @@ func (itr *{{$k.name}}IteratorMapper) Next() (*{{$k.Name}}Point, error) {
 }
 
 func (itr *{{$k.name}}IteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	if cur, ok := itr.cur.(*cursor); ok {
-		for _, itr := range cur.itrs {
-			stats.Add(itr.Stats())
-		}
-	}
-	return stats
+	return itr.cur.Stats()
 }
 
 func (itr *{{$k.name}}IteratorMapper) Close() error {
