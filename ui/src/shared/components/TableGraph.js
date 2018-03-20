@@ -18,27 +18,26 @@ import {
 } from 'src/shared/constants/tableGraph'
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
-const filterInvisibleRows = (data, verticalTimeAxis, fieldNames) => {
-  let visibleData = [[]]
-  if (verticalTimeAxis) {
-    const visibleColumns = {}
-    visibleData = data.map((row, i) => {
-      return row.filter((col, j) => {
-        if (i === 0) {
-          const foundField = fieldNames.find(
-            field => field.internalName === col
-          )
-          visibleColumns[j] = foundField && foundField.visible
-        }
-        return visibleColumns[j]
-      })
+const filterInvisibleRows = (data, fieldNames) => {
+  const visibleData = data.filter(row => {
+    const foundField = fieldNames.find(field => field.internalName === row[0])
+    return foundField && foundField.visible
+  })
+
+  return visibleData.length ? visibleData : [[]]
+}
+
+const filterInvisibleColumns = (data, fieldNames) => {
+  const visibleColumns = {}
+  visibleData = data.map((row, i) => {
+    return row.filter((col, j) => {
+      if (i === 0) {
+        const foundField = fieldNames.find(field => field.internalName === col)
+        visibleColumns[j] = foundField && foundField.visible
+      }
+      return visibleColumns[j]
     })
-  } else {
-    visibleData = data.filter(row => {
-      const foundField = fieldNames.find(field => field.internalName === row[0])
-      return foundField && foundField.visible
-    })
-  }
+  })
 
   return visibleData[0].length ? visibleData : [[]]
 }
@@ -59,29 +58,29 @@ class TableGraph extends Component {
 
   componentWillReceiveProps(nextProps) {
     const {data, unzippedData} = timeSeriesToTableGraph(nextProps.data)
-
     const {
       tableOptions: {sortBy: {internalName}, fieldNames, verticalTimeAxis},
     } = nextProps
-    const sortByColumnIndex = _.indexOf(data[0], internalName)
 
-    const sortedData = [
-      data[0],
-      ..._.sortBy(_.drop(data, 1), sortByColumnIndex),
-    ]
+    if (!isEmpty(data[0])) {
+      const sortedData = [
+        data[0],
+        ..._.sortBy(_.drop(data, 1), sortByColumnIndex),
+      ]
 
-    const visibleData = filterInvisibleRows(
-      sortedData,
-      verticalTimeAxis,
-      fieldNames
-    )
+      const sortByColumnIndex = _.indexOf(data[0], internalName)
 
-    this.setState({
-      data: sortedData,
-      visibleData,
-      unzippedData,
-      sortByColumnIndex,
-    })
+      const visibleData = verticalTimeAxis
+        ? filterInvisibleColumns(sortedData, fieldNames)
+        : filterInvisibleRows(sortedData, fieldNames)
+
+      this.setState({
+        data: sortedData,
+        visibleData,
+        unzippedData,
+        sortByColumnIndex,
+      })
+    }
   }
 
   calcHoverTimeIndex = (data, hoverTime, verticalTimeAxis) => {
@@ -238,7 +237,7 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {!isEmpty(visibleData) &&
+        {!isEmpty(data) &&
           <MultiGrid
             columnCount={columnCount}
             columnWidth={COLUMN_WIDTH}

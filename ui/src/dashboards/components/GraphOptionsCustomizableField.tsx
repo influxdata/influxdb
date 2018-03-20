@@ -28,7 +28,7 @@ class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
     onFieldUpdate({internalName, displayName: rename, visible})
   }
 
-  handleToggleVisible(e) {
+  handleToggleVisible() {
     const {onFieldUpdate, internalName, displayName, visible} = this.props
     onFieldUpdate({internalName, displayName, visible: !visible})
   }
