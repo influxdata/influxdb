@@ -17,10 +17,7 @@ const GraphOptionsFixFirstColumn: SFC<Props> = ({
     onClick={onToggleFixFirstColumn}
   >
     <span>
-      <div
-        className="query-builder--checkbox"
-        onClick={onToggleFixFirstColumn}
-      />
+      <div className="query-builder--checkbox" data-test="checkbox" />
       <label>Fix First Column</label>
     </span>
   </div>
