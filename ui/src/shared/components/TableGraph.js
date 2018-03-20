@@ -192,6 +192,7 @@ class TableGraph extends Component {
       'table-graph-cell__last-column': isLastColumn,
       'table-graph-cell__highlight': isHighlighted,
       'table-graph-cell__numerical': dataIsNumerical,
+      'table-graph-cell__isFieldName': isFieldName,
     })
 
     const cellData = data[rowIndex][columnIndex]

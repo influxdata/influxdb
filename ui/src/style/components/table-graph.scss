@@ -67,6 +67,9 @@
     background-color: $g6-smoke;
     color: $g16-pearl;
   }
+  &__isFieldName:hover {
+    cursor: pointer;
+  }
   &__highlight:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
     color: $g14-chromium;
     background-color: $g6-smoke;
