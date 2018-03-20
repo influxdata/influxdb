@@ -8,8 +8,8 @@ export const TIME_FORMAT_CUSTOM = 'Custom'
 
 export const TIME_COLUMN_DEFAULT = {internalName: 'time', displayName: ''}
 
-export const DEFAULT_SORT = 'asc'
-export const ALT_SORT = 'desc'
+export const ASCENDING = 'asc'
+export const DESCENDING = 'desc'
 
 export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_DEFAULT},

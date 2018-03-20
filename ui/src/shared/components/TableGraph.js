@@ -14,9 +14,11 @@ import {
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
   TIME_COLUMN_DEFAULT,
-  DEFAULT_SORT,
-  ALT_SORT,
+  ASCENDING,
+  DESCENDING,
 } from 'src/shared/constants/tableGraph'
+const DEFAULT_SORT = DESCENDING
+
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
 class TableGraph extends Component {
@@ -119,7 +121,7 @@ class TableGraph extends Component {
 
     if (clickToSortFieldIndex === newIndex) {
       const direction =
-        clicktoSortDirection === DEFAULT_SORT ? ALT_SORT : DEFAULT_SORT
+        clicktoSortDirection === DESCENDING ? ASCENDING : DESCENDING
       const sortedData = [
         data[0],
         ..._.orderBy(_.drop(data, 1), clickToSortFieldIndex, [direction]),
