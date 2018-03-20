@@ -1,3 +1,6 @@
+import {HexcodeToHSL} from 'src/shared/constants/colorOperations'
+import _ from 'lodash'
+
 // Tier 5 Colors
 const series1 = ['#22ADF6'] // Blue
 const series2 = [...series1, '#4ED8A0'] // Green
@@ -14,7 +17,7 @@ const series10 = [...series9, '#FFD255'] // Yellow
 const series11 = [...series10, '#4591ED'] // Blu
 const series12 = [...series11, '#32B08C'] // Green
 const series13 = [...series12, '#513CC6'] // Purple
-const series14 = [...series13, '#DC4E58'] // Red
+const series14 = [...series13, '#DB4D4D'] // Red
 const series15 = [...series14, '#F48D38'] // Yellow
 // Tier 3 Colors
 const series16 = [...series15, '#6BDFFF'] // Blu
@@ -47,7 +50,18 @@ const graphColors = [
   series20,
 ]
 
+// Sort by hue
+const sortColorsByHue = colors => {
+  return _.sortBy(colors, color => {
+    const {hue} = HexcodeToHSL(color)
+    console.log(color, hue)
+    return hue
+  })
+}
+
 // Color Finder
 export const getIdealColors = numSeries => {
-  return graphColors[numSeries - 1]
+  const colors = graphColors[numSeries - 1]
+  console.log(sortColorsByHue(colors))
+  return sortColorsByHue(colors)
 }

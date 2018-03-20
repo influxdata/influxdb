@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import SearchBar from 'src/hosts/components/SearchBar'
@@ -99,8 +100,8 @@ class HostsTable extends Component {
     }
 
     return (
-      <div className="panel panel-minimal">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel">
+        <div className="panel-heading">
           <h2 className="panel-title">
             {hostsTitle}
           </h2>

@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import {
   getUsers as getUsersAJAX,
@@ -16,8 +16,14 @@ import {
   deleteMapping as deleteMappingAJAX,
 } from 'src/admin/apis/chronograf'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
+import {
+  NOTIFY_MAPPING_DELETED,
+  NOTIFY_CHRONOGRAF_ORG_DELETED,
+  NOTIFY_CHRONOGRAF_USER_UPDATED,
+  NOTIFY_CHRONOGRAF_USER_DELETED,
+} from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
 
@@ -177,12 +183,7 @@ export const deleteMappingAsync = mapping => async dispatch => {
   dispatch(removeMapping(mapping))
   try {
     await deleteMappingAJAX(mapping)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Mapping deleted: ${mapping.id} ${mapping.scheme}`
-      )
-    )
+    dispatch(notify(NOTIFY_MAPPING_DELETED(mapping.id, mapping.scheme)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addMapping(mapping))
@@ -238,7 +239,7 @@ export const updateUserAsync = (
       provider: null,
       scheme: null,
     })
-    dispatch(publishAutoDismissingNotification('success', successMessage))
+    dispatch(notify(NOTIFY_CHRONOGRAF_USER_UPDATED(successMessage)))
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))
@@ -256,12 +257,7 @@ export const deleteUserAsync = (
   try {
     await deleteUserAJAX(user)
     dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `${user.name} has been removed from ${isAbsoluteDelete
-          ? 'all organizations and deleted'
-          : 'the current organization'}`
-      )
+      notify(NOTIFY_CHRONOGRAF_USER_DELETED(user.name, isAbsoluteDelete))
     )
   } catch (error) {
     dispatch(errorThrown(error))
@@ -313,12 +309,7 @@ export const deleteOrganizationAsync = organization => async dispatch => {
   dispatch(removeOrganization(organization))
   try {
     await deleteOrganizationAJAX(organization)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Organization deleted: ${organization.name}`
-      )
-    )
+    dispatch(notify(NOTIFY_CHRONOGRAF_ORG_DELETED(organization.name)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addOrganization(organization))

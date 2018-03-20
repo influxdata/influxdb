@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
 import shallowCompare from 'react-addons-shallow-compare'
 
@@ -48,7 +49,6 @@ class LineGraph extends Component {
       ruleValues,
       isBarGraph,
       resizeCoords,
-      synchronizer,
       isRefreshing,
       setResolution,
       isGraphFilled,
@@ -58,6 +58,8 @@ class LineGraph extends Component {
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
+      hoverTime,
+      onSetHoverTime,
     } = this.props
 
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
@@ -93,13 +95,8 @@ class LineGraph extends Component {
       top: '8px',
     }
 
-    let prefix
-    let suffix
-
-    if (axes) {
-      prefix = axes.y.prefix
-      suffix = axes.y.suffix
-    }
+    const prefix = axes ? axes.y.prefix : ''
+    const suffix = axes ? axes.y.suffix : ''
 
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
@@ -115,7 +112,8 @@ class LineGraph extends Component {
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          synchronizer={synchronizer}
+          hoverTime={hoverTime}
+          onSetHoverTime={onSetHoverTime}
           resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
@@ -123,17 +121,17 @@ class LineGraph extends Component {
           containerStyle={containerStyle}
           staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
-        />
-        {showSingleStat
-          ? <SingleStat
+        >
+          {showSingleStat &&
+            <SingleStat
               prefix={prefix}
               suffix={suffix}
               data={data}
               lineGraph={true}
               colors={colors}
               cellHeight={cellHeight}
-            />
-          : null}
+            />}
+        </Dygraph>
       </div>
     )
   }
@@ -190,7 +188,8 @@ LineGraph.propTypes = {
     lower: string.isRequired,
   }),
   isInDataExplorer: bool,
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   setResolution: func,
   cellHeight: number,
   cell: shape(),

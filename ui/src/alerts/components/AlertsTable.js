@@ -1,9 +1,10 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import _ from 'lodash'
 import classnames from 'classnames'
 import {Link} from 'react-router'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import InfiniteScroll from 'shared/components/InfiniteScroll'
 
@@ -220,8 +221,8 @@ class AlertsTable extends Component {
               </button>
             : null}
         </div>
-      : <div className="panel panel-minimal">
-          <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      : <div className="panel">
+          <div className="panel-heading">
             <h2 className="panel-title">
               {this.props.alerts.length} Alerts
             </h2>
@@ -243,9 +244,6 @@ class SearchBar extends Component {
     this.state = {
       searchTerm: '',
     }
-
-    this.handleSearch = ::this.handleSearch
-    this.handleChange = ::this.handleChange
   }
 
   componentWillMount() {
@@ -253,27 +251,25 @@ class SearchBar extends Component {
     this.handleSearch = _.debounce(this.handleSearch, waitPeriod)
   }
 
-  handleSearch() {
+  handleSearch = () => {
     this.props.onSearch(this.state.searchTerm)
   }
 
-  handleChange(e) {
+  handleChange = e => {
     this.setState({searchTerm: e.target.value}, this.handleSearch)
   }
 
   render() {
     return (
-      <div className="users__search-widget input-group">
+      <div className="search-widget" style={{width: '260px'}}>
         <input
           type="text"
-          className="form-control"
+          className="form-control input-sm"
           placeholder="Filter Alerts..."
           onChange={this.handleChange}
           value={this.state.searchTerm}
         />
-        <div className="input-group-addon">
-          <span className="icon search" />
-        </div>
+        <span className="icon search" />
       </div>
     )
   }

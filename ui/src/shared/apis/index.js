@@ -36,20 +36,31 @@ export function deleteSource(source) {
   })
 }
 
-export function pingKapacitor(kapacitor) {
-  return AJAX({
-    method: 'GET',
-    url: kapacitor.links.ping,
-  })
+export const pingKapacitor = async kapacitor => {
+  try {
+    const data = await AJAX({
+      method: 'GET',
+      url: kapacitor.links.ping,
+    })
+    return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
-export function getKapacitor(source, kapacitorID) {
-  return AJAX({
-    url: `${source.links.kapacitors}/${kapacitorID}`,
-    method: 'GET',
-  }).then(({data}) => {
+export const getKapacitor = async (source, kapacitorID) => {
+  try {
+    const {data} = await AJAX({
+      url: `${source.links.kapacitors}/${kapacitorID}`,
+      method: 'GET',
+    })
+
     return data
-  })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const getActiveKapacitor = async source => {
@@ -93,7 +104,7 @@ export const deleteKapacitor = async kapacitor => {
 
 export function createKapacitor(
   source,
-  {url, name = 'My Kapacitor', username, password}
+  {url, name = 'My Kapacitor', username, password, insecureSkipVerify}
 ) {
   return AJAX({
     url: source.links.kapacitors,
@@ -103,6 +114,7 @@ export function createKapacitor(
       url,
       username,
       password,
+      insecureSkipVerify,
     },
   })
 }
@@ -114,6 +126,7 @@ export function updateKapacitor({
   username,
   password,
   active,
+  insecureSkipVerify,
 }) {
   return AJAX({
     url: links.self,
@@ -124,12 +137,18 @@ export function updateKapacitor({
       username,
       password,
       active,
+      insecureSkipVerify,
     },
   })
 }
 
 export const getKapacitorConfig = async kapacitor => {
-  return await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
+  try {
+    return await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const getKapacitorConfigSection = (kapacitor, section) => {

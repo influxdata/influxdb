@@ -1,41 +1,37 @@
 /*
-    Custom Search Widget
-    ----------------------------------------------
+    Search Widget
+    ----------------------------------------------------------------------------
 */
-$search-widget-height: 36px;
 
-.users__search-widget {
+.search-widget {
   position: relative;
 
+  &:first-child {
+    margin-right: 8px;
+  }
+
+  &:only-child {
+    margin-right: 0;
+  }
+
   input.form-control {
-    height: $search-widget-height;
     position: relative;
-    width: 100%;
     z-index: 1;
     padding-left: 34px;
-    border-radius: 4px !important;
 
-    &:focus + .input-group-addon {
+    &:focus + .icon {
       color: $c-pool;
     }
   }
-  .input-group-addon {
-    padding: 0;
-    text-align: center;
-    line-height: calc(#{$search-widget-height} - 2px);
+
+  .icon {
     position: absolute;
     color: $g10-wolf;
-    top: 0;
-    left: 0;
-    height: 100%;
+    top: 50%;
+    left: 20px;
+    transform: translate(-50%,-50%);
     z-index: 4;
-    border: 0;
-    width: 40px;
-    background-color: transparent;
     transition:
       color 0.25s ease;
   }
-}
-.admin__search-widget {
-  width: 300px;
 }

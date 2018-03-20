@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {Link} from 'react-router'
 
 import NoKapacitorError from 'shared/components/NoKapacitorError'
@@ -19,7 +20,7 @@ const KapacitorRules = ({
   if (loading) {
     return (
       <PageContents>
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+        <div className="panel-heading">
           <h2 className="panel-title">Alert Rules</h2>
           <button className="btn btn-primary btn-sm disabled" disabled={true}>
             Create Rule
@@ -54,11 +55,11 @@ const KapacitorRules = ({
 
   return (
     <PageContents source={source}>
-      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-        <h2 className="panel-title">
-          {builderHeader}
-        </h2>
-        <div className="u-flex u-ai-center u-jc-space-between">
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">
+            {builderHeader}
+          </h2>
           <Link
             to={`/sources/${source.id}/alert-rules/new`}
             className="btn btn-sm btn-primary"
@@ -67,38 +68,35 @@ const KapacitorRules = ({
             <span className="icon plus" /> Build Alert Rule
           </Link>
         </div>
+        <div className="panel-body">
+          <KapacitorRulesTable
+            source={source}
+            rules={builderRules}
+            onDelete={onDelete}
+            onChangeRuleStatus={onChangeRuleStatus}
+          />
+        </div>
       </div>
-      <KapacitorRulesTable
-        source={source}
-        rules={builderRules}
-        onDelete={onDelete}
-        onChangeRuleStatus={onChangeRuleStatus}
-      />
-
-      <div className="row">
-        <div className="col-md-12">
-          <div className="panel panel-minimal">
-            <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-              <h2 className="panel-title">
-                {scriptsHeader}
-              </h2>
-              <div className="u-flex u-ai-center u-jc-space-between">
-                <Link
-                  to={`/sources/${source.id}/tickscript/new`}
-                  className="btn btn-sm btn-success"
-                  style={{marginRight: '4px'}}
-                >
-                  <span className="icon plus" /> Write TICKscript
-                </Link>
-              </div>
-            </div>
-            <TasksTable
-              source={source}
-              tasks={rules}
-              onDelete={onDelete}
-              onChangeRuleStatus={onChangeRuleStatus}
-            />
-          </div>
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">
+            {scriptsHeader}
+          </h2>
+          <Link
+            to={`/sources/${source.id}/tickscript/new`}
+            className="btn btn-sm btn-success"
+            style={{marginRight: '4px'}}
+          >
+            <span className="icon plus" /> Write TICKscript
+          </Link>
+        </div>
+        <div className="panel-body">
+          <TasksTable
+            source={source}
+            tasks={rules}
+            onDelete={onDelete}
+            onChangeRuleStatus={onChangeRuleStatus}
+          />
         </div>
       </div>
     </PageContents>
@@ -125,9 +123,7 @@ const PageContents = ({children}) =>
       <div className="container-fluid">
         <div className="row">
           <div className="col-md-12">
-            <div className="panel panel-minimal">
-              {children}
-            </div>
+            {children}
           </div>
         </div>
       </div>

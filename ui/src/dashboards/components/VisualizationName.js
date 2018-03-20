@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -64,6 +65,7 @@ class VisualizationName extends Component {
               autoFocus={true}
               onFocus={this.handleFocus}
               placeholder="Name this Cell..."
+              spellCheck={false}
             />
           : <div className={graphNameClass} onClick={this.handleInputClick}>
               {name}

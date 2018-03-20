@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
@@ -20,7 +21,7 @@ const UsersTable = ({
   onUpdateRoles,
   onUpdatePassword,
 }) =>
-  <div className="panel panel-default">
+  <div className="panel panel-solid">
     <FilterBar
       type="users"
       onFilter={onFilter}

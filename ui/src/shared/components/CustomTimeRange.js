@@ -1,8 +1,9 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import rome from 'rome'
 import moment from 'moment'
 
-import shortcuts from 'hson!shared/data/timeRangeShortcuts.hson'
+import shortcuts from 'shared/data/timeRangeShortcuts'
 const dateFormat = 'YYYY-MM-DD HH:mm'
 
 class CustomTimeRange extends Component {

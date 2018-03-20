@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
@@ -7,7 +8,7 @@ import {Table, Column, Cell} from 'fixed-data-table'
 import Dropdown from 'shared/components/Dropdown'
 import CustomCell from 'src/data_explorer/components/CustomCell'
 import TabItem from 'src/data_explorer/components/TableTabItem'
-import {TEMPLATES} from 'src/shared/constants'
+import {TEMPLATES} from 'src/data_explorer/constants'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 

@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import RedactedInput from './RedactedInput'
 import TagInput from 'shared/components/TagInput'
@@ -93,7 +94,7 @@ class OpsGenieConfig extends Component {
           disableTest={this.disableTest}
         />
 
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"

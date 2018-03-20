@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
@@ -96,7 +97,6 @@ DataSection.propTypes = {
   query: shape({
     id: string.isRequired,
   }).isRequired,
-  addFlashMessage: func,
   actions: shape({
     chooseNamespace: func.isRequired,
     chooseMeasurement: func.isRequired,

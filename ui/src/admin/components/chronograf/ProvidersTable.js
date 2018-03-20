@@ -1,6 +1,7 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 import ProvidersTableRow from 'src/admin/components/chronograf/ProvidersTableRow'
 import ProvidersTableRowNew from 'src/admin/components/chronograf/ProvidersTableRowNew'
 
@@ -43,7 +44,7 @@ class ProvidersTable extends Component {
 
     if (isLoading) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -52,8 +53,8 @@ class ProvidersTable extends Component {
     }
 
     return (
-      <div className="panel panel-default">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel panel-solid">
+        <div className="panel-heading">
           <h2 className="panel-title">
             {tableTitle}
           </h2>

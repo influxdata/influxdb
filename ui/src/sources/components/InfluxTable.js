@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {Link, withRouter} from 'react-router'
 import {connect} from 'react-redux'
 
@@ -100,8 +101,8 @@ const InfluxTable = ({
 }) =>
   <div className="row">
     <div className="col-md-12">
-      <div className="panel panel-minimal">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel">
+        <div className="panel-heading">
           <h2 className="panel-title">
             {isUsingAuth
               ? <span>

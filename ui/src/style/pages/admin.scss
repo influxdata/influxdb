@@ -60,7 +60,7 @@
 
 @media screen and (min-width: 992px) {
   .admin-tabs {
-    padding-right: 0px;
+    padding-right: 0;
 
     .btn-group {
       flex-direction: column;
@@ -69,7 +69,7 @@
       border-radius: $radius 0 0 $radius !important;
       padding: 0 0 0 16px !important;
     }
-    & + div {padding-left: 0px;}
+    & + div {padding-left: 0;}
   }
 }
 
@@ -142,8 +142,8 @@ pre.admin-table--query {
   margin-bottom: 8px;
 
   &:last-child {margin-bottom: 0;}
-  .db-manager-header--actions {display: none;}
-  &:hover .db-manager-header--actions {display: block;}
+  .db-manager-header--actions {visibility: hidden;}
+  &:hover .db-manager-header--actions {visibility: visible;}
 }
 .db-manager-header {
   padding: 0 11px;
@@ -155,13 +155,18 @@ pre.admin-table--query {
   border-radius: $radius-small $radius-small 0 0;
 
   h4 {
-    margin: 0px;
+    margin: 0;
     color: $c-potassium;
     font-size: 16px;
     font-family: $code-font;
     padding-left: 6px;
     @include no-user-select();
   }
+}
+.db-manager-header--actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 .db-manager-header--edit {
   justify-content: flex-start;

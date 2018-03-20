@@ -1,8 +1,9 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import ColorDropdown from 'shared/components/ColorDropdown'
 
-import {GAUGE_COLORS} from 'src/dashboards/constants/gaugeColors'
+import {THRESHOLD_COLORS} from 'shared/constants/thresholds'
 
 class Threshold extends Component {
   constructor(props) {
@@ -29,6 +30,13 @@ class Threshold extends Component {
 
   handleBlur = () => {
     this.setState({workingValue: this.props.threshold.value, valid: true})
+    this.props.onSortColors()
+  }
+
+  handleKeyUp = e => {
+    if (e.key === 'Enter') {
+      this.thresholdInputRef.blur()
+    }
   }
 
   render() {
@@ -46,14 +54,14 @@ class Threshold extends Component {
     const selectedColor = {hex, name}
 
     let label = 'Threshold'
-    let labelClass = 'gauge-controls--label-editable'
+    let labelClass = 'threshold-item--label__editable'
     let canBeDeleted = true
 
     if (visualizationType === 'gauge') {
       labelClass =
         isMin || isMax
-          ? 'gauge-controls--label'
-          : 'gauge-controls--label-editable'
+          ? 'threshold-item--label'
+          : 'threshold-item--label__editable'
       canBeDeleted = !(isMin || isMax)
     }
 
@@ -65,17 +73,17 @@ class Threshold extends Component {
     }
 
     const inputClass = valid
-      ? 'form-control input-sm gauge-controls--input'
-      : 'form-control input-sm gauge-controls--input form-volcano'
+      ? 'form-control input-sm threshold-item--input'
+      : 'form-control input-sm threshold-item--input form-volcano'
 
     return (
-      <div className="gauge-controls--section">
+      <div className="threshold-item">
         <div className={labelClass}>
           {label}
         </div>
         {canBeDeleted
           ? <button
-              className="btn btn-default btn-sm btn-square gauge-controls--delete"
+              className="btn btn-default btn-sm btn-square"
               onClick={onDeleteThreshold(threshold)}
             >
               <span className="icon remove" />
@@ -87,9 +95,11 @@ class Threshold extends Component {
           type="number"
           onChange={this.handleChangeWorkingValue}
           onBlur={this.handleBlur}
+          onKeyUp={this.handleKeyUp}
+          ref={r => (this.thresholdInputRef = r)}
         />
         <ColorDropdown
-          colors={GAUGE_COLORS}
+          colors={THRESHOLD_COLORS}
           selected={selectedColor}
           onChoose={onChooseColor(threshold)}
           disabled={isMax && disableMaxColor}
@@ -117,6 +127,7 @@ Threshold.propTypes = {
   onDeleteThreshold: func.isRequired,
   isMin: bool,
   isMax: bool,
+  onSortColors: func.isRequired,
 }
 
 export default Threshold

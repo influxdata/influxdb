@@ -35,18 +35,12 @@ $graph-gutter: 16px;
     text-transform: capitalize;
   }
 }
-.graph-heading > input[type="text"].form-control,
-.graph-name {
-  font-weight: 600;
-  font-size: 14px;
-  padding: 0 11px;
-}
 .graph-name {
   width: 100%;
-  height: 30px;
-  line-height: 26px;
   background-color: transparent;
   color: $g13-mist;
+  font-size: 15px;
+  line-height: 28px;
   border-radius: 4px;
   border: 2px solid transparent;
   position: relative;
@@ -76,15 +70,20 @@ $graph-gutter: 16px;
   }
 }
 .graph-name__untitled {
+  color: $g9-mountain;
   font-style: italic;
 }
-.graph-title {
+.graph-heading > input[type="text"].form-control {
   font-size: 14px;
-  color: $g13-mist;
+  line-height: 26px;
+}
+.graph-heading > input[type="text"].form-control,
+.graph-name {
+  height: 30px;
   font-weight: 600;
-  @include no-user-select();
-  transition:
-    color 0.25s ease;
+  padding: 0 11px;
+  letter-spacing: 0;
+  font-stretch: normal;
 }
 .graph .table-container,
 .graph-container {

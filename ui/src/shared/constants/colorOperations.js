@@ -1,8 +1,9 @@
 import _ from 'lodash'
 import {
-  GAUGE_COLORS,
-  SINGLE_STAT_BASE,
-} from 'src/dashboards/constants/gaugeColors'
+  THRESHOLD_COLORS,
+  THRESHOLD_TYPE_BASE,
+  THRESHOLD_TYPE_TEXT,
+} from 'shared/constants/thresholds'
 
 const hexToRgb = hex => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -41,20 +42,24 @@ const findNearestCrossedThreshold = (colors, lastValue) => {
   return nearestCrossedThreshold
 }
 
-export const generateSingleStatHexs = (
+export const stringifyColorValues = colors => {
+  return colors.map(color => ({...color, value: `${color.value}`}))
+}
+
+export const generateThresholdsListHexs = (
   colors,
-  containsLineGraph,
-  colorizeText,
-  lastValue
+  lastValue,
+  containsLineGraph
 ) => {
-  const defaultColoring = {bgColor: null, textColor: GAUGE_COLORS[11].hex}
+  const defaultColoring = {bgColor: null, textColor: THRESHOLD_COLORS[11].hex}
+  const lastValueNumber = Number(lastValue) || 0
 
   if (!colors.length || !lastValue) {
     return defaultColoring
   }
 
   // baseColor is expected in all cases
-  const baseColor = colors.find(color => (color.id = SINGLE_STAT_BASE)) || {
+  const baseColor = colors.find(color => (color.id = THRESHOLD_TYPE_BASE)) || {
     hex: defaultColoring.textColor,
   }
 
@@ -66,17 +71,20 @@ export const generateSingleStatHexs = (
   }
 
   // When there is only a base color and it's applied to the text
-  if (colorizeText && colors.length === 1) {
+  const shouldColorizeText = !!colors.find(
+    color => color.type === THRESHOLD_TYPE_TEXT
+  )
+  if (shouldColorizeText && colors.length === 1) {
     return baseColor
       ? {bgColor: null, textColor: baseColor.hex}
       : defaultColoring
   }
 
   // When there's multiple colors and they're applied to the text
-  if (colorizeText && colors.length > 1) {
+  if (shouldColorizeText && colors.length > 1) {
     const nearestCrossedThreshold = findNearestCrossedThreshold(
       colors,
-      lastValue
+      lastValueNumber
     )
     const bgColor = null
     const textColor = nearestCrossedThreshold.hex
@@ -96,7 +104,7 @@ export const generateSingleStatHexs = (
   if (colors.length > 1) {
     const nearestCrossedThreshold = findNearestCrossedThreshold(
       colors,
-      lastValue
+      lastValueNumber
     )
 
     const bgColor = nearestCrossedThreshold
@@ -111,4 +119,44 @@ export const generateSingleStatHexs = (
   const bgColor = null
   const textColor = baseColor.hex
   return {bgColor, textColor}
+}
+
+// Handy tool for converting hexcodes to HSV values
+export const HexcodeToHSL = hex => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+
+  const red = parseInt(result[1], 16) / 255
+  const green = parseInt(result[2], 16) / 255
+  const blue = parseInt(result[3], 16) / 255
+  const max = Math.max(red, green, blue)
+  const min = Math.min(red, green, blue)
+
+  let hue,
+    saturation,
+    lightness = (max + min) / 2
+
+  if (max === min) {
+    hue = saturation = 0 // achromatic
+  } else {
+    const d = max - min
+    saturation = lightness > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case red:
+        hue = (green - blue) / d + (green < blue ? 6 : 0)
+        break
+      case green:
+        hue = (blue - red) / d + 2
+        break
+      case blue:
+        hue = (red - green) / d + 4
+        break
+    }
+    hue /= 6
+  }
+
+  hue = Math.round(360 * hue)
+  saturation = Math.round(saturation * 100)
+  lightness = Math.round(lightness * 100)
+
+  return {hue, saturation, lightness}
 }

@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
@@ -80,14 +81,14 @@ class ProvidersTableRow extends Component {
         <InputClickToEdit
           value={provider}
           wrapperClass="fancytable--td provider--provider"
-          onUpdate={this.handleChangeProvider}
+          onBlur={this.handleChangeProvider}
           disabled={isDefaultMapping}
           tabIndex={rowIndex}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
-          onUpdate={this.handleChangeProviderOrg}
+          onBlur={this.handleChangeProviderOrg}
           disabled={isDefaultMapping}
           tabIndex={rowIndex}
         />
@@ -109,6 +110,7 @@ class ProvidersTableRow extends Component {
               onCancel={this.handleDismissDeleteConfirmation}
               onConfirm={this.handleDeleteMap}
               onClickOutside={this.handleDismissDeleteConfirmation}
+              confirmTitle="Delete"
             />
           : <button
               className="btn btn-sm btn-default btn-square"

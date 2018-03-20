@@ -1,4 +1,6 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
+
 import _ from 'lodash'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
@@ -21,6 +23,14 @@ import {
   TelegramConfig,
   VictorOpsConfig,
 } from './config'
+
+import {
+  NOTIFY_REFRESH_KAPACITOR_FAILED,
+  NOTIFY_ALERT_ENDPOINT_SAVED,
+  NOTIFY_ALERT_ENDPOINT_SAVE_FAILED,
+  NOTIFY_TEST_ALERT_SENT,
+  NOTIFY_TEST_ALERT_FAILED,
+} from 'shared/copy/notifications'
 
 class AlertTabs extends Component {
   constructor(props) {
@@ -47,10 +57,7 @@ class AlertTabs extends Component {
       this.setState({configSections: sections})
     } catch (error) {
       this.setState({configSections: null})
-      this.props.addFlashMessage({
-        type: 'error',
-        text: 'There was an error getting the Kapacitor config',
-      })
+      this.props.notify(NOTIFY_REFRESH_KAPACITOR_FAILED)
     }
   }
 
@@ -80,17 +87,11 @@ class AlertTabs extends Component {
           propsToSend
         )
         this.refreshKapacitorConfig(this.props.kapacitor)
-        this.props.addFlashMessage({
-          type: 'success',
-          text: `Alert configuration for ${section} successfully saved.`,
-        })
+        this.props.notify(NOTIFY_ALERT_ENDPOINT_SAVED(section))
         return true
       } catch ({data: {error}}) {
         const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
-        this.props.addFlashMessage({
-          type: 'error',
-          text: `There was an error saving the alert configuration for ${section}: ${errorMsg}`,
-        })
+        this.props.notify(NOTIFY_ALERT_ENDPOINT_SAVE_FAILED(section, errorMsg))
         return false
       }
     }
@@ -102,21 +103,12 @@ class AlertTabs extends Component {
     try {
       const {data} = await testAlertOutput(this.props.kapacitor, section)
       if (data.success) {
-        this.props.addFlashMessage({
-          type: 'success',
-          text: `Successfully triggered an alert to ${section}. If the alert does not reach its destination, please check your configuration settings.`,
-        })
+        this.props.notify(NOTIFY_TEST_ALERT_SENT(section))
       } else {
-        this.props.addFlashMessage({
-          type: 'error',
-          text: `There was an error sending an alert to ${section}: ${data.message}`,
-        })
+        this.props.notify(NOTIFY_TEST_ALERT_FAILED(section, data.message))
       }
     } catch (error) {
-      this.props.addFlashMessage({
-        type: 'error',
-        text: `There was an error sending an alert to ${section}.`,
-      })
+      this.props.notify(NOTIFY_TEST_ALERT_FAILED(section))
     }
   }
 
@@ -270,11 +262,9 @@ class AlertTabs extends Component {
       },
     }
     return (
-      <div>
-        <div className="panel panel-minimal">
-          <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-            <h2 className="panel-title">Configure Alert Endpoints</h2>
-          </div>
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
 
         <Tabs
@@ -330,7 +320,7 @@ AlertTabs.propTypes = {
       proxy: string.isRequired,
     }).isRequired,
   }),
-  addFlashMessage: func.isRequired,
+  notify: func.isRequired,
   hash: string.isRequired,
 }
 

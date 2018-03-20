@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
 import {
@@ -222,14 +223,14 @@ AnnotationSpan.propTypes = {
   annotation: schema.annotation.isRequired,
   mode: string.isRequired,
   dygraph: shape({}).isRequired,
-  staticLegendHeight: number.isRequired,
+  staticLegendHeight: number,
   updateAnnotationAsync: func.isRequired,
   updateAnnotation: func.isRequired,
 }
 
-const mdtp = {
+const mapDispatchToProps = {
   updateAnnotationAsync: actions.updateAnnotationAsync,
   updateAnnotation: actions.updateAnnotation,
 }
 
-export default connect(null, mdtp)(AnnotationSpan)
+export default connect(null, mapDispatchToProps)(AnnotationSpan)

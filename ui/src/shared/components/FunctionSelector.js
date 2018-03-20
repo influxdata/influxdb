@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import _ from 'lodash'
 import {INFLUXQL_FUNCTIONS} from 'src/data_explorer/constants'
@@ -10,10 +11,6 @@ class FunctionSelector extends Component {
     this.state = {
       localSelectedItems: this.props.selectedItems,
     }
-
-    this.onSelect = ::this.onSelect
-    this.onSingleSelect = ::this.onSingleSelect
-    this.handleApplyFunctions = ::this.handleApplyFunctions
   }
 
   componentWillUpdate(nextProps) {
@@ -22,7 +19,7 @@ class FunctionSelector extends Component {
     }
   }
 
-  onSelect(item, e) {
+  onSelect = (item, e) => {
     e.stopPropagation()
 
     const {localSelectedItems} = this.state
@@ -37,7 +34,7 @@ class FunctionSelector extends Component {
     this.setState({localSelectedItems: nextItems})
   }
 
-  onSingleSelect(item) {
+  onSingleSelect = item => {
     if (item === this.state.localSelectedItems[0]) {
       this.props.onApply([])
       this.setState({localSelectedItems: []})
@@ -47,11 +44,11 @@ class FunctionSelector extends Component {
     }
   }
 
-  isSelected(item) {
+  isSelected = item => {
     return !!this.state.localSelectedItems.find(text => text === item)
   }
 
-  handleApplyFunctions(e) {
+  handleApplyFunctions = e => {
     e.stopPropagation()
 
     this.props.onApply(this.state.localSelectedItems)

@@ -1,19 +1,20 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
 
 import {
   COLOR_TYPE_THRESHOLD,
-  GAUGE_COLORS,
+  THRESHOLD_COLORS,
   MAX_THRESHOLDS,
   MIN_THRESHOLDS,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 
 import {
   updateGaugeColors,
@@ -26,7 +27,7 @@ class GaugeOptions extends Component {
     const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     if (sortedColors.length <= MAX_THRESHOLDS) {
-      const randomColor = _.random(0, GAUGE_COLORS.length - 1)
+      const randomColor = _.random(0, THRESHOLD_COLORS.length - 1)
 
       const maxValue = sortedColors[sortedColors.length - 1].value
       const minValue = sortedColors[0].value
@@ -42,11 +43,16 @@ class GaugeOptions extends Component {
         type: COLOR_TYPE_THRESHOLD,
         id: uuid.v4(),
         value: randomValue,
-        hex: GAUGE_COLORS[randomColor].hex,
-        name: GAUGE_COLORS[randomColor].name,
+        hex: THRESHOLD_COLORS[randomColor].hex,
+        name: THRESHOLD_COLORS[randomColor].name,
       }
 
-      handleUpdateGaugeColors([...gaugeColors, newThreshold])
+      const updatedColors = _.sortBy(
+        [...gaugeColors, newThreshold],
+        color => color.value
+      )
+
+      handleUpdateGaugeColors(updatedColors)
     } else {
       onResetFocus()
     }
@@ -57,8 +63,9 @@ class GaugeOptions extends Component {
     const gaugeColors = this.props.gaugeColors.filter(
       color => color.id !== threshold.id
     )
+    const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
-    handleUpdateGaugeColors(gaugeColors)
+    handleUpdateGaugeColors(sortedColors)
     onResetFocus()
   }
 
@@ -138,12 +145,18 @@ class GaugeOptions extends Component {
     handleUpdateAxes(newAxes)
   }
 
+  handleSortColors = () => {
+    const {gaugeColors, handleUpdateGaugeColors} = this.props
+    const sortedColors = _.sortBy(gaugeColors, color => color.value)
+
+    handleUpdateGaugeColors(sortedColors)
+  }
+
   render() {
     const {gaugeColors, axes: {y: {prefix, suffix}}} = this.props
 
     const disableMaxColor = gaugeColors.length > MIN_THRESHOLDS
     const disableAddThreshold = gaugeColors.length > MAX_THRESHOLDS
-    const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
     return (
       <FancyScrollbar
@@ -152,19 +165,19 @@ class GaugeOptions extends Component {
       >
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Gauge Controls</h5>
-          <div className="gauge-controls">
+          <div className="thresholds-list">
             <button
-              className="btn btn-sm btn-primary gauge-controls--add-threshold"
+              className="btn btn-sm btn-primary"
               onClick={this.handleAddThreshold}
               disabled={disableAddThreshold}
             >
               <span className="icon plus" /> Add Threshold
             </button>
-            {sortedColors.map(color =>
+            {gaugeColors.map(color =>
               <Threshold
-                isMin={color.value === sortedColors[0].value}
+                isMin={color.value === gaugeColors[0].value}
                 isMax={
-                  color.value === sortedColors[sortedColors.length - 1].value
+                  color.value === gaugeColors[gaugeColors.length - 1].value
                 }
                 visualizationType="gauge"
                 threshold={color}
@@ -174,10 +187,11 @@ class GaugeOptions extends Component {
                 onValidateColorValue={this.handleValidateColorValue}
                 onUpdateColorValue={this.handleUpdateColorValue}
                 onDeleteThreshold={this.handleDeleteThreshold}
+                onSortColors={this.handleSortColors}
               />
             )}
           </div>
-          <div className="single-stat-controls">
+          <div className="graph-options-group form-group-wrapper">
             <div className="form-group col-xs-6">
               <label>Prefix</label>
               <input

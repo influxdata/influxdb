@@ -1,5 +1,6 @@
 /* eslint-disable no-magic-numbers */
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
@@ -9,12 +10,13 @@ import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import StaticLegend from 'src/shared/components/StaticLegend'
 import Annotations from 'src/shared/components/Annotations'
+import Crosshair from 'src/shared/components/Crosshair'
 
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
-import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
+import {AXES_SCALE_OPTIONS} from 'src/dashboards/constants/cellEditor'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
-
+import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 import {
   OPTIONS,
   LINE_COLORS,
@@ -23,16 +25,17 @@ import {
   barPlotter,
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
+
 import {getIdealColors} from 'src/shared/constants/graphColorPalettes'
-const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
+const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isSynced: false,
       isHidden: true,
       staticLegendHeight: null,
+      isHoveringThisGraph: false,
     }
   }
 
@@ -52,7 +55,6 @@ class Dygraph extends Component {
       logscale: y.scale === LOG,
       colors: this.getLineColors(),
       series: this.colorDygraphSeries(),
-      unhighlightCallback: this.unhighlightCallback,
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
@@ -91,11 +93,6 @@ class Dygraph extends Component {
 
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
-
-    // Simple opt-out for now, if a graph should not be synced
-    if (this.props.synchronizer) {
-      this.sync()
-    }
   }
 
   componentWillUnmount() {
@@ -210,11 +207,28 @@ class Dygraph extends Component {
     return coloredDygraphSeries
   }
 
-  sync = () => {
-    if (!this.state.isSynced) {
-      this.props.synchronizer(this.dygraph)
-      this.setState({isSynced: true})
+  eventToTimestamp = ({pageX: pxBetweenMouseAndPage}) => {
+    const {left: pxBetweenGraphAndPage} = this.graphRef.getBoundingClientRect()
+    const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
+    const timestamp = this.dygraph.toDataXCoord(graphXCoordinate)
+    const [xRangeStart] = this.dygraph.xAxisRange()
+    const clamped = Math.max(xRangeStart, timestamp)
+    return `${clamped}`
+  }
+
+  handleMouseMove = e => {
+    if (this.props.onSetHoverTime) {
+      const newTime = this.eventToTimestamp(e)
+      this.props.onSetHoverTime(newTime)
     }
+    this.setState({isHoveringThisGraph: true})
+  }
+
+  handleMouseOut = () => {
+    if (this.props.onSetHoverTime) {
+      this.props.onSetHoverTime(NULL_HOVER_TIME)
+    }
+    this.setState({isHoveringThisGraph: false})
   }
 
   handleHideLegend = e => {
@@ -302,9 +316,9 @@ class Dygraph extends Component {
   }
 
   render() {
-    const {isHidden, staticLegendHeight} = this.state
-    const {staticLegend} = this.props
-
+    const {isHidden, staticLegendHeight, isHoveringThisGraph} = this.state
+    const {staticLegend, children, hoverTime} = this.props
+    const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
     if (staticLegend) {
       const cellVerticalPadding = 16
@@ -319,18 +333,25 @@ class Dygraph extends Component {
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         {this.dygraph &&
-          <Annotations
-            dygraph={this.dygraph}
-            annotationsRef={this.handleAnnotationsRef}
-            staticLegendHeight={staticLegendHeight}
-          />}
-        {this.dygraph &&
-          <DygraphLegend
-            isHidden={isHidden}
-            dygraph={this.dygraph}
-            onHide={this.handleHideLegend}
-            onShow={this.handleShowLegend}
-          />}
+          <div className="dygraph-addons">
+            <Annotations
+              dygraph={this.dygraph}
+              annotationsRef={this.handleAnnotationsRef}
+              staticLegendHeight={staticLegendHeight}
+            />
+            <DygraphLegend
+              isHidden={isHidden}
+              dygraph={this.dygraph}
+              onHide={this.handleHideLegend}
+              onShow={this.handleShowLegend}
+            />
+            {!isHoveringThisGraph &&
+              <Crosshair
+                dygraph={this.dygraph}
+                staticLegendHeight={staticLegendHeight}
+                hoverTime={hoverTime}
+              />}
+          </div>}
         <div
           ref={r => {
             this.graphRef = r
@@ -338,20 +359,24 @@ class Dygraph extends Component {
           }}
           className="dygraph-child-container"
           style={dygraphStyle}
+          onMouseMove={this.handleMouseMove}
+          onMouseOut={this.handleMouseOut}
         />
         {staticLegend &&
           <StaticLegend
+            dygraphSeries={this.colorDygraphSeries()}
             dygraph={this.dygraph}
             handleReceiveStaticLegendHeight={
               this.handleReceiveStaticLegendHeight
             }
           />}
+        {nestedGraph && React.cloneElement(nestedGraph, {staticLegendHeight})}
       </div>
     )
   }
 }
 
-const {array, arrayOf, bool, func, shape, string} = PropTypes
+const {array, arrayOf, bool, func, node, shape, string} = PropTypes
 
 Dygraph.defaultProps = {
   axes: {
@@ -405,11 +430,13 @@ Dygraph.propTypes = {
   timeRange: shape({
     lower: string.isRequired,
   }),
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   setResolution: func,
   dygraphRef: func,
   onZoom: func,
   mode: string,
+  children: node,
 }
 
 const mapStateToProps = ({annotations: {mode}}) => ({

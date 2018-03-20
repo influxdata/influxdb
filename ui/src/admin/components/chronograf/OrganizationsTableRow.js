@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter} from 'react-router'
@@ -94,7 +95,7 @@ class OrganizationsTableRow extends Component {
         <InputClickToEdit
           value={organization.name}
           wrapperClass="fancytable--td orgs-table--name"
-          onUpdate={this.handleUpdateOrgName}
+          onBlur={this.handleUpdateOrgName}
         />
         <div className={defaultRoleClassName}>
           <Dropdown
@@ -111,6 +112,7 @@ class OrganizationsTableRow extends Component {
               onConfirm={this.handleDeleteOrg}
               onClickOutside={this.handleDismissDeleteConfirmation}
               confirmLeft={true}
+              confirmTitle="Delete"
             />
           : <OrganizationsTableRowDeleteButton
               organization={organization}

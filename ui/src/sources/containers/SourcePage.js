@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {withRouter} from 'react-router'
 import _ from 'lodash'
 import {getSource} from 'shared/apis'
@@ -7,8 +8,9 @@ import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
 } from 'shared/actions/sources'
-import {publishNotification} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import Notifications from 'shared/components/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
@@ -16,6 +18,14 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import {DEFAULT_SOURCE} from 'shared/constants'
 const initialPath = '/sources/new'
+
+import {
+  NOTIFY_ERROR_CONNECTING_TO_SOURCE,
+  NOTIFY_SOURCE_CREATION_SUCCEEDED,
+  NOTIFY_SOURCE_CREATION_FAILED,
+  NOTIFY_SOURCE_UPDATED,
+  NOTIFY_SOURCE_UPDATE_FAILED,
+} from 'shared/copy/notifications'
 
 class SourcePage extends Component {
   constructor(props) {
@@ -31,7 +41,7 @@ class SourcePage extends Component {
 
   componentDidMount() {
     const {editMode} = this.state
-    const {params} = this.props
+    const {params, notify} = this.props
 
     if (!editMode) {
       return this.setState({isLoading: false})
@@ -45,7 +55,7 @@ class SourcePage extends Component {
         })
       })
       .catch(error => {
-        this.handleError('Could not connect to source', error)
+        notify(NOTIFY_ERROR_CONNECTING_TO_SOURCE(this._parseError(error)))
         this.setState({isLoading: false})
       })
   }
@@ -94,13 +104,6 @@ class SourcePage extends Component {
     this.setState(this._normalizeSource, this._updateSource)
   }
 
-  handleError = (bannerText, err) => {
-    const {notify} = this.props
-    const error = this._parseError(err)
-    console.error('Error: ', error)
-    notify('error', `${bannerText}: ${error}`)
-  }
-
   gotoPurgatory = () => {
     const {router} = this.props
     router.push('/purgatory')
@@ -122,7 +125,7 @@ class SourcePage extends Component {
     }
     createSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.addSourceAction(sourceFromServer)
+        this.props.addSource(sourceFromServer)
         this.setState({
           source: {...DEFAULT_SOURCE, ...sourceFromServer},
           isCreated: true,
@@ -140,12 +143,14 @@ class SourcePage extends Component {
     const {notify} = this.props
     createSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.addSourceAction(sourceFromServer)
+        this.props.addSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', `InfluxDB ${source.name} available as a connection`)
+        notify(NOTIFY_SOURCE_CREATION_SUCCEEDED(source.name))
       })
       .catch(error => {
-        this.handleError('Unable to create InfluxDB connection', error)
+        notify(
+          NOTIFY_SOURCE_CREATION_FAILED(source.name, this._parseError(error))
+        )
       })
   }
 
@@ -154,12 +159,14 @@ class SourcePage extends Component {
     const {notify} = this.props
     updateSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.updateSourceAction(sourceFromServer)
+        this.props.updateSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', `InfluxDB connection ${source.name} updated`)
+        notify(NOTIFY_SOURCE_UPDATED(source.name))
       })
       .catch(error => {
-        this.handleError('Unable to update InfluxDB connection', error)
+        notify(
+          NOTIFY_SOURCE_UPDATE_FAILED(source.name, this._parseError(error))
+        )
       })
   }
 
@@ -225,7 +232,7 @@ class SourcePage extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-8 col-md-offset-2">
-                <div className="panel panel-minimal">
+                <div className="panel">
                   <SourceForm
                     source={source}
                     editMode={editMode}
@@ -260,15 +267,14 @@ SourcePage.propTypes = {
       redirectPath: string,
     }).isRequired,
   }).isRequired,
-  notify: func,
-  addSourceAction: func,
-  updateSourceAction: func,
+  notify: func.isRequired,
+  addSource: func.isRequired,
+  updateSource: func.isRequired,
 }
 
-const mapStateToProps = () => ({})
-
-export default connect(mapStateToProps, {
-  notify: publishNotification,
-  addSourceAction,
-  updateSourceAction,
-})(withRouter(SourcePage))
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+  addSource: bindActionCreators(addSourceAction, dispatch),
+  updateSource: bindActionCreators(updateSourceAction, dispatch),
+})
+export default connect(null, mapDispatchToProps)(withRouter(SourcePage))

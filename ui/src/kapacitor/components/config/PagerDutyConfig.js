@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import RedactedInput from './RedactedInput'
 
 class PagerDutyConfig extends Component {
@@ -56,7 +57,7 @@ class PagerDutyConfig extends Component {
           />
         </div>
 
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"

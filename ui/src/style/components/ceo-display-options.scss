@@ -206,46 +206,50 @@ $graph-type--gutter: 4px;
   width: 100%;
 }
 
-.gauge-controls--section {
+.gauge-controls--section,
+.column-controls--section {
   width: 100%;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   height: 30px;
   margin-top: 8px;
+
+  > * {
+    margin-left: 4px;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
 }
 button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
   width: 100%;
 }
 
-.gauge-controls--label {
+%gauge-controls-label-styles {
   height: 30px;
-  background-color: $g4-onyx;
+  line-height: 30px;
   font-weight: 600;
-  color: $g11-sidewalk;
+  font-size: 13px;
   padding: 0 11px;
   border-radius: 4px;
-  line-height: 30px;
   @include no-user-select();
+}
+.gauge-controls--label {
+  @extend %gauge-controls-label-styles;
+  color: $g11-sidewalk;
+  background-color: $g4-onyx;
   width: 120px;
 }
 .gauge-controls--label-editable {
-  height: 30px;
-  font-weight: 600;
+  @extend %gauge-controls-label-styles;
   color: $g16-pearl;
-  padding: 0 11px;
-  border-radius: 4px;
-  line-height: 30px;
-  @include no-user-select();
   width: 90px;
 }
 
 .gauge-controls--input {
   flex: 1 0 0;
-  margin: 0 0 0 4px;
-}
-.gauge-controls--section .color-dropdown {
-  margin-left: 4px;
 }
 .gauge-controls--section .color-dropdown.color-dropdown--stretch {
   width: auto;
@@ -253,17 +257,31 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
 }
 
 
+.column-controls--label {
+  @extend %gauge-controls-label-styles;
+  color: $g16-pearl;
+  background-color: $g4-onyx;
+  flex: 2 0 0;
+}
+.column-controls-input {
+  flex: 1 0 0;
+  display: flex;
+  align-items: center;
+}
 /*
   Cell Editor Overlay - Single-Stat Controls
   ------------------------------------------------------------------------------
 */
-.single-stat-controls {
+.graph-options-group {
+  margin-top: 30px;
+}
+.form-group-wrapper {
   display: inline-block;
   width: calc(100% + 12px);
-  margin: 30px -6px 0 -6px;
+  margin-left: -6px;
+  margin-right: -6px;
 
-  > div.form-group {
-    padding-left: 6px;
-    padding-right: 6px;
+  .form-group:last-of-type {
+    margin-bottom: 0;
   }
 }

@@ -1,6 +1,7 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import TemplateVariableTable from 'src/dashboards/components/template_variables/Table'
 
@@ -64,15 +65,9 @@ class TemplateVariableManagerWrapper extends Component {
       rows: this.props.templates,
       isEdited: false,
     }
-
-    this.onRunQuerySuccess = ::this.onRunQuerySuccess
-    this.onSaveTemplatesSuccess = ::this.onSaveTemplatesSuccess
-    this.onAddVariable = ::this.onAddVariable
-    this.onDeleteTemplateVariable = ::this.onDeleteTemplateVariable
-    this.tempVarAlreadyExists = ::this.tempVarAlreadyExists
   }
 
-  onAddVariable() {
+  onAddVariable = () => {
     const {rows} = this.state
 
     const newRow = {
@@ -95,7 +90,7 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({rows: newRows})
   }
 
-  onRunQuerySuccess(template, queryConfig, parsedData, tempVar) {
+  onRunQuerySuccess = (template, queryConfig, parsedData, tempVar) => {
     const {rows} = this.state
     const {id, links} = template
     const {
@@ -156,7 +151,7 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({rows: newRows, isEdited: true})
   }
 
-  onSaveTemplatesSuccess() {
+  onSaveTemplatesSuccess = () => {
     const {rows} = this.state
 
     const newRows = rows.map(row => ({...row, isNew: false}))
@@ -164,7 +159,7 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({rows: newRows, isEdited: false})
   }
 
-  onDeleteTemplateVariable(templateID) {
+  onDeleteTemplateVariable = templateID => {
     const {rows} = this.state
 
     const newRows = rows.filter(({id}) => id !== templateID)
@@ -172,7 +167,7 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({rows: newRows, isEdited: true})
   }
 
-  tempVarAlreadyExists(testTempVar, testID) {
+  tempVarAlreadyExists = (testTempVar, testID) => {
     const {rows: tempVars} = this.state
     return tempVars.some(
       ({tempVar, id}) => tempVar === testTempVar && id !== testID

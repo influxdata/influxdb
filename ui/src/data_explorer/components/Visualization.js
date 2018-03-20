@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
@@ -49,7 +50,6 @@ class Visualization extends Component {
       views,
       height,
       cellType,
-      cellName,
       timeRange,
       templates,
       autoRefresh,
@@ -76,7 +76,6 @@ class Visualization extends Component {
           view={view}
           views={views}
           query={query}
-          name={cellName}
           errorThrown={errorThrown}
           onToggleView={this.handleToggleView}
         />
@@ -111,7 +110,6 @@ class Visualization extends Component {
 }
 
 Visualization.defaultProps = {
-  cellName: '',
   cellType: '',
 }
 
@@ -126,7 +124,6 @@ Visualization.contextTypes = {
 }
 
 Visualization.propTypes = {
-  cellName: string,
   cellType: string,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),

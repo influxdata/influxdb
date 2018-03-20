@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import {GAUGE_SPECS} from 'shared/constants/gaugeSpecs'
@@ -7,7 +8,7 @@ import {
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
   MIN_THRESHOLDS,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 
 class Gauge extends Component {
   constructor(props) {

@@ -386,9 +386,6 @@ export const DROPDOWN_MENU_MAX_HEIGHT = 240
 export const HEARTBEAT_INTERVAL = 10000 // ms
 
 export const PRESENTATION_MODE_ANIMATION_DELAY = 0 // In milliseconds.
-export const PRESENTATION_MODE_NOTIFICATION_DELAY = 2000 // In milliseconds.
-
-export const NOTIFICATION_DISMISS_DELAY = 4000 // in milliseconds
 
 export const REVERT_STATE_DELAY = 1500 // ms
 
@@ -430,20 +427,6 @@ export const DEFAULT_SOURCE = {
   metaUrl: '',
 }
 
-export const intervalValuesPoints = [
-  {value: '333', type: 'points', selected: true},
-]
-
-export const interval = {
-  id: 'interval',
-  type: 'autoGroupBy',
-  tempVar: ':interval:',
-  label: 'automatically determine the best group by time',
-  values: intervalValuesPoints,
-}
-
-export const TEMPLATES = [interval]
-
 export const IS_STATIC_LEGEND = legend =>
   _.get(legend, 'type', false) === 'static'
 
@@ -459,3 +442,8 @@ export const cellSupportsAnnotations = cellType => {
   ]
   return !!supportedTypes.find(type => type === cellType)
 }
+
+export const NOTIFICATION_TRANSITION = 250
+export const FIVE_SECONDS = 5000
+export const TEN_SECONDS = 10000
+export const INFINITE = -1

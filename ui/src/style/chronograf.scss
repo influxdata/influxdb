@@ -1,15 +1,20 @@
+/*
+   Chronograf Styles
+   -----------------------------------------------------------------------------
+*/
+
 // Modules
 @import 'modules/influx-colors';
 @import 'modules/variables';
 @import 'modules/mixins';
+@import 'modules/helpers';
 
 // Fonts
 @import 'fonts/fonts';
+@import 'fonts/icon-font';
 
-// Base Theme
-@import 'theme/bootstrap';
-@import 'theme/bootstrap-theme';
-@import 'theme/reset';
+// Theme
+@import 'theme/chronograf-theme';
 
 // Vendor
 @import 'external/react-grid-layout';
@@ -24,10 +29,10 @@
 @import 'layout/page-header';
 @import 'layout/sidebar';
 @import 'layout/overlay';
-@import 'layout/flash-messages';
 
 // Components
 @import 'components/annotations';
+@import 'components/crosshairs';
 @import 'components/ceo-display-options';
 @import 'components/confirm-button';
 @import 'components/confirm-buttons';
@@ -62,6 +67,8 @@
 @import 'components/info-indicators';
 @import 'components/source-selector';
 @import 'components/tables';
+@import 'components/table-graph';
+@import 'components/threshold-controls';
 @import 'components/kapacitor-logs-table';
 
 // Pages

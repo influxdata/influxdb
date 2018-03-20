@@ -115,7 +115,7 @@ $scrollbar-offset: 3px;
     cursor: default;
   }
 }
-.no-user-select {
+%no-user-select {
   user-select: none !important;
   -moz-user-select: none !important;
   -webkit-user-select: none !important;

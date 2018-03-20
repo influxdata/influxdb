@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
@@ -7,24 +8,20 @@ class QueryRow extends Component {
   constructor(props) {
     super(props)
 
-    this.handleInitiateKill = ::this.handleInitiateKill
-    this.handleFinishHim = ::this.handleFinishHim
-    this.handleShowMercy = ::this.handleShowMercy
-
     this.state = {
       confirmingKill: false,
     }
   }
 
-  handleInitiateKill() {
+  handleInitiateKill = () => {
     this.setState({confirmingKill: true})
   }
 
-  handleFinishHim() {
+  handleFinishHim = () => {
     this.props.onKill(this.props.query.id)
   }
 
-  handleShowMercy() {
+  handleShowMercy = () => {
     this.setState({confirmingKill: false})
   }
 

@@ -1,17 +1,16 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 import classnames from 'classnames'
-
-import Dygraph from 'src/external/dygraph'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 import {
   getLayouts,
   getAppsForHosts,
@@ -83,22 +82,6 @@ class HostPage extends Component {
     }
   }
 
-  synchronizer = dygraph => {
-    const dygraphs = [...this.state.dygraphs, dygraph].filter(d => d.graphDiv)
-    const numGraphs = this.state.layouts.reduce((acc, {cells}) => {
-      return acc + cells.length
-    }, 0)
-
-    if (dygraphs.length === numGraphs) {
-      Dygraph.synchronize(dygraphs, {
-        selection: true,
-        zoom: false,
-        range: false,
-      })
-    }
-    this.setState({dygraphs})
-  }
-
   renderLayouts = layouts => {
     const {timeRange} = this.state
     const {source, autoRefresh, manualRefresh} = this.props
@@ -156,7 +139,6 @@ class HostPage extends Component {
         autoRefresh={autoRefresh}
         manualRefresh={manualRefresh}
         host={this.props.params.hostID}
-        synchronizer={this.synchronizer}
       />
     )
   }

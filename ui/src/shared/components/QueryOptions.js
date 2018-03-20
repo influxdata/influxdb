@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
 import TimeShiftDropdown from 'src/shared/components/TimeShiftDropdown'
 import FillQuery from 'shared/components/FillQuery'

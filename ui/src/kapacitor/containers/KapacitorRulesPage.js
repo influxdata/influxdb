@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor} from 'shared/apis'
@@ -77,7 +78,6 @@ KapacitorRulesPage.propTypes = {
     deleteRule: func.isRequired,
     updateRuleStatus: func.isRequired,
   }).isRequired,
-  addFlashMessage: func,
 }
 
 const mapStateToProps = state => {

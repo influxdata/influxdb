@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 class UsersTableHeader extends Component {
   constructor(props) {
@@ -16,7 +17,7 @@ class UsersTableHeader extends Component {
     const panelTitle = numUsers === 1 ? `${numUsers} User` : `${numUsers} Users`
 
     return (
-      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel-heading">
         <h2 className="panel-title">
           {panelTitle} in <em>{organization.name}</em>
         </h2>

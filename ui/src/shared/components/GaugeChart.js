@@ -1,12 +1,11 @@
-import React, {PropTypes, PureComponent} from 'react'
+import React, {PureComponent} from 'react'
+import PropTypes from 'prop-types'
 import lastValues from 'shared/parsing/lastValues'
 import Gauge from 'shared/components/Gauge'
 
-import {
-  DEFAULT_GAUGE_COLORS,
-  stringifyColorValues,
-} from 'src/dashboards/constants/gaugeColors'
-import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
+import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
+import {stringifyColorValues} from 'src/shared/constants/colorOperations'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
 class GaugeChart extends PureComponent {
   render() {

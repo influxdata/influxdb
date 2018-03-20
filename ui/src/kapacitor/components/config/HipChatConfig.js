@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
@@ -82,7 +83,7 @@ class HipchatConfig extends Component {
           />
         </div>
 
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"

@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
@@ -30,15 +31,13 @@ class DeleteConfirmButtons extends Component {
     this.state = {
       isConfirming: false,
     }
-    this.handleClickDelete = ::this.handleClickDelete
-    this.handleCancel = ::this.handleCancel
   }
 
-  handleClickDelete() {
+  handleClickDelete = () => {
     this.setState({isConfirming: true})
   }
 
-  handleCancel() {
+  handleCancel = () => {
     this.setState({isConfirming: false})
   }
 

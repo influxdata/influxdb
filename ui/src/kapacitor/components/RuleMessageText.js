@@ -1,9 +1,10 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 const RuleMessageText = ({rule, updateMessage}) =>
   <div className="rule-builder--message">
     <textarea
-      className="form-control form-malachite monotype"
+      className="form-control input-sm form-malachite monotype"
       onChange={updateMessage}
       placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
       value={rule.message}

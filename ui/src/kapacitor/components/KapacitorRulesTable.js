@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
@@ -15,35 +16,33 @@ const {
 } = TASKS_TABLE
 
 const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
-  <div className="panel-body">
-    <table className="table v-center table-highlight">
-      <thead>
-        <tr>
-          <th style={{minWidth: colName}}>Name</th>
-          <th style={{width: colTrigger}}>Rule Type</th>
-          <th style={{width: colMessage}}>Message</th>
-          <th style={{width: colAlerts}}>Alert Handlers</th>
-          <th style={{width: colEnabled}} className="text-center">
-            Task Enabled
-          </th>
-          <th style={{width: colActions}} />
-        </tr>
-      </thead>
-      <tbody>
-        {_.sortBy(rules, r => r.name.toLowerCase()).map(rule => {
-          return (
-            <RuleRow
-              key={rule.id}
-              rule={rule}
-              source={source}
-              onDelete={onDelete}
-              onChangeRuleStatus={onChangeRuleStatus}
-            />
-          )
-        })}
-      </tbody>
-    </table>
-  </div>
+  <table className="table v-center table-highlight">
+    <thead>
+      <tr>
+        <th style={{minWidth: colName}}>Name</th>
+        <th style={{width: colTrigger}}>Rule Type</th>
+        <th style={{width: colMessage}}>Message</th>
+        <th style={{width: colAlerts}}>Alert Handlers</th>
+        <th style={{width: colEnabled}} className="text-center">
+          Task Enabled
+        </th>
+        <th style={{width: colActions}} />
+      </tr>
+    </thead>
+    <tbody>
+      {_.sortBy(rules, r => r.name.toLowerCase()).map(rule => {
+        return (
+          <RuleRow
+            key={rule.id}
+            rule={rule}
+            source={source}
+            onDelete={onDelete}
+            onChangeRuleStatus={onChangeRuleStatus}
+          />
+        )
+      })}
+    </tbody>
+  </table>
 
 const handleDelete = (rule, onDelete) => onDelete(rule)
 

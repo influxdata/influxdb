@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import AlertsTable from 'src/alerts/components/AlertsTable'
@@ -11,7 +12,7 @@ import AJAX from 'utils/ajax'
 import _ from 'lodash'
 import moment from 'moment'
 
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 
 class AlertsApp extends Component {
   constructor(props) {
@@ -35,11 +36,6 @@ class AlertsApp extends Component {
       limitMultiplier: 1, // only used if AlertsApp receives a limit prop
       isAlertsMaxedOut: false, // only used if AlertsApp receives a limit prop
     }
-
-    this.fetchAlerts = ::this.fetchAlerts
-    this.renderSubComponents = ::this.renderSubComponents
-    this.handleGetMoreAlerts = ::this.handleGetMoreAlerts
-    this.handleApplyTime = ::this.handleApplyTime
   }
 
   // TODO: show a loading screen until we figure out if there is a kapacitor and fetch the alerts
@@ -65,7 +61,7 @@ class AlertsApp extends Component {
     }
   }
 
-  fetchAlerts() {
+  fetchAlerts = () => {
     getAlerts(
       this.props.source.links.proxy,
       this.state.timeRange,
@@ -112,13 +108,13 @@ class AlertsApp extends Component {
     })
   }
 
-  handleGetMoreAlerts() {
+  handleGetMoreAlerts = () => {
     this.setState({limitMultiplier: this.state.limitMultiplier + 1}, () => {
       this.fetchAlerts(this.state.limitMultiplier)
     })
   }
 
-  renderSubComponents() {
+  renderSubComponents = () => {
     const {source, isWidget, limit} = this.props
     const {isAlertsMaxedOut, alerts} = this.state
 
@@ -135,7 +131,7 @@ class AlertsApp extends Component {
       : <NoKapacitorError source={source} />
   }
 
-  handleApplyTime(timeRange) {
+  handleApplyTime = timeRange => {
     this.setState({timeRange})
   }
 

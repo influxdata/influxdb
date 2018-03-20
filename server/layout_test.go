@@ -76,12 +76,13 @@ func Test_Layouts(t *testing.T) {
 				Measurement: "influxdb",
 				Cells: []chronograf.Cell{
 					{
-						X:    0,
-						Y:    0,
-						W:    4,
-						H:    4,
-						I:    "3b0e646b-2ca3-4df2-95a5-fd80915459dd",
-						Name: "A Graph",
+						X:          0,
+						Y:          0,
+						W:          4,
+						H:          4,
+						I:          "3b0e646b-2ca3-4df2-95a5-fd80915459dd",
+						Name:       "A Graph",
+						CellColors: []chronograf.CellColor{},
 						Axes: map[string]chronograf.Axis{
 							"x": chronograf.Axis{
 								Bounds: []string{},
@@ -103,12 +104,13 @@ func Test_Layouts(t *testing.T) {
 					Measurement: "influxdb",
 					Cells: []chronograf.Cell{
 						{
-							X:    0,
-							Y:    0,
-							W:    4,
-							H:    4,
-							I:    "3b0e646b-2ca3-4df2-95a5-fd80915459dd",
-							Name: "A Graph",
+							X:          0,
+							Y:          0,
+							W:          4,
+							H:          4,
+							I:          "3b0e646b-2ca3-4df2-95a5-fd80915459dd",
+							CellColors: []chronograf.CellColor{},
+							Name:       "A Graph",
 						},
 					},
 				},

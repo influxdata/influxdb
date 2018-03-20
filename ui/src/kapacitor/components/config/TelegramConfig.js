@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
@@ -166,7 +167,7 @@ class TelegramConfig extends Component {
           </div>
         </div>
 
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"

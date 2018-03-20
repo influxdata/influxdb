@@ -1,10 +1,12 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
 import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
+import TableOptions from 'src/dashboards/components/TableOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
 
@@ -40,12 +42,20 @@ class DisplayOptions extends Component {
       staticLegend,
       onToggleStaticLegend,
       onResetFocus,
+      queryConfigs,
     } = this.props
     switch (type) {
       case 'gauge':
         return <GaugeOptions onResetFocus={onResetFocus} />
       case 'single-stat':
         return <SingleStatOptions onResetFocus={onResetFocus} />
+      case 'table':
+        return (
+          <TableOptions
+            onResetFocus={onResetFocus}
+            queryConfigs={queryConfigs}
+          />
+        )
       default:
         return (
           <AxesOptions
