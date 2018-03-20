@@ -1,5 +1,4 @@
 import React, {SFC} from 'react'
-import classnames from 'classnames'
 
 interface Props {
   fixed: boolean
@@ -10,16 +9,16 @@ const GraphOptionsFixFirstColumn: SFC<Props> = ({
   fixed,
   onToggleFixFirstColumn,
 }) =>
-  <div
-    className={classnames('query-builder--list-item', {
-      active: fixed,
-    })}
-    onClick={onToggleFixFirstColumn}
-  >
-    <span>
-      <div className="query-builder--checkbox" data-test="checkbox" />
-      <label>Fix First Column</label>
-    </span>
+  <div className="form-group col-xs-12">
+    <div className="form-control-static">
+      <input
+        type="checkbox"
+        id="fixFirstColumnCheckbox"
+        checked={!!fixed}
+        onChange={onToggleFixFirstColumn}
+      />
+      <label htmlFor="fixFirstColumnCheckbox">Fix First Column</label>
+    </div>
   </div>
 
 export default GraphOptionsFixFirstColumn

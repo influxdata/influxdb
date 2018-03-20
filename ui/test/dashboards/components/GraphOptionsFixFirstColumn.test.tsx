@@ -19,10 +19,11 @@ describe('Dashboards.Components.GraphOptionsFixFirstColumn', () => {
     it('shows checkbox and label', () => {
       const {wrapper} = setup()
       const label = wrapper.find('label')
-      const checkbox = wrapper.find({'data-test': 'checkbox'})
+      const checkbox = wrapper.find('input')
 
       expect(label.exists()).toBe(true)
       expect(checkbox.exists()).toBe(true)
+      expect(checkbox.prop('type')).toBe('checkbox')
     })
   })
 })
