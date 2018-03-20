@@ -30,6 +30,10 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
+  &.user-remove:before {content: "\e904";}
+  &.user-add:before {content: "\e907";}
+  &.group:before {content: "\e908";}
+  &.user:before {content: "\e90d";}
   &.eye-closed:before {content: "\e956";}
   &.eye-open:before {content: "\e957";}
   &.alpha-a:before {content: "\e93c";}
@@ -97,7 +101,6 @@
   &.trash:before {content: "\e905";}
   &.triangle:before {content: "\e92c";}
   &.undo:before {content: "\e945";}
-  &.user:before {content: "\e94d";}
   &.wrench:before {content: "\e912";}
   &.wrenches:before {content: "\e913";}
   &.alert-triangle:before {content: "\f02d";}
