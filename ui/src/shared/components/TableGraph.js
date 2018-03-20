@@ -42,8 +42,9 @@ class TableGraph extends Component {
     } = this.state
     const {tableOptions: {sortBy: {internalName}}} = nextProps
     if (
+      sortByColumnIndex === NULL_COLUMN_INDEX ||
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
-      internalName
+        internalName
     ) {
       const newSortByColumnIndex = _.indexOf(data[0], internalName)
       const sortedData = [
