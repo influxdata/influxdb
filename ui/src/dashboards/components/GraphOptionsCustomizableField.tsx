@@ -43,7 +43,10 @@ class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
             visible ? 'field-controls--label' : 'field-controls--label-hidden'
           }
         >
-          <span className="icon eye" onClick={this.handleToggleVisible} />
+          <span
+            className={visible ? 'icon eye-open' : 'icon eye-closed'}
+            onClick={this.handleToggleVisible}
+          />
           {internalName}
         </div>
         <InputClickToEdit

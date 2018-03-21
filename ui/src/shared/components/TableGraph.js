@@ -57,7 +57,8 @@ const processData = (
   ]
   const visibleData = verticalTimeAxis
     ? filterInvisibleColumns(sortedData, fieldNames)
-    : filterInvisibleRows(sortedData, fieldNames)
+    : filterInvisibleRows(_.unzip(sortedData), fieldNames)
+
   return {sortedData, unzippedData: _.unzip(sortedData), visibleData}
 }
 
