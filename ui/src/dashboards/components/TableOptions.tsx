@@ -6,7 +6,6 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 
@@ -94,8 +93,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
   }
 
-  handleToggleTextWrapping = () => {}
-
   handleToggleFixFirstColumn = () => {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const fixFirstColumn = !tableOptions.fixFirstColumn
@@ -171,10 +168,6 @@ export class TableOptions extends PureComponent<Props, {}> {
               selected={tableOptions.sortBy || TIME_FIELD_DEFAULT}
               sortByOptions={tableSortByOptions}
               onChooseSortBy={this.handleChooseSortBy}
-            />
-            <GraphOptionsTextWrapping
-              thresholdsListType="background"
-              onToggleTextWrapping={this.handleToggleTextWrapping}
             />
             <GraphOptionsFixFirstColumn
               fixed={fixFirstColumn}
