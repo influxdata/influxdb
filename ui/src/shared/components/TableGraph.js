@@ -133,7 +133,6 @@ class TableGraph extends Component {
         ? data[rowIndex][0]
         : data[columnIndex][0]
       onSetHoverTime(hoverTime.toString())
-      console.log(moment(hoverTime).format(this.props.tableOptions.timeFormat))
     }
     this.setState({
       hoveredColumnIndex: columnIndex,
