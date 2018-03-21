@@ -9,33 +9,25 @@ import TasksTable from 'src/kapacitor/components/TasksTable'
 
 import {source, kapacitorRules} from 'test/resources'
 
-const setup = () => {
-  const props = {
-    source,
-    rules: kapacitorRules,
-    hasKapacitor: true,
-    loading: false,
-    onDelete: () => {},
-    onChangeRuleStatus: () => {},
-  }
-
-  const wrapper = shallow(<KapacitorRules {...props} />)
-
-  return {
-    wrapper,
-    props,
-  }
+const props = {
+  source,
+  rules: kapacitorRules,
+  hasKapacitor: true,
+  loading: false,
+  onDelete: () => {},
+  onChangeRuleStatus: () => {},
 }
 
 describe('Kapacitor.Containers.KapacitorRules', () => {
   describe('rendering', () => {
     it('renders KapacitorRules', () => {
-      const {wrapper} = setup()
+      const wrapper = shallow(<KapacitorRules {...props} />)
+
       expect(wrapper.exists()).toBe(true)
     })
 
     it('renders KapacitorRulesTable', () => {
-      const {wrapper} = setup()
+      const wrapper = shallow(<KapacitorRules {...props} />)
 
       const kapacitorRulesTable = wrapper.find(KapacitorRulesTable)
       expect(kapacitorRulesTable.length).toEqual(1)
@@ -45,14 +37,14 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
     })
 
     it('renders TasksTable', () => {
-      const {wrapper} = setup()
+      const wrapper = shallow(<KapacitorRules {...props} />)
 
       const tasksTable = wrapper.find(TasksTable)
       expect(tasksTable.length).toEqual(1)
     })
 
     it('renders each rule/task checkboxes with unique "id" attribute', () => {
-      const {wrapper} = setup()
+      const wrapper = shallow(<KapacitorRules {...props} />)
 
       const kapacitorRulesTableRowsIDs = wrapper
         .find(KapacitorRulesTable)
@@ -88,7 +80,7 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
     })
 
     it('renders each rule/task table row label with unique "for" attribute', () => {
-      const {wrapper} = setup()
+      const wrapper = shallow(<KapacitorRules {...props} />)
 
       const kapacitorRulesTableRowsLabelFors = wrapper
         .find(KapacitorRulesTable)
