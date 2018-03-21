@@ -59,14 +59,26 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
         .dive()
         .find('tbody')
         .children()
-        .map(child => child.dive().find({type: 'checkbox'}).props().id)
+        .map(
+          child =>
+            child
+              .dive()
+              .find({type: 'checkbox'})
+              .props().id
+        )
 
       const tasksTableIDs = wrapper
         .find(TasksTable)
         .dive()
         .find('tbody')
         .children()
-        .map(child => child.dive().find({type: 'checkbox'}).props().id)
+        .map(
+          child =>
+            child
+              .dive()
+              .find({type: 'checkbox'})
+              .props().id
+        )
 
       const allCheckboxesIDs = kapacitorRulesTableRowsIDs.concat(tasksTableIDs)
 
@@ -83,14 +95,26 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
         .dive()
         .find('tbody')
         .children()
-        .map(child => child.dive().find('label').props().htmlFor)
+        .map(
+          child =>
+            child
+              .dive()
+              .find('label')
+              .props().htmlFor
+        )
 
       const tasksTableLabelFors = wrapper
         .find(TasksTable)
         .dive()
         .find('tbody')
         .children()
-        .map(child => child.dive().find('label').props().htmlFor)
+        .map(
+          child =>
+            child
+              .dive()
+              .find('label')
+              .props().htmlFor
+        )
 
       const allCheckboxesLabelFors = kapacitorRulesTableRowsLabelFors.concat(
         tasksTableLabelFors
