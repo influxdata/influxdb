@@ -2,7 +2,6 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 import classnames from 'classnames'
-import isEmpty from 'lodash/isEmpty'
 
 import {MultiGrid} from 'react-virtualized'
 import moment from 'moment'
@@ -78,7 +77,7 @@ class TableGraph extends Component {
 
   componentWillReceiveProps(nextProps) {
     const {labels, data} = timeSeriesToTableGraph(nextProps.data)
-    if (isEmpty(data[0])) {
+    if (_.isEmpty(data[0])) {
       return
     }
     const {sortField, sortDirection} = this.state
@@ -122,7 +121,7 @@ class TableGraph extends Component {
   }
 
   calcHoverTimeIndex = (data, hoverTime, verticalTimeAxis) => {
-    if (isEmpty(data) || hoverTime === NULL_HOVER_TIME) {
+    if (_.isEmpty(data) || hoverTime === NULL_HOVER_TIME) {
       return undefined
     }
     if (verticalTimeAxis) {
@@ -308,7 +307,7 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {!isEmpty(data) &&
+        {!_.isEmpty(data) &&
           <MultiGrid
             columnCount={columnCount}
             columnWidth={COLUMN_WIDTH}
