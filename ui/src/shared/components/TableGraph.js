@@ -107,14 +107,13 @@ class TableGraph extends Component {
       ? rowIndex > 0 && columnIndex === 0
       : isFixedRow
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
-    const isLastRow = rowIndex === rowCount - 1
-    const isLastColumn = columnIndex === columnCount - 1
-    const isHighlighted =
-      rowIndex === parent.props.scrollToRow ||
-      columnIndex === parent.props.scrollToColumn ||
-      (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0) ||
-      (columnIndex === hoveredColumnIndex && hoveredColumnIndex !== 0)
     const dataIsNumerical = _.isNumber(data[rowIndex][columnIndex])
+    const isHighlightedRow =
+      rowIndex === parent.props.scrollToRow ||
+      (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0)
+    const isHighlightedColumn =
+      columnIndex === parent.props.scrollToColumn ||
+      (columnIndex === hoveredColumnIndex && hoveredColumnIndex !== 0)
 
     let cellStyle = style
 
@@ -135,9 +134,8 @@ class TableGraph extends Component {
       'table-graph-cell__fixed-row': isFixedRow,
       'table-graph-cell__fixed-column': isFixedColumn,
       'table-graph-cell__fixed-corner': isFixedCorner,
-      'table-graph-cell__last-row': isLastRow,
-      'table-graph-cell__last-column': isLastColumn,
-      'table-graph-cell__highlight': isHighlighted,
+      'table-graph-cell__highlight-row': isHighlightedRow,
+      'table-graph-cell__highlight-column': isHighlightedColumn,
       'table-graph-cell__numerical': dataIsNumerical,
     })
 
