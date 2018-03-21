@@ -67,6 +67,18 @@
     border-color: $g20-white;
     &:after {visibility: hidden;}
   }
+  &__isFieldName:hover {
+    cursor: pointer;
+  }
+  &__isFieldName:before {
+    font-family: 'icomoon';
+    content: "\e902";
+    font-size: 17px;
+  }
+  &__isSortedUp {
+  }
+  &__isSortedDown {
+  }
 }
 
 .ReactVirtualized__Grid {
