@@ -223,7 +223,6 @@ class TableGraph extends Component {
         }
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
         title={cellContents}
-        alt={cellContents}
       >
         {cellContents}
       </div>
