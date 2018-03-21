@@ -65,11 +65,13 @@ const KapacitorRulesTable: SFC<KapacitorRulesTableProps> = ({
   </table>
 )
 
-class RuleRow extends PureComponent<RuleRowProps> {
+export class RuleRow extends PureComponent<RuleRowProps> {
   constructor(props) {
     super(props)
 
-    this.handleClickRuleStatusEnabled = this.handleClickRuleStatusEnabled.bind(this)
+    this.handleClickRuleStatusEnabled = this.handleClickRuleStatusEnabled.bind(
+      this
+    )
     this.handleDelete = this.handleDelete.bind(this)
   }
 

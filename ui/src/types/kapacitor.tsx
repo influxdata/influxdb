@@ -1,4 +1,4 @@
-import {QueryConfig} from "./"
+import {QueryConfig} from './'
 
 export interface Kapacitor {
   id?: string
@@ -16,7 +16,7 @@ export interface Kapacitor {
 export interface AlertRule {
   id?: string
   tickscript: TICKScript
-  query: QueryConfig
+  query?: QueryConfig
   every: string
   alertNodes: AlertNodes
   message: string
@@ -31,7 +31,7 @@ export interface AlertRule {
   error: string
   created: string
   modified: string
-  "last-enabled"?: string
+  'last-enabled'?: string
 }
 
 type TICKScript = string
