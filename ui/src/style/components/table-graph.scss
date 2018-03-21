@@ -20,6 +20,9 @@
   font-size: 13px;
   color: $g12-forge;
   border: 1px solid $g5-pepper;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 
   // Highlight
   &:after {
