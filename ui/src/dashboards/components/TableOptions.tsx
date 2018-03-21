@@ -10,6 +10,8 @@ import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsText
 import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 
+import _ from 'lodash'
+
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
@@ -40,7 +42,6 @@ interface QueryConfig {
 }
 
 interface Props {
-  queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void
@@ -69,14 +70,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     return dataLabels.map(label => {
       const existing = this.fieldNames.find(f => f.internalName === label)
       return existing || {internalName: label, displayName: '', visible: true}
-    })
-  }
-
-  componentWillMount() {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: this.computedFieldNames,
     })
   }
 
@@ -125,6 +118,25 @@ export class TableOptions extends PureComponent<Props, {}> {
       fieldNames: updatedFields,
       sortBy: updatedSortBy,
     })
+  }
+
+  componentWillMount() {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: this.computedFieldNames,
+    })
+  }
+
+  shouldComponentUpdate(nextProps) {
+    const {tableOptions, dataLabels} = this.props
+    const tableOptionsDifferent = !_.isEqual(
+      tableOptions,
+      nextProps.tableOptions
+    )
+    const dataLabelsDifferent = !_.isEqual(dataLabels, nextProps.dataLabels)
+
+    return tableOptionsDifferent || dataLabelsDifferent
   }
 
   render() {
