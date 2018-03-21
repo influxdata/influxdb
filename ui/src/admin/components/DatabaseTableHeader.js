@@ -79,7 +79,7 @@ const Header = ({
     </div>
   )
 
-  const onConfirm = db => {
+  function onConfirm(db) {
     if (database.deleteCode !== `DELETE ${database.name}`) {
       return notify(NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name))
     }

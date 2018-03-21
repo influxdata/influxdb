@@ -10,7 +10,7 @@ const JSONFeedReader = ({data}) =>
           ? data.items.map(
               ({
                 id,
-                date_published,
+                date_published: datePublished,
                 url,
                 title,
                 author: {name},
@@ -19,7 +19,7 @@ const JSONFeedReader = ({data}) =>
               }) =>
                 <div key={id} className="newsfeed--post">
                   <div className="newsfeed--date">
-                    {`${moment(date_published).format('MMM DD')}`}
+                    {`${moment(datePublished).format('MMM DD')}`}
                   </div>
                   <div className="newsfeed--post-title">
                     <a href={url} target="_blank">

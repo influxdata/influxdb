@@ -24,11 +24,11 @@ const RoleRow = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
-  const handleUpdateUsers = usrs => {
+  function handleUpdateUsers(usrs) {
     onUpdateRoleUsers(role, usrs)
   }
 
-  const handleUpdatePermissions = allowed => {
+  function handleUpdatePermissions(allowed) {
     onUpdateRolePermissions(role, [
       {scope: 'all', allowed: allowed.map(({name}) => name)},
     ])

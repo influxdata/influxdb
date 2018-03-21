@@ -28,19 +28,19 @@ const UserRow = ({
   onUpdateRoles,
   onUpdatePassword,
 }) => {
-  const handleUpdatePermissions = perms => {
+  function handleUpdatePermissions(perms) {
     const allowed = perms.map(p => p.name)
     onUpdatePermissions(user, [{scope: 'all', allowed}])
   }
 
-  const handleUpdateRoles = roleNames => {
+  function handleUpdateRoles(roleNames) {
     onUpdateRoles(
       user,
       allRoles.filter(r => roleNames.find(rn => rn.name === r.name))
     )
   }
 
-  const handleUpdatePassword = () => {
+  function handleUpdatePassword() {
     onUpdatePassword(user, password)
   }
 
