@@ -8,6 +8,7 @@ v1.6.0 [unreleased]
 ### Features
 
 -	[#9429](https://github.com/influxdata/influxdb/pull/9429): Support proxy environment variables in the influx client.
+-	[#9499](https://github.com/influxdata/influxdb/pull/9499): Implement basic trigonometry functions.
 
 ### Bugfixes
 
