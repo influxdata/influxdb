@@ -9,8 +9,7 @@ import moment from 'moment'
 
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
 import {
-  NULL_COLUMN_INDEX,
-  NULL_ROW_INDEX,
+  NULL_ARRAY_INDEX,
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
   TIME_FIELD_DEFAULT,
@@ -53,10 +52,10 @@ class TableGraph extends Component {
       data: [[]],
       unzippedData: [[]],
       visibleData: [[]],
-      hoveredColumnIndex: NULL_COLUMN_INDEX,
-      hoveredRowIndex: NULL_ROW_INDEX,
-      sortByColumnIndex: NULL_COLUMN_INDEX,
-      clickToSortFieldIndex: NULL_COLUMN_INDEX,
+      hoveredColumnIndex: NULL_ARRAY_INDEX,
+      hoveredRowIndex: NULL_ARRAY_INDEX,
+      sortByColumnIndex: NULL_ARRAY_INDEX,
+      clickToSortFieldIndex: NULL_ARRAY_INDEX,
       clicktoSortDirection: DEFAULT_SORT,
     }
   }
@@ -78,7 +77,7 @@ class TableGraph extends Component {
       }
 
       if (
-        sortByColumnIndex === NULL_COLUMN_INDEX ||
+        sortByColumnIndex === NULL_ARRAY_INDEX ||
         _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
           internalName
       ) {
@@ -97,12 +96,12 @@ class TableGraph extends Component {
           visibleData,
           unzippedData: _.unzip(sortedData),
           sortByColumnIndex: newSortByColumnIndex,
-          clickToSortFieldIndex: NULL_COLUMN_INDEX,
+          clickToSortFieldIndex: NULL_ARRAY_INDEX,
           clicktoSortDirection: DEFAULT_SORT,
         })
         return
       }
-      const clicked = clickToSortFieldIndex !== NULL_COLUMN_INDEX
+      const clicked = clickToSortFieldIndex !== NULL_ARRAY_INDEX
       const sortIndex = clicked ? clickToSortFieldIndex : sortByColumnIndex
       const direction = clicked ? clicktoSortDirection : DEFAULT_SORT
       const sortedData = [
@@ -151,8 +150,8 @@ class TableGraph extends Component {
     if (this.props.onSetHoverTime) {
       this.props.onSetHoverTime(NULL_HOVER_TIME)
       this.setState({
-        hoveredColumnIndex: NULL_COLUMN_INDEX,
-        hoveredRowIndex: NULL_ROW_INDEX,
+        hoveredColumnIndex: NULL_ARRAY_INDEX,
+        hoveredRowIndex: NULL_ARRAY_INDEX,
       })
     }
   }
@@ -297,11 +296,11 @@ class TableGraph extends Component {
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
     const hoverTimeIndex =
-      hoveredRowIndex === NULL_ROW_INDEX
+      hoveredRowIndex === NULL_ARRAY_INDEX
         ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
         : hoveredRowIndex
     const fixedColumnCount = tableOptions.fixFirstColumn ? 1 : undefined
-    const hoveringThisTable = hoveredColumnIndex !== NULL_COLUMN_INDEX
+    const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
     const scrollToRow =
       !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
     const scrollToColumn =
