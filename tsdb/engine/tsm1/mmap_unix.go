@@ -27,10 +27,6 @@ func munmap(b []byte) (err error) {
 	return unix.Munmap(b)
 }
 
-func madviseWillNeed(b []byte) error {
-	return madvise(b, syscall.MADV_WILLNEED)
-}
-
 func madviseDontNeed(b []byte) error {
 	return madvise(b, syscall.MADV_DONTNEED)
 }
