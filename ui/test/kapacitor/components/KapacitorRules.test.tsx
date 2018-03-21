@@ -5,7 +5,6 @@ import _ from 'lodash'
 
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
-import {RuleRow} from 'src/kapacitor/components/KapacitorRulesTable'
 import TasksTable from 'src/kapacitor/components/TasksTable'
 
 import {source, kapacitorRules} from 'test/resources'
@@ -148,23 +147,6 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
           tasksRows.filter(ruleRow => ruleRow.id === taskRow.id).length
         ).toEqual(1)
       })
-    })
-  })
-})
-
-describe('Kapacitor.Containers.KapacitorRules.RuleRow', () => {
-  const props = {
-    source,
-    rule: kapacitorRules[0],
-    onDelete: () => {},
-    onChangeRuleStatus: () => {},
-  }
-
-  describe('rendering', () => {
-    it('renders RuleRow', () => {
-      const wrapper = shallow(<RuleRow {...props} />)
-
-      expect(wrapper.exists()).toBe(true)
     })
   })
 })
