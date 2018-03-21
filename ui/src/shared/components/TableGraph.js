@@ -172,7 +172,8 @@ class TableGraph extends Component {
 
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
-    const COLUMN_WIDTH = 300
+    const COLUMN_MIN_WIDTH = 98
+    const COLUMN_MAX_WIDTH = 500
     const ROW_HEIGHT = 30
     const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
     const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
@@ -196,8 +197,8 @@ class TableGraph extends Component {
         {!isEmpty(data) &&
           <ColumnSizer
             columnCount={columnCount}
-            columnMaxWidth={400}
-            columnMinWidth={40}
+            columnMaxWidth={COLUMN_MAX_WIDTH}
+            columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
             {({getColumnWidth, registerChild}) =>
