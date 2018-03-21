@@ -17,6 +17,7 @@ v1.6.0 [unreleased]
 -	[#9573](https://github.com/influxdata/influxdb/pull/9573): Ensure correct number of tags parsed when commas used.
 -	[#9580](https://github.com/influxdata/influxdb/pull/9580): Fix data race in WAL.
 -	[#9586](https://github.com/influxdata/influxdb/pull/9586): Allow SHOW SERIES kill.
+-	[#9612](https://github.com/influxdata/influxdb/pull/9612): Revert "Use MADV_WILLNEED when loading TSM files".
 
 v1.5.0 [2018-03-06]
 -------------------
