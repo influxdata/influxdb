@@ -44,10 +44,12 @@ describe('Shared.Components.MeasurementList', () => {
         const {wrapper} = setup()
         wrapper.setState({filtered: ['foo', 'bar']})
         const items = wrapper.find(MeasurementListItem)
+        const first = items.first()
+        const last = items.last()
 
         expect(items.length).toBe(2)
-        expect(items.first().dive().text()).toContain('foo')
-        expect(items.last().dive().text()).toContain('bar')
+        expect(first.dive().text()).toContain('foo')
+        expect(last.dive().text()).toContain('bar')
       })
 
       it('renders <MeasurementListFilter/> to the page', () => {
@@ -67,7 +69,8 @@ describe('Shared.Components.MeasurementList', () => {
       wrapper.setState({filtered: measurements, measurements})
 
       const filter = wrapper.find(MeasurementListFilter)
-      filter.dive().find('input').simulate('change', event)
+      const input = filter.dive().find('input')
+      input.simulate('change', event)
       wrapper.update()
 
       const items = wrapper.find(MeasurementListItem)
