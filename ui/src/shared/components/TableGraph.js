@@ -20,19 +20,9 @@ const DEFAULT_SORT = ASCENDING
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
-const filterInvisibleRows = (data, fieldNames) => {
-  const visibleData = data.filter(row => {
-    const rowName = row[0]
-    const foundField = fieldNames.find(f => f.internalName === rowName)
-    return foundField ? foundField.visible : true
-  })
-
-  return visibleData.length ? visibleData : [[]]
-}
-
 const filterInvisibleColumns = (data, fieldNames) => {
   const visibility = {}
-  const visibleData = data.map((row, i) => {
+  const filteredData = data.map((row, i) => {
     return row.filter((col, j) => {
       if (i === 0) {
         const foundField = fieldNames.find(field => field.internalName === col)
@@ -41,7 +31,7 @@ const filterInvisibleColumns = (data, fieldNames) => {
       return visibility[j]
     })
   })
-  return visibleData[0].length ? visibleData : [[]]
+  return filteredData[0].length ? filteredData : [[]]
 }
 
 const processData = (
@@ -51,16 +41,15 @@ const processData = (
   verticalTimeAxis,
   fieldNames
 ) => {
-  const sortIndex = _.indexOf(data[0], sortFieldName)
+  const filteredData = filterInvisibleColumns(data, fieldNames)
+  const sortIndex = _.indexOf(filteredData[0], sortFieldName)
   const sortedData = [
-    data[0],
-    ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
+    filteredData[0],
+    ..._.orderBy(_.drop(filteredData, 1), sortIndex, [direction]),
   ]
-  const visibleData = verticalTimeAxis
-    ? filterInvisibleColumns(sortedData, fieldNames)
-    : filterInvisibleRows(_.unzip(sortedData), fieldNames)
+  const processedData = verticalTimeAxis ? sortedData : _.unzip(sortedData)
 
-  return {sortedData, unzippedData: _.unzip(sortedData), visibleData}
+  return {processedData}
 }
 
 class TableGraph extends Component {
@@ -69,7 +58,8 @@ class TableGraph extends Component {
     this.state = {
       data: [[]],
       unzippedData: [[]],
-      visibleData: [[]],
+      filteredData: [[]],
+      processedData: [[]],
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sortField: '',
@@ -82,6 +72,7 @@ class TableGraph extends Component {
     if (_.isEmpty(data[0])) {
       return
     }
+
     const {sortField, sortDirection} = this.state
     const {
       tableOptions: {sortBy: {internalName}, fieldNames, verticalTimeAxis},
@@ -105,7 +96,7 @@ class TableGraph extends Component {
       sortFieldName = sortField
     }
 
-    const {sortedData, unzippedData, visibleData} = processData(
+    const {processedData} = processData(
       data,
       sortFieldName,
       direction,
@@ -114,9 +105,8 @@ class TableGraph extends Component {
     )
 
     this.setState({
-      data: sortedData,
-      visibleData,
-      unzippedData,
+      data,
+      processedData,
       sortField: sortFieldName,
       sortDirection: direction,
     })
@@ -172,7 +162,7 @@ class TableGraph extends Component {
       direction = DEFAULT_SORT
     }
 
-    const {sortedData, unzippedData, visibleData} = processData(
+    const {processedData} = processData(
       data,
       fieldName,
       direction,
@@ -181,21 +171,17 @@ class TableGraph extends Component {
     )
 
     this.setState({
-      data: sortedData,
-      unzippedData,
-      visibleData,
+      processedData,
       sortField: fieldName,
       sortDirection: direction,
     })
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
-    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {hoveredColumnIndex, hoveredRowIndex, processedData} = this.state
     const {tableOptions, colors} = this.props
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
-    const data = verticalTimeAxis
-      ? this.state.visibleData
-      : this.state.unzippedData
+
     const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
     const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
     const fixFirstColumn = _.get(
@@ -216,7 +202,7 @@ class TableGraph extends Component {
     const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
 
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
-    const dataIsNumerical = _.isNumber(data[rowIndex][columnIndex])
+    const dataIsNumerical = _.isNumber(processedData[rowIndex][columnIndex])
     const isHighlightedRow =
       rowIndex === parent.props.scrollToRow ||
       (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0)
@@ -229,7 +215,7 @@ class TableGraph extends Component {
     if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
       const {bgColor, textColor} = generateThresholdsListHexs(
         colors,
-        data[rowIndex][columnIndex]
+        processedData[rowIndex][columnIndex]
       )
 
       cellStyle = {
@@ -249,7 +235,7 @@ class TableGraph extends Component {
       'table-graph-cell__isFieldName': isFieldName,
     })
 
-    const cellData = data[rowIndex][columnIndex]
+    const cellData = processedData[rowIndex][columnIndex]
 
     const foundField = fieldNames.find(field => field.internalName === cellData)
     const fieldName =
@@ -279,16 +265,14 @@ class TableGraph extends Component {
       hoveredRowIndex,
       sortField,
       sortDirection,
+      processedData,
+      data,
     } = this.state
     const {hoverTime, tableOptions, colors} = this.props
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
 
-    const data = verticalTimeAxis
-      ? this.state.visibleData
-      : this.state.unzippedData
-
-    const columnCount = _.get(data, ['0', 'length'], 0)
-    const rowCount = data.length
+    const columnCount = _.get(processedData, ['0', 'length'], 0)
+    const rowCount = processedData.length
     const COLUMN_MIN_WIDTH = 98
     const COLUMN_MAX_WIDTH = 500
     const ROW_HEIGHT = 30
@@ -311,7 +295,7 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {!_.isEmpty(data) &&
+        {!_.isEmpty(processedData) &&
           <ColumnSizer
             columnCount={columnCount}
             columnMaxWidth={COLUMN_MAX_WIDTH}
