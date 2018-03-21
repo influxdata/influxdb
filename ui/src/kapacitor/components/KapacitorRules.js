@@ -3,11 +3,8 @@ import PropTypes from 'prop-types'
 import {Link} from 'react-router'
 
 import NoKapacitorError from 'shared/components/NoKapacitorError'
-import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
 import TasksTable from 'src/kapacitor/components/TasksTable'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
-import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
 const KapacitorRules = ({
   source,
@@ -19,7 +16,7 @@ const KapacitorRules = ({
 }) => {
   if (loading) {
     return (
-      <PageContents>
+      <div>
         <div className="panel-heading">
           <h2 className="panel-title">Alert Rules</h2>
           <button className="btn btn-primary btn-sm disabled" disabled={true}>
@@ -31,16 +28,12 @@ const KapacitorRules = ({
             <p>Loading Rules...</p>
           </div>
         </div>
-      </PageContents>
+      </div>
     )
   }
 
   if (!hasKapacitor) {
-    return (
-      <PageContents>
-        <NoKapacitorError source={source} />
-      </PageContents>
-    )
+    return <NoKapacitorError source={source} />
   }
 
   const builderRules = rules.filter(r => r.query)
@@ -54,7 +47,7 @@ const KapacitorRules = ({
     : 's'}`
 
   return (
-    <PageContents source={source}>
+    <div>
       <div className="panel">
         <div className="panel-heading">
           <h2 className="panel-title">
@@ -99,38 +92,11 @@ const KapacitorRules = ({
           />
         </div>
       </div>
-    </PageContents>
+    </div>
   )
 }
 
-const PageContents = ({children}) =>
-  <div className="page">
-    <div className="page-header">
-      <div className="page-header__container">
-        <div className="page-header__left">
-          <h1 className="page-header__title">Manage Tasks</h1>
-        </div>
-        <div className="page-header__right">
-          <QuestionMarkTooltip
-            tipID="manage-tasks--tooltip"
-            tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
-          />
-          <SourceIndicator />
-        </div>
-      </div>
-    </div>
-    <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
-      <div className="container-fluid">
-        <div className="row">
-          <div className="col-md-12">
-            {children}
-          </div>
-        </div>
-      </div>
-    </FancyScrollbar>
-  </div>
-
-const {arrayOf, bool, func, node, shape} = PropTypes
+const {arrayOf, bool, func, shape} = PropTypes
 
 KapacitorRules.propTypes = {
   source: shape(),
@@ -139,11 +105,6 @@ KapacitorRules.propTypes = {
   loading: bool,
   onChangeRuleStatus: func,
   onDelete: func,
-}
-
-PageContents.propTypes = {
-  children: node,
-  onCloseTickscript: func,
 }
 
 export default KapacitorRules
