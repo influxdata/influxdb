@@ -57,8 +57,6 @@ class TableGraph extends Component {
     super(props)
     this.state = {
       data: [[]],
-      unzippedData: [[]],
-      filteredData: [[]],
       processedData: [[]],
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
@@ -126,12 +124,16 @@ class TableGraph extends Component {
 
   handleHover = (columnIndex, rowIndex) => () => {
     const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
-    const data = verticalTimeAxis ? this.state.data : this.state.unzippedData
+    const {data} = this.state
+    if (rowIndex === 0) {
+      return
+    }
     if (onSetHoverTime) {
       const hoverTime = verticalTimeAxis
         ? data[rowIndex][0]
-        : data[0][columnIndex]
+        : data[columnIndex][0]
       onSetHoverTime(hoverTime.toString())
+      console.log(moment(hoverTime).format(this.props.tableOptions.timeFormat))
     }
     this.setState({
       hoveredColumnIndex: columnIndex,
