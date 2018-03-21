@@ -339,12 +339,29 @@ class TableGraph extends Component {
   }
 }
 
-const {arrayOf, number, shape, string, func} = PropTypes
+const {arrayOf, bool, number, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
   cellHeight: number,
   data: arrayOf(shape()),
-  tableOptions: shape({}),
+  tableOptions: shape({
+    timeFormat: string.isRequired,
+    verticalTimeAxis: bool.isRequired,
+    sortBy: shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    }).isRequired,
+    wrapping: string.isRequired,
+    fieldNames: arrayOf(
+      shape({
+        internalName: string.isRequired,
+        displayName: string.isRequired,
+        visible: bool.isRequired,
+      })
+    ).isRequired,
+    fixFirstColumn: bool,
+  }),
   hoverTime: string,
   onSetHoverTime: func,
   colors: arrayOf(
