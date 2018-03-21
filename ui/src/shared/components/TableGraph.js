@@ -4,7 +4,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import isEmpty from 'lodash/isEmpty'
 
-import {MultiGrid} from 'react-virtualized'
+import {MultiGrid, ColumnSizer} from 'react-virtualized'
 import moment from 'moment'
 
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
@@ -194,34 +194,45 @@ class TableGraph extends Component {
         onMouseOut={this.handleMouseOut}
       >
         {!isEmpty(data) &&
-          <MultiGrid
+          <ColumnSizer
             columnCount={columnCount}
-            columnWidth={COLUMN_WIDTH}
-            rowCount={rowCount}
-            rowHeight={ROW_HEIGHT}
-            height={tableHeight}
+            columnMaxWidth={400}
+            columnMinWidth={40}
             width={tableWidth}
-            fixedColumnCount={fixedColumnCount}
-            fixedRowCount={1}
-            enableFixedColumnScroll={true}
-            enableFixedRowScroll={true}
-            timeFormat={
-              tableOptions ? tableOptions.timeFormat : TIME_FORMAT_DEFAULT
-            }
-            columnNames={
-              tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
-            }
-            scrollToRow={scrollToRow}
-            scrollToColumn={scrollToColumn}
-            verticalTimeAxis={verticalTimeAxis}
-            sortByColumnIndex={sortByColumnIndex}
-            cellRenderer={this.cellRenderer}
-            hoveredColumnIndex={hoveredColumnIndex}
-            hoveredRowIndex={hoveredRowIndex}
-            hoverTime={hoverTime}
-            colors={colors}
-            classNameBottomRightGrid="table-graph--scroll-window"
-          />}
+          >
+            {({getColumnWidth, registerChild}) =>
+              <MultiGrid
+                ref={registerChild}
+                columnCount={columnCount}
+                columnWidth={getColumnWidth}
+                rowCount={rowCount}
+                rowHeight={ROW_HEIGHT}
+                height={tableHeight}
+                width={tableWidth}
+                fixedColumnCount={fixedColumnCount}
+                fixedRowCount={1}
+                enableFixedColumnScroll={true}
+                enableFixedRowScroll={true}
+                timeFormat={
+                  tableOptions ? tableOptions.timeFormat : TIME_FORMAT_DEFAULT
+                }
+                columnNames={
+                  tableOptions
+                    ? tableOptions.columnNames
+                    : [TIME_COLUMN_DEFAULT]
+                }
+                scrollToRow={scrollToRow}
+                scrollToColumn={scrollToColumn}
+                verticalTimeAxis={verticalTimeAxis}
+                sortByColumnIndex={sortByColumnIndex}
+                cellRenderer={this.cellRenderer}
+                hoveredColumnIndex={hoveredColumnIndex}
+                hoveredRowIndex={hoveredRowIndex}
+                hoverTime={hoverTime}
+                colors={colors}
+                classNameBottomRightGrid="table-graph--scroll-window"
+              />}
+          </ColumnSizer>}
       </div>
     )
   }
