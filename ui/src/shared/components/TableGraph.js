@@ -41,13 +41,13 @@ const processData = (
   verticalTimeAxis,
   fieldNames
 ) => {
-  const filteredData = filterInvisibleColumns(data, fieldNames)
-  const sortIndex = _.indexOf(filteredData[0], sortFieldName)
+  const sortIndex = _.indexOf(data[0], sortFieldName)
   const sortedData = [
-    filteredData[0],
-    ..._.orderBy(_.drop(filteredData, 1), sortIndex, [direction]),
+    data[0],
+    ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
   ]
-  const processedData = verticalTimeAxis ? sortedData : _.unzip(sortedData)
+  const filteredData = filterInvisibleColumns(sortedData, fieldNames)
+  const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
 
   return {processedData}
 }
@@ -273,7 +273,7 @@ class TableGraph extends Component {
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
 
     const columnCount = _.get(processedData, ['0', 'length'], 0)
-    const rowCount = processedData.length
+    const rowCount = columnCount === 0 ? 0 : processedData.length
     const COLUMN_MIN_WIDTH = 98
     const COLUMN_MAX_WIDTH = 500
     const ROW_HEIGHT = 30
@@ -289,14 +289,13 @@ class TableGraph extends Component {
       !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
     const scrollToColumn =
       !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
-
     return (
       <div
         className="table-graph-container"
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {!_.isEmpty(processedData) &&
+        {rowCount > 0 &&
           <ColumnSizer
             columnCount={columnCount}
             columnMaxWidth={COLUMN_MAX_WIDTH}

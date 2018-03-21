@@ -119,6 +119,7 @@ export class TableOptions extends PureComponent<Props, {}> {
       sortBy.internalName === field.internalName
         ? {...sortBy, displayName: field.displayName}
         : sortBy
+
     handleUpdateTableOptions({
       ...tableOptions,
       fieldNames: updatedFields,
