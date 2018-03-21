@@ -16,7 +16,6 @@ import {shallow} from 'enzyme'
 
 const queryConfigs = [
   {
-    measurement: 'dev',
     fields: [
       {
         alias: 'boom',
@@ -27,9 +26,9 @@ const queryConfigs = [
         value: 'again',
       },
     ],
+    measurement: 'dev',
   },
   {
-    measurement: 'prod',
     fields: [
       {
         alias: 'boom',
@@ -40,21 +39,22 @@ const queryConfigs = [
         value: 'again',
       },
     ],
+    measurement: 'prod',
   },
 ]
 
 const defaultProps = {
-  queryConfigs,
   handleUpdateTableOptions: () => {},
+  onResetFocus: () => {},
+  queryConfigs,
   tableOptions: {
-    timeFormat: '',
-    verticalTimeAxis: true,
-    sortBy: {internalName: '', displayName: ''},
-    wrapping: '',
     columnNames: [],
     fixFirstColumn: true,
+    sortBy: {internalName: '', displayName: ''},
+    timeFormat: '',
+    verticalTimeAxis: true,
+    wrapping: '',
   },
-  onResetFocus: () => {},
 }
 
 const setup = (override = {}) => {
@@ -104,15 +104,15 @@ describe('Dashboards.Components.TableOptions', () => {
 
   describe('rendering', () => {
     it('should render all components', () => {
-      const queryConfigs = [
+      const qc = [
         {
-          measurement: 'dev',
           fields: [
             {
               alias: 'boom',
               value: 'test',
             },
           ],
+          measurement: 'dev',
         },
       ]
 
@@ -127,7 +127,7 @@ describe('Dashboards.Components.TableOptions', () => {
         },
       ]
 
-      const {wrapper} = setup({queryConfigs})
+      const {wrapper} = setup({queryConfigs: qc})
       const fancyScrollbar = wrapper.find(FancyScrollbar)
       const graphOptionsTimeFormat = wrapper.find(GraphOptionsTimeFormat)
       const graphOptionsTimeAxis = wrapper.find(GraphOptionsTimeAxis)

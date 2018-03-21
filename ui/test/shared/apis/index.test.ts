@@ -19,9 +19,9 @@ describe('Shared.Apis', () => {
       createKapacitor(source, createKapacitorBody)
 
       expect(AJAX).toHaveBeenCalledWith({
-        url: source.links.kapacitors,
-        method: 'POST',
         data: createKapacitorBody,
+        method: 'POST',
+        url: source.links.kapacitors,
       })
     })
   })
@@ -33,9 +33,9 @@ describe('Shared.Apis', () => {
       delete data.links
 
       expect(AJAX).toHaveBeenCalledWith({
-        url: kapacitor.links.self,
-        method: 'PATCH',
         data,
+        method: 'PATCH',
+        url: kapacitor.links.self,
       })
     })
   })

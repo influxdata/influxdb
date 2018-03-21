@@ -35,8 +35,8 @@ const setup = (override = {}) => {
   const wrapper = shallow(<AllUsersPage {...props} />)
 
   return {
-    wrapper,
     props,
+    wrapper,
   }
 }
 

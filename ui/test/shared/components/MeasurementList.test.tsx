@@ -7,12 +7,12 @@ import {query, source} from 'test/resources'
 
 const setup = (override = {}) => {
   const props = {
-    query,
-    querySource: source,
+    onChooseMeasurement: () => {},
     onChooseTag: () => {},
     onGroupByTag: () => {},
     onToggleTagAcceptance: () => {},
-    onChooseMeasurement: () => {},
+    query,
+    querySource: source,
     ...override,
   }
 
@@ -25,9 +25,9 @@ const setup = (override = {}) => {
   const instance = wrapper.instance() as MeasurementList
 
   return {
+    instance,
     props,
     wrapper,
-    instance,
   }
 }
 

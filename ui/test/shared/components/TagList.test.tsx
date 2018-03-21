@@ -79,8 +79,8 @@ describe('Shared.Components.TagList', () => {
           const getTags = jest.fn()
           const updates = {
             database: 'newDb',
-            retentionPolicy: 'newRp',
             measurement: 'newMeasurement',
+            retentionPolicy: 'newRp',
           }
 
           const prevQuery = {...query, ...updates}

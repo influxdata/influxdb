@@ -7,8 +7,8 @@ import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
-    internalName: '',
     displayName: '',
+    internalName: '',
     onColumnRename: () => {},
     ...override,
   }
@@ -53,8 +53,8 @@ describe('Dashboards.Components.GraphOptionsCustomizableColumn', () => {
 
         expect(onColumnRename).toHaveBeenCalledTimes(1)
         expect(onColumnRename).toHaveBeenCalledWith({
-          internalName,
           displayName: rename,
+          internalName,
         })
       })
     })

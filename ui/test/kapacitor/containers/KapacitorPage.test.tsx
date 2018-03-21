@@ -16,23 +16,23 @@ jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 
 const setup = (override = {}) => {
   const props = {
-    source,
-    notify: () => {},
     kapacitor,
+    location: {pathname: '', hash: ''},
+    notify: () => {},
+    params: {id: '', hash: ''},
     router: {
       push: () => {},
       replace: () => {},
     },
-    location: {pathname: '', hash: ''},
-    params: {id: '', hash: ''},
+    source,
     ...override,
   }
 
   const wrapper = mount(<KapacitorPage {...props} />)
 
   return {
-    wrapper,
     props,
+    wrapper,
   }
 }
 
@@ -76,7 +76,10 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
       })
 
       describe('with a https url', () => {
-        let inputElement, secureCheckbox, wrapper
+        let inputElement
+        let secureCheckbox
+        let wrapper
+
         const value = 'https://example.com'
 
         beforeEach(() => {

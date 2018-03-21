@@ -8,14 +8,14 @@ import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
-    item: '',
     buttonSize: '',
-    isDisabled: false,
     confirmLeft: false,
     confirmTitle: '',
-    onConfirm: () => {},
+    isDisabled: false,
+    item: '',
     onCancel: () => {},
     onClickOutside: () => {},
+    onConfirm: () => {},
     ...override,
   }
 
