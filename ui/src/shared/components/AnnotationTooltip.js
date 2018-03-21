@@ -8,10 +8,11 @@ import AnnotationInput from 'src/shared/components/AnnotationInput'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 
-const TimeStamp = ({time}) =>
+const TimeStamp = ({time}) => (
   <div className="annotation-tooltip--timestamp">
     {`${moment(+time).format('YYYY/DD/MM HH:mm:ss.SS')}`}
   </div>
+)
 
 class AnnotationTooltip extends Component {
   state = {
@@ -67,30 +68,32 @@ class AnnotationTooltip extends Component {
             : {}
         }
       >
-        {isDragging
-          ? <TimeStamp time={timestamp} />
-          : <div className="annotation-tooltip--items">
-              {isEditing
-                ? <div>
-                    <AnnotationInput
-                      value={annotation.text}
-                      onChangeInput={this.handleChangeInput('text')}
-                      onConfirmUpdate={this.handleConfirmUpdate}
-                      onRejectUpdate={this.handleRejectUpdate}
-                    />
-                    <button
-                      className="annotation-tooltip--delete"
-                      onClick={this.handleDelete}
-                      title="Delete this Annotation"
-                    >
-                      <span className="icon trash" />
-                    </button>
-                  </div>
-                : <div>
-                    {annotation.text}
-                  </div>}
-              <TimeStamp time={timestamp} />
-            </div>}
+        {isDragging ? (
+          <TimeStamp time={timestamp} />
+        ) : (
+          <div className="annotation-tooltip--items">
+            {isEditing ? (
+              <div>
+                <AnnotationInput
+                  value={annotation.text}
+                  onChangeInput={this.handleChangeInput('text')}
+                  onConfirmUpdate={this.handleConfirmUpdate}
+                  onRejectUpdate={this.handleRejectUpdate}
+                />
+                <button
+                  className="annotation-tooltip--delete"
+                  onClick={this.handleDelete}
+                  title="Delete this Annotation"
+                >
+                  <span className="icon trash" />
+                </button>
+              </div>
+            ) : (
+              <div>{annotation.text}</div>
+            )}
+            <TimeStamp time={timestamp} />
+          </div>
+        )}
       </div>
     )
   }

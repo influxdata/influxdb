@@ -8,12 +8,13 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 // AddNewResource is an optional parameter that takes the user to another
 // route defined by url prop
-const AddNewButton = ({url, text}) =>
+const AddNewButton = ({url, text}) => (
   <li className="multi-select--apply">
     <Link className="btn btn-xs btn-default" to={url}>
       {text}
     </Link>
   </li>
+)
 
 const DropdownMenu = ({
   items,
@@ -43,11 +44,7 @@ const DropdownMenu = ({
         autoHeight={true}
         maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
       >
-        {menuLabel
-          ? <li className="dropdown-header">
-              {menuLabel}
-            </li>
-          : null}
+        {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
         {items.map((item, i) => {
           if (item.text === 'SEPARATOR') {
             return <li key={i} className="dropdown-divider" />
@@ -69,24 +66,24 @@ const DropdownMenu = ({
               >
                 {item.text}
               </a>
-              {actions && actions.length
-                ? <div className="dropdown-actions">
-                    {actions.map(action => {
-                      return (
-                        <button
-                          key={action.text}
-                          className="dropdown-action"
-                          onClick={onAction(action, item)}
-                        >
-                          <span
-                            title={action.text}
-                            className={`icon ${action.icon}`}
-                          />
-                        </button>
-                      )
-                    })}
-                  </div>
-                : null}
+              {actions && actions.length ? (
+                <div className="dropdown-actions">
+                  {actions.map(action => {
+                    return (
+                      <button
+                        key={action.text}
+                        className="dropdown-action"
+                        onClick={onAction(action, item)}
+                      >
+                        <span
+                          title={action.text}
+                          className={`icon ${action.icon}`}
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
             </li>
           )
         })}
@@ -96,7 +93,7 @@ const DropdownMenu = ({
   )
 }
 
-export const DropdownMenuEmpty = ({useAutoComplete, menuClass}) =>
+export const DropdownMenuEmpty = ({useAutoComplete, menuClass}) => (
   <ul
     className={classnames('dropdown-menu', {
       'dropdown-menu--no-highlight': useAutoComplete,
@@ -105,6 +102,7 @@ export const DropdownMenuEmpty = ({useAutoComplete, menuClass}) =>
   >
     <li className="dropdown-empty">No matching items</li>
   </ul>
+)
 
 const {arrayOf, bool, number, shape, string, func} = PropTypes
 

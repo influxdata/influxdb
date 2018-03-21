@@ -142,123 +142,134 @@ class AlertTabs extends Component {
       alerta: {
         type: 'Alerta',
         enabled: this.getEnabled(configSections, 'alerta'),
-        renderComponent: () =>
+        renderComponent: () => (
           <AlertaConfig
             onSave={this.handleSaveConfig('alerta')}
             config={this.getSection(configSections, 'alerta')}
             onTest={this.handleTestConfig('alerta')}
             enabled={this.getEnabled(configSections, 'alerta')}
-          />,
+          />
+        ),
       },
       hipchat: {
         type: 'HipChat',
         enabled: this.getEnabled(configSections, 'hipchat'),
-        renderComponent: () =>
+        renderComponent: () => (
           <HipChatConfig
             onSave={this.handleSaveConfig('hipchat')}
             config={this.getSection(configSections, 'hipchat')}
             onTest={this.handleTestConfig('hipchat')}
             enabled={this.getEnabled(configSections, 'hipchat')}
-          />,
+          />
+        ),
       },
       opsgenie: {
         type: 'OpsGenie',
         enabled: this.getEnabled(configSections, 'opsgenie'),
-        renderComponent: () =>
+        renderComponent: () => (
           <OpsGenieConfig
             onSave={this.handleSaveConfig('opsgenie')}
             config={this.getSection(configSections, 'opsgenie')}
             onTest={this.handleTestConfig('opsgenie')}
             enabled={this.getEnabled(configSections, 'opsgenie')}
-          />,
+          />
+        ),
       },
       pagerduty: {
         type: 'PagerDuty',
         enabled: this.getEnabled(configSections, 'pagerduty'),
-        renderComponent: () =>
+        renderComponent: () => (
           <PagerDutyConfig
             onSave={this.handleSaveConfig('pagerduty')}
             config={this.getSection(configSections, 'pagerduty')}
             onTest={this.handleTestConfig('pagerduty')}
             enabled={this.getEnabled(configSections, 'pagerduty')}
-          />,
+          />
+        ),
       },
       pushover: {
         type: 'Pushover',
         enabled: this.getEnabled(configSections, 'pushover'),
-        renderComponent: () =>
+        renderComponent: () => (
           <PushoverConfig
             onSave={this.handleSaveConfig('pushover')}
             config={this.getSection(configSections, 'pushover')}
             onTest={this.handleTestConfig('pushover')}
             enabled={this.getEnabled(configSections, 'pushover')}
-          />,
+          />
+        ),
       },
       sensu: {
         type: 'Sensu',
         enabled: this.getEnabled(configSections, 'sensu'),
-        renderComponent: () =>
+        renderComponent: () => (
           <SensuConfig
             onSave={this.handleSaveConfig('sensu')}
             config={this.getSection(configSections, 'sensu')}
             onTest={this.handleTestConfig('sensu')}
             enabled={this.getEnabled(configSections, 'sensu')}
-          />,
+          />
+        ),
       },
       slack: {
         type: 'Slack',
         enabled: this.getEnabled(configSections, 'slack'),
-        renderComponent: () =>
+        renderComponent: () => (
           <SlackConfig
             onSave={this.handleSaveConfig('slack')}
             config={this.getSection(configSections, 'slack')}
             onTest={this.handleTestConfig('slack')}
             enabled={this.getEnabled(configSections, 'slack')}
-          />,
+          />
+        ),
       },
       smtp: {
         type: 'SMTP',
         enabled: this.getEnabled(configSections, 'smtp'),
-        renderComponent: () =>
+        renderComponent: () => (
           <SMTPConfig
             onSave={this.handleSaveConfig('smtp')}
             config={this.getSection(configSections, 'smtp')}
             onTest={this.handleTestConfig('smtp')}
             enabled={this.getEnabled(configSections, 'smtp')}
-          />,
+          />
+        ),
       },
       talk: {
         type: 'Talk',
         enabled: this.getEnabled(configSections, 'talk'),
-        renderComponent: () =>
+        renderComponent: () => (
           <TalkConfig
             onSave={this.handleSaveConfig('talk')}
             config={this.getSection(configSections, 'talk')}
             onTest={this.handleTestConfig('talk')}
             enabled={this.getEnabled(configSections, 'talk')}
-          />,
+          />
+        ),
       },
       telegram: {
         type: 'Telegram',
         enabled: this.getEnabled(configSections, 'telegram'),
-        renderComponent: () =>
+        renderComponent: () => (
           <TelegramConfig
             onSave={this.handleSaveConfig('telegram')}
             config={this.getSection(configSections, 'telegram')}
             onTest={this.handleTestConfig('telegram')}
             enabled={this.getEnabled(configSections, 'telegram')}
-          />,
+          />
+        ),
       },
       victorops: {
         type: 'VictorOps',
         enabled: this.getEnabled(configSections, 'victorops'),
-        renderComponent: () =>
+        renderComponent: () => (
           <VictorOpsConfig
             onSave={this.handleSaveConfig('victorops')}
             config={this.getSection(configSections, 'victorops')}
             onTest={this.handleTestConfig('victorops')}
             enabled={this.getEnabled(configSections, 'victorops')}
-          />,
+          />
+        ),
       },
     }
     return (

@@ -34,18 +34,18 @@ class UserNavBlock extends Component {
       <div className="sidebar--item">
         <div className="sidebar--square">
           <div className="sidebar--icon icon user" />
-          {isSuperAdmin
-            ? <span className="sidebar--icon sidebar--icon__superadmin icon crown2" />
-            : null}
+          {isSuperAdmin ? (
+            <span className="sidebar--icon sidebar--icon__superadmin icon crown2" />
+          ) : null}
         </div>
         <div className="sidebar-menu sidebar-menu--user-nav">
+          {customLinks ? (
+            <div className="sidebar-menu--section sidebar-menu--section__custom-links">
+              Custom Links
+            </div>
+          ) : null}
           {customLinks
-            ? <div className="sidebar-menu--section sidebar-menu--section__custom-links">
-                Custom Links
-              </div>
-            : null}
-          {customLinks
-            ? customLinks.map((link, i) =>
+            ? customLinks.map((link, i) => (
                 <a
                   key={i}
                   className="sidebar-menu--item sidebar-menu--item__link-name"
@@ -54,7 +54,7 @@ class UserNavBlock extends Component {
                 >
                   {link.name}
                 </a>
-              )
+              ))
             : null}
           <div className="sidebar-menu--section sidebar-menu--section__switch-orgs">
             Switch Organizations

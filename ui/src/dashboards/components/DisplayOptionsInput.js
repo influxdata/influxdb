@@ -9,11 +9,9 @@ const DisplayOptionsInput = ({
   labelText,
   colWidth,
   placeholder,
-}) =>
+}) => (
   <div className={`form-group ${colWidth}`}>
-    <label htmlFor={name}>
-      {labelText}
-    </label>
+    <label htmlFor={name}>{labelText}</label>
     <input
       className="form-control input-sm"
       type="text"
@@ -24,6 +22,7 @@ const DisplayOptionsInput = ({
       placeholder={placeholder}
     />
   </div>
+)
 
 const {func, string} = PropTypes
 

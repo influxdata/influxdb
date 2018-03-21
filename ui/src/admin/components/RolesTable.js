@@ -17,7 +17,7 @@ const RolesTable = ({
   onFilter,
   onUpdateRoleUsers,
   onUpdateRolePermissions,
-}) =>
+}) => (
   <div className="panel panel-solid">
     <FilterBar
       type="roles"
@@ -36,30 +36,33 @@ const RolesTable = ({
           </tr>
         </thead>
         <tbody>
-          {roles.length
-            ? roles
-                .filter(r => !r.hidden)
-                .map(role =>
-                  <RoleRow
-                    key={role.links.self}
-                    allUsers={allUsers}
-                    allPermissions={permissions}
-                    role={role}
-                    onEdit={onEdit}
-                    onSave={onSave}
-                    onCancel={onCancel}
-                    onDelete={onDelete}
-                    onUpdateRoleUsers={onUpdateRoleUsers}
-                    onUpdateRolePermissions={onUpdateRolePermissions}
-                    isEditing={role.isEditing}
-                    isNew={role.isNew}
-                  />
-                )
-            : <EmptyRow tableName={'Roles'} />}
+          {roles.length ? (
+            roles
+              .filter(r => !r.hidden)
+              .map(role => (
+                <RoleRow
+                  key={role.links.self}
+                  allUsers={allUsers}
+                  allPermissions={permissions}
+                  role={role}
+                  onEdit={onEdit}
+                  onSave={onSave}
+                  onCancel={onCancel}
+                  onDelete={onDelete}
+                  onUpdateRoleUsers={onUpdateRoleUsers}
+                  onUpdateRolePermissions={onUpdateRolePermissions}
+                  isEditing={role.isEditing}
+                  isNew={role.isNew}
+                />
+              ))
+          ) : (
+            <EmptyRow tableName={'Roles'} />
+          )}
         </tbody>
       </table>
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

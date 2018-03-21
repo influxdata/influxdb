@@ -106,20 +106,22 @@ class ProvidersTableRow extends Component {
             disabled={isDefaultMapping}
           />
         </div>
-        {isDeleting
-          ? <ConfirmButtons
-              item={mapping}
-              onCancel={this.handleDismissDeleteConfirmation}
-              onConfirm={this.handleDeleteMap}
-              onClickOutside={this.handleDismissDeleteConfirmation}
-              confirmTitle="Delete"
-            />
-          : <button
-              className="btn btn-sm btn-default btn-square"
-              onClick={this.handleDeleteClick}
-            >
-              <span className="icon trash" />
-            </button>}
+        {isDeleting ? (
+          <ConfirmButtons
+            item={mapping}
+            onCancel={this.handleDismissDeleteConfirmation}
+            onConfirm={this.handleDeleteMap}
+            onClickOutside={this.handleDismissDeleteConfirmation}
+            confirmTitle="Delete"
+          />
+        ) : (
+          <button
+            className="btn btn-sm btn-default btn-square"
+            onClick={this.handleDeleteClick}
+          >
+            <span className="icon trash" />
+          </button>
+        )}
       </div>
     )
   }

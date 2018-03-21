@@ -16,25 +16,25 @@ const GraphOptionsTextWrapping = ({
       <label>Text Wrapping</label>
       <ul className="nav nav-tablist nav-tablist-sm">
         <li
-          className={`${thresholdsListType === THRESHOLD_TYPE_BG
-            ? 'active'
-            : ''}`}
+          className={`${
+            thresholdsListType === THRESHOLD_TYPE_BG ? 'active' : ''
+          }`}
           onClick={onToggleTextWrapping}
         >
           Truncate
         </li>
         <li
-          className={`${thresholdsListType === THRESHOLD_TYPE_TEXT
-            ? 'active'
-            : ''}`}
+          className={`${
+            thresholdsListType === THRESHOLD_TYPE_TEXT ? 'active' : ''
+          }`}
           onClick={onToggleTextWrapping}
         >
           Wrap
         </li>
         <li
-          className={`${thresholdsListType === THRESHOLD_TYPE_BG
-            ? 'active'
-            : ''}`}
+          className={`${
+            thresholdsListType === THRESHOLD_TYPE_BG ? 'active' : ''
+          }`}
           onClick={onToggleTextWrapping}
         >
           Single Line

@@ -43,21 +43,23 @@ class AnnotationInput extends Component {
 
     return (
       <div className="annotation-tooltip--input-container">
-        {isEditing
-          ? <input
-              type="text"
-              className="annotation-tooltip--input form-control input-xs"
-              value={value}
-              onChange={this.handleChange}
-              onKeyDown={this.handleKeyDown}
-              autoFocus={true}
-              onFocus={this.handleFocus}
-              placeholder="Annotation text"
-            />
-          : <div className="input-cte" onClick={this.handleInputClick}>
-              {value}
-              <span className="icon pencil" />
-            </div>}
+        {isEditing ? (
+          <input
+            type="text"
+            className="annotation-tooltip--input form-control input-xs"
+            value={value}
+            onChange={this.handleChange}
+            onKeyDown={this.handleKeyDown}
+            autoFocus={true}
+            onFocus={this.handleFocus}
+            placeholder="Annotation text"
+          />
+        ) : (
+          <div className="input-cte" onClick={this.handleInputClick}>
+            {value}
+            <span className="icon pencil" />
+          </div>
+        )}
       </div>
     )
   }

@@ -178,9 +178,7 @@ class DygraphLegend extends Component {
         style={style}
       >
         <div className="dygraph-legend--header">
-          <div className="dygraph-legend--timestamp">
-            {legend.xHTML}
-          </div>
+          <div className="dygraph-legend--timestamp">{legend.xHTML}</div>
           {renderSortAlpha}
           {renderSortNum}
           <button
@@ -202,16 +200,16 @@ class DygraphLegend extends Component {
             Snip
           </button>
         </div>
-        {isFilterVisible
-          ? <input
-              className="dygraph-legend--filter form-control input-sm"
-              type="text"
-              value={filterText}
-              onChange={this.handleLegendInputChange}
-              placeholder="Filter items..."
-              autoFocus={true}
-            />
-          : null}
+        {isFilterVisible ? (
+          <input
+            className="dygraph-legend--filter form-control input-sm"
+            type="text"
+            value={filterText}
+            onChange={this.handleLegendInputChange}
+            placeholder="Filter items..."
+            autoFocus={true}
+          />
+        ) : null}
         <div className="dygraph-legend--divider" />
         <div className="dygraph-legend--contents">
           {filtered.map(({label, color, yHTML, isHighlighted}) => {
@@ -223,9 +221,7 @@ class DygraphLegend extends Component {
                 <span style={{color}}>
                   {isSnipped ? removeMeasurement(label) : label}
                 </span>
-                <figure>
-                  {yHTML || 'no value'}
-                </figure>
+                <figure>{yHTML || 'no value'}</figure>
               </div>
             )
           })}

@@ -1,12 +1,13 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-const LoadingDots = ({className}) =>
+const LoadingDots = ({className}) => (
   <div className={`loading-dots ${className}`}>
     <div />
     <div />
     <div />
   </div>
+)
 
 const {string} = PropTypes
 

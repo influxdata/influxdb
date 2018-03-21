@@ -122,14 +122,15 @@ class AnnotationSpan extends React.Component {
 
     return (
       <div className={markerClass} style={markerStyles}>
-        {showTooltip &&
+        {showTooltip && (
           <AnnotationTooltip
             isEditing={isEditing}
             timestamp={annotation.startTime}
             annotation={annotation}
             onMouseLeave={this.handleMouseLeave}
             annotationState={this.state}
-          />}
+          />
+        )}
         <div
           className={clickClass}
           draggable={true}
@@ -172,14 +173,15 @@ class AnnotationSpan extends React.Component {
 
     return (
       <div className={markerClass} style={markerStyles}>
-        {showTooltip &&
+        {showTooltip && (
           <AnnotationTooltip
             isEditing={isEditing}
             timestamp={annotation.endTime}
             annotation={annotation}
             onMouseLeave={this.handleMouseLeave}
             annotationState={this.state}
-          />}
+          />
+        )}
         <div
           className={clickClass}
           draggable={true}

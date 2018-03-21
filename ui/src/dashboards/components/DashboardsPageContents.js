@@ -48,9 +48,7 @@ class DashboardsPageContents extends Component {
             <div className="col-md-12">
               <div className="panel">
                 <div className="panel-heading">
-                  <h2 className="panel-title">
-                    {tableHeader}
-                  </h2>
+                  <h2 className="panel-title">{tableHeader}</h2>
                   <div className="dashboards-page--actions">
                     <SearchBar
                       placeholder="Filter by Name..."

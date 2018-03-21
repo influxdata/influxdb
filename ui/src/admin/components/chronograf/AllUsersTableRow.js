@@ -47,14 +47,14 @@ const AllUsersTableRow = ({
   return (
     <tr className={'chronograf-admin-table--user'}>
       <td>
-        {userIsMe
-          ? <strong className="chronograf-user--me">
-              <span className="icon user" />
-              {user.name}
-            </strong>
-          : <strong>
-              {user.name}
-            </strong>}
+        {userIsMe ? (
+          <strong className="chronograf-user--me">
+            <span className="icon user" />
+            {user.name}
+          </strong>
+        ) : (
+          <strong>{user.name}</strong>
+        )}
       </td>
       <td style={{width: colOrganizations}}>
         <Tags
@@ -65,12 +65,8 @@ const AllUsersTableRow = ({
           addMenuChoose={onAddToOrganization(user)}
         />
       </td>
-      <td style={{width: colProvider}}>
-        {user.provider}
-      </td>
-      <td style={{width: colScheme}}>
-        {user.scheme}
-      </td>
+      <td style={{width: colProvider}}>{user.provider}</td>
+      <td style={{width: colScheme}}>{user.scheme}</td>
       <td style={{width: colSuperAdmin}} className="text-center">
         <SlideToggle
           active={user.superAdmin}

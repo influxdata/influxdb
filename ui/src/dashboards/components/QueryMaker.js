@@ -26,7 +26,7 @@ const QueryMaker = ({
   activeQueryIndex,
   initialGroupByTime,
   setActiveQueryIndex,
-}) =>
+}) => (
   <div className="query-maker query-maker--panel">
     <QueryTabList
       queries={queries}
@@ -36,28 +36,31 @@ const QueryMaker = ({
       activeQueryIndex={activeQueryIndex}
       setActiveQueryIndex={setActiveQueryIndex}
     />
-    {activeQuery && activeQuery.id
-      ? <div className="query-maker--tab-contents">
-          <QueryTextArea
-            query={buildText(activeQuery)}
-            config={activeQuery}
-            onUpdate={rawTextBinder(
-              source.links,
-              activeQuery.id,
-              actions.editRawTextAsync
-            )}
-            templates={templates}
-          />
-          <SchemaExplorer
-            source={source}
-            actions={actions}
-            query={activeQuery}
-            onAddQuery={onAddQuery}
-            initialGroupByTime={initialGroupByTime}
-          />
-        </div>
-      : <EmptyQuery onAddQuery={onAddQuery} />}
+    {activeQuery && activeQuery.id ? (
+      <div className="query-maker--tab-contents">
+        <QueryTextArea
+          query={buildText(activeQuery)}
+          config={activeQuery}
+          onUpdate={rawTextBinder(
+            source.links,
+            activeQuery.id,
+            actions.editRawTextAsync
+          )}
+          templates={templates}
+        />
+        <SchemaExplorer
+          source={source}
+          actions={actions}
+          query={activeQuery}
+          onAddQuery={onAddQuery}
+          initialGroupByTime={initialGroupByTime}
+        />
+      </div>
+    ) : (
+      <EmptyQuery onAddQuery={onAddQuery} />
+    )}
   </div>
+)
 
 const {arrayOf, func, number, shape, string} = PropTypes
 

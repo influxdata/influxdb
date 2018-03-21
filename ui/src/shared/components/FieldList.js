@@ -144,51 +144,53 @@ class FieldList extends Component {
       <div className="query-builder--column">
         <div className="query-builder--heading">
           <span>Fields</span>
-          {hasAggregates
-            ? <QueryOptions
-                fill={fill}
-                shift={_.first(shifts)}
-                groupBy={groupBy}
-                onFill={this.handleFill}
-                isKapacitorRule={isKapacitorRule}
-                onTimeShift={this.handleTimeShift}
-                onGroupByTime={this.handleGroupByTime}
-              />
-            : null}
+          {hasAggregates ? (
+            <QueryOptions
+              fill={fill}
+              shift={_.first(shifts)}
+              groupBy={groupBy}
+              onFill={this.handleFill}
+              isKapacitorRule={isKapacitorRule}
+              onTimeShift={this.handleTimeShift}
+              onGroupByTime={this.handleGroupByTime}
+            />
+          ) : null}
         </div>
-        {noDBorMeas
-          ? <div className="query-builder--list-empty">
-              <span>
-                No <strong>Measurement</strong> selected
-              </span>
-            </div>
-          : <div className="query-builder--list">
-              <FancyScrollbar>
-                {this.state.fields.map((fieldFunc, i) => {
-                  const selectedFields = getFieldsWithName(
-                    fieldFunc.value,
-                    fields
-                  )
+        {noDBorMeas ? (
+          <div className="query-builder--list-empty">
+            <span>
+              No <strong>Measurement</strong> selected
+            </span>
+          </div>
+        ) : (
+          <div className="query-builder--list">
+            <FancyScrollbar>
+              {this.state.fields.map((fieldFunc, i) => {
+                const selectedFields = getFieldsWithName(
+                  fieldFunc.value,
+                  fields
+                )
 
-                  const funcs = getFuncsByFieldName(fieldFunc.value, fields)
-                  const fieldFuncs = selectedFields.length
-                    ? selectedFields
-                    : [fieldFunc]
+                const funcs = getFuncsByFieldName(fieldFunc.value, fields)
+                const fieldFuncs = selectedFields.length
+                  ? selectedFields
+                  : [fieldFunc]
 
-                  return (
-                    <FieldListItem
-                      key={i}
-                      onToggleField={this.handleToggleField}
-                      onApplyFuncsToField={this.handleApplyFuncs}
-                      isSelected={!!selectedFields.length}
-                      fieldFuncs={fieldFuncs}
-                      funcs={functionNames(funcs)}
-                      isKapacitorRule={isKapacitorRule}
-                    />
-                  )
-                })}
-              </FancyScrollbar>
-            </div>}
+                return (
+                  <FieldListItem
+                    key={i}
+                    onToggleField={this.handleToggleField}
+                    onApplyFuncsToField={this.handleApplyFuncs}
+                    isSelected={!!selectedFields.length}
+                    fieldFuncs={fieldFuncs}
+                    funcs={functionNames(funcs)}
+                    isKapacitorRule={isKapacitorRule}
+                  />
+                )
+              })}
+            </FancyScrollbar>
+          </div>
+        )}
       </div>
     )
   }

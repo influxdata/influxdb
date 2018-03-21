@@ -54,7 +54,10 @@ export const showTagValues = async ({
   measurement,
   tagKeys,
 }) => {
-  const keys = tagKeys.sort().map(k => `"${k}"`).join(', ')
+  const keys = tagKeys
+    .sort()
+    .map(k => `"${k}"`)
+    .join(', ')
   const rp = _.toString(retentionPolicy)
   const query = `SHOW TAG VALUES FROM "${rp}"."${measurement}" WITH KEY IN (${keys})`
 

@@ -62,7 +62,7 @@ const Layout = (
     onSetHoverTime,
   },
   {source: defaultSource}
-) =>
+) => (
   <LayoutCell
     cell={cell}
     celldata={celldata}
@@ -72,35 +72,38 @@ const Layout = (
     onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
   >
-    {cell.isWidget
-      ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
-      : <RefreshingGraph
-          colors={colors}
-          inView={cell.inView}
-          axes={axes}
-          type={type}
-          tableOptions={tableOptions}
-          staticLegend={IS_STATIC_LEGEND(legend)}
-          cellHeight={h}
-          onZoom={onZoom}
-          sources={sources}
-          timeRange={timeRange}
-          templates={templates}
-          autoRefresh={autoRefresh}
-          hoverTime={hoverTime}
-          onSetHoverTime={onSetHoverTime}
-          manualRefresh={manualRefresh}
-          onStopAddAnnotation={onStopAddAnnotation}
-          grabDataForDownload={grabDataForDownload}
-          resizeCoords={resizeCoords}
-          queries={buildQueriesForLayouts(
-            cell,
-            getSource(cell, source, sources, defaultSource),
-            timeRange,
-            host
-          )}
-        />}
+    {cell.isWidget ? (
+      <WidgetCell cell={cell} timeRange={timeRange} source={source} />
+    ) : (
+      <RefreshingGraph
+        colors={colors}
+        inView={cell.inView}
+        axes={axes}
+        type={type}
+        tableOptions={tableOptions}
+        staticLegend={IS_STATIC_LEGEND(legend)}
+        cellHeight={h}
+        onZoom={onZoom}
+        sources={sources}
+        timeRange={timeRange}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        hoverTime={hoverTime}
+        onSetHoverTime={onSetHoverTime}
+        manualRefresh={manualRefresh}
+        onStopAddAnnotation={onStopAddAnnotation}
+        grabDataForDownload={grabDataForDownload}
+        resizeCoords={resizeCoords}
+        queries={buildQueriesForLayouts(
+          cell,
+          getSource(cell, source, sources, defaultSource),
+          timeRange,
+          host
+        )}
+      />
+    )}
   </LayoutCell>
+)
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 

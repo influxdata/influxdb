@@ -4,14 +4,17 @@ import {connect} from 'react-redux'
 
 import Notification from 'shared/components/Notification'
 
-const Notifications = ({notifications, inPresentationMode}) =>
+const Notifications = ({notifications, inPresentationMode}) => (
   <div
-    className={`${inPresentationMode
-      ? 'notification-center__presentation-mode'
-      : 'notification-center'}`}
+    className={`${
+      inPresentationMode
+        ? 'notification-center__presentation-mode'
+        : 'notification-center'
+    }`}
   >
     {notifications.map(n => <Notification key={n.id} notification={n} />)}
   </div>
+)
 
 const {arrayOf, bool, number, shape, string} = PropTypes
 

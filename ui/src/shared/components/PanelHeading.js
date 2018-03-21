@@ -10,9 +10,7 @@ const PanelHeading = React.createClass({
   render() {
     return (
       <div className="panel-heading text-center">
-        <h2 className="deluxe">
-          {this.props.children}
-        </h2>
+        <h2 className="deluxe">{this.props.children}</h2>
       </div>
     )
   },

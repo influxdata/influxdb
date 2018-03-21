@@ -133,33 +133,33 @@ class AllUsersTable extends Component {
               </tr>
             </thead>
             <tbody>
-              {users.length
-                ? users.map(user =>
-                    <AllUsersTableRow
-                      user={user}
-                      key={uuid.v4()}
-                      organizations={organizations}
-                      onAddToOrganization={this.handleAddToOrganization}
-                      onRemoveFromOrganization={
-                        this.handleRemoveFromOrganization
-                      }
-                      onChangeSuperAdmin={this.handleChangeSuperAdmin}
-                      onDelete={onDeleteUser}
-                      meID={meID}
-                    />
-                  )
-                : <tr className="table-empty-state">
-                    <th colSpan="6">
-                      <p>No Users to display</p>
-                    </th>
-                  </tr>}
-              {isCreatingUser
-                ? <AllUsersTableRowNew
+              {users.length ? (
+                users.map(user => (
+                  <AllUsersTableRow
+                    user={user}
+                    key={uuid.v4()}
                     organizations={organizations}
-                    onBlur={this.handleBlurCreateUserRow}
-                    onCreateUser={onCreateUser}
+                    onAddToOrganization={this.handleAddToOrganization}
+                    onRemoveFromOrganization={this.handleRemoveFromOrganization}
+                    onChangeSuperAdmin={this.handleChangeSuperAdmin}
+                    onDelete={onDeleteUser}
+                    meID={meID}
                   />
-                : null}
+                ))
+              ) : (
+                <tr className="table-empty-state">
+                  <th colSpan="6">
+                    <p>No Users to display</p>
+                  </th>
+                </tr>
+              )}
+              {isCreatingUser ? (
+                <AllUsersTableRowNew
+                  organizations={organizations}
+                  onBlur={this.handleBlurCreateUserRow}
+                  onCreateUser={onCreateUser}
+                />
+              ) : null}
             </tbody>
           </table>
         </div>
