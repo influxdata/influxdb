@@ -89,8 +89,6 @@ class TableGraph extends Component {
       ? this.state.data
       : this.state.unzippedData
 
-    const columnCount = _.get(data, ['0', 'length'], 0)
-    const rowCount = data.length
     const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
     const columnNames = _.get(tableOptions, 'columnNames', [
       TIME_COLUMN_DEFAULT,
