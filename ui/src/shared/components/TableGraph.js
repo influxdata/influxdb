@@ -22,22 +22,23 @@ import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
 const filterInvisibleRows = (data, fieldNames) => {
   const visibleData = data.filter(row => {
-    const foundField = fieldNames.find(field => field.internalName === row[0])
-    return foundField && foundField.visible
+    const rowName = row[0]
+    const foundField = fieldNames.find(f => f.internalName === rowName)
+    return foundField ? foundField.visible : true
   })
 
   return visibleData.length ? visibleData : [[]]
 }
 
 const filterInvisibleColumns = (data, fieldNames) => {
-  const visibleColumns = {}
+  const visibility = {}
   const visibleData = data.map((row, i) => {
     return row.filter((col, j) => {
       if (i === 0) {
         const foundField = fieldNames.find(field => field.internalName === col)
-        visibleColumns[j] = foundField && foundField.visible
+        visibility[j] = foundField ? foundField.visible : true
       }
-      return visibleColumns[j]
+      return visibility[j]
     })
   })
   return visibleData[0].length ? visibleData : [[]]
@@ -192,7 +193,9 @@ class TableGraph extends Component {
     const {hoveredColumnIndex, hoveredRowIndex} = this.state
     const {tableOptions, colors} = this.props
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
-    const data = verticalTimeAxis ? this.state.data : this.state.unzippedData
+    const data = verticalTimeAxis
+      ? this.state.visibleData
+      : this.state.unzippedData
     const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
     const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
     const fixFirstColumn = _.get(
