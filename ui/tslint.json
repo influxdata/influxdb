@@ -9,6 +9,8 @@
   "jsRules": {},
   "rules": {
     "interface-name": [true, "never-prefix"],
+    "no-console": [true, "log", "warn"],
+    "no-empty": false,
     "prettier": [
       true,
       {

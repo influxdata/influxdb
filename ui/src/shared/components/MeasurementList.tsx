@@ -1,5 +1,6 @@
-import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
+
 import _ from 'lodash'
 
 import {showMeasurements} from 'src/shared/apis/metaQuery'
@@ -7,9 +8,9 @@ import showMeasurementsParser from 'src/shared/parsing/showMeasurements'
 
 import {Query, Source} from 'src/types'
 
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
 import MeasurementListItem from 'src/shared/components/MeasurementListItem'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 interface Props {
   query: Query
@@ -26,15 +27,25 @@ interface State {
   filtered: string[]
 }
 
-const {shape, string} = PropTypes
+const {shape} = PropTypes
 
 class MeasurementList extends PureComponent<Props, State> {
+  public static contextTypes = {
+    source: shape({
+      links: shape({}).isRequired,
+    }).isRequired,
+  }
+
+  public static defaultProps: Partial<Props> = {
+    querySource: null,
+  }
+
   constructor(props) {
     super(props)
     this.state = {
+      filterText: '',
       filtered: [],
       measurements: [],
-      filterText: '',
     }
 
     this.handleEscape = this.handleEscape.bind(this)
@@ -44,19 +55,7 @@ class MeasurementList extends PureComponent<Props, State> {
     this.handleChoosemeasurement = this.handleChoosemeasurement.bind(this)
   }
 
-  public static defaultProps: Partial<Props> = {
-    querySource: null,
-  }
-
-  public static contextTypes = {
-    source: shape({
-      links: shape({
-        proxy: string.isRequired,
-      }).isRequired,
-    }).isRequired,
-  }
-
-  componentDidMount() {
+  public componentDidMount() {
     if (!this.props.query.database) {
       return
     }
@@ -64,7 +63,7 @@ class MeasurementList extends PureComponent<Props, State> {
     this.getMeasurements()
   }
 
-  componentDidUpdate(prevProps) {
+  public componentDidUpdate(prevProps) {
     const {query, querySource} = this.props
 
     if (!query.database) {
@@ -81,7 +80,7 @@ class MeasurementList extends PureComponent<Props, State> {
     this.getMeasurements()
   }
 
-  handleFilterText(e) {
+  public handleFilterText(e) {
     e.stopPropagation()
     const filterText = e.target.value
     this.setState({
@@ -90,13 +89,13 @@ class MeasurementList extends PureComponent<Props, State> {
     })
   }
 
-  handleFilterMeasuremet(filter) {
+  public handleFilterMeasuremet(filter) {
     return this.state.measurements.filter(m =>
       m.toLowerCase().includes(filter.toLowerCase())
     )
   }
 
-  handleEscape(e) {
+  public handleEscape(e) {
     if (e.key !== 'Escape') {
       return
     }
@@ -107,15 +106,15 @@ class MeasurementList extends PureComponent<Props, State> {
     })
   }
 
-  handleAcceptReject() {
+  public handleAcceptReject() {
     this.props.onToggleTagAcceptance()
   }
 
-  handleChoosemeasurement(measurement) {
+  public handleChoosemeasurement(measurement) {
     return () => this.props.onChooseMeasurement(measurement)
   }
 
-  render() {
+  public render() {
     const {query, querySource, onChooseTag, onGroupByTag} = this.props
     const {database, areTagsAccepted} = query
     const {filtered} = this.state
@@ -160,7 +159,7 @@ class MeasurementList extends PureComponent<Props, State> {
     )
   }
 
-  async getMeasurements() {
+  public async getMeasurements() {
     const {source} = this.context
     const {querySource, query} = this.props
 

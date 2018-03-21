@@ -3,7 +3,7 @@ import React, {SFC} from 'react'
 import GraphOptionsCustomizableColumn from 'src/dashboards/components/GraphOptionsCustomizableColumn'
 import uuid from 'uuid'
 
-type Column = {
+interface Column {
   internalName: string
   displayName: string
 }

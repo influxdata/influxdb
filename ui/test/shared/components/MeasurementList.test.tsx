@@ -1,8 +1,8 @@
+import {shallow} from 'enzyme'
 import React from 'react'
 import MeasurementList from 'src/shared/components/MeasurementList'
-import MeasurementListItem from 'src/shared/components/MeasurementListItem'
 import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
-import {shallow} from 'enzyme'
+import MeasurementListItem from 'src/shared/components/MeasurementListItem'
 import {query, source} from 'test/resources'
 
 const setup = (override = {}) => {

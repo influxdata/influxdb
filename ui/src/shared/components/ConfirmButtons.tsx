@@ -1,9 +1,10 @@
 import React, {PureComponent, SFC} from 'react'
+
 import classnames from 'classnames'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
 
-type Item = Object | string
+type Item = object | string
 
 interface ConfirmProps {
   buttonSize: string
@@ -60,29 +61,29 @@ export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) =>
   </button>
 
 class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
+  public static defaultProps: Partial<ConfirmButtonsProps> = {
+    buttonSize: 'btn-sm',
+    confirmTitle: 'Save',
+    onClickOutside: () => {},
+  }
+
   constructor(props) {
     super(props)
   }
 
-  public static defaultProps: Partial<ConfirmButtonsProps> = {
-    buttonSize: 'btn-sm',
-    onClickOutside: () => {},
-    confirmTitle: 'Save',
-  }
-
-  handleConfirm = item => () => {
+  public handleConfirm = item => () => {
     this.props.onConfirm(item)
   }
 
-  handleCancel = item => () => {
+  public handleCancel = item => () => {
     this.props.onCancel(item)
   }
 
-  handleClickOutside = () => {
+  public handleClickOutside = () => {
     this.props.onClickOutside(this.props.item)
   }
 
-  render() {
+  public render() {
     const {item, buttonSize, isDisabled, confirmLeft, confirmTitle} = this.props
 
     return confirmLeft

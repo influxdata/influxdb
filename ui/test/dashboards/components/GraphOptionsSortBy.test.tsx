@@ -1,21 +1,22 @@
 import React from 'react'
-import {shallow} from 'enzyme'
+
+import {mount} from 'enzyme'
 
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import Dropdown from 'src/shared/components/Dropdown'
+import {Dropdown} from 'src/shared/components/Dropdown'
 
 const defaultProps = {
-  sortByOptions: [],
   onChooseSortBy: () => {},
   selected: {
-    internalName: 'boom',
     displayName: 'here',
-  }
+    internalName: 'boom',
+  },
+  sortByOptions: [],
 }
 
 const setup = (override = {}) => {
   const props = {...defaultProps, ...override}
-  const wrapper = shallow(<GraphOptionsSortBy {...props} />)
+  const wrapper = mount(<GraphOptionsSortBy {...props} />)
 
   return {wrapper, props}
 }
@@ -28,7 +29,7 @@ describe('Dashboards.Components.GraphOptionsSortBy', () => {
       const dropdown = wrapper.find(Dropdown)
       const label = wrapper.find('label')
 
-      expect(dropdown.props()['selected']).toEqual('here')
+      expect(dropdown.props().selected).toEqual('here')
       expect(dropdown.exists()).toBe(true)
       expect(label.exists()).toBe(true)
     })
@@ -39,7 +40,7 @@ describe('Dashboards.Components.GraphOptionsSortBy', () => {
 
         const dropdown = wrapper.find(Dropdown)
 
-        expect(dropdown.props()['selected']).toEqual('boom')
+        expect(dropdown.props().selected).toEqual('boom')
       })
     })
   })

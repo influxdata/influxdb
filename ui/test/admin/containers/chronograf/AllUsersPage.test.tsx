@@ -1,6 +1,8 @@
 import React from 'react'
-import {AllUsersPage} from 'src/admin/containers/chronograf/AllUsersPage'
+
 import {shallow} from 'enzyme'
+
+import {AllUsersPage} from 'src/admin/containers/chronograf/AllUsersPage'
 
 import {authLinks as links} from 'test/resources'
 
@@ -8,16 +10,12 @@ const noop = () => {}
 
 const setup = (override = {}) => {
   const props = {
-    links,
-    meID: '1',
-    users: [],
-    organizations: [],
     actionsAdmin: {
-      loadUsersAsync: noop,
-      loadOrganizationsAsync: noop,
       createUserAsync: noop,
-      updateUserAsync: noop,
       deleteUserAsync: noop,
+      loadOrganizationsAsync: noop,
+      loadUsersAsync: noop,
+      updateUserAsync: noop,
     },
     actionsConfig: {
       getAuthConfigAsync: noop,
@@ -26,7 +24,11 @@ const setup = (override = {}) => {
     authConfig: {
       superAdminNewUsers: false,
     },
+    links,
+    meID: '1',
     notify: noop,
+    organizations: [],
+    users: [],
     ...override,
   }
 

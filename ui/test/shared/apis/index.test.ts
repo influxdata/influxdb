@@ -1,10 +1,10 @@
-import {createKapacitor, updateKapacitor} from 'src/shared/apis'
 import {
-  source,
-  kapacitor,
-  updateKapacitorBody,
   createKapacitorBody,
+  kapacitor,
+  source,
+  updateKapacitorBody,
 } from 'mocks/dummy'
+import {createKapacitor, updateKapacitor} from 'src/shared/apis'
 import AJAX from 'src/utils/ajax'
 
 jest.mock('src/utils/ajax', () => require('mocks/utils/ajax'))
@@ -29,7 +29,7 @@ describe('Shared.Apis', () => {
   describe('updateKapacitor', () => {
     it('is called with the expected body', () => {
       updateKapacitor(updateKapacitorBody)
-      let data = {...updateKapacitorBody}
+      const data = {...updateKapacitorBody}
       delete data.links
 
       expect(AJAX).toHaveBeenCalledWith({

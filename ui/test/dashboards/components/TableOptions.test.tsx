@@ -2,15 +2,15 @@ import React from 'react'
 
 import {TableOptions} from 'src/dashboards/components/TableOptions'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
-import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
+import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
+import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
-import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
+import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
+import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
-import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 
 import {shallow} from 'enzyme'
 
@@ -44,7 +44,7 @@ const queryConfigs = [
 ]
 
 const defaultProps = {
-  queryConfigs: queryConfigs,
+  queryConfigs,
   handleUpdateTableOptions: () => {},
   tableOptions: {
     timeFormat: '',

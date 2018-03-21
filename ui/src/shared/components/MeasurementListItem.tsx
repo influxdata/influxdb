@@ -1,5 +1,5 @@
-import React, {SFC} from 'react'
 import classnames from 'classnames'
+import React, {SFC} from 'react'
 import TagList from 'src/shared/components/TagList'
 
 import {Query, Source} from 'src/types'

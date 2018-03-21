@@ -1,7 +1,7 @@
 import React from 'react'
 import ConfirmButtons, {
-  Confirm,
   Cancel,
+  Confirm,
 } from 'src/shared/components/ConfirmButtons'
 
 import {shallow} from 'enzyme'

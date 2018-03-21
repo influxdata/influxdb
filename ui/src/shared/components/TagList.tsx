@@ -1,5 +1,6 @@
-import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
+
 import _ from 'lodash'
 
 import TagListItem from 'src/shared/components/TagListItem'
@@ -10,7 +11,7 @@ import {showTagKeys, showTagValues} from 'src/shared/apis/metaQuery'
 import showTagKeysParser from 'src/shared/parsing/showTagKeys'
 import showTagValuesParser from 'src/shared/parsing/showTagValues'
 
-const {string, shape} = PropTypes
+const {shape} = PropTypes
 
 interface Props {
   query: Query
@@ -24,18 +25,9 @@ interface State {
 }
 
 class TagList extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      tags: {},
-    }
-  }
-
   public static contextTypes = {
     source: shape({
-      links: shape({
-        proxy: string.isRequired,
-      }).isRequired,
+      links: shape({}).isRequired,
     }).isRequired,
   }
 
@@ -43,7 +35,14 @@ class TagList extends PureComponent<Props, State> {
     querySource: null,
   }
 
-  componentDidMount() {
+  constructor(props) {
+    super(props)
+    this.state = {
+      tags: {},
+    }
+  }
+
+  public componentDidMount() {
     const {database, measurement, retentionPolicy} = this.props.query
     if (!database || !measurement || !retentionPolicy) {
       return
@@ -52,7 +51,7 @@ class TagList extends PureComponent<Props, State> {
     this.getTags()
   }
 
-  componentDidUpdate(prevProps) {
+  public componentDidUpdate(prevProps) {
     const {query, querySource} = this.props
     const {database, measurement, retentionPolicy} = query
 
@@ -78,7 +77,7 @@ class TagList extends PureComponent<Props, State> {
     this.getTags()
   }
 
-  async getTags() {
+  public async getTags() {
     const {source} = this.context
     const {querySource} = this.props
     const {database, measurement, retentionPolicy} = this.props.query
@@ -86,18 +85,18 @@ class TagList extends PureComponent<Props, State> {
     const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
 
     const {data} = await showTagKeys({
-      source: proxy,
       database,
-      retentionPolicy,
       measurement,
+      retentionPolicy,
+      source: proxy,
     })
     const {tagKeys} = showTagKeysParser(data)
 
     const response = await showTagValues({
-      source: proxy,
       database,
-      retentionPolicy,
       measurement,
+      retentionPolicy,
+      source: proxy,
       tagKeys,
     })
 
@@ -106,7 +105,7 @@ class TagList extends PureComponent<Props, State> {
     this.setState({tags})
   }
 
-  render() {
+  public render() {
     const {query, onChooseTag, onGroupByTag} = this.props
 
     return (
