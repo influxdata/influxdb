@@ -148,7 +148,12 @@ class TableGraph extends Component {
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
-    const {hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {
+      hoveredColumnIndex,
+      hoveredRowIndex,
+      clickToSortFieldIndex,
+      clicktoSortDirection,
+    } = this.state
     const {tableOptions, colors} = this.props
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
     const data = verticalTimeAxis ? this.state.data : this.state.unzippedData
@@ -192,6 +197,19 @@ class TableGraph extends Component {
       }
     }
 
+    const cellData = data[rowIndex][columnIndex]
+
+    let isSortByField
+    if (clickToSortFieldIndex === -1) {
+      isSortByField = tableOptions.sortBy.internalName === cellData
+    } else {
+      isSortByField = verticalTimeAxis
+        ? clickToSortFieldIndex === columnIndex
+        : clickToSortFieldIndex === rowIndex
+    }
+    const isSortingAsc = clicktoSortDirection === ASCENDING
+    const isSortingDesc = clicktoSortDirection === DESCENDING
+
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,
       'table-graph-cell__fixed-column': isFixedColumn,
@@ -199,10 +217,13 @@ class TableGraph extends Component {
       'table-graph-cell__highlight-row': isHighlightedRow,
       'table-graph-cell__highlight-column': isHighlightedColumn,
       'table-graph-cell__numerical': dataIsNumerical,
-      'table-graph-cell__isFieldName': isFieldName,
+      'table-graph-cell__field-name': isFieldName,
+      'table-graph-cell__sort-asc':
+        isFieldName && isSortByField && isSortingAsc,
+      'table-graph-cell__sort-desc':
+        isFieldName && isSortByField && isSortingDesc,
     })
 
-    const cellData = data[rowIndex][columnIndex]
     const foundColumn = columnNames.find(
       column => column.internalName === cellData
     )
