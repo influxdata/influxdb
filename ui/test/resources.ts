@@ -259,7 +259,7 @@ export const kapacitorRules = [
   {
     id: 'chronograf-v1-7734918d-b8b6-460d-a416-34767ba76faa',
     tickscript:
-      "var db = 'telegraf'\n\nvar rp = 'autogen'\n\nvar measurement = 'cpu'\n\nvar groupBy = []\n\nvar whereFilter = lambda: (\"host\" == 'Jareds-MacBook-Pro.local')\n\nvar period = 24h\n\nvar name = 'xena'\n\nvar idVar = name + ':{{.Group}}'\n\nvar message = ''\n\nvar idTag = 'alertID'\n\nvar levelTag = 'level'\n\nvar messageField = 'message'\n\nvar durationField = 'duration'\n\nvar outputDB = 'chronograf'\n\nvar outputRP = 'autogen'\n\nvar outputMeasurement = 'alerts'\n\nvar triggerType = 'deadman'\n\nvar threshold = 0.0\n\nvar data = stream\n    |from()\n        .database(db)\n        .retentionPolicy(rp)\n        .measurement(measurement)\n        .groupBy(groupBy)\n        .where(whereFilter)\n\nvar trigger = data\n    |deadman(threshold, period)\n        .stateChangesOnly()\n        .message(message)\n        .id(idVar)\n        .idTag(idTag)\n        .levelTag(levelTag)\n        .messageField(messageField)\n        .durationField(durationField)\n        .hipChat()\n        .room('asdf')\n\ntrigger\n    |eval(lambda: \"emitted\")\n        .as('value')\n        .keep('value', messageField, durationField)\n    |eval(lambda: float(\"value\"))\n        .as('value')\n        .keep()\n    |influxDBOut()\n        .create()\n        .database(outputDB)\n        .retentionPolicy(outputRP)\n        .measurement(outputMeasurement)\n        .tag('alertName', name)\n        .tag('triggerType', triggerType)\n\ntrigger\n    |httpOut('output')\n",
+      "var db = 'telegraf'\n\nvar rp = 'autogen'\n\nvar measurement = 'cpu'\n\nvar groupBy = []\n\nvar whereFilter = lambda: (\"host\" == 'Bobs-MacBook-Pro.local')\n\nvar period = 24h\n\nvar name = 'xena'\n\nvar idVar = name + ':{{.Group}}'\n\nvar message = ''\n\nvar idTag = 'alertID'\n\nvar levelTag = 'level'\n\nvar messageField = 'message'\n\nvar durationField = 'duration'\n\nvar outputDB = 'chronograf'\n\nvar outputRP = 'autogen'\n\nvar outputMeasurement = 'alerts'\n\nvar triggerType = 'deadman'\n\nvar threshold = 0.0\n\nvar data = stream\n    |from()\n        .database(db)\n        .retentionPolicy(rp)\n        .measurement(measurement)\n        .groupBy(groupBy)\n        .where(whereFilter)\n\nvar trigger = data\n    |deadman(threshold, period)\n        .stateChangesOnly()\n        .message(message)\n        .id(idVar)\n        .idTag(idTag)\n        .levelTag(levelTag)\n        .messageField(messageField)\n        .durationField(durationField)\n        .hipChat()\n        .room('asdf')\n\ntrigger\n    |eval(lambda: \"emitted\")\n        .as('value')\n        .keep('value', messageField, durationField)\n    |eval(lambda: float(\"value\"))\n        .as('value')\n        .keep()\n    |influxDBOut()\n        .create()\n        .database(outputDB)\n        .retentionPolicy(outputRP)\n        .measurement(outputMeasurement)\n        .tag('alertName', name)\n        .tag('triggerType', triggerType)\n\ntrigger\n    |httpOut('output')\n",
     query: {
       id: 'chronograf-v1-7734918d-b8b6-460d-a416-34767ba76faa',
       database: 'telegraf',
@@ -267,7 +267,7 @@ export const kapacitorRules = [
       retentionPolicy: 'autogen',
       fields: [],
       tags: {
-        host: ['Jareds-MacBook-Pro.local'],
+        host: ['Bobs-MacBook-Pro.local'],
       },
       groupBy: {
         time: '',
@@ -332,6 +332,67 @@ export const kapacitorRules = [
         '/chronograf/v1/sources/1/kapacitors/1/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-7734918d-b8b6-460d-a416-34767ba76faa',
       output:
         '/chronograf/v1/sources/1/kapacitors/1/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-7734918d-b8b6-460d-a416-34767ba76faa%2Foutput',
+    },
+  },
+  {
+    // if rule has no `query` key, it will display as a tickscript task only
+    id: 'chronograf-v1-7734918d-b8b6-460d-a416-34767ba76aac',
+    tickscript:
+      "var db = 'telegraf'\n\nvar rp = 'autogen'\n\nvar measurement = 'cpu'\n\nvar groupBy = []\n\nvar whereFilter = lambda: (\"host\" == 'Bobs-MacBook-Pro.local')\n\nvar period = 24h\n\nvar name = 'xena'\n\nvar idVar = name + ':{{.Group}}'\n\nvar message = ''\n\nvar idTag = 'alertID'\n\nvar levelTag = 'level'\n\nvar messageField = 'message'\n\nvar durationField = 'duration'\n\nvar outputDB = 'chronograf'\n\nvar outputRP = 'autogen'\n\nvar outputMeasurement = 'alerts'\n\nvar triggerType = 'deadman'\n\nvar threshold = 0.0\n\nvar data = stream\n    |from()\n        .database(db)\n        .retentionPolicy(rp)\n        .measurement(measurement)\n        .groupBy(groupBy)\n        .where(whereFilter)\n\nvar trigger = data\n    |deadman(threshold, period)\n        .stateChangesOnly()\n        .message(message)\n        .id(idVar)\n        .idTag(idTag)\n        .levelTag(levelTag)\n        .messageField(messageField)\n        .durationField(durationField)\n        .hipChat()\n        .room('asdf')\n\ntrigger\n    |eval(lambda: \"emitted\")\n        .as('value')\n        .keep('value', messageField, durationField)\n    |eval(lambda: float(\"value\"))\n        .as('value')\n        .keep()\n    |influxDBOut()\n        .create()\n        .database(outputDB)\n        .retentionPolicy(outputRP)\n        .measurement(outputMeasurement)\n        .tag('alertName', name)\n        .tag('triggerType', triggerType)\n\ntrigger\n    |httpOut('output')\n",
+    every: '',
+    alertNodes: {
+      typeOf: 'alert',
+      stateChangesOnly: true,
+      useFlapping: false,
+      post: [],
+      tcp: [],
+      email: [],
+      exec: [],
+      log: [],
+      victorOps: [],
+      pagerDuty: [],
+      pushover: [],
+      sensu: [],
+      slack: [],
+      telegram: [],
+      hipChat: [
+        {
+          room: 'asdf',
+          token: '',
+        },
+      ],
+      alerta: [],
+      opsGenie: [],
+      talk: [],
+    },
+    message: '',
+    details: '',
+    trigger: 'deadman',
+    values: {
+      period: '24h0m0s',
+      rangeValue: '',
+    },
+    name: 'pineapples',
+    type: 'stream',
+    dbrps: [
+      {
+        db: 'telegraf',
+        rp: 'autogen',
+      },
+    ],
+    status: 'enabled',
+    executing: false,
+    error: '',
+    created: '2018-01-05T15:44:54.657212781-08:00',
+    modified: '2018-03-13T17:17:19.099800735-07:00',
+    'last-enabled': '2018-03-13T17:17:15.964357573-07:00',
+    links: {
+      self:
+        '/chronograf/v1/sources/1/kapacitors/1/rules/chronograf-v1-7734918d-b8b6-460d-a416-34767ba76aac',
+      kapacitor:
+        '/chronograf/v1/sources/1/kapacitors/1/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-7734918d-b8b6-460d-a416-34767ba76aac',
+      output:
+        '/chronograf/v1/sources/1/kapacitors/1/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-7734918d-b8b6-460d-a416-34767ba76aac%2Foutput',
     },
   },
 ]
