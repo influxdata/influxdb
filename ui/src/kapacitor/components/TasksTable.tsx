@@ -56,7 +56,7 @@ const TasksTable: SFC<TasksTableProps> = ({
 )
 
 
-class TaskRow extends PureComponent<TaskRowProps> {
+export class TaskRow extends PureComponent<TaskRowProps> {
   handleClickRuleStatusEnabled(task: AlertRule) {
     return () => {
       this.props.onChangeRuleStatus(task)
