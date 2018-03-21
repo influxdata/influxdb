@@ -283,12 +283,14 @@ class TableGraph extends Component {
       hoveredRowIndex === NULL_ARRAY_INDEX
         ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
         : hoveredRowIndex
-    const fixedColumnCount = tableOptions.fixFirstColumn ? 1 : undefined
+    const fixedColumnCount =
+      tableOptions.fixFirstColumn && columnCount > 1 ? 1 : undefined
     const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
     const scrollToRow =
       !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
     const scrollToColumn =
       !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
+
     return (
       <div
         className="table-graph-container"
