@@ -135,7 +135,7 @@ class TableGraph extends Component {
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
-    const columnNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
+    const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
     const fixFirstColumn = _.get(
       tableOptions,
       'fixFirstColumn',
