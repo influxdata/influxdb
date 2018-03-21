@@ -220,6 +220,7 @@ class TableGraph extends Component {
             hoveredRowIndex={hoveredRowIndex}
             hoverTime={hoverTime}
             colors={colors}
+            classNameBottomRightGrid="table-graph--scroll-window"
           />}
       </div>
     )

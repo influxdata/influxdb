@@ -21,7 +21,7 @@
   color: $g12-forge;
   border: 1px solid $g5-pepper;
 
-  // Blue Highlight
+  // Highlight
   &:after {
     content: '';
     position: absolute;
@@ -61,7 +61,7 @@
     border-bottom: 0;
   }
   &__last-column {
-    border-right: 0;
+    // border-right: 0;
   }
   &__highlight {
     background-color: $g6-smoke;
@@ -83,25 +83,36 @@
     outline: none;
   }
   &::-webkit-scrollbar {
-    width: 0;
-
-    &-button {
-      background-color: #f00;
-    }
-    &-track {
-      background-color: #f00;
-    }
-    &-track-piece {
-      background-color: #f00;
-    }
-    &-thumb {
-      background-color: #fff;
-    }
-    &-corner {
-      background-color: #f00;
-    }
+    width: 0px;
+    height: 0px;
   }
-  &::-webkit-resizer {
-    background-color: #f00;
+  &.table-graph--scroll-window {
+    &::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+
+      &-button {
+        background-color: $g5-pepper;
+      }
+      &-track {
+        background-color: $g5-pepper;
+      }
+      &-track-piece {
+        background-color: $g5-pepper;
+        border: 2px solid $g5-pepper;
+        border-radius: 5px;
+      }
+      &-thumb {
+        background-color: $g11-sidewalk;
+        border: 2px solid $g5-pepper;
+        border-radius: 5px;
+      }
+      &-corner {
+        background-color: $g5-pepper;
+      }
+    }
+    &::-webkit-resizer {
+      background-color: $g5-pepper;
+    }
   }
 }
