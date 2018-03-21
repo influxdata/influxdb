@@ -150,17 +150,51 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
     })
   })
 
-  xdescribe('user interactions', () => {
+  describe('user interactions', () => {
     it('toggles each checkbox when clicked', () => {
       const wrapper = mount(<KapacitorRules {...props} />)
-
-      const checkboxes = wrapper.find({type: 'checkbox'})
 
       // assert each pair has the same checked value
       // assert that when either a pair is clicked, both reflect the toggle
       // assert also here that no others have changed
 
-      checkboxes.forEach
+      const findRows = table =>
+        wrapper
+          .find(table)
+          .find('tbody')
+          .children()
+          .map(elRow => {
+            const {props} = elRow.instance()
+            let id, status
+            if (props.rule) {
+              id = props.rule.id
+              status = props.rule.status
+            } else if (props.task) {
+              id = props.task.id
+              status = props.task.status
+            }
+            const elCheckbox = elRow.find({type: 'checkbox'})
+            const {checked} = elCheckbox.props()
+
+            return {
+              ruleID: id,
+              row: {
+                el: elRow,
+                status,
+              },
+              checkbox: {
+                el: elCheckbox,
+                checked,
+              },
+            }
+          })
+
+      const rulesRows = findRows(KapacitorRulesTable)
+      const tasksRows = findRows(TasksTable)
+
+      console.log(rulesRows)
+      console.log(tasksRows)
+      // checkboxes.forEach
       // const initialRulesCheckboxes = wrapper
       //   .find(KapacitorRulesTable)
       //   .find('tbody')
