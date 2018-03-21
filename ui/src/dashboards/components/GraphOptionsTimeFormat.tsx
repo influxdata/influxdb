@@ -71,7 +71,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
           items={FORMAT_OPTIONS}
           selected={showCustom ? TIME_FORMAT_CUSTOM : format}
           buttonColor="btn-default"
-          buttonSize="btn-xs"
+          buttonSize="btn-sm"
           className="dropdown-stretch"
           onChoose={this.handleChooseFormat}
         />
