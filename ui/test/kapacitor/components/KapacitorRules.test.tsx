@@ -1,5 +1,5 @@
 import React from 'react'
-import {shallow} from 'enzyme'
+import {mount, shallow} from 'enzyme'
 
 import _ from 'lodash'
 
@@ -115,6 +115,77 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
       const containsAnyDuplicate = arr => _.uniq(arr).length !== arr.length
 
       expect(containsAnyDuplicate(allCheckboxesLabelFors)).toEqual(false)
+    })
+  })
+
+  describe('user interactions', () => {
+    it('toggles each checkbox when clicked', () => {
+      const wrapper = mount(<KapacitorRules {...props} />)
+
+      const initialRulesCheckboxes = wrapper
+        .find(KapacitorRulesTable)
+        .find('tbody')
+        .children()
+        .map(child => child.find({type: 'checkbox'}))
+
+      const initialRulesEnabledIDs = []
+      const initialRulesEnabledState = []
+
+      initialRulesCheckboxes.forEach(el => {
+        const {id, checked} = el.props()
+        initialRulesEnabledIDs.push(id)
+        initialRulesEnabledState.push(checked)
+
+        const event = {target: {checked: !checked}}
+        el.simulate('change', event)
+      })
+
+      console.log(
+        'pre change  initialRulesEnabledState',
+        initialRulesEnabledState
+      )
+
+      wrapper.update()
+
+      // const cb = wrapper.find(
+      //   `#kapacitor-rule-row-task-enabled ${initialRulesEnabledIDs[0]}`
+      // )
+      //
+      // console.log(cb.props().checked)
+
+      const toggledRulesCheckboxes = wrapper
+        .find(KapacitorRulesTable)
+        .find('tbody')
+        .children()
+        .map(child => child.find({type: 'checkbox'}))
+
+      const toggledRulesEnabledState = []
+
+      toggledRulesCheckboxes.forEach((el, i) => {
+        const {checked} = el.props()
+
+        toggledRulesEnabledState.push(checked)
+        expect(checked).not.toEqual(initialRulesEnabledState[i])
+      })
+
+      expect(initialRulesEnabledState.length).toEqual(toggledRulesEnabledState.length)
+
+      //
+      // console.log(
+      //   'post change toggledRulesEnabledState',
+      //   toggledRulesEnabledState
+      // )
+
+      // const tasksCheckboxes = wrapper
+      //   .find(TasksTable)
+      //   .dive()
+      //   .find('tbody')
+      //   .children()
+      //   .map(child => child.dive().find({type: 'checkbox'}))
+      //
+      // console.log(rulesCheckboxes)
+      // console.log(tasksCheckboxes)
+      // expect(tasksCheckboxes).toEqual(true)
     })
   })
 })
