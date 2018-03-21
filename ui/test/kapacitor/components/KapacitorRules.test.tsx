@@ -116,59 +116,98 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
 
       expect(containsAnyDuplicate(allCheckboxesLabelFors)).toEqual(false)
     })
+
+    it('renders one corresponding task row for each rule row', () => {
+      const wrapper = shallow(<KapacitorRules {...props} />)
+
+      const rulesRows = wrapper
+        .find(KapacitorRulesTable)
+        .dive()
+        .find('tbody')
+        .children()
+        .map(child => ({
+          id: child.key(), // rule.id
+          el: child.dive(),
+        }))
+
+      const tasksRows = wrapper
+        .find(TasksTable)
+        .dive()
+        .find('tbody')
+        .children()
+        .map(child => ({
+          id: child.key(), // rule.id
+          el: child.dive(),
+        }))
+
+      expect(rulesRows.length).toBeLessThanOrEqual(tasksRows.length)
+
+      rulesRows.forEach(taskRow => {
+        expect(
+          tasksRows.filter(ruleRow => ruleRow.id === taskRow.id).length
+        ).toEqual(1)
+      })
+    })
   })
 
-  describe('user interactions', () => {
+  xdescribe('user interactions', () => {
     it('toggles each checkbox when clicked', () => {
       const wrapper = mount(<KapacitorRules {...props} />)
 
-      const initialRulesCheckboxes = wrapper
-        .find(KapacitorRulesTable)
-        .find('tbody')
-        .children()
-        .map(child => child.find({type: 'checkbox'}))
+      const checkboxes = wrapper.find({type: 'checkbox'})
 
-      const initialRulesEnabledIDs = []
-      const initialRulesEnabledState = []
+      // assert each pair has the same checked value
+      // assert that when either a pair is clicked, both reflect the toggle
+      // assert also here that no others have changed
 
-      initialRulesCheckboxes.forEach(el => {
-        const {id, checked} = el.props()
-        initialRulesEnabledIDs.push(id)
-        initialRulesEnabledState.push(checked)
-
-        const event = {target: {checked: !checked}}
-        el.simulate('change', event)
-      })
-
-      console.log(
-        'pre change  initialRulesEnabledState',
-        initialRulesEnabledState
-      )
-
-      wrapper.update()
-
-      // const cb = wrapper.find(
-      //   `#kapacitor-rule-row-task-enabled ${initialRulesEnabledIDs[0]}`
+      checkboxes.forEach
+      // const initialRulesCheckboxes = wrapper
+      //   .find(KapacitorRulesTable)
+      //   .find('tbody')
+      //   .children()
+      //   .map(child => child.find({type: 'checkbox'}))
+      //
+      // const initialRulesEnabledIDs = []
+      // const initialRulesEnabledState = []
+      //
+      // initialRulesCheckboxes.forEach(el => {
+      //   const {id, checked} = el.props()
+      //   initialRulesEnabledIDs.push(id)
+      //   initialRulesEnabledState.push(checked)
+      //
+      //   const event = {target: {checked: !checked}}
+      //   el.simulate('change', event)
+      // })
+      //
+      // console.log(
+      //   'pre change  initialRulesEnabledState',
+      //   initialRulesEnabledState
       // )
       //
-      // console.log(cb.props().checked)
-
-      const toggledRulesCheckboxes = wrapper
-        .find(KapacitorRulesTable)
-        .find('tbody')
-        .children()
-        .map(child => child.find({type: 'checkbox'}))
-
-      const toggledRulesEnabledState = []
-
-      toggledRulesCheckboxes.forEach((el, i) => {
-        const {checked} = el.props()
-
-        toggledRulesEnabledState.push(checked)
-        expect(checked).not.toEqual(initialRulesEnabledState[i])
-      })
-
-      expect(initialRulesEnabledState.length).toEqual(toggledRulesEnabledState.length)
+      // wrapper.update()
+      //
+      // // const cb = wrapper.find(
+      // //   `#kapacitor-rule-row-task-enabled ${initialRulesEnabledIDs[0]}`
+      // // )
+      // //
+      // // console.log(cb.props().checked)
+      //
+      // const toggledRulesCheckboxes = wrapper
+      //   .find(KapacitorRulesTable)
+      //   .find('tbody')
+      //   .children()
+      //   .map(child => child.find({type: 'checkbox'}))
+      //
+      // const toggledRulesEnabledState = []
+      //
+      // toggledRulesCheckboxes.forEach((el, i) => {
+      //   const {checked} = el.props()
+      //
+      //   toggledRulesEnabledState.push(checked)
+      //   expect(checked).not.toEqual(initialRulesEnabledState[i])
+      // })
+      //
+      // expect(initialRulesEnabledState.length).toEqual(toggledRulesEnabledState.length)
 
       //
       // console.log(
