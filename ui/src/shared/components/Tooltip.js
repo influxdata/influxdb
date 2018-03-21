@@ -2,11 +2,9 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import ReactTooltip from 'react-tooltip'
 
-const Tooltip = ({tip, children}) =>
+const Tooltip = ({tip, children}) => (
   <div>
-    <div data-tip={tip}>
-      {children}
-    </div>
+    <div data-tip={tip}>{children}</div>
     <ReactTooltip
       effect="solid"
       html={true}
@@ -14,6 +12,7 @@ const Tooltip = ({tip, children}) =>
       class="influx-tooltip"
     />
   </div>
+)
 
 const {shape, string} = PropTypes
 

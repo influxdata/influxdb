@@ -102,61 +102,61 @@ class HostsTable extends Component {
     return (
       <div className="panel">
         <div className="panel-heading">
-          <h2 className="panel-title">
-            {hostsTitle}
-          </h2>
+          <h2 className="panel-title">{hostsTitle}</h2>
           <SearchBar
             placeholder="Filter by Host..."
             onSearch={this.updateSearchTerm}
           />
         </div>
         <div className="panel-body">
-          {hostCount > 0 && !hostsError.length
-            ? <div className="hosts-table">
-                <div className="hosts-table--thead">
-                  <div className="hosts-table--tr">
-                    <div
-                      onClick={this.updateSort('name')}
-                      className={this.sortableClasses('name')}
-                      style={{width: colName}}
-                    >
-                      Host
-                    </div>
-                    <div
-                      onClick={this.updateSort('deltaUptime')}
-                      className={this.sortableClasses('deltaUptime')}
-                      style={{width: colStatus}}
-                    >
-                      Status
-                    </div>
-                    <div
-                      onClick={this.updateSort('cpu')}
-                      className={this.sortableClasses('cpu')}
-                      style={{width: colCPU}}
-                    >
-                      CPU
-                    </div>
-                    <div
-                      onClick={this.updateSort('load')}
-                      className={this.sortableClasses('load')}
-                      style={{width: colLoad}}
-                    >
-                      Load
-                    </div>
-                    <div className="hosts-table--th">Apps</div>
+          {hostCount > 0 && !hostsError.length ? (
+            <div className="hosts-table">
+              <div className="hosts-table--thead">
+                <div className="hosts-table--tr">
+                  <div
+                    onClick={this.updateSort('name')}
+                    className={this.sortableClasses('name')}
+                    style={{width: colName}}
+                  >
+                    Host
                   </div>
+                  <div
+                    onClick={this.updateSort('deltaUptime')}
+                    className={this.sortableClasses('deltaUptime')}
+                    style={{width: colStatus}}
+                  >
+                    Status
+                  </div>
+                  <div
+                    onClick={this.updateSort('cpu')}
+                    className={this.sortableClasses('cpu')}
+                    style={{width: colCPU}}
+                  >
+                    CPU
+                  </div>
+                  <div
+                    onClick={this.updateSort('load')}
+                    className={this.sortableClasses('load')}
+                    style={{width: colLoad}}
+                  >
+                    Load
+                  </div>
+                  <div className="hosts-table--th">Apps</div>
                 </div>
-                <InfiniteScroll
-                  items={sortedHosts.map(h =>
-                    <HostRow key={h.name} host={h} source={source} />
-                  )}
-                  itemHeight={26}
-                  className="hosts-table--tbody"
-                />
               </div>
-            : <div className="generic-empty-state">
-                <h4 style={{margin: '90px 0'}}>No Hosts found</h4>
-              </div>}
+              <InfiniteScroll
+                items={sortedHosts.map(h => (
+                  <HostRow key={h.name} host={h} source={source} />
+                ))}
+                itemHeight={26}
+                className="hosts-table--tbody"
+              />
+            </div>
+          ) : (
+            <div className="generic-empty-state">
+              <h4 style={{margin: '90px 0'}}>No Hosts found</h4>
+            </div>
+          )}
         </div>
       </div>
     )

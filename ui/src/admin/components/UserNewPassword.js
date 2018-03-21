@@ -22,19 +22,21 @@ class UserNewPassword extends Component {
     const {user, isNew} = this.props
     return (
       <td style={{width: `${USERS_TABLE.colPassword}px`}}>
-        {isNew
-          ? <input
-              className="form-control input-xs"
-              name="password"
-              type="password"
-              value={user.password || ''}
-              placeholder="Password"
-              onChange={this.handleEdit(user)}
-              onKeyPress={this.handleKeyPress(user)}
-              spellCheck={false}
-              autoComplete={false}
-            />
-          : '--'}
+        {isNew ? (
+          <input
+            className="form-control input-xs"
+            name="password"
+            type="password"
+            value={user.password || ''}
+            placeholder="Password"
+            onChange={this.handleEdit(user)}
+            onKeyPress={this.handleKeyPress(user)}
+            spellCheck={false}
+            autoComplete={false}
+          />
+        ) : (
+          '--'
+        )}
       </td>
     )
   }

@@ -318,27 +318,29 @@ class CellEditorOverlay extends Component {
               isDisplayOptionsTabActive={isDisplayOptionsTabActive}
               onClickDisplayOptions={this.handleClickDisplayOptionsTab}
             />
-            {isDisplayOptionsTabActive
-              ? <DisplayOptions
-                  queryConfigs={queriesWorkingDraft}
-                  onToggleStaticLegend={this.handleToggleStaticLegend}
-                  staticLegend={staticLegend}
-                  onResetFocus={this.handleResetFocus}
-                />
-              : <QueryMaker
-                  source={this.getSource()}
-                  templates={templates}
-                  queries={queriesWorkingDraft}
-                  actions={queryActions}
-                  autoRefresh={autoRefresh}
-                  timeRange={timeRange}
-                  onDeleteQuery={this.handleDeleteQuery}
-                  onAddQuery={this.handleAddQuery}
-                  activeQueryIndex={activeQueryIndex}
-                  activeQuery={this.getActiveQuery()}
-                  setActiveQueryIndex={this.handleSetActiveQueryIndex}
-                  initialGroupByTime={AUTO_GROUP_BY}
-                />}
+            {isDisplayOptionsTabActive ? (
+              <DisplayOptions
+                queryConfigs={queriesWorkingDraft}
+                onToggleStaticLegend={this.handleToggleStaticLegend}
+                staticLegend={staticLegend}
+                onResetFocus={this.handleResetFocus}
+              />
+            ) : (
+              <QueryMaker
+                source={this.getSource()}
+                templates={templates}
+                queries={queriesWorkingDraft}
+                actions={queryActions}
+                autoRefresh={autoRefresh}
+                timeRange={timeRange}
+                onDeleteQuery={this.handleDeleteQuery}
+                onAddQuery={this.handleAddQuery}
+                activeQueryIndex={activeQueryIndex}
+                activeQuery={this.getActiveQuery()}
+                setActiveQueryIndex={this.handleSetActiveQueryIndex}
+                initialGroupByTime={AUTO_GROUP_BY}
+              />
+            )}
           </CEOBottom>
         </ResizeContainer>
       </div>
@@ -346,10 +348,9 @@ class CellEditorOverlay extends Component {
   }
 }
 
-const CEOBottom = ({children}) =>
-  <div className="overlay-technology--editor">
-    {children}
-  </div>
+const CEOBottom = ({children}) => (
+  <div className="overlay-technology--editor">{children}</div>
+)
 
 const {arrayOf, func, node, number, shape, string} = PropTypes
 

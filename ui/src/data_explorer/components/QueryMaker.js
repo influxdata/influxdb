@@ -14,7 +14,7 @@ const QueryMaker = ({
   timeRange,
   activeQuery,
   initialGroupByTime,
-}) =>
+}) => (
   <div className="query-maker query-maker--panel">
     <div className="query-maker--tab-contents">
       <QueryEditor
@@ -33,6 +33,7 @@ const QueryMaker = ({
       />
     </div>
   </div>
+)
 
 const {func, shape, string} = PropTypes
 

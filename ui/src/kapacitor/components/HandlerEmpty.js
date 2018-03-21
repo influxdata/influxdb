@@ -1,7 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-const HandlerEmpty = ({onGoToConfig, validationError}) =>
+const HandlerEmpty = ({onGoToConfig, validationError}) => (
   <div className="endpoint-tab-contents">
     <div className="endpoint-tab--parameters">
       <div className="endpoint-tab--parameters--empty">
@@ -20,6 +20,7 @@ const HandlerEmpty = ({onGoToConfig, validationError}) =>
       </div>
     </div>
   </div>
+)
 
 const {string, func} = PropTypes
 

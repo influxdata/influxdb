@@ -47,11 +47,12 @@ class GaugeChart extends PureComponent {
       thisGaugeIsResizing &&
       (resizeCoords.h * DASHBOARD_LAYOUT_ROW_HEIGHT).toString()
 
-    const height = (resizeCoordsHeight ||
+    const height = (
+      resizeCoordsHeight ||
       initialCellHeight ||
       resizerTopHeight ||
-      300)
-      .toString()
+      300
+    ).toString()
 
     return (
       <div className="single-stat">

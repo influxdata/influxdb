@@ -55,21 +55,23 @@ class VisualizationName extends Component {
 
     return (
       <div className="graph-heading">
-        {isEditing
-          ? <input
-              type="text"
-              className="form-control input-sm"
-              defaultValue={name}
-              onBlur={this.handleInputBlur}
-              onKeyDown={this.handleKeyDown}
-              autoFocus={true}
-              onFocus={this.handleFocus}
-              placeholder="Name this Cell..."
-              spellCheck={false}
-            />
-          : <div className={graphNameClass} onClick={this.handleInputClick}>
-              {name}
-            </div>}
+        {isEditing ? (
+          <input
+            type="text"
+            className="form-control input-sm"
+            defaultValue={name}
+            onBlur={this.handleInputBlur}
+            onKeyDown={this.handleKeyDown}
+            autoFocus={true}
+            onFocus={this.handleFocus}
+            placeholder="Name this Cell..."
+            spellCheck={false}
+          />
+        ) : (
+          <div className={graphNameClass} onClick={this.handleInputClick}>
+            {name}
+          </div>
+        )}
       </div>
     )
   }

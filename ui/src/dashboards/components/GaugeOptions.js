@@ -173,7 +173,7 @@ class GaugeOptions extends Component {
             >
               <span className="icon plus" /> Add Threshold
             </button>
-            {gaugeColors.map(color =>
+            {gaugeColors.map(color => (
               <Threshold
                 isMin={color.value === gaugeColors[0].value}
                 isMax={
@@ -189,7 +189,7 @@ class GaugeOptions extends Component {
                 onDeleteThreshold={this.handleDeleteThreshold}
                 onSortColors={this.handleSortColors}
               />
-            )}
+            ))}
           </div>
           <div className="graph-options-group form-group-wrapper">
             <div className="form-group col-xs-6">

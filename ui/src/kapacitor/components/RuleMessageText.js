@@ -1,7 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-const RuleMessageText = ({rule, updateMessage}) =>
+const RuleMessageText = ({rule, updateMessage}) => (
   <div className="rule-builder--message">
     <textarea
       className="form-control input-sm form-malachite monotype"
@@ -11,6 +11,7 @@ const RuleMessageText = ({rule, updateMessage}) =>
       spellCheck={false}
     />
   </div>
+)
 
 const {func, shape} = PropTypes
 

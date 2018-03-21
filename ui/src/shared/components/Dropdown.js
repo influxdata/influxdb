@@ -158,44 +158,48 @@ export class Dropdown extends Component {
         ref={r => (this.dropdownRef = r)}
         data-test="dropdown-toggle"
       >
-        {useAutoComplete && isOpen
-          ? <DropdownInput
-              searchTerm={searchTerm}
-              buttonSize={buttonSize}
-              buttonColor={buttonColor}
-              toggleStyle={toggleStyle}
-              disabled={disabled}
-              onFilterChange={this.handleFilterChange}
-              onFilterKeyPress={this.handleFilterKeyPress}
-            />
-          : <DropdownHead
-              iconName={iconName}
-              selected={selected}
-              searchTerm={searchTerm}
-              buttonSize={buttonSize}
-              buttonColor={buttonColor}
-              toggleStyle={toggleStyle}
-              disabled={disabled}
-            />}
-        {isOpen && menuItems.length
-          ? <DropdownMenu
-              addNew={addNew}
-              actions={actions}
-              items={menuItems}
-              selected={selected}
-              menuClass={menuClass}
-              menuWidth={menuWidth}
-              menuLabel={menuLabel}
-              onAction={this.handleAction}
-              useAutoComplete={useAutoComplete}
-              onSelection={this.handleSelection}
-              onHighlight={this.handleHighlight}
-              highlightedItemIndex={highlightedItemIndex}
-            />
-          : <DropdownMenuEmpty
-              useAutoComplete={useAutoComplete}
-              menuClass={menuClass}
-            />}
+        {useAutoComplete && isOpen ? (
+          <DropdownInput
+            searchTerm={searchTerm}
+            buttonSize={buttonSize}
+            buttonColor={buttonColor}
+            toggleStyle={toggleStyle}
+            disabled={disabled}
+            onFilterChange={this.handleFilterChange}
+            onFilterKeyPress={this.handleFilterKeyPress}
+          />
+        ) : (
+          <DropdownHead
+            iconName={iconName}
+            selected={selected}
+            searchTerm={searchTerm}
+            buttonSize={buttonSize}
+            buttonColor={buttonColor}
+            toggleStyle={toggleStyle}
+            disabled={disabled}
+          />
+        )}
+        {isOpen && menuItems.length ? (
+          <DropdownMenu
+            addNew={addNew}
+            actions={actions}
+            items={menuItems}
+            selected={selected}
+            menuClass={menuClass}
+            menuWidth={menuWidth}
+            menuLabel={menuLabel}
+            onAction={this.handleAction}
+            useAutoComplete={useAutoComplete}
+            onSelection={this.handleSelection}
+            onHighlight={this.handleHighlight}
+            highlightedItemIndex={highlightedItemIndex}
+          />
+        ) : (
+          <DropdownMenuEmpty
+            useAutoComplete={useAutoComplete}
+            menuClass={menuClass}
+          />
+        )}
       </div>
     )
   }

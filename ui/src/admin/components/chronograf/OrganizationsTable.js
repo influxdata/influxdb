@@ -39,10 +39,9 @@ class OrganizationsTable extends Component {
     } = this.props
     const {isCreatingOrganization} = this.state
 
-    const tableTitle = `${organizations.length} Organization${organizations.length ===
-    1
-      ? ''
-      : 's'}`
+    const tableTitle = `${organizations.length} Organization${
+      organizations.length === 1 ? '' : 's'
+    }`
 
     if (!organizations.length) {
       return (
@@ -56,9 +55,7 @@ class OrganizationsTable extends Component {
     return (
       <div className="panel panel-solid">
         <div className="panel-heading">
-          <h2 className="panel-title">
-            {tableTitle}
-          </h2>
+          <h2 className="panel-title">{tableTitle}</h2>
           <button
             className="btn btn-sm btn-primary"
             onClick={this.handleClickCreateOrganization}
@@ -76,13 +73,13 @@ class OrganizationsTable extends Component {
             </div>
             <div className="fancytable--th orgs-table--delete" />
           </div>
-          {isCreatingOrganization
-            ? <OrganizationsTableRowNew
-                onCreateOrganization={this.handleCreateOrganization}
-                onCancelCreateOrganization={this.handleCancelCreateOrganization}
-              />
-            : null}
-          {organizations.map(org =>
+          {isCreatingOrganization ? (
+            <OrganizationsTableRowNew
+              onCreateOrganization={this.handleCreateOrganization}
+              onCancelCreateOrganization={this.handleCancelCreateOrganization}
+            />
+          ) : null}
+          {organizations.map(org => (
             <OrganizationsTableRow
               key={uuid.v4()}
               organization={org}
@@ -91,7 +88,7 @@ class OrganizationsTable extends Component {
               onChooseDefaultRole={onChooseDefaultRole}
               currentOrganization={currentOrganization}
             />
-          )}
+          ))}
         </div>
       </div>
     )

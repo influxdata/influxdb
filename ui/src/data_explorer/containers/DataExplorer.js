@@ -95,17 +95,17 @@ class DataExplorer extends Component {
     const selectedDatabase = _.get(queryConfigs, ['0', 'database'], null)
     return (
       <div className="data-explorer">
-        {showWriteForm
-          ? <OverlayTechnologies>
-              <WriteDataForm
-                source={source}
-                errorThrown={errorThrownAction}
-                selectedDatabase={selectedDatabase}
-                onClose={this.handleCloseWriteData}
-                writeLineProtocol={writeLineProtocol}
-              />
-            </OverlayTechnologies>
-          : null}
+        {showWriteForm ? (
+          <OverlayTechnologies>
+            <WriteDataForm
+              source={source}
+              errorThrown={errorThrownAction}
+              selectedDatabase={selectedDatabase}
+              onClose={this.handleCloseWriteData}
+              writeLineProtocol={writeLineProtocol}
+            />
+          </OverlayTechnologies>
+        ) : null}
         <Header
           timeRange={timeRange}
           autoRefresh={autoRefresh}

@@ -2,7 +2,7 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import HandlerInput from 'src/kapacitor/components/HandlerInput'
 
-const TcpHandler = ({selectedHandler, handleModifyHandler}) =>
+const TcpHandler = ({selectedHandler, handleModifyHandler}) => (
   <div className="endpoint-tab-contents">
     <div className="endpoint-tab--parameters">
       <h4>Parameters for this Alert Handler</h4>
@@ -18,6 +18,7 @@ const TcpHandler = ({selectedHandler, handleModifyHandler}) =>
       </div>
     </div>
   </div>
+)
 
 const {func, shape} = PropTypes
 

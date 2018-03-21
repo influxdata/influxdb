@@ -1,7 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-const GraphOptionsTimeAxis = ({verticalTimeAxis, onToggleVerticalTimeAxis}) =>
+const GraphOptionsTimeAxis = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
   <div className="form-group col-xs-12 col-sm-6">
     <label>Time Axis</label>
     <ul className="nav nav-tablist nav-tablist-sm">
@@ -19,6 +19,7 @@ const GraphOptionsTimeAxis = ({verticalTimeAxis, onToggleVerticalTimeAxis}) =>
       </li>
     </ul>
   </div>
+)
 
 const {bool, func} = PropTypes
 

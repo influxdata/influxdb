@@ -30,7 +30,9 @@ class AlertsApp extends Component {
       alerts: [],
       timeRange: {
         upper: moment().format(),
-        lower: moment().subtract(lowerInSec || oneDayInSec, 'seconds').format(),
+        lower: moment()
+          .subtract(lowerInSec || oneDayInSec, 'seconds')
+          .format(),
       },
       limit: props.limit || 0, // only used if AlertsApp receives a limit prop
       limitMultiplier: 1, // only used if AlertsApp receives a limit prop
@@ -118,17 +120,19 @@ class AlertsApp extends Component {
     const {source, isWidget, limit} = this.props
     const {isAlertsMaxedOut, alerts} = this.state
 
-    return this.state.hasKapacitor
-      ? <AlertsTable
-          source={source}
-          alerts={this.state.alerts}
-          shouldNotBeFilterable={isWidget}
-          limit={limit}
-          onGetMoreAlerts={this.handleGetMoreAlerts}
-          isAlertsMaxedOut={isAlertsMaxedOut}
-          alertsCount={alerts.length}
-        />
-      : <NoKapacitorError source={source} />
+    return this.state.hasKapacitor ? (
+      <AlertsTable
+        source={source}
+        alerts={this.state.alerts}
+        shouldNotBeFilterable={isWidget}
+        limit={limit}
+        onGetMoreAlerts={this.handleGetMoreAlerts}
+        isAlertsMaxedOut={isAlertsMaxedOut}
+        alertsCount={alerts.length}
+      />
+    ) : (
+      <NoKapacitorError source={source} />
+    )
   }
 
   handleApplyTime = timeRange => {
@@ -143,33 +147,33 @@ class AlertsApp extends Component {
       return <div className="page-spinner" />
     }
 
-    return isWidget
-      ? this.renderSubComponents()
-      : <div className="page alert-history-page">
-          <div className="page-header">
-            <div className="page-header__container">
-              <div className="page-header__left">
-                <h1 className="page-header__title">Alert History</h1>
-              </div>
-              <div className="page-header__right">
-                <SourceIndicator />
-                <CustomTimeRangeDropdown
-                  onApplyTimeRange={this.handleApplyTime}
-                  timeRange={timeRange}
-                />
-              </div>
+    return isWidget ? (
+      this.renderSubComponents()
+    ) : (
+      <div className="page alert-history-page">
+        <div className="page-header">
+          <div className="page-header__container">
+            <div className="page-header__left">
+              <h1 className="page-header__title">Alert History</h1>
             </div>
-          </div>
-          <div className="page-contents">
-            <div className="container-fluid">
-              <div className="row">
-                <div className="col-md-12">
-                  {this.renderSubComponents()}
-                </div>
-              </div>
+            <div className="page-header__right">
+              <SourceIndicator />
+              <CustomTimeRangeDropdown
+                onApplyTimeRange={this.handleApplyTime}
+                timeRange={timeRange}
+              />
             </div>
           </div>
         </div>
+        <div className="page-contents">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-12">{this.renderSubComponents()}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 }
 

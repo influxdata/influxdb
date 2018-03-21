@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 
 import {isUserAuthorized, VIEWER_ROLE} from 'src/auth/Authorized'
 
-const PurgatoryAuthItem = ({roleAndOrg, onClickLogin, superAdmin}) =>
+const PurgatoryAuthItem = ({roleAndOrg, onClickLogin, superAdmin}) => (
   <div
     className={
       roleAndOrg.currentOrganization
@@ -12,24 +12,23 @@ const PurgatoryAuthItem = ({roleAndOrg, onClickLogin, superAdmin}) =>
     }
   >
     <div className="auth--list-info">
-      <div className="auth--list-org">
-        {roleAndOrg.organization.name}
-      </div>
-      <div className="auth--list-role">
-        {roleAndOrg.role}
-      </div>
+      <div className="auth--list-org">{roleAndOrg.organization.name}</div>
+      <div className="auth--list-role">{roleAndOrg.role}</div>
     </div>
-    {superAdmin || isUserAuthorized(roleAndOrg.role, VIEWER_ROLE)
-      ? <button
-          className="btn btn-sm btn-primary"
-          onClick={onClickLogin(roleAndOrg.organization)}
-        >
-          Log in
-        </button>
-      : <span className="auth--list-blocked">
-          Contact your Admin<br />for access
-        </span>}
+    {superAdmin || isUserAuthorized(roleAndOrg.role, VIEWER_ROLE) ? (
+      <button
+        className="btn btn-sm btn-primary"
+        onClick={onClickLogin(roleAndOrg.organization)}
+      >
+        Log in
+      </button>
+    ) : (
+      <span className="auth--list-blocked">
+        Contact your Admin<br />for access
+      </span>
+    )}
   </div>
+)
 
 const {bool, func, shape, string} = PropTypes
 

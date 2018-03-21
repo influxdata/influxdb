@@ -65,31 +65,31 @@ class Purgatory extends Component {
         <Notifications />
         <SplashPage>
           <div className="auth--purgatory">
-            <h3>
-              {name}
-            </h3>
+            <h3>{name}</h3>
             <h6>
               {subHeading}{' '}
               <code>
                 {scheme}/{provider}
               </code>
             </h6>
-            {rolesAndOrgs.length
-              ? <div className="auth--list">
-                  {rolesAndOrgs.map((rag, i) =>
-                    <PurgatoryAuthItem
-                      key={i}
-                      roleAndOrg={rag}
-                      superAdmin={superAdmin}
-                      onClickLogin={handleClickLogin({
-                        router,
-                        links,
-                        meChangeOrganization,
-                      })}
-                    />
-                  )}
-                </div>
-              : <p>You are a Lost Soul</p>}
+            {rolesAndOrgs.length ? (
+              <div className="auth--list">
+                {rolesAndOrgs.map((rag, i) => (
+                  <PurgatoryAuthItem
+                    key={i}
+                    roleAndOrg={rag}
+                    superAdmin={superAdmin}
+                    onClickLogin={handleClickLogin({
+                      router,
+                      links,
+                      meChangeOrganization,
+                    })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p>You are a Lost Soul</p>
+            )}
             <a href={logoutLink} className="btn btn-sm btn-link auth--logout">
               Log out
             </a>
