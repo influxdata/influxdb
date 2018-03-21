@@ -46,12 +46,16 @@ export const stringifyColorValues = colors => {
   return colors.map(color => ({...color, value: `${color.value}`}))
 }
 
-export const generateThresholdsListHexs = (
+export const generateThresholdsListHexs = ({
   colors,
   lastValue,
-  containsLineGraph
-) => {
-  const defaultColoring = {bgColor: null, textColor: THRESHOLD_COLORS[11].hex}
+  containsLineGraph,
+  cellType,
+}) => {
+  const defaultColoring = {
+    bgColor: null,
+    textColor: cellType === 'table' ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
+  }
   const lastValueNumber = Number(lastValue) || 0
 
   if (!colors.length || !lastValue) {

@@ -180,10 +180,11 @@ class TableGraph extends Component {
     let cellStyle = style
 
     if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
-      const {bgColor, textColor} = generateThresholdsListHexs(
+      const {bgColor, textColor} = generateThresholdsListHexs({
         colors,
-        data[rowIndex][columnIndex]
-      )
+        lastValue: data[rowIndex][columnIndex],
+        cellType: 'table',
+      })
 
       cellStyle = {
         ...style,
