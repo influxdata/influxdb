@@ -33,11 +33,11 @@ class SingleStat extends PureComponent {
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
 
-    const {bgColor, textColor} = generateThresholdsListHexs(
+    const {bgColor, textColor} = generateThresholdsListHexs({
       colors,
       lastValue,
-      lineGraph
-    )
+      containsLineGraph: lineGraph,
+    })
 
     const backgroundColor = bgColor
     const color = textColor
