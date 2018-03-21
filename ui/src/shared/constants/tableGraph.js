@@ -12,6 +12,8 @@ export const TIME_FIELD_DEFAULT = {
   visible: true,
 }
 
+export const ASCENDING = 'asc'
+export const DESCENDING = 'desc'
 export const FIX_FIRST_COLUMN_DEFAULT = true
 
 export const FORMAT_OPTIONS = [

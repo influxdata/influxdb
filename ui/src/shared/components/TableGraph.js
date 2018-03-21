@@ -14,8 +14,12 @@ import {
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
   TIME_FIELD_DEFAULT,
+  ASCENDING,
+  DESCENDING,
   FIX_FIRST_COLUMN_DEFAULT,
 } from 'src/shared/constants/tableGraph'
+const DEFAULT_SORT = ASCENDING
+
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
 const filterInvisibleRows = (data, fieldNames) => {
@@ -51,13 +55,19 @@ class TableGraph extends Component {
       visibleData: [[]],
       hoveredColumnIndex: NULL_COLUMN_INDEX,
       hoveredRowIndex: NULL_ROW_INDEX,
-      sortByColumnIndex: -1,
-      invisibleFieldIndices: [],
+      sortByColumnIndex: NULL_COLUMN_INDEX,
+      clickToSortFieldIndex: NULL_COLUMN_INDEX,
+      clicktoSortDirection: DEFAULT_SORT,
     }
   }
 
   componentWillReceiveProps(nextProps) {
-    const {labels, data, unzippedData} = timeSeriesToTableGraph(nextProps.data)
+    const {labels, data} = timeSeriesToTableGraph(nextProps.data)
+    const {
+      clickToSortFieldIndex,
+      clicktoSortDirection,
+      sortByColumnIndex,
+    } = this.state
     const {
       tableOptions: {sortBy: {internalName}, fieldNames, verticalTimeAxis},
       setDataLabels,
@@ -67,22 +77,45 @@ class TableGraph extends Component {
         setDataLabels(labels)
       }
 
-      const sortByColumnIndex = _.indexOf(data[0], internalName)
+      if (
+        sortByColumnIndex === NULL_COLUMN_INDEX ||
+        _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
+          internalName
+      ) {
+        const newSortByColumnIndex = _.indexOf(data[0], internalName)
+        const sortedData = [
+          data[0],
+          ..._.orderBy(_.drop(data, 1), newSortByColumnIndex, [DEFAULT_SORT]),
+        ]
 
+        const visibleData = verticalTimeAxis
+          ? filterInvisibleColumns(sortedData, fieldNames)
+          : filterInvisibleRows(sortedData, fieldNames)
+
+        this.setState({
+          data: sortedData,
+          visibleData,
+          unzippedData: _.unzip(sortedData),
+          sortByColumnIndex: newSortByColumnIndex,
+          clickToSortFieldIndex: NULL_COLUMN_INDEX,
+          clicktoSortDirection: DEFAULT_SORT,
+        })
+        return
+      }
+      const clicked = clickToSortFieldIndex !== NULL_COLUMN_INDEX
+      const sortIndex = clicked ? clickToSortFieldIndex : sortByColumnIndex
+      const direction = clicked ? clicktoSortDirection : DEFAULT_SORT
       const sortedData = [
         data[0],
-        ..._.sortBy(_.drop(data, 1), sortByColumnIndex),
+        ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
       ]
-
       const visibleData = verticalTimeAxis
         ? filterInvisibleColumns(sortedData, fieldNames)
         : filterInvisibleRows(sortedData, fieldNames)
-
       this.setState({
         data: sortedData,
         visibleData,
-        unzippedData,
-        sortByColumnIndex,
+        unzippedData: _.unzip(sortedData),
       })
     }
   }
@@ -124,14 +157,44 @@ class TableGraph extends Component {
     }
   }
 
-  cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
-    const {colors, tableOptions} = this.props
+  handleClickFieldName = (columnIndex, rowIndex) => () => {
+    const {tableOptions} = this.props
+    const {clickToSortFieldIndex, clicktoSortDirection, data} = this.state
+    const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
+    const newIndex = verticalTimeAxis ? columnIndex : rowIndex
+
+    if (clickToSortFieldIndex === newIndex) {
+      const direction =
+        clicktoSortDirection === ASCENDING ? DESCENDING : ASCENDING
+      const sortedData = [
+        data[0],
+        ..._.orderBy(_.drop(data, 1), clickToSortFieldIndex, [direction]),
+      ]
+      this.setState({
+        data: sortedData,
+        unzippedData: _.unzip(sortedData),
+        clicktoSortDirection: direction,
+      })
+      return
+    }
+
+    const sortedData = [
+      data[0],
+      ..._.orderBy(_.drop(data, 1), clickToSortFieldIndex, [DEFAULT_SORT]),
+    ]
+    this.setState({
+      data: sortedData,
+      unzippedData: _.unzip(sortedData),
+      clickToSortFieldIndex: newIndex,
+      clicktoSortDirection: DEFAULT_SORT,
+    })
+  }
+
+  cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
     const {hoveredColumnIndex, hoveredRowIndex} = this.state
-
-    const data = _.get(tableOptions, 'verticalTimeAxis', true)
-      ? this.state.data
-      : this.state.unzippedData
-
+    const {tableOptions, colors} = this.props
+    const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
+    const data = verticalTimeAxis ? this.state.data : this.state.unzippedData
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
@@ -150,9 +213,9 @@ class TableGraph extends Component {
     const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
     const isTimeData =
       timeField.visible &&
-      (tableOptions.verticalTimeAxis
-        ? rowIndex > 0 && columnIndex === 0
-        : isFixedRow)
+      (verticalTimeAxis ? rowIndex > 0 && columnIndex === 0 : isFixedRow)
+    const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
+
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const isLastRow = rowIndex === rowCount - 1
     const isLastColumn = columnIndex === columnCount - 1
@@ -186,6 +249,7 @@ class TableGraph extends Component {
       'table-graph-cell__last-column': isLastColumn,
       'table-graph-cell__highlight': isHighlighted,
       'table-graph-cell__numerical': dataIsNumerical,
+      'table-graph-cell__isFieldName': isFieldName,
     })
 
     const cellData = data[rowIndex][columnIndex]
@@ -199,6 +263,9 @@ class TableGraph extends Component {
         key={key}
         style={cellStyle}
         className={cellClass}
+        onClick={
+          isFieldName ? this.handleClickFieldName(columnIndex, rowIndex) : null
+        }
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
       >
         {isTimeData
@@ -209,9 +276,14 @@ class TableGraph extends Component {
   }
 
   render() {
-    const {sortByColumnIndex, hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {
+      sortByColumnIndex,
+      clickToSortFieldIndex,
+      clicktoSortDirection,
+      hoveredColumnIndex,
+      hoveredRowIndex,
+    } = this.state
     const {hoverTime, tableOptions, colors} = this.props
-
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
 
     const data = verticalTimeAxis
@@ -222,8 +294,8 @@ class TableGraph extends Component {
     const rowCount = data.length
     const COLUMN_WIDTH = 300
     const ROW_HEIGHT = 30
-    const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
-    const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
+    const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
+    const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
     const hoverTimeIndex =
       hoveredRowIndex === NULL_ROW_INDEX
         ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
@@ -263,6 +335,8 @@ class TableGraph extends Component {
             scrollToColumn={scrollToColumn}
             verticalTimeAxis={verticalTimeAxis}
             sortByColumnIndex={sortByColumnIndex}
+            clickToSortFieldIndex={clickToSortFieldIndex}
+            clicktoSortDirection={clicktoSortDirection}
             cellRenderer={this.cellRenderer}
             hoveredColumnIndex={hoveredColumnIndex}
             hoveredRowIndex={hoveredRowIndex}

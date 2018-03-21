@@ -54,6 +54,7 @@ const defaultProps = {
     fieldNames: [],
     fixFirstColumn: true,
   },
+  dataLabels: [],
   onResetFocus: () => {},
 }
 
@@ -70,68 +71,11 @@ const setup = (override = {}) => {
 
 describe('Dashboards.Components.TableOptions', () => {
   describe('getters', () => {
-    describe('computedColumnNames', () => {
-      it('returns the correct column names', () => {
-        const instance = new TableOptions(defaultProps)
-
-        const expected = [
-          {
-            displayName: '',
-            internalName: 'time',
-            visible: true,
-          },
-          {
-            displayName: '',
-            internalName: 'dev.boom',
-            visible: true,
-          },
-          {
-            displayName: '',
-            internalName: 'dev.again',
-            visible: true,
-          },
-          {
-            displayName: '',
-            internalName: 'prod.boom',
-            visible: true,
-          },
-          {
-            displayName: '',
-            internalName: 'prod.again',
-            visible: true,
-          },
-        ]
-
-        expect(instance.computedFieldNames).toEqual(expected)
-      })
-    })
+    describe('computedColumnNames', () => {})
   })
 
   describe('rendering', () => {
     it('should render all components', () => {
-      const queryConfigs = [
-        {
-          measurement: 'dev',
-          fields: [
-            {
-              alias: 'boom',
-              value: 'test',
-            },
-          ],
-        },
-      ]
-
-      const expectedSortOptions = [
-        {
-          key: 'time',
-          text: 'time',
-        },
-        {
-          key: 'dev.boom',
-          text: 'dev.boom',
-        },
-      ]
-
       const {wrapper} = setup({queryConfigs})
       const fancyScrollbar = wrapper.find(FancyScrollbar)
       const graphOptionsTimeFormat = wrapper.find(GraphOptionsTimeFormat)
@@ -146,10 +90,6 @@ describe('Dashboards.Components.TableOptions', () => {
       )
       const thresholdsList = wrapper.find(ThresholdsList)
       const thresholdsListTypeToggle = wrapper.find(ThresholdsListTypeToggle)
-
-      expect(graphOptionsSortBy.props().sortByOptions).toEqual(
-        expectedSortOptions
-      )
 
       expect(fancyScrollbar.exists()).toBe(true)
       expect(graphOptionsTimeFormat.exists()).toBe(true)

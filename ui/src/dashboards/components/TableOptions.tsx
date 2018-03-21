@@ -2,8 +2,6 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import _ from 'lodash'
-
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
@@ -85,7 +83,7 @@ export class TableOptions extends PureComponent<Props, {}> {
   handleChooseSortBy = option => {
     const {tableOptions, handleUpdateTableOptions} = this.props
     const sortBy = {
-      displayName: option.text,
+      displayName: option.text === option.key ? '' : option.text,
       internalName: option.key,
       visible: true,
     }
@@ -113,11 +111,19 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   handleFieldUpdate = field => {
     const {handleUpdateTableOptions, tableOptions} = this.props
-    const {fieldNames} = tableOptions
+    const {fieldNames, sortBy} = tableOptions
     const updatedFields = fieldNames.map(
       f => (f.internalName === field.internalName ? field : f)
     )
-    handleUpdateTableOptions({...tableOptions, fieldNames: updatedFields})
+    const updatedSortBy =
+      sortBy.internalName === field.internalName
+        ? {...sortBy, displayName: field.displayName}
+        : sortBy
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: updatedFields,
+      sortBy: updatedSortBy,
+    })
   }
 
   render() {
@@ -125,12 +131,11 @@ export class TableOptions extends PureComponent<Props, {}> {
       tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
       onResetFocus,
       tableOptions,
-      dataLabels,
     } = this.props
 
-    const tableSortByOptions = this.computedFieldNames.map(col => ({
-      text: col.displayName || col.internalName,
-      key: col.internalName,
+    const tableSortByOptions = this.computedFieldNames.map(field => ({
+      text: field.displayName || field.internalName,
+      key: field.internalName,
     }))
 
     return (

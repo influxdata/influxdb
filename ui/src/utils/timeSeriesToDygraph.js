@@ -178,11 +178,9 @@ export const timeSeriesToTableGraph = raw => {
 
   const tableData = map(sortedTimeSeries, ({time, values}) => [time, ...values])
   const data = tableData.length ? [labels, ...tableData] : [[]]
-  const unzippedData = _.unzip(data)
   return {
     labels,
     data,
-    unzippedData,
   }
 }
 
