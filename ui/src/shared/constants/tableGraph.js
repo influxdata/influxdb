@@ -10,6 +10,7 @@ export const TIME_COLUMN_DEFAULT = {internalName: 'time', displayName: ''}
 
 export const ASCENDING = 'asc'
 export const DESCENDING = 'desc'
+export const FIX_FIRST_COLUMN_DEFAULT = true
 
 export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_DEFAULT},
@@ -29,4 +30,5 @@ export const DEFAULT_TABLE_OPTIONS = {
   sortBy: TIME_COLUMN_DEFAULT,
   wrapping: 'truncate',
   columnNames: [TIME_COLUMN_DEFAULT],
+  fixFirstColumn: FIX_FIRST_COLUMN_DEFAULT,
 }

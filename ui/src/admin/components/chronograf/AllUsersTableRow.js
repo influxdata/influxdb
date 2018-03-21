@@ -83,7 +83,8 @@ const AllUsersTableRow = ({
           confirmText={removeWarning}
           confirmAction={wrappedDelete}
           size="btn-xs"
-          text="Remove"
+          type="btn-danger"
+          text="Delete"
           customClass="table--show-on-row-hover"
         />
       </td>

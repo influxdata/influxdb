@@ -83,12 +83,14 @@ class ProvidersTableRowNew extends PureComponent<Props, State> {
 
     return (
       <div className="fancytable--row">
-        <Dropdown
-          items={schemes}
-          onChoose={this.handleChooseScheme}
-          selected={scheme}
-          className={'fancytable--td provider--scheme'}
-        />
+        <div className="fancytable--td provider--scheme">
+          <Dropdown
+            items={schemes}
+            onChoose={this.handleChooseScheme}
+            selected={scheme}
+            className="dropdown-stretch"
+          />
+        </div>
         <InputClickToEdit
           value={provider}
           wrapperClass="fancytable--td provider--provider"

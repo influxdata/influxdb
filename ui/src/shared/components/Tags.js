@@ -27,19 +27,18 @@ class Tag extends Component {
   render() {
     const {item} = this.props
     return (
-      <span key={item} className="input-tag-item">
+      <span key={item} className="input-tag--item">
         <span>
           {item.text || item.name || item}
         </span>
-        {
-          <ConfirmButton
-            icon="remove"
-            size="btn-xs"
-            customClass="btn-xxs"
-            confirmText="Remove user from organization?"
-            confirmAction={this.handleClickDelete(item)}
-          />
-        }
+        <ConfirmButton
+          icon="remove"
+          size="btn-xs"
+          customClass="input-tag--remove"
+          square={true}
+          confirmText="Remove user from organization?"
+          confirmAction={this.handleClickDelete(item)}
+        />
       </span>
     )
   }

@@ -146,7 +146,6 @@ export class Dropdown extends Component {
 
     const {isOpen, searchTerm, filteredItems, highlightedItemIndex} = this.state
     const menuItems = useAutoComplete ? filteredItems : items
-    const disabledClass = disabled ? 'disabled' : null
 
     return (
       <div
@@ -165,7 +164,7 @@ export class Dropdown extends Component {
               buttonSize={buttonSize}
               buttonColor={buttonColor}
               toggleStyle={toggleStyle}
-              disabledClass={disabledClass}
+              disabled={disabled}
               onFilterChange={this.handleFilterChange}
               onFilterKeyPress={this.handleFilterKeyPress}
             />
@@ -176,7 +175,7 @@ export class Dropdown extends Component {
               buttonSize={buttonSize}
               buttonColor={buttonColor}
               toggleStyle={toggleStyle}
-              disabledClass={disabledClass}
+              disabled={disabled}
             />}
         {isOpen && menuItems.length
           ? <DropdownMenu

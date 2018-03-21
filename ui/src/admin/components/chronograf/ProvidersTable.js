@@ -80,7 +80,6 @@ class ProvidersTable extends Component {
                 <div className="fancytable--th provider--redirect">
                   Organization
                 </div>
-                <div className="fancytable--th" />
                 <div className="fancytable--th provider--delete" />
               </div>
               {mappings.map((mapping, i) =>
