@@ -5,6 +5,11 @@ import (
 	"net/url"
 )
 
+type getIFQLLinksResponse struct {
+	Self        string `json:"self"`
+	Suggestions string `json:"suggestions"`
+}
+
 type getConfigLinksResponse struct {
 	Self string `json:"self"` // Location of the whole global application configuration
 	Auth string `json:"auth"` // Location of the auth section of the global application configuration
