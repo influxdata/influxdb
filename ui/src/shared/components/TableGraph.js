@@ -148,16 +148,20 @@ class TableGraph extends Component {
     const columnName =
       foundColumn && (foundColumn.displayName || foundColumn.internalName)
 
+    const cellContents = isTimeData
+      ? `${moment(cellData).format(timeFormat)}`
+      : columnName || `${cellData}`
+
     return (
       <div
         key={key}
         style={cellStyle}
         className={cellClass}
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
+        title={cellContents}
+        alt={cellContents}
       >
-        {isTimeData
-          ? `${moment(cellData).format(timeFormat)}`
-          : columnName || `${cellData}`}
+        {cellContents}
       </div>
     )
   }
