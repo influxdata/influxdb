@@ -32,14 +32,6 @@ type Options = {
   fixFirstColumn: boolean
 }
 
-interface QueryConfig {
-  measurement: string
-  fields: {
-    alias: string
-    value: string
-  }[]
-}
-
 interface Props {
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
