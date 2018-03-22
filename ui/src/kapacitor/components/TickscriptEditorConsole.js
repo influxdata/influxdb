@@ -15,9 +15,7 @@ const TickscriptEditorConsole = ({consoleMessage, unsavedChanges}) => {
 
   return (
     <div className="tickscript-console">
-      <p className={consoleClass}>
-        {consoleOutput}
-      </p>
+      <p className={consoleClass}>{consoleOutput}</p>
     </div>
   )
 }

@@ -14,19 +14,21 @@ import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 
 const OrganizationsTableRowDeleteButton = ({organization, onClickDelete}) =>
-  organization.id === DEFAULT_ORG_ID
-    ? <button
-        className="btn btn-sm btn-default btn-square orgs-table--delete"
-        disabled={true}
-      >
-        <span className="icon trash" />
-      </button>
-    : <button
-        className="btn btn-sm btn-default btn-square"
-        onClick={onClickDelete}
-      >
-        <span className="icon trash" />
-      </button>
+  organization.id === DEFAULT_ORG_ID ? (
+    <button
+      className="btn btn-sm btn-default btn-square orgs-table--delete"
+      disabled={true}
+    >
+      <span className="icon trash" />
+    </button>
+  ) : (
+    <button
+      className="btn btn-sm btn-default btn-square"
+      onClick={onClickDelete}
+    >
+      <span className="icon trash" />
+    </button>
+  )
 
 class OrganizationsTableRow extends Component {
   constructor(props) {
@@ -81,16 +83,18 @@ class OrganizationsTableRow extends Component {
     return (
       <div className="fancytable--row">
         <div className="fancytable--td orgs-table--active">
-          {organization.id === currentOrganization.id
-            ? <button className="btn btn-sm btn-success">
-                <span className="icon checkmark" /> Current
-              </button>
-            : <button
-                className="btn btn-sm btn-default"
-                onClick={this.handleChangeCurrentOrganization}
-              >
-                <span className="icon shuffle" /> Switch to
-              </button>}
+          {organization.id === currentOrganization.id ? (
+            <button className="btn btn-sm btn-success">
+              <span className="icon checkmark" /> Current
+            </button>
+          ) : (
+            <button
+              className="btn btn-sm btn-default"
+              onClick={this.handleChangeCurrentOrganization}
+            >
+              <span className="icon shuffle" /> Switch to
+            </button>
+          )}
         </div>
         <InputClickToEdit
           value={organization.name}
@@ -105,19 +109,21 @@ class OrganizationsTableRow extends Component {
             className="dropdown-stretch"
           />
         </div>
-        {isDeleting
-          ? <ConfirmButtons
-              item={organization}
-              onCancel={this.handleDismissDeleteConfirmation}
-              onConfirm={this.handleDeleteOrg}
-              onClickOutside={this.handleDismissDeleteConfirmation}
-              confirmLeft={true}
-              confirmTitle="Delete"
-            />
-          : <OrganizationsTableRowDeleteButton
-              organization={organization}
-              onClickDelete={this.handleDeleteClick}
-            />}
+        {isDeleting ? (
+          <ConfirmButtons
+            item={organization}
+            onCancel={this.handleDismissDeleteConfirmation}
+            onConfirm={this.handleDeleteOrg}
+            onClickOutside={this.handleDismissDeleteConfirmation}
+            confirmLeft={true}
+            confirmTitle="Delete"
+          />
+        ) : (
+          <OrganizationsTableRowDeleteButton
+            organization={organization}
+            onClickDelete={this.handleDeleteClick}
+          />
+        )}
       </div>
     )
   }

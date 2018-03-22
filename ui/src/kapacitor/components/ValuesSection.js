@@ -35,7 +35,7 @@ const ValuesSection = ({
   queryConfigActions,
   onRuleTypeInputChange,
   onRuleTypeDropdownChange,
-}) =>
+}) => (
   <div className="rule-section">
     <h3 className="rule-section--heading">Alert Type</h3>
     <div className="rule-section--body">
@@ -44,11 +44,11 @@ const ValuesSection = ({
         onSelect={handleChooseTrigger(rule, onChooseTrigger)}
       >
         <TabList isKapacitorTabs="true">
-          {TABS.map(tab =>
+          {TABS.map(tab => (
             <Tab key={tab} isKapacitorTab={true}>
               {tab}
             </Tab>
-          )}
+          ))}
         </TabList>
         <div>
           <h3 className="rule-section--sub-heading">Time Series</h3>
@@ -83,18 +83,19 @@ const ValuesSection = ({
             <Deadman rule={rule} onChange={onDeadmanChange} />
           </TabPanel>
         </TabPanels>
-        {isDeadman(rule)
-          ? null
-          : <RuleGraph
-              rule={rule}
-              query={query}
-              source={source}
-              timeRange={timeRange}
-              onChooseTimeRange={onChooseTimeRange}
-            />}
+        {isDeadman(rule) ? null : (
+          <RuleGraph
+            rule={rule}
+            query={query}
+            source={source}
+            timeRange={timeRange}
+            onChooseTimeRange={onChooseTimeRange}
+          />
+        )}
       </Tabs>
     </div>
   </div>
+)
 
 const {shape, string, func} = PropTypes
 

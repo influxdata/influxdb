@@ -1,20 +1,17 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-const LogItemSession = ({logItem}) =>
+const LogItemSession = ({logItem}) => (
   <div className="logs-table--row">
     <div className="logs-table--divider">
       <div className={`logs-table--level ${logItem.lvl}`} />
-      <div className="logs-table--timestamp">
-        {logItem.ts}
-      </div>
+      <div className="logs-table--timestamp">{logItem.ts}</div>
     </div>
     <div className="logs-table--details">
-      <div className="logs-table--session">
-        {logItem.msg}
-      </div>
+      <div className="logs-table--session">{logItem.msg}</div>
     </div>
   </div>
+)
 
 const {shape, string} = PropTypes
 

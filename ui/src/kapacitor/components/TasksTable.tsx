@@ -55,21 +55,20 @@ const TasksTable: SFC<TasksTableProps> = ({
   </table>
 )
 
-
 export class TaskRow extends PureComponent<TaskRowProps> {
-  handleClickRuleStatusEnabled(task: AlertRule) {
+  public handleClickRuleStatusEnabled(task: AlertRule) {
     return () => {
       this.props.onChangeRuleStatus(task)
     }
   }
 
-  handleDelete(task: AlertRule) {
+  public handleDelete(task: AlertRule) {
     return () => {
       this.props.onDelete(task)
     }
   }
 
-  render() {
+  public render() {
     const {task, source} = this.props
 
     return (

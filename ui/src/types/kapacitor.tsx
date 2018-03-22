@@ -37,7 +37,7 @@ export interface AlertRule {
 type TICKScript = string
 
 // AlertNodes defines all possible kapacitor interactions with an alert.
-type AlertNodes = {
+interface AlertNodes {
   stateChangesOnly: boolean
   useFlapping: boolean
   post: Post[]
@@ -57,23 +57,23 @@ type AlertNodes = {
   talk: Talk[]
 }
 
-type Headers = {
+interface Headers {
   [key: string]: string
 }
 
 // Post will POST alerts to a destination URL
-type Post = {
+interface Post {
   url: string
   headers: Headers
 }
 
 // Log sends the output of the alert to a file
-type Log = {
+interface Log {
   filePath: string
 }
 
 // Alerta sends the output of the alert to an alerta service
-type Alerta = {
+interface Alerta {
   token: string
   resource: string
   event: string
@@ -85,44 +85,44 @@ type Alerta = {
 }
 
 // Exec executes a shell command on an alert
-type Exec = {
+interface Exec {
   command: string[]
 }
 
 // TCP sends the alert to the address
-type TCP = {
+interface TCP {
   address: string
 }
 
 // Email sends the alert to a list of email addresses
-type Email = {
+interface Email {
   to: string[]
 }
 
 // VictorOps sends alerts to the victorops.com service
-type VictorOps = {
+interface VictorOps {
   routingKey: string
 }
 
 // PagerDuty sends alerts to the pagerduty.com service
-type PagerDuty = {
+interface PagerDuty {
   serviceKey: string
 }
 
 // HipChat sends alerts to stride.com
-type HipChat = {
+interface HipChat {
   room: string
   token: string
 }
 
 // Sensu sends alerts to sensu or sensuapp.org
-type Sensu = {
+interface Sensu {
   source: string
   handlers: string[]
 }
 
 // Pushover sends alerts to pushover.net
-type Pushover = {
+interface Pushover {
   // UserKey is the User/Group key of your user (or you), viewable when logged
   // into the Pushover dashboard. Often referred to as USER_KEY
   // in the Pushover documentation.
@@ -148,14 +148,14 @@ type Pushover = {
 }
 
 // Slack sends alerts to a slack.com channel
-type Slack = {
+interface Slack {
   channel: string
   username: string
   iconEmoji: string
 }
 
 // Telegram sends alerts to telegram.org
-type Telegram = {
+interface Telegram {
   chatId: string
   parseMode: string
   disableWebPagePreview: boolean
@@ -163,16 +163,16 @@ type Telegram = {
 }
 
 // OpsGenie sends alerts to opsgenie.com
-type OpsGenie = {
+interface OpsGenie {
   teams: string[]
   recipients: string[]
 }
 
 // Talk sends alerts to Jane Talk (https://jianliao.com/site)
-type Talk = {}
+interface Talk {}
 
 // TriggerValues specifies the alerting logic for a specific trigger type
-type TriggerValues = {
+interface TriggerValues {
   change?: string
   period?: string
   shift?: string
@@ -182,7 +182,7 @@ type TriggerValues = {
 }
 
 // DBRP represents a database and retention policy for a time series source
-type DBRP = {
+interface DBRP {
   db: string
   rp: string
 }

@@ -26,7 +26,7 @@ const SchemaExplorer = ({
     applyFuncsToField,
     toggleTagAcceptance,
   },
-}) =>
+}) => (
   <div className="query-builder">
     <DatabaseList
       query={query}
@@ -56,6 +56,7 @@ const SchemaExplorer = ({
       applyFuncsToField={actionBinder(id, applyFuncsToField)}
     />
   </div>
+)
 
 const {func, shape, string} = PropTypes
 

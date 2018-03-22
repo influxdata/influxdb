@@ -196,9 +196,11 @@ export const NOTIFY_CHRONOGRAF_ORG_DELETED = orgName => ({
 
 export const NOTIFY_CHRONOGRAF_USER_DELETED = (user, isAbsoluteDelete) => ({
   ...defaultSuccessNotification,
-  message: `${user} has been removed from ${isAbsoluteDelete
-    ? 'all organizations and deleted.'
-    : 'the current organization.'}`,
+  message: `${user} has been removed from ${
+    isAbsoluteDelete
+      ? 'all organizations and deleted.'
+      : 'the current organization.'
+  }`,
 })
 
 export const NOTIFY_CHRONOGRAF_USER_MISSING_NAME_AND_PROVIDER = {
@@ -468,9 +470,9 @@ export const NOTIFY_TEST_ALERT_SENT = endpoint => ({
 
 export const NOTIFY_TEST_ALERT_FAILED = (endpoint, errorMessage) => ({
   ...defaultErrorNotification,
-  message: `There was an error sending a Test Alert to ${endpoint}${errorMessage
-    ? `: ${errorMessage}`
-    : '.'}`,
+  message: `There was an error sending a Test Alert to ${endpoint}${
+    errorMessage ? `: ${errorMessage}` : '.'
+  }`,
 })
 
 export const NOTIFY_KAPACITOR_CONNECTION_FAILED = {

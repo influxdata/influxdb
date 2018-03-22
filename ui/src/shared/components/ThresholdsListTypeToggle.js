@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -24,17 +25,17 @@ class ThresholdsListTypeToggle extends Component {
         <label>Threshold Coloring</label>
         <ul className="nav nav-tablist nav-tablist-sm">
           <li
-            className={`${thresholdsListType === THRESHOLD_TYPE_BG
-              ? 'active'
-              : ''}`}
+            className={`${
+              thresholdsListType === THRESHOLD_TYPE_BG ? 'active' : ''
+            }`}
             onClick={this.handleToggleThresholdsListType(THRESHOLD_TYPE_BG)}
           >
             Background
           </li>
           <li
-            className={`${thresholdsListType === THRESHOLD_TYPE_TEXT
-              ? 'active'
-              : ''}`}
+            className={`${
+              thresholdsListType === THRESHOLD_TYPE_TEXT ? 'active' : ''
+            }`}
             onClick={this.handleToggleThresholdsListType(THRESHOLD_TYPE_TEXT)}
           >
             Text

@@ -79,7 +79,8 @@ $table--highlight-color: $g4-onyx;
 .table.table-highlight > tbody > tr:hover {background-color: $table--highlight-color;}
 
 .table > tbody > tr .table--show-on-row-hover {visibility: hidden;}
-.table > tbody > tr:hover .table--show-on-row-hover {visibility: visible;}
+.table > tbody > tr:hover .table--show-on-row-hover,
+.table > tbody > tr .table--show-on-row-hover.active {visibility: visible;}
 
 
 // For use in a Status column

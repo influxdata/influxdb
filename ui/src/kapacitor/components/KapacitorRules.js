@@ -38,21 +38,18 @@ const KapacitorRules = ({
 
   const builderRules = rules.filter(r => r.query)
 
-  const builderHeader = `${builderRules.length} Alert Rule${builderRules.length ===
-  1
-    ? ''
-    : 's'}`
-  const scriptsHeader = `${rules.length} TICKscript${rules.length === 1
-    ? ''
-    : 's'}`
+  const builderHeader = `${builderRules.length} Alert Rule${
+    builderRules.length === 1 ? '' : 's'
+  }`
+  const scriptsHeader = `${rules.length} TICKscript${
+    rules.length === 1 ? '' : 's'
+  }`
 
   return (
     <div>
       <div className="panel">
         <div className="panel-heading">
-          <h2 className="panel-title">
-            {builderHeader}
-          </h2>
+          <h2 className="panel-title">{builderHeader}</h2>
           <Link
             to={`/sources/${source.id}/alert-rules/new`}
             className="btn btn-sm btn-primary"
@@ -72,9 +69,7 @@ const KapacitorRules = ({
       </div>
       <div className="panel">
         <div className="panel-heading">
-          <h2 className="panel-title">
-            {scriptsHeader}
-          </h2>
+          <h2 className="panel-title">{scriptsHeader}</h2>
           <Link
             to={`/sources/${source.id}/tickscript/new`}
             className="btn btn-sm btn-success"

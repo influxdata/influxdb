@@ -63,7 +63,7 @@ class KapacitorRulesPage extends Component {
   }
 }
 
-const PageContents = ({children}) =>
+const PageContents = ({children}) => (
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
@@ -82,13 +82,12 @@ const PageContents = ({children}) =>
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
-          <div className="col-md-12">
-            {children}
-          </div>
+          <div className="col-md-12">{children}</div>
         </div>
       </div>
     </FancyScrollbar>
   </div>
+)
 
 const {arrayOf, func, node, shape, string} = PropTypes
 

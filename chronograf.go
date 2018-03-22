@@ -573,6 +573,7 @@ type TableOptions struct {
 	SortBy           TableColumn   `json:"sortBy"`
 	Wrapping         string        `json:"wrapping"`
 	ColumnNames      []TableColumn `json:"columnNames"`
+	FixFirstColumn   bool          `json:"fixFirstColumn"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards

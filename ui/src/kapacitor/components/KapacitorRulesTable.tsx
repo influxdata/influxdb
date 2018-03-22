@@ -75,19 +75,19 @@ export class RuleRow extends PureComponent<RuleRowProps> {
     this.handleDelete = this.handleDelete.bind(this)
   }
 
-  handleClickRuleStatusEnabled(rule: AlertRule) {
+  public handleClickRuleStatusEnabled(rule: AlertRule) {
     return () => {
       this.props.onChangeRuleStatus(rule)
     }
   }
 
-  handleDelete(rule: AlertRule) {
+  public handleDelete(rule: AlertRule) {
     return () => {
       this.props.onDelete(rule)
     }
   }
 
-  render() {
+  public render() {
     const {rule, source} = this.props
 
     return (

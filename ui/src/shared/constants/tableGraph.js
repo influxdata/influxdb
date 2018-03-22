@@ -8,6 +8,10 @@ export const TIME_FORMAT_CUSTOM = 'Custom'
 
 export const TIME_COLUMN_DEFAULT = {internalName: 'time', displayName: ''}
 
+export const ASCENDING = 'asc'
+export const DESCENDING = 'desc'
+export const FIX_FIRST_COLUMN_DEFAULT = true
+
 export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_DEFAULT},
   {text: 'MM/DD/YYYY HH:mm'},
@@ -21,9 +25,10 @@ export const FORMAT_OPTIONS = [
 ]
 
 export const DEFAULT_TABLE_OPTIONS = {
-  timeFormat: 'MM/DD/YYYY HH:mm:ss.ss',
   verticalTimeAxis: true,
+  timeFormat: TIME_FORMAT_DEFAULT,
   sortBy: TIME_COLUMN_DEFAULT,
   wrapping: 'truncate',
   columnNames: [TIME_COLUMN_DEFAULT],
+  fixFirstColumn: FIX_FIRST_COLUMN_DEFAULT,
 }

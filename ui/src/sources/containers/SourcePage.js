@@ -220,11 +220,11 @@ class SourcePage extends Component {
                     : 'Add a New InfluxDB Connection'}
                 </h1>
               </div>
-              {isInitialSource
-                ? null
-                : <div className="page-header__right">
-                    <SourceIndicator />
-                  </div>}
+              {isInitialSource ? null : (
+                <div className="page-header__right">
+                  <SourceIndicator />
+                </div>
+              )}
             </div>
           </div>
         </div>

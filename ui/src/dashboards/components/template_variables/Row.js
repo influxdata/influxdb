@@ -45,7 +45,7 @@ const TemplateVariableRow = ({
   onSubmit,
   onErrorThrown,
   onDeleteTempVar,
-}) =>
+}) => (
   <form
     className={classnames('template-variable-manager--table-row', {
       editing: isEditing,
@@ -106,6 +106,7 @@ const TemplateVariableRow = ({
       />
     </div>
   </form>
+)
 
 class RowWrapper extends Component {
   constructor(props) {

@@ -71,29 +71,31 @@ class UsersTable extends Component {
               </tr>
             </thead>
             <tbody>
-              {isCreatingUser
-                ? <UsersTableRowNew
+              {isCreatingUser ? (
+                <UsersTableRowNew
+                  organization={organization}
+                  onBlur={this.handleBlurCreateUserRow}
+                  onCreateUser={onCreateUser}
+                />
+              ) : null}
+              {users.length ? (
+                users.map(user => (
+                  <UsersTableRow
+                    user={user}
+                    key={uuid.v4()}
                     organization={organization}
-                    onBlur={this.handleBlurCreateUserRow}
-                    onCreateUser={onCreateUser}
+                    onChangeUserRole={this.handleChangeUserRole}
+                    onDelete={this.handleDeleteUser}
+                    meID={meID}
                   />
-                : null}
-              {users.length
-                ? users.map(user =>
-                    <UsersTableRow
-                      user={user}
-                      key={uuid.v4()}
-                      organization={organization}
-                      onChangeUserRole={this.handleChangeUserRole}
-                      onDelete={this.handleDeleteUser}
-                      meID={meID}
-                    />
-                  )
-                : <tr className="table-empty-state">
-                    <th colSpan="5">
-                      <p>No Users to display</p>
-                    </th>
-                  </tr>}
+                ))
+              ) : (
+                <tr className="table-empty-state">
+                  <th colSpan="5">
+                    <p>No Users to display</p>
+                  </th>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

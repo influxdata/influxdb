@@ -1,7 +1,7 @@
 import React from 'react'
 
-import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 import GraphOptionsCustomizableColumn from 'src/dashboards/components/GraphOptionsCustomizableColumn'
+import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 import {TIME_COLUMN_DEFAULT} from 'src/shared/constants/tableGraph'
 
 import {shallow} from 'enzyme'

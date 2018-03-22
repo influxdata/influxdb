@@ -1,15 +1,17 @@
 import React from 'react'
+
+import {shallow} from 'enzyme'
+
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import {Dropdown} from 'src/shared/components/Dropdown'
-import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
+import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {TIME_FORMAT_CUSTOM} from 'src/shared/constants/tableGraph'
-import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
-    timeFormat: '',
     onTimeFormatChange: () => {},
+    timeFormat: '',
     ...override,
   }
 

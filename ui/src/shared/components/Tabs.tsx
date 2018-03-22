@@ -1,4 +1,5 @@
-import React, {SFC, ReactElement, PureComponent} from 'react'
+import React, {PureComponent, ReactElement, SFC} from 'react'
+
 import classnames from 'classnames'
 
 interface TabProps {
@@ -81,18 +82,12 @@ export const TabList: SFC<TabListProps> = ({
   if (customClass) {
     return (
       <div className={customClass}>
-        <div className="btn-group btn-group-lg tab-group">
-          {kids}
-        </div>
+        <div className="btn-group btn-group-lg tab-group">{kids}</div>
       </div>
     )
   }
 
-  return (
-    <div className="btn-group btn-group-lg tab-group">
-      {kids}
-    </div>
-  )
+  return <div className="btn-group btn-group-lg tab-group">{kids}</div>
 }
 
 TabList.defaultProps = {
@@ -109,20 +104,18 @@ export const TabPanels: SFC<TabPanelsProps> = ({
   children,
   activeIndex,
   customClass,
-}) =>
+}) => (
   // if only 1 child, children array index lookup will fail
-  <div className={customClass}>
-    {children[activeIndex]}
-  </div>
+  <div className={customClass}>{children[activeIndex]}</div>
+)
 
 interface TabPanelProps {
   children: JSX.Element[] | JSX.Element
 }
 
-export const TabPanel: SFC<TabPanelProps> = ({children}) =>
-  <div>
-    {children}
-  </div>
+export const TabPanel: SFC<TabPanelProps> = ({children}) => (
+  <div>{children}</div>
+)
 
 interface TabsProps {
   children: JSX.Element[] | JSX.Element
@@ -137,6 +130,11 @@ interface TabsState {
 }
 
 export class Tabs extends PureComponent<TabsProps, TabsState> {
+  public static defaultProps: Partial<TabsProps> = {
+    onSelect: () => {},
+    tabContentsClass: '',
+  }
+
   constructor(props) {
     super(props)
 
@@ -147,17 +145,12 @@ export class Tabs extends PureComponent<TabsProps, TabsState> {
     }
   }
 
-  public static defaultProps: Partial<TabsProps> = {
-    onSelect: () => {},
-    tabContentsClass: '',
-  }
-
-  handleActivateTab = activeIndex => {
+  public handleActivateTab = activeIndex => {
     this.setState({activeIndex})
     this.props.onSelect(activeIndex)
   }
 
-  render() {
+  public render() {
     const {children, tabContentsClass} = this.props
 
     const kids = React.Children.map(children, (child: ReactElement<any>) => {
@@ -177,10 +170,6 @@ export class Tabs extends PureComponent<TabsProps, TabsState> {
       return child
     })
 
-    return (
-      <div className={tabContentsClass}>
-        {kids}
-      </div>
-    )
+    return <div className={tabContentsClass}>{kids}</div>
   }
 }

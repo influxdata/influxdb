@@ -11,9 +11,7 @@ const PanelBody = React.createClass({
     return (
       <div className="panel-body text-center">
         <h3 className="deluxe">How to resolve:</h3>
-        <p>
-          {this.props.children}
-        </p>
+        <p>{this.props.children}</p>
       </div>
     )
   },

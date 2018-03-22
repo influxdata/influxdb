@@ -121,65 +121,49 @@ const Root = React.createClass({
   },
 
   render() {
-    return !this.state.ready // eslint-disable-line no-negated-condition
-      ? <div className="page-spinner" />
-      : <Provider store={store}>
-          <Router history={history}>
-            <Route path="/" component={UserIsAuthenticated(CheckSources)} />
-            <Route path="/login" component={UserIsNotAuthenticated(Login)} />
-            <Route
-              path="/purgatory"
-              component={UserIsAuthenticated(Purgatory)}
-            />
-            <Route
-              path="/sources/new"
-              component={UserIsAuthenticated(SourcePage)}
-            />
-            <Route
-              path="/sources/:sourceID"
-              component={UserIsAuthenticated(App)}
-            >
-              <Route component={CheckSources}>
-                <Route path="status" component={StatusPage} />
-                <Route path="hosts" component={HostsPage} />
-                <Route path="hosts/:hostID" component={HostPage} />
-                <Route
-                  path="chronograf/data-explorer"
-                  component={DataExplorer}
-                />
-                <Route path="dashboards" component={DashboardsPage} />
-                <Route
-                  path="dashboards/:dashboardID"
-                  component={DashboardPage}
-                />
-                <Route path="alerts" component={AlertsApp} />
-                <Route path="alert-rules" component={KapacitorRulesPage} />
-                <Route
-                  path="alert-rules/:ruleID"
-                  component={KapacitorRulePage}
-                />
-                <Route path="alert-rules/new" component={KapacitorRulePage} />
-                <Route path="tickscript/new" component={TickscriptPage} />
-                <Route path="tickscript/:ruleID" component={TickscriptPage} />
-                <Route path="kapacitors/new" component={KapacitorPage} />
-                <Route path="kapacitors/:id/edit" component={KapacitorPage} />
-                <Route
-                  path="kapacitors/:id/edit:hash"
-                  component={KapacitorPage}
-                />
-                <Route
-                  path="admin-chronograf"
-                  component={AdminChronografPage}
-                />
-                <Route path="admin-influxdb" component={AdminInfluxDBPage} />
-                <Route path="manage-sources" component={ManageSources} />
-                <Route path="manage-sources/new" component={SourcePage} />
-                <Route path="manage-sources/:id/edit" component={SourcePage} />
-              </Route>
+    return !this.state.ready ? ( // eslint-disable-line no-negated-condition
+      <div className="page-spinner" />
+    ) : (
+      <Provider store={store}>
+        <Router history={history}>
+          <Route path="/" component={UserIsAuthenticated(CheckSources)} />
+          <Route path="/login" component={UserIsNotAuthenticated(Login)} />
+          <Route path="/purgatory" component={UserIsAuthenticated(Purgatory)} />
+          <Route
+            path="/sources/new"
+            component={UserIsAuthenticated(SourcePage)}
+          />
+          <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
+            <Route component={CheckSources}>
+              <Route path="status" component={StatusPage} />
+              <Route path="hosts" component={HostsPage} />
+              <Route path="hosts/:hostID" component={HostPage} />
+              <Route path="chronograf/data-explorer" component={DataExplorer} />
+              <Route path="dashboards" component={DashboardsPage} />
+              <Route path="dashboards/:dashboardID" component={DashboardPage} />
+              <Route path="alerts" component={AlertsApp} />
+              <Route path="alert-rules" component={KapacitorRulesPage} />
+              <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
+              <Route path="alert-rules/new" component={KapacitorRulePage} />
+              <Route path="tickscript/new" component={TickscriptPage} />
+              <Route path="tickscript/:ruleID" component={TickscriptPage} />
+              <Route path="kapacitors/new" component={KapacitorPage} />
+              <Route path="kapacitors/:id/edit" component={KapacitorPage} />
+              <Route
+                path="kapacitors/:id/edit:hash"
+                component={KapacitorPage}
+              />
+              <Route path="admin-chronograf" component={AdminChronografPage} />
+              <Route path="admin-influxdb" component={AdminInfluxDBPage} />
+              <Route path="manage-sources" component={ManageSources} />
+              <Route path="manage-sources/new" component={SourcePage} />
+              <Route path="manage-sources/:id/edit" component={SourcePage} />
             </Route>
-            <Route path="*" component={NotFound} />
-          </Router>
-        </Provider>
+          </Route>
+          <Route path="*" component={NotFound} />
+        </Router>
+      </Provider>
+    )
   },
 })
 

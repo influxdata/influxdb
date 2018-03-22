@@ -1,11 +1,11 @@
 import React, {PureComponent} from 'react'
-import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import {Dropdown} from 'src/shared/components/Dropdown'
+import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {
   FORMAT_OPTIONS,
-  TIME_FORMAT_DEFAULT,
   TIME_FORMAT_CUSTOM,
+  TIME_FORMAT_DEFAULT,
 } from 'src/shared/constants/tableGraph'
 
 interface TimeFormatOptions {
@@ -26,8 +26,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = {
-      format: this.props.timeFormat || TIME_FORMAT_DEFAULT,
       customFormat: false,
+      format: this.props.timeFormat || TIME_FORMAT_DEFAULT,
     }
   }
 
@@ -35,7 +35,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     return this.props.onTimeFormatChange
   }
 
-  handleChooseFormat = (formatOption: TimeFormatOptions) => {
+  public handleChooseFormat = (formatOption: TimeFormatOptions) => {
     if (formatOption.text === TIME_FORMAT_CUSTOM) {
       this.setState({customFormat: true})
     } else {
@@ -44,7 +44,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     }
   }
 
-  render() {
+  public render() {
     const {format, customFormat} = this.state
     const {onTimeFormatChange} = this.props
     const tipContent =
@@ -57,21 +57,22 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
       <div className="form-group col-xs-12">
         <label>
           Time Format
-          {customFormat &&
+          {customFormat && (
             <QuestionMarkTooltip
               tipID="Time Axis Format"
               tipContent={tipContent}
-            />}
+            />
+          )}
         </label>
         <Dropdown
           items={FORMAT_OPTIONS}
           selected={showCustom ? TIME_FORMAT_CUSTOM : format}
           buttonColor="btn-default"
-          buttonSize="btn-xs"
+          buttonSize="btn-sm"
           className="dropdown-stretch"
           onChoose={this.handleChooseFormat}
         />
-        {showCustom &&
+        {showCustom && (
           <div className="column-controls--section">
             <InputClickToEdit
               wrapperClass="column-controls-input "
@@ -81,7 +82,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
               placeholder="Enter custom format..."
               appearAsNormalInput={true}
             />
-          </div>}
+          </div>
+        )}
       </div>
     )
   }

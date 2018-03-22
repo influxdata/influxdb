@@ -46,6 +46,7 @@ message TableOptions {
 	TableColumn sortBy                  = 3; // which column should a table be sorted by
 	string 	wrapping                    = 4; // option for text wrapping
 	repeated TableColumn columnNames    = 5; // names and renames for columns
+	bool fixFirstColumn                 = 6; // first column should be fixed/frozen
 }
 
 message TableColumn {

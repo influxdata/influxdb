@@ -391,6 +391,10 @@ $tick-script-overlay-margin: 30px;
   margin-left: 6px;
 }
 
+.dropdown.dashboard-switcher .dropdown-item {
+  white-space: nowrap;
+}
+
 /*
   Dashboard Name Editing
   -----------------------------------------------------------------------------

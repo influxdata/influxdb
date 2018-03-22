@@ -106,13 +106,13 @@ class MultiSelectDropdown extends Component {
 
   renderMenu() {
     const {items, isApplyShown} = this.props
-    const applyButton = isApplyShown
-      ? <li className="multi-select--apply">
-          <button className="btn btn-xs btn-info" onClick={this.handleApply}>
-            Apply
-          </button>
-        </li>
-      : null
+    const applyButton = isApplyShown ? (
+      <li className="multi-select--apply">
+        <button className="btn btn-xs btn-info" onClick={this.handleApply}>
+          Apply
+        </button>
+      </li>
+    ) : null
 
     return (
       <ul className="dropdown-menu">
@@ -132,9 +132,7 @@ class MultiSelectDropdown extends Component {
                 onClick={_.wrap(listItem, this.onSelect)}
               >
                 <div className="multi-select--checkbox" />
-                <span>
-                  {listItem.name}
-                </span>
+                <span>{listItem.name}</span>
               </li>
             )
           })}

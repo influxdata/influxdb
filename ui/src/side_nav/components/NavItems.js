@@ -18,20 +18,22 @@ const NavListItem = React.createClass({
     const {link, children, location, useAnchor, isExternal} = this.props
     const isActive = location.startsWith(link)
 
-    return useAnchor
-      ? <a
-          className={classnames('sidebar-menu--item', {active: isActive})}
-          href={link}
-          target={isExternal ? '_blank' : '_self'}
-        >
-          {children}
-        </a>
-      : <Link
-          className={classnames('sidebar-menu--item', {active: isActive})}
-          to={link}
-        >
-          {children}
-        </Link>
+    return useAnchor ? (
+      <a
+        className={classnames('sidebar-menu--item', {active: isActive})}
+        href={link}
+        target={isExternal ? '_blank' : '_self'}
+      >
+        {children}
+      </a>
+    ) : (
+      <Link
+        className={classnames('sidebar-menu--item', {active: isActive})}
+        to={link}
+      >
+        {children}
+      </Link>
+    )
   },
 })
 
@@ -46,13 +48,15 @@ const NavHeader = React.createClass({
 
     // Some nav items, such as Logout, need to hit an external link rather
     // than simply route to an internal page. Anchor tags serve that purpose.
-    return useAnchor
-      ? <a className="sidebar-menu--heading" href={link}>
-          {title}
-        </a>
-      : <Link className="sidebar-menu--heading" to={link}>
-          {title}
-        </Link>
+    return useAnchor ? (
+      <a className="sidebar-menu--heading" href={link}>
+        {title}
+      </a>
+    ) : (
+      <Link className="sidebar-menu--heading" to={link}>
+        {title}
+      </Link>
+    )
   },
 })
 
@@ -119,11 +123,7 @@ const NavBar = React.createClass({
   render() {
     const {children} = this.props
 
-    return (
-      <nav className="sidebar">
-        {children}
-      </nav>
-    )
+    return <nav className="sidebar">{children}</nav>
   },
 })
 

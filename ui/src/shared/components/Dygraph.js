@@ -329,7 +329,7 @@ class Dygraph extends Component {
 
     return (
       <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        {this.dygraph &&
+        {this.dygraph && (
           <div className="dygraph-addons">
             <Annotations
               dygraph={this.dygraph}
@@ -342,13 +342,15 @@ class Dygraph extends Component {
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
             />
-            {!isHoveringThisGraph &&
+            {!isHoveringThisGraph && (
               <Crosshair
                 dygraph={this.dygraph}
                 staticLegendHeight={staticLegendHeight}
                 hoverTime={hoverTime}
-              />}
-          </div>}
+              />
+            )}
+          </div>
+        )}
         <div
           ref={r => {
             this.graphRef = r
@@ -359,14 +361,15 @@ class Dygraph extends Component {
           onMouseMove={this.handleMouseMove}
           onMouseOut={this.handleMouseOut}
         />
-        {staticLegend &&
+        {staticLegend && (
           <StaticLegend
             dygraphSeries={this.hashColorDygraphSeries()}
             dygraph={this.dygraph}
             handleReceiveStaticLegendHeight={
               this.handleReceiveStaticLegendHeight
             }
-          />}
+          />
+        )}
         {nestedGraph && React.cloneElement(nestedGraph, {staticLegendHeight})}
       </div>
     )

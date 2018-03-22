@@ -69,9 +69,7 @@ class Notification extends Component {
           ref={r => (this.notificationRef = r)}
         >
           <span className={`icon ${icon}`} />
-          <div className="notification-message">
-            {message}
-          </div>
+          <div className="notification-message">{message}</div>
           <button className="notification-close" onClick={this.handleDismiss} />
         </div>
       </div>

@@ -50,7 +50,7 @@ class LayoutRenderer extends Component {
           PAGE_HEADER_HEIGHT -
           PAGE_CONTAINER_MARGIN -
           PAGE_CONTAINER_MARGIN) /
-        STATUS_PAGE_ROW_COUNT
+          STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
@@ -108,7 +108,7 @@ class LayoutRenderer extends Component {
             isDraggable={isDashboard}
             isResizable={isDashboard}
           >
-            {cells.map(cell =>
+            {cells.map(cell => (
               <div key={cell.i}>
                 <Authorized
                   requiredRole={EDITOR_ROLE}
@@ -139,7 +139,7 @@ class LayoutRenderer extends Component {
                   />
                 </Authorized>
               </div>
-            )}
+            ))}
           </GridLayout>
         </Authorized>
       </ResizableBox>

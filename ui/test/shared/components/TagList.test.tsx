@@ -1,16 +1,18 @@
 import React from 'react'
+
+import {shallow} from 'enzyme'
+
 import TagList from 'src/shared/components/TagList'
 import TagListItem from 'src/shared/components/TagListItem'
-import {shallow} from 'enzyme'
 
 import {query, source} from 'test/resources'
 
 const setup = (override = {}) => {
   const props = {
-    query,
-    querySource: source,
     onChooseTag: () => {},
     onGroupByTag: () => {},
+    query,
+    querySource: source,
     ...override,
   }
 
@@ -20,8 +22,8 @@ const setup = (override = {}) => {
 
   return {
     instance,
-    wrapper,
     props,
+    wrapper,
   }
 }
 
@@ -77,8 +79,8 @@ describe('Shared.Components.TagList', () => {
           const getTags = jest.fn()
           const updates = {
             database: 'newDb',
-            retentionPolicy: 'newRp',
             measurement: 'newMeasurement',
+            retentionPolicy: 'newRp',
           }
 
           const prevQuery = {...query, ...updates}

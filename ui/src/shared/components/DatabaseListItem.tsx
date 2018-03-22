@@ -1,5 +1,7 @@
 import React, {SFC} from 'react'
+
 import classnames from 'classnames'
+
 import {Namespace} from 'src/types/query'
 
 export interface DatabaseListItemProps {
@@ -13,7 +15,7 @@ const DatabaseListItem: SFC<DatabaseListItemProps> = ({
   namespace,
   namespace: {database, retentionPolicy},
   onChooseNamespace,
-}) =>
+}) => (
   <div
     className={classnames('query-builder--list-item', {
       active: isActive,
@@ -22,5 +24,6 @@ const DatabaseListItem: SFC<DatabaseListItemProps> = ({
   >
     {database}.{retentionPolicy}
   </div>
+)
 
 export default DatabaseListItem
