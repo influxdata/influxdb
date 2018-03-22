@@ -6,8 +6,13 @@
     "tslint-plugin-prettier",
     "tslint-config-prettier"
   ],
-  "jsRules": {},
+  "jsRules": {
+    "object-literal-sort-keys": false,
+    "ordered-import": false
+  },
   "rules": {
+    "object-literal-sort-keys": false,
+    "ordered-import": false,
     "interface-name": [true, "never-prefix"],
     "no-console": [true, "log", "warn"],
     "no-empty": false,
