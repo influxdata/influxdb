@@ -17,6 +17,7 @@ import {
   ASCENDING,
   DESCENDING,
   FIX_FIRST_COLUMN_DEFAULT,
+  calculateTimeColumnWidth,
 } from 'src/shared/constants/tableGraph'
 const DEFAULT_SORT = ASCENDING
 
@@ -33,6 +34,7 @@ class TableGraph extends Component {
       sortByColumnIndex: NULL_COLUMN_INDEX,
       clickToSortFieldIndex: NULL_COLUMN_INDEX,
       clicktoSortDirection: DEFAULT_SORT,
+      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
     }
   }
 
@@ -43,7 +45,7 @@ class TableGraph extends Component {
       clicktoSortDirection,
       sortByColumnIndex,
     } = this.state
-    const {tableOptions: {sortBy: {internalName}}} = nextProps
+    const {tableOptions: {sortBy: {internalName}, timeFormat}} = nextProps
     if (
       sortByColumnIndex === NULL_COLUMN_INDEX ||
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
@@ -60,6 +62,7 @@ class TableGraph extends Component {
         sortByColumnIndex: newSortByColumnIndex,
         clickToSortFieldIndex: NULL_COLUMN_INDEX,
         clicktoSortDirection: DEFAULT_SORT,
+        timeColumnWidth: calculateTimeColumnWidth(timeFormat),
       })
       return
     }
@@ -74,6 +77,7 @@ class TableGraph extends Component {
     this.setState({
       data: sortedData,
       unzippedData: _.unzip(sortedData),
+      timeColumnWidth: calculateTimeColumnWidth(timeFormat),
     })
   }
 
@@ -145,6 +149,19 @@ class TableGraph extends Component {
       clickToSortFieldIndex: newIndex,
       clicktoSortDirection: DEFAULT_SORT,
     })
+  }
+
+  calculateColumnWidth = columnSizerWidth => column => {
+    const {index} = column
+    const {tableOptions, tableOptions: {verticalTimeAxis}} = this.props
+    const {timeColumnWidth} = this.state
+    const columnNames = _.get(tableOptions, 'columnNames', [
+      TIME_COLUMN_DEFAULT,
+    ])
+
+    return verticalTimeAxis && columnNames[index].internalName === 'time'
+      ? timeColumnWidth
+      : columnSizerWidth
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
@@ -245,7 +262,7 @@ class TableGraph extends Component {
     const columnCount = _.get(data, ['0', 'length'], 0)
     const rowCount = data.length
     const COLUMN_MIN_WIDTH = 98
-    const COLUMN_MAX_WIDTH = 500
+    const COLUMN_MAX_WIDTH = 1000
     const ROW_HEIGHT = 30
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
@@ -277,7 +294,7 @@ class TableGraph extends Component {
               <MultiGrid
                 ref={registerChild}
                 columnCount={columnCount}
-                columnWidth={getColumnWidth}
+                columnWidth={this.calculateColumnWidth(getColumnWidth())}
                 rowCount={rowCount}
                 rowHeight={ROW_HEIGHT}
                 height={tableHeight}
