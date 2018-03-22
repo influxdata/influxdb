@@ -15,7 +15,7 @@ const DatabaseListItem: SFC<DatabaseListItemProps> = ({
   namespace,
   namespace: {database, retentionPolicy},
   onChooseNamespace,
-}) =>
+}) => (
   <div
     className={classnames('query-builder--list-item', {
       active: isActive,
@@ -24,5 +24,6 @@ const DatabaseListItem: SFC<DatabaseListItemProps> = ({
   >
     {database}.{retentionPolicy}
   </div>
+)
 
 export default DatabaseListItem

@@ -8,7 +8,7 @@ interface Props {
 const GraphOptionsFixFirstColumn: SFC<Props> = ({
   fixed,
   onToggleFixFirstColumn,
-}) =>
+}) => (
   <div className="form-group col-xs-12">
     <div className="form-control-static">
       <input
@@ -20,5 +20,6 @@ const GraphOptionsFixFirstColumn: SFC<Props> = ({
       <label htmlFor="fixFirstColumnCheckbox">Fix First Column</label>
     </div>
   </div>
+)
 
 export default GraphOptionsFixFirstColumn

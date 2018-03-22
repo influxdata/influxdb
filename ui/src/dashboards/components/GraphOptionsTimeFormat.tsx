@@ -65,7 +65,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
             <QuestionMarkTooltip
               tipID="Time Axis Format"
               tipContent={tipContent}
-            />}
+            />
+          )}
         </label>
         <Dropdown
           items={FORMAT_OPTIONS}
@@ -75,8 +76,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
           className="dropdown-stretch"
           onChoose={this.handleChooseFormat}
         />
-        {showCustom &&
-          <div className="field-controls--section">
+        {showCustom && (
+          <div className="column-controls--section">
             <InputClickToEdit
               wrapperClass="field-controls-input "
               value={format}
@@ -85,7 +86,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
               placeholder="Enter custom format..."
               appearAsNormalInput={true}
             />
-          </div>}
+          </div>
+        )}
       </div>
     )
   }

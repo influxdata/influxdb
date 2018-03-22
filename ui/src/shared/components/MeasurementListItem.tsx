@@ -30,7 +30,7 @@ const MeasurementListItem: SFC<Props> = ({
   onAcceptReject,
   areTagsAccepted,
   onChooseMeasurement,
-}) =>
+}) => (
   <div
     key={measurement}
     onClick={isActive ? noop : onChooseMeasurement(measurement)}
@@ -41,24 +41,27 @@ const MeasurementListItem: SFC<Props> = ({
         {measurement}
       </span>
       {isActive &&
-        numTagsActive >= 1 &&
-        <div
-          className={classnames('flip-toggle', {flipped: areTagsAccepted})}
-          onClick={onAcceptReject}
-        >
-          <div className="flip-toggle--container">
-            <div className="flip-toggle--front">!=</div>
-            <div className="flip-toggle--back">=</div>
+        numTagsActive >= 1 && (
+          <div
+            className={classnames('flip-toggle', {flipped: areTagsAccepted})}
+            onClick={onAcceptReject}
+          >
+            <div className="flip-toggle--container">
+              <div className="flip-toggle--front">!=</div>
+              <div className="flip-toggle--back">=</div>
+            </div>
           </div>
-        </div>}
+        )}
     </div>
-    {isActive &&
+    {isActive && (
       <TagList
         query={query}
         querySource={querySource}
         onChooseTag={onChooseTag}
         onGroupByTag={onGroupByTag}
-      />}
+      />
+    )}
   </div>
+)
 
 export default MeasurementListItem

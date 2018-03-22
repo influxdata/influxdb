@@ -42,14 +42,14 @@ const KapacitorForm: SFC<Props> = ({
   source,
   hash,
   notify,
-}) =>
+}) => (
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
         <div className="page-header__left">
-          <h1 className="page-header__title">{`${exists
-            ? 'Configure'
-            : 'Add a New'} Kapacitor Connection`}</h1>
+          <h1 className="page-header__title">{`${
+            exists ? 'Configure' : 'Add a New'
+          } Kapacitor Connection`}</h1>
         </div>
       </div>
     </div>
@@ -95,7 +95,7 @@ const KapacitorForm: SFC<Props> = ({
                       inputType="password"
                     />
                   </div>
-                  {url.startsWith('https') &&
+                  {url.startsWith('https') && (
                     <div className="form-group col-xs-12">
                       <div className="form-control-static">
                         <input
@@ -112,7 +112,8 @@ const KapacitorForm: SFC<Props> = ({
                       <label className="form-helper">
                         {insecureSkipVerifyText}
                       </label>
-                    </div>}
+                    </div>
+                  )}
                   <div className="form-group form-group-submit col-xs-12 text-center">
                     <button
                       className="btn btn-default"
@@ -147,5 +148,6 @@ const KapacitorForm: SFC<Props> = ({
       </div>
     </FancyScrollbar>
   </div>
+)
 
 export default KapacitorForm

@@ -18,11 +18,9 @@ const KapacitorFormInput: SFC<Props> = ({
   onChange,
   maxLength,
   inputType,
-}) =>
+}) => (
   <div className="form-group">
-    <label htmlFor={name}>
-      {label}
-    </label>
+    <label htmlFor={name}>{label}</label>
     <input
       className="form-control"
       id={name}
@@ -35,6 +33,7 @@ const KapacitorFormInput: SFC<Props> = ({
       type={inputType}
     />
   </div>
+)
 
 KapacitorFormInput.defaultProps = {
   inputType: '',
