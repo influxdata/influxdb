@@ -113,6 +113,25 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
           ).toEqual(1)
         })
       })
+
+      it('renders corresponding rule/task rows with the same enabled status', () => {
+        const correspondingRows = []
+
+        rulesRows.forEach(ruleRow => {
+          let taskRow = tasksRows
+            .filter(t => t.rule.id === ruleRow.rule.id)
+            .pop()
+          if (taskRow) {
+            correspondingRows.push({ruleRow, taskRow})
+          }
+        })
+
+        correspondingRows.forEach(({ruleRow, taskRow}) => {
+          expect(ruleRow.row.checkbox.checked).toEqual(
+            taskRow.row.checkbox.checked
+          )
+        })
+      })
     })
   })
 })
