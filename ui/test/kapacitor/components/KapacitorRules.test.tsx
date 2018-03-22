@@ -43,109 +43,75 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
       expect(tasksTable.length).toEqual(1)
     })
 
-    it('renders each rule/task checkboxes with unique "id" attribute', () => {
-      const wrapper = shallow(<KapacitorRules {...props} />)
+    describe('rows in KapacitorRulesTable and TasksTable', () => {
+      const findRows = (root, reactTable) =>
+        root
+          .find(reactTable)
+          .dive()
+          .find('tbody')
+          .children()
+          .map(child => {
+            const ruleID = child.key()
+            const elRow = child.dive()
+            const elLabel = elRow.find('label')
+            const {htmlFor} = elLabel.props()
+            const elCheckbox = elRow.find({type: 'checkbox'})
+            const {checked, id} = elCheckbox.props()
 
-      const kapacitorRulesTableRowsIDs = wrapper
-        .find(KapacitorRulesTable)
-        .dive()
-        .find('tbody')
-        .children()
-        .map(
-          child =>
-            child
-              .dive()
-              .find({type: 'checkbox'})
-              .props().id
-        )
-
-      const tasksTableIDs = wrapper
-        .find(TasksTable)
-        .dive()
-        .find('tbody')
-        .children()
-        .map(
-          child =>
-            child
-              .dive()
-              .find({type: 'checkbox'})
-              .props().id
-        )
-
-      const allCheckboxesIDs = kapacitorRulesTableRowsIDs.concat(tasksTableIDs)
-
-      const containsAnyDuplicate = arr => _.uniq(arr).length !== arr.length
-
-      expect(containsAnyDuplicate(allCheckboxesIDs)).toEqual(false)
-    })
-
-    it('renders each rule/task table row label with unique "for" attribute', () => {
-      const wrapper = shallow(<KapacitorRules {...props} />)
-
-      const kapacitorRulesTableRowsLabelFors = wrapper
-        .find(KapacitorRulesTable)
-        .dive()
-        .find('tbody')
-        .children()
-        .map(
-          child =>
-            child
-              .dive()
-              .find('label')
-              .props().htmlFor
-        )
-
-      const tasksTableLabelFors = wrapper
-        .find(TasksTable)
-        .dive()
-        .find('tbody')
-        .children()
-        .map(
-          child =>
-            child
-              .dive()
-              .find('label')
-              .props().htmlFor
-        )
-
-      const allCheckboxesLabelFors = kapacitorRulesTableRowsLabelFors.concat(
-        tasksTableLabelFors
-      )
+            return {
+              row: {
+                el: elRow,
+                label: {
+                  el: elLabel,
+                  htmlFor,
+                },
+                checkbox: {
+                  el: elCheckbox,
+                  checked,
+                  id,
+                },
+              },
+              rule: {
+                id: ruleID, // rule.id
+              },
+            }
+          })
 
       const containsAnyDuplicate = arr => _.uniq(arr).length !== arr.length
 
-      expect(containsAnyDuplicate(allCheckboxesLabelFors)).toEqual(false)
-    })
+      let wrapper, rulesRows, tasksRows
 
-    it('renders one corresponding task row for each rule row', () => {
-      const wrapper = shallow(<KapacitorRules {...props} />)
+      beforeEach(() => {
+        wrapper = shallow(<KapacitorRules {...props} />)
+        rulesRows = findRows(wrapper, KapacitorRulesTable)
+        tasksRows = findRows(wrapper, TasksTable)
+      })
 
-      const rulesRows = wrapper
-        .find(KapacitorRulesTable)
-        .dive()
-        .find('tbody')
-        .children()
-        .map(child => ({
-          id: child.key(), // rule.id
-          el: child.dive(),
-        }))
+      it('renders every rule/task checkbox with unique html id', () => {
+        const allCheckboxIDs = rulesRows
+          .map(r => r.row.checkbox.id)
+          .concat(tasksRows.map(r => r.row.checkbox.id))
 
-      const tasksRows = wrapper
-        .find(TasksTable)
-        .dive()
-        .find('tbody')
-        .children()
-        .map(child => ({
-          id: child.key(), // rule.id
-          el: child.dive(),
-        }))
+        expect(containsAnyDuplicate(allCheckboxIDs)).toEqual(false)
+      })
 
-      expect(rulesRows.length).toBeLessThanOrEqual(tasksRows.length)
+      it('renders each rule/task table row label with unique "for" attribute', () => {
+        const allCheckboxLabelFors = rulesRows
+          .map(r => r.row.label.htmlFor)
+          .concat(tasksRows.map(r => r.row.label.htmlFor))
 
-      rulesRows.forEach(taskRow => {
-        expect(
-          tasksRows.filter(ruleRow => ruleRow.id === taskRow.id).length
-        ).toEqual(1)
+        expect(containsAnyDuplicate(allCheckboxLabelFors)).toEqual(false)
+      })
+
+      it('renders one corresponding task row for each rule row', () => {
+        expect(rulesRows.length).toBeLessThanOrEqual(tasksRows.length)
+
+        rulesRows.forEach(ruleRow => {
+          expect(
+            tasksRows.filter(taskRow => taskRow.rule.id === ruleRow.rule.id)
+              .length
+          ).toEqual(1)
+        })
       })
     })
   })
