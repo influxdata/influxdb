@@ -60,7 +60,7 @@ const config = {
         loader: 'tslint-loader',
         enforce: 'pre',
         options: {
-          emitWarning: true,
+          emitErrors: true,
         },
       },
       {
