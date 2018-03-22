@@ -12,7 +12,7 @@ describe('Kapacitor.Components.TasksTable', () => {
       source,
       tasks: kapacitorRules,
       onDelete: () => {},
-      onChangeRuleStatus: () => {}
+      onChangeRuleStatus: () => {},
     }
 
     it('renders TasksTable', () => {
@@ -33,7 +33,7 @@ describe('Kapacitor.Components.TasksTable', () => {
     it('calls onChangeRuleStatus when checkbox is effectively clicked', () => {
       const wrapper = shallow(<TaskRow {...props} />)
 
-      const checkbox = wrapper.find(({type:'checkbox'}))
+      const checkbox = wrapper.find({type: 'checkbox'})
       checkbox.simulate('change')
 
       expect(props.onChangeRuleStatus).toHaveBeenCalledTimes(1)

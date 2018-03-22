@@ -79,7 +79,9 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
 
       const containsAnyDuplicate = arr => _.uniq(arr).length !== arr.length
 
-      let wrapper, rulesRows, tasksRows
+      let wrapper
+      let rulesRows
+      let tasksRows
 
       beforeEach(() => {
         wrapper = shallow(<KapacitorRules {...props} />)
@@ -118,7 +120,7 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
         const correspondingRows = []
 
         rulesRows.forEach(ruleRow => {
-          let taskRow = tasksRows
+          const taskRow = tasksRows
             .filter(t => t.rule.id === ruleRow.rule.id)
             .pop()
           if (taskRow) {
