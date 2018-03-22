@@ -333,7 +333,7 @@ class TableGraph extends Component {
                 tableOptions={tableOptions}
                 classNameBottomRightGrid="table-graph--scroll-window"
               />}
-          </ColumnSizer>})
+          </ColumnSizer>}
       </div>
     )
   }
