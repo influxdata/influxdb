@@ -1,10 +1,9 @@
+import {shallow} from 'enzyme'
 import React from 'react'
 
-import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
+import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
-
-import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {

@@ -1,30 +1,27 @@
+import {shallow} from 'enzyme'
 import React from 'react'
-
-import {TableOptions} from 'src/dashboards/components/TableOptions'
-
+import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import {TableOptions} from 'src/dashboards/components/TableOptions'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
-import {shallow} from 'enzyme'
-
 const defaultProps = {
+  dataLabels: [],
   handleUpdateTableOptions: () => {},
   onResetFocus: () => {},
   tableOptions: {
     columnNames: [],
+    fieldNames: [],
     fixFirstColumn: true,
+    sortBy: {displayName: '', internalName: '', visible: true},
     timeFormat: '',
     verticalTimeAxis: true,
-    sortBy: {internalName: '', displayName: '', visible: true},
-    fieldNames: [],
   },
-  dataLabels: [],
 }
 
 const setup = (override = {}) => {

@@ -1,16 +1,15 @@
+import {shallow} from 'enzyme'
 import React from 'react'
 
 import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
-import {shallow} from 'enzyme'
-
 const setup = (override = {}) => {
   const props = {
-    internalName: '',
     displayName: '',
-    visible: true,
+    internalName: '',
     onFieldUpdate: () => {},
+    visible: true,
     ...override,
   }
 
@@ -63,8 +62,8 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
         const onFieldUpdate = jest.fn()
         const internalName = 'test'
         const {instance, props: {visible}} = setup({
-          onFieldUpdate,
           internalName,
+          onFieldUpdate,
         })
         const rename = 'TEST'
 
@@ -72,8 +71,8 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
 
         expect(onFieldUpdate).toHaveBeenCalledTimes(1)
         expect(onFieldUpdate).toHaveBeenCalledWith({
-          internalName,
           displayName: rename,
+          internalName,
           visible,
         })
       })
@@ -84,16 +83,16 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
         const onFieldUpdate = jest.fn()
         const visible = true
         const {instance, props: {internalName, displayName}} = setup({
-          visible,
           onFieldUpdate,
+          visible,
         })
 
         instance.handleToggleVisible()
 
         expect(onFieldUpdate).toHaveBeenCalledTimes(1)
         expect(onFieldUpdate).toHaveBeenCalledWith({
-          internalName,
           displayName,
+          internalName,
           visible: !visible,
         })
       })
