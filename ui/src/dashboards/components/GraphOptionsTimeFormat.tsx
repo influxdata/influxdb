@@ -35,18 +35,22 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     return this.props.onTimeFormatChange
   }
 
+  public handleChangeFormat = format => {
+    this.onTimeFormatChange(format)
+    this.setState({format})
+  }
+
   public handleChooseFormat = (formatOption: TimeFormatOptions) => {
     if (formatOption.text === TIME_FORMAT_CUSTOM) {
       this.setState({customFormat: true})
     } else {
-      this.setState({format: formatOption.text, customFormat: false})
       this.onTimeFormatChange(formatOption.text)
+      this.setState({format: formatOption.text, customFormat: false})
     }
   }
 
   public render() {
     const {format, customFormat} = this.state
-    const {onTimeFormatChange} = this.props
     const tipContent =
       'For information on formatting, see http://momentjs.com/docs/#/parsing/string-format/'
 
@@ -57,7 +61,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
       <div className="form-group col-xs-12">
         <label>
           Time Format
-          {customFormat && (
+          {showCustom && (
             <QuestionMarkTooltip
               tipID="Time Axis Format"
               tipContent={tipContent}
@@ -75,10 +79,10 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
         {showCustom && (
           <div className="column-controls--section">
             <InputClickToEdit
-              wrapperClass="column-controls-input "
+              wrapperClass="field-controls-input "
               value={format}
-              onBlur={onTimeFormatChange}
-              onChange={onTimeFormatChange}
+              onBlur={this.handleChangeFormat}
+              onChange={this.handleChangeFormat}
               placeholder="Enter custom format..."
               appearAsNormalInput={true}
             />
