@@ -8,11 +8,11 @@
   ],
   "jsRules": {
     "object-literal-sort-keys": false,
-    "ordered-import": false
+    "ordered-imports": false
   },
   "rules": {
     "object-literal-sort-keys": false,
-    "ordered-import": false,
+    "ordered-imports": false,
     "interface-name": [true, "never-prefix"],
     "no-console": [true, "log", "warn"],
     "no-empty": false,
