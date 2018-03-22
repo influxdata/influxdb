@@ -16,6 +16,7 @@ import {
   DESCENDING,
   FIX_FIRST_COLUMN_DEFAULT,
   VERTICAL_TIME_AXIS_DEFAULT,
+  calculateTimeColumnWidth,
 } from 'src/shared/constants/tableGraph'
 const DEFAULT_SORT = ASCENDING
 
@@ -58,6 +59,7 @@ class TableGraph extends Component {
     super(props)
     this.state = {
       data: [[]],
+      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
       processedData: [[]],
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
@@ -74,9 +76,20 @@ class TableGraph extends Component {
 
     const {sortField, sortDirection} = this.state
     const {
-      tableOptions: {sortBy: {internalName}, fieldNames, verticalTimeAxis},
+      tableOptions: {
+        sortBy: {internalName},
+        fieldNames,
+        verticalTimeAxis,
+        timeFormat,
+      },
       setDataLabels,
     } = nextProps
+
+    if (timeFormat !== this.props.tableOptions.timeFormat) {
+      this.setState({
+        timeColumnWidth: calculateTimeColumnWidth(timeFormat),
+      })
+    }
 
     if (setDataLabels) {
       setDataLabels(labels)
@@ -179,6 +192,18 @@ class TableGraph extends Component {
     })
   }
 
+  calculateColumnWidth = columnSizerWidth => column => {
+    const {index} = column
+    const {tableOptions, tableOptions: {verticalTimeAxis}} = this.props
+    const {timeColumnWidth} = this.state
+
+    const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
+
+    return verticalTimeAxis && fieldNames[index].internalName === 'time'
+      ? timeColumnWidth
+      : columnSizerWidth
+  }
+
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
     const {hoveredColumnIndex, hoveredRowIndex, processedData} = this.state
     const {tableOptions, colors} = this.props
@@ -215,7 +240,11 @@ class TableGraph extends Component {
     let cellStyle = style
 
     if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
-      const {bgColor, textColor} = generateThresholdsListHexs(colors, cellData)
+      const {bgColor, textColor} = generateThresholdsListHexs({
+        colors,
+        lastValue: cellData,
+        cellType: 'table',
+      })
 
       cellStyle = {
         ...style,
@@ -276,7 +305,7 @@ class TableGraph extends Component {
     const rowCount = columnCount === 0 ? 0 : processedData.length
 
     const COLUMN_MIN_WIDTH = 98
-    const COLUMN_MAX_WIDTH = 500
+    const COLUMN_MAX_WIDTH = 1000
     const ROW_HEIGHT = 30
 
     const fixedColumnCount = fixFirstColumn && columnCount > 1 ? 1 : undefined
@@ -312,7 +341,7 @@ class TableGraph extends Component {
               <MultiGrid
                 ref={registerChild}
                 columnCount={columnCount}
-                columnWidth={getColumnWidth}
+                columnWidth={this.calculateColumnWidth(getColumnWidth())}
                 rowCount={rowCount}
                 rowHeight={ROW_HEIGHT}
                 height={tableHeight}
