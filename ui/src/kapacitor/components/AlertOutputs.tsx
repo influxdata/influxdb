@@ -4,8 +4,6 @@ import AlertTabs from 'src/kapacitor/components/AlertTabs'
 
 import {Kapacitor, Source} from 'src/types'
 
-console.log('foo')
-
 export interface Notification {
   id?: string
   type: string
