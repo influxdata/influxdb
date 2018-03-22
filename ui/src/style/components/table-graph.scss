@@ -54,6 +54,7 @@
     border-left: 0;
   }
   &__fixed-corner {
+    font-weight: 700;
     border-top: 0;
     border-left: 0;
     color: $g18-cloud;
@@ -67,17 +68,44 @@
     border-color: $g20-white;
     &:after {visibility: hidden;}
   }
-  &__isFieldName:hover {
-    cursor: pointer;
+  &__field-name {
+    padding-right: 17px;
+
+    &:before {
+      font-family: 'icomoon';
+      content: "\e902";
+      font-size: 17px;
+      position: absolute;
+      top: 50%;
+      right: 6px;
+      transform: translateY(-50%);
+      font-size: 13px;
+      opacity: 0;
+      transition:
+        opacity 0.25s ease,
+        color 0.25s ease,
+        transform 0.25s ease;
+    }
+    &:hover {
+      cursor: pointer;
+    }
+    &:hover:before {
+      opacity: 1;
+    }
   }
-  &__isFieldName:before {
-    font-family: 'icomoon';
-    content: "\e902";
-    font-size: 17px;
+  &__sort-asc,
+  &__sort-desc {
+    color: $c-pool;
+
+    &:before {
+      opacity: 1;
+    }
   }
-  &__isSortedUp {
+  &__sort-asc:before {
+    transform: translateY(-50%) rotate(0deg);
   }
-  &__isSortedDown {
+  &__sort-desc:before {
+    transform: translateY(-50%) rotate(180deg);
   }
 }
 

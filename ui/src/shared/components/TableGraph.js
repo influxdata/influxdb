@@ -205,7 +205,13 @@ class TableGraph extends Component {
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
-    const {hoveredColumnIndex, hoveredRowIndex, processedData} = this.state
+    const {
+      hoveredColumnIndex,
+      hoveredRowIndex,
+      processedData,
+      sortField,
+      sortDirection,
+    } = this.state
     const {tableOptions, colors} = this.props
 
     const {
@@ -253,6 +259,11 @@ class TableGraph extends Component {
       }
     }
 
+    const foundField =
+      isFieldName && fieldNames.find(field => field.internalName === cellData)
+    const fieldName =
+      foundField && (foundField.displayName || foundField.internalName)
+
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,
       'table-graph-cell__fixed-column': isFixedColumn,
@@ -260,13 +271,12 @@ class TableGraph extends Component {
       'table-graph-cell__highlight-row': isHighlightedRow,
       'table-graph-cell__highlight-column': isHighlightedColumn,
       'table-graph-cell__numerical': dataIsNumerical,
-      'table-graph-cell__isFieldName': isFieldName,
+      'table-graph-cell__field-name': isFieldName,
+      'table-graph-cell__sort-asc':
+        isFieldName && sortField === cellData && sortDirection === ASCENDING,
+      'table-graph-cell__sort-desc':
+        isFieldName && sortField === cellData && sortDirection === DESCENDING,
     })
-
-    const foundField =
-      isFieldName && fieldNames.find(field => field.internalName === cellData)
-    const fieldName =
-      foundField && (foundField.displayName || foundField.internalName)
 
     const cellContents = isTimeData
       ? `${moment(cellData).format(timeFormat)}`
