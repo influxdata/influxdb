@@ -46,6 +46,12 @@ class TableGraph extends Component {
       sortByColumnIndex,
     } = this.state
     const {tableOptions: {sortBy: {internalName}, timeFormat}} = nextProps
+
+    if (timeFormat !== this.props.tableOptions.timeFormat) {
+      this.setState({
+        timeColumnWidth: calculateTimeColumnWidth(timeFormat),
+      })
+    }
     if (
       sortByColumnIndex === NULL_COLUMN_INDEX ||
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
@@ -62,7 +68,6 @@ class TableGraph extends Component {
         sortByColumnIndex: newSortByColumnIndex,
         clickToSortFieldIndex: NULL_COLUMN_INDEX,
         clicktoSortDirection: DEFAULT_SORT,
-        timeColumnWidth: calculateTimeColumnWidth(timeFormat),
       })
       return
     }
@@ -77,7 +82,6 @@ class TableGraph extends Component {
     this.setState({
       data: sortedData,
       unzippedData: _.unzip(sortedData),
-      timeColumnWidth: calculateTimeColumnWidth(timeFormat),
     })
   }
 
