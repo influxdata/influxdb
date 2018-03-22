@@ -30,9 +30,7 @@ class GraphOptionsCustomizableColumn extends PureComponent<Props, {}> {
 
     return (
       <div className="column-controls--section">
-        <div className="column-controls--label">
-          {internalName}
-        </div>
+        <div className="column-controls--label">{internalName}</div>
         <InputClickToEdit
           value={displayName}
           wrapperClass="column-controls-input"

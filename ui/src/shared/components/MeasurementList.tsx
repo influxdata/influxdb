@@ -123,38 +123,41 @@ class MeasurementList extends PureComponent<Props, State> {
       <div className="query-builder--column">
         <div className="query-builder--heading">
           <span>Measurements & Tags</span>
-          {database &&
+          {database && (
             <MeasurementListFilter
               onEscape={this.handleEscape}
               onFilterText={this.handleFilterText}
               filterText={this.state.filterText}
-            />}
+            />
+          )}
         </div>
-        {database
-          ? <div className="query-builder--list">
-              <FancyScrollbar>
-                {filtered.map(measurement =>
-                  <MeasurementListItem
-                    query={query}
-                    key={measurement}
-                    measurement={measurement}
-                    querySource={querySource}
-                    onChooseTag={onChooseTag}
-                    onGroupByTag={onGroupByTag}
-                    areTagsAccepted={areTagsAccepted}
-                    onAcceptReject={this.handleAcceptReject}
-                    isActive={measurement === query.measurement}
-                    numTagsActive={Object.keys(query.tags).length}
-                    onChooseMeasurement={this.handleChoosemeasurement}
-                  />
-                )}
-              </FancyScrollbar>
-            </div>
-          : <div className="query-builder--list-empty">
-              <span>
-                No <strong>Database</strong> selected
-              </span>
-            </div>}
+        {database ? (
+          <div className="query-builder--list">
+            <FancyScrollbar>
+              {filtered.map(measurement => (
+                <MeasurementListItem
+                  query={query}
+                  key={measurement}
+                  measurement={measurement}
+                  querySource={querySource}
+                  onChooseTag={onChooseTag}
+                  onGroupByTag={onGroupByTag}
+                  areTagsAccepted={areTagsAccepted}
+                  onAcceptReject={this.handleAcceptReject}
+                  isActive={measurement === query.measurement}
+                  numTagsActive={Object.keys(query.tags).length}
+                  onChooseMeasurement={this.handleChoosemeasurement}
+                />
+              ))}
+            </FancyScrollbar>
+          </div>
+        ) : (
+          <div className="query-builder--list-empty">
+            <span>
+              No <strong>Database</strong> selected
+            </span>
+          </div>
+        )}
       </div>
     )
   }

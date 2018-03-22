@@ -112,14 +112,14 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
         <div className="query-builder--heading">DB.RetentionPolicy</div>
         <div className="query-builder--list">
           <FancyScrollbar>
-            {this.state.namespaces.map(namespace =>
+            {this.state.namespaces.map(namespace => (
               <DatabaseListItem
                 isActive={this.isActive(this.props.query, namespace)}
                 namespace={namespace}
                 onChooseNamespace={this.handleChooseNamespace}
                 key={namespace.database + namespace.retentionPolicy}
               />
-            )}
+            ))}
           </FancyScrollbar>
         </div>
       </div>

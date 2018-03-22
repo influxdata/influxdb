@@ -110,7 +110,7 @@ class TagList extends PureComponent<Props, State> {
 
     return (
       <div className="query-builder--sub-list">
-        {_.map(this.state.tags, (tagValues: string[], tagKey: string) =>
+        {_.map(this.state.tags, (tagValues: string[], tagKey: string) => (
           <TagListItem
             key={tagKey}
             tagKey={tagKey}
@@ -120,7 +120,7 @@ class TagList extends PureComponent<Props, State> {
             selectedTagValues={query.tags[tagKey] || []}
             isUsingGroupBy={query.groupBy.tags.indexOf(tagKey) > -1}
           />
-        )}
+        ))}
       </div>
     )
   }

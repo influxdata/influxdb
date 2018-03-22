@@ -103,42 +103,47 @@ class InputClickToEdit extends PureComponent<Props, State> {
       appearAsNormalInput,
     } = this.props
 
-    const wrapperClass = `${wrapper}${appearAsNormalInput
-      ? ' input-cte__normal'
-      : ''}`
+    const wrapperClass = `${wrapper}${
+      appearAsNormalInput ? ' input-cte__normal' : ''
+    }`
     const defaultStyle = value ? 'input-cte' : 'input-cte__empty'
 
-    return disabled
-      ? <div className={wrapperClass}>
-          <div data-test="disabled" className="input-cte__disabled">
-            {value}
+    return disabled ? (
+      <div className={wrapperClass}>
+        <div data-test="disabled" className="input-cte__disabled">
+          {value}
+        </div>
+      </div>
+    ) : (
+      <div className={wrapperClass}>
+        {isEditing ? (
+          <input
+            type="text"
+            className="form-control input-sm provider--input"
+            defaultValue={value}
+            onBlur={this.handleInputBlur}
+            onKeyDown={this.handleKeyDown}
+            onChange={this.handleChange}
+            autoFocus={true}
+            onFocus={this.handleFocus}
+            tabIndex={tabIndex}
+            spellCheck={false}
+          />
+        ) : (
+          <div
+            className={defaultStyle}
+            onClick={this.handleInputClick}
+            onFocus={this.handleInputClick}
+            tabIndex={tabIndex}
+          >
+            {value || placeholder}
+            {appearAsNormalInput || (
+              <span data-test="icon" className="icon pencil" />
+            )}
           </div>
-        </div>
-      : <div className={wrapperClass}>
-          {isEditing
-            ? <input
-                type="text"
-                className="form-control input-sm provider--input"
-                defaultValue={value}
-                onBlur={this.handleInputBlur}
-                onKeyDown={this.handleKeyDown}
-                onChange={this.handleChange}
-                autoFocus={true}
-                onFocus={this.handleFocus}
-                tabIndex={tabIndex}
-                spellCheck={false}
-              />
-            : <div
-                className={defaultStyle}
-                onClick={this.handleInputClick}
-                onFocus={this.handleInputClick}
-                tabIndex={tabIndex}
-              >
-                {value || placeholder}
-                {appearAsNormalInput ||
-                  <span data-test="icon" className="icon pencil" />}
-              </div>}
-        </div>
+        )}
+      </div>
+    )
   }
 }
 
