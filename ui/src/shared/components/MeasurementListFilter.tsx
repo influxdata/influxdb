@@ -10,7 +10,7 @@ const MeasurementListFilter: SFC<Props> = ({
   onEscape,
   onFilterText,
   filterText,
-}) =>
+}) => (
   <div className="query-builder--filter">
     <input
       className="form-control input-sm"
@@ -24,5 +24,6 @@ const MeasurementListFilter: SFC<Props> = ({
     />
     <span className="icon search" />
   </div>
+)
 
 export default MeasurementListFilter

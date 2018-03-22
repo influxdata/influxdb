@@ -36,7 +36,7 @@ export const Confirm: SFC<ConfirmProps> = ({
   onConfirm,
   icon,
   title,
-}) =>
+}) => (
   <button
     data-test="confirm"
     className={classnames('btn btn-success btn-square', {
@@ -48,8 +48,9 @@ export const Confirm: SFC<ConfirmProps> = ({
   >
     <span className={icon} />
   </button>
+)
 
-export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) =>
+export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) => (
   <button
     data-test="cancel"
     className={classnames('btn btn-info btn-square', {
@@ -59,6 +60,7 @@ export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) =>
   >
     <span className={icon} />
   </button>
+)
 
 class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
   public static defaultProps: Partial<ConfirmButtonsProps> = {
@@ -86,35 +88,37 @@ class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
   public render() {
     const {item, buttonSize, isDisabled, confirmLeft, confirmTitle} = this.props
 
-    return confirmLeft
-      ? <div className="confirm-buttons">
-          <Confirm
-            buttonSize={buttonSize}
-            isDisabled={isDisabled}
-            onConfirm={this.handleConfirm(item)}
-            icon="icon checkmark"
-            title={confirmTitle}
-          />
-          <Cancel
-            buttonSize={buttonSize}
-            onCancel={this.handleCancel(item)}
-            icon="icon remove"
-          />
-        </div>
-      : <div className="confirm-buttons">
-          <Cancel
-            buttonSize={buttonSize}
-            onCancel={this.handleCancel(item)}
-            icon="icon remove"
-          />
-          <Confirm
-            buttonSize={buttonSize}
-            isDisabled={isDisabled}
-            onConfirm={this.handleConfirm(item)}
-            icon="icon checkmark"
-            title={confirmTitle}
-          />
-        </div>
+    return confirmLeft ? (
+      <div className="confirm-buttons">
+        <Confirm
+          buttonSize={buttonSize}
+          isDisabled={isDisabled}
+          onConfirm={this.handleConfirm(item)}
+          icon="icon checkmark"
+          title={confirmTitle}
+        />
+        <Cancel
+          buttonSize={buttonSize}
+          onCancel={this.handleCancel(item)}
+          icon="icon remove"
+        />
+      </div>
+    ) : (
+      <div className="confirm-buttons">
+        <Cancel
+          buttonSize={buttonSize}
+          onCancel={this.handleCancel(item)}
+          icon="icon remove"
+        />
+        <Confirm
+          buttonSize={buttonSize}
+          isDisabled={isDisabled}
+          onConfirm={this.handleConfirm(item)}
+          icon="icon checkmark"
+          title={confirmTitle}
+        />
+      </div>
+    )
   }
 }
 
