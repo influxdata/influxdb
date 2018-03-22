@@ -153,6 +153,7 @@ type EngineOptions struct {
 	ShardID       uint64
 	InmemIndex    interface{} // shared in-memory index
 
+	CompactionPlannerCreator    CompactionPlannerCreator
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
 	WALEnabled                  bool
@@ -173,3 +174,5 @@ func NewEngineOptions() EngineOptions {
 
 // NewInmemIndex returns a new "inmem" index type.
 var NewInmemIndex func(name string, sfile *SeriesFile) (interface{}, error)
+
+type CompactionPlannerCreator func(cfg Config) interface{}

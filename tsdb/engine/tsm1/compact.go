@@ -83,6 +83,8 @@ type CompactionPlanner interface {
 	// ForceFull causes the planner to return a full compaction plan the next
 	// time Plan() is called if there are files that could be compacted.
 	ForceFull()
+
+	SetFileStore(fs *FileStore)
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -176,6 +178,10 @@ func (t *tsmGeneration) hasTombstones() bool {
 		}
 	}
 	return false
+}
+
+func (c *DefaultPlanner) SetFileStore(fs *FileStore) {
+	c.FileStore = fs
 }
 
 // FullyCompacted returns true if the shard is fully compacted.

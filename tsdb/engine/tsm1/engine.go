@@ -203,6 +203,12 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		RateLimit: opt.CompactionThroughputLimiter,
 	}
 
+	var planner CompactionPlanner = NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration))
+	if opt.CompactionPlannerCreator != nil {
+		planner = opt.CompactionPlannerCreator(opt.Config).(CompactionPlanner)
+		planner.SetFileStore(fs)
+	}
+
 	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
@@ -220,7 +226,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 
 		FileStore:      fs,
 		Compactor:      c,
-		CompactionPlan: NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration)),
+		CompactionPlan: planner,
 
 		CacheFlushMemorySizeThreshold: uint64(opt.Config.CacheSnapshotMemorySize),
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
