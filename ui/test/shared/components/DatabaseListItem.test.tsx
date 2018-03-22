@@ -1,6 +1,8 @@
 import React from 'react'
-import DatabaseListItem from 'src/shared/components/DatabaseListItem'
+
 import {shallow} from 'enzyme'
+
+import DatabaseListItem from 'src/shared/components/DatabaseListItem'
 
 const namespace = {database: 'db1', retentionPolicy: 'rp1'}
 

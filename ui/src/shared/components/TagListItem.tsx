@@ -1,13 +1,18 @@
-import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import classnames from 'classnames'
+import _ from 'lodash'
+import React, {PureComponent} from 'react'
+
+interface Tag {
+  key: string
+  value: string
+}
 
 interface Props {
   tagKey: string
   tagValues: string[]
   selectedTagValues: string[]
   isUsingGroupBy?: boolean
-  onChooseTag: ({key: string, value}) => void
+  onChooseTag: (tag: Tag) => void
   onGroupByTag: (tagKey: string) => void
 }
 
@@ -20,8 +25,8 @@ class TagListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      isOpen: false,
       filterText: '',
+      isOpen: false,
     }
 
     this.handleEscape = this.handleEscape.bind(this)
@@ -31,22 +36,22 @@ class TagListItem extends PureComponent<Props, State> {
     this.handleFilterText = this.handleFilterText.bind(this)
   }
 
-  handleChoose(tagValue: string) {
+  public handleChoose(tagValue: string) {
     this.props.onChooseTag({key: this.props.tagKey, value: tagValue})
   }
 
-  handleClickKey() {
+  public handleClickKey() {
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  handleFilterText(e) {
+  public handleFilterText(e) {
     e.stopPropagation()
     this.setState({
       filterText: e.target.value,
     })
   }
 
-  handleEscape(e) {
+  public handleEscape(e) {
     if (e.key !== 'Escape') {
       return
     }
@@ -57,12 +62,12 @@ class TagListItem extends PureComponent<Props, State> {
     })
   }
 
-  handleGroupBy(e) {
+  public handleGroupBy(e) {
     e.stopPropagation()
     this.props.onGroupByTag(this.props.tagKey)
   }
 
-  renderTagValues() {
+  public renderTagValues() {
     const {tagValues, selectedTagValues} = this.props
     if (!tagValues || !tagValues.length) {
       return <div>no tag values</div>
@@ -76,7 +81,6 @@ class TagListItem extends PureComponent<Props, State> {
         <div className="query-builder--filter">
           <input
             className="form-control input-sm"
-            ref="filterText"
             placeholder={`Filter within ${this.props.tagKey}`}
             type="text"
             value={this.state.filterText}
@@ -109,7 +113,7 @@ class TagListItem extends PureComponent<Props, State> {
     )
   }
 
-  render() {
+  public render() {
     const {tagKey, tagValues, isUsingGroupBy} = this.props
     const {isOpen} = this.state
     const tagItemLabel = `${tagKey} — ${tagValues.length}`
@@ -127,8 +131,8 @@ class TagListItem extends PureComponent<Props, State> {
           </span>
           <div
             className={classnames('btn btn-xs group-by-tag', {
-              'btn-primary': isUsingGroupBy,
               'btn-default': !isUsingGroupBy,
+              'btn-primary': isUsingGroupBy,
             })}
             onClick={this.handleGroupBy}
           >

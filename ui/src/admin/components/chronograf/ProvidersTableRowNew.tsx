@@ -4,12 +4,12 @@ import ConfirmButtons from 'src/shared/components/ConfirmButtons'
 import Dropdown from 'src/shared/components/Dropdown'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
-type Organization = {
+interface Organization {
   id: string
   name: string
 }
 
-type Scheme = {
+interface Scheme {
   text: string
 }
 
@@ -33,10 +33,10 @@ class ProvidersTableRowNew extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      scheme: '*',
+      organizationId: 'default',
       provider: null,
       providerOrganization: null,
-      organizationId: 'default',
+      scheme: '*',
     }
 
     this.handleChooseScheme = this.handleChooseScheme.bind(this)
@@ -46,28 +46,7 @@ class ProvidersTableRowNew extends PureComponent<Props, State> {
     this.handleSaveNewMapping = this.handleSaveNewMapping.bind(this)
   }
 
-  handleChooseScheme(scheme: Scheme) {
-    this.setState({scheme: scheme.text})
-  }
-
-  handleChangeProvider(provider: string) {
-    this.setState({provider})
-  }
-
-  handleChangeProviderOrg(providerOrganization: string) {
-    this.setState({providerOrganization})
-  }
-
-  handleChooseOrganization(org: Organization) {
-    this.setState({organizationId: org.id})
-  }
-
-  handleSaveNewMapping() {
-    const {onCreate} = this.props
-    onCreate(this.state)
-  }
-
-  render() {
+  public render() {
     const {scheme, provider, providerOrganization, organizationId} = this.state
 
     const {organizations, onCancel, schemes, rowIndex} = this.props
@@ -125,6 +104,27 @@ class ProvidersTableRowNew extends PureComponent<Props, State> {
         />
       </div>
     )
+  }
+
+  private handleChooseScheme(scheme: Scheme) {
+    this.setState({scheme: scheme.text})
+  }
+
+  private handleChangeProvider(provider: string) {
+    this.setState({provider})
+  }
+
+  private handleChangeProviderOrg(providerOrganization: string) {
+    this.setState({providerOrganization})
+  }
+
+  private handleChooseOrganization(org: Organization) {
+    this.setState({organizationId: org.id})
+  }
+
+  private handleSaveNewMapping() {
+    const {onCreate} = this.props
+    onCreate(this.state)
   }
 }
 

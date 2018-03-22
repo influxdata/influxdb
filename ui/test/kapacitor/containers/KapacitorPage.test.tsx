@@ -1,38 +1,38 @@
+import {mount} from 'enzyme'
 import React from 'react'
-import {
-  KapacitorPage,
-  defaultName,
-  kapacitorPort,
-} from 'src/kapacitor/containers/KapacitorPage'
 import KapacitorForm from 'src/kapacitor/components/KapacitorForm'
 import KapacitorFormInput from 'src/kapacitor/components/KapacitorFormInput'
-import {mount} from 'enzyme'
-import {getKapacitor, createKapacitor, updateKapacitor} from 'src/shared/apis'
+import {
+  defaultName,
+  KapacitorPage,
+  kapacitorPort,
+} from 'src/kapacitor/containers/KapacitorPage'
+import {createKapacitor, getKapacitor, updateKapacitor} from 'src/shared/apis'
 
-import {source, kapacitor} from 'test/resources'
 import * as mocks from 'mocks/dummy'
+import {kapacitor, source} from 'test/resources'
 
 jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 
 const setup = (override = {}) => {
   const props = {
-    source: source,
-    notify: () => {},
     kapacitor,
+    location: {pathname: '', hash: ''},
+    notify: () => {},
+    params: {id: '', hash: ''},
     router: {
       push: () => {},
       replace: () => {},
     },
-    location: {pathname: '', hash: ''},
-    params: {id: '', hash: ''},
+    source,
     ...override,
   }
 
   const wrapper = mount(<KapacitorPage {...props} />)
 
   return {
-    wrapper,
     props,
+    wrapper,
   }
 }
 
@@ -76,7 +76,10 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
       })
 
       describe('with a https url', () => {
-        let inputElement, secureCheckbox, wrapper
+        let inputElement
+        let secureCheckbox
+        let wrapper
+
         const value = 'https://example.com'
 
         beforeEach(() => {
@@ -90,7 +93,7 @@ describe('Kapacitor.Containers.KapacitorPage', () => {
         })
 
         describe('checking the insecure skip verify checkbox', () => {
-          it("changes the state", () => {
+          it('changes the state', () => {
             const checked = true
             const event = {target: {checked}}
 

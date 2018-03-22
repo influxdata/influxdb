@@ -55,6 +55,15 @@ const config = {
     ],
     loaders: [
       {
+        test: /\.ts(x?)$/,
+        exclude: /node_modules/,
+        loader: 'tslint-loader',
+        enforce: 'pre',
+        options: {
+          emitWarning: true,
+        },
+      },
+      {
         test: /\.js$/,
         exclude: [/node_modules/, /(_s|S)pec\.js$/],
         use: 'eslint-loader',

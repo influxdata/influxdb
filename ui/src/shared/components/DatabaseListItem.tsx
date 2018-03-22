@@ -1,5 +1,7 @@
 import React, {SFC} from 'react'
+
 import classnames from 'classnames'
+
 import {Namespace} from 'src/types/query'
 
 export interface DatabaseListItemProps {

@@ -1,6 +1,6 @@
-import React, {PureComponent, ChangeEvent} from 'react'
-import {withRouter} from 'react-router'
+import React, {ChangeEvent, PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -8,21 +8,21 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {Source} from 'src/types'
 
 import {
-  getKapacitor,
   createKapacitor,
-  updateKapacitor,
+  getKapacitor,
   pingKapacitor,
+  updateKapacitor,
 } from 'src/shared/apis'
 
 import KapacitorForm from '../components/KapacitorForm'
 
 import {
   NOTIFY_KAPACITOR_CONNECTION_FAILED,
-  NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN,
-  NOTIFY_KAPACITOR_UPDATED,
-  NOTIFY_KAPACITOR_UPDATE_FAILED,
   NOTIFY_KAPACITOR_CREATED,
   NOTIFY_KAPACITOR_CREATION_FAILED,
+  NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN,
+  NOTIFY_KAPACITOR_UPDATE_FAILED,
+  NOTIFY_KAPACITOR_UPDATED,
 } from 'src/shared/copy/notifications'
 
 export const defaultName = 'My Kapacitor'
@@ -68,14 +68,14 @@ export class KapacitorPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
+      exists: false,
       kapacitor: this.defaultKapacitor,
-      exists: false
     }
 
     this.handleSubmit = this.handleSubmit.bind(this)
   }
 
-  async componentDidMount() {
+  public async componentDidMount() {
     const {source, params: {id}, notify} = this.props
     if (!id) {
       return
@@ -91,18 +91,18 @@ export class KapacitorPage extends PureComponent<Props, State> {
     }
   }
 
-  handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
+  public handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {checked} = e.target
 
     this.setState({
       kapacitor: {
         ...this.state.kapacitor,
-        insecureSkipVerify: checked
-      }
+        insecureSkipVerify: checked,
+      },
     })
   }
 
-  handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  public handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {value, name} = e.target
 
     this.setState(prevState => {
@@ -111,11 +111,11 @@ export class KapacitorPage extends PureComponent<Props, State> {
     })
   }
 
-  handleChangeUrl = e => {
+  public handleChangeUrl = e => {
     this.setState({kapacitor: {...this.state.kapacitor, url: e.target.value}})
   }
 
-  handleSubmit = async e => {
+  public handleSubmit = async e => {
     e.preventDefault()
     const {
       notify,
@@ -160,22 +160,43 @@ export class KapacitorPage extends PureComponent<Props, State> {
     }
   }
 
-  handleResetToDefaults = e => {
+  public handleResetToDefaults = e => {
     e.preventDefault()
     this.setState({kapacitor: {...this.defaultKapacitor}})
   }
 
+  public render() {
+    const {source, location, params, notify} = this.props
+    const hash = (location && location.hash) || (params && params.hash) || ''
+    const {exists, kapacitor} = this.state
+
+    return (
+      <KapacitorForm
+        hash={hash}
+        source={source}
+        exists={exists}
+        kapacitor={kapacitor}
+        onSubmit={this.handleSubmit}
+        onChangeUrl={this.handleChangeUrl}
+        onReset={this.handleResetToDefaults}
+        onInputChange={this.handleInputChange}
+        notify={notify}
+        onCheckboxChange={this.handleCheckboxChange}
+      />
+    )
+  }
+
   private get defaultKapacitor() {
     return {
-      url: this.parseKapacitorURL(),
-      name: defaultName,
-      username: '',
-      password: '',
       active: false,
       insecureSkipVerify: false,
       links: {
         self: '',
       },
+      name: defaultName,
+      password: '',
+      url: this.parseKapacitorURL(),
+      username: '',
     }
   }
 
@@ -195,27 +216,6 @@ export class KapacitorPage extends PureComponent<Props, State> {
     parser.href = this.props.source.url
 
     return `${parser.protocol}//${parser.hostname}:${kapacitorPort}`
-  }
-
-  render() {
-    const {source, location, params, notify} = this.props
-    const hash = (location && location.hash) || (params && params.hash) || ''
-    const {kapacitor, exists} = this.state
-
-    return (
-      <KapacitorForm
-        hash={hash}
-        source={source}
-        exists={exists}
-        kapacitor={kapacitor}
-        onSubmit={this.handleSubmit}
-        onChangeUrl={this.handleChangeUrl}
-        onReset={this.handleResetToDefaults}
-        onInputChange={this.handleInputChange}
-        notify={notify}
-        onCheckboxChange={this.handleCheckboxChange}
-      />
-    )
   }
 }
 

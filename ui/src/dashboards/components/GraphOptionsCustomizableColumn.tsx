@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
-type Column = {
+interface Column {
   internalName: string
   displayName: string
 }
@@ -20,12 +20,12 @@ class GraphOptionsCustomizableColumn extends PureComponent<Props, {}> {
     this.handleColumnRename = this.handleColumnRename.bind(this)
   }
 
-  handleColumnRename(rename) {
+  public handleColumnRename(rename) {
     const {onColumnRename, internalName} = this.props
     onColumnRename({internalName, displayName: rename})
   }
 
-  render() {
+  public render() {
     const {internalName, displayName} = this.props
 
     return (

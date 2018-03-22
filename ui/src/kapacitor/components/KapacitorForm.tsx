@@ -1,8 +1,8 @@
-import React, {SFC, ChangeEvent, MouseEvent} from 'react'
+import React, {ChangeEvent, MouseEvent, SFC} from 'react'
 
 import AlertOutputs from 'src/kapacitor/components/AlertOutputs'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import Input from 'src/kapacitor/components/KapacitorFormInput'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
 import {Kapacitor, Source} from 'src/types'
@@ -105,7 +105,9 @@ const KapacitorForm: SFC<Props> = ({
                           checked={insecureSkipVerify}
                           onChange={onCheckboxChange}
                         />
-                        <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
+                        <label htmlFor="insecureSkipVerifyCheckbox">
+                          Unsafe SSL
+                        </label>
                       </div>
                       <label className="form-helper">
                         {insecureSkipVerifyText}

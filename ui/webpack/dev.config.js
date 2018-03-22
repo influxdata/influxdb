@@ -58,13 +58,22 @@ module.exports = {
     ],
     rules: [
       {
+        test: /\.ts(x?)$/,
+        exclude: /node_modules/,
+        loader: 'tslint-loader',
+        enforce: 'pre',
+        options: {
+          emitWarning: true,
+        },
+      },
+      {
         test: /\.js$/,
         exclude: /node_modules/,
         loader: 'eslint-loader',
         enforce: 'pre',
         options: {
-          emitWarning: true
-        }
+          emitWarning: true,
+        },
       },
       {
         test: /\.scss$/,
@@ -198,8 +207,8 @@ module.exports = {
       children: false,
       modules: false,
       version: false,
-      assetsSort: "!size",
-      excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/]
+      assetsSort: '!size',
+      excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
     },
     contentBase: 'build',
     quiet: false,
