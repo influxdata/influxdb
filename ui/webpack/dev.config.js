@@ -72,6 +72,7 @@ module.exports = {
         enforce: 'pre',
         options: {
           emitWarning: true,
+          configFile: path.resolve(__dirname, '..', 'tslint.json'),
         },
       },
       {
@@ -177,8 +178,8 @@ module.exports = {
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
     }),
-    new WebpackOnBuildPlugin(stats => {
-      const newlyCreatedAssets = stats.compilation.assets
+    new WebpackOnBuildPlugin(webpackStats => {
+      const newlyCreatedAssets = webpackStats.compilation.assets
       fs.readdir(buildDir, (readdirErr, buildDirFiles) => {
         if (readdirErr) {
           console.error('webpack build directory error')
