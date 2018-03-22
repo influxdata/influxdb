@@ -9158,7 +9158,10 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	}
 	// goroutine to write points
 	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
 			case <-done:
@@ -9176,6 +9179,7 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	close(done)
+	wg.Wait()
 }
 
 // Ensure time in where clause is inclusive
