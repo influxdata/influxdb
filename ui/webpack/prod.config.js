@@ -61,6 +61,7 @@ const config = {
         enforce: 'pre',
         options: {
           emitErrors: true,
+          configFile: path.resolve(__dirname, '..', 'tslint.json'),
         },
       },
       {
