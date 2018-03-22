@@ -49,8 +49,7 @@ export const stringifyColorValues = colors => {
 export const generateThresholdsListHexs = ({
   colors,
   lastValue,
-  containsLineGraph,
-  cellType,
+  cellType = 'line',
 }) => {
   const defaultColoring = {
     bgColor: null,
@@ -68,7 +67,7 @@ export const generateThresholdsListHexs = ({
   }
 
   // If the single stat is above a line graph never have a background color
-  if (containsLineGraph) {
+  if (cellType === 'line-plus-single-stat') {
     return baseColor
       ? {bgColor: null, textColor: baseColor.hex}
       : defaultColoring

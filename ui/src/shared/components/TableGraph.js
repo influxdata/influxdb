@@ -197,9 +197,9 @@ class TableGraph extends Component {
     const {tableOptions, tableOptions: {verticalTimeAxis}} = this.props
     const {timeColumnWidth} = this.state
 
-    const columnNames = _.get(tableOptions, 'columnNames', [TIME_FIELD_DEFAULT])
+    const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
 
-    return verticalTimeAxis && columnNames[index].internalName === 'time'
+    return verticalTimeAxis && fieldNames[index].internalName === 'time'
       ? timeColumnWidth
       : columnSizerWidth
   }

@@ -36,7 +36,7 @@ class SingleStat extends PureComponent {
     const {bgColor, textColor} = generateThresholdsListHexs({
       colors,
       lastValue,
-      containsLineGraph: lineGraph,
+      cellType: lineGraph ? 'line-plus-single-stat' : 'single-stat',
     })
 
     const backgroundColor = bgColor
