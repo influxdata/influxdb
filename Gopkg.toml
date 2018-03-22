@@ -26,7 +26,7 @@ required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto",
 
 [[constraint]]
   name = "github.com/gogo/protobuf"
-  revision = "6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b"
+  revision = "49944b4a4b085da44c43d4b233ea40787396371f"
 
 [[constraint]]
   name = "github.com/google/go-github"
@@ -74,7 +74,7 @@ required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto",
 
 [[constraint]]
   name = "github.com/influxdata/ifql"
-  revision = "master"
+  revision = "9445c4494d4421db2ab1aaaf6f4069446f11752e"
 
 [[constraint]]
   name = "github.com/influxdata/kapacitor"
