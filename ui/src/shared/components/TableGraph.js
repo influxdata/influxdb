@@ -308,7 +308,7 @@ class TableGraph extends Component {
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
-            {({getColumnWidth, registerChild}) => (
+            {({getColumnWidth, registerChild}) =>
               <MultiGrid
                 ref={registerChild}
                 columnCount={columnCount}
@@ -332,10 +332,8 @@ class TableGraph extends Component {
                 colors={colors}
                 tableOptions={tableOptions}
                 classNameBottomRightGrid="table-graph--scroll-window"
-              />
-            )}
-          </ColumnSizer>
-        )}
+              />}
+          </ColumnSizer>})
       </div>
     )
   }
