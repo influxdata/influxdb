@@ -9,10 +9,8 @@ const keys = require('lodash/keys')
 const difference = require('lodash/difference')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 
-const package = require('../package.json')
-const dependencies = package.dependencies
-
 const buildDir = path.resolve(__dirname, '../build')
+
 const babelLoader = {
   loader: 'babel-loader',
   options: {
