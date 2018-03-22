@@ -3,7 +3,7 @@ import React, {SFC} from 'react'
 import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
 import uuid from 'uuid'
 
-type Field = {
+interface Field {
   internalName: string
   displayName: string
   visible: boolean

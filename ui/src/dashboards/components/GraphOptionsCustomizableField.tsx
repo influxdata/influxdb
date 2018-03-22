@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
-type Field = {
+interface Field {
   internalName: string
   displayName: string
   visible: boolean

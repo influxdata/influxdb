@@ -2,27 +2,27 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
-import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
-import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
+import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
+import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
+import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
+import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import _ from 'lodash'
 
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
-import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
+import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 
 interface Option {
   text: string
   key: string
 }
 
-type RenamableField = {
+interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
@@ -113,7 +113,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     })
   }
 
-  componentWillMount() {
+  public componentWillMount() {
     const {handleUpdateTableOptions, tableOptions} = this.props
     handleUpdateTableOptions({
       ...tableOptions,
@@ -121,7 +121,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     })
   }
 
-  shouldComponentUpdate(nextProps) {
+  public shouldComponentUpdate(nextProps) {
     const {tableOptions, dataLabels} = this.props
     const tableOptionsDifferent = !_.isEqual(
       tableOptions,
@@ -142,8 +142,8 @@ export class TableOptions extends PureComponent<Props, {}> {
     } = this.props
 
     const tableSortByOptions = this.computedFieldNames.map(field => ({
-      text: field.displayName || field.internalName,
       key: field.internalName,
+      text: field.displayName || field.internalName,
     }))
 
     return (

@@ -61,7 +61,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
       <div className="form-group col-xs-12">
         <label>
           Time Format
-          {showCustom &&
+          {showCustom && (
             <QuestionMarkTooltip
               tipID="Time Axis Format"
               tipContent={tipContent}
