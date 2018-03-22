@@ -42,7 +42,6 @@ class DisplayOptions extends Component {
       staticLegend,
       onToggleStaticLegend,
       onResetFocus,
-      queryConfigs,
       dataLabels,
     } = this.props
     switch (type) {

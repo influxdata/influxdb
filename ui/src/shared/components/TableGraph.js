@@ -268,10 +268,8 @@ class TableGraph extends Component {
     } = this.state
     const {hoverTime, tableOptions, colors} = this.props
     const {
-      timeFormat = TIME_FORMAT_DEFAULT,
       verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
       fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
-      fieldNames = [TIME_FIELD_DEFAULT],
     } = tableOptions
 
     const columnCount = _.get(processedData, ['0', 'length'], 0)
