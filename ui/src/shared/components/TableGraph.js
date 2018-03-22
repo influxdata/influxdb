@@ -15,6 +15,7 @@ import {
   ASCENDING,
   DESCENDING,
   FIX_FIRST_COLUMN_DEFAULT,
+  VERTICAL_TIME_AXIS_DEFAULT,
 } from 'src/shared/constants/tableGraph'
 const DEFAULT_SORT = ASCENDING
 
@@ -125,7 +126,7 @@ class TableGraph extends Component {
   handleHover = (columnIndex, rowIndex) => () => {
     const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
     const {data} = this.state
-    if (rowIndex === 0) {
+    if (rowIndex === 0 && verticalTimeAxis) {
       return
     }
     if (onSetHoverTime) {
@@ -181,15 +182,15 @@ class TableGraph extends Component {
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
     const {hoveredColumnIndex, hoveredRowIndex, processedData} = this.state
     const {tableOptions, colors} = this.props
-    const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
 
-    const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
-    const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
-    const fixFirstColumn = _.get(
-      tableOptions,
-      'fixFirstColumn',
-      FIX_FIRST_COLUMN_DEFAULT
-    )
+    const {
+      timeFormat = TIME_FORMAT_DEFAULT,
+      verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
+      fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
+      fieldNames = [TIME_FIELD_DEFAULT],
+    } = tableOptions
+
+    const cellData = processedData[rowIndex][columnIndex]
 
     const timeField = fieldNames.find(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
@@ -202,9 +203,8 @@ class TableGraph extends Component {
       visibleTime &&
       (verticalTimeAxis ? rowIndex > 0 && columnIndex === 0 : isFixedRow)
     const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
-
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
-    const dataIsNumerical = _.isNumber(processedData[rowIndex][columnIndex])
+    const dataIsNumerical = _.isNumber(cellData)
     const isHighlightedRow =
       rowIndex === parent.props.scrollToRow ||
       (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0)
@@ -215,10 +215,7 @@ class TableGraph extends Component {
     let cellStyle = style
 
     if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
-      const {bgColor, textColor} = generateThresholdsListHexs(
-        colors,
-        processedData[rowIndex][columnIndex]
-      )
+      const {bgColor, textColor} = generateThresholdsListHexs(colors, cellData)
 
       cellStyle = {
         ...style,
@@ -237,9 +234,8 @@ class TableGraph extends Component {
       'table-graph-cell__isFieldName': isFieldName,
     })
 
-    const cellData = processedData[rowIndex][columnIndex]
-
-    const foundField = fieldNames.find(field => field.internalName === cellData)
+    const foundField =
+      isFieldName && fieldNames.find(field => field.internalName === cellData)
     const fieldName =
       foundField && (foundField.displayName || foundField.internalName)
 
@@ -271,26 +267,35 @@ class TableGraph extends Component {
       data,
     } = this.state
     const {hoverTime, tableOptions, colors} = this.props
-    const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
+    const {
+      timeFormat = TIME_FORMAT_DEFAULT,
+      verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
+      fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
+      fieldNames = [TIME_FIELD_DEFAULT],
+    } = tableOptions
 
     const columnCount = _.get(processedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : processedData.length
+
     const COLUMN_MIN_WIDTH = 98
     const COLUMN_MAX_WIDTH = 500
     const ROW_HEIGHT = 30
+
+    const fixedColumnCount = fixFirstColumn && columnCount > 1 ? 1 : undefined
+
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
+
     const hoverTimeIndex =
       hoveredRowIndex === NULL_ARRAY_INDEX
         ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
         : hoveredRowIndex
-    const fixedColumnCount =
-      tableOptions.fixFirstColumn && columnCount > 1 ? 1 : undefined
     const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
-    const scrollToRow =
-      !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
+
     const scrollToColumn =
       !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
+    const scrollToRow =
+      !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
 
     return (
       <div
@@ -318,15 +323,8 @@ class TableGraph extends Component {
                 fixedRowCount={1}
                 enableFixedColumnScroll={true}
                 enableFixedRowScroll={true}
-                timeFormat={
-                  tableOptions ? tableOptions.timeFormat : TIME_FORMAT_DEFAULT
-                }
-                fieldNames={
-                  tableOptions ? tableOptions.fieldNames : [TIME_FIELD_DEFAULT]
-                }
                 scrollToRow={scrollToRow}
                 scrollToColumn={scrollToColumn}
-                verticalTimeAxis={verticalTimeAxis}
                 sortField={sortField}
                 sortDirection={sortDirection}
                 cellRenderer={this.cellRenderer}
@@ -334,6 +332,7 @@ class TableGraph extends Component {
                 hoveredRowIndex={hoveredRowIndex}
                 hoverTime={hoverTime}
                 colors={colors}
+                tableOptions={tableOptions}
                 classNameBottomRightGrid="table-graph--scroll-window"
               />}
           </ColumnSizer>}

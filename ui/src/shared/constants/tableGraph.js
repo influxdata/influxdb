@@ -14,6 +14,7 @@ export const TIME_FIELD_DEFAULT = {
 export const ASCENDING = 'asc'
 export const DESCENDING = 'desc'
 export const FIX_FIRST_COLUMN_DEFAULT = true
+export const VERTICAL_TIME_AXIS_DEFAULT = true
 
 export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_DEFAULT},
@@ -28,7 +29,7 @@ export const FORMAT_OPTIONS = [
 ]
 
 export const DEFAULT_TABLE_OPTIONS = {
-  verticalTimeAxis: true,
+  verticalTimeAxis: VERTICAL_TIME_AXIS_DEFAULT,
   timeFormat: TIME_FORMAT_DEFAULT,
   sortBy: TIME_FIELD_DEFAULT,
   wrapping: 'truncate',
