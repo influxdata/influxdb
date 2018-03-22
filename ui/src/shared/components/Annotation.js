@@ -12,24 +12,27 @@ const Annotation = ({
   mode,
   lastUpdated,
   staticLegendHeight,
-}) =>
+}) => (
   <div>
-    {annotation.startTime === annotation.endTime
-      ? <AnnotationPoint
-          lastUpdated={lastUpdated}
-          annotation={annotation}
-          mode={mode}
-          dygraph={dygraph}
-          staticLegendHeight={staticLegendHeight}
-        />
-      : <AnnotationSpan
-          lastUpdated={lastUpdated}
-          annotation={annotation}
-          mode={mode}
-          dygraph={dygraph}
-          staticLegendHeight={staticLegendHeight}
-        />}
+    {annotation.startTime === annotation.endTime ? (
+      <AnnotationPoint
+        lastUpdated={lastUpdated}
+        annotation={annotation}
+        mode={mode}
+        dygraph={dygraph}
+        staticLegendHeight={staticLegendHeight}
+      />
+    ) : (
+      <AnnotationSpan
+        lastUpdated={lastUpdated}
+        annotation={annotation}
+        mode={mode}
+        dygraph={dygraph}
+        staticLegendHeight={staticLegendHeight}
+      />
+    )}
   </div>
+)
 
 const {number, shape, string} = PropTypes
 

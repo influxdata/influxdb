@@ -16,7 +16,7 @@ const Header = ({
   onManualRefresh,
   onChooseTimeRange,
   onChooseAutoRefresh,
-}) =>
+}) => (
   <div className="page-header full-width">
     <div className="page-header__container">
       <div className="page-header__left">
@@ -47,6 +47,7 @@ const Header = ({
       </div>
     </div>
   </div>
+)
 
 Header.propTypes = {
   onChooseAutoRefresh: func.isRequired,

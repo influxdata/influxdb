@@ -2,7 +2,7 @@ import React from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 
-const DashboardsHeader = () =>
+const DashboardsHeader = () => (
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
@@ -13,5 +13,6 @@ const DashboardsHeader = () =>
       </div>
     </div>
   </div>
+)
 
 export default DashboardsHeader

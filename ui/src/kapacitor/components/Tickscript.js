@@ -22,7 +22,7 @@ const Tickscript = ({
   areLogsVisible,
   areLogsEnabled,
   onToggleLogsVisibility,
-}) =>
+}) => (
   <div className="page">
     <TickscriptHeader
       task={task}
@@ -58,6 +58,7 @@ const Tickscript = ({
       {areLogsVisible ? <LogsTable logs={logs} /> : null}
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

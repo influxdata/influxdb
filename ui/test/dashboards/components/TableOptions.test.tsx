@@ -2,60 +2,30 @@ import React from 'react'
 
 import {TableOptions} from 'src/dashboards/components/TableOptions'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
-import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
+import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
+import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
+import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
-import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 
 import {shallow} from 'enzyme'
 
-const queryConfigs = [
-  {
-    measurement: 'dev',
-    fields: [
-      {
-        alias: 'boom',
-        value: 'test',
-      },
-      {
-        alias: 'again',
-        value: 'again',
-      },
-    ],
-  },
-  {
-    measurement: 'prod',
-    fields: [
-      {
-        alias: 'boom',
-        value: 'test',
-      },
-      {
-        alias: 'again',
-        value: 'again',
-      },
-    ],
-  },
-]
-
 const defaultProps = {
-  queryConfigs: queryConfigs,
   handleUpdateTableOptions: () => {},
+  onResetFocus: () => {},
   tableOptions: {
+    columnNames: [],
+    fixFirstColumn: true,
     timeFormat: '',
     verticalTimeAxis: true,
     sortBy: {internalName: '', displayName: '', visible: true},
-    wrapping: '',
     fieldNames: [],
-    fixFirstColumn: true,
   },
   dataLabels: [],
-  onResetFocus: () => {},
 }
 
 const setup = (override = {}) => {
@@ -76,7 +46,7 @@ describe('Dashboards.Components.TableOptions', () => {
 
   describe('rendering', () => {
     it('should render all components', () => {
-      const {wrapper} = setup({queryConfigs})
+      const {wrapper} = setup()
       const fancyScrollbar = wrapper.find(FancyScrollbar)
       const graphOptionsTimeFormat = wrapper.find(GraphOptionsTimeFormat)
       const graphOptionsTimeAxis = wrapper.find(GraphOptionsTimeAxis)

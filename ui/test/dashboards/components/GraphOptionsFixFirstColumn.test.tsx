@@ -1,7 +1,8 @@
 import React from 'react'
 
-import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import {shallow} from 'enzyme'
+
+import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 
 const setup = (override = {}) => {
   const props = {

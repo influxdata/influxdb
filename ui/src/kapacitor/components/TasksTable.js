@@ -8,7 +8,7 @@ import {TASKS_TABLE} from 'src/kapacitor/constants/tableSizing'
 
 const {colName, colType, colEnabled, colActions} = TASKS_TABLE
 
-const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
+const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) => (
   <table className="table v-center table-highlight">
     <thead>
       <tr>
@@ -34,10 +34,11 @@ const TasksTable = ({tasks, source, onDelete, onChangeRuleStatus}) =>
       })}
     </tbody>
   </table>
+)
 
 const handleDelete = (task, onDelete) => onDelete(task)
 
-const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
+const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) => (
   <tr key={task.id}>
     <td style={{minWidth: colName}}>
       <Link
@@ -47,9 +48,7 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
         {task.name}
       </Link>
     </td>
-    <td style={{width: colType, textTransform: 'capitalize'}}>
-      {task.type}
-    </td>
+    <td style={{width: colType, textTransform: 'capitalize'}}>{task.type}</td>
     <td style={{width: colEnabled}} className="text-center">
       <div className="dark-checkbox">
         <input
@@ -72,6 +71,7 @@ const TaskRow = ({task, source, onDelete, onChangeRuleStatus}) =>
       />
     </td>
   </tr>
+)
 
 const {arrayOf, func, shape, string} = PropTypes
 

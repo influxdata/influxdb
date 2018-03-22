@@ -45,21 +45,18 @@ const KapacitorRules = ({
 
   const builderRules = rules.filter(r => r.query)
 
-  const builderHeader = `${builderRules.length} Alert Rule${builderRules.length ===
-  1
-    ? ''
-    : 's'}`
-  const scriptsHeader = `${rules.length} TICKscript${rules.length === 1
-    ? ''
-    : 's'}`
+  const builderHeader = `${builderRules.length} Alert Rule${
+    builderRules.length === 1 ? '' : 's'
+  }`
+  const scriptsHeader = `${rules.length} TICKscript${
+    rules.length === 1 ? '' : 's'
+  }`
 
   return (
     <PageContents source={source}>
       <div className="panel">
         <div className="panel-heading">
-          <h2 className="panel-title">
-            {builderHeader}
-          </h2>
+          <h2 className="panel-title">{builderHeader}</h2>
           <Link
             to={`/sources/${source.id}/alert-rules/new`}
             className="btn btn-sm btn-primary"
@@ -79,9 +76,7 @@ const KapacitorRules = ({
       </div>
       <div className="panel">
         <div className="panel-heading">
-          <h2 className="panel-title">
-            {scriptsHeader}
-          </h2>
+          <h2 className="panel-title">{scriptsHeader}</h2>
           <Link
             to={`/sources/${source.id}/tickscript/new`}
             className="btn btn-sm btn-success"
@@ -103,7 +98,7 @@ const KapacitorRules = ({
   )
 }
 
-const PageContents = ({children}) =>
+const PageContents = ({children}) => (
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
@@ -122,13 +117,12 @@ const PageContents = ({children}) =>
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
-          <div className="col-md-12">
-            {children}
-          </div>
+          <div className="col-md-12">{children}</div>
         </div>
       </div>
     </FancyScrollbar>
   </div>
+)
 
 const {arrayOf, bool, func, node, shape} = PropTypes
 

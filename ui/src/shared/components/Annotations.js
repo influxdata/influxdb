@@ -56,19 +56,20 @@ class Annotations extends Component {
     return (
       <div className="annotations-container">
         {mode === ADDING &&
-          tempAnnotation &&
-          <NewAnnotation
-            dygraph={dygraph}
-            tempAnnotation={tempAnnotation}
-            onDismissAddingAnnotation={handleDismissAddingAnnotation}
-            onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
-            onUpdateAnnotation={handleUpdateAnnotation}
-            isTempHovering={isTempHovering}
-            onMouseEnterTempAnnotation={handleMouseEnterTempAnnotation}
-            onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
-            staticLegendHeight={staticLegendHeight}
-          />}
-        {annotations.map(a =>
+          tempAnnotation && (
+            <NewAnnotation
+              dygraph={dygraph}
+              tempAnnotation={tempAnnotation}
+              onDismissAddingAnnotation={handleDismissAddingAnnotation}
+              onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
+              onUpdateAnnotation={handleUpdateAnnotation}
+              isTempHovering={isTempHovering}
+              onMouseEnterTempAnnotation={handleMouseEnterTempAnnotation}
+              onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
+              staticLegendHeight={staticLegendHeight}
+            />
+          )}
+        {annotations.map(a => (
           <Annotation
             key={a.id}
             mode={mode}
@@ -77,7 +78,7 @@ class Annotations extends Component {
             staticLegendHeight={staticLegendHeight}
             lastUpdated={lastUpdated}
           />
-        )}
+        ))}
       </div>
     )
   }

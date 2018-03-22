@@ -12,7 +12,7 @@ const Relative = ({
   onRuleTypeInputChange,
   onDropdownChange,
   rule: {values: {change, shift, operator, value}},
-}) =>
+}) => (
   <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
     <p>Send Alert when</p>
     <Dropdown
@@ -52,6 +52,7 @@ const Relative = ({
     </form>
     {change === CHANGES[1] ? <p>%</p> : null}
   </div>
+)
 
 const {shape, string, func} = PropTypes
 

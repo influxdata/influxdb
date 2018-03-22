@@ -76,16 +76,16 @@ const DataSection = ({
           onGroupByTag={handleGroupByTag}
           onToggleTagAcceptance={handleToggleTagAcceptance}
         />
-        {isDeadman
-          ? null
-          : <FieldList
-              query={query}
-              onToggleField={handleToggleField}
-              isKapacitorRule={isKapacitorRule}
-              onGroupByTime={handleGroupByTime}
-              removeFuncs={handleRemoveFuncs}
-              applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
-            />}
+        {isDeadman ? null : (
+          <FieldList
+            query={query}
+            onToggleField={handleToggleField}
+            isKapacitorRule={isKapacitorRule}
+            onGroupByTime={handleGroupByTime}
+            removeFuncs={handleRemoveFuncs}
+            applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
+          />
+        )}
       </div>
     </div>
   )

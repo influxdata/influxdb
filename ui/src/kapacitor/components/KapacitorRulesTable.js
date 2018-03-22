@@ -15,7 +15,7 @@ const {
   colActions,
 } = TASKS_TABLE
 
-const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
+const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) => (
   <table className="table v-center table-highlight">
     <thead>
       <tr>
@@ -43,10 +43,11 @@ const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
       })}
     </tbody>
   </table>
+)
 
 const handleDelete = (rule, onDelete) => onDelete(rule)
 
-const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
+const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) => (
   <tr key={rule.id}>
     <td style={{minWidth: colName}}>
       <Link to={`/sources/${source.id}/alert-rules/${rule.id}`}>
@@ -56,12 +57,8 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
     <td style={{width: colTrigger, textTransform: 'capitalize'}}>
       {rule.trigger}
     </td>
-    <td style={{width: colMessage}}>
-      {rule.message}
-    </td>
-    <td style={{width: colAlerts}}>
-      {parseAlertNodeList(rule)}
-    </td>
+    <td style={{width: colMessage}}>{rule.message}</td>
+    <td style={{width: colAlerts}}>{parseAlertNodeList(rule)}</td>
     <td style={{width: colEnabled}} className="text-center">
       <div className="dark-checkbox">
         <input
@@ -84,6 +81,7 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
       />
     </td>
   </tr>
+)
 
 const {arrayOf, func, shape, string} = PropTypes
 

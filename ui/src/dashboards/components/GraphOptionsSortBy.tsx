@@ -1,6 +1,11 @@
 import React from 'react'
 import Dropdown from 'src/shared/components/Dropdown'
 
+interface Option {
+  text: string
+  key: string
+}
+
 interface TableColumn {
   internalName: string
   displayName: string
@@ -8,7 +13,7 @@ interface TableColumn {
 
 interface Props {
   sortByOptions: any[]
-  onChooseSortBy: (any) => void
+  onChooseSortBy: (option: Option) => void
   selected: TableColumn
 }
 

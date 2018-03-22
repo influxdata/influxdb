@@ -17,17 +17,21 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 
+interface Option {
+  text: string
+  key: string
+}
+
 type RenamableField = {
   internalName: string
   displayName: string
   visible: boolean
 }
 
-type Options = {
+interface Options {
   timeFormat: string
   verticalTimeAxis: boolean
   sortBy: RenamableField
-  wrapping: string
   fieldNames: RenamableField[]
   fixFirstColumn: boolean
 }
@@ -64,7 +68,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     })
   }
 
-  handleChooseSortBy = option => {
+  public handleChooseSortBy = (option: Option) => {
     const {tableOptions, handleUpdateTableOptions} = this.props
     const sortBy = {
       displayName: option.text === option.key ? '' : option.text,
@@ -75,23 +79,23 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateTableOptions({...tableOptions, sortBy})
   }
 
-  handleTimeFormatChange = timeFormat => {
+  public handleTimeFormatChange = timeFormat => {
     const {tableOptions, handleUpdateTableOptions} = this.props
     handleUpdateTableOptions({...tableOptions, timeFormat})
   }
 
-  onToggleVerticalTimeAxis = verticalTimeAxis => () => {
+  public handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
     const {tableOptions, handleUpdateTableOptions} = this.props
     handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
   }
 
-  handleToggleFixFirstColumn = () => {
+  public handleToggleFixFirstColumn = () => {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const fixFirstColumn = !tableOptions.fixFirstColumn
     handleUpdateTableOptions({...tableOptions, fixFirstColumn})
   }
 
-  handleFieldUpdate = field => {
+  public handleFieldUpdate = field => {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {fieldNames, sortBy} = tableOptions
     const updatedFields = fieldNames.map(
@@ -128,7 +132,9 @@ export class TableOptions extends PureComponent<Props, {}> {
     return tableOptionsDifferent || dataLabelsDifferent
   }
 
-  render() {
+  public handleToggleTextWrapping = () => {}
+
+  public render() {
     const {
       tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
       onResetFocus,
@@ -154,7 +160,7 @@ export class TableOptions extends PureComponent<Props, {}> {
             />
             <GraphOptionsTimeAxis
               verticalTimeAxis={verticalTimeAxis}
-              onToggleVerticalTimeAxis={this.onToggleVerticalTimeAxis}
+              onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
             />
             <GraphOptionsSortBy
               selected={tableOptions.sortBy || TIME_FIELD_DEFAULT}

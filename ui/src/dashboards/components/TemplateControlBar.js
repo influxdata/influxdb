@@ -16,67 +16,67 @@ const TemplateControlBar = ({
   templates,
   onSelectTemplate,
   onOpenTemplateManager,
-}) =>
+}) => (
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
       <div className="template-control--controls">
-        {templates.length
-          ? templates.map(({id, values, tempVar}) => {
-              const items = values.map(value => ({...value, text: value.value}))
-              const itemValues = values.map(value => value.value)
-              const selectedItem = items.find(item => item.selected) || items[0]
-              const selectedText = selectedItem && selectedItem.text
-              let customDropdownWidth = 0
-              if (itemValues.length > 1) {
-                const longest = itemValues.reduce(
-                  (a, b) => (a.length > b.length ? a : b)
-                )
-                const longestLengthPixels =
-                  calculateSize(longest, {
-                    font: 'Monospace',
-                    fontSize: '12px',
-                  }).width + tempVarDropdownPadding
-
-                if (
-                  longestLengthPixels > minTempVarDropdownWidth &&
-                  longestLengthPixels < maxTempVarDropdownWidth
-                ) {
-                  customDropdownWidth = longestLengthPixels
-                } else if (longestLengthPixels > maxTempVarDropdownWidth) {
-                  customDropdownWidth = maxTempVarDropdownWidth
-                }
-              }
-
-              // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
-              // the full array, and [item] to all `selected` values when we update
-              // this component to support multiple values
-              return (
-                <div
-                  key={id}
-                  className="template-control--dropdown"
-                  style={
-                    customDropdownWidth > 0
-                      ? {minWidth: customDropdownWidth}
-                      : null
-                  }
-                >
-                  <Dropdown
-                    items={items}
-                    buttonSize="btn-xs"
-                    menuClass="dropdown-astronaut"
-                    useAutoComplete={true}
-                    selected={selectedText || '(No values)'}
-                    onChoose={onSelectTemplate(id)}
-                  />
-                  <label className="template-control--label">
-                    {tempVar}
-                  </label>
-                </div>
+        {templates.length ? (
+          templates.map(({id, values, tempVar}) => {
+            const items = values.map(value => ({...value, text: value.value}))
+            const itemValues = values.map(value => value.value)
+            const selectedItem = items.find(item => item.selected) || items[0]
+            const selectedText = selectedItem && selectedItem.text
+            let customDropdownWidth = 0
+            if (itemValues.length > 1) {
+              const longest = itemValues.reduce(
+                (a, b) => (a.length > b.length ? a : b)
               )
-            })
-          : <div className="template-control--empty">
-              This dashboard does not have any Template Variables
-            </div>}
+              const longestLengthPixels =
+                calculateSize(longest, {
+                  font: 'Monospace',
+                  fontSize: '12px',
+                }).width + tempVarDropdownPadding
+
+              if (
+                longestLengthPixels > minTempVarDropdownWidth &&
+                longestLengthPixels < maxTempVarDropdownWidth
+              ) {
+                customDropdownWidth = longestLengthPixels
+              } else if (longestLengthPixels > maxTempVarDropdownWidth) {
+                customDropdownWidth = maxTempVarDropdownWidth
+              }
+            }
+
+            // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+            // the full array, and [item] to all `selected` values when we update
+            // this component to support multiple values
+            return (
+              <div
+                key={id}
+                className="template-control--dropdown"
+                style={
+                  customDropdownWidth > 0
+                    ? {minWidth: customDropdownWidth}
+                    : null
+                }
+              >
+                <Dropdown
+                  items={items}
+                  buttonSize="btn-xs"
+                  menuClass="dropdown-astronaut"
+                  useAutoComplete={true}
+                  selected={selectedText || '(No values)'}
+                  onChoose={onSelectTemplate(id)}
+                />
+                <label className="template-control--label">{tempVar}</label>
+              </div>
+            )
+          })
+        ) : (
+          <div className="template-control--empty">
+            This dashboard does not have any Template Variables
+          </div>
+        )}
       </div>
       <Authorized requiredRole={EDITOR_ROLE}>
         <button
@@ -89,6 +89,7 @@ const TemplateControlBar = ({
       </Authorized>
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

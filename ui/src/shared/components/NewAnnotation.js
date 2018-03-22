@@ -107,9 +107,7 @@ class NewAnnotation extends Component {
     return (
       <div className="new-annotation-tooltip">
         <span className="new-annotation-helper">Click or Drag to Annotate</span>
-        <span className="new-annotation-timestamp">
-          {timestamp}
-        </span>
+        <span className="new-annotation-timestamp">{timestamp}</span>
       </div>
     )
   }
@@ -142,13 +140,14 @@ class NewAnnotation extends Component {
 
     return (
       <div>
-        {isDragging &&
+        {isDragging && (
           <AnnotationWindow
             annotation={tempAnnotation}
             dygraph={dygraph}
             active={true}
             staticLegendHeight={staticLegendHeight}
-          />}
+          />
+        )}
         <div
           className={classnames('new-annotation', {
             hover: isTempHovering,
@@ -160,7 +159,7 @@ class NewAnnotation extends Component {
           onMouseUp={this.handleMouseUp}
           onMouseDown={this.handleMouseDown}
         >
-          {isDragging &&
+          {isDragging && (
             <div
               className="new-annotation--crosshair"
               style={{left: crosshairTwo, height: crosshairHeight}}
@@ -169,7 +168,8 @@ class NewAnnotation extends Component {
                 isDragging &&
                 this.renderTimestamp(tempAnnotation.endTime)}
               <div className={flagTwoClass} />
-            </div>}
+            </div>
+          )}
           <div
             className="new-annotation--crosshair"
             style={{left: crosshairOne, height: crosshairHeight}}

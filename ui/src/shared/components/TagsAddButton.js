@@ -33,7 +33,7 @@ class TagsAddButton extends Component {
       <div className={classname} onClick={this.handleButtonClick}>
         <span className="icon plus" />
         <div className="tags-add--menu">
-          {items.map(item =>
+          {items.map(item => (
             <div
               key={uuid.v4()}
               className="tags-add--menu-item"
@@ -41,7 +41,7 @@ class TagsAddButton extends Component {
             >
               {item.text}
             </div>
-          )}
+          ))}
         </div>
       </div>
     )

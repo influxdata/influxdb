@@ -37,9 +37,7 @@ class QueryRow extends Component {
           {database}
         </td>
         <td>
-          <code>
-            {query}
-          </code>
+          <code>{query}</code>
         </td>
         <td
           style={{width: `${QUERIES_TABLE.colRunning}px`}}
@@ -51,18 +49,20 @@ class QueryRow extends Component {
           style={{width: `${QUERIES_TABLE.colKillQuery}px`}}
           className="text-right"
         >
-          {this.state.confirmingKill
-            ? <ConfirmButtons
-                onConfirm={this.handleFinishHim}
-                onCancel={this.handleShowMercy}
-                buttonSize="btn-xs"
-              />
-            : <button
-                className="btn btn-xs btn-danger table--show-on-row-hover"
-                onClick={this.handleInitiateKill}
-              >
-                Kill
-              </button>}
+          {this.state.confirmingKill ? (
+            <ConfirmButtons
+              onConfirm={this.handleFinishHim}
+              onCancel={this.handleShowMercy}
+              buttonSize="btn-xs"
+            />
+          ) : (
+            <button
+              className="btn btn-xs btn-danger table--show-on-row-hover"
+              onClick={this.handleInitiateKill}
+            >
+              Kill
+            </button>
+          )}
         </td>
       </tr>
     )

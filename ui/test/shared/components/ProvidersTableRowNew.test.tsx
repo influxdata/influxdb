@@ -7,25 +7,25 @@ import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
-    organizations: [],
-    schemes: [],
-    rowIndex: 0,
-    onCreate: () => {},
     onCancel: jest.fn(),
+    onCreate: () => {},
+    organizations: [],
+    rowIndex: 0,
+    schemes: [],
     ...override,
   }
 
   const defaultState = {
-    scheme: '*',
+    organizationId: 'default',
     provider: null,
     providerOrganization: null,
-    organizationId: 'default',
+    scheme: '*',
   }
 
   const row = shallow(<ProvidersTableRowNew {...props} />)
   return {
-    props,
     defaultState,
+    props,
     row,
   }
 }

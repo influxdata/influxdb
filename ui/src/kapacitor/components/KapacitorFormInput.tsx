@@ -1,4 +1,4 @@
-import React, {SFC, ChangeEvent} from 'react'
+import React, {ChangeEvent, SFC} from 'react'
 
 interface Props {
   name: string

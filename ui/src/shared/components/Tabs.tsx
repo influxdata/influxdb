@@ -1,4 +1,5 @@
-import React, {SFC, ReactElement, PureComponent} from 'react'
+import React, {PureComponent, ReactElement, SFC} from 'react'
+
 import classnames from 'classnames'
 
 interface TabProps {
@@ -137,6 +138,11 @@ interface TabsState {
 }
 
 export class Tabs extends PureComponent<TabsProps, TabsState> {
+  public static defaultProps: Partial<TabsProps> = {
+    onSelect: () => {},
+    tabContentsClass: '',
+  }
+
   constructor(props) {
     super(props)
 
@@ -147,17 +153,12 @@ export class Tabs extends PureComponent<TabsProps, TabsState> {
     }
   }
 
-  public static defaultProps: Partial<TabsProps> = {
-    onSelect: () => {},
-    tabContentsClass: '',
-  }
-
-  handleActivateTab = activeIndex => {
+  public handleActivateTab = activeIndex => {
     this.setState({activeIndex})
     this.props.onSelect(activeIndex)
   }
 
-  render() {
+  public render() {
     const {children, tabContentsClass} = this.props
 
     const kids = React.Children.map(children, (child: ReactElement<any>) => {

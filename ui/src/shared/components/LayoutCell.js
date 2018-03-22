@@ -55,18 +55,20 @@ class LayoutCell extends Component {
         </Authorized>
         <LayoutCellHeader cellName={cell.name} isEditable={isEditable} />
         <div className="dash-graph--container">
-          {queries.length
-            ? layoutCellGraph
-            : <div className="graph-empty">
-                <Authorized requiredRole={EDITOR_ROLE}>
-                  <button
-                    className="no-query--button btn btn-md btn-primary"
-                    onClick={this.handleSummonOverlay(cell)}
-                  >
-                    <span className="icon plus" /> Add Graph
-                  </button>
-                </Authorized>
-              </div>}
+          {queries.length ? (
+            layoutCellGraph
+          ) : (
+            <div className="graph-empty">
+              <Authorized requiredRole={EDITOR_ROLE}>
+                <button
+                  className="no-query--button btn btn-md btn-primary"
+                  onClick={this.handleSummonOverlay(cell)}
+                >
+                  <span className="icon plus" /> Add Graph
+                </button>
+              </Authorized>
+            </div>
+          )}
         </div>
       </div>
     )

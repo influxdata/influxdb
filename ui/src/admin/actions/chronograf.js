@@ -168,9 +168,9 @@ export const createMappingAsync = (url, mapping) => async dispatch => {
     const {data} = await createMappingAJAX(url, mapping)
     dispatch(updateMapping(mappingWithTempId, data))
   } catch (error) {
-    const message = `${_.upperFirst(
-      _.toLower(error.data.message)
-    )}: Scheme: ${mapping.scheme} Provider: ${mapping.provider}`
+    const message = `${_.upperFirst(_.toLower(error.data.message))}: Scheme: ${
+      mapping.scheme
+    } Provider: ${mapping.provider}`
     dispatch(errorThrown(error, message))
     setTimeout(
       () => dispatch(removeMapping(mappingWithTempId)),
@@ -212,9 +212,9 @@ export const createUserAsync = (url, user) => async dispatch => {
     const {data} = await createUserAJAX(url, user)
     dispatch(syncUser(userWithTempID, data))
   } catch (error) {
-    const message = `${_.upperFirst(
-      _.toLower(error.data.message)
-    )}: ${user.scheme}::${user.provider}::${user.name}`
+    const message = `${_.upperFirst(_.toLower(error.data.message))}: ${
+      user.scheme
+    }::${user.provider}::${user.name}`
     dispatch(errorThrown(error, message))
     // undo optimistic update
     setTimeout(() => dispatch(removeUser(userWithTempID)), REVERT_STATE_DELAY)
@@ -277,9 +277,9 @@ export const createOrganizationAsync = (
     const {data} = await createOrganizationAJAX(url, organization)
     dispatch(syncOrganization(organization, data))
   } catch (error) {
-    const message = `${_.upperFirst(
-      _.toLower(error.data.message)
-    )}: ${organization.name}`
+    const message = `${_.upperFirst(_.toLower(error.data.message))}: ${
+      organization.name
+    }`
     dispatch(errorThrown(error, message))
     // undo optimistic update
     setTimeout(

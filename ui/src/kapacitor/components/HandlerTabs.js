@@ -9,25 +9,25 @@ const HandlerTabs = ({
   handleChooseHandler,
   handleRemoveHandler,
 }) =>
-  handlersOnThisAlert.length
-    ? <ul className="endpoint-tabs">
-        {handlersOnThisAlert.map(ep =>
-          <li
-            key={uuid.v4()}
-            className={classnames('endpoint-tab', {
-              active: ep.alias === (selectedHandler && selectedHandler.alias),
-            })}
-            onClick={handleChooseHandler(ep)}
-          >
-            {ep.type}
-            <button
-              className="endpoint-tab--delete"
-              onClick={handleRemoveHandler(ep)}
-            />
-          </li>
-        )}
-      </ul>
-    : null
+  handlersOnThisAlert.length ? (
+    <ul className="endpoint-tabs">
+      {handlersOnThisAlert.map(ep => (
+        <li
+          key={uuid.v4()}
+          className={classnames('endpoint-tab', {
+            active: ep.alias === (selectedHandler && selectedHandler.alias),
+          })}
+          onClick={handleChooseHandler(ep)}
+        >
+          {ep.type}
+          <button
+            className="endpoint-tab--delete"
+            onClick={handleRemoveHandler(ep)}
+          />
+        </li>
+      ))}
+    </ul>
+  ) : null
 
 const {shape, func, array} = PropTypes
 

@@ -43,9 +43,7 @@ const RefreshingGraph = ({
   if (!queries.length) {
     return (
       <div className="graph-empty">
-        <p data-test="data-explorer-no-results">
-          {emptyGraphCopy}
-        </p>
+        <p data-test="data-explorer-no-results">{emptyGraphCopy}</p>
       </div>
     )
   }

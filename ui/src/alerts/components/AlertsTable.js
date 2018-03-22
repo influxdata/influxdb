@@ -79,121 +79,125 @@ class AlertsTable extends Component {
       this.state.sortDirection
     )
     const {colName, colLevel, colTime, colHost, colValue} = ALERTS_TABLE
-    return this.props.alerts.length
-      ? <div className="alert-history-table">
-          <div className="alert-history-table--thead">
-            <div
-              onClick={this.changeSort('name')}
-              className={this.sortableClasses('name')}
-              style={{width: colName}}
-            >
-              Name
-            </div>
-            <div
-              onClick={this.changeSort('level')}
-              className={this.sortableClasses('level')}
-              style={{width: colLevel}}
-            >
-              Level
-            </div>
-            <div
-              onClick={this.changeSort('time')}
-              className={this.sortableClasses('time')}
-              style={{width: colTime}}
-            >
-              Time
-            </div>
-            <div
-              onClick={this.changeSort('host')}
-              className={this.sortableClasses('host')}
-              style={{width: colHost}}
-            >
-              Host
-            </div>
-            <div
-              onClick={this.changeSort('value')}
-              className={this.sortableClasses('value')}
-              style={{width: colValue}}
-            >
-              Value
-            </div>
+    return this.props.alerts.length ? (
+      <div className="alert-history-table">
+        <div className="alert-history-table--thead">
+          <div
+            onClick={this.changeSort('name')}
+            className={this.sortableClasses('name')}
+            style={{width: colName}}
+          >
+            Name
           </div>
-          <InfiniteScroll
-            className="alert-history-table--tbody"
-            itemHeight={25}
-            items={alerts.map(({name, level, time, host, value}) => {
-              return (
-                <div className="alert-history-table--tr" key={uuid.v4()}>
-                  <div
-                    className="alert-history-table--td"
-                    style={{width: colName}}
-                  >
-                    {name}
-                  </div>
-                  <div
-                    className={`alert-history-table--td alert-level-${level.toLowerCase()}`}
-                    style={{width: colLevel}}
-                  >
-                    <span
-                      className={classnames(
-                        'table-dot',
-                        {'dot-critical': level === 'CRITICAL'},
-                        {'dot-success': level === 'OK'}
-                      )}
-                    />
-                  </div>
-                  <div
-                    className="alert-history-table--td"
-                    style={{width: colTime}}
-                  >
-                    {new Date(Number(time)).toISOString()}
-                  </div>
-                  <div
-                    className="alert-history-table--td alert-history-table--host"
-                    style={{width: colHost}}
-                  >
-                    <Link to={`/sources/${id}/hosts/${host}`} title={host}>
-                      {host}
-                    </Link>
-                  </div>
-                  <div
-                    className="alert-history-table--td"
-                    style={{width: colValue}}
-                  >
-                    {value}
-                  </div>
-                </div>
-              )
-            })}
-          />
+          <div
+            onClick={this.changeSort('level')}
+            className={this.sortableClasses('level')}
+            style={{width: colLevel}}
+          >
+            Level
+          </div>
+          <div
+            onClick={this.changeSort('time')}
+            className={this.sortableClasses('time')}
+            style={{width: colTime}}
+          >
+            Time
+          </div>
+          <div
+            onClick={this.changeSort('host')}
+            className={this.sortableClasses('host')}
+            style={{width: colHost}}
+          >
+            Host
+          </div>
+          <div
+            onClick={this.changeSort('value')}
+            className={this.sortableClasses('value')}
+            style={{width: colValue}}
+          >
+            Value
+          </div>
         </div>
-      : this.renderTableEmpty()
+        <InfiniteScroll
+          className="alert-history-table--tbody"
+          itemHeight={25}
+          items={alerts.map(({name, level, time, host, value}) => {
+            return (
+              <div className="alert-history-table--tr" key={uuid.v4()}>
+                <div
+                  className="alert-history-table--td"
+                  style={{width: colName}}
+                >
+                  {name}
+                </div>
+                <div
+                  className={`alert-history-table--td alert-level-${level.toLowerCase()}`}
+                  style={{width: colLevel}}
+                >
+                  <span
+                    className={classnames(
+                      'table-dot',
+                      {'dot-critical': level === 'CRITICAL'},
+                      {'dot-success': level === 'OK'}
+                    )}
+                  />
+                </div>
+                <div
+                  className="alert-history-table--td"
+                  style={{width: colTime}}
+                >
+                  {new Date(Number(time)).toISOString()}
+                </div>
+                <div
+                  className="alert-history-table--td alert-history-table--host"
+                  style={{width: colHost}}
+                >
+                  <Link to={`/sources/${id}/hosts/${host}`} title={host}>
+                    {host}
+                  </Link>
+                </div>
+                <div
+                  className="alert-history-table--td"
+                  style={{width: colValue}}
+                >
+                  {value}
+                </div>
+              </div>
+            )
+          })}
+        />
+      </div>
+    ) : (
+      this.renderTableEmpty()
+    )
   }
 
   renderTableEmpty() {
     const {source: {id}, shouldNotBeFilterable} = this.props
 
-    return shouldNotBeFilterable
-      ? <div className="graph-empty">
-          <p>
-            Learn how to configure your first <strong>Rule</strong> in<br />
-            the <em>Getting Started</em> guide
-          </p>
-        </div>
-      : <div className="generic-empty-state">
-          <h4 className="no-user-select">There are no Alerts to display</h4>
-          <br />
-          <h6 className="no-user-select">
-            Try changing the Time Range or
-            <Link
-              style={{marginLeft: '10px'}}
-              to={`/sources/${id}/alert-rules/new`}
-              className="btn btn-primary btn-sm"
-            >
-              Create an Alert Rule
-            </Link>
-          </h6>
-        </div>
+    return shouldNotBeFilterable ? (
+      <div className="graph-empty">
+        <p>
+          Learn how to configure your first <strong>Rule</strong> in<br />
+          the <em>Getting Started</em> guide
+        </p>
+      </div>
+    ) : (
+      <div className="generic-empty-state">
+        <h4 className="no-user-select">There are no Alerts to display</h4>
+        <br />
+        <h6 className="no-user-select">
+          Try changing the Time Range or
+          <Link
+            style={{marginLeft: '10px'}}
+            to={`/sources/${id}/alert-rules/new`}
+            className="btn btn-primary btn-sm"
+          >
+            Create an Alert Rule
+          </Link>
+        </h6>
+      </div>
+    )
   }
 
   render() {
@@ -205,35 +209,33 @@ class AlertsTable extends Component {
       alertsCount,
     } = this.props
 
-    return shouldNotBeFilterable
-      ? <div className="alerts-widget">
-          {this.renderTable()}
-          {limit && alertsCount
-            ? <button
-                className="btn btn-sm btn-default btn-block"
-                onClick={onGetMoreAlerts}
-                disabled={isAlertsMaxedOut}
-                style={{marginBottom: '20px'}}
-              >
-                {isAlertsMaxedOut
-                  ? `All ${alertsCount} Alerts displayed`
-                  : 'Load next 30 Alerts'}
-              </button>
-            : null}
+    return shouldNotBeFilterable ? (
+      <div className="alerts-widget">
+        {this.renderTable()}
+        {limit && alertsCount ? (
+          <button
+            className="btn btn-sm btn-default btn-block"
+            onClick={onGetMoreAlerts}
+            disabled={isAlertsMaxedOut}
+            style={{marginBottom: '20px'}}
+          >
+            {isAlertsMaxedOut
+              ? `All ${alertsCount} Alerts displayed`
+              : 'Load next 30 Alerts'}
+          </button>
+        ) : null}
+      </div>
+    ) : (
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
+          {this.props.alerts.length ? (
+            <SearchBar onSearch={this.filterAlerts} />
+          ) : null}
         </div>
-      : <div className="panel">
-          <div className="panel-heading">
-            <h2 className="panel-title">
-              {this.props.alerts.length} Alerts
-            </h2>
-            {this.props.alerts.length
-              ? <SearchBar onSearch={this.filterAlerts} />
-              : null}
-          </div>
-          <div className="panel-body">
-            {this.renderTable()}
-          </div>
-        </div>
+        <div className="panel-body">{this.renderTable()}</div>
+      </div>
+    )
   }
 }
 

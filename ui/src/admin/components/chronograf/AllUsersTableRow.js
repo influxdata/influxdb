@@ -1,5 +1,6 @@
 import React from 'react'
 import PropTypes from 'prop-types'
+import _ from 'lodash'
 
 import Tags from 'shared/components/Tags'
 import SlideToggle from 'shared/components/SlideToggle'
@@ -37,7 +38,7 @@ const AllUsersTableRow = ({
     name: organizations.find(o => r.organization === o.id).name,
   }))
 
-  const wrappedDelete = () => onDelete(user)
+  const wrappedDelete = _.curry(onDelete, user)
 
   const removeWarning = userIsMe
     ? 'Delete your user record\nand log yourself out?'
@@ -46,14 +47,14 @@ const AllUsersTableRow = ({
   return (
     <tr className={'chronograf-admin-table--user'}>
       <td>
-        {userIsMe
-          ? <strong className="chronograf-user--me">
-              <span className="icon user" />
-              {user.name}
-            </strong>
-          : <strong>
-              {user.name}
-            </strong>}
+        {userIsMe ? (
+          <strong className="chronograf-user--me">
+            <span className="icon user" />
+            {user.name}
+          </strong>
+        ) : (
+          <strong>{user.name}</strong>
+        )}
       </td>
       <td style={{width: colOrganizations}}>
         <Tags
@@ -64,12 +65,8 @@ const AllUsersTableRow = ({
           addMenuChoose={onAddToOrganization(user)}
         />
       </td>
-      <td style={{width: colProvider}}>
-        {user.provider}
-      </td>
-      <td style={{width: colScheme}}>
-        {user.scheme}
-      </td>
+      <td style={{width: colProvider}}>{user.provider}</td>
+      <td style={{width: colScheme}}>{user.scheme}</td>
       <td style={{width: colSuperAdmin}} className="text-center">
         <SlideToggle
           active={user.superAdmin}

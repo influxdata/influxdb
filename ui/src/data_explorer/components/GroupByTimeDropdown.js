@@ -19,7 +19,7 @@ const GroupByTimeDropdown = ({
   selected,
   onChooseGroupByTime,
   location: {pathname},
-}) =>
+}) => (
   <div className="group-by-time">
     <label className="group-by-time--label">Group by:</label>
     <Dropdown
@@ -34,6 +34,7 @@ const GroupByTimeDropdown = ({
       selected={selected || 'Time'}
     />
   </div>
+)
 
 const {func, string, shape} = PropTypes
 

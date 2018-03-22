@@ -165,37 +165,39 @@ class AdminInfluxDBPage extends Component {
           </div>
         </div>
         <FancyScrollbar className="page-contents">
-          {users
-            ? <div className="container-fluid">
-                <div className="row">
-                  <AdminTabs
-                    users={users}
-                    roles={roles}
-                    source={source}
-                    hasRoles={hasRoles}
-                    permissions={allowed}
-                    onFilterUsers={filterUsers}
-                    onFilterRoles={filterRoles}
-                    onEditUser={this.handleEditUser}
-                    onEditRole={this.handleEditRole}
-                    onSaveUser={this.handleSaveUser}
-                    onSaveRole={this.handleSaveRole}
-                    onDeleteUser={this.handleDeleteUser}
-                    onDeleteRole={this.handleDeleteRole}
-                    onClickCreate={this.handleClickCreate}
-                    onCancelEditUser={this.handleCancelEditUser}
-                    onCancelEditRole={this.handleCancelEditRole}
-                    isEditingUsers={users.some(u => u.isEditing)}
-                    isEditingRoles={roles.some(r => r.isEditing)}
-                    onUpdateRoleUsers={this.handleUpdateRoleUsers}
-                    onUpdateUserRoles={this.handleUpdateUserRoles}
-                    onUpdateUserPassword={this.handleUpdateUserPassword}
-                    onUpdateRolePermissions={this.handleUpdateRolePermissions}
-                    onUpdateUserPermissions={this.handleUpdateUserPermissions}
-                  />
-                </div>
+          {users ? (
+            <div className="container-fluid">
+              <div className="row">
+                <AdminTabs
+                  users={users}
+                  roles={roles}
+                  source={source}
+                  hasRoles={hasRoles}
+                  permissions={allowed}
+                  onFilterUsers={filterUsers}
+                  onFilterRoles={filterRoles}
+                  onEditUser={this.handleEditUser}
+                  onEditRole={this.handleEditRole}
+                  onSaveUser={this.handleSaveUser}
+                  onSaveRole={this.handleSaveRole}
+                  onDeleteUser={this.handleDeleteUser}
+                  onDeleteRole={this.handleDeleteRole}
+                  onClickCreate={this.handleClickCreate}
+                  onCancelEditUser={this.handleCancelEditUser}
+                  onCancelEditRole={this.handleCancelEditRole}
+                  isEditingUsers={users.some(u => u.isEditing)}
+                  isEditingRoles={roles.some(r => r.isEditing)}
+                  onUpdateRoleUsers={this.handleUpdateRoleUsers}
+                  onUpdateUserRoles={this.handleUpdateUserRoles}
+                  onUpdateUserPassword={this.handleUpdateUserPassword}
+                  onUpdateRolePermissions={this.handleUpdateRolePermissions}
+                  onUpdateUserPermissions={this.handleUpdateUserPermissions}
+                />
               </div>
-            : <div className="page-spinner" />}
+            </div>
+          ) : (
+            <div className="page-spinner" />
+          )}
         </FancyScrollbar>
       </div>
     )

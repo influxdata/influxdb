@@ -12,10 +12,9 @@ const AllUsersTableHeader = ({
   onChangeAuthConfig,
 }) => {
   const numUsersString = `${numUsers} User${numUsers === 1 ? '' : 's'}`
-  const numOrganizationsString = `${numOrganizations} Org${numOrganizations ===
-  1
-    ? ''
-    : 's'}`
+  const numOrganizationsString = `${numOrganizations} Org${
+    numOrganizations === 1 ? '' : 's'
+  }`
 
   return (
     <div className="panel-heading">

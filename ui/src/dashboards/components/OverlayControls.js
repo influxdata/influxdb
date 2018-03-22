@@ -15,7 +15,7 @@ const OverlayControls = ({
   onSetQuerySource,
   isDisplayOptionsTabActive,
   onClickDisplayOptions,
-}) =>
+}) => (
   <div className="overlay-controls">
     <SourceSelector
       sources={sources}
@@ -51,6 +51,7 @@ const OverlayControls = ({
       />
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

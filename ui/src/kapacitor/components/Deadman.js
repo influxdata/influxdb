@@ -7,7 +7,7 @@ const periods = PERIODS.map(text => {
   return {text}
 })
 
-const Deadman = ({rule, onChange}) =>
+const Deadman = ({rule, onChange}) => (
   <div className="rule-section--row rule-section--row-first rule-section--row-last">
     <p>Send Alert if Data is missing for</p>
     <Dropdown
@@ -18,6 +18,7 @@ const Deadman = ({rule, onChange}) =>
       onChoose={onChange}
     />
   </div>
+)
 
 const {shape, string, func} = PropTypes
 

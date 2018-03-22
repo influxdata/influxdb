@@ -23,9 +23,7 @@ class HostRow extends Component {
     return (
       <div className="hosts-table--tr">
         <div className="hosts-table--td" style={{width: colName}}>
-          <Link to={`/sources/${source.id}/hosts/${name}`}>
-            {name}
-          </Link>
+          <Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link>
         </div>
         <div className="hosts-table--td" style={{width: colStatus}}>
           <div

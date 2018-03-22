@@ -91,9 +91,7 @@ class AxesOptions extends Component {
         autoHide={false}
       >
         <div className="display-options--cell-wrapper">
-          <h5 className="display-options--header">
-            {menuOption} Controls
-          </h5>
+          <h5 className="display-options--header">{menuOption} Controls</h5>
           <form autoComplete="off" className="form-group-wrapper">
             <div className="form-group col-sm-12">
               <label htmlFor="prefix">Title</label>

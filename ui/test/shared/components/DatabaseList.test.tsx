@@ -1,7 +1,7 @@
+import {shallow} from 'enzyme'
 import React from 'react'
 import DatabaseList from 'src/shared/components/DatabaseList'
 import DatabaseListItem from 'src/shared/components/DatabaseListItem'
-import {shallow} from 'enzyme'
 
 import {query, source} from 'test/resources'
 
@@ -12,10 +12,10 @@ const namespaces = [dbrp1, dbrp2]
 
 const setup = (override = {}) => {
   const props = {
-    query,
-    source,
-    querySource: source,
     onChooseNamespace: () => {},
+    query,
+    querySource: source,
+    source,
     ...override,
   }
 

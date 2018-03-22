@@ -78,17 +78,15 @@ class Threshold extends Component {
 
     return (
       <div className="threshold-item">
-        <div className={labelClass}>
-          {label}
-        </div>
-        {canBeDeleted
-          ? <button
-              className="btn btn-default btn-sm btn-square"
-              onClick={onDeleteThreshold(threshold)}
-            >
-              <span className="icon remove" />
-            </button>
-          : null}
+        <div className={labelClass}>{label}</div>
+        {canBeDeleted ? (
+          <button
+            className="btn btn-default btn-sm btn-square"
+            onClick={onDeleteThreshold(threshold)}
+          >
+            <span className="icon remove" />
+          </button>
+        ) : null}
         <input
           value={workingValue}
           className={inputClass}

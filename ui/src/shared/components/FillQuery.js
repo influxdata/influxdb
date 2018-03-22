@@ -89,7 +89,7 @@ class FillQuery extends Component {
 
     return (
       <div className={`fill-query fill-query--${size}`}>
-        {selected.type === NUMBER &&
+        {selected.type === NUMBER && (
           <input
             ref={r => (this.numberInput = r)}
             type="number"
@@ -102,7 +102,8 @@ class FillQuery extends Component {
             onKeyDown={this.handleKeyDown}
             onChange={this.handleInputChange}
             onBlur={this.handleInputBlur}
-          />}
+          />
+        )}
         <Dropdown
           selected={selected.text}
           items={queryFills}

@@ -122,7 +122,7 @@ class LineGraph extends Component {
           staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
         >
-          {showSingleStat &&
+          {showSingleStat && (
             <SingleStat
               prefix={prefix}
               suffix={suffix}
@@ -130,24 +130,27 @@ class LineGraph extends Component {
               lineGraph={true}
               colors={colors}
               cellHeight={cellHeight}
-            />}
+            />
+          )}
         </Dygraph>
       </div>
     )
   }
 }
 
-const GraphLoadingDots = () =>
+const GraphLoadingDots = () => (
   <div className="graph-panel__refreshing">
     <div />
     <div />
     <div />
   </div>
+)
 
-const GraphSpinner = () =>
+const GraphSpinner = () => (
   <div className="graph-fetching">
     <div className="graph-spinner" />
   </div>
+)
 
 const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 

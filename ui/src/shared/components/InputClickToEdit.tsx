@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
+import React, {ChangeEvent, KeyboardEvent, PureComponent} from 'react'
 
 interface Props {
   wrapperClass: string
@@ -17,12 +17,16 @@ interface State {
 }
 
 class InputClickToEdit extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    tabIndex: 0,
+  }
+
   constructor(props) {
     super(props)
 
     this.state = {
-      isEditing: false,
       initialValue: this.props.value,
+      isEditing: false,
     }
 
     this.handleCancel = this.handleCancel.bind(this)
@@ -33,11 +37,7 @@ class InputClickToEdit extends PureComponent<Props, State> {
     this.handleFocus = this.handleFocus.bind(this)
   }
 
-  public static defaultProps: Partial<Props> = {
-    tabIndex: 0,
-  }
-
-  handleCancel() {
+  public handleCancel() {
     const {onChange} = this.props
     const {initialValue} = this.state
     this.setState({
@@ -48,23 +48,23 @@ class InputClickToEdit extends PureComponent<Props, State> {
     }
   }
 
-  handleInputClick() {
+  public handleInputClick() {
     this.setState({isEditing: true})
   }
 
-  handleInputBlur(e: ChangeEvent<HTMLInputElement>) {
+  public handleInputBlur(e: ChangeEvent<HTMLInputElement>) {
     const {onBlur, value} = this.props
     if (value !== e.target.value) {
       onBlur(e.target.value)
     }
 
     this.setState({
-      isEditing: false,
       initialValue: e.target.value,
+      isEditing: false,
     })
   }
 
-  handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+  public handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     const {onBlur, value} = this.props
     if (e.key === 'Enter') {
       if (value !== e.currentTarget.value) {
@@ -72,8 +72,8 @@ class InputClickToEdit extends PureComponent<Props, State> {
       }
 
       this.setState({
-        isEditing: false,
         initialValue: e.currentTarget.value,
+        isEditing: false,
       })
     }
     if (e.key === 'Escape') {
@@ -81,18 +81,18 @@ class InputClickToEdit extends PureComponent<Props, State> {
     }
   }
 
-  handleChange(e: ChangeEvent<HTMLInputElement>) {
+  public handleChange(e: ChangeEvent<HTMLInputElement>) {
     const {onChange} = this.props
     if (onChange) {
       onChange(e.target.value)
     }
   }
 
-  handleFocus(e: ChangeEvent<HTMLInputElement>) {
+  public handleFocus(e: ChangeEvent<HTMLInputElement>) {
     e.target.select()
   }
 
-  render() {
+  public render() {
     const {isEditing} = this.state
     const {
       wrapperClass: wrapper,

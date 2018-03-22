@@ -356,35 +356,35 @@ class DashboardPage extends Component {
 
     return (
       <div className="page">
-        {isTemplating
-          ? <OverlayTechnologies>
-              <TemplateVariableManager
-                source={source}
-                templates={dashboard.templates}
-                onClose={this.handleCloseTemplateManager}
-                onRunQueryFailure={this.handleRunQueryFailure}
-                onEditTemplateVariables={this.handleEditTemplateVariables}
-              />
-            </OverlayTechnologies>
-          : null}
-        {selectedCell
-          ? <CellEditorOverlay
+        {isTemplating ? (
+          <OverlayTechnologies>
+            <TemplateVariableManager
               source={source}
-              sources={sources}
-              cell={selectedCell}
-              timeRange={timeRange}
-              autoRefresh={autoRefresh}
-              dashboardID={dashboardID}
-              queryStatus={cellQueryStatus}
-              onSave={this.handleSaveEditedCell}
-              onCancel={handleHideCellEditorOverlay}
-              templates={templatesIncludingDashTime}
-              editQueryStatus={dashboardActions.editCellQueryStatus}
-              thresholdsListType={thresholdsListType}
-              thresholdsListColors={thresholdsListColors}
-              gaugeColors={gaugeColors}
+              templates={dashboard.templates}
+              onClose={this.handleCloseTemplateManager}
+              onRunQueryFailure={this.handleRunQueryFailure}
+              onEditTemplateVariables={this.handleEditTemplateVariables}
             />
-          : null}
+          </OverlayTechnologies>
+        ) : null}
+        {selectedCell ? (
+          <CellEditorOverlay
+            source={source}
+            sources={sources}
+            cell={selectedCell}
+            timeRange={timeRange}
+            autoRefresh={autoRefresh}
+            dashboardID={dashboardID}
+            queryStatus={cellQueryStatus}
+            onSave={this.handleSaveEditedCell}
+            onCancel={handleHideCellEditorOverlay}
+            templates={templatesIncludingDashTime}
+            editQueryStatus={dashboardActions.editCellQueryStatus}
+            thresholdsListType={thresholdsListType}
+            thresholdsListColors={thresholdsListColors}
+            gaugeColors={gaugeColors}
+          />
+        ) : null}
         <DashboardHeader
           names={names}
           sourceID={sourceID}
@@ -407,30 +407,30 @@ class DashboardPage extends Component {
           onToggleTempVarControls={this.handleToggleTempVarControls}
           handleClickPresentationButton={handleClickPresentationButton}
         />
-        {dashboard
-          ? <Dashboard
-              source={source}
-              sources={sources}
-              setScrollTop={this.setScrollTop}
-              inView={this.inView}
-              dashboard={dashboard}
-              timeRange={timeRange}
-              autoRefresh={autoRefresh}
-              manualRefresh={manualRefresh}
-              onZoom={this.handleZoomedTimeRange}
-              onAddCell={this.handleAddCell}
-              hoverTime={hoverTime}
-              onSetHoverTime={this.handleSetHoverTime}
-              inPresentationMode={inPresentationMode}
-              onPositionChange={this.handleUpdatePosition}
-              onSelectTemplate={this.handleSelectTemplate}
-              onDeleteCell={this.handleDeleteDashboardCell}
-              showTemplateControlBar={showTemplateControlBar}
-              onOpenTemplateManager={this.handleOpenTemplateManager}
-              templatesIncludingDashTime={templatesIncludingDashTime}
-              onSummonOverlayTechnologies={handleShowCellEditorOverlay}
-            />
-          : null}
+        {dashboard ? (
+          <Dashboard
+            source={source}
+            sources={sources}
+            setScrollTop={this.setScrollTop}
+            inView={this.inView}
+            dashboard={dashboard}
+            timeRange={timeRange}
+            autoRefresh={autoRefresh}
+            manualRefresh={manualRefresh}
+            onZoom={this.handleZoomedTimeRange}
+            onAddCell={this.handleAddCell}
+            hoverTime={hoverTime}
+            onSetHoverTime={this.handleSetHoverTime}
+            inPresentationMode={inPresentationMode}
+            onPositionChange={this.handleUpdatePosition}
+            onSelectTemplate={this.handleSelectTemplate}
+            onDeleteCell={this.handleDeleteDashboardCell}
+            showTemplateControlBar={showTemplateControlBar}
+            onOpenTemplateManager={this.handleOpenTemplateManager}
+            templatesIncludingDashTime={templatesIncludingDashTime}
+            onSummonOverlayTechnologies={handleShowCellEditorOverlay}
+          />
+        ) : null}
       </div>
     )
   }
