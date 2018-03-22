@@ -23,10 +23,9 @@ const GraphOptionsSortBy = ({
   selected,
 }: Props) => {
   const selectedValue = selected.displayName || selected.internalName
-
   return (
     <div className="form-group col-xs-6">
-      <label>Sort By</label>
+      <label>Default Sort By</label>
       <Dropdown
         items={sortByOptions}
         selected={selectedValue}
