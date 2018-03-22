@@ -4,7 +4,6 @@ import {TableOptions} from 'src/dashboards/components/TableOptions'
 
 import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
 import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
@@ -51,7 +50,6 @@ describe('Dashboards.Components.TableOptions', () => {
       const graphOptionsTimeFormat = wrapper.find(GraphOptionsTimeFormat)
       const graphOptionsTimeAxis = wrapper.find(GraphOptionsTimeAxis)
       const graphOptionsSortBy = wrapper.find(GraphOptionsSortBy)
-      const graphOptionsTextWrapping = wrapper.find(GraphOptionsTextWrapping)
       const graphOptionsFixFirstColumn = wrapper.find(
         GraphOptionsFixFirstColumn
       )
@@ -65,7 +63,6 @@ describe('Dashboards.Components.TableOptions', () => {
       expect(graphOptionsTimeFormat.exists()).toBe(true)
       expect(graphOptionsTimeAxis.exists()).toBe(true)
       expect(graphOptionsSortBy.exists()).toBe(true)
-      expect(graphOptionsTextWrapping.exists()).toBe(true)
       expect(graphOptionsFixFirstColumn.exists()).toBe(true)
       expect(graphOptionsCustomizeFields.exists()).toBe(true)
       expect(thresholdsList.exists()).toBe(true)
