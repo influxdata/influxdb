@@ -330,14 +330,14 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {rowCount > 0 &&
+        {rowCount > 0 && (
           <ColumnSizer
             columnCount={columnCount}
             columnMaxWidth={COLUMN_MAX_WIDTH}
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
-            {({getColumnWidth, registerChild}) =>
+            {({getColumnWidth, registerChild}) => (
               <MultiGrid
                 ref={registerChild}
                 columnCount={columnCount}
@@ -361,8 +361,10 @@ class TableGraph extends Component {
                 colors={colors}
                 tableOptions={tableOptions}
                 classNameBottomRightGrid="table-graph--scroll-window"
-              />}
-          </ColumnSizer>}
+              />
+            )}
+          </ColumnSizer>
+        )}
       </div>
     )
   }
