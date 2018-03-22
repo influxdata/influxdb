@@ -19,7 +19,17 @@ const babelLoader = {
   },
 }
 
+const stats = {
+  colors: true,
+  children: false,
+  modules: false,
+  version: false,
+  assetsSort: '!size',
+  excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
+}
+
 module.exports = {
+  stats,
   node: {
     fs: 'empty',
     module: 'empty',
