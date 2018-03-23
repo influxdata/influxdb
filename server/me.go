@@ -271,16 +271,26 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		SuperAdmin: s.newUsersAreSuperAdmin(),
 	}
 
+	superAdmin, err := s.mapPrincipalToSuperAdmin(serverCtx, p)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+		return
+	}
+
+	user.SuperAdmin = superAdmin
+
 	roles, err := s.mapPrincipalToRoles(serverCtx, p)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 		return
 	}
 
-	if len(roles) == 0 {
+	if !superAdmin && len(roles) == 0 {
 		Error(w, http.StatusForbidden, "This Chronograf is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
 	}
+
+	// TODO: possibly add user to Default org
 
 	user.Roles = roles
 
