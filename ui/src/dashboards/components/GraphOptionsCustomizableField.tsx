@@ -58,7 +58,7 @@ class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
           value={displayName}
           wrapperClass="customizable-field--input"
           onBlur={this.handleFieldRename}
-          placeholder="Rename..."
+          placeholder={`Rename ${internalName}`}
           appearAsNormalInput={true}
           disabled={!visible}
         />

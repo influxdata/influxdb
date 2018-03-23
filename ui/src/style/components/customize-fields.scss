@@ -4,11 +4,6 @@
     Primarily used within Table Options inside Cell Editor Overlay
 */
 
-.customize-fields {
-  max-height: 235px;
-  overflow-y: scroll;
-}
-
 .customizable-field {
   width: 100%;
   display: flex;
@@ -17,25 +12,24 @@
   height: 30px;
   margin-top: 8px;
 
-  > * {
-    margin-left: 4px;
-
-    &:first-child {
-      margin-left: 0;
-    }
+  &:first-of-type {
+    margin-top: 0;
   }
 }
 
 .customizable-field--label,
 .customizable-field--label__hidden {
+  @include no-user-select();
   height: 30px;
   line-height: 30px;
   font-weight: 600;
   font-size: 13px;
   padding: 0 11px;
   border-radius: 4px;
-  flex: 2 0 0;
-  @include no-user-select();
+  width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background-color 0.25s ease, color 0.25s ease;
 
   > span {
@@ -67,7 +61,13 @@
 }
 
 .customizable-field--input {
-  flex: 1 0 0;
+  margin-left: 4px;
+  width: calc(40% - 4px);
   display: flex;
   align-items: center;
+}
+.customizable-field .input-cte__empty {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
