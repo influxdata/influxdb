@@ -720,7 +720,7 @@ func TestService_Me(t *testing.T) {
 			principal: oauth2.Principal{
 				Subject: "secret",
 				Issuer:  "auth0",
-				Group:   "example",
+				Group:   "not_example,example",
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
