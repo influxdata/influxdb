@@ -1,6 +1,10 @@
 import React, {PureComponent} from 'react'
-import TimeMachine from 'src/ifql/components/TimeMachine'
+
 import {connect} from 'react-redux'
+
+import TimeMachine from 'src/ifql/components/TimeMachine'
+
+import {getSuggestions} from 'src/ifql/apis'
 
 interface Links {
   self: string
@@ -12,6 +16,24 @@ interface Props {
 }
 
 export class IFQLPage extends PureComponent<Props, {}> {
+  constructor(props) {
+    super(props)
+    this.state = {
+      funcs: [],
+    }
+  }
+
+  public async componentDidMount() {
+    const {suggestions} = this.props.links
+
+    try {
+      const {data} = await getSuggestions(suggestions)
+      this.setState({funcs: data})
+    } catch (error) {
+      console.error('Could not get function suggestions: ', error)
+    }
+  }
+
   public render() {
     return (
       <div className="page">

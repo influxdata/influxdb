@@ -4,6 +4,8 @@ import {shallow} from 'enzyme'
 import {IFQLPage} from 'src/ifql/containers/IFQLPage'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 
+jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
+
 const setup = () => {
   const props = {
     links: {
