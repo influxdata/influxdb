@@ -32,6 +32,7 @@ import {
 } from 'src/kapacitor'
 import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
+import {IFQLPage} from 'src/ifql/index.ts'
 import NotFound from 'shared/components/NotFound'
 
 import {getLinksAsync} from 'shared/actions/links'
@@ -163,6 +164,7 @@ const Root = React.createClass({
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
+              <Route path="ifql" component={IFQLPage} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />
