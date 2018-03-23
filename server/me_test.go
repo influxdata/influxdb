@@ -882,7 +882,6 @@ func TestService_Me(t *testing.T) {
 			SuperAdminProviderGroups: tt.fields.SuperAdminProviderGroups,
 		}
 
-		fmt.Println(tt.name)
 		s.Me(tt.args.w, tt.args.r)
 
 		resp := tt.args.w.Result()

@@ -147,8 +147,6 @@ func (s *Service) Mappings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("mappings: %#v\n", mappings)
-
 	res := newMappingsResponse(mappings)
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
