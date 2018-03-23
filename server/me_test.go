@@ -686,8 +686,9 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   "0",
-							Name: "The Bad Place",
+							ID:          "0",
+							Name:        "The Bad Place",
+							DefaultRole: roles.MemberRoleName,
 						}, nil
 					},
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
@@ -724,7 +725,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"secret","roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Bad Place"}],"currentOrganization":{"id":"0","name":"The Bad Place"}}`,
+			wantBody:        `{"name":"secret","roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Bad Place","defaultRole":"member"}],"currentOrganization":{"id":"0","name":"The Bad Place","defaultRole":"member"}}`,
 		},
 		{
 			name: "new user - Chronograf is private, user is not in auth0 superadmin group",
@@ -753,8 +754,9 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   "0",
-							Name: "The Bad Place",
+							ID:          "0",
+							Name:        "The Bad Place",
+							DefaultRole: roles.MemberRoleName,
 						}, nil
 					},
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
@@ -794,7 +796,7 @@ func TestService_Me(t *testing.T) {
 			wantBody:        `{"code":403,"message":"This Chronograf is private. To gain access, you must be explicitly added by an administrator."}`,
 		},
 		{
-			name: "new user - Chronograf is private, user is not in auth0 superadmin group, but has role in default org",
+			name: "new user - Chronograf is not private (has a fully open wildcard mapping to an org), user is not in auth0 superadmin group",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -827,8 +829,9 @@ func TestService_Me(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
-							ID:   "0",
-							Name: "The Bad Place",
+							ID:          "0",
+							Name:        "The Bad Place",
+							DefaultRole: roles.MemberRoleName,
 						}, nil
 					},
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
@@ -865,7 +868,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"name":"secret","roles":[{"name":"","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Bad Place"}],"currentOrganization":{"id":"0","name":"The Bad Place"}}`,
+			wantBody:        `{"name":"secret","roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Bad Place","defaultRole":"member"}],"currentOrganization":{"id":"0","name":"The Bad Place","defaultRole":"member"}}`,
 		},
 	}
 	for _, tt := range tests {
