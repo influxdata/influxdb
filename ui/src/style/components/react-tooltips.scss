@@ -128,3 +128,7 @@ $qmark-tooltip-size: 15px;
     background-color: $c-pool;
   }
 }
+
+a > .question-mark-tooltip:hover {
+  cursor: pointer;
+}
