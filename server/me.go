@@ -271,13 +271,10 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		SuperAdmin: s.newUsersAreSuperAdmin(),
 	}
 
-	superAdmin, err := s.mapPrincipalToSuperAdmin(serverCtx, p)
-	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
-		return
+	superAdmin := s.mapPrincipalToSuperAdmin(p)
+	if superAdmin {
+		user.SuperAdmin = superAdmin
 	}
-
-	user.SuperAdmin = superAdmin
 
 	roles, err := s.mapPrincipalToRoles(serverCtx, p)
 	if err != nil {
@@ -290,7 +287,22 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: possibly add user to Default org
+	// If the user is a superadmin, give them a role in the default organization
+	if user.SuperAdmin {
+		hasDefaultOrgRole := false
+		for _, role := range roles {
+			if role.Organization == defaultOrg.ID {
+				hasDefaultOrgRole = true
+				break
+			}
+		}
+		if !hasDefaultOrgRole {
+			roles = append(roles, chronograf.Role{
+				Name:         defaultOrg.DefaultRole,
+				Organization: defaultOrg.ID,
+			})
+		}
+	}
 
 	user.Roles = roles
 

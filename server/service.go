@@ -11,12 +11,17 @@ import (
 
 // Service handles REST calls to the persistence
 type Service struct {
-	Store            DataStore
-	TimeSeriesClient TimeSeriesClient
-	Logger           chronograf.Logger
-	UseAuth          bool
-	Env              chronograf.Environment
-	Databases        chronograf.Databases
+	Store                    DataStore
+	TimeSeriesClient         TimeSeriesClient
+	Logger                   chronograf.Logger
+	UseAuth                  bool
+	SuperAdminProviderGroups superAdminProviderGroups
+	Env                      chronograf.Environment
+	Databases                chronograf.Databases
+}
+
+type superAdminProviderGroups struct {
+	auth0 string
 }
 
 // TimeSeriesClient returns the correct client for a time series database.

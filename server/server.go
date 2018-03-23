@@ -328,6 +328,9 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 	service := openService(ctx, s.BuildInfo, s.BoltPath, s.newBuilders(logger), logger, s.useAuth())
+	service.SuperAdminProviderGroups = superAdminProviderGroups{
+		auth0: s.Auth0SuperAdminOrg,
+	}
 	service.Env = chronograf.Environment{
 		TelegrafSystemInterval: s.TelegrafSystemInterval,
 	}
