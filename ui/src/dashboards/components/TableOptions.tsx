@@ -62,10 +62,14 @@ export class TableOptions extends PureComponent<Props, {}> {
   get computedFieldNames() {
     const {dataLabels} = this.props
 
-    return dataLabels.map(label => {
-      const existing = this.fieldNames.find(f => f.internalName === label)
-      return existing || {internalName: label, displayName: '', visible: true}
-    })
+    return _.isEmpty(dataLabels)
+      ? [this.timeColumn]
+      : dataLabels.map(label => {
+          const existing = this.fieldNames.find(f => f.internalName === label)
+          return (
+            existing || {internalName: label, displayName: '', visible: true}
+          )
+        })
   }
 
   public handleChooseSortBy = (option: Option) => {
@@ -96,9 +100,13 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   public handleFieldUpdate = field => {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {fieldNames, sortBy} = tableOptions
-    const updatedFields = fieldNames.map(
+    const {handleUpdateTableOptions, tableOptions, dataLabels} = this.props
+    const {sortBy, fieldNames} = tableOptions
+    const fields =
+      fieldNames.length >= dataLabels.length
+        ? fieldNames
+        : this.computedFieldNames
+    const updatedFields = fields.map(
       f => (f.internalName === field.internalName ? field : f)
     )
     const updatedSortBy =
@@ -132,8 +140,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     return tableOptionsDifferent || dataLabelsDifferent
   }
 
-  public handleToggleTextWrapping = () => {}
-
   public render() {
     const {
       tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
@@ -145,6 +151,8 @@ export class TableOptions extends PureComponent<Props, {}> {
       key: field.internalName,
       text: field.displayName || field.internalName,
     }))
+
+    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
 
     return (
       <FancyScrollbar
@@ -173,7 +181,7 @@ export class TableOptions extends PureComponent<Props, {}> {
             />
           </div>
           <GraphOptionsCustomizeFields
-            fields={fieldNames}
+            fields={fields}
             onFieldUpdate={this.handleFieldUpdate}
           />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />

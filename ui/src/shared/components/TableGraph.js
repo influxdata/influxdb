@@ -194,11 +194,15 @@ class TableGraph extends Component {
 
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
-    const {tableOptions: {verticalTimeAxis, fieldNames}} = this.props
-    const {timeColumnWidth} = this.state
+    const {tableOptions: {verticalTimeAxis}} = this.props
+    const {timeColumnWidth, processedData} = this.state
 
-    if (fieldNames.length > 0) {
-      return verticalTimeAxis && fieldNames[index].internalName === 'time'
+    const labels = verticalTimeAxis
+      ? _.unzip(processedData)[0]
+      : processedData[0]
+
+    if (labels.length > 0) {
+      return verticalTimeAxis && labels[index] === 'time'
         ? timeColumnWidth
         : columnSizerWidth
     }
