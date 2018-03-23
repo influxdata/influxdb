@@ -7,7 +7,6 @@ import {HTTP_FORBIDDEN} from 'shared/constants'
 import {
   notifySessionTimedOut,
   notifyErrorWithAltText,
-  notifyNewVersion,
   notifyOrgIsPrivate,
   notifyCurrentOrgDeleted,
 } from 'shared/copy/notifications'
@@ -43,10 +42,6 @@ const errorsMiddleware = store => next => action => {
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
         store.dispatch(notify(notifyOrgIsPrivate()))
-      }
-
-      if (_.startsWith(message, 'Welcome to Chronograf')) {
-        store.dispatch(notify(notifyNewVersion(message)))
       }
 
       if (organizationWasRemoved) {

@@ -19,11 +19,16 @@ const defaultSuccessNotification = {
 //  ----------------------------------------------------------------------------
 export const notifyGenericFail = () => 'Could not communicate with server.'
 
-export const notifyNewVersion = message => ({
+export const notifyNewVersion = version => ({
   type: 'info',
   icon: 'cubo-uniform',
   duration: INFINITE,
-  message,
+  message: `Welcome to the latest Chronograf${version}. Local settings cleared.`,
+})
+
+export const notifyLoadLocalSettingsFailed = error => ({
+  ...defaultErrorNotification,
+  message: `Loading local settings failed: ${error}`,
 })
 
 export const notifyErrorWithAltText = (type, message) => ({
