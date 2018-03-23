@@ -50,6 +50,11 @@ export const notifyDataWritten = () => ({
   message: 'Data was written successfully.',
 })
 
+export const notifyDataWriteFailed = errorMessage => ({
+  ...defaultErrorNotification,
+  message: `Data write failed: ${errorMessage}`,
+})
+
 export const notifySessionTimedOut = () => ({
   type: 'primary',
   icon: 'triangle',
