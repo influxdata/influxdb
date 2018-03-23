@@ -31,6 +31,7 @@ type Command struct {
 	addr            string
 	cpuProfile      string
 	memProfile      string
+	tenant          string
 	database        string
 	retentionPolicy string
 	startTime       int64
@@ -81,8 +82,9 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.cpuProfile, "cpuprofile", "", "CPU profile name")
 	fs.StringVar(&cmd.memProfile, "memprofile", "", "memory profile name")
 	fs.StringVar(&cmd.addr, "addr", ":8082", "the RPC address")
-	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
-	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
+	fs.StringVar(&cmd.tenant, "tenant", "", "Optional: query multi-tenant store")
+	fs.StringVar(&cmd.database, "database", "", "the database to query")
+	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to query")
 	fs.StringVar(&start, "start", "", "Optional: the start time to query (RFC3339 format)")
 	fs.StringVar(&end, "end", "", "Optional: the end time to query (RFC3339 format)")
 	fs.Uint64Var(&cmd.slimit, "slimit", 0, "Optional: limit number of series")
@@ -149,13 +151,15 @@ func (cmd *Command) Run(args ...string) error {
 	}
 	defer conn.Close()
 
-	c := storage.NewStorageClient(conn)
-	return cmd.query(c)
+	return cmd.query(storage.NewStorageClient(conn))
 }
 
 func (cmd *Command) validate() error {
-	if cmd.retentionPolicy != "" && cmd.database == "" {
-		return fmt.Errorf("must specify a db")
+	if cmd.tenant != "" && cmd.retentionPolicy != "" {
+		return fmt.Errorf("omit retention policy for multi-tenant request")
+	}
+	if cmd.database == "" {
+		return fmt.Errorf("must specify a database")
 	}
 	if cmd.startTime != 0 && cmd.endTime != 0 && cmd.endTime < cmd.startTime {
 		return fmt.Errorf("end time before start time")
@@ -165,12 +169,14 @@ func (cmd *Command) validate() error {
 
 func (cmd *Command) query(c storage.StorageClient) error {
 	var req storage.ReadRequest
-	var db = cmd.database
-	if cmd.retentionPolicy != "" {
-		db += "/" + cmd.retentionPolicy
+	req.Database = cmd.database
+	if cmd.tenant != "" {
+		req.RequestType = storage.ReadRequestTypeMultiTenant
+		req.Tenant = cmd.tenant
+	} else if cmd.retentionPolicy != "" {
+		req.Database += "/" + cmd.retentionPolicy
 	}
 
-	req.Database = db
 	req.TimestampRange.Start = cmd.startTime
 	req.TimestampRange.End = cmd.endTime
 	req.SeriesLimit = cmd.slimit
