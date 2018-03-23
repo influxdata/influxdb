@@ -3,6 +3,7 @@ import React from 'react'
 
 import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
 import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 
 const setup = (override = {}) => {
@@ -24,10 +25,12 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
       const {wrapper} = setup({fields})
       const label = wrapper.find('label')
       const CustomizableFields = wrapper.find(GraphOptionsCustomizableField)
+      const Scrollbox = wrapper.find(FancyScrollbar)
 
       expect(label.exists()).toBe(true)
       expect(CustomizableFields.exists()).toBe(true)
       expect(CustomizableFields.length).toBe(fields.length)
+      expect(Scrollbox.exists()).toBe(true)
     })
   })
 })

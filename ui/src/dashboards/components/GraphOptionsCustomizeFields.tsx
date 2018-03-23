@@ -1,5 +1,6 @@
 import React, {SFC} from 'react'
 
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
 import uuid from 'uuid'
 
@@ -18,7 +19,11 @@ const GraphOptionsCustomizeFields: SFC<Props> = ({fields, onFieldUpdate}) => {
   return (
     <div className="graph-options-group">
       <label className="form-label">Customize Fields</label>
-      <div className="field-controls--group">
+      <FancyScrollbar
+        className="customize-fields"
+        maxHeight={225}
+        autoHeight={true}
+      >
         {fields.map(field => {
           return (
             <GraphOptionsCustomizableField
@@ -30,7 +35,7 @@ const GraphOptionsCustomizeFields: SFC<Props> = ({fields, onFieldUpdate}) => {
             />
           )
         })}
-      </div>
+      </FancyScrollbar>
     </div>
   )
 }

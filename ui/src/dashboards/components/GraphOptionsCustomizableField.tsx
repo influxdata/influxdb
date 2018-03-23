@@ -37,23 +37,28 @@ class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
     const {internalName, displayName, visible} = this.props
 
     return (
-      <div className="field-controls--section">
+      <div className="customizable-field">
         <div
           className={
-            visible ? 'field-controls--label' : 'field-controls--label-hidden'
+            visible
+              ? 'customizable-field--label'
+              : 'customizable-field--label__hidden'
+          }
+          onClick={this.handleToggleVisible}
+          title={
+            visible
+              ? `Click to HIDE ${internalName}`
+              : `Click to SHOW ${internalName}`
           }
         >
-          <span
-            className={visible ? 'icon eye-open' : 'icon eye-closed'}
-            onClick={this.handleToggleVisible}
-          />
+          <span className={visible ? 'icon eye-open' : 'icon eye-closed'} />
           {internalName}
         </div>
         <InputClickToEdit
           value={displayName}
-          wrapperClass="field-controls-input"
+          wrapperClass="customizable-field--input"
           onBlur={this.handleFieldRename}
-          placeholder="Rename..."
+          placeholder={`Rename ${internalName}`}
           appearAsNormalInput={true}
           disabled={!visible}
         />
