@@ -35,7 +35,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     return this.props.onTimeFormatChange
   }
 
-  public handleChangeFormat = format => {
+  public handleChangeFormat = (format: string) => {
     this.onTimeFormatChange(format)
     this.setState({format})
   }

@@ -68,7 +68,7 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
       })
 
       describe('when input is not custom', () => {
-        it('sets the state custom format to false', () => {
+        it('sets the state custom format to false and calls onTimeFormatChange', () => {
           const onTimeFormatChange = jest.fn()
           const instance = setup({
             onTimeFormatChange,
@@ -79,6 +79,21 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
           expect(onTimeFormatChange).toBeCalledWith('blah')
           expect(onTimeFormatChange).toHaveBeenCalledTimes(1)
         })
+      })
+    })
+
+    describe('#handleChangeFormat', () => {
+      it('sets state format to format and calls onTimeFormatChange', () => {
+        const onTimeFormatChange = jest.fn()
+        const format = 'mmmmmm'
+        const instance = setup({
+          onTimeFormatChange,
+        }).instance() as GraphOptionsTimeFormat
+
+        instance.handleChangeFormat(format)
+        expect(instance.state.format).toBe(format)
+        expect(onTimeFormatChange).toBeCalledWith(format)
+        expect(onTimeFormatChange).toHaveBeenCalledTimes(1)
       })
     })
   })
