@@ -25,7 +25,7 @@ import {
 } from './config'
 
 import {
-  NOTIFY_REFRESH_KAPACITOR_FAILED,
+  notifyRefreshKapacitorFailed,
   notifyAlertEndpointSaved,
   notifyAlertEndpointSaveFailed,
   notifyTestAlertSent,
@@ -57,7 +57,7 @@ class AlertTabs extends Component {
       this.setState({configSections: sections})
     } catch (error) {
       this.setState({configSections: null})
-      this.props.notify(NOTIFY_REFRESH_KAPACITOR_FAILED)
+      this.props.notify(notifyRefreshKapacitorFailed())
     }
   }
 

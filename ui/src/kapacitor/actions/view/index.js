@@ -15,7 +15,7 @@ import {
   notifyAlertRuleDeleted,
   notifyAlertRuleDeleteFailed,
   notifyAlertRuleStatusUpdated,
-  NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED,
+  notifyAlertRuleStatusUpdateFailed,
   notifyTickScriptCreated,
   notifyTickscriptCreationFailed,
   notifyTickscriptUpdated,
@@ -195,7 +195,7 @@ export const updateRuleStatus = (rule, status) => dispatch => {
     })
     .catch(() => {
       dispatch(
-        notify(NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED(rule.name, status))
+        notify(notifyAlertRuleStatusUpdateFailed(rule.name, status))
       )
     })
 }

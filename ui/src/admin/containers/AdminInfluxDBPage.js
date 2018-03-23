@@ -32,8 +32,8 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
-  NOTIFY_ROLE_NAME_INVALID,
-  NOTIFY_DB_USER_NAME_PASSWORD_INVALID,
+  notifyRoleNameInvalid,
+  notifyDBUserNamePasswordInvalid,
 } from 'shared/copy/notifications'
 
 const isValidUser = user => {
@@ -80,7 +80,7 @@ class AdminInfluxDBPage extends Component {
   handleSaveUser = async user => {
     const {notify} = this.props
     if (!isValidUser(user)) {
-      notify(NOTIFY_DB_USER_NAME_PASSWORD_INVALID)
+      notify(notifyDBUserNamePasswordInvalid())
       return
     }
     if (user.isNew) {
@@ -93,7 +93,7 @@ class AdminInfluxDBPage extends Component {
   handleSaveRole = async role => {
     const {notify} = this.props
     if (!isValidRole(role)) {
-      notify(NOTIFY_ROLE_NAME_INVALID)
+      notify(notifyRoleNameInvalid())
       return
     }
     if (role.isNew) {

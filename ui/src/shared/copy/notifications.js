@@ -17,7 +17,7 @@ const defaultSuccessNotification = {
 
 //  Misc Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_GENERIC_FAIL = 'Could not communicate with server.'
+export const notifyGenericFail = () => 'Could not communicate with server.'
 
 export const notifyNewVersion = message => ({
   type: 'info',
@@ -227,34 +227,34 @@ export const notifyDBUserDeleted = userName => ({
 export const notifyDBUserDeleteFailed = errorMessage =>
   `Failed to delete User: ${errorMessage}`
 
-export const NOTIFY_DB_USER_PERMISSIONS_UPDATED = {
+export const notifyDBUserPermissionsUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'User Permissions updated successfully.',
-}
+})
 
 export const notifyDBUserPermissionsUpdateFailed = errorMessage =>
   `Failed to update User Permissions: ${errorMessage}`
 
-export const NOTIFY_DB_USER_ROLES_UPDATED = {
+export const notifyDBUserRolesUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'User Roles updated successfully.',
-}
+})
 
 export const notifyDBUserRolesUpdateFailed = errorMessage =>
   `Failed to update User Roles: ${errorMessage}`
 
-export const NOTIFY_DB_USER_PASSWORD_UPDATED = {
+export const notifyDBUserPasswordUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'User Password updated successfully.',
-}
+})
 
 export const notifyDBUserPasswordUpdateFailed = errorMessage =>
   `Failed to update User Password: ${errorMessage}`
 
-export const NOTIFY_DATABASE_CREATED = {
+export const notifyDatabaseCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Database created successfully.',
-}
+})
 
 export const notifyDBCreationFailed = errorMessage =>
   `Failed to create Database: ${errorMessage}`
@@ -267,10 +267,10 @@ export const notifyDBDeleted = databaseName => ({
 export const notifyDBDeleteFailed = errorMessage =>
   `Failed to delete Database: ${errorMessage}`
 
-export const NOTIFY_ROLE_CREATED = {
+export const notifyRoleCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Role created successfully.',
-}
+})
 
 export const notifyRoleCreationFailed = errorMessage =>
   `Failed to create Role: ${errorMessage}`
@@ -283,26 +283,26 @@ export const notifyRoleDeleted = roleName => ({
 export const notifyRoleDeleteFailed = errorMessage =>
   `Failed to delete Role: ${errorMessage}`
 
-export const NOTIFY_ROLE_USERS_UPDATED = {
+export const notifyRoleUsersUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Role Users updated successfully.',
-}
+})
 
 export const notifyRoleUsersUpdateFailed = errorMessage =>
   `Failed to update Role Users: ${errorMessage}`
 
-export const NOTIFY_ROLE_PERMISSIONS_UPDATED = {
+export const notifyRolePermissionsUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Role Permissions updated successfully.',
-}
+})
 
 export const notifyRolePermissionsUpdateFailed = errorMessage =>
   `Failed to update Role Permissions: ${errorMessage}`
 
-export const NOTIFY_RETENTION_POLICY_CREATED = {
+export const notifyRetentionPolicyCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Retention Policy created successfully.',
-}
+})
 
 export const notifyRetentionPolicyCreationFailed = errorMessage =>
   `Failed to create Retention Policy: ${errorMessage}`
@@ -315,10 +315,10 @@ export const notifyRetentionPolicyDeleted = rpName => ({
 export const notifyRetentionPolicyDeleteFailed = errorMessage =>
   `Failed to delete Retention Policy: ${errorMessage}`
 
-export const NOTIFY_RETENTION_POLICY_UPDATED = {
+export const notifyRetentionPolicyUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Retention Policy updated successfully.',
-}
+})
 
 export const notifyRetentionPolicyUpdateFailed = errorMessage =>
   `Failed to update Retention Policy: ${errorMessage}`
@@ -328,35 +328,35 @@ export const notifyQueriesError = errorMessage => ({
   errorMessage,
 })
 
-export const NOTIFY_RETENTION_POLICY_CANT_HAVE_EMPTY_FIELDS = {
+export const notifyRetentionPolicyCantHaveEmptyFields = () => ({
   ...defaultErrorNotification,
   message: 'Fields cannot be empty.',
-}
+})
 
 export const notifyDatabaseDeleteConfirmationRequired = databaseName => ({
   ...defaultErrorNotification,
   message: `Type "DELETE ${databaseName}" to confirm.`,
 })
 
-export const NOTIFY_DB_USER_NAME_PASSWORD_INVALID = {
+export const notifyDBUserNamePasswordInvalid = () => ({
   ...defaultErrorNotification,
   message: 'Username and/or Password too short.',
-}
+})
 
-export const NOTIFY_ROLE_NAME_INVALID = {
+export const notifyRoleNameInvalid = () => ({
   ...defaultErrorNotification,
   message: 'Role name is too short.',
-}
+})
 
-export const NOTIFY_DATABASE_NAME_INVALID = {
+export const notifyDatabaseNameInvalid = () => ({
   ...defaultErrorNotification,
   message: 'Database name cannot be blank.',
-}
+})
 
-export const NOTIFY_DATABASE_NAME_ALREADY_EXISTS = {
+export const notifyDatabaseNameAlreadyExists = () => ({
   ...defaultErrorNotification,
   message: 'A Database by this name already exists.',
-}
+})
 
 //  Dashboard Notifications
 //  ----------------------------------------------------------------------------
@@ -383,15 +383,15 @@ export const notifyDashboardDeleteFailed = (name, errorMessage) =>
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_ALERT_RULE_CREATED = {
+export const notifyAlertRuleCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Alert Rule created successfully.',
-}
+})
 
-export const NOTIFY_ALERT_RULE_CREATION_FAILED = {
+export const notifyAlertRuleCreateFailed = () => ({
   ...defaultErrorNotification,
   message: 'Alert Rule could not be created.',
-}
+})
 
 export const notifyAlertRuleUpdated = ruleName => ({
   ...defaultSuccessNotification,
@@ -418,21 +418,18 @@ export const notifyAlertRuleStatusUpdated = (ruleName, updatedStatus) => ({
   message: `${ruleName} ${updatedStatus} successfully.`,
 })
 
-export const NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED = (
-  ruleName,
-  updatedStatus
-) => ({
+export const notifyAlertRuleStatusUpdateFailed = (ruleName, updatedStatus) => ({
   ...defaultSuccessNotification,
   message: `${ruleName} could not be ${updatedStatus}.`,
 })
 
-export const NOTIFY_ALERT_RULE_REQUIRES_QUERY =
+export const notifyAlertRuleRequiresQuery = () =>
   'Please select a Database, Measurement, and Field.'
 
-export const NOTIFY_ALERT_RULE_REQUIRES_CONDITION_VALUE =
+export const notifyAlertRuleRequiresConditionValue = () =>
   'Please enter a value in the Conditions section.'
 
-export const NOTIFY_ALERT_RULE_DEADMAN_INVALID =
+export const notifyAlertRuleDeadmanInvalid = () =>
   'Deadman rules require a Database and Measurement.'
 
 //  Kapacitor Configuration Notifications
@@ -442,15 +439,15 @@ export const notifyKapacitorNameAlreadyTaken = kapacitorName => ({
   message: `There is already a Kapacitor Connection named "${kapacitorName}".`,
 })
 
-export const NOTIFY_COULD_NOT_FIND_KAPACITOR = {
+export const notifyCouldNotFindKapacitor = () => ({
   ...defaultErrorNotification,
   message: 'We could not find a Kapacitor configuration for this source.',
-}
+})
 
-export const NOTIFY_REFRESH_KAPACITOR_FAILED = {
+export const notifyRefreshKapacitorFailed = () => ({
   ...defaultErrorNotification,
   message: 'There was an error getting the Kapacitor configuration.',
-}
+})
 
 export const notifyAlertEndpointSaved = endpoint => ({
   ...defaultSuccessNotification,
@@ -475,32 +472,32 @@ export const notifyTestAlertFailed = (endpoint, errorMessage) => ({
   }`,
 })
 
-export const NOTIFY_KAPACITOR_CONNECTION_FAILED = {
+export const notifyKapacitorConnectionFailed = () => ({
   ...defaultErrorNotification,
   message:
     'Could not connect to Kapacitor. Check your connection settings in the Configuration page.',
-}
+})
 
-export const NOTIFY_KAPACITOR_CREATED = {
+export const notifyKapacitorCreated = () => ({
   ...defaultSuccessNotification,
   message:
     'Connected to Kapacitor successfully! Configuring endpoints is optional.',
-}
+})
 
-export const NOTIFY_KAPACITOR_CREATION_FAILED = {
+export const notifyKapacitorCreateFailed = () => ({
   ...defaultErrorNotification,
   message: 'There was a problem connecting to Kapacitor.',
-}
+})
 
-export const NOTIFY_KAPACITOR_UPDATED = {
+export const notifyKapacitorUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Kapacitor Connection updated successfully.',
-}
+})
 
-export const NOTIFY_KAPACITOR_UPDATE_FAILED = {
+export const notifyKapacitorUpdateFailed = () => ({
   ...defaultErrorNotification,
   message: 'There was a problem updating the Kapacitor Connection.',
-}
+})
 
 //  TICKscript Notifications
 //  ----------------------------------------------------------------------------

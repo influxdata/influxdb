@@ -26,29 +26,29 @@ import {
   notifyDBUserCreationFailed,
   notifyDBUserDeleted,
   notifyDBUserDeleteFailed,
-  NOTIFY_DB_USER_PERMISSIONS_UPDATED,
+  notifyDBUserPermissionsUpdated,
   notifyDBUserPermissionsUpdateFailed,
-  NOTIFY_DB_USER_ROLES_UPDATED,
+  notifyDBUserRolesUpdated,
   notifyDBUserRolesUpdateFailed,
-  NOTIFY_DB_USER_PASSWORD_UPDATED,
+  notifyDBUserPasswordUpdated,
   notifyDBUserPasswordUpdateFailed,
-  NOTIFY_DATABASE_CREATED,
+  notifyDatabaseCreated,
   notifyDBCreationFailed,
   notifyDBDeleted,
   notifyDBDeleteFailed,
-  NOTIFY_ROLE_CREATED,
+  notifyRoleCreated,
   notifyRoleCreationFailed,
   notifyRoleDeleted,
   notifyRoleDeleteFailed,
-  NOTIFY_ROLE_USERS_UPDATED,
+  notifyRoleUsersUpdated,
   notifyRoleUsersUpdateFailed,
-  NOTIFY_ROLE_PERMISSIONS_UPDATED,
+  notifyRolePermissionsUpdated,
   notifyRolePermissionsUpdateFailed,
-  NOTIFY_RETENTION_POLICY_CREATED,
+  notifyRetentionPolicyCreated,
   notifyRetentionPolicyCreationFailed,
   notifyRetentionPolicyDeleted,
   notifyRetentionPolicyDeleteFailed,
-  NOTIFY_RETENTION_POLICY_UPDATED,
+  notifyRetentionPolicyUpdated,
   notifyRetentionPolicyUpdateFailed,
 } from 'shared/copy/notifications'
 
@@ -319,7 +319,7 @@ export const createUserAsync = (url, user) => async dispatch => {
 export const createRoleAsync = (url, role) => async dispatch => {
   try {
     const {data} = await createRoleAJAX(url, role)
-    dispatch(notify(NOTIFY_ROLE_CREATED))
+    dispatch(notify(notifyRoleCreated()))
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(errorThrown(error, notifyRoleCreationFailed(error.data.message)))
@@ -332,7 +332,7 @@ export const createDatabaseAsync = (url, database) => async dispatch => {
   try {
     const {data} = await createDatabaseAJAX(url, database)
     dispatch(syncDatabase(database, data))
-    dispatch(notify(NOTIFY_DATABASE_CREATED))
+    dispatch(notify(notifyDatabaseCreated()))
   } catch (error) {
     dispatch(errorThrown(error, notifyDBCreationFailed(error.data.message)))
     // undo optimistic update
@@ -349,7 +349,7 @@ export const createRetentionPolicyAsync = (
       database.links.retentionPolicies,
       retentionPolicy
     )
-    dispatch(notify(NOTIFY_RETENTION_POLICY_CREATED))
+    dispatch(notify(notifyRetentionPolicyCreated()))
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
     dispatch(
@@ -372,7 +372,7 @@ export const updateRetentionPolicyAsync = (
     dispatch(editRetentionPolicyRequested(database, oldRP, newRP))
     const {data} = await updateRetentionPolicyAJAX(oldRP.links.self, newRP)
     dispatch(editRetentionPolicyCompleted(database, oldRP, data))
-    dispatch(notify(NOTIFY_RETENTION_POLICY_UPDATED))
+    dispatch(notify(notifyRetentionPolicyUpdated()))
   } catch (error) {
     dispatch(editRetentionPolicyFailed(database, oldRP))
     dispatch(
@@ -446,7 +446,7 @@ export const updateRoleUsersAsync = (role, users) => async dispatch => {
       users,
       role.permissions
     )
-    dispatch(notify(NOTIFY_ROLE_USERS_UPDATED))
+    dispatch(notify(notifyRoleUsersUpdated()))
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
@@ -465,7 +465,7 @@ export const updateRolePermissionsAsync = (
       role.users,
       permissions
     )
-    dispatch(notify(NOTIFY_ROLE_PERMISSIONS_UPDATED))
+    dispatch(notify(notifyRolePermissionsUpdated()))
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
@@ -480,7 +480,7 @@ export const updateUserPermissionsAsync = (
 ) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {permissions})
-    dispatch(notify(NOTIFY_DB_USER_PERMISSIONS_UPDATED))
+    dispatch(notify(notifyDBUserPermissionsUpdated()))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
@@ -495,7 +495,7 @@ export const updateUserPermissionsAsync = (
 export const updateUserRolesAsync = (user, roles) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {roles})
-    dispatch(notify(NOTIFY_DB_USER_ROLES_UPDATED))
+    dispatch(notify(notifyDBUserRolesUpdated()))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
@@ -507,7 +507,7 @@ export const updateUserRolesAsync = (user, roles) => async dispatch => {
 export const updateUserPasswordAsync = (user, password) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {password})
-    dispatch(notify(NOTIFY_DB_USER_PASSWORD_UPDATED))
+    dispatch(notify(notifyDBUserPasswordUpdated()))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(

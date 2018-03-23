@@ -17,12 +17,12 @@ import {
 import KapacitorForm from '../components/KapacitorForm'
 
 import {
-  NOTIFY_KAPACITOR_CONNECTION_FAILED,
-  NOTIFY_KAPACITOR_CREATED,
-  NOTIFY_KAPACITOR_CREATION_FAILED,
+  notifyKapacitorConnectionFailed,
+  notifyKapacitorCreated,
+  notifyKapacitorCreateFailed,
   notifyKapacitorNameAlreadyTaken,
-  NOTIFY_KAPACITOR_UPDATE_FAILED,
-  NOTIFY_KAPACITOR_UPDATED,
+  notifyKapacitorUpdateFailed,
+  notifyKapacitorUpdated,
 } from 'src/shared/copy/notifications'
 
 export const defaultName = 'My Kapacitor'
@@ -87,7 +87,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
       await this.checkKapacitorConnection(kapacitor)
     } catch (error) {
       console.error('Could not get kapacitor: ', error)
-      notify(NOTIFY_KAPACITOR_CONNECTION_FAILED)
+      notify(notifyKapacitorConnectionFailed())
     }
   }
 
@@ -140,10 +140,10 @@ export class KapacitorPage extends PureComponent<Props, State> {
         const {data} = await updateKapacitor(kapacitor)
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
-        notify(NOTIFY_KAPACITOR_UPDATED)
+        notify(notifyKapacitorUpdated())
       } catch (error) {
         console.error(error)
-        notify(NOTIFY_KAPACITOR_UPDATE_FAILED)
+        notify(notifyKapacitorUpdateFailed())
       }
     } else {
       try {
@@ -152,10 +152,10 @@ export class KapacitorPage extends PureComponent<Props, State> {
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
         router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-        notify(NOTIFY_KAPACITOR_CREATED)
+        notify(notifyKapacitorCreated())
       } catch (error) {
         console.error(error)
-        notify(NOTIFY_KAPACITOR_CREATION_FAILED)
+        notify(notifyKapacitorCreateFailed())
       }
     }
   }
@@ -207,7 +207,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     } catch (error) {
       console.error(error)
       this.setState({exists: false})
-      this.props.notify(NOTIFY_KAPACITOR_CONNECTION_FAILED)
+      this.props.notify(notifyKapacitorConnectionFailed())
     }
   }
 
