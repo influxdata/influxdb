@@ -45,10 +45,10 @@ message ReadRequest {
   // RequestType specifies the request type as either single or multi tenant.
   Type request_type = 11 [(gogoproto.customname) = "RequestType"];
 
-  // Tenant specifies the tenant for this request.
-  string tenant = 12;
+  // OrgID specifies the organization identifier for this request.
+  string org_id = 12 [(gogoproto.customname) = "OrgID"];
 
-  // Database specifies the name of the database to issue the read request.
+  // Database specifies the database name (single tenant) or bucket identifier (multi tenant).
   string database = 1;
 
   TimestampRange timestamp_range = 2 [(gogoproto.customname) = "TimestampRange", (gogoproto.nullable) = false];
