@@ -6,7 +6,7 @@
 
 ### UI Improvements
 
-1. [#2910](https://github.com/influxdata/chronograf/pull/2910): Redesign system notifications
+1.  [#2910](https://github.com/influxdata/chronograf/pull/2910): Redesign system notifications
 
 ### Bug Fixes
 
@@ -17,6 +17,7 @@
 1.  [#2919](https://github.com/influxdata/chronograf/pull/2919): Automatically add graph type 'line' to any graph missing a type
 1.  [#2970](https://github.com/influxdata/chronograf/pull/2970): Fix hanging browser on docker host dashboard
 1.  [#3006](https://github.com/influxdata/chronograf/pull/3006): Fix Kapacitor Rules task enabled checkboxes to only toggle exactly as clicked
+1.  [#3048](https://github.com/influxdata/chronograf/pull/3048): Fix Multi-Select Dropdown bug
 
 ## v1.4.2.3 [2018-03-08]
 
