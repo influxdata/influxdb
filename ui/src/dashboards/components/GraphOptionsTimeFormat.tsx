@@ -51,8 +51,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
 
   public render() {
     const {format, customFormat} = this.state
-    const tipContent =
-      'For information on formatting, see http://momentjs.com/docs/#/parsing/string-format/'
+    const tipUrl = 'http://momentjs.com/docs/#/parsing/string-format/'
+    const tipContent = `For information on formatting, see ${tipUrl}`
 
     const formatOption = FORMAT_OPTIONS.find(op => op.text === format)
     const showCustom = !formatOption || customFormat
@@ -62,10 +62,12 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
         <label>
           Time Format
           {showCustom && (
-            <QuestionMarkTooltip
-              tipID="Time Axis Format"
-              tipContent={tipContent}
-            />
+            <a href={tipUrl} target="_blank">
+              <QuestionMarkTooltip
+                tipID="Time Axis Format"
+                tipContent={tipContent}
+              />
+            </a>
           )}
         </label>
         <Dropdown
