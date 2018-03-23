@@ -603,7 +603,7 @@ func TestService_Me(t *testing.T) {
 			},
 		},
 		{
-			name: "new user - default org is private",
+			name: "new user - Chronograf is private",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -660,7 +660,7 @@ func TestService_Me(t *testing.T) {
 			wantBody:        `{"code":403,"message":"This Chronograf is private. To gain access, you must be explicitly added by an administrator."}`,
 		},
 		{
-			name: "new user - default org is private, user is in auth0 superadmin group",
+			name: "new user - Chronograf is private, user is in auth0 superadmin group",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -727,7 +727,7 @@ func TestService_Me(t *testing.T) {
 			wantBody:        `{"name":"secret","roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Bad Place"}],"currentOrganization":{"id":"0","name":"The Bad Place"}}`,
 		},
 		{
-			name: "new user - default org is private, user is not in auth0 superadmin group",
+			name: "new user - Chronograf is private, user is not in auth0 superadmin group",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -794,7 +794,7 @@ func TestService_Me(t *testing.T) {
 			wantBody:        `{"code":403,"message":"This Chronograf is private. To gain access, you must be explicitly added by an administrator."}`,
 		},
 		{
-			name: "new user - default org is private, user is not in auth0 superadmin group, but has role in default org",
+			name: "new user - Chronograf is private, user is not in auth0 superadmin group, but has role in default org",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
