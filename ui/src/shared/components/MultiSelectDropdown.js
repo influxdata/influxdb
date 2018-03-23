@@ -98,17 +98,16 @@ class MultiSelectDropdown extends Component {
 
   renderMenu() {
     const {items, isApplyShown} = this.props
-    const applyButton = isApplyShown ? (
-      <li className="multi-select--apply">
-        <button className="btn btn-xs btn-info" onClick={this.handleApply}>
-          Apply
-        </button>
-      </li>
-    ) : null
 
     return (
       <ul className="dropdown-menu">
-        {applyButton}
+        {isApplyShown && (
+          <li className="multi-select--apply">
+            <button className="btn btn-xs btn-info" onClick={this.handleApply}>
+              Apply
+            </button>
+          </li>
+        )}
         <FancyScrollbar
           autoHide={false}
           autoHeight={true}
