@@ -7,10 +7,14 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+var (
+	measurementRemap = map[string]string{"_measurement": "_name"}
+)
+
 // NodeToExpr transforms a predicate node to an influxql.Expr.
-func NodeToExpr(node *Node) (influxql.Expr, error) {
-	var v nodeToExprVisitor
-	WalkNode(&v, node)
+func NodeToExpr(node *Node, remap map[string]string) (influxql.Expr, error) {
+	v := &nodeToExprVisitor{remap: remap}
+	WalkNode(v, node)
 	if err := v.Err(); err != nil {
 		return nil, err
 	}
@@ -27,6 +31,7 @@ func NodeToExpr(node *Node) (influxql.Expr, error) {
 }
 
 type nodeToExprVisitor struct {
+	remap map[string]string
 	exprs []influxql.Expr
 	err   error
 }
@@ -124,9 +129,10 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 
 	case NodeTypeTagRef:
 		ref := n.GetTagRefValue()
-		if ref == "_measurement" {
-			// as tsdb.Index expects _name for measurement name
-			ref = "_name"
+		if v.remap != nil {
+			if nk, ok := v.remap[ref]; ok {
+				ref = nk
+			}
 		}
 
 		v.exprs = append(v.exprs, &influxql.VarRef{Val: ref})

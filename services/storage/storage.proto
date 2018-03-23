@@ -35,6 +35,19 @@ service Storage {
 // Request message for Storage.Read.
 message ReadRequest {
 
+  enum Type {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    SINGLE_TENANT = 0 [(gogoproto.enumvalue_customname) = "ReadRequestTypeSingleTenant"];
+    MULTI_TENANT = 1 [(gogoproto.enumvalue_customname) = "ReadRequestTypeMultiTenant"];
+  }
+
+  // RequestType specifies the request type as either single or multi tenant.
+  Type request_type = 11 [(gogoproto.customname) = "RequestType"];
+
+  // Tenant specifies the tenant for this request.
+  string tenant = 12;
+
   // Database specifies the name of the database to issue the read request.
   string database = 1;
 
