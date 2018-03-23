@@ -235,6 +235,16 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	// user exists
 	if usr != nil {
+		superAdmin := s.mapPrincipalToSuperAdmin(p)
+		if superAdmin && !usr.SuperAdmin {
+			usr.SuperAdmin = superAdmin
+			err := s.Store.Users(serverCtx).Update(serverCtx, usr)
+			if err != nil {
+				unknownErrorWithMessage(w, err, s.Logger)
+				return
+			}
+		}
+
 		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 		if err == chronograf.ErrOrganizationNotFound {
 			// The intent is to force a the user to go through another auth flow
