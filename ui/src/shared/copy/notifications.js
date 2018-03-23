@@ -176,6 +176,11 @@ export const notifyCurrentOrgDeleted = () => ({
   message: 'Your current organization was deleted.',
 })
 
+export const notifyJSONFeedFailed = url => ({
+  ...defaultErrorNotification,
+  message: `Failed to fetch JSON Feed for News Feed from '${url}'`,
+})
+
 //  Chronograf Admin Notifications
 //  ----------------------------------------------------------------------------
 export const notifyMappingDeleted = (id, scheme) => ({
