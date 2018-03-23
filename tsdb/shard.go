@@ -824,12 +824,12 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 	return engine.CreateIterator(ctx, m.Name, opt)
 }
 
-func (s *Shard) CreateSeriesCursor(ctx context.Context, cond influxql.Expr) (SeriesCursor, error) {
+func (s *Shard) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (SeriesCursor, error) {
 	index, err := s.Index()
 	if err != nil {
 		return nil, err
 	}
-	return newSeriesCursor(IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}, cond)
+	return newSeriesCursor(req, IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}, cond)
 }
 
 func (s *Shard) CreateCursorIterator(ctx context.Context) (CursorIterator, error) {
@@ -1343,7 +1343,7 @@ func (a Shards) IteratorCost(measurement string, opt query.IteratorOptions) (que
 	return costs, costerr
 }
 
-func (a Shards) CreateSeriesCursor(ctx context.Context, cond influxql.Expr) (_ SeriesCursor, err error) {
+func (a Shards) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (_ SeriesCursor, err error) {
 	var (
 		idxs  []Index
 		sfile *SeriesFile
@@ -1362,7 +1362,7 @@ func (a Shards) CreateSeriesCursor(ctx context.Context, cond influxql.Expr) (_ S
 		return nil, errors.New("CreateSeriesCursor: no series file")
 	}
 
-	return newSeriesCursor(IndexSet{Indexes: idxs, SeriesFile: sfile}, cond)
+	return newSeriesCursor(req, IndexSet{Indexes: idxs, SeriesFile: sfile}, cond)
 }
 
 func (a Shards) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {

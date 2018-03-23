@@ -81,8 +81,21 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 	}
 	p := &indexSeriesCursor{row: seriesRow{query: queries}}
 
+	var (
+		remap map[string]string
+		mi    tsdb.MeasurementIterator
+	)
+	if req.RequestType == ReadRequestTypeMultiTenant {
+		m := []byte(req.Tenant)
+		m = append(m, 0, 0)
+		m = append(m, req.Database...)
+		mi = tsdb.NewMeasurementSliceIterator([][]byte{m})
+	} else {
+		remap = measurementRemap
+	}
+
 	if root := req.Predicate.GetRoot(); root != nil {
-		if p.cond, err = NodeToExpr(root); err != nil {
+		if p.cond, err = NodeToExpr(root, remap); err != nil {
 			return nil, err
 		}
 
@@ -103,9 +116,8 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 		}
 	}
 
-	// TODO(sgc): tsdb.Store or tsdb.ShardGroup should provide an API to enumerate series efficiently
 	sg := tsdb.Shards(shards)
-	p.sqry, err = sg.CreateSeriesCursor(ctx, opt.Condition)
+	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mi}, opt.Condition)
 	if p.sqry != nil && err == nil {
 		var (
 			itr query.Iterator

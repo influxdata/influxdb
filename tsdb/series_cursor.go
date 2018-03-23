@@ -15,6 +15,10 @@ type SeriesCursor interface {
 	Next() (*SeriesCursorRow, error)
 }
 
+type SeriesCursorRequest struct {
+	Measurements MeasurementIterator
+}
+
 // seriesCursor is an implementation of SeriesCursor over an IndexSet.
 type seriesCursor struct {
 	once     sync.Once
@@ -47,7 +51,7 @@ func (r *SeriesCursorRow) Compare(other *SeriesCursorRow) int {
 }
 
 // newSeriesCursor returns a new instance of seriesCursor.
-func newSeriesCursor(indexSet IndexSet, cond influxql.Expr) (_ *seriesCursor, err error) {
+func newSeriesCursor(req SeriesCursorRequest, indexSet IndexSet, cond influxql.Expr) (_ *seriesCursor, err error) {
 	// Only equality operators are allowed.
 	influxql.WalkFunc(cond, func(node influxql.Node) {
 		switch n := node.(type) {
@@ -63,9 +67,12 @@ func newSeriesCursor(indexSet IndexSet, cond influxql.Expr) (_ *seriesCursor, er
 		return nil, err
 	}
 
-	mitr, err := indexSet.MeasurementIterator()
-	if err != nil {
-		return nil, err
+	mitr := req.Measurements
+	if mitr == nil {
+		mitr, err = indexSet.MeasurementIterator()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &seriesCursor{
