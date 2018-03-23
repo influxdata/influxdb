@@ -24,6 +24,7 @@ const generateResponseWithLinks = (response, newLinks) => {
     me: meLink,
     config,
     environment,
+    ifql,
   } = newLinks
 
   return {
@@ -37,6 +38,7 @@ const generateResponseWithLinks = (response, newLinks) => {
     meLink,
     config,
     environment,
+    ifql,
   }
 }
 
