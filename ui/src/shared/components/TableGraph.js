@@ -195,10 +195,14 @@ class TableGraph extends Component {
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
     const {tableOptions: {verticalTimeAxis, fieldNames}} = this.props
-    const {timeColumnWidth} = this.state
+    const {timeColumnWidth, processedData} = this.state
 
-    if (fieldNames.length > 0) {
-      return verticalTimeAxis && fieldNames[index].internalName === 'time'
+    const labels = verticalTimeAxis
+      ? _.unzip(processedData)[0]
+      : processedData[0]
+
+    if (labels.length > 0) {
+      return verticalTimeAxis && labels[index] === 'time'
         ? timeColumnWidth
         : columnSizerWidth
     }
@@ -342,14 +346,14 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {rowCount > 0 && (
+        {rowCount > 0 &&
           <ColumnSizer
             columnCount={columnCount}
             columnMaxWidth={COLUMN_MAX_WIDTH}
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
-            {({getColumnWidth, registerChild}) => (
+            {({getColumnWidth, registerChild}) =>
               <MultiGrid
                 ref={registerChild}
                 columnCount={columnCount}
@@ -373,10 +377,8 @@ class TableGraph extends Component {
                 colors={colors}
                 tableOptions={tableOptions}
                 classNameBottomRightGrid="table-graph--scroll-window"
-              />
-            )}
-          </ColumnSizer>
-        )}
+              />}
+          </ColumnSizer>}
       </div>
     )
   }

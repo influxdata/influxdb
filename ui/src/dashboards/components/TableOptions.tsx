@@ -140,8 +140,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     return tableOptionsDifferent || dataLabelsDifferent
   }
 
-  public handleToggleTextWrapping = () => {}
-
   public render() {
     const {
       tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
