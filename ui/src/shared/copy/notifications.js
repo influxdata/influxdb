@@ -355,7 +355,7 @@ export const notifyRetentionPolicyCantHaveEmptyFields = () => ({
 
 export const notifyDatabaseDeleteConfirmationRequired = databaseName => ({
   ...defaultErrorNotification,
-  message: `Type "DELETE ${databaseName}" to confirm.`,
+  message: `Type "DELETE ${databaseName}" to confirm. This action cannot be undone.`,
 })
 
 export const notifyDBUserNamePasswordInvalid = () => ({
