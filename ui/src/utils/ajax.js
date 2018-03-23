@@ -41,7 +41,15 @@ const generateResponseWithLinks = (response, newLinks) => {
 }
 
 const AJAX = async (
-  {url, resource, id, method = 'GET', data = {}, params = {}, headers = {}},
+  {
+    url,
+    resource = null,
+    id = null,
+    method = 'GET',
+    data = {},
+    params = {},
+    headers = {},
+  },
   {excludeBasepath} = {}
 ) => {
   try {
