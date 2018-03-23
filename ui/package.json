@@ -20,7 +20,10 @@
     "test:lint": "yarn run lint; yarn run test",
     "test:watch": "jest --watch",
     "clean": "rm -rf ./build/*",
-    "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix",
+    "eslint:fix": "eslint src --fix",
+    "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
+    "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"",
+    "lint:fix": "yarn run prettier && yarn run eslint:fix && yarn run tslint:fix",
     "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check"
   },
   "author": "",
