@@ -1,5 +1,9 @@
 import _ from 'lodash'
 import normalizer from 'src/normalizers/dashboardTime'
+import {
+  notifyNewVersion,
+  notifyLoadLocalSettingsFailed,
+} from 'src/shared/copy/notifications'
 
 export const loadLocalStorage = errorsQueue => {
   try {
@@ -11,10 +15,9 @@ export const loadLocalStorage = errorsQueue => {
     if (state.VERSION && state.VERSION !== VERSION) {
       // eslint-disable-next-line no-undef
       const version = VERSION ? ` (${VERSION})` : ''
-      const errorText = `Welcome to the latest Chronograf ${version}. Local settings cleared.`
 
-      console.log(errorText) // eslint-disable-line no-console
-      errorsQueue.push(errorText)
+      console.log(notifyNewVersion(version).message) // eslint-disable-line no-console
+      errorsQueue.push(notifyNewVersion(version))
 
       if (!state.dashTimeV1) {
         window.localStorage.removeItem('state')
@@ -38,10 +41,8 @@ export const loadLocalStorage = errorsQueue => {
 
     return state
   } catch (error) {
-    const errorText = `Loading local settings failed: ${error}`
-
-    console.error(errorText) // eslint-disable-line no-console
-    errorsQueue.push(errorText)
+    console.error(notifyLoadLocalSettingsFailed(error).message) // eslint-disable-line no-console
+    errorsQueue.push(notifyLoadLocalSettingsFailed(error))
 
     return {}
   }

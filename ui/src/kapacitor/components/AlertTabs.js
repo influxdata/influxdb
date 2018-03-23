@@ -25,11 +25,11 @@ import {
 } from './config'
 
 import {
-  NOTIFY_REFRESH_KAPACITOR_FAILED,
-  NOTIFY_ALERT_ENDPOINT_SAVED,
-  NOTIFY_ALERT_ENDPOINT_SAVE_FAILED,
-  NOTIFY_TEST_ALERT_SENT,
-  NOTIFY_TEST_ALERT_FAILED,
+  notifyRefreshKapacitorFailed,
+  notifyAlertEndpointSaved,
+  notifyAlertEndpointSaveFailed,
+  notifyTestAlertSent,
+  notifyTestAlertFailed,
 } from 'shared/copy/notifications'
 
 class AlertTabs extends Component {
@@ -57,7 +57,7 @@ class AlertTabs extends Component {
       this.setState({configSections: sections})
     } catch (error) {
       this.setState({configSections: null})
-      this.props.notify(NOTIFY_REFRESH_KAPACITOR_FAILED)
+      this.props.notify(notifyRefreshKapacitorFailed())
     }
   }
 
@@ -87,11 +87,11 @@ class AlertTabs extends Component {
           propsToSend
         )
         this.refreshKapacitorConfig(this.props.kapacitor)
-        this.props.notify(NOTIFY_ALERT_ENDPOINT_SAVED(section))
+        this.props.notify(notifyAlertEndpointSaved(section))
         return true
       } catch ({data: {error}}) {
         const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
-        this.props.notify(NOTIFY_ALERT_ENDPOINT_SAVE_FAILED(section, errorMsg))
+        this.props.notify(notifyAlertEndpointSaveFailed(section, errorMsg))
         return false
       }
     }
@@ -103,12 +103,12 @@ class AlertTabs extends Component {
     try {
       const {data} = await testAlertOutput(this.props.kapacitor, section)
       if (data.success) {
-        this.props.notify(NOTIFY_TEST_ALERT_SENT(section))
+        this.props.notify(notifyTestAlertSent(section))
       } else {
-        this.props.notify(NOTIFY_TEST_ALERT_FAILED(section, data.message))
+        this.props.notify(notifyTestAlertFailed(section, data.message))
       }
     } catch (error) {
-      this.props.notify(NOTIFY_TEST_ALERT_FAILED(section))
+      this.props.notify(notifyTestAlertFailed(section))
     }
   }
 

@@ -20,11 +20,11 @@ import {DEFAULT_SOURCE} from 'shared/constants'
 const initialPath = '/sources/new'
 
 import {
-  NOTIFY_ERROR_CONNECTING_TO_SOURCE,
-  NOTIFY_SOURCE_CREATION_SUCCEEDED,
-  NOTIFY_SOURCE_CREATION_FAILED,
-  NOTIFY_SOURCE_UPDATED,
-  NOTIFY_SOURCE_UPDATE_FAILED,
+  notifyErrorConnectingToSource,
+  notifySourceCreationSucceeded,
+  notifySourceCreationFailed,
+  notifySourceUdpated,
+  notifySourceUdpateFailed,
 } from 'shared/copy/notifications'
 
 class SourcePage extends Component {
@@ -55,7 +55,7 @@ class SourcePage extends Component {
         })
       })
       .catch(error => {
-        notify(NOTIFY_ERROR_CONNECTING_TO_SOURCE(this._parseError(error)))
+        notify(notifyErrorConnectingToSource(this._parseError(error)))
         this.setState({isLoading: false})
       })
   }
@@ -145,12 +145,10 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.addSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify(NOTIFY_SOURCE_CREATION_SUCCEEDED(source.name))
+        notify(notifySourceCreationSucceeded(source.name))
       })
       .catch(error => {
-        notify(
-          NOTIFY_SOURCE_CREATION_FAILED(source.name, this._parseError(error))
-        )
+        notify(notifySourceCreationFailed(source.name, this._parseError(error)))
       })
   }
 
@@ -161,12 +159,10 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.updateSource(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify(NOTIFY_SOURCE_UPDATED(source.name))
+        notify(notifySourceUdpated(source.name))
       })
       .catch(error => {
-        notify(
-          NOTIFY_SOURCE_UPDATE_FAILED(source.name, this._parseError(error))
-        )
+        notify(notifySourceUdpateFailed(source.name, this._parseError(error)))
       })
   }
 

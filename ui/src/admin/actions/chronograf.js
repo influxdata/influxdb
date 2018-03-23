@@ -19,10 +19,10 @@ import {
 import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 import {
-  NOTIFY_MAPPING_DELETED,
-  NOTIFY_CHRONOGRAF_ORG_DELETED,
-  NOTIFY_CHRONOGRAF_USER_UPDATED,
-  NOTIFY_CHRONOGRAF_USER_DELETED,
+  notifyMappingDeleted,
+  notifyChronografOrgDeleted,
+  notifyChronografUserUpdated,
+  notifyChronografUserDeleted,
 } from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
@@ -183,7 +183,7 @@ export const deleteMappingAsync = mapping => async dispatch => {
   dispatch(removeMapping(mapping))
   try {
     await deleteMappingAJAX(mapping)
-    dispatch(notify(NOTIFY_MAPPING_DELETED(mapping.id, mapping.scheme)))
+    dispatch(notify(notifyMappingDeleted(mapping.id, mapping.scheme)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addMapping(mapping))
@@ -239,7 +239,7 @@ export const updateUserAsync = (
       provider: null,
       scheme: null,
     })
-    dispatch(notify(NOTIFY_CHRONOGRAF_USER_UPDATED(successMessage)))
+    dispatch(notify(notifyChronografUserUpdated(successMessage)))
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))
@@ -256,9 +256,7 @@ export const deleteUserAsync = (
   dispatch(removeUser(user))
   try {
     await deleteUserAJAX(user)
-    dispatch(
-      notify(NOTIFY_CHRONOGRAF_USER_DELETED(user.name, isAbsoluteDelete))
-    )
+    dispatch(notify(notifyChronografUserDeleted(user.name, isAbsoluteDelete)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addUser(user))
@@ -309,7 +307,7 @@ export const deleteOrganizationAsync = organization => async dispatch => {
   dispatch(removeOrganization(organization))
   try {
     await deleteOrganizationAJAX(organization)
-    dispatch(notify(NOTIFY_CHRONOGRAF_ORG_DELETED(organization.name)))
+    dispatch(notify(notifyChronografOrgDeleted(organization.name)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addOrganization(organization))

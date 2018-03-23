@@ -5,7 +5,7 @@ import {getLinksAsync} from 'shared/actions/links'
 import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
-import {NOTIFY_USER_SWITCHED_ORGS} from 'shared/copy/notifications'
+import {notifyUserSwitchedOrgs} from 'shared/copy/notifications'
 
 export const authExpired = auth => ({
   type: 'AUTH_EXPIRED',
@@ -93,7 +93,7 @@ export const meChangeOrganizationAsync = (
     )
     dispatch(
       notify(
-        NOTIFY_USER_SWITCHED_ORGS(me.currentOrganization.name, currentRole.name)
+        notifyUserSwitchedOrgs(me.currentOrganization.name, currentRole.name)
       )
     )
     dispatch(meChangeOrganizationCompleted())

@@ -6,7 +6,8 @@ import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
 import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
-import {errorThrown} from 'shared/actions/errors'
+import {notify} from 'src/shared/actions/notifications'
+import {notifyCSVDownloadFailed} from 'src/shared/copy/notifications'
 import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
 
@@ -25,7 +26,7 @@ class LayoutCell extends Component {
     try {
       download(dashboardtoCSV(celldata), `${joinedName}.csv`, 'text/plain')
     } catch (error) {
-      errorThrown(error, 'Unable to download .csv file')
+      notify(notifyCSVDownloadFailed())
       console.error(error)
     }
   }

@@ -17,8 +17,8 @@ const {
 } = ALL_USERS_TABLE
 
 import {
-  NOTIFY_CHRONOGRAF_USER_ADDED_TO_ORG,
-  NOTIFY_CHRONOGRAF_USER_REMOVED_FROM_ORG,
+  notifyChronografUserAddedToOrg,
+  notifyChronografUserRemovedFromOrg,
 } from 'shared/copy/notifications'
 
 class AllUsersTable extends Component {
@@ -52,7 +52,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      NOTIFY_CHRONOGRAF_USER_ADDED_TO_ORG(user.name, organization.name)
+      notifyChronografUserAddedToOrg(user.name, organization.name)
     )
   }
 
@@ -66,7 +66,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      NOTIFY_CHRONOGRAF_USER_REMOVED_FROM_ORG(user.name, name)
+      notifyChronografUserRemovedFromOrg(user.name, name)
     )
   }
 

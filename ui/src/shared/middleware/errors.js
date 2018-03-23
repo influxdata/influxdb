@@ -5,11 +5,10 @@ import {notify} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
 import {
-  NOTIFY_SESSION_TIMED_OUT,
-  NOTIFY_ERR_WITH_ALT_TEXT,
-  NOTIFY_NEW_VERSION,
-  NOTIFY_ORG_IS_PRIVATE,
-  NOTIFY_CURRENT_ORG_DELETED,
+  notifySessionTimedOut,
+  notifyErrorWithAltText,
+  notifyOrgIsPrivate,
+  notifyCurrentOrgDeleted,
 } from 'shared/copy/notifications'
 
 const actionsAllowedDuringBlackout = [
@@ -42,22 +41,18 @@ const errorsMiddleware = store => next => action => {
         message ===
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
-        store.dispatch(notify(NOTIFY_ORG_IS_PRIVATE))
-      }
-
-      if (_.startsWith(message, 'Welcome to Chronograf')) {
-        store.dispatch(notify(NOTIFY_NEW_VERSION(message)))
+        store.dispatch(notify(notifyOrgIsPrivate()))
       }
 
       if (organizationWasRemoved) {
-        store.dispatch(notify(NOTIFY_CURRENT_ORG_DELETED))
+        store.dispatch(notify(notifyCurrentOrgDeleted()))
 
         allowNotifications = false
         setTimeout(() => {
           allowNotifications = true
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
-        store.dispatch(notify(NOTIFY_SESSION_TIMED_OUT))
+        store.dispatch(notify(notifySessionTimedOut()))
 
         allowNotifications = false
         setTimeout(() => {
@@ -65,7 +60,7 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       }
     } else if (altText) {
-      store.dispatch(notify(NOTIFY_ERR_WITH_ALT_TEXT(alertType, altText)))
+      store.dispatch(notify(notifyErrorWithAltText(alertType, altText)))
     } else {
       // TODO: actually do proper error handling
       // store.dispatch(notify({type: alertType, 'Cannot communicate with server.'))
