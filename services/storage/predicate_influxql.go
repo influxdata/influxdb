@@ -7,9 +7,7 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-var (
-	measurementRemap = map[string]string{"_measurement": "_name"}
-)
+var measurementRemap = map[string]string{"_measurement": "_name"}
 
 // NodeToExpr transforms a predicate node to an influxql.Expr.
 func NodeToExpr(node *Node, remap map[string]string) (influxql.Expr, error) {
