@@ -22,7 +22,7 @@ import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {
-  NOTIFY_DB_USER_CREATED,
+  notifyDBUserCreated,
   notifyDBUserCreationFailed,
   notifyDBUserDeleted,
   notifyDBUserDeleteFailed,
@@ -307,12 +307,10 @@ export const loadDBsAndRPsAsync = url => async dispatch => {
 export const createUserAsync = (url, user) => async dispatch => {
   try {
     const {data} = await createUserAJAX(url, user)
-    dispatch(notify(NOTIFY_DB_USER_CREATED))
+    dispatch(notify(notifyDBUserCreated()))
     dispatch(syncUser(user, data))
   } catch (error) {
-    dispatch(
-      errorThrown(error, notifyDBUserCreationFailed(error.data.message))
-    )
+    dispatch(errorThrown(error, notifyDBUserCreationFailed(error.data.message)))
     // undo optimistic update
     setTimeout(() => dispatch(deleteUser(user)), REVERT_STATE_DELAY)
   }
@@ -324,9 +322,7 @@ export const createRoleAsync = (url, role) => async dispatch => {
     dispatch(notify(NOTIFY_ROLE_CREATED))
     dispatch(syncRole(role, data))
   } catch (error) {
-    dispatch(
-      errorThrown(error, notifyRoleCreationFailed(error.data.message))
-    )
+    dispatch(errorThrown(error, notifyRoleCreationFailed(error.data.message)))
     // undo optimistic update
     setTimeout(() => dispatch(deleteRole(role)), REVERT_STATE_DELAY)
   }
@@ -338,9 +334,7 @@ export const createDatabaseAsync = (url, database) => async dispatch => {
     dispatch(syncDatabase(database, data))
     dispatch(notify(NOTIFY_DATABASE_CREATED))
   } catch (error) {
-    dispatch(
-      errorThrown(error, notifyDBCreationFailed(error.data.message))
-    )
+    dispatch(errorThrown(error, notifyDBCreationFailed(error.data.message)))
     // undo optimistic update
     setTimeout(() => dispatch(removeDatabase(database)), REVERT_STATE_DELAY)
   }
@@ -382,10 +376,7 @@ export const updateRetentionPolicyAsync = (
   } catch (error) {
     dispatch(editRetentionPolicyFailed(database, oldRP))
     dispatch(
-      errorThrown(
-        error,
-        notifyRetentionPolicyUpdateFailed(error.data.message)
-      )
+      errorThrown(error, notifyRetentionPolicyUpdateFailed(error.data.message))
     )
   }
 }
@@ -409,9 +400,7 @@ export const deleteRoleAsync = role => async dispatch => {
     await deleteRoleAJAX(role.links.self)
     dispatch(notify(notifyRoleDeleted(role.name)))
   } catch (error) {
-    dispatch(
-      errorThrown(error, notifyRoleDeleteFailed(error.data.message))
-    )
+    dispatch(errorThrown(error, notifyRoleDeleteFailed(error.data.message)))
   }
 }
 
@@ -421,9 +410,7 @@ export const deleteUserAsync = user => async dispatch => {
     await deleteUserAJAX(user.links.self)
     dispatch(notify(notifyDBUserDeleted(user.name)))
   } catch (error) {
-    dispatch(
-      errorThrown(error, notifyDBUserDeleteFailed(error.data.message))
-    )
+    dispatch(errorThrown(error, notifyDBUserDeleteFailed(error.data.message)))
   }
 }
 
@@ -433,9 +420,7 @@ export const deleteDatabaseAsync = database => async dispatch => {
     await deleteDatabaseAJAX(database.links.self)
     dispatch(notify(notifyDBDeleted(database.name)))
   } catch (error) {
-    dispatch(
-      errorThrown(error, notifyDBDeleteFailed(error.data.message))
-    )
+    dispatch(errorThrown(error, notifyDBDeleteFailed(error.data.message)))
   }
 }
 
@@ -449,10 +434,7 @@ export const deleteRetentionPolicyAsync = (
     dispatch(notify(notifyRetentionPolicyDeleted(retentionPolicy.name)))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        notifyRetentionPolicyDeleteFailed(error.data.message)
-      )
+      errorThrown(error, notifyRetentionPolicyDeleteFailed(error.data.message))
     )
   }
 }
@@ -487,10 +469,7 @@ export const updateRolePermissionsAsync = (
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        notifyRolePermissionsUpdateFailed(error.data.message)
-      )
+      errorThrown(error, notifyRolePermissionsUpdateFailed(error.data.message))
     )
   }
 }
@@ -532,10 +511,7 @@ export const updateUserPasswordAsync = (user, password) => async dispatch => {
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        notifyDBUserPasswordUpdateFailed(error.data.message)
-      )
+      errorThrown(error, notifyDBUserPasswordUpdateFailed(error.data.message))
     )
   }
 }

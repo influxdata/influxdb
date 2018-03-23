@@ -33,51 +33,51 @@ export const notifyErrorWithAltText = (type, message) => ({
   message,
 })
 
-export const NOTIFY_PRESENTATION_MODE = {
+export const notifyPresentationMode = () => ({
   type: 'primary',
   icon: 'expand-b',
   duration: 7500,
   message: 'Press ESC to exit Presentation Mode.',
-}
+})
 
-export const NOTIFY_DATA_WRITTEN = {
+export const notifyDataWritten = () => ({
   ...defaultSuccessNotification,
   message: 'Data was written successfully.',
-}
+})
 
-export const NOTIFY_SESSION_TIMED_OUT = {
+export const notifySessionTimedOut = () => ({
   type: 'primary',
   icon: 'triangle',
   duration: INFINITE,
   message: 'Your session has timed out. Log in again to continue.',
-}
+})
 
-export const NOTIFY_SERVER_ERROR = {
+export const notifyServerError = () => ({
   ...defaultErrorNotification,
   mesasage: 'Internal Server Error. Check API Logs.',
-}
+})
 
 export const notifyCouldNotRetrieveKapacitors = sourceID => ({
   ...defaultErrorNotification,
   mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
 })
 
-export const NOTIFY_COULD_NOT_DELETE_KAPACITOR = {
+export const notifyCouldNotDeleteKapacitor = () => ({
   ...defaultErrorNotification,
   message: 'Internal Server Error. Could not delete Kapacitor Connection.',
-}
+})
 
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_UNABLE_TO_GET_HOSTS = {
+export const notifyUnableToGetHosts = () => ({
   ...defaultErrorNotification,
   message: 'Unable to get Hosts.',
-}
+})
 
-export const NOTIFY_UNABLE_TO_GET_APPS = {
+export const notifyUnableToGetApps = () => ({
   ...defaultErrorNotification,
   message: 'Unable to get Apps for Hosts.',
-}
+})
 
 //  InfluxDB Sources Notifications
 //  ----------------------------------------------------------------------------
@@ -123,7 +123,7 @@ export const notifySourceNoLongerAvailable = sourceName =>
 export const notifyNoSourcesAvailable = sourceName =>
   `Unable to connect to source ${sourceName}. No other sources available.`
 
-export const NOTIFY_UNABLE_TO_RETRIEVE_SOURCES = 'Unable to retrieve sources.'
+export const notifyUnableToRetrieveSources = () => 'Unable to retrieve sources.'
 
 export const notifyUnableToConnectSource = sourceName =>
   `Unable to connect to source ${sourceName}.`
@@ -133,24 +133,24 @@ export const notifyErrorConnectingToSource = errorMessage =>
 
 //  Multitenancy User Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_USER_REMOVED_FROM_ALL_ORGS = {
+export const notifyUserRemovedFromAllOrgs = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message:
     'You have been removed from all organizations. Please contact your administrator.',
-}
+})
 
-export const NOTIFY_USER_REMOVED_FROM_CURRENT_ORG = {
+export const notifyUserRemovedFromCurrentOrg = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'You were removed from your current organization.',
-}
+})
 
-export const NOTIFY_ORG_HAS_NO_SOURCES = {
+export const notifyOrgHasNoSources = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'Organization has no sources configured.',
-}
+})
 
 export const notifyUserSwitchedOrgs = (orgName, roleName) => ({
   ...defaultSuccessNotification,
@@ -158,18 +158,18 @@ export const notifyUserSwitchedOrgs = (orgName, roleName) => ({
   message: `Now logged in to '${orgName}' as '${roleName}'.`,
 })
 
-export const NOTIFY_ORG_IS_PRIVATE = {
+export const notifyOrgIsPrivate = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message:
     'This organization is private. To gain access, you must be explicitly added by an administrator.',
-}
+})
 
-export const NOTIFY_CURRENT_ORG_DELETED = {
+export const notifyCurrentOrgDeleted = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'Your current organization was deleted.',
-}
+})
 
 //  Chronograf Admin Notifications
 //  ----------------------------------------------------------------------------
@@ -203,18 +203,18 @@ export const notifyChronografUserDeleted = (user, isAbsoluteDelete) => ({
   }`,
 })
 
-export const NOTIFY_CHRONOGRAF_USER_MISSING_NAME_AND_PROVIDER = {
+export const notifyChronografUserMissingNameAndProvider = () => ({
   ...defaultErrorNotification,
   type: 'warning',
   message: 'User must have a Name and Provider.',
-}
+})
 
 //  InfluxDB Admin Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_DB_USER_CREATED = {
+export const notifyDBUserCreated = () => ({
   ...defaultSuccessNotification,
   message: 'User created successfully.',
-}
+})
 
 export const notifyDBUserCreationFailed = errorMessage =>
   `Failed to create User: ${errorMessage}`

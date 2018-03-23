@@ -10,9 +10,9 @@ import {errorThrown} from 'shared/actions/errors'
 
 import {HTTP_NOT_FOUND} from 'shared/constants'
 import {
-  NOTIFY_SERVER_ERROR,
+  notifyServerError,
   notifyCouldNotRetrieveKapacitors,
-  NOTIFY_COULD_NOT_DELETE_KAPACITOR,
+  notifyCouldNotDeleteKapacitor,
 } from 'shared/copy/notifications'
 
 export const loadSources = sources => ({
@@ -76,7 +76,7 @@ export const removeAndLoadSources = source => async dispatch => {
     const {data: {sources: newSources}} = await getSourcesAJAX()
     dispatch(loadSources(newSources))
   } catch (err) {
-    dispatch(notify(NOTIFY_SERVER_ERROR))
+    dispatch(notify(notifyServerError()))
   }
 }
 
@@ -101,7 +101,7 @@ export const deleteKapacitorAsync = kapacitor => async dispatch => {
     await deleteKapacitorAJAX(kapacitor)
     dispatch(deleteKapacitor(kapacitor))
   } catch (err) {
-    dispatch(notify(NOTIFY_COULD_NOT_DELETE_KAPACITOR))
+    dispatch(notify(notifyCouldNotDeleteKapacitor()))
   }
 }
 

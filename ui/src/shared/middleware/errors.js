@@ -5,11 +5,11 @@ import {notify} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
 import {
-  NOTIFY_SESSION_TIMED_OUT,
+  notifySessionTimedOut,
   notifyErrorWithAltText,
   notifyNewVersion,
-  NOTIFY_ORG_IS_PRIVATE,
-  NOTIFY_CURRENT_ORG_DELETED,
+  notifyOrgIsPrivate,
+  notifyCurrentOrgDeleted,
 } from 'shared/copy/notifications'
 
 const actionsAllowedDuringBlackout = [
@@ -42,7 +42,7 @@ const errorsMiddleware = store => next => action => {
         message ===
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
-        store.dispatch(notify(NOTIFY_ORG_IS_PRIVATE))
+        store.dispatch(notify(notifyOrgIsPrivate()))
       }
 
       if (_.startsWith(message, 'Welcome to Chronograf')) {
@@ -50,14 +50,14 @@ const errorsMiddleware = store => next => action => {
       }
 
       if (organizationWasRemoved) {
-        store.dispatch(notify(NOTIFY_CURRENT_ORG_DELETED))
+        store.dispatch(notify(notifyCurrentOrgDeleted()))
 
         allowNotifications = false
         setTimeout(() => {
           allowNotifications = true
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
-        store.dispatch(notify(NOTIFY_SESSION_TIMED_OUT))
+        store.dispatch(notify(notifySessionTimedOut()))
 
         allowNotifications = false
         setTimeout(() => {
