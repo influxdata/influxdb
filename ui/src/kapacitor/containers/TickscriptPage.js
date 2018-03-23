@@ -12,9 +12,9 @@ import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
-  NOTIFY_TICKSCRIPT_LOGGING_UNAVAILABLE,
-  NOTIFY_TICKSCRIPT_LOGGING_ERROR,
-  NOTIFY_KAPACITOR_NOT_FOUND,
+  notifyTickscriptLoggingUnavailable,
+  notifyTickscriptLoggingError,
+  notifyKapacitorNotFound,
 } from 'shared/copy/notifications'
 
 class TickscriptPage extends Component {
@@ -50,7 +50,7 @@ class TickscriptPage extends Component {
         this.setState({
           areLogsEnabled: false,
         })
-        notify(NOTIFY_TICKSCRIPT_LOGGING_UNAVAILABLE)
+        notify(notifyTickscriptLoggingUnavailable())
         return
       }
 
@@ -119,7 +119,7 @@ class TickscriptPage extends Component {
       }
     } catch (error) {
       console.error(error)
-      notify(NOTIFY_TICKSCRIPT_LOGGING_ERROR(error))
+      notify(notifyTickscriptLoggingError()(error))
       throw error
     }
   }
@@ -134,7 +134,7 @@ class TickscriptPage extends Component {
 
     const kapacitor = await getActiveKapacitor(source)
     if (!kapacitor) {
-      errorActions.errorThrown(NOTIFY_KAPACITOR_NOT_FOUND)
+      errorActions.errorThrown(notifyKapacitorNotFound())
     }
 
     if (this._isEditing()) {

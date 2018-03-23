@@ -504,31 +504,32 @@ export const NOTIFY_KAPACITOR_UPDATE_FAILED = {
 
 //  TICKscript Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_TICKSCRIPT_CREATED = {
+export const notifyTickScriptCreated = () => ({
   ...defaultSuccessNotification,
   message: 'TICKscript successfully created.',
-}
+})
 
-export const NOTIFY_TICKSCRIPT_CREATION_FAILED = 'Failed to create TICKscript.'
+export const notifyTickscriptCreationFailed = () =>
+  'Failed to create TICKscript.'
 
-export const NOTIFY_TICKSCRIPT_UPDATED = {
+export const notifyTickscriptUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'TICKscript successfully updated.',
-}
+})
 
-export const NOTIFY_TICKSCRIPT_UPDATE_FAILED = 'Failed to update TICKscript.'
+export const notifyTickscriptUpdateFailed = () => 'Failed to update TICKscript.'
 
-export const NOTIFY_TICKSCRIPT_LOGGING_UNAVAILABLE = {
+export const notifyTickscriptLoggingUnavailable = () => ({
   type: 'warning',
   icon: 'alert-triangle',
   duration: INFINITE,
   message: 'Kapacitor version 1.4 required to view TICKscript logs',
-}
+})
 
-export const NOTIFY_TICKSCRIPT_LOGGING_ERROR = message => ({
+export const notifyTickscriptLoggingError = message => ({
   ...defaultErrorNotification,
   message,
 })
 
-export const NOTIFY_KAPACITOR_NOT_FOUND =
+export const notifyKapacitorNotFound = () =>
   'We could not find a Kapacitor configuration for this source.'

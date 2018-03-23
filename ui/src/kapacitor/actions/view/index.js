@@ -16,10 +16,10 @@ import {
   NOTIFY_ALERT_RULE_DELETION_FAILED,
   NOTIFY_ALERT_RULE_STATUS_UPDATED,
   NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED,
-  NOTIFY_TICKSCRIPT_CREATED,
-  NOTIFY_TICKSCRIPT_CREATION_FAILED,
-  NOTIFY_TICKSCRIPT_UPDATED,
-  NOTIFY_TICKSCRIPT_UPDATE_FAILED,
+  notifyTickScriptCreated,
+  notifyTickscriptCreationFailed,
+  notifyTickscriptUpdated,
+  notifyTickscriptUpdateFailed,
 } from 'shared/copy/notifications'
 
 const loadQuery = query => ({
@@ -203,11 +203,11 @@ export const updateRuleStatus = (rule, status) => dispatch => {
 export const createTask = (kapacitor, task) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    dispatch(notify(NOTIFY_TICKSCRIPT_CREATED))
+    dispatch(notify(notifyTickScriptCreated()))
     return data
   } catch (error) {
     if (!error) {
-      dispatch(errorThrown(NOTIFY_TICKSCRIPT_CREATION_FAILED))
+      dispatch(errorThrown(notifyTickscriptCreationFailed()))
       return
     }
 
@@ -223,11 +223,11 @@ export const updateTask = (
 ) => async dispatch => {
   try {
     const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
-    dispatch(notify(NOTIFY_TICKSCRIPT_UPDATED))
+    dispatch(notify(notifyTickscriptUpdated()))
     return data
   } catch (error) {
     if (!error) {
-      dispatch(errorThrown(NOTIFY_TICKSCRIPT_UPDATE_FAILED))
+      dispatch(errorThrown(notifyTickscriptUpdateFailed()))
       return
     }
     return error.data
