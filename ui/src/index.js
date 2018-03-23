@@ -40,6 +40,7 @@ import {getMeAsync} from 'shared/actions/auth'
 
 import {disablePresentationMode} from 'shared/actions/app'
 import {errorThrown} from 'shared/actions/errors'
+import {notify} from 'shared/actions/notifications'
 
 import 'src/style/chronograf.scss'
 
@@ -115,8 +116,12 @@ const Root = React.createClass({
 
   flushErrorsQueue() {
     if (errorsQueue.length) {
-      errorsQueue.forEach(errorText => {
-        dispatch(errorThrown({status: 0, auth: null}, errorText, 'warning'))
+      errorsQueue.forEach(error => {
+        if (typeof error === 'object') {
+          dispatch(notify(error))
+        } else {
+          dispatch(errorThrown({status: 0, auth: null}, error, 'warning'))
+        }
       })
     }
   },
