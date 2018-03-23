@@ -17,7 +17,7 @@ const GraphOptionsFixFirstColumn: SFC<Props> = ({
         checked={!!fixed}
         onChange={onToggleFixFirstColumn}
       />
-      <label htmlFor="fixFirstColumnCheckbox">Fix First Column</label>
+      <label htmlFor="fixFirstColumnCheckbox">Lock First Column</label>
     </div>
   </div>
 )
