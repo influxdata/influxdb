@@ -55,6 +55,7 @@ type indexSeriesCursor struct {
 	eof             bool
 	hasFieldExpr    bool
 	hasValueExpr    bool
+	multiTenant     bool
 }
 
 func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
@@ -86,6 +87,7 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 		mi    tsdb.MeasurementIterator
 	)
 	if req.RequestType == ReadRequestTypeMultiTenant {
+		p.multiTenant = true
 		m := []byte(req.OrgID)
 		m = append(m, 0, 0)
 		m = append(m, req.Database...)
@@ -181,12 +183,16 @@ RETRY:
 		c.row.stags = sr.Tags
 		c.tags = copyTags(c.tags, sr.Tags)
 
-		c.filterset = mapValuer{"_name": string(sr.Name)}
+		c.filterset = make(mapValuer)
 		for _, tag := range c.tags {
 			c.filterset[string(tag.Key)] = string(tag.Value)
 		}
 
-		c.tags.Set(measurementKey, sr.Name)
+		if !c.multiTenant {
+			c.filterset["_name"] = string(sr.Name)
+			c.tags.Set(measurementKey, sr.Name)
+		}
+
 		c.nf = c.fields
 	}
 
