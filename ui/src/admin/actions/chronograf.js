@@ -256,9 +256,7 @@ export const deleteUserAsync = (
   dispatch(removeUser(user))
   try {
     await deleteUserAJAX(user)
-    dispatch(
-      notify(notifyChronografUserDeleted(user.name, isAbsoluteDelete))
-    )
+    dispatch(notify(notifyChronografUserDeleted(user.name, isAbsoluteDelete)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addUser(user))

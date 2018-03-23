@@ -194,9 +194,7 @@ export const updateRuleStatus = (rule, status) => dispatch => {
       dispatch(notify(notifyAlertRuleStatusUpdated(rule.name, status)))
     })
     .catch(() => {
-      dispatch(
-        notify(notifyAlertRuleStatusUpdateFailed(rule.name, status))
-      )
+      dispatch(notify(notifyAlertRuleStatusUpdateFailed(rule.name, status)))
     })
 }
 

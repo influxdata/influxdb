@@ -148,9 +148,7 @@ class SourcePage extends Component {
         notify(notifySourceCreationSucceeded(source.name))
       })
       .catch(error => {
-        notify(
-          notifySourceCreationFailed(source.name, this._parseError(error))
-        )
+        notify(notifySourceCreationFailed(source.name, this._parseError(error)))
       })
   }
 
@@ -164,9 +162,7 @@ class SourcePage extends Component {
         notify(notifySourceUdpated(source.name))
       })
       .catch(error => {
-        notify(
-          notifySourceUdpateFailed(source.name, this._parseError(error))
-        )
+        notify(notifySourceUdpateFailed(source.name, this._parseError(error)))
       })
   }
 

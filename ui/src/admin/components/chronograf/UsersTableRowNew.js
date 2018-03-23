@@ -65,9 +65,7 @@ class UsersTableRowNew extends Component {
 
     if (e.key === 'Enter') {
       if (preventCreate) {
-        return this.props.notify(
-          notifyChronografUserMissingNameAndProvider()
-        )
+        return this.props.notify(notifyChronografUserMissingNameAndProvider())
       }
       this.handleConfirmCreateUser()
     }
