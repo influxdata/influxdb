@@ -12,9 +12,9 @@ import {
 import {errorThrown} from 'shared/actions/errors'
 
 import {
-  NOTIFY_ALERT_RULE_DELETED,
-  NOTIFY_ALERT_RULE_DELETION_FAILED,
-  NOTIFY_ALERT_RULE_STATUS_UPDATED,
+  notifyAlertRuleDeleted,
+  notifyAlertRuleDeleteFailed,
+  notifyAlertRuleStatusUpdated,
   NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED,
   notifyTickScriptCreated,
   notifyTickscriptCreationFailed,
@@ -181,17 +181,17 @@ export const deleteRule = rule => dispatch => {
   deleteRuleAPI(rule)
     .then(() => {
       dispatch(deleteRuleSuccess(rule.id))
-      dispatch(notify(NOTIFY_ALERT_RULE_DELETED(rule.name)))
+      dispatch(notify(notifyAlertRuleDeleted(rule.name)))
     })
     .catch(() => {
-      dispatch(notify(NOTIFY_ALERT_RULE_DELETION_FAILED(rule.name)))
+      dispatch(notify(notifyAlertRuleDeleteFailed(rule.name)))
     })
 }
 
 export const updateRuleStatus = (rule, status) => dispatch => {
   updateRuleStatusAPI(rule, status)
     .then(() => {
-      dispatch(notify(NOTIFY_ALERT_RULE_STATUS_UPDATED(rule.name, status)))
+      dispatch(notify(notifyAlertRuleStatusUpdated(rule.name, status)))
     })
     .catch(() => {
       dispatch(

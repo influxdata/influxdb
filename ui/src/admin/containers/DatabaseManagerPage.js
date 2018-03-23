@@ -10,7 +10,7 @@ import * as adminActionCreators from 'src/admin/actions/influxdb'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
-  NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED,
+  notifyDatabaseDeleteConfirmationRequired,
   NOTIFY_DATABASE_NAME_ALREADY_EXISTS,
   NOTIFY_DATABASE_NAME_INVALID,
 } from 'shared/copy/notifications'
@@ -88,7 +88,7 @@ class DatabaseManagerPage extends Component {
     if (key === 'Enter') {
       if (database.deleteCode !== `DELETE ${database.name}`) {
         return notify(
-          NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name)
+          notifyDatabaseDeleteConfirmationRequired(database.name)
         )
       }
 

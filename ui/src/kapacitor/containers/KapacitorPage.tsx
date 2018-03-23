@@ -20,7 +20,7 @@ import {
   NOTIFY_KAPACITOR_CONNECTION_FAILED,
   NOTIFY_KAPACITOR_CREATED,
   NOTIFY_KAPACITOR_CREATION_FAILED,
-  NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN,
+  notifyKapacitorNameAlreadyTaken,
   NOTIFY_KAPACITOR_UPDATE_FAILED,
   NOTIFY_KAPACITOR_UPDATED,
 } from 'src/shared/copy/notifications'
@@ -131,7 +131,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     const isNew = !params.id
 
     if (isNew && isNameTaken) {
-      notify(NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN)
+      notify(notifyKapacitorNameAlreadyTaken)
       return
     }
 

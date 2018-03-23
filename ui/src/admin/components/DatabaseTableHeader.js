@@ -6,7 +6,7 @@ import {bindActionCreators} from 'redux'
 
 import {notify as notifyAction} from 'shared/actions/notifications'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
-import {NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED} from 'shared/copy/notifications'
+import {notifyDatabaseDeleteConfirmationRequired} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
   database,
@@ -81,7 +81,7 @@ const Header = ({
 
   function onConfirm(db) {
     if (database.deleteCode !== `DELETE ${database.name}`) {
-      return notify(NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name))
+      return notify(notifyDatabaseDeleteConfirmationRequired(database.name))
     }
 
     onDelete(db)

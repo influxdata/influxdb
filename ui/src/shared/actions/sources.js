@@ -11,7 +11,7 @@ import {errorThrown} from 'shared/actions/errors'
 import {HTTP_NOT_FOUND} from 'shared/constants'
 import {
   NOTIFY_SERVER_ERROR,
-  NOTIFY_COULD_NOT_RETRIEVE_KAPACITORS,
+  notifyCouldNotRetrieveKapacitors,
   NOTIFY_COULD_NOT_DELETE_KAPACITOR,
 } from 'shared/copy/notifications'
 
@@ -85,7 +85,7 @@ export const fetchKapacitorsAsync = source => async dispatch => {
     const {data} = await getKapacitorsAJAX(source)
     dispatch(fetchKapacitors(source, data.kapacitors))
   } catch (err) {
-    dispatch(notify(NOTIFY_COULD_NOT_RETRIEVE_KAPACITORS(source.id)))
+    dispatch(notify(notifyCouldNotRetrieveKapacitors(source.id)))
   }
 }
 

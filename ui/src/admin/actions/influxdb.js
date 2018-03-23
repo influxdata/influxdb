@@ -23,33 +23,33 @@ import {errorThrown} from 'shared/actions/errors'
 
 import {
   NOTIFY_DB_USER_CREATED,
-  NOTIFY_DB_USER_CREATION_FAILED,
-  NOTIFY_DB_USER_DELETED,
-  NOTIFY_DB_USER_DELETION_FAILED,
+  notifyDBUserCreationFailed,
+  notifyDBUserDeleted,
+  notifyDBUserDeleteFailed,
   NOTIFY_DB_USER_PERMISSIONS_UPDATED,
-  NOTIFY_DB_USER_PERMISSIONS_UPDATE_FAILED,
+  notifyDBUserPermissionsUpdateFailed,
   NOTIFY_DB_USER_ROLES_UPDATED,
-  NOTIFY_DB_USER_ROLES_UPDATE_FAILED,
+  notifyDBUserRolesUpdateFailed,
   NOTIFY_DB_USER_PASSWORD_UPDATED,
-  NOTIFY_DB_USER_PASSWORD_UPDATE_FAILED,
+  notifyDBUserPasswordUpdateFailed,
   NOTIFY_DATABASE_CREATED,
-  NOTIFY_DATABASE_CREATION_FAILED,
-  NOTIFY_DATABASE_DELETED,
-  NOTIFY_DATABASE_DELETION_FAILED,
+  notifyDBCreationFailed,
+  notifyDBDeleted,
+  notifyDBDeleteFailed,
   NOTIFY_ROLE_CREATED,
-  NOTIFY_ROLE_CREATION_FAILED,
-  NOTIFY_ROLE_DELETED,
-  NOTIFY_ROLE_DELETION_FAILED,
+  notifyRoleCreationFailed,
+  notifyRoleDeleted,
+  notifyRoleDeleteFailed,
   NOTIFY_ROLE_USERS_UPDATED,
-  NOTIFY_ROLE_USERS_UPDATE_FAILED,
+  notifyRoleUsersUpdateFailed,
   NOTIFY_ROLE_PERMISSIONS_UPDATED,
-  NOTIFY_ROLE_PERMISSIONS_UPDATE_FAILED,
+  notifyRolePermissionsUpdateFailed,
   NOTIFY_RETENTION_POLICY_CREATED,
-  NOTIFY_RETENTION_POLICY_CREATION_FAILED,
-  NOTIFY_RETENTION_POLICY_DELETED,
-  NOTIFY_RETENTION_POLICY_DELETION_FAILED,
+  notifyRetentionPolicyCreationFailed,
+  notifyRetentionPolicyDeleted,
+  notifyRetentionPolicyDeleteFailed,
   NOTIFY_RETENTION_POLICY_UPDATED,
-  NOTIFY_RETENTION_POLICY_UPDATE_FAILED,
+  notifyRetentionPolicyUpdateFailed,
 } from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
@@ -311,7 +311,7 @@ export const createUserAsync = (url, user) => async dispatch => {
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_DB_USER_CREATION_FAILED(error.data.message))
+      errorThrown(error, notifyDBUserCreationFailed(error.data.message))
     )
     // undo optimistic update
     setTimeout(() => dispatch(deleteUser(user)), REVERT_STATE_DELAY)
@@ -325,7 +325,7 @@ export const createRoleAsync = (url, role) => async dispatch => {
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_ROLE_CREATION_FAILED(error.data.message))
+      errorThrown(error, notifyRoleCreationFailed(error.data.message))
     )
     // undo optimistic update
     setTimeout(() => dispatch(deleteRole(role)), REVERT_STATE_DELAY)
@@ -339,7 +339,7 @@ export const createDatabaseAsync = (url, database) => async dispatch => {
     dispatch(notify(NOTIFY_DATABASE_CREATED))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_DATABASE_CREATION_FAILED(error.data.message))
+      errorThrown(error, notifyDBCreationFailed(error.data.message))
     )
     // undo optimistic update
     setTimeout(() => dispatch(removeDatabase(database)), REVERT_STATE_DELAY)
@@ -359,7 +359,7 @@ export const createRetentionPolicyAsync = (
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
     dispatch(
-      errorThrown(NOTIFY_RETENTION_POLICY_CREATION_FAILED(error.data.message))
+      errorThrown(notifyRetentionPolicyCreationFailed(error.data.message))
     )
     // undo optimistic update
     setTimeout(
@@ -384,7 +384,7 @@ export const updateRetentionPolicyAsync = (
     dispatch(
       errorThrown(
         error,
-        NOTIFY_RETENTION_POLICY_UPDATE_FAILED(error.data.message)
+        notifyRetentionPolicyUpdateFailed(error.data.message)
       )
     )
   }
@@ -407,10 +407,10 @@ export const deleteRoleAsync = role => async dispatch => {
   dispatch(deleteRole(role))
   try {
     await deleteRoleAJAX(role.links.self)
-    dispatch(notify(NOTIFY_ROLE_DELETED(role.name)))
+    dispatch(notify(notifyRoleDeleted(role.name)))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_ROLE_DELETION_FAILED(error.data.message))
+      errorThrown(error, notifyRoleDeleteFailed(error.data.message))
     )
   }
 }
@@ -419,10 +419,10 @@ export const deleteUserAsync = user => async dispatch => {
   dispatch(deleteUser(user))
   try {
     await deleteUserAJAX(user.links.self)
-    dispatch(notify(NOTIFY_DB_USER_DELETED(user.name)))
+    dispatch(notify(notifyDBUserDeleted(user.name)))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_DB_USER_DELETION_FAILED(error.data.message))
+      errorThrown(error, notifyDBUserDeleteFailed(error.data.message))
     )
   }
 }
@@ -431,10 +431,10 @@ export const deleteDatabaseAsync = database => async dispatch => {
   dispatch(removeDatabase(database))
   try {
     await deleteDatabaseAJAX(database.links.self)
-    dispatch(notify(NOTIFY_DATABASE_DELETED(database.name)))
+    dispatch(notify(notifyDBDeleted(database.name)))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_DATABASE_DELETION_FAILED(error.data.message))
+      errorThrown(error, notifyDBDeleteFailed(error.data.message))
     )
   }
 }
@@ -446,12 +446,12 @@ export const deleteRetentionPolicyAsync = (
   dispatch(removeRetentionPolicy(database, retentionPolicy))
   try {
     await deleteRetentionPolicyAJAX(retentionPolicy.links.self)
-    dispatch(notify(NOTIFY_RETENTION_POLICY_DELETED(retentionPolicy.name)))
+    dispatch(notify(notifyRetentionPolicyDeleted(retentionPolicy.name)))
   } catch (error) {
     dispatch(
       errorThrown(
         error,
-        NOTIFY_RETENTION_POLICY_DELETION_FAILED(error.data.message)
+        notifyRetentionPolicyDeleteFailed(error.data.message)
       )
     )
   }
@@ -468,7 +468,7 @@ export const updateRoleUsersAsync = (role, users) => async dispatch => {
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_ROLE_USERS_UPDATE_FAILED(error.data.message))
+      errorThrown(error, notifyRoleUsersUpdateFailed(error.data.message))
     )
   }
 }
@@ -489,7 +489,7 @@ export const updateRolePermissionsAsync = (
     dispatch(
       errorThrown(
         error,
-        NOTIFY_ROLE_PERMISSIONS_UPDATE_FAILED(error.data.message)
+        notifyRolePermissionsUpdateFailed(error.data.message)
       )
     )
   }
@@ -507,7 +507,7 @@ export const updateUserPermissionsAsync = (
     dispatch(
       errorThrown(
         error,
-        NOTIFY_DB_USER_PERMISSIONS_UPDATE_FAILED(error.data.message)
+        notifyDBUserPermissionsUpdateFailed(error.data.message)
       )
     )
   }
@@ -520,7 +520,7 @@ export const updateUserRolesAsync = (user, roles) => async dispatch => {
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, NOTIFY_DB_USER_ROLES_UPDATE_FAILED(error.data.message))
+      errorThrown(error, notifyDBUserRolesUpdateFailed(error.data.message))
     )
   }
 }
@@ -534,7 +534,7 @@ export const updateUserPasswordAsync = (user, password) => async dispatch => {
     dispatch(
       errorThrown(
         error,
-        NOTIFY_DB_USER_PASSWORD_UPDATE_FAILED(error.data.message)
+        notifyDBUserPasswordUpdateFailed(error.data.message)
       )
     )
   }

@@ -6,8 +6,8 @@ import {notify} from 'shared/actions/notifications'
 import {HTTP_FORBIDDEN} from 'shared/constants'
 import {
   NOTIFY_SESSION_TIMED_OUT,
-  NOTIFY_ERR_WITH_ALT_TEXT,
-  NOTIFY_NEW_VERSION,
+  notifyErrorWithAltText,
+  notifyNewVersion,
   NOTIFY_ORG_IS_PRIVATE,
   NOTIFY_CURRENT_ORG_DELETED,
 } from 'shared/copy/notifications'
@@ -46,7 +46,7 @@ const errorsMiddleware = store => next => action => {
       }
 
       if (_.startsWith(message, 'Welcome to Chronograf')) {
-        store.dispatch(notify(NOTIFY_NEW_VERSION(message)))
+        store.dispatch(notify(notifyNewVersion(message)))
       }
 
       if (organizationWasRemoved) {
@@ -65,7 +65,7 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       }
     } else if (altText) {
-      store.dispatch(notify(NOTIFY_ERR_WITH_ALT_TEXT(alertType, altText)))
+      store.dispatch(notify(notifyErrorWithAltText(alertType, altText)))
     } else {
       // TODO: actually do proper error handling
       // store.dispatch(notify({type: alertType, 'Cannot communicate with server.'))

@@ -19,8 +19,8 @@ import {notify as notifyAction} from 'shared/actions/notifications'
 import {
   NOTIFY_ALERT_RULE_CREATED,
   NOTIFY_ALERT_RULE_CREATION_FAILED,
-  NOTIFY_ALERT_RULE_UPDATED,
-  NOTIFY_ALERT_RULE_UPDATE_FAILED,
+  notifyAlertRuleUpdated,
+  notifyAlertRuleUpdateFailed,
   NOTIFY_ALERT_RULE_REQUIRES_QUERY,
   NOTIFY_ALERT_RULE_REQUIRES_CONDITION_VALUE,
   NOTIFY_ALERT_RULE_DEADMAN_INVALID,
@@ -66,10 +66,10 @@ class KapacitorRule extends Component {
     editRule(updatedRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        notify(NOTIFY_ALERT_RULE_UPDATED(rule.name))
+        notify(notifyAlertRuleUpdated(rule.name))
       })
       .catch(e => {
-        notify(NOTIFY_ALERT_RULE_UPDATE_FAILED(rule.name, e.data.message))
+        notify(notifyAlertRuleUpdateFailed(rule.name, e.data.message))
       })
   }
 

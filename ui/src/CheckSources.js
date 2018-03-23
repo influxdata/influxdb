@@ -19,8 +19,8 @@ import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
 import {
-  NOTIFY_SOURCE_NO_LONGER_AVAILABLE,
-  NOTIFY_NO_SOURCES_AVAILABLE,
+  notifySourceNoLongerAvailable,
+  notifyNoSourcesAvailable,
   NOTIFY_UNABLE_TO_RETRIEVE_SOURCES,
   NOTIFY_USER_REMOVED_FROM_ALL_ORGS,
   NOTIFY_USER_REMOVED_FROM_CURRENT_ORG,
@@ -148,9 +148,9 @@ class CheckSources extends Component {
         try {
           const newSources = await getSources()
           if (newSources.length) {
-            errorThrown(error, NOTIFY_SOURCE_NO_LONGER_AVAILABLE(source.name))
+            errorThrown(error, notifySourceNoLongerAvailable(source.name))
           } else {
-            errorThrown(error, NOTIFY_NO_SOURCES_AVAILABLE(source.name))
+            errorThrown(error, notifyNoSourcesAvailable(source.name))
           }
         } catch (error2) {
           errorThrown(error2, NOTIFY_UNABLE_TO_RETRIEVE_SOURCES)

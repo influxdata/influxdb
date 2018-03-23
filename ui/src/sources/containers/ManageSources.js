@@ -16,8 +16,8 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 import {
-  NOTIFY_SOURCE_DELETED,
-  NOTIFY_SOURCE_DELETE_FAILED,
+  notifySourceDeleted,
+  notifySourceDeleteFailed,
 } from 'shared/copy/notifications'
 
 const V_NUMBER = VERSION // eslint-disable-line no-undef
@@ -46,9 +46,9 @@ class ManageSources extends Component {
 
     try {
       this.props.removeAndLoadSources(source)
-      notify(NOTIFY_SOURCE_DELETED(source.name))
+      notify(notifySourceDeleted(source.name))
     } catch (e) {
-      notify(NOTIFY_SOURCE_DELETE_FAILED(source.name))
+      notify(notifySourceDeleteFailed(source.name))
     }
   }
 
