@@ -76,9 +76,7 @@ $graph-type--gutter: 4px;
     position: absolute;
     top: $graph-type--gutter / 2;
     left: $graph-type--gutter / 2;
-    transition:
-      color 0.25s ease,
-      border-color 0.25s ease,
+    transition: color 0.25s ease, border-color 0.25s ease,
       background-color 0.25s ease;
 
     &:hover {
@@ -127,11 +125,11 @@ $graph-type--gutter: 4px;
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%,-50%);
+  transform: translate(-50%, -50%);
 
   > svg,
   > svg * {
-    transform: translate3d(0,0,0);
+    transform: translate3d(0, 0, 0);
   }
   > svg {
     width: 100%;
@@ -145,35 +143,69 @@ $graph-type--gutter: 4px;
   stroke-miterlimit: 10;
   // transition: all 0.5s ease;
 
-  &.graphic-line-a {stroke: $g11-sidewalk;}
-  &.graphic-line-b {stroke: $g9-mountain;}
-  &.graphic-line-c {stroke: $g7-graphite;}
-  &.graphic-line-d {stroke: $g13-mist;}
+  &.graphic-line-a {
+    stroke: $g11-sidewalk;
+  }
+  &.graphic-line-b {
+    stroke: $g9-mountain;
+  }
+  &.graphic-line-c {
+    stroke: $g7-graphite;
+  }
+  &.graphic-line-d {
+    stroke: $g13-mist;
+  }
 }
 .viz-type-selector--graphic-fill {
   opacity: 0.045;
   // transition: opacity 0.5s ease;
 
-  &.graphic-fill-a {fill: $g11-sidewalk;}
-  &.graphic-fill-b {fill: $g9-mountain;}
-  &.graphic-fill-c {fill: $g7-graphite;}
-  &.graphic-fill-d {fill: $g13-mist; opacity: 1;}
+  &.graphic-fill-a {
+    fill: $g11-sidewalk;
+  }
+  &.graphic-fill-b {
+    fill: $g9-mountain;
+  }
+  &.graphic-fill-c {
+    fill: $g7-graphite;
+  }
+  &.graphic-fill-d {
+    fill: $g13-mist;
+    opacity: 1;
+  }
 }
 .viz-type-selector--option.active .viz-type-selector--graphic {
-  .viz-type-selector--graphic-line.graphic-line-a {stroke: $c-pool;}
-  .viz-type-selector--graphic-line.graphic-line-b {stroke: $c-dreamsicle;}
-  .viz-type-selector--graphic-line.graphic-line-c {stroke: $c-rainforest;}
-  .viz-type-selector--graphic-line.graphic-line-d {stroke: $g17-whisper;}
-  .viz-type-selector--graphic-fill.graphic-fill-a {fill: $c-pool;}
-  .viz-type-selector--graphic-fill.graphic-fill-b {fill: $c-dreamsicle;}
-  .viz-type-selector--graphic-fill.graphic-fill-c {fill: $c-rainforest;}
+  .viz-type-selector--graphic-line.graphic-line-a {
+    stroke: $c-pool;
+  }
+  .viz-type-selector--graphic-line.graphic-line-b {
+    stroke: $c-dreamsicle;
+  }
+  .viz-type-selector--graphic-line.graphic-line-c {
+    stroke: $c-rainforest;
+  }
+  .viz-type-selector--graphic-line.graphic-line-d {
+    stroke: $g17-whisper;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-a {
+    fill: $c-pool;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-b {
+    fill: $c-dreamsicle;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-c {
+    fill: $c-rainforest;
+  }
   .viz-type-selector--graphic-fill.graphic-fill-a,
   .viz-type-selector--graphic-fill.graphic-fill-b,
-  .viz-type-selector--graphic-fill.graphic-fill-c {opacity: 0.22;}
-  .viz-type-selector--graphic-fill.graphic-fill-d {fill: $g17-whisper; opacity: 1;}
+  .viz-type-selector--graphic-fill.graphic-fill-c {
+    opacity: 0.22;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-d {
+    fill: $g17-whisper;
+    opacity: 1;
+  }
 }
-
-
 
 .display-options--cell .form-group .nav.nav-tablist {
   display: flex;
@@ -196,8 +228,6 @@ $graph-type--gutter: 4px;
   @include no-user-select();
 }
 
-
-
 /*
   Cell Editor Overlay - Gauge Controls
   ------------------------------------------------------------------------------
@@ -206,8 +236,7 @@ $graph-type--gutter: 4px;
   width: 100%;
 }
 
-.gauge-controls--section,
-.field-controls--section {
+.gauge-controls--section {
   width: 100%;
   display: flex;
   flex-wrap: nowrap;
@@ -255,34 +284,6 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
   width: auto;
   flex: 1 0 0;
 }
-
-.field-controls--group {
-  max-height: 235px;
-  overflow-y: scroll;
-}
-.field-controls--label, .field-controls--label-hidden {
-  @extend %gauge-controls-label-styles;
-  color: $g16-pearl;
-  background-color: $g4-onyx;
-  flex: 2 0 0;
-
-  > span {
-    padding-right: 5px;
-
-    &:hover {
-      cursor: pointer;
-    }
-  }
-}
-.field-controls--label-hidden {
-  color: $g0-obsidian;
-}
-.field-controls-input {
-  flex: 1 0 0;
-  display: flex;
-  align-items: center;
-}
-
 
 /*
   Cell Editor Overlay - Single-Stat Controls

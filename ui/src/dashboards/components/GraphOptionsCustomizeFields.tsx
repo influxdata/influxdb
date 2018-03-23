@@ -18,7 +18,7 @@ const GraphOptionsCustomizeFields: SFC<Props> = ({fields, onFieldUpdate}) => {
   return (
     <div className="graph-options-group">
       <label className="form-label">Customize Fields</label>
-      <div className="field-controls--group">
+      <div className="customize-fields">
         {fields.map(field => {
           return (
             <GraphOptionsCustomizableField

@@ -21,8 +21,8 @@
 @import 'external/fixed-data-table-base';
 @import 'external/fixed-data-table-style';
 @import 'external/fixed-data-table';
-@import "external/codemirror";
-@import "../../node_modules/codemirror/theme/material.css";
+@import 'external/codemirror';
+@import '../../node_modules/codemirror/theme/material.css';
 
 // Layout
 @import 'layout/page';
@@ -41,6 +41,7 @@
 @import 'components/confirm-button';
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
+@import 'components/customize-fields';
 @import 'components/dygraphs';
 @import 'components/fancy-scrollbars';
 @import 'components/fancy-table';
