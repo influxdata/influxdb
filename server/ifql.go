@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/bouk/httprouter"
@@ -15,6 +16,28 @@ type SuggestionsResponse struct {
 // SuggestionResponse provides the parameters available for a given IFQL function
 type SuggestionResponse struct {
 	Params map[string]string `json:"params"`
+}
+
+type ifqlLinks struct {
+	Self        string `json:"self"`        // Self link mapping to this resource
+	Suggestions string `json:"suggestions"` // URL for ifql builder function suggestions
+}
+
+type ifqlResponse struct {
+	Links ifqlLinks `json:"links"`
+}
+
+// IFQL returns a list of links for the IFQL API
+func (s *Service) IFQL(w http.ResponseWriter, r *http.Request) {
+	httpAPIIFQL := "/chronograf/v1/ifql"
+	res := ifqlResponse{
+		Links: ifqlLinks{
+			Self:        fmt.Sprintf("%s", httpAPIIFQL),
+			Suggestions: fmt.Sprintf("%s/suggestions", httpAPIIFQL),
+		},
+	}
+
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
 // IFQLSuggestions returns a list of available IFQL functions for the IFQL Builder

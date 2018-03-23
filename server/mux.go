@@ -156,6 +156,8 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id", EnsureEditor(service.UpdateSource))
 	router.DELETE("/chronograf/v1/sources/:id", EnsureEditor(service.RemoveSource))
 
+	// IFQL
+	router.GET("/chronograf/v1/ifql", EnsureViewer(service.IFQL))
 	router.GET("/chronograf/v1/ifql/suggestions", EnsureViewer(service.IFQLSuggestions))
 	router.GET("/chronograf/v1/ifql/suggestions/:name", EnsureViewer(service.IFQLSuggestion))
 
