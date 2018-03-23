@@ -86,7 +86,7 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 		mi    tsdb.MeasurementIterator
 	)
 	if req.RequestType == ReadRequestTypeMultiTenant {
-		m := []byte(req.Tenant)
+		m := []byte(req.OrgID)
 		m = append(m, 0, 0)
 		m = append(m, req.Database...)
 		mi = tsdb.NewMeasurementSliceIterator([][]byte{m})
