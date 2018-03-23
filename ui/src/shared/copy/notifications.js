@@ -360,25 +360,25 @@ export const NOTIFY_DATABASE_NAME_ALREADY_EXISTS = {
 
 //  Dashboard Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_TEMP_VAR_ALREADY_EXISTS = tempVarName => ({
+export const notifyTempVarAlreadyExists = tempVarName => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Variable '${tempVarName}' already exists. Please enter a new value.`,
 })
 
-export const NOTIFY_DASHBOARD_NOT_FOUND = dashboardID => ({
+export const notifyDashboardNotFound = dashboardID => ({
   ...defaultErrorNotification,
   icon: 'dash-h',
   message: `Dashboard ${dashboardID} could not be found`,
 })
 
-export const NOTIFY_DASHBOARD_DELETED = name => ({
+export const notifyDashboardDeleted = name => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
   message: `Dashboard ${name} deleted successfully.`,
 })
 
-export const NOTIFY_DASHBOARD_DELETE_FAILED = (name, errorMessage) =>
+export const notifyDashboardDeleteFailed = (name, errorMessage) =>
   `Failed to delete Dashboard ${name}: ${errorMessage}.`
 
 //  Rule Builder Notifications
