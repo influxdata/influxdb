@@ -28,7 +28,6 @@ import {
   KapacitorPage,
   KapacitorRulePage,
   KapacitorRulesPage,
-  KapacitorTasksPage,
   TickscriptPage,
 } from 'src/kapacitor'
 import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
@@ -154,7 +153,6 @@ const Root = React.createClass({
                 path="kapacitors/:id/edit:hash"
                 component={KapacitorPage}
               />
-              <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="admin-chronograf" component={AdminChronografPage} />
               <Route path="admin-influxdb" component={AdminInfluxDBPage} />
               <Route path="manage-sources" component={ManageSources} />

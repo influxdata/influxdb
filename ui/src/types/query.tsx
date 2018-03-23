@@ -8,7 +8,7 @@ export interface Query {
   groupBy: GroupBy
   areTagsAccepted: boolean
   rawText: string | null
-  range?: TimeRange | null
+  range?: DurationRange | null
   source?: string
   fill: string
   status?: Status
@@ -53,7 +53,28 @@ export interface Status {
   success?: string
 }
 
-export interface TimeRange {
+export interface DurationRange {
   lower: string
   upper?: string
+}
+
+interface TimeShift {
+  label: string
+  unit: string
+  quantity: string
+}
+
+export interface QueryConfig {
+  id?: string
+  database: string
+  measurement: string
+  retentionPolicy: string
+  fields: Field[]
+  tags: Tags
+  groupBy: GroupBy
+  areTagsAccepted: boolean
+  fill?: string
+  rawText: string
+  range: DurationRange
+  shifts: TimeShift[]
 }

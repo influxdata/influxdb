@@ -1,5 +1,16 @@
 import {AuthLinks, Organization, Role, User} from './auth'
-import {Query} from './query'
-import {Kapacitor, Source} from './sources'
+import {AlertRule, Kapacitor} from './kapacitor'
+import {Query, QueryConfig} from './query'
+import {Source} from './sources'
 
-export {Query, Source, Kapacitor, AuthLinks, User, Organization, Role}
+export {
+  AuthLinks,
+  Role,
+  User,
+  Organization,
+  AlertRule,
+  Kapacitor,
+  Query,
+  QueryConfig,
+  Source,
+}

@@ -1,3 +1,5 @@
+import {Kapacitor} from './'
+
 export interface Source {
   id: string
   name: string
@@ -13,7 +15,7 @@ export interface Source {
   metaUrl?: string
 }
 
-export interface SourceLinks {
+interface SourceLinks {
   self: string
   kapacitors: string
   proxy: string
@@ -23,17 +25,4 @@ export interface SourceLinks {
   users: string
   databases: string
   roles?: string
-}
-
-export interface Kapacitor {
-  id?: string
-  url: string
-  name: string
-  username?: string
-  password?: string
-  insecureSkipVerify: boolean
-  active: boolean
-  links: {
-    self: string
-  }
 }
