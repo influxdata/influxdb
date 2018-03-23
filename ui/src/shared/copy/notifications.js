@@ -72,6 +72,11 @@ export const notifyCouldNotDeleteKapacitor = () => ({
   message: 'Internal Server Error. Could not delete Kapacitor Connection.',
 })
 
+export const notifyCSVDownloadFailed = () => ({
+  ...defaultErrorNotification,
+  message: 'Unable to download .CSV file',
+})
+
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
 export const notifyUnableToGetHosts = () => ({
