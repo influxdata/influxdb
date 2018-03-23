@@ -796,6 +796,81 @@ func TestService_Me(t *testing.T) {
 			wantBody:        `{"code":403,"message":"This Chronograf is private. To gain access, you must be explicitly added by an administrator."}`,
 		},
 		{
+			name: "new user - Chronograf is not private, user is in auth0 superadmin group",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
+			},
+			fields: fields{
+				UseAuth: true,
+				SuperAdminProviderGroups: superAdminProviderGroups{
+					auth0: "example",
+				},
+				Logger: log.New(log.DebugLevel),
+				ConfigStore: mocks.ConfigStore{
+					Config: &chronograf.Config{
+						Auth: chronograf.AuthConfig{
+							SuperAdminNewUsers: false,
+						},
+					},
+				},
+				MappingsStore: &mocks.MappingsStore{
+					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
+						return []chronograf.Mapping{
+							{
+								Organization:         "0",
+								Provider:             chronograf.MappingWildcard,
+								Scheme:               chronograf.MappingWildcard,
+								ProviderOrganization: chronograf.MappingWildcard,
+							},
+						}, nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          "0",
+							Name:        "The Bad Place",
+							DefaultRole: roles.MemberRoleName,
+						}, nil
+					},
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:          "0",
+							Name:        "The Bad Place",
+							DefaultRole: roles.MemberRoleName,
+						}, nil
+					},
+				},
+				UsersStore: &mocks.UsersStore{
+					NumF: func(ctx context.Context) (int, error) {
+						// This function gets to verify that there is at least one first user
+						return 1, nil
+					},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return nil, chronograf.ErrUserNotFound
+					},
+					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
+						return u, nil
+					},
+					UpdateF: func(ctx context.Context, u *chronograf.User) error {
+						return nil
+					},
+				},
+			},
+			principal: oauth2.Principal{
+				Subject: "secret",
+				Issuer:  "auth0",
+				Group:   "example",
+			},
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"name":"secret","roles":[{"name":"member","organization":"0"}],"provider":"auth0","scheme":"oauth2","superAdmin":true,"links":{"self":"/chronograf/v1/organizations/0/users/0"},"organizations":[{"id":"0","name":"The Bad Place","defaultRole":"member"}],"currentOrganization":{"id":"0","name":"The Bad Place","defaultRole":"member"}}`,
+		},
+		{
 			name: "new user - Chronograf is not private (has a fully open wildcard mapping to an org), user is not in auth0 superadmin group",
 			args: args{
 				w: httptest.NewRecorder(),
