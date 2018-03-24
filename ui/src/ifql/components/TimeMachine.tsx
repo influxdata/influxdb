@@ -1,7 +1,12 @@
 import React, {SFC} from 'react'
+import FuncsButton from 'src/ifql/components/FuncsButton'
 
-const TimeMachine: SFC<{}> = () => {
-  return <div>Let's go for a time ride</div>
+interface Props {
+  funcs: string[]
+}
+
+const TimeMachine: SFC<Props> = ({funcs}) => {
+  return <FuncsButton funcs={funcs} />
 }
 
 export default TimeMachine

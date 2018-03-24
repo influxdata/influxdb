@@ -3,7 +3,11 @@ import {shallow} from 'enzyme'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 
 const setup = () => {
-  const wrapper = shallow(<TimeMachine />)
+  const props = {
+    funcs: [],
+  }
+
+  const wrapper = shallow(<TimeMachine {...props} />)
 
   return {
     wrapper,

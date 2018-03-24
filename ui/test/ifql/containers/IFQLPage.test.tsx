@@ -22,8 +22,12 @@ const setup = () => {
 }
 
 describe('IFQL.Containers.IFQLPage', () => {
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
   describe('rendering', () => {
-    it('renders the page', () => {
+    it('renders the page', async () => {
       const {wrapper} = setup()
 
       expect(wrapper.exists()).toBe(true)

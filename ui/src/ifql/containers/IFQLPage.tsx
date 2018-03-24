@@ -15,7 +15,11 @@ interface Props {
   links: Links
 }
 
-export class IFQLPage extends PureComponent<Props, {}> {
+interface State {
+  funcs: string[]
+}
+
+export class IFQLPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -27,8 +31,8 @@ export class IFQLPage extends PureComponent<Props, {}> {
     const {suggestions} = this.props.links
 
     try {
-      const {data} = await getSuggestions(suggestions)
-      this.setState({funcs: data})
+      const funcs = await getSuggestions(suggestions)
+      this.setState({funcs})
     } catch (error) {
       console.error('Could not get function suggestions: ', error)
     }
@@ -46,7 +50,7 @@ export class IFQLPage extends PureComponent<Props, {}> {
         </div>
         <div className="page-contents">
           <div className="container-fluid">
-            <TimeMachine />
+            <TimeMachine funcs={this.state.funcs} />
           </div>
         </div>
       </div>
