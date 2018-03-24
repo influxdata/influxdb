@@ -24,12 +24,12 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
       const fields = [TIME_FIELD_DEFAULT]
       const {wrapper} = setup({fields})
       const label = wrapper.find('label')
-      const CustomizableFields = wrapper.find(GraphOptionsCustomizableField)
+      const customizableFields = wrapper.find(GraphOptionsCustomizableField)
       const Scrollbox = wrapper.find(FancyScrollbar)
 
       expect(label.exists()).toBe(true)
-      expect(CustomizableFields.exists()).toBe(true)
-      expect(CustomizableFields.length).toBe(fields.length)
+      expect(customizableFields.exists()).toBe(true)
+      expect(customizableFields.length).toBe(fields.length)
       expect(Scrollbox.exists()).toBe(true)
     })
   })
