@@ -39,6 +39,14 @@ class MultiSelectDropdown extends Component {
     this.setState({isOpen: false})
   }
 
+  componentWillReceiveProps(nextProps) {
+    if (!_.isEqual(this.props.selectedItems, nextProps.selectedItems)) {
+      return
+    }
+
+    this.setState({localSelectedItems: nextProps.selectedItems})
+  }
+
   toggleMenu = e => {
     e.stopPropagation()
     this.setState({isOpen: !this.state.isOpen})
