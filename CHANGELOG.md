@@ -3,6 +3,7 @@
 ### Features
 
 1.  [#2973](https://github.com/influxdata/chronograf/pull/2973): Add unsafe SSL to Kapacitor UI configuration
+1.  [#3047](https://github.com/influxdata/chronograf/pull/3047): Add server flag to grant SuperAdmin status to users authenticating from a specific Auth0 Organization
 
 ### UI Improvements
 

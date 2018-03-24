@@ -235,6 +235,16 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	// user exists
 	if usr != nil {
+		superAdmin := s.mapPrincipalToSuperAdmin(p)
+		if superAdmin && !usr.SuperAdmin {
+			usr.SuperAdmin = superAdmin
+			err := s.Store.Users(serverCtx).Update(serverCtx, usr)
+			if err != nil {
+				unknownErrorWithMessage(w, err, s.Logger)
+				return
+			}
+		}
+
 		currentOrg, err := s.Store.Organizations(serverCtx).Get(serverCtx, chronograf.OrganizationQuery{ID: &p.Organization})
 		if err == chronograf.ErrOrganizationNotFound {
 			// The intent is to force a the user to go through another auth flow
@@ -271,15 +281,37 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		SuperAdmin: s.newUsersAreSuperAdmin(),
 	}
 
+	superAdmin := s.mapPrincipalToSuperAdmin(p)
+	if superAdmin {
+		user.SuperAdmin = superAdmin
+	}
+
 	roles, err := s.mapPrincipalToRoles(serverCtx, p)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
 		return
 	}
 
-	if len(roles) == 0 {
+	if !superAdmin && len(roles) == 0 {
 		Error(w, http.StatusForbidden, "This Chronograf is private. To gain access, you must be explicitly added by an administrator.", s.Logger)
 		return
+	}
+
+	// If the user is a superadmin, give them a role in the default organization
+	if user.SuperAdmin {
+		hasDefaultOrgRole := false
+		for _, role := range roles {
+			if role.Organization == defaultOrg.ID {
+				hasDefaultOrgRole = true
+				break
+			}
+		}
+		if !hasDefaultOrgRole {
+			roles = append(roles, chronograf.Role{
+				Name:         defaultOrg.DefaultRole,
+				Organization: defaultOrg.ID,
+			})
+		}
 	}
 
 	user.Roles = roles
