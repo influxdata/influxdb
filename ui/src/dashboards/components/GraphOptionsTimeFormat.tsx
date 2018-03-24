@@ -6,6 +6,7 @@ import {
   FORMAT_OPTIONS,
   TIME_FORMAT_CUSTOM,
   TIME_FORMAT_DEFAULT,
+  TIME_FORMAT_TOOLTIP_LINK,
 } from 'src/shared/constants/tableGraph'
 
 interface TimeFormatOptions {
@@ -51,8 +52,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
 
   public render() {
     const {format, customFormat} = this.state
-    const tipUrl = 'http://momentjs.com/docs/#/parsing/string-format/'
-    const tipContent = `For information on formatting, see <br/><a href="#">${tipUrl}</a>`
+    const tipContent = `For information on formatting, see <br/><a href="#">${TIME_FORMAT_TOOLTIP_LINK}</a>`
 
     const formatOption = FORMAT_OPTIONS.find(op => op.text === format)
     const showCustom = !formatOption || customFormat
@@ -61,14 +61,13 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
       <div className="form-group col-xs-12">
         <label>
           Time Format
-          {showCustom && (
-            <a href={tipUrl} target="_blank">
+          {showCustom &&
+            <a href={TIME_FORMAT_TOOLTIP_LINK} target="_blank">
               <QuestionMarkTooltip
                 tipID="Time Axis Format"
                 tipContent={tipContent}
               />
-            </a>
-          )}
+            </a>}
         </label>
         <Dropdown
           items={FORMAT_OPTIONS}
@@ -78,7 +77,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
           className="dropdown-stretch"
           onChoose={this.handleChooseFormat}
         />
-        {showCustom && (
+        {showCustom &&
           <div className="column-controls--section">
             <InputClickToEdit
               wrapperClass="field-controls-input "
@@ -88,8 +87,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
               placeholder="Enter custom format..."
               appearAsNormalInput={true}
             />
-          </div>
-        )}
+          </div>}
       </div>
     )
   }
