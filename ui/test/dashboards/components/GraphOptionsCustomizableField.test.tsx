@@ -45,6 +45,23 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
       })
     })
 
+    describe('when there is an displayName', () => {
+      it('display name displayed by input click to edit', () => {
+        const internalName = 'test'
+        const displayName = 'TESTING'
+        const {wrapper} = setup({internalName, displayName})
+        const label = wrapper.find('div').last()
+        const icon = wrapper.find('span')
+        const input = wrapper.find(InputClickToEdit)
+
+        expect(label.exists()).toBe(true)
+        expect(label.children().contains(internalName)).toBe(true)
+        expect(icon.exists()).toBe(true)
+        expect(input.exists()).toBe(true)
+        expect(input.prop('value')).toBe(displayName)
+      })
+    })
+
     describe('when visible is false', () => {
       it('displays disabled inputClickToEdit', () => {
         const visible = false
