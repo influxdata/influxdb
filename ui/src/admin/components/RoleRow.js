@@ -77,6 +77,7 @@ const RoleRow = ({
             customClass={classnames(`dropdown-${ROLES_TABLE.colPermissions}`, {
               'admin-table--multi-select-empty': !permissions.length,
             })}
+            resetStateOnReceiveProps={false}
           />
         ) : null}
       </td>
@@ -92,6 +93,7 @@ const RoleRow = ({
             customClass={classnames(`dropdown-${ROLES_TABLE.colUsers}`, {
               'admin-table--multi-select-empty': !users.length,
             })}
+            resetStateOnReceiveProps={false}
           />
         ) : null}
       </td>

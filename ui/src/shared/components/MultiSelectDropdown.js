@@ -40,7 +40,10 @@ class MultiSelectDropdown extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    if (!_.isEqual(this.props.selectedItems, nextProps.selectedItems)) {
+    if (
+      !this.props.resetStateOnReceiveProps ||
+      !_.isEqual(this.props.selectedItems, nextProps.selectedItems)
+    ) {
       return
     }
 
@@ -161,6 +164,7 @@ MultiSelectDropdown.propTypes = {
   customClass: string,
   iconName: string,
   isApplyShown: bool,
+  resetStateOnReceiveProps: bool,
 }
 
 MultiSelectDropdown.defaultProps = {
@@ -169,6 +173,7 @@ MultiSelectDropdown.defaultProps = {
   customClass: 'dropdown-160',
   selectedItems: [],
   isApplyShown: true,
+  resetStateOnReceiveProps: true,
 }
 
 export default OnClickOutside(MultiSelectDropdown)
