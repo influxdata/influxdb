@@ -37,7 +37,6 @@ const setup = (override = {}) => {
 
   return {wrapper, instance, props}
 }
-const dataLabels = ['time', 'foo', 'bar']
 
 describe('Dashboards.Components.TableOptions', () => {
   describe('getters', () => {
