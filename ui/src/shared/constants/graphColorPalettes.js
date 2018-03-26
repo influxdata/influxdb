@@ -1,102 +1,202 @@
-import {HexcodeToHSL, HSLToHexcode} from 'src/shared/constants/colorOperations'
 import _ from 'lodash'
+import chroma from 'chroma-js'
 
-// Tier 5 Colors
-const series1 = ['#22ADF6'] // Blue
-const series2 = [...series1, '#4ED8A0'] // Green
-const series3 = [...series2, '#7A65F2'] // Purple
-const series4 = [...series3, '#F95F53'] // Red
-const series5 = [...series4, '#FFB94A'] // Yellow
-// Tier 4 Colors
-const series6 = [...series5, '#00C9FF'] // Blu
-const series7 = [...series6, '#7CE490'] // Green
-const series8 = [...series7, '#9394FF'] // Purple
-const series9 = [...series8, '#FF8564'] // Red
-const series10 = [...series9, '#FFD255'] // Yellow
-// Tier 6 Colors
-const series11 = [...series10, '#4591ED'] // Blu
-const series12 = [...series11, '#32B08C'] // Green
-const series13 = [...series12, '#513CC6'] // Purple
-const series14 = [...series13, '#DB4D4D'] // Red
-const series15 = [...series14, '#F48D38'] // Yellow
-// Tier 3 Colors
-const series16 = [...series15, '#6BDFFF'] // Blu
-const series17 = [...series16, '#A5F3B4'] // Green
-const series18 = [...series17, '#B1B6FF'] // Purple
-const series19 = [...series18, '#FFB6A0'] // Red
-const series20 = [...series19, '#FFE480'] // Yellow
-
-// All Colors
-const graphColors = [
-  series1,
-  series2,
-  series3,
-  series4,
-  series5,
-  series6,
-  series7,
-  series8,
-  series9,
-  series10,
-  series11,
-  series12,
-  series13,
-  series14,
-  series15,
-  series16,
-  series17,
-  series18,
-  series19,
-  series20,
+// Color Palettes
+export const LINE_COLORS_A = [
+  {
+    type: 'scale',
+    hex: '#31C0F6',
+    id: '0',
+    name: 'Nineteen Eighty Four',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#A500A5',
+    id: '0',
+    name: 'Nineteen Eighty Four',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#FF7E27',
+    id: '0',
+    name: 'Nineteen Eighty Four',
+    value: 0,
+  },
 ]
 
-export const generateLargePalette = numSeries => {
-  const start = {hue: 190, saturation: 90, lightness: 50}
-  const end = {hue: 360, saturation: 80, lightness: 98}
-  const colorsHSL = []
+export const LINE_COLORS_B = [
+  {
+    type: 'scale',
+    hex: '#74D495',
+    id: '1',
+    name: 'Atlantis',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#3F3FBA',
+    id: '1',
+    name: 'Atlantis',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#EA5994',
+    id: '1',
+    name: 'Atlantis',
+    value: 0,
+  },
+]
 
-  for (let i = 0; i < numSeries; i++) {
-    const hRange = end.hue - start.hue
-    const hStep = hRange / (numSeries - 1)
-    const h = hStep * i
+export const LINE_COLORS_C = [
+  {
+    type: 'scale',
+    hex: '#8F8AF4',
+    id: '1',
+    name: 'Glarbh',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#A51414',
+    id: '1',
+    name: 'Glarbh',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#F4CF31',
+    id: '1',
+    name: 'Glarbh',
+    value: 0,
+  },
+]
 
-    const sRange = end.saturation - start.saturation
-    const sStep = sRange / (numSeries - 1)
-    const s = sStep * i
+export const LINE_COLORS_D = [
+  {
+    type: 'scale',
+    hex: '#FD7A5D',
+    id: '1',
+    name: 'Spoot',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#5F1CF2',
+    id: '1',
+    name: 'Spoot',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#4CE09A',
+    id: '1',
+    name: 'Spoot',
+    value: 0,
+  },
+]
 
-    const lRange = end.lightness - start.lightness
-    const lStep = lRange / (numSeries - 1)
-    const l = lStep * i
+export const LINE_COLORS_E = [
+  {
+    type: 'scale',
+    hex: '#FDC44F',
+    id: '1',
+    name: 'Swump',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#007C76',
+    id: '1',
+    name: 'Swump',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#8983FF',
+    id: '1',
+    name: 'Swump',
+    value: 0,
+  },
+]
 
-    colorsHSL[i] = {
-      hue: Math.floor(start.hue + h),
-      saturation: Math.floor(start.saturation + s),
-      lightness: Math.floor(start.lightness + l),
-    }
-  }
+export const LINE_COLORS_F = [
+  {
+    type: 'scale',
+    hex: '#DA6FF1',
+    id: '1',
+    name: 'Splort',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#00717A',
+    id: '1',
+    name: 'Splort',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#05B7E0',
+    id: '1',
+    name: 'Splort',
+    value: 0,
+  },
+]
 
-  const colorsHex = colorsHSL.map(color =>
-    HSLToHexcode(color.hue, color.saturation, color.lightness)
-  )
+export const LINE_COLORS_G = [
+  {
+    type: 'scale',
+    hex: '#F6F6F8',
+    id: '1',
+    name: 'OldTimey',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#A4A8B6',
+    id: '1',
+    name: 'OldTimey',
+    value: 0,
+  },
+  {
+    type: 'scale',
+    hex: '#545667',
+    id: '1',
+    name: 'OldTimey',
+    value: 0,
+  },
+]
 
-  return colorsHex
-}
+export const LINE_COLOR_SCALES = [
+  LINE_COLORS_A,
+  LINE_COLORS_B,
+  LINE_COLORS_C,
+  LINE_COLORS_D,
+  LINE_COLORS_E,
+  LINE_COLORS_F,
+  LINE_COLORS_G,
+].map(colorScale => {
+  const name = colorScale[0].name
+  const colors = colorScale.map(color => color.hex)
+  const id = colorScale[0].id
 
-// Sort by hue
-const sortColorsByHue = colors => {
-  return _.sortBy(colors, color => {
-    const {hue} = HexcodeToHSL(color)
+  return {name, colors, id}
+})
 
-    return hue
-  })
-}
+const paletteA = ['#31C0F6', '#A500A5', '#FF7E27']
+const paletteB = ['#74D495', '#3F3FBA', '#EA5994']
+const paletteC = ['#8F8AF4', '#A51414', '#F4CF31']
+const paletteD = ['#FD7A5D', '#5F1CF2', '#4CE09A']
+const paletteE = ['#FDC44F', '#007C76', '#8983FF']
+const paletteF = ['#DA6FF1', '#00717A', '#05B7E0']
+const paletteG = ['#F6F6F8', '#A4A8B6', '#545667']
 
-// Color Finder
-export const getIdealColors = numSeries => {
-  if (numSeries > 18) {
-    return generateLargePalette(numSeries)
-  }
-  const colors = graphColors[numSeries - 1]
-
-  return sortColorsByHue(colors)
+export const generateColorScale = numSeries => {
+  return chroma
+    .scale(paletteB)
+    .mode('lch')
+    .colors(numSeries)
 }

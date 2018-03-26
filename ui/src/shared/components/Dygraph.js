@@ -26,7 +26,7 @@ import {
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 
-import {getIdealColors} from 'src/shared/constants/graphColorPalettes'
+import {generateColorScale} from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 class Dygraph extends Component {
@@ -193,7 +193,7 @@ class Dygraph extends Component {
   colorDygraphSeries = () => {
     const {dygraphSeries} = this.props
     const numSeries = Object.keys(dygraphSeries).length
-    const colors = getIdealColors(numSeries)
+    const colors = generateColorScale(numSeries)
 
     const coloredDygraphSeries = {}
 
