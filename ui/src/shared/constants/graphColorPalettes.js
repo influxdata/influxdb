@@ -1,4 +1,4 @@
-import {HexcodeToHSL} from 'src/shared/constants/colorOperations'
+import {HexcodeToHSL, HSLToHexcode} from 'src/shared/constants/colorOperations'
 import _ from 'lodash'
 
 // Tier 5 Colors
@@ -50,18 +50,53 @@ const graphColors = [
   series20,
 ]
 
+export const generateLargePalette = numSeries => {
+  const start = {hue: 190, saturation: 90, lightness: 50}
+  const end = {hue: 360, saturation: 80, lightness: 98}
+  const colorsHSL = []
+
+  for (let i = 0; i < numSeries; i++) {
+    const hRange = end.hue - start.hue
+    const hStep = hRange / (numSeries - 1)
+    const h = hStep * i
+
+    const sRange = end.saturation - start.saturation
+    const sStep = sRange / (numSeries - 1)
+    const s = sStep * i
+
+    const lRange = end.lightness - start.lightness
+    const lStep = lRange / (numSeries - 1)
+    const l = lStep * i
+
+    colorsHSL[i] = {
+      hue: Math.floor(start.hue + h),
+      saturation: Math.floor(start.saturation + s),
+      lightness: Math.floor(start.lightness + l),
+    }
+  }
+
+  const colorsHex = colorsHSL.map(color =>
+    HSLToHexcode(color.hue, color.saturation, color.lightness)
+  )
+
+  return colorsHex
+}
+
 // Sort by hue
 const sortColorsByHue = colors => {
   return _.sortBy(colors, color => {
     const {hue} = HexcodeToHSL(color)
-    console.log(color, hue)
+
     return hue
   })
 }
 
 // Color Finder
 export const getIdealColors = numSeries => {
+  if (numSeries > 18) {
+    return generateLargePalette(numSeries)
+  }
   const colors = graphColors[numSeries - 1]
-  console.log(sortColorsByHue(colors))
+
   return sortColorsByHue(colors)
 }
