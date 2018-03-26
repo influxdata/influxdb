@@ -1,5 +1,4 @@
 import React, {SFC} from 'react'
-import PropTypes from 'prop-types'
 import {Link} from 'react-router'
 
 import classnames from 'classnames'
