@@ -20,18 +20,20 @@
   font-size: 13px;
   color: $g12-forge;
   border: 1px solid $g5-pepper;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 
-  // Blue Highlight
+  // Highlight
   &:after {
     content: '';
     position: absolute;
-    top: -1px;
-    left: -1px;
-    width: calc(100% + 2px);
-    height: calc(100% + 2px);
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     z-index: 5;
-    border: 2px solid $c-pool;
-    border-radius: 3px;
+    background-color: rgba(255,255,255,0.2);
     visibility: hidden;
     box-sizing: border-box;
   }
@@ -52,29 +54,58 @@
     border-left: 0;
   }
   &__fixed-corner {
+    font-weight: 700;
     border-top: 0;
     border-left: 0;
     color: $g18-cloud;
     background-color: $g5-pepper;
   }
-  &__last-row {
-    border-bottom: 0;
+  &__highlight-row:after,
+  &__highlight-column:after {
+    visibility: visible;
   }
-  &__last-column {
-    border-right: 0;
+  &__highlight-row.table-graph-cell__highlight-column {
+    border-color: $g20-white;
+    &:after {visibility: hidden;}
   }
-  &__highlight {
-    background-color: $g6-smoke;
-    color: $g16-pearl;
+  &__field-name {
+    padding-right: 17px;
+
+    &:before {
+      font-family: 'icomoon';
+      content: "\e902";
+      font-size: 17px;
+      position: absolute;
+      top: 50%;
+      right: 6px;
+      transform: translateY(-50%);
+      font-size: 13px;
+      opacity: 0;
+      transition:
+        opacity 0.25s ease,
+        color 0.25s ease,
+        transform 0.25s ease;
+    }
+    &:hover {
+      cursor: pointer;
+    }
+    &:hover:before {
+      opacity: 1;
+    }
   }
-  &__highlight:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
-    color: $g14-chromium;
-    background-color: $g6-smoke;
+  &__sort-asc,
+  &__sort-desc {
+    color: $c-pool;
+
+    &:before {
+      opacity: 1;
+    }
   }
-  &:hover:not(.table-graph-cell__fixed-row):not(.table-graph-cell__fixed-column):not(.table-graph-cell__fixed-corner) {
-    color: $g20-white;
-    background-color: $g0-obsidian;
-    &:after {visibility: visible;}
+  &__sort-asc:before {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  &__sort-desc:before {
+    transform: translateY(-50%) rotate(180deg);
   }
 }
 
@@ -83,25 +114,36 @@
     outline: none;
   }
   &::-webkit-scrollbar {
-    width: 0;
-
-    &-button {
-      background-color: #f00;
-    }
-    &-track {
-      background-color: #f00;
-    }
-    &-track-piece {
-      background-color: #f00;
-    }
-    &-thumb {
-      background-color: #fff;
-    }
-    &-corner {
-      background-color: #f00;
-    }
+    width: 0px;
+    height: 0px;
   }
-  &::-webkit-resizer {
-    background-color: #f00;
+  &.table-graph--scroll-window {
+    &::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+
+      &-button {
+        background-color: $g5-pepper;
+      }
+      &-track {
+        background-color: $g5-pepper;
+      }
+      &-track-piece {
+        background-color: $g5-pepper;
+        border: 2px solid $g5-pepper;
+        border-radius: 5px;
+      }
+      &-thumb {
+        background-color: $g11-sidewalk;
+        border: 2px solid $g5-pepper;
+        border-radius: 5px;
+      }
+      &-corner {
+        background-color: $g5-pepper;
+      }
+    }
+    &::-webkit-resizer {
+      background-color: $g5-pepper;
+    }
   }
 }

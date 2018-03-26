@@ -9,10 +9,8 @@ const keys = require('lodash/keys')
 const difference = require('lodash/difference')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 
-const package = require('../package.json')
-const dependencies = package.dependencies
-
 const buildDir = path.resolve(__dirname, '../build')
+
 const babelLoader = {
   loader: 'babel-loader',
   options: {
@@ -21,7 +19,17 @@ const babelLoader = {
   },
 }
 
+const stats = {
+  colors: true,
+  children: false,
+  modules: false,
+  version: false,
+  assetsSort: '!size',
+  excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
+}
+
 module.exports = {
+  stats,
   node: {
     fs: 'empty',
     module: 'empty',
@@ -58,13 +66,23 @@ module.exports = {
     ],
     rules: [
       {
+        test: /\.ts(x?)$/,
+        exclude: /node_modules/,
+        loader: 'tslint-loader',
+        enforce: 'pre',
+        options: {
+          emitWarning: true,
+          configFile: path.resolve(__dirname, '..', 'tslint.json'),
+        },
+      },
+      {
         test: /\.js$/,
         exclude: /node_modules/,
         loader: 'eslint-loader',
         enforce: 'pre',
         options: {
-          emitWarning: true
-        }
+          emitWarning: true,
+        },
       },
       {
         test: /\.scss$/,
@@ -160,8 +178,8 @@ module.exports = {
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
     }),
-    new WebpackOnBuildPlugin(stats => {
-      const newlyCreatedAssets = stats.compilation.assets
+    new WebpackOnBuildPlugin(webpackStats => {
+      const newlyCreatedAssets = webpackStats.compilation.assets
       fs.readdir(buildDir, (readdirErr, buildDirFiles) => {
         if (readdirErr) {
           console.error('webpack build directory error')
@@ -190,17 +208,10 @@ module.exports = {
   ],
   target: 'web',
   devServer: {
+    stats,
     hot: true,
     historyApiFallback: true,
     clientLogLevel: 'info',
-    stats: {
-      colors: true,
-      children: false,
-      modules: false,
-      version: false,
-      assetsSort: "!size",
-      excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/]
-    },
     contentBase: 'build',
     quiet: false,
     watchOptions: {

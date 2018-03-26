@@ -17,13 +17,13 @@ import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
-  NOTIFY_ALERT_RULE_CREATED,
-  NOTIFY_ALERT_RULE_CREATION_FAILED,
-  NOTIFY_ALERT_RULE_UPDATED,
-  NOTIFY_ALERT_RULE_UPDATE_FAILED,
-  NOTIFY_ALERT_RULE_REQUIRES_QUERY,
-  NOTIFY_ALERT_RULE_REQUIRES_CONDITION_VALUE,
-  NOTIFY_ALERT_RULE_DEADMAN_INVALID,
+  notifyAlertRuleCreated,
+  notifyAlertRuleCreateFailed,
+  notifyAlertRuleUpdated,
+  notifyAlertRuleUpdateFailed,
+  notifyAlertRuleRequiresQuery,
+  notifyAlertRuleRequiresConditionValue,
+  notifyAlertRuleDeadmanInvalid,
 } from 'shared/copy/notifications'
 
 class KapacitorRule extends Component {
@@ -50,10 +50,10 @@ class KapacitorRule extends Component {
     createRule(kapacitor, newRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        notify(NOTIFY_ALERT_RULE_CREATED)
+        notify(notifyAlertRuleCreated())
       })
       .catch(() => {
-        notify(NOTIFY_ALERT_RULE_CREATION_FAILED)
+        notify(notifyAlertRuleCreateFailed())
       })
   }
 
@@ -66,10 +66,10 @@ class KapacitorRule extends Component {
     editRule(updatedRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        notify(NOTIFY_ALERT_RULE_UPDATED(rule.name))
+        notify(notifyAlertRuleUpdated(rule.name))
       })
       .catch(e => {
-        notify(NOTIFY_ALERT_RULE_UPDATE_FAILED(rule.name, e.data.message))
+        notify(notifyAlertRuleUpdateFailed(rule.name, e.data.message))
       })
   }
 
@@ -115,11 +115,11 @@ class KapacitorRule extends Component {
     }
 
     if (!buildInfluxQLQuery({}, query)) {
-      return NOTIFY_ALERT_RULE_REQUIRES_QUERY
+      return notifyAlertRuleRequiresQuery()
     }
 
     if (!rule.values.value) {
-      return NOTIFY_ALERT_RULE_REQUIRES_CONDITION_VALUE
+      return notifyAlertRuleRequiresConditionValue()
     }
 
     return ''
@@ -128,7 +128,7 @@ class KapacitorRule extends Component {
   deadmanValidation = () => {
     const {query} = this.props
     if (query && (!query.database || !query.measurement)) {
-      return NOTIFY_ALERT_RULE_DEADMAN_INVALID
+      return notifyAlertRuleDeadmanInvalid()
     }
 
     return ''

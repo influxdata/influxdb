@@ -49,17 +49,19 @@ class LayoutCellMenu extends Component {
         })}
       >
         <div
-          className={`${isEditable
-            ? 'dash-graph--custom-indicators dash-graph--draggable'
-            : 'dash-graph--custom-indicators'}`}
+          className={`${
+            isEditable
+              ? 'dash-graph--custom-indicators dash-graph--draggable'
+              : 'dash-graph--custom-indicators'
+          }`}
         >
           {queries && <CustomTimeIndicator queries={queries} />}
         </div>
         {isEditable &&
-          mode !== EDITING &&
-          <div className="dash-graph-context--buttons">
-            {queries.length
-              ? <MenuTooltipButton
+          mode !== EDITING && (
+            <div className="dash-graph-context--buttons">
+              {queries.length ? (
+                <MenuTooltipButton
                   icon="pencil"
                   menuOptions={[
                     {text: 'Configure', action: onEdit(cell)},
@@ -76,23 +78,25 @@ class LayoutCellMenu extends Component {
                   ]}
                   informParent={this.handleToggleSubMenu}
                 />
-              : null}
-            {dataExists &&
+              ) : null}
+              {dataExists && (
+                <MenuTooltipButton
+                  icon="download"
+                  menuOptions={[
+                    {text: 'Download CSV', action: onCSVDownload(cell)},
+                  ]}
+                  informParent={this.handleToggleSubMenu}
+                />
+              )}
               <MenuTooltipButton
-                icon="download"
-                menuOptions={[
-                  {text: 'Download CSV', action: onCSVDownload(cell)},
-                ]}
+                icon="trash"
+                theme="danger"
+                menuOptions={[{text: 'Confirm', action: onDelete(cell)}]}
                 informParent={this.handleToggleSubMenu}
-              />}
-            <MenuTooltipButton
-              icon="trash"
-              theme="danger"
-              menuOptions={[{text: 'Confirm', action: onDelete(cell)}]}
-              informParent={this.handleToggleSubMenu}
-            />
-          </div>}
-        {mode === 'editing' &&
+              />
+            </div>
+          )}
+        {mode === 'editing' && (
           <div className="dash-graph-context--buttons">
             <div
               className="btn btn-xs btn-success"
@@ -100,7 +104,8 @@ class LayoutCellMenu extends Component {
             >
               Done Editing
             </div>
-          </div>}
+          </div>
+        )}
       </div>
     )
   }

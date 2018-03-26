@@ -103,6 +103,9 @@ gotestrace:
 jstest:
 	cd ui && yarn test --runInBand
 
+jslint:
+	cd ui && yarn run lint:fix
+
 run: ${BINARY}
 	./chronograf
 

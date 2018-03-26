@@ -57,11 +57,11 @@ const DatabaseTable = ({
               <th style={{width: `${DATABASE_TABLE.colDuration}px`}}>
                 Duration
               </th>
-              {isRFDisplayed
-                ? <th style={{width: `${DATABASE_TABLE.colReplication}px`}}>
-                    Replication Factor
-                  </th>
-                : null}
+              {isRFDisplayed ? (
+                <th style={{width: `${DATABASE_TABLE.colReplication}px`}}>
+                  Replication Factor
+                </th>
+              ) : null}
               <th style={{width: `${DATABASE_TABLE.colDelete}px`}} />
             </tr>
           </thead>

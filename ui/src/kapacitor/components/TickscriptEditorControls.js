@@ -14,11 +14,13 @@ const TickscriptEditorControls = ({
   onChangeType,
   onChangeID,
   task,
-}) =>
+}) => (
   <div className="tickscript-controls">
-    {isNewTickscript
-      ? <TickscriptID onChangeID={onChangeID} id={task.id} />
-      : <TickscriptStaticID id={task.name} />}
+    {isNewTickscript ? (
+      <TickscriptID onChangeID={onChangeID} id={task.id} />
+    ) : (
+      <TickscriptStaticID id={task.name} />
+    )}
     <div className="tickscript-controls--right">
       <TickscriptType type={task.type} onChangeType={onChangeType} />
       <MultiSelectDBDropdown
@@ -27,6 +29,7 @@ const TickscriptEditorControls = ({
       />
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

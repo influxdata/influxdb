@@ -23,10 +23,9 @@ class TickscriptID extends Component {
   }
 }
 
-export const TickscriptStaticID = ({id}) =>
-  <h1 className="tickscript-controls--name">
-    {id}
-  </h1>
+export const TickscriptStaticID = ({id}) => (
+  <h1 className="tickscript-controls--name">{id}</h1>
+)
 
 const {func, string} = PropTypes
 

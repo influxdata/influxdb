@@ -215,15 +215,15 @@ class QueryTextArea extends Component {
               <QueryStatus status={status} />
             </div>
             <div className="varmoji-back">
-              {isTemplating
-                ? <TemplateDrawer
-                    onClickTempVar={this.handleClickTempVar}
-                    templates={filteredTemplates}
-                    selected={selectedTemplate}
-                    onMouseOverTempVar={this.handleMouseOverTempVar}
-                    handleClickOutside={this.handleCloseDrawer}
-                  />
-                : null}
+              {isTemplating ? (
+                <TemplateDrawer
+                  onClickTempVar={this.handleClickTempVar}
+                  templates={filteredTemplates}
+                  selected={selectedTemplate}
+                  onMouseOverTempVar={this.handleMouseOverTempVar}
+                  handleClickOutside={this.handleCloseDrawer}
+                />
+              ) : null}
             </div>
           </div>
         </div>

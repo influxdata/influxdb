@@ -43,19 +43,19 @@ class MenuTooltipButton extends Component {
       return null
     }
 
-    return menuOptions.map((option, i) =>
+    return menuOptions.map((option, i) => (
       <div
         key={i}
-        className={`dash-graph-context--menu-item${option.disabled
-          ? ' disabled'
-          : ''}`}
+        className={`dash-graph-context--menu-item${
+          option.disabled ? ' disabled' : ''
+        }`}
         onClick={
           option.disabled ? null : this.handleMenuItemClick(option.action)
         }
       >
         {option.text}
       </div>
-    )
+    ))
   }
 
   render() {
@@ -68,11 +68,11 @@ class MenuTooltipButton extends Component {
         onClick={this.handleButtonClick}
       >
         <span className={`icon ${icon}`} />
-        {expanded
-          ? <div className={`dash-graph-context--menu ${theme}`}>
-              {this.renderMenuOptions()}
-            </div>
-          : null}
+        {expanded ? (
+          <div className={`dash-graph-context--menu ${theme}`}>
+            {this.renderMenuOptions()}
+          </div>
+        ) : null}
       </div>
     )
   }

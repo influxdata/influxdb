@@ -12,20 +12,21 @@ const QueryOptions = ({
   onTimeShift,
   onGroupByTime,
   isKapacitorRule,
-}) =>
+}) => (
   <div className="query-builder--groupby-fill-container">
     <GroupByTimeDropdown
       selected={groupBy.time}
       onChooseGroupByTime={onGroupByTime}
     />
-    {isKapacitorRule
-      ? null
-      : <TimeShiftDropdown
-          selected={shift && shift.label}
-          onChooseTimeShift={onTimeShift}
-        />}
+    {isKapacitorRule ? null : (
+      <TimeShiftDropdown
+        selected={shift && shift.label}
+        onChooseTimeShift={onTimeShift}
+      />
+    )}
     {isKapacitorRule ? null : <FillQuery value={fill} onChooseFill={onFill} />}
   </div>
+)
 
 const {bool, func, shape, string} = PropTypes
 

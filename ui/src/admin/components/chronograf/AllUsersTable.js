@@ -17,8 +17,8 @@ const {
 } = ALL_USERS_TABLE
 
 import {
-  NOTIFY_CHRONOGRAF_USER_ADDED_TO_ORG,
-  NOTIFY_CHRONOGRAF_USER_REMOVED_FROM_ORG,
+  notifyChronografUserAddedToOrg,
+  notifyChronografUserRemovedFromOrg,
 } from 'shared/copy/notifications'
 
 class AllUsersTable extends Component {
@@ -52,7 +52,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      NOTIFY_CHRONOGRAF_USER_ADDED_TO_ORG(user.name, organization.name)
+      notifyChronografUserAddedToOrg(user.name, organization.name)
     )
   }
 
@@ -66,7 +66,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      NOTIFY_CHRONOGRAF_USER_REMOVED_FROM_ORG(user.name, name)
+      notifyChronografUserRemovedFromOrg(user.name, name)
     )
   }
 
@@ -133,33 +133,33 @@ class AllUsersTable extends Component {
               </tr>
             </thead>
             <tbody>
-              {users.length
-                ? users.map(user =>
-                    <AllUsersTableRow
-                      user={user}
-                      key={uuid.v4()}
-                      organizations={organizations}
-                      onAddToOrganization={this.handleAddToOrganization}
-                      onRemoveFromOrganization={
-                        this.handleRemoveFromOrganization
-                      }
-                      onChangeSuperAdmin={this.handleChangeSuperAdmin}
-                      onDelete={onDeleteUser}
-                      meID={meID}
-                    />
-                  )
-                : <tr className="table-empty-state">
-                    <th colSpan="6">
-                      <p>No Users to display</p>
-                    </th>
-                  </tr>}
-              {isCreatingUser
-                ? <AllUsersTableRowNew
+              {users.length ? (
+                users.map(user => (
+                  <AllUsersTableRow
+                    user={user}
+                    key={uuid.v4()}
                     organizations={organizations}
-                    onBlur={this.handleBlurCreateUserRow}
-                    onCreateUser={onCreateUser}
+                    onAddToOrganization={this.handleAddToOrganization}
+                    onRemoveFromOrganization={this.handleRemoveFromOrganization}
+                    onChangeSuperAdmin={this.handleChangeSuperAdmin}
+                    onDelete={onDeleteUser}
+                    meID={meID}
                   />
-                : null}
+                ))
+              ) : (
+                <tr className="table-empty-state">
+                  <th colSpan="6">
+                    <p>No Users to display</p>
+                  </th>
+                </tr>
+              )}
+              {isCreatingUser ? (
+                <AllUsersTableRowNew
+                  organizations={organizations}
+                  onBlur={this.handleBlurCreateUserRow}
+                  onCreateUser={onCreateUser}
+                />
+              ) : null}
             </tbody>
           </table>
         </div>

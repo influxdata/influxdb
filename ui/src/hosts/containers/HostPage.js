@@ -96,7 +96,7 @@ class HostPage extends Component {
     const autoflowCells = autoflowLayouts.reduce((allCells, layout) => {
       return allCells.concat(
         layout.cells.map(cell => {
-          const x = cellCount * cellWidth % pageWidth
+          const x = (cellCount * cellWidth) % pageWidth
           const y = Math.floor(cellCount * cellWidth / pageWidth) * cellHeight
           cellCount += 1
           return Object.assign(cell, {

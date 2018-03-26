@@ -3,8 +3,11 @@
 ### Features
 
 1.  [#2973](https://github.com/influxdata/chronograf/pull/2973): Add unsafe SSL to Kapacitor UI configuration
+1.  [#3047](https://github.com/influxdata/chronograf/pull/3047): Add server flag to grant SuperAdmin status to users authenticating from a specific Auth0 Organization
 
 ### UI Improvements
+
+1.  [#2910](https://github.com/influxdata/chronograf/pull/2910): Redesign system notifications
 
 ### Bug Fixes
 
@@ -14,11 +17,12 @@
 1.  [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
 1.  [#2919](https://github.com/influxdata/chronograf/pull/2919): Automatically add graph type 'line' to any graph missing a type
 1.  [#2970](https://github.com/influxdata/chronograf/pull/2970): Fix hanging browser on docker host dashboard
+1.  [#3006](https://github.com/influxdata/chronograf/pull/3006): Fix Kapacitor Rules task enabled checkboxes to only toggle exactly as clicked
+1.  [#3048](https://github.com/influxdata/chronograf/pull/3048): Prevent Multi-Select Dropdown in InfluxDB Admin Users and Roles tabs from losing selection state
 
 ## v1.4.2.3 [2018-03-08]
 
 ## v1.4.2.2 [2018-03-07]
-1. [#2910](https://github.com/influxdata/chronograf/pull/2910): Redesign system notifications
 
 ### Bug Fixes
 

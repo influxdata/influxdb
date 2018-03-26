@@ -33,9 +33,7 @@ class TagInput extends Component {
 
     return (
       <div className="form-group col-xs-12">
-        <label htmlFor={title}>
-          {title}
-        </label>
+        <label htmlFor={title}>{title}</label>
         <input
           placeholder={`Type and hit 'Enter' to add to list of ${title}`}
           autoComplete="off"

@@ -23,7 +23,7 @@ const GraphTypeSelector = ({type, handleChangeCellType}) => {
       <div className="display-options--cell-wrapper">
         <h5 className="display-options--header">Visualization Type</h5>
         <div className="viz-type-selector">
-          {GRAPH_TYPES.map(graphType =>
+          {GRAPH_TYPES.map(graphType => (
             <div
               key={graphType.type}
               className={classnames('viz-type-selector--option', {
@@ -32,12 +32,10 @@ const GraphTypeSelector = ({type, handleChangeCellType}) => {
             >
               <div onClick={onChangeCellType(graphType.type)}>
                 {graphType.graphic}
-                <p>
-                  {graphType.menuOption}
-                </p>
+                <p>{graphType.menuOption}</p>
               </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
     </FancyScrollbar>

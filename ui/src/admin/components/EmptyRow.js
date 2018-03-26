@@ -1,7 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-const EmptyRow = ({tableName}) =>
+const EmptyRow = ({tableName}) => (
   <tr className="table-empty-state">
     <th colSpan="5">
       <p>
@@ -9,6 +9,7 @@ const EmptyRow = ({tableName}) =>
       </p>
     </th>
   </tr>
+)
 
 const {string} = PropTypes
 

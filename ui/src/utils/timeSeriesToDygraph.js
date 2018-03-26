@@ -5,7 +5,7 @@ import {map, reduce, forEach, concat, clone} from 'fast.js'
 /**
  * Accepts an array of raw influxdb responses and returns a format
  * that Dygraph understands.
-**/
+ **/
 
 const DEFAULT_SIZE = 0
 const cells = {
@@ -177,9 +177,10 @@ export const timeSeriesToTableGraph = raw => {
   const labels = ['time', ...map(sortedLabels, ({label}) => label)]
 
   const tableData = map(sortedTimeSeries, ({time, values}) => [time, ...values])
-
+  const data = tableData.length ? [labels, ...tableData] : [[]]
   return {
-    data: tableData.length ? [labels, ...tableData] : [[]],
+    labels,
+    data,
   }
 }
 

@@ -1,21 +1,21 @@
 import React from 'react'
 import ConfirmButtons, {
-  Confirm,
   Cancel,
+  Confirm,
 } from 'src/shared/components/ConfirmButtons'
 
 import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
-    item: '',
     buttonSize: '',
-    isDisabled: false,
     confirmLeft: false,
     confirmTitle: '',
-    onConfirm: () => {},
+    isDisabled: false,
+    item: '',
     onCancel: () => {},
     onClickOutside: () => {},
+    onConfirm: () => {},
     ...override,
   }
 

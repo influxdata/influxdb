@@ -19,7 +19,7 @@ const TemplateVariableManager = ({
   tempVarAlreadyExists,
   onSaveTemplatesSuccess,
   onEditTemplateVariables,
-}) =>
+}) => (
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
       <div className="page-header__left">
@@ -56,6 +56,7 @@ const TemplateVariableManager = ({
       />
     </div>
   </div>
+)
 
 class TemplateVariableManagerWrapper extends Component {
   constructor(props) {

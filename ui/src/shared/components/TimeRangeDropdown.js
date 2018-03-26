@@ -105,22 +105,22 @@ class TimeRangeDropdown extends Component {
               autoHeight={true}
               maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
             >
-              {preventCustomTimeRange
-                ? null
-                : <div>
-                    <li className="dropdown-header">Absolute Time Ranges</li>
-                    <li
-                      className={
-                        isCustomTimeRangeOpen
-                          ? 'active dropdown-item custom-timerange'
-                          : 'dropdown-item custom-timerange'
-                      }
-                    >
-                      <a href="#" onClick={this.showCustomTimeRange}>
-                        Custom Date Picker
-                      </a>
-                    </li>
-                  </div>}
+              {preventCustomTimeRange ? null : (
+                <div>
+                  <li className="dropdown-header">Absolute Time Ranges</li>
+                  <li
+                    className={
+                      isCustomTimeRangeOpen
+                        ? 'active dropdown-item custom-timerange'
+                        : 'dropdown-item custom-timerange'
+                    }
+                  >
+                    <a href="#" onClick={this.showCustomTimeRange}>
+                      Custom Date Picker
+                    </a>
+                  </li>
+                </div>
+              )}
               <li className="dropdown-header">
                 {preventCustomTimeRange ? '' : 'Relative '}Time Ranges
               </li>
@@ -136,16 +136,16 @@ class TimeRangeDropdown extends Component {
             </FancyScrollbar>
           </ul>
         </div>
-        {isCustomTimeRangeOpen
-          ? <CustomTimeRangeOverlay
-              onApplyTimeRange={this.handleApplyCustomTimeRange}
-              timeRange={customTimeRange}
-              isVisible={isCustomTimeRangeOpen}
-              onToggle={this.handleToggleCustomTimeRange}
-              onClose={this.handleCloseCustomTimeRange}
-              page={page}
-            />
-          : null}
+        {isCustomTimeRangeOpen ? (
+          <CustomTimeRangeOverlay
+            onApplyTimeRange={this.handleApplyCustomTimeRange}
+            timeRange={customTimeRange}
+            isVisible={isCustomTimeRangeOpen}
+            onToggle={this.handleToggleCustomTimeRange}
+            onClose={this.handleCloseCustomTimeRange}
+            page={page}
+          />
+        ) : null}
       </div>
     )
   }

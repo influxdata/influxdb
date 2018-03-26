@@ -17,516 +17,536 @@ const defaultSuccessNotification = {
 
 //  Misc Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_GENERIC_FAIL = 'Could not communicate with server.'
+export const notifyGenericFail = () => 'Could not communicate with server.'
 
-export const NOTIFY_NEW_VERSION = message => ({
+export const notifyNewVersion = version => ({
   type: 'info',
   icon: 'cubo-uniform',
   duration: INFINITE,
-  message,
+  message: `Welcome to the latest Chronograf${version}. Local settings cleared.`,
 })
 
-export const NOTIFY_ERR_WITH_ALT_TEXT = (type, message) => ({
+export const notifyLoadLocalSettingsFailed = error => ({
+  ...defaultErrorNotification,
+  message: `Loading local settings failed: ${error}`,
+})
+
+export const notifyErrorWithAltText = (type, message) => ({
   type,
   icon: 'triangle',
   duration: TEN_SECONDS,
   message,
 })
 
-export const NOTIFY_PRESENTATION_MODE = {
+export const notifyPresentationMode = () => ({
   type: 'primary',
   icon: 'expand-b',
   duration: 7500,
   message: 'Press ESC to exit Presentation Mode.',
-}
+})
 
-export const NOTIFY_DATA_WRITTEN = {
+export const notifyDataWritten = () => ({
   ...defaultSuccessNotification,
   message: 'Data was written successfully.',
-}
+})
 
-export const NOTIFY_SESSION_TIMED_OUT = {
+export const notifyDataWriteFailed = errorMessage => ({
+  ...defaultErrorNotification,
+  message: `Data write failed: ${errorMessage}`,
+})
+
+export const notifySessionTimedOut = () => ({
   type: 'primary',
   icon: 'triangle',
   duration: INFINITE,
   message: 'Your session has timed out. Log in again to continue.',
-}
+})
 
-export const NOTIFY_SERVER_ERROR = {
+export const notifyServerError = () => ({
   ...defaultErrorNotification,
   mesasage: 'Internal Server Error. Check API Logs.',
-}
+})
 
-export const NOTIFY_COULD_NOT_RETRIEVE_KAPACITORS = sourceID => ({
+export const notifyCouldNotRetrieveKapacitors = sourceID => ({
   ...defaultErrorNotification,
   mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
 })
 
-export const NOTIFY_COULD_NOT_DELETE_KAPACITOR = {
+export const notifyCouldNotDeleteKapacitor = () => ({
   ...defaultErrorNotification,
   message: 'Internal Server Error. Could not delete Kapacitor Connection.',
-}
+})
+
+export const notifyCSVDownloadFailed = () => ({
+  ...defaultErrorNotification,
+  message: 'Unable to download .CSV file',
+})
 
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_UNABLE_TO_GET_HOSTS = {
+export const notifyUnableToGetHosts = () => ({
   ...defaultErrorNotification,
   message: 'Unable to get Hosts.',
-}
+})
 
-export const NOTIFY_UNABLE_TO_GET_APPS = {
+export const notifyUnableToGetApps = () => ({
   ...defaultErrorNotification,
   message: 'Unable to get Apps for Hosts.',
-}
+})
 
 //  InfluxDB Sources Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_SOURCE_CREATION_SUCCEEDED = sourceName => ({
+export const notifySourceCreationSucceeded = sourceName => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `Connected to InfluxDB ${sourceName} successfully.`,
 })
 
-export const NOTIFY_SOURCE_CREATION_FAILED = (sourceName, errorMessage) => ({
+export const notifySourceCreationFailed = (sourceName, errorMessage) => ({
   ...defaultErrorNotification,
   icon: 'server2',
   message: `Unable to connect to InfluxDB ${sourceName}: ${errorMessage}`,
 })
 
-export const NOTIFY_SOURCE_UPDATED = sourceName => ({
+export const notifySourceUdpated = sourceName => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `Updated InfluxDB ${sourceName} Connection successfully.`,
 })
 
-export const NOTIFY_SOURCE_UPDATE_FAILED = (sourceName, errorMessage) => ({
+export const notifySourceUdpateFailed = (sourceName, errorMessage) => ({
   ...defaultErrorNotification,
   icon: 'server2',
   message: `Failed to update InfluxDB ${sourceName} Connection: ${errorMessage}`,
 })
 
-export const NOTIFY_SOURCE_DELETED = sourceName => ({
+export const notifySourceDeleted = sourceName => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `${sourceName} deleted successfully.`,
 })
 
-export const NOTIFY_SOURCE_DELETE_FAILED = sourceName => ({
+export const notifySourceDeleteFailed = sourceName => ({
   ...defaultErrorNotification,
   icon: 'server2',
   message: `There was a problem deleting ${sourceName}.`,
 })
 
-export const NOTIFY_SOURCE_NO_LONGER_AVAILABLE = sourceName =>
+export const notifySourceNoLongerAvailable = sourceName =>
   `Source ${sourceName} is no longer available. Successfully connected to another source.`
 
-export const NOTIFY_NO_SOURCES_AVAILABLE = sourceName =>
+export const notifyNoSourcesAvailable = sourceName =>
   `Unable to connect to source ${sourceName}. No other sources available.`
 
-export const NOTIFY_UNABLE_TO_RETRIEVE_SOURCES = 'Unable to retrieve sources.'
+export const notifyUnableToRetrieveSources = () => 'Unable to retrieve sources.'
 
-export const NOTIFY_UNABLE_TO_CONNECT_SOURCE = sourceName =>
+export const notifyUnableToConnectSource = sourceName =>
   `Unable to connect to source ${sourceName}.`
 
-export const NOTIFY_ERROR_CONNECTING_TO_SOURCE = errorMessage =>
+export const notifyErrorConnectingToSource = errorMessage =>
   `Unable to connect to InfluxDB source: ${errorMessage}`
 
 //  Multitenancy User Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_USER_REMOVED_FROM_ALL_ORGS = {
+export const notifyUserRemovedFromAllOrgs = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message:
     'You have been removed from all organizations. Please contact your administrator.',
-}
+})
 
-export const NOTIFY_USER_REMOVED_FROM_CURRENT_ORG = {
+export const notifyUserRemovedFromCurrentOrg = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'You were removed from your current organization.',
-}
+})
 
-export const NOTIFY_ORG_HAS_NO_SOURCES = {
+export const notifyOrgHasNoSources = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'Organization has no sources configured.',
-}
+})
 
-export const NOTIFY_USER_SWITCHED_ORGS = (orgName, roleName) => ({
+export const notifyUserSwitchedOrgs = (orgName, roleName) => ({
   ...defaultSuccessNotification,
   type: 'primary',
   message: `Now logged in to '${orgName}' as '${roleName}'.`,
 })
 
-export const NOTIFY_ORG_IS_PRIVATE = {
+export const notifyOrgIsPrivate = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message:
     'This organization is private. To gain access, you must be explicitly added by an administrator.',
-}
+})
 
-export const NOTIFY_CURRENT_ORG_DELETED = {
+export const notifyCurrentOrgDeleted = () => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'Your current organization was deleted.',
-}
+})
+
+export const notifyJSONFeedFailed = url => ({
+  ...defaultErrorNotification,
+  message: `Failed to fetch JSON Feed for News Feed from '${url}'`,
+})
 
 //  Chronograf Admin Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_MAPPING_DELETED = (id, scheme) => ({
+export const notifyMappingDeleted = (id, scheme) => ({
   ...defaultSuccessNotification,
   message: `Mapping ${id}/${scheme} deleted successfully.`,
 })
 
-export const NOTIFY_CHRONOGRAF_USER_ADDED_TO_ORG = (user, organization) =>
+export const notifyChronografUserAddedToOrg = (user, organization) =>
   `${user} has been added to ${organization} successfully.`
 
-export const NOTIFY_CHRONOGRAF_USER_REMOVED_FROM_ORG = (user, organization) =>
+export const notifyChronografUserRemovedFromOrg = (user, organization) =>
   `${user} has been removed from ${organization} successfully.`
 
-export const NOTIFY_CHRONOGRAF_USER_UPDATED = message => ({
+export const notifyChronografUserUpdated = message => ({
   ...defaultSuccessNotification,
   message,
 })
 
-export const NOTIFY_CHRONOGRAF_ORG_DELETED = orgName => ({
+export const notifyChronografOrgDeleted = orgName => ({
   ...defaultSuccessNotification,
   message: `Organization ${orgName} deleted successfully.`,
 })
 
-export const NOTIFY_CHRONOGRAF_USER_DELETED = (user, isAbsoluteDelete) => ({
+export const notifyChronografUserDeleted = (user, isAbsoluteDelete) => ({
   ...defaultSuccessNotification,
-  message: `${user} has been removed from ${isAbsoluteDelete
-    ? 'all organizations and deleted.'
-    : 'the current organization.'}`,
+  message: `${user} has been removed from ${
+    isAbsoluteDelete
+      ? 'all organizations and deleted.'
+      : 'the current organization.'
+  }`,
 })
 
-export const NOTIFY_CHRONOGRAF_USER_MISSING_NAME_AND_PROVIDER = {
+export const notifyChronografUserMissingNameAndProvider = () => ({
   ...defaultErrorNotification,
   type: 'warning',
   message: 'User must have a Name and Provider.',
-}
+})
 
 //  InfluxDB Admin Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_DB_USER_CREATED = {
+export const notifyDBUserCreated = () => ({
   ...defaultSuccessNotification,
   message: 'User created successfully.',
-}
+})
 
-export const NOTIFY_DB_USER_CREATION_FAILED = errorMessage =>
+export const notifyDBUserCreationFailed = errorMessage =>
   `Failed to create User: ${errorMessage}`
 
-export const NOTIFY_DB_USER_DELETED = userName => ({
+export const notifyDBUserDeleted = userName => ({
   ...defaultSuccessNotification,
   message: `User "${userName}" deleted successfully.`,
 })
 
-export const NOTIFY_DB_USER_DELETION_FAILED = errorMessage =>
+export const notifyDBUserDeleteFailed = errorMessage =>
   `Failed to delete User: ${errorMessage}`
 
-export const NOTIFY_DB_USER_PERMISSIONS_UPDATED = {
+export const notifyDBUserPermissionsUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'User Permissions updated successfully.',
-}
+})
 
-export const NOTIFY_DB_USER_PERMISSIONS_UPDATE_FAILED = errorMessage =>
+export const notifyDBUserPermissionsUpdateFailed = errorMessage =>
   `Failed to update User Permissions: ${errorMessage}`
 
-export const NOTIFY_DB_USER_ROLES_UPDATED = {
+export const notifyDBUserRolesUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'User Roles updated successfully.',
-}
+})
 
-export const NOTIFY_DB_USER_ROLES_UPDATE_FAILED = errorMessage =>
+export const notifyDBUserRolesUpdateFailed = errorMessage =>
   `Failed to update User Roles: ${errorMessage}`
 
-export const NOTIFY_DB_USER_PASSWORD_UPDATED = {
+export const notifyDBUserPasswordUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'User Password updated successfully.',
-}
+})
 
-export const NOTIFY_DB_USER_PASSWORD_UPDATE_FAILED = errorMessage =>
+export const notifyDBUserPasswordUpdateFailed = errorMessage =>
   `Failed to update User Password: ${errorMessage}`
 
-export const NOTIFY_DATABASE_CREATED = {
+export const notifyDatabaseCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Database created successfully.',
-}
+})
 
-export const NOTIFY_DATABASE_CREATION_FAILED = errorMessage =>
+export const notifyDBCreationFailed = errorMessage =>
   `Failed to create Database: ${errorMessage}`
 
-export const NOTIFY_DATABASE_DELETED = databaseName => ({
+export const notifyDBDeleted = databaseName => ({
   ...defaultSuccessNotification,
   message: `Database "${databaseName}" deleted successfully.`,
 })
 
-export const NOTIFY_DATABASE_DELETION_FAILED = errorMessage =>
+export const notifyDBDeleteFailed = errorMessage =>
   `Failed to delete Database: ${errorMessage}`
 
-export const NOTIFY_ROLE_CREATED = {
+export const notifyRoleCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Role created successfully.',
-}
+})
 
-export const NOTIFY_ROLE_CREATION_FAILED = errorMessage =>
+export const notifyRoleCreationFailed = errorMessage =>
   `Failed to create Role: ${errorMessage}`
 
-export const NOTIFY_ROLE_DELETED = roleName => ({
+export const notifyRoleDeleted = roleName => ({
   ...defaultSuccessNotification,
   message: `Role "${roleName}" deleted successfully.`,
 })
 
-export const NOTIFY_ROLE_DELETION_FAILED = errorMessage =>
+export const notifyRoleDeleteFailed = errorMessage =>
   `Failed to delete Role: ${errorMessage}`
 
-export const NOTIFY_ROLE_USERS_UPDATED = {
+export const notifyRoleUsersUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Role Users updated successfully.',
-}
+})
 
-export const NOTIFY_ROLE_USERS_UPDATE_FAILED = errorMessage =>
+export const notifyRoleUsersUpdateFailed = errorMessage =>
   `Failed to update Role Users: ${errorMessage}`
 
-export const NOTIFY_ROLE_PERMISSIONS_UPDATED = {
+export const notifyRolePermissionsUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Role Permissions updated successfully.',
-}
+})
 
-export const NOTIFY_ROLE_PERMISSIONS_UPDATE_FAILED = errorMessage =>
+export const notifyRolePermissionsUpdateFailed = errorMessage =>
   `Failed to update Role Permissions: ${errorMessage}`
 
-export const NOTIFY_RETENTION_POLICY_CREATED = {
+export const notifyRetentionPolicyCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Retention Policy created successfully.',
-}
+})
 
-export const NOTIFY_RETENTION_POLICY_CREATION_FAILED = errorMessage =>
+export const notifyRetentionPolicyCreationFailed = errorMessage =>
   `Failed to create Retention Policy: ${errorMessage}`
 
-export const NOTIFY_RETENTION_POLICY_DELETED = rpName => ({
+export const notifyRetentionPolicyDeleted = rpName => ({
   ...defaultSuccessNotification,
   message: `Retention Policy "${rpName}" deleted successfully.`,
 })
 
-export const NOTIFY_RETENTION_POLICY_DELETION_FAILED = errorMessage =>
+export const notifyRetentionPolicyDeleteFailed = errorMessage =>
   `Failed to delete Retention Policy: ${errorMessage}`
 
-export const NOTIFY_RETENTION_POLICY_UPDATED = {
+export const notifyRetentionPolicyUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Retention Policy updated successfully.',
-}
+})
 
-export const NOTIFY_RETENTION_POLICY_UPDATE_FAILED = errorMessage =>
+export const notifyRetentionPolicyUpdateFailed = errorMessage =>
   `Failed to update Retention Policy: ${errorMessage}`
 
-export const NOTIFY_QUERIES_ERROR = errorMessage => ({
+export const notifyQueriesError = errorMessage => ({
   ...defaultErrorNotification,
   errorMessage,
 })
 
-export const NOTIFY_RETENTION_POLICY_CANT_HAVE_EMPTY_FIELDS = {
+export const notifyRetentionPolicyCantHaveEmptyFields = () => ({
   ...defaultErrorNotification,
   message: 'Fields cannot be empty.',
-}
-
-export const NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED = databaseName => ({
-  ...defaultErrorNotification,
-  message: `Type "DELETE ${databaseName}" to confirm.`,
 })
 
-export const NOTIFY_DB_USER_NAME_PASSWORD_INVALID = {
+export const notifyDatabaseDeleteConfirmationRequired = databaseName => ({
+  ...defaultErrorNotification,
+  message: `Type "DELETE ${databaseName}" to confirm. This action cannot be undone.`,
+})
+
+export const notifyDBUserNamePasswordInvalid = () => ({
   ...defaultErrorNotification,
   message: 'Username and/or Password too short.',
-}
+})
 
-export const NOTIFY_ROLE_NAME_INVALID = {
+export const notifyRoleNameInvalid = () => ({
   ...defaultErrorNotification,
   message: 'Role name is too short.',
-}
+})
 
-export const NOTIFY_DATABASE_NAME_INVALID = {
+export const notifyDatabaseNameInvalid = () => ({
   ...defaultErrorNotification,
   message: 'Database name cannot be blank.',
-}
+})
 
-export const NOTIFY_DATABASE_NAME_ALREADY_EXISTS = {
+export const notifyDatabaseNameAlreadyExists = () => ({
   ...defaultErrorNotification,
   message: 'A Database by this name already exists.',
-}
+})
 
 //  Dashboard Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_TEMP_VAR_ALREADY_EXISTS = tempVarName => ({
+export const notifyTempVarAlreadyExists = tempVarName => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Variable '${tempVarName}' already exists. Please enter a new value.`,
 })
 
-export const NOTIFY_DASHBOARD_NOT_FOUND = dashboardID => ({
+export const notifyDashboardNotFound = dashboardID => ({
   ...defaultErrorNotification,
   icon: 'dash-h',
   message: `Dashboard ${dashboardID} could not be found`,
 })
 
-export const NOTIFY_DASHBOARD_DELETED = name => ({
+export const notifyDashboardDeleted = name => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
   message: `Dashboard ${name} deleted successfully.`,
 })
 
-export const NOTIFY_DASHBOARD_DELETE_FAILED = (name, errorMessage) =>
+export const notifyDashboardDeleteFailed = (name, errorMessage) =>
   `Failed to delete Dashboard ${name}: ${errorMessage}.`
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_ALERT_RULE_CREATED = {
+export const notifyAlertRuleCreated = () => ({
   ...defaultSuccessNotification,
   message: 'Alert Rule created successfully.',
-}
+})
 
-export const NOTIFY_ALERT_RULE_CREATION_FAILED = {
+export const notifyAlertRuleCreateFailed = () => ({
   ...defaultErrorNotification,
   message: 'Alert Rule could not be created.',
-}
+})
 
-export const NOTIFY_ALERT_RULE_UPDATED = ruleName => ({
+export const notifyAlertRuleUpdated = ruleName => ({
   ...defaultSuccessNotification,
   message: `${ruleName} saved successfully.`,
 })
 
-export const NOTIFY_ALERT_RULE_UPDATE_FAILED = (ruleName, errorMessage) => ({
+export const notifyAlertRuleUpdateFailed = (ruleName, errorMessage) => ({
   ...defaultErrorNotification,
   message: `There was a problem saving ${ruleName}: ${errorMessage}`,
 })
 
-export const NOTIFY_ALERT_RULE_DELETED = ruleName => ({
+export const notifyAlertRuleDeleted = ruleName => ({
   ...defaultSuccessNotification,
   message: `${ruleName} deleted successfully.`,
 })
 
-export const NOTIFY_ALERT_RULE_DELETION_FAILED = ruleName => ({
+export const notifyAlertRuleDeleteFailed = ruleName => ({
   ...defaultErrorNotification,
   message: `${ruleName} could not be deleted.`,
 })
 
-export const NOTIFY_ALERT_RULE_STATUS_UPDATED = (ruleName, updatedStatus) => ({
+export const notifyAlertRuleStatusUpdated = (ruleName, updatedStatus) => ({
   ...defaultSuccessNotification,
   message: `${ruleName} ${updatedStatus} successfully.`,
 })
 
-export const NOTIFY_ALERT_RULE_STATUS_UPDATE_FAILED = (
-  ruleName,
-  updatedStatus
-) => ({
+export const notifyAlertRuleStatusUpdateFailed = (ruleName, updatedStatus) => ({
   ...defaultSuccessNotification,
   message: `${ruleName} could not be ${updatedStatus}.`,
 })
 
-export const NOTIFY_ALERT_RULE_REQUIRES_QUERY =
+export const notifyAlertRuleRequiresQuery = () =>
   'Please select a Database, Measurement, and Field.'
 
-export const NOTIFY_ALERT_RULE_REQUIRES_CONDITION_VALUE =
+export const notifyAlertRuleRequiresConditionValue = () =>
   'Please enter a value in the Conditions section.'
 
-export const NOTIFY_ALERT_RULE_DEADMAN_INVALID =
+export const notifyAlertRuleDeadmanInvalid = () =>
   'Deadman rules require a Database and Measurement.'
 
 //  Kapacitor Configuration Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN = kapacitorName => ({
+export const notifyKapacitorNameAlreadyTaken = kapacitorName => ({
   ...defaultErrorNotification,
   message: `There is already a Kapacitor Connection named "${kapacitorName}".`,
 })
 
-export const NOTIFY_COULD_NOT_FIND_KAPACITOR = {
+export const notifyCouldNotFindKapacitor = () => ({
   ...defaultErrorNotification,
   message: 'We could not find a Kapacitor configuration for this source.',
-}
+})
 
-export const NOTIFY_REFRESH_KAPACITOR_FAILED = {
+export const notifyRefreshKapacitorFailed = () => ({
   ...defaultErrorNotification,
   message: 'There was an error getting the Kapacitor configuration.',
-}
+})
 
-export const NOTIFY_ALERT_ENDPOINT_SAVED = endpoint => ({
+export const notifyAlertEndpointSaved = endpoint => ({
   ...defaultSuccessNotification,
   message: `Alert configuration for ${endpoint} saved successfully.`,
 })
 
-export const NOTIFY_ALERT_ENDPOINT_SAVE_FAILED = (endpoint, errorMessage) => ({
+export const notifyAlertEndpointSaveFailed = (endpoint, errorMessage) => ({
   ...defaultErrorNotification,
   message: `There was an error saving the alert configuration for ${endpoint}: ${errorMessage}`,
 })
 
-export const NOTIFY_TEST_ALERT_SENT = endpoint => ({
+export const notifyTestAlertSent = endpoint => ({
   ...defaultSuccessNotification,
   duration: TEN_SECONDS,
   message: `Test Alert sent to ${endpoint}. If the Alert does not reach its destination, please check your endpoint configuration settings.`,
 })
 
-export const NOTIFY_TEST_ALERT_FAILED = (endpoint, errorMessage) => ({
+export const notifyTestAlertFailed = (endpoint, errorMessage) => ({
   ...defaultErrorNotification,
-  message: `There was an error sending a Test Alert to ${endpoint}${errorMessage
-    ? `: ${errorMessage}`
-    : '.'}`,
+  message: `There was an error sending a Test Alert to ${endpoint}${
+    errorMessage ? `: ${errorMessage}` : '.'
+  }`,
 })
 
-export const NOTIFY_KAPACITOR_CONNECTION_FAILED = {
+export const notifyKapacitorConnectionFailed = () => ({
   ...defaultErrorNotification,
   message:
     'Could not connect to Kapacitor. Check your connection settings in the Configuration page.',
-}
+})
 
-export const NOTIFY_KAPACITOR_CREATED = {
+export const notifyKapacitorCreated = () => ({
   ...defaultSuccessNotification,
   message:
     'Connected to Kapacitor successfully! Configuring endpoints is optional.',
-}
+})
 
-export const NOTIFY_KAPACITOR_CREATION_FAILED = {
+export const notifyKapacitorCreateFailed = () => ({
   ...defaultErrorNotification,
   message: 'There was a problem connecting to Kapacitor.',
-}
+})
 
-export const NOTIFY_KAPACITOR_UPDATED = {
+export const notifyKapacitorUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'Kapacitor Connection updated successfully.',
-}
+})
 
-export const NOTIFY_KAPACITOR_UPDATE_FAILED = {
+export const notifyKapacitorUpdateFailed = () => ({
   ...defaultErrorNotification,
   message: 'There was a problem updating the Kapacitor Connection.',
-}
+})
 
 //  TICKscript Notifications
 //  ----------------------------------------------------------------------------
-export const NOTIFY_TICKSCRIPT_CREATED = {
+export const notifyTickScriptCreated = () => ({
   ...defaultSuccessNotification,
   message: 'TICKscript successfully created.',
-}
+})
 
-export const NOTIFY_TICKSCRIPT_CREATION_FAILED = 'Failed to create TICKscript.'
+export const notifyTickscriptCreationFailed = () =>
+  'Failed to create TICKscript.'
 
-export const NOTIFY_TICKSCRIPT_UPDATED = {
+export const notifyTickscriptUpdated = () => ({
   ...defaultSuccessNotification,
   message: 'TICKscript successfully updated.',
-}
+})
 
-export const NOTIFY_TICKSCRIPT_UPDATE_FAILED = 'Failed to update TICKscript.'
+export const notifyTickscriptUpdateFailed = () => 'Failed to update TICKscript.'
 
-export const NOTIFY_TICKSCRIPT_LOGGING_UNAVAILABLE = {
+export const notifyTickscriptLoggingUnavailable = () => ({
   type: 'warning',
   icon: 'alert-triangle',
   duration: INFINITE,
   message: 'Kapacitor version 1.4 required to view TICKscript logs',
-}
+})
 
-export const NOTIFY_TICKSCRIPT_LOGGING_ERROR = message => ({
+export const notifyTickscriptLoggingError = message => ({
   ...defaultErrorNotification,
   message,
 })
 
-export const NOTIFY_KAPACITOR_NOT_FOUND =
+export const notifyKapacitorNotFound = () =>
   'We could not find a Kapacitor configuration for this source.'

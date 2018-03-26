@@ -29,14 +29,14 @@ const UsersTableRow = ({
   return (
     <tr className={'chronograf-admin-table--user'}>
       <td>
-        {userIsMe
-          ? <strong className="chronograf-user--me">
-              <span className="icon user" />
-              {user.name}
-            </strong>
-          : <strong>
-              {user.name}
-            </strong>}
+        {userIsMe ? (
+          <strong className="chronograf-user--me">
+            <span className="icon user" />
+            {user.name}
+          </strong>
+        ) : (
+          <strong>{user.name}</strong>
+        )}
       </td>
       <td style={{width: colRole}}>
         <span className="chronograf-user--role">
@@ -50,12 +50,8 @@ const UsersTableRow = ({
           />
         </span>
       </td>
-      <td style={{width: colProvider}}>
-        {user.provider}
-      </td>
-      <td style={{width: colScheme}}>
-        {user.scheme}
-      </td>
+      <td style={{width: colProvider}}>{user.provider}</td>
+      <td style={{width: colScheme}}>{user.scheme}</td>
       <DeleteConfirmTableCell
         text="Remove"
         onDelete={onDelete}

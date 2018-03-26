@@ -8,6 +8,9 @@ class PagerDutyConfig extends Component {
     this.state = {
       testEnabled: this.props.enabled,
     }
+    this.refFunc = r => {
+      this.serviceKey = r
+    }
   }
 
   handleSubmit = async e => {
@@ -32,7 +35,6 @@ class PagerDutyConfig extends Component {
     const {options} = this.props.config
     const {url} = options
     const serviceKey = options['service-key']
-    const refFunc = r => (this.serviceKey = r)
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
@@ -40,7 +42,7 @@ class PagerDutyConfig extends Component {
           <RedactedInput
             defaultValue={serviceKey || ''}
             id="service-key"
-            refFunc={refFunc}
+            refFunc={this.refFunc}
             disableTest={this.disableTest}
           />
         </div>

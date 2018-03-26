@@ -60,22 +60,22 @@ class FunctionSelector extends Component {
 
     return (
       <div className="function-selector">
-        {singleSelect
-          ? null
-          : <div className="function-selector--header">
-              <span>
-                {localSelectedItems.length > 0
-                  ? `${localSelectedItems.length} Selected`
-                  : 'Select functions below'}
-              </span>
-              <div
-                className="btn btn-xs btn-success"
-                onClick={this.handleApplyFunctions}
-                data-test="function-selector-apply"
-              >
-                Apply
-              </div>
-            </div>}
+        {singleSelect ? null : (
+          <div className="function-selector--header">
+            <span>
+              {localSelectedItems.length > 0
+                ? `${localSelectedItems.length} Selected`
+                : 'Select functions below'}
+            </span>
+            <div
+              className="btn btn-xs btn-success"
+              onClick={this.handleApplyFunctions}
+              data-test="function-selector-apply"
+            >
+              Apply
+            </div>
+          </div>
+        )}
         <div className="function-selector--grid">
           {INFLUXQL_FUNCTIONS.map((f, i) => {
             return (

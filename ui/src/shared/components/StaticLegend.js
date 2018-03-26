@@ -6,9 +6,9 @@ import {removeMeasurement} from 'shared/graphs/helpers'
 
 const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
   if (visibilities.length) {
-    return `${hoverEnabled
-      ? 'static-legend--item'
-      : 'static-legend--single'}${visibilities[i] ? '' : ' disabled'}`
+    return `${hoverEnabled ? 'static-legend--item' : 'static-legend--single'}${
+      visibilities[i] ? '' : ' disabled'
+    }`
   }
 
   // all series are visible to match expected initial state
@@ -80,7 +80,7 @@ class StaticLegend extends Component {
           this.staticLegendRef = s
         }}
       >
-        {_.map(labels, (v, i) =>
+        {_.map(labels, (v, i) => (
           <div
             className={staticLegendItemClassname(visibilities, i, hoverEnabled)}
             key={uuid.v4()}
@@ -90,11 +90,9 @@ class StaticLegend extends Component {
               className="static-legend--dot"
               style={{backgroundColor: colors[i]}}
             />
-            <span style={{color: colors[i]}}>
-              {removeMeasurement(v)}
-            </span>
+            <span style={{color: colors[i]}}>{removeMeasurement(v)}</span>
           </div>
-        )}
+        ))}
       </div>
     )
   }

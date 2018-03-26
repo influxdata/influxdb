@@ -6,7 +6,7 @@ import {bindActionCreators} from 'redux'
 
 import {notify as notifyAction} from 'shared/actions/notifications'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
-import {NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED} from 'shared/copy/notifications'
+import {notifyDatabaseDeleteConfirmationRequired} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
   database,
@@ -68,20 +68,20 @@ const Header = ({
       >
         <span className="icon plus" /> Add Retention Policy
       </button>
-      {database.name === '_internal'
-        ? null
-        : <button
-            className="btn btn-xs btn-danger"
-            onClick={onStartDelete(database)}
-          >
-            Delete
-          </button>}
+      {database.name === '_internal' ? null : (
+        <button
+          className="btn btn-xs btn-danger"
+          onClick={onStartDelete(database)}
+        >
+          Delete
+        </button>
+      )}
     </div>
   )
 
-  const onConfirm = db => {
+  function onConfirm(db) {
     if (database.deleteCode !== `DELETE ${database.name}`) {
-      return notify(NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name))
+      return notify(notifyDatabaseDeleteConfirmationRequired(database.name))
     }
 
     onDelete(db)
@@ -112,15 +112,13 @@ const Header = ({
 
   return (
     <div className="db-manager-header">
-      <h4>
-        {database.name}
-      </h4>
+      <h4>{database.name}</h4>
       {database.hasOwnProperty('deleteCode') ? deleteConfirmation : buttons}
     </div>
   )
 }
 
-const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) =>
+const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
   <div className="db-manager-header db-manager-header--edit">
     <input
       className="form-control input-sm"
@@ -136,6 +134,7 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) =>
     />
     <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
   </div>
+)
 
 const {func, shape, bool} = PropTypes
 

@@ -10,9 +10,9 @@ import * as adminActionCreators from 'src/admin/actions/influxdb'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {
-  NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED,
-  NOTIFY_DATABASE_NAME_ALREADY_EXISTS,
-  NOTIFY_DATABASE_NAME_INVALID,
+  notifyDatabaseDeleteConfirmationRequired,
+  notifyDatabaseNameAlreadyExists,
+  notifyDatabaseNameInvalid,
 } from 'shared/copy/notifications'
 
 class DatabaseManagerPage extends Component {
@@ -41,11 +41,11 @@ class DatabaseManagerPage extends Component {
   handleCreateDatabase = database => {
     const {actions, notify, source, databases} = this.props
     if (!database.name) {
-      return notify(NOTIFY_DATABASE_NAME_INVALID)
+      return notify(notifyDatabaseNameInvalid())
     }
 
     if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-      return notify(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
+      return notify(notifyDatabaseNameAlreadyExists())
     }
 
     actions.createDatabaseAsync(source.links.databases, database)
@@ -66,11 +66,11 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (!database.name) {
-        return notify(NOTIFY_DATABASE_NAME_INVALID)
+        return notify(notifyDatabaseNameInvalid())
       }
 
       if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-        return notify(NOTIFY_DATABASE_NAME_ALREADY_EXISTS)
+        return notify(notifyDatabaseNameAlreadyExists())
       }
 
       actions.createDatabaseAsync(source.links.databases, database)
@@ -87,9 +87,7 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (database.deleteCode !== `DELETE ${database.name}`) {
-        return notify(
-          NOTIFY_DATABASE_DELETE_CONFIRMATION_REQUIRED(database.name)
-        )
+        return notify(notifyDatabaseDeleteConfirmationRequired(database.name))
       }
 
       return actions.deleteDatabaseAsync(database)

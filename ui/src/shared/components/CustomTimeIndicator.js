@@ -15,11 +15,7 @@ const CustomTimeIndicator = ({queries}) => {
     ? `${customLower} AND ${customUpper}`
     : customLower
 
-  return (
-    <span className="custom-indicator">
-      {customTimeRange}
-    </span>
-  )
+  return <span className="custom-indicator">{customTimeRange}</span>
 }
 
 const {arrayOf, shape} = PropTypes

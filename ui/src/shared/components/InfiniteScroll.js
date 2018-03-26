@@ -73,8 +73,9 @@ class InfiniteScroll extends Component {
 
   throttledHandleResize = _.throttle(this.handleResize, 100)
 
-  handleMakeDiv = className => props =>
+  handleMakeDiv = className => props => (
     <div {...props} className={`fancy-scroll--${className}`} />
+  )
 
   componentDidMount() {
     window.addEventListener('resize', this.handleResize, true)

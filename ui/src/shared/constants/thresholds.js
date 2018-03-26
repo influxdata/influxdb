@@ -13,8 +13,6 @@ export const THRESHOLD_TYPE_TEXT = 'text'
 export const THRESHOLD_TYPE_BG = 'background'
 export const THRESHOLD_TYPE_BASE = 'base'
 
-export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.ss'
-
 export const THRESHOLD_COLORS = [
   {
     hex: '#BF3D5E',
@@ -121,16 +119,6 @@ export const DEFAULT_THRESHOLDS_LIST_COLORS = [
   },
 ]
 
-export const DEFAULT_TABLE_COLORS = [
-  {
-    type: THRESHOLD_TYPE_BG,
-    hex: THRESHOLD_COLORS[18].hex,
-    id: THRESHOLD_TYPE_BASE,
-    name: THRESHOLD_COLORS[18].name,
-    value: 0,
-  },
-]
-
 export const validateThresholdsListColors = (colors, type) => {
   if (!colors || colors.length === 0) {
     return DEFAULT_THRESHOLDS_LIST_COLORS
@@ -174,16 +162,20 @@ export const validateGaugeColors = colors => {
   }
 
   // Gauge colors should have a type of min, any number of thresholds, and a max
-  const formattedColors = _.sortBy(colors, color =>
-    Number(color.value)
-  ).map(color => ({
-    ...color,
-    value: Number(color.value),
-    type: COLOR_TYPE_THRESHOLD,
-  }))
+  const formattedColors = _.sortBy(colors, color => Number(color.value)).map(
+    color => ({
+      ...color,
+      value: Number(color.value),
+      type: COLOR_TYPE_THRESHOLD,
+    })
+  )
 
   formattedColors[0].type = COLOR_TYPE_MIN
   formattedColors[formattedColors.length - 1].type = COLOR_TYPE_MAX
 
   return formattedColors
+}
+
+export const stringifyColorValues = colors => {
+  return colors.map(color => ({...color, value: `${color.value}`}))
 }

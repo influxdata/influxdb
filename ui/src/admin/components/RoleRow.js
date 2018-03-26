@@ -24,11 +24,11 @@ const RoleRow = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
-  const handleUpdateUsers = usrs => {
+  function handleUpdateUsers(usrs) {
     onUpdateRoleUsers(role, usrs)
   }
 
-  const handleUpdatePermissions = allowed => {
+  function handleUpdatePermissions(allowed) {
     onUpdateRolePermissions(role, [
       {scope: 'all', allowed: allowed.map(({name}) => name)},
     ])
@@ -64,41 +64,38 @@ const RoleRow = ({
 
   return (
     <tr>
-      <td style={{width: `${ROLES_TABLE.colName}px`}}>
-        {roleName}
+      <td style={{width: `${ROLES_TABLE.colName}px`}}>{roleName}</td>
+      <td>
+        {allPermissions && allPermissions.length ? (
+          <MultiSelectDropdown
+            items={allPermissions.map(name => ({name}))}
+            selectedItems={perms.map(name => ({name}))}
+            label={perms.length ? '' : 'Select Permissions'}
+            onApply={handleUpdatePermissions}
+            buttonSize="btn-xs"
+            buttonColor="btn-primary"
+            customClass={classnames(`dropdown-${ROLES_TABLE.colPermissions}`, {
+              'admin-table--multi-select-empty': !permissions.length,
+            })}
+            resetStateOnReceiveProps={false}
+          />
+        ) : null}
       </td>
       <td>
-        {allPermissions && allPermissions.length
-          ? <MultiSelectDropdown
-              items={allPermissions.map(name => ({name}))}
-              selectedItems={perms.map(name => ({name}))}
-              label={perms.length ? '' : 'Select Permissions'}
-              onApply={handleUpdatePermissions}
-              buttonSize="btn-xs"
-              buttonColor="btn-primary"
-              customClass={classnames(
-                `dropdown-${ROLES_TABLE.colPermissions}`,
-                {
-                  'admin-table--multi-select-empty': !permissions.length,
-                }
-              )}
-            />
-          : null}
-      </td>
-      <td>
-        {allUsers && allUsers.length
-          ? <MultiSelectDropdown
-              items={allUsers}
-              selectedItems={users}
-              label={users.length ? '' : 'Select Users'}
-              onApply={handleUpdateUsers}
-              buttonSize="btn-xs"
-              buttonColor="btn-primary"
-              customClass={classnames(`dropdown-${ROLES_TABLE.colUsers}`, {
-                'admin-table--multi-select-empty': !users.length,
-              })}
-            />
-          : null}
+        {allUsers && allUsers.length ? (
+          <MultiSelectDropdown
+            items={allUsers}
+            selectedItems={users}
+            label={users.length ? '' : 'Select Users'}
+            onApply={handleUpdateUsers}
+            buttonSize="btn-xs"
+            buttonColor="btn-primary"
+            customClass={classnames(`dropdown-${ROLES_TABLE.colUsers}`, {
+              'admin-table--multi-select-empty': !users.length,
+            })}
+            resetStateOnReceiveProps={false}
+          />
+        ) : null}
       </td>
       <DeleteConfirmTableCell
         onDelete={onDelete}

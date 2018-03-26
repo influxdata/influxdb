@@ -1,3 +1,5 @@
+import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
+
 export const EMPTY_DASHBOARD = {
   id: 0,
   name: '',
@@ -20,6 +22,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   name: 'Untitled Cell',
   type: 'line',
   queries: [],
+  tableOptions: DEFAULT_TABLE_OPTIONS,
 }
 
 export const NEW_DASHBOARD = {

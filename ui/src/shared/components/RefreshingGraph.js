@@ -23,6 +23,7 @@ const RefreshingGraph = ({
   cellID,
   queries,
   tableOptions,
+  setDataLabels,
   templates,
   timeRange,
   cellHeight,
@@ -42,9 +43,7 @@ const RefreshingGraph = ({
   if (!queries.length) {
     return (
       <div className="graph-empty">
-        <p data-test="data-explorer-no-results">
-          {emptyGraphCopy}
-        </p>
+        <p data-test="data-explorer-no-results">{emptyGraphCopy}</p>
       </div>
     )
   }
@@ -100,6 +99,7 @@ const RefreshingGraph = ({
         hoverTime={hoverTime}
         onSetHoverTime={onSetHoverTime}
         inView={inView}
+        setDataLabels={setDataLabels}
       />
     )
   }
@@ -166,6 +166,7 @@ RefreshingGraph.propTypes = {
   cellID: string,
   inView: bool,
   tableOptions: shape({}),
+  setDataLabels: func,
 }
 
 RefreshingGraph.defaultProps = {

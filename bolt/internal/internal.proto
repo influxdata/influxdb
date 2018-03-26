@@ -43,14 +43,16 @@ message DashboardCell {
 message TableOptions {
 	string timeFormat                   = 1; // format for time
 	bool verticalTimeAxis               = 2; // time axis should be a column not row
-	TableColumn sortBy                  = 3; // which column should a table be sorted by
+	RenamableField sortBy               = 3; // which column should a table be sorted by
 	string 	wrapping                    = 4; // option for text wrapping
-	repeated TableColumn columnNames    = 5; // names and renames for columns
+	repeated RenamableField fieldNames      = 5; // names and renames for column/row fields
+	bool fixFirstColumn                 = 6; // first column should be fixed/frozen
 }
 
-message TableColumn {
+message RenamableField {
 	string internalName     = 1; // name of column
 	string displayName      = 2; // what column is renamed to
+	bool visible			= 3; // Represents whether RenamableField is visible
 }
 
 message Color {

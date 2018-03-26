@@ -1,6 +1,6 @@
-import React, {PureComponent, ChangeEvent} from 'react'
-import {withRouter} from 'react-router'
+import React, {ChangeEvent, PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -8,21 +8,21 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {Source} from 'src/types'
 
 import {
-  getKapacitor,
   createKapacitor,
-  updateKapacitor,
+  getKapacitor,
   pingKapacitor,
+  updateKapacitor,
 } from 'src/shared/apis'
 
 import KapacitorForm from '../components/KapacitorForm'
 
 import {
-  NOTIFY_KAPACITOR_CONNECTION_FAILED,
-  NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN,
-  NOTIFY_KAPACITOR_UPDATED,
-  NOTIFY_KAPACITOR_UPDATE_FAILED,
-  NOTIFY_KAPACITOR_CREATED,
-  NOTIFY_KAPACITOR_CREATION_FAILED,
+  notifyKapacitorConnectionFailed,
+  notifyKapacitorCreated,
+  notifyKapacitorCreateFailed,
+  notifyKapacitorNameAlreadyTaken,
+  notifyKapacitorUpdateFailed,
+  notifyKapacitorUpdated,
 } from 'src/shared/copy/notifications'
 
 export const defaultName = 'My Kapacitor'
@@ -68,14 +68,14 @@ export class KapacitorPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
+      exists: false,
       kapacitor: this.defaultKapacitor,
-      exists: false
     }
 
     this.handleSubmit = this.handleSubmit.bind(this)
   }
 
-  async componentDidMount() {
+  public async componentDidMount() {
     const {source, params: {id}, notify} = this.props
     if (!id) {
       return
@@ -87,22 +87,22 @@ export class KapacitorPage extends PureComponent<Props, State> {
       await this.checkKapacitorConnection(kapacitor)
     } catch (error) {
       console.error('Could not get kapacitor: ', error)
-      notify(NOTIFY_KAPACITOR_CONNECTION_FAILED)
+      notify(notifyKapacitorConnectionFailed())
     }
   }
 
-  handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
+  public handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {checked} = e.target
 
     this.setState({
       kapacitor: {
         ...this.state.kapacitor,
-        insecureSkipVerify: checked
-      }
+        insecureSkipVerify: checked,
+      },
     })
   }
 
-  handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  public handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {value, name} = e.target
 
     this.setState(prevState => {
@@ -111,11 +111,11 @@ export class KapacitorPage extends PureComponent<Props, State> {
     })
   }
 
-  handleChangeUrl = e => {
+  public handleChangeUrl = e => {
     this.setState({kapacitor: {...this.state.kapacitor, url: e.target.value}})
   }
 
-  handleSubmit = async e => {
+  public handleSubmit = async e => {
     e.preventDefault()
     const {
       notify,
@@ -131,7 +131,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     const isNew = !params.id
 
     if (isNew && isNameTaken) {
-      notify(NOTIFY_KAPACITOR_NAME_ALREADY_TAKEN)
+      notify(notifyKapacitorNameAlreadyTaken)
       return
     }
 
@@ -140,10 +140,10 @@ export class KapacitorPage extends PureComponent<Props, State> {
         const {data} = await updateKapacitor(kapacitor)
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
-        notify(NOTIFY_KAPACITOR_UPDATED)
+        notify(notifyKapacitorUpdated())
       } catch (error) {
         console.error(error)
-        notify(NOTIFY_KAPACITOR_UPDATE_FAILED)
+        notify(notifyKapacitorUpdateFailed())
       }
     } else {
       try {
@@ -152,55 +152,23 @@ export class KapacitorPage extends PureComponent<Props, State> {
         this.setState({kapacitor: data})
         this.checkKapacitorConnection(data)
         router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-        notify(NOTIFY_KAPACITOR_CREATED)
+        notify(notifyKapacitorCreated())
       } catch (error) {
         console.error(error)
-        notify(NOTIFY_KAPACITOR_CREATION_FAILED)
+        notify(notifyKapacitorCreateFailed())
       }
     }
   }
 
-  handleResetToDefaults = e => {
+  public handleResetToDefaults = e => {
     e.preventDefault()
     this.setState({kapacitor: {...this.defaultKapacitor}})
   }
 
-  private get defaultKapacitor() {
-    return {
-      url: this.parseKapacitorURL(),
-      name: defaultName,
-      username: '',
-      password: '',
-      active: false,
-      insecureSkipVerify: false,
-      links: {
-        self: '',
-      },
-    }
-  }
-
-  private checkKapacitorConnection = async (kapacitor: Kapacitor) => {
-    try {
-      await pingKapacitor(kapacitor)
-      this.setState({exists: true})
-    } catch (error) {
-      console.error(error)
-      this.setState({exists: false})
-      this.props.notify(NOTIFY_KAPACITOR_CONNECTION_FAILED)
-    }
-  }
-
-  private parseKapacitorURL = () => {
-    const parser = document.createElement('a')
-    parser.href = this.props.source.url
-
-    return `${parser.protocol}//${parser.hostname}:${kapacitorPort}`
-  }
-
-  render() {
+  public render() {
     const {source, location, params, notify} = this.props
     const hash = (location && location.hash) || (params && params.hash) || ''
-    const {kapacitor, exists} = this.state
+    const {exists, kapacitor} = this.state
 
     return (
       <KapacitorForm
@@ -216,6 +184,38 @@ export class KapacitorPage extends PureComponent<Props, State> {
         onCheckboxChange={this.handleCheckboxChange}
       />
     )
+  }
+
+  private get defaultKapacitor() {
+    return {
+      active: false,
+      insecureSkipVerify: false,
+      links: {
+        self: '',
+      },
+      name: defaultName,
+      password: '',
+      url: this.parseKapacitorURL(),
+      username: '',
+    }
+  }
+
+  private checkKapacitorConnection = async (kapacitor: Kapacitor) => {
+    try {
+      await pingKapacitor(kapacitor)
+      this.setState({exists: true})
+    } catch (error) {
+      console.error(error)
+      this.setState({exists: false})
+      this.props.notify(notifyKapacitorConnectionFailed())
+    }
+  }
+
+  private parseKapacitorURL = () => {
+    const parser = document.createElement('a')
+    parser.href = this.props.source.url
+
+    return `${parser.protocol}//${parser.hostname}:${kapacitorPort}`
   }
 }
 

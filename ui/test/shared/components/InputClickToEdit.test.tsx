@@ -5,27 +5,27 @@ import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
-    wrapperClass: '',
-    value: '',
-    onChange: () => {},
-    onBlur: () => {},
-    disabled: false,
-    tabIndex: 0,
-    placeholder: '',
     appearAsNormalInput: false,
+    disabled: false,
+    onBlur: () => {},
+    onChange: () => {},
+    placeholder: '',
+    tabIndex: 0,
+    value: '',
+    wrapperClass: '',
     ...override,
   }
 
   const defaultState = {
-    isEditing: false,
     initialValue: '',
+    isEditing: false,
   }
 
   const inputClickToEdit = shallow(<InputClickToEdit {...props} />)
   return {
-    props,
     defaultState,
     inputClickToEdit,
+    props,
   }
 }
 

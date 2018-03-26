@@ -2,101 +2,261 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 import classnames from 'classnames'
-import isEmpty from 'lodash/isEmpty'
 
-import {MultiGrid} from 'react-virtualized'
+import {MultiGrid, ColumnSizer} from 'react-virtualized'
 import moment from 'moment'
 
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
 import {
-  NULL_COLUMN_INDEX,
-  NULL_ROW_INDEX,
+  NULL_ARRAY_INDEX,
   NULL_HOVER_TIME,
   TIME_FORMAT_DEFAULT,
-  TIME_COLUMN_DEFAULT,
+  TIME_FIELD_DEFAULT,
+  ASCENDING,
+  DESCENDING,
+  FIX_FIRST_COLUMN_DEFAULT,
+  VERTICAL_TIME_AXIS_DEFAULT,
+  calculateTimeColumnWidth,
 } from 'src/shared/constants/tableGraph'
+const DEFAULT_SORT = ASCENDING
+
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
+
+const filterInvisibleColumns = (data, fieldNames) => {
+  const visibility = {}
+  const filteredData = data.map((row, i) => {
+    return row.filter((col, j) => {
+      if (i === 0) {
+        const foundField = fieldNames.find(field => field.internalName === col)
+        visibility[j] = foundField ? foundField.visible : true
+      }
+      return visibility[j]
+    })
+  })
+  return filteredData[0].length ? filteredData : [[]]
+}
+
+const processData = (
+  data,
+  sortFieldName,
+  direction,
+  verticalTimeAxis,
+  fieldNames
+) => {
+  const sortIndex = _.indexOf(data[0], sortFieldName)
+  const sortedData = [
+    data[0],
+    ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
+  ]
+  const filteredData = filterInvisibleColumns(sortedData, fieldNames)
+  const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
+
+  return {processedData}
+}
 
 class TableGraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
       data: [[]],
-      hoveredColumnIndex: NULL_COLUMN_INDEX,
-      hoveredRowIndex: NULL_ROW_INDEX,
-      sortByColumnIndex: -1,
+      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
+      processedData: [[]],
+      hoveredColumnIndex: NULL_ARRAY_INDEX,
+      hoveredRowIndex: NULL_ARRAY_INDEX,
+      sortField: '',
+      sortDirection: DEFAULT_SORT,
     }
   }
 
   componentWillReceiveProps(nextProps) {
-    const {data} = timeSeriesToTableGraph(nextProps.data)
+    const {labels, data} = timeSeriesToTableGraph(nextProps.data)
+    if (_.isEmpty(data[0])) {
+      return
+    }
 
-    const {tableOptions: {sortBy: {internalName}}} = nextProps
-    const sortByColumnIndex = _.indexOf(data[0], internalName)
+    const {sortField, sortDirection} = this.state
+    const {
+      tableOptions: {
+        sortBy: {internalName},
+        fieldNames,
+        verticalTimeAxis,
+        timeFormat,
+      },
+      setDataLabels,
+    } = nextProps
 
-    const sortedData = _.sortBy(_.drop(data, 1), sortByColumnIndex)
-    this.setState({data: [data[0], ...sortedData], sortByColumnIndex})
-  }
-
-  calcHoverTimeRow = (data, hoverTime) =>
-    !isEmpty(data) && hoverTime !== NULL_HOVER_TIME
-      ? data.findIndex(
-          row => row[0] && _.isNumber(row[0]) && row[0] >= hoverTime
-        )
-      : undefined
-
-  handleHover = (columnIndex, rowIndex) => () => {
-    if (this.props.onSetHoverTime) {
-      const {data} = this.state
-      this.props.onSetHoverTime(data[rowIndex][0].toString())
+    if (timeFormat !== this.props.tableOptions.timeFormat) {
       this.setState({
-        hoveredColumnIndex: columnIndex,
-        hoveredRowIndex: rowIndex,
+        timeColumnWidth: calculateTimeColumnWidth(timeFormat),
       })
     }
+
+    if (setDataLabels) {
+      setDataLabels(labels)
+    }
+
+    let direction, sortFieldName
+    if (
+      _.isEmpty(sortField) ||
+      _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
+        _.get(nextProps, ['tableOptions', 'sortBy', 'internalName'], '')
+    ) {
+      direction = DEFAULT_SORT
+      sortFieldName = internalName
+    } else {
+      direction = sortDirection
+      sortFieldName = sortField
+    }
+
+    const {processedData} = processData(
+      data,
+      sortFieldName,
+      direction,
+      verticalTimeAxis,
+      fieldNames
+    )
+
+    this.setState({
+      data,
+      processedData,
+      sortField: sortFieldName,
+      sortDirection: direction,
+    })
+  }
+
+  calcHoverTimeIndex = (data, hoverTime, verticalTimeAxis) => {
+    if (_.isEmpty(data) || hoverTime === NULL_HOVER_TIME) {
+      return undefined
+    }
+    if (verticalTimeAxis) {
+      return data.findIndex(
+        row => row[0] && _.isNumber(row[0]) && row[0] >= hoverTime
+      )
+    }
+    return data[0].findIndex(d => _.isNumber(d) && d >= hoverTime)
+  }
+
+  handleHover = (columnIndex, rowIndex) => () => {
+    const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
+    const {data} = this.state
+    if (rowIndex === 0 && verticalTimeAxis) {
+      return
+    }
+    if (onSetHoverTime) {
+      const hoverTime = verticalTimeAxis
+        ? data[rowIndex][0]
+        : data[columnIndex][0]
+      onSetHoverTime(hoverTime.toString())
+    }
+    this.setState({
+      hoveredColumnIndex: columnIndex,
+      hoveredRowIndex: rowIndex,
+    })
   }
 
   handleMouseOut = () => {
     if (this.props.onSetHoverTime) {
       this.props.onSetHoverTime(NULL_HOVER_TIME)
       this.setState({
-        hoveredColumnIndex: NULL_COLUMN_INDEX,
-        hoveredRowIndex: NULL_ROW_INDEX,
+        hoveredColumnIndex: NULL_ARRAY_INDEX,
+        hoveredRowIndex: NULL_ARRAY_INDEX,
       })
     }
   }
 
-  cellRenderer = ({columnIndex, rowIndex, key, style, parent}) => {
-    const {hoveredColumnIndex, hoveredRowIndex, data} = this.state
-    const {colors} = this.props
-
-    const columnCount = _.get(data, ['0', 'length'], 0)
-    const rowCount = data.length
+  handleClickFieldName = fieldName => () => {
     const {tableOptions} = this.props
-    const timeFormat = _.get(tableOptions, 'timeFormat', TIME_FORMAT_DEFAULT)
-    const columnNames = _.get(tableOptions, 'columnNames', [
-      TIME_COLUMN_DEFAULT,
-    ])
+    const {data, sortField, sortDirection} = this.state
+    const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
+    const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
+
+    let direction
+    if (fieldName === sortField) {
+      direction = sortDirection === ASCENDING ? DESCENDING : ASCENDING
+    } else {
+      direction = DEFAULT_SORT
+    }
+
+    const {processedData} = processData(
+      data,
+      fieldName,
+      direction,
+      verticalTimeAxis,
+      fieldNames
+    )
+
+    this.setState({
+      processedData,
+      sortField: fieldName,
+      sortDirection: direction,
+    })
+  }
+
+  calculateColumnWidth = columnSizerWidth => column => {
+    const {index} = column
+    const {tableOptions: {verticalTimeAxis}} = this.props
+    const {timeColumnWidth, processedData} = this.state
+
+    const labels = verticalTimeAxis
+      ? _.unzip(processedData)[0]
+      : processedData[0]
+
+    if (labels.length > 0) {
+      return verticalTimeAxis && labels[index] === 'time'
+        ? timeColumnWidth
+        : columnSizerWidth
+    }
+
+    return columnSizerWidth
+  }
+
+  cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
+    const {
+      hoveredColumnIndex,
+      hoveredRowIndex,
+      processedData,
+      sortField,
+      sortDirection,
+    } = this.state
+    const {tableOptions, colors} = this.props
+
+    const {
+      timeFormat = TIME_FORMAT_DEFAULT,
+      verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
+      fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
+      fieldNames = [TIME_FIELD_DEFAULT],
+    } = tableOptions
+
+    const cellData = processedData[rowIndex][columnIndex]
+
+    const timeField = fieldNames.find(
+      field => field.internalName === TIME_FIELD_DEFAULT.internalName
+    )
+    const visibleTime = _.get(timeField, 'visible', true)
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
-    const isFixedColumn = rowIndex > 0 && columnIndex === 0
-    const isTimeData = isFixedColumn
+    const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
+    const isTimeData =
+      visibleTime &&
+      (verticalTimeAxis ? rowIndex > 0 && columnIndex === 0 : isFixedRow)
+    const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
-    const isLastRow = rowIndex === rowCount - 1
-    const isLastColumn = columnIndex === columnCount - 1
-    const isHighlighted =
+    const dataIsNumerical = _.isNumber(cellData)
+    const isHighlightedRow =
       rowIndex === parent.props.scrollToRow ||
-      (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0) ||
+      (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0)
+    const isHighlightedColumn =
+      columnIndex === parent.props.scrollToColumn ||
       (columnIndex === hoveredColumnIndex && hoveredColumnIndex !== 0)
-    const dataIsNumerical = _.isNumber(data[rowIndex][columnIndex])
 
     let cellStyle = style
 
     if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
-      const {bgColor, textColor} = generateThresholdsListHexs(
+      const {bgColor, textColor} = generateThresholdsListHexs({
         colors,
-        data[rowIndex][columnIndex]
-      )
+        lastValue: cellData,
+        cellType: 'table',
+      })
 
       cellStyle = {
         ...style,
@@ -105,51 +265,80 @@ class TableGraph extends Component {
       }
     }
 
+    const foundField =
+      isFieldName && fieldNames.find(field => field.internalName === cellData)
+    const fieldName =
+      foundField && (foundField.displayName || foundField.internalName)
+
     const cellClass = classnames('table-graph-cell', {
       'table-graph-cell__fixed-row': isFixedRow,
       'table-graph-cell__fixed-column': isFixedColumn,
       'table-graph-cell__fixed-corner': isFixedCorner,
-      'table-graph-cell__last-row': isLastRow,
-      'table-graph-cell__last-column': isLastColumn,
-      'table-graph-cell__highlight': isHighlighted,
+      'table-graph-cell__highlight-row': isHighlightedRow,
+      'table-graph-cell__highlight-column': isHighlightedColumn,
       'table-graph-cell__numerical': dataIsNumerical,
+      'table-graph-cell__field-name': isFieldName,
+      'table-graph-cell__sort-asc':
+        isFieldName && sortField === cellData && sortDirection === ASCENDING,
+      'table-graph-cell__sort-desc':
+        isFieldName && sortField === cellData && sortDirection === DESCENDING,
     })
 
-    const cellData = data[rowIndex][columnIndex]
-    const foundColumn = columnNames.find(
-      column => column.internalName === cellData
-    )
-    const columnName =
-      foundColumn && (foundColumn.displayName || foundColumn.internalName)
+    const cellContents = isTimeData
+      ? `${moment(cellData).format(timeFormat)}`
+      : fieldName || `${cellData}`
 
     return (
       <div
         key={key}
         style={cellStyle}
         className={cellClass}
+        onClick={isFieldName ? this.handleClickFieldName(cellData) : null}
         onMouseOver={this.handleHover(columnIndex, rowIndex)}
+        title={cellContents}
       >
-        {isTimeData
-          ? `${moment(cellData).format(timeFormat)}`
-          : columnName || `${cellData}`}
+        {cellContents}
       </div>
     )
   }
 
   render() {
-    const {sortByColumnIndex, hoveredColumnIndex, hoveredRowIndex} = this.state
+    const {
+      hoveredColumnIndex,
+      hoveredRowIndex,
+      sortField,
+      sortDirection,
+      processedData,
+      data,
+    } = this.state
     const {hoverTime, tableOptions, colors} = this.props
-    const {data} = this.state
-    const columnCount = _.get(data, ['0', 'length'], 0)
-    const rowCount = data.length
-    const COLUMN_WIDTH = 300
+    const {
+      verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
+      fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
+    } = tableOptions
+
+    const columnCount = _.get(processedData, ['0', 'length'], 0)
+    const rowCount = columnCount === 0 ? 0 : processedData.length
+
+    const COLUMN_MIN_WIDTH = 98
+    const COLUMN_MAX_WIDTH = 1000
     const ROW_HEIGHT = 30
-    const tableWidth = this.gridContainer ? this.gridContainer.clientWidth : 0
-    const tableHeight = this.gridContainer ? this.gridContainer.clientHeight : 0
-    const hoverTimeRow =
-      hoveredRowIndex === NULL_ROW_INDEX
-        ? this.calcHoverTimeRow(data, hoverTime)
+
+    const fixedColumnCount = fixFirstColumn && columnCount > 1 ? 1 : undefined
+
+    const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
+    const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
+
+    const hoverTimeIndex =
+      hoveredRowIndex === NULL_ARRAY_INDEX
+        ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
         : hoveredRowIndex
+    const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
+
+    const scrollToColumn =
+      !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
+    const scrollToRow =
+      !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
 
     return (
       <div
@@ -157,43 +346,69 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseOut={this.handleMouseOut}
       >
-        {!isEmpty(data) &&
-          <MultiGrid
+        {rowCount > 0 && (
+          <ColumnSizer
             columnCount={columnCount}
-            columnWidth={COLUMN_WIDTH}
-            rowCount={rowCount}
-            rowHeight={ROW_HEIGHT}
-            height={tableHeight}
+            columnMaxWidth={COLUMN_MAX_WIDTH}
+            columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
-            fixedColumnCount={1}
-            fixedRowCount={1}
-            enableFixedColumnScroll={true}
-            enableFixedRowScroll={true}
-            timeFormat={
-              tableOptions ? tableOptions.timeFormat : TIME_FORMAT_DEFAULT
-            }
-            columnNames={
-              tableOptions ? tableOptions.columnNames : [TIME_COLUMN_DEFAULT]
-            }
-            sortByColumnIndex={sortByColumnIndex}
-            scrollToRow={hoverTimeRow}
-            cellRenderer={this.cellRenderer}
-            hoveredColumnIndex={hoveredColumnIndex}
-            hoveredRowIndex={hoveredRowIndex}
-            hoverTime={hoverTime}
-            colors={colors}
-          />}
+          >
+            {({getColumnWidth, registerChild}) => (
+              <MultiGrid
+                ref={registerChild}
+                columnCount={columnCount}
+                columnWidth={this.calculateColumnWidth(getColumnWidth())}
+                rowCount={rowCount}
+                rowHeight={ROW_HEIGHT}
+                height={tableHeight}
+                width={tableWidth}
+                fixedColumnCount={fixedColumnCount}
+                fixedRowCount={1}
+                enableFixedColumnScroll={true}
+                enableFixedRowScroll={true}
+                scrollToRow={scrollToRow}
+                scrollToColumn={scrollToColumn}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                cellRenderer={this.cellRenderer}
+                hoveredColumnIndex={hoveredColumnIndex}
+                hoveredRowIndex={hoveredRowIndex}
+                hoverTime={hoverTime}
+                colors={colors}
+                tableOptions={tableOptions}
+                classNameBottomRightGrid="table-graph--scroll-window"
+              />
+            )}
+          </ColumnSizer>
+        )}
       </div>
     )
   }
 }
 
-const {arrayOf, number, shape, string, func} = PropTypes
+const {arrayOf, bool, number, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
   cellHeight: number,
   data: arrayOf(shape()),
-  tableOptions: shape({}),
+  tableOptions: shape({
+    timeFormat: string.isRequired,
+    verticalTimeAxis: bool.isRequired,
+    sortBy: shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    }).isRequired,
+    wrapping: string.isRequired,
+    fieldNames: arrayOf(
+      shape({
+        internalName: string.isRequired,
+        displayName: string.isRequired,
+        visible: bool.isRequired,
+      })
+    ).isRequired,
+    fixFirstColumn: bool,
+  }),
   hoverTime: string,
   onSetHoverTime: func,
   colors: arrayOf(
@@ -205,6 +420,7 @@ TableGraph.propTypes = {
       value: string.isRequired,
     }).isRequired
   ),
+  setDataLabels: func,
 }
 
 export default TableGraph

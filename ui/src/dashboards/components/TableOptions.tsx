@@ -2,46 +2,45 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import GraphOptionsCustomizeFields from 'src/dashboards/components/GraphOptionsCustomizeFields'
+import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFixFirstColumn'
+import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
+import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
+import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+
 import _ from 'lodash'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
-import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
-import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import GraphOptionsTextWrapping from 'src/dashboards/components/GraphOptionsTextWrapping'
-import GraphOptionsCustomizeColumns from 'src/dashboards/components/GraphOptionsCustomizeColumns'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
-import {TIME_COLUMN_DEFAULT} from 'src/shared/constants/tableGraph'
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
+import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 
-type TableColumn = {
+interface Option {
+  text: string
+  key: string
+}
+
+interface RenamableField {
   internalName: string
   displayName: string
+  visible: boolean
 }
 
-type Options = {
+interface Options {
   timeFormat: string
   verticalTimeAxis: boolean
-  sortBy: TableColumn
-  wrapping: string
-  columnNames: TableColumn[]
-}
-
-interface QueryConfig {
-  measurement: string
-  fields: {
-    alias: string
-    value: string
-  }[]
+  sortBy: RenamableField
+  fieldNames: RenamableField[]
+  fixFirstColumn: boolean
 }
 
 interface Props {
-  queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void
+  dataLabels: string[]
 }
 
 export class TableOptions extends PureComponent<Props, {}> {
@@ -49,84 +48,111 @@ export class TableOptions extends PureComponent<Props, {}> {
     super(props)
   }
 
-  get columnNames() {
-    const {tableOptions: {columnNames}} = this.props
-
-    return columnNames || []
+  get fieldNames() {
+    const {tableOptions: {fieldNames}} = this.props
+    return fieldNames || []
   }
 
   get timeColumn() {
-    return (this.columnNames.find(c => c.internalName === 'time')) || TIME_COLUMN_DEFAULT
+    return (
+      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
+    )
   }
 
-  get computedColumnNames() {
-    const {queryConfigs} = this.props
+  get computedFieldNames() {
+    const {dataLabels} = this.props
 
-    const queryFields = _.flatten(
-      queryConfigs.map(({measurement, fields}) => {
-        return fields.map(({alias}) => {
-          const internalName = `${measurement}.${alias}`
-          const existing = this.columnNames.find(
-            c => c.internalName === internalName
+    return _.isEmpty(dataLabels)
+      ? [this.timeColumn]
+      : dataLabels.map(label => {
+          const existing = this.fieldNames.find(f => f.internalName === label)
+          return (
+            existing || {internalName: label, displayName: '', visible: true}
           )
-          return existing || {internalName, displayName: ''}
         })
-      }))
-
-    return [this.timeColumn, ...queryFields]
   }
 
-  componentWillMount() {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    handleUpdateTableOptions({...tableOptions, columnNames: this.computedColumnNames})
-  }
-
-  handleToggleSingleStatType = () => {}
-
-  handleAddThreshold = () => {}
-
-  handleDeleteThreshold = () => () => {}
-
-  handleChooseColor = () => () => {}
-
-  handleChooseSortBy = option => {
+  public handleChooseSortBy = (option: Option) => {
     const {tableOptions, handleUpdateTableOptions} = this.props
-    const sortBy = {displayName: option.text, internalName: option.key}
+    const sortBy = {
+      displayName: option.text === option.key ? '' : option.text,
+      internalName: option.key,
+      visible: true,
+    }
 
     handleUpdateTableOptions({...tableOptions, sortBy})
   }
 
-  handleTimeFormatChange = timeFormat => {
+  public handleTimeFormatChange = timeFormat => {
     const {tableOptions, handleUpdateTableOptions} = this.props
     handleUpdateTableOptions({...tableOptions, timeFormat})
   }
 
-  handleToggleTimeAxis = () => {}
-
-  handleToggleTextWrapping = () => {}
-
-  handleColumnRename = column => {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {columnNames} = tableOptions
-    const updatedColumns = columnNames.map(
-      op => (op.internalName === column.internalName ? column : op)
-    )
-    handleUpdateTableOptions({...tableOptions, columnNames: updatedColumns})
+  public handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
   }
 
-  render() {
+  public handleToggleFixFirstColumn = () => {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const fixFirstColumn = !tableOptions.fixFirstColumn
+    handleUpdateTableOptions({...tableOptions, fixFirstColumn})
+  }
+
+  public handleFieldUpdate = field => {
+    const {handleUpdateTableOptions, tableOptions, dataLabels} = this.props
+    const {sortBy, fieldNames} = tableOptions
+    const fields =
+      fieldNames.length >= dataLabels.length
+        ? fieldNames
+        : this.computedFieldNames
+    const updatedFields = fields.map(
+      f => (f.internalName === field.internalName ? field : f)
+    )
+    const updatedSortBy =
+      sortBy.internalName === field.internalName
+        ? {...sortBy, displayName: field.displayName}
+        : sortBy
+
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: updatedFields,
+      sortBy: updatedSortBy,
+    })
+  }
+
+  public componentWillMount() {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: this.computedFieldNames,
+    })
+  }
+
+  public shouldComponentUpdate(nextProps) {
+    const {tableOptions, dataLabels} = this.props
+    const tableOptionsDifferent = !_.isEqual(
+      tableOptions,
+      nextProps.tableOptions
+    )
+    const dataLabelsDifferent = !_.isEqual(dataLabels, nextProps.dataLabels)
+
+    return tableOptionsDifferent || dataLabelsDifferent
+  }
+
+  public render() {
     const {
-      tableOptions: {timeFormat, columnNames: columns},
+      tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
       onResetFocus,
       tableOptions,
     } = this.props
 
-    const TimeAxis = 'vertical'
-
-    const tableSortByOptions = this.computedColumnNames.map(col => ({
-      text: col.displayName || col.internalName,
-      key: col.internalName,
+    const tableSortByOptions = this.computedFieldNames.map(field => ({
+      key: field.internalName,
+      text: field.displayName || field.internalName,
     }))
+
+    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
 
     return (
       <FancyScrollbar
@@ -141,22 +167,22 @@ export class TableOptions extends PureComponent<Props, {}> {
               onTimeFormatChange={this.handleTimeFormatChange}
             />
             <GraphOptionsTimeAxis
-              TimeAxis={TimeAxis}
-              onToggleTimeAxis={this.handleToggleTimeAxis}
+              verticalTimeAxis={verticalTimeAxis}
+              onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
             />
             <GraphOptionsSortBy
-              selected={tableOptions.sortBy || TIME_COLUMN_DEFAULT}
+              selected={tableOptions.sortBy || TIME_FIELD_DEFAULT}
               sortByOptions={tableSortByOptions}
               onChooseSortBy={this.handleChooseSortBy}
             />
-            <GraphOptionsTextWrapping
-              thresholdsListType="background"
-              onToggleTextWrapping={this.handleToggleTextWrapping}
+            <GraphOptionsFixFirstColumn
+              fixed={fixFirstColumn}
+              onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
             />
           </div>
-          <GraphOptionsCustomizeColumns
-            columns={columns}
-            onColumnRename={this.handleColumnRename}
+          <GraphOptionsCustomizeFields
+            fields={fields}
+            onFieldUpdate={this.handleFieldUpdate}
           />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">

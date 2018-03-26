@@ -1,0 +1,73 @@
+/*
+    Customize Fields
+    ----------------------------------------------------------------------------
+    Primarily used within Table Options inside Cell Editor Overlay
+*/
+
+.customizable-field {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  height: 30px;
+  margin-top: 8px;
+
+  &:first-of-type {
+    margin-top: 0;
+  }
+}
+
+.customizable-field--label,
+.customizable-field--label__hidden {
+  @include no-user-select();
+  height: 30px;
+  line-height: 30px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 11px;
+  border-radius: 4px;
+  width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.25s ease, color 0.25s ease;
+
+  > span {
+    margin-right: 5px;
+  }
+}
+
+.customizable-field--label {
+  color: $g14-chromium;
+  background-color: $g5-pepper;
+
+  &:hover {
+    cursor: pointer;
+    background-color: $g6-smoke;
+    color: $g17-whisper;
+  }
+}
+
+.customizable-field--label__hidden {
+  background-color: $g4-onyx;
+  color: $g8-storm;
+  font-style: italic;
+
+  &:hover {
+    cursor: pointer;
+    background-color: $g5-pepper;
+    color: $g13-mist;
+  }
+}
+
+.customizable-field--input {
+  margin-left: 4px;
+  width: calc(40% - 4px);
+  display: flex;
+  align-items: center;
+}
+.customizable-field .input-cte__empty {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,9 +1,10 @@
 import React, {PureComponent, SFC} from 'react'
+
 import classnames from 'classnames'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
 
-type Item = Object | string
+type Item = object | string
 
 interface ConfirmProps {
   buttonSize: string
@@ -35,7 +36,7 @@ export const Confirm: SFC<ConfirmProps> = ({
   onConfirm,
   icon,
   title,
-}) =>
+}) => (
   <button
     data-test="confirm"
     className={classnames('btn btn-success btn-square', {
@@ -47,8 +48,9 @@ export const Confirm: SFC<ConfirmProps> = ({
   >
     <span className={icon} />
   </button>
+)
 
-export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) =>
+export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) => (
   <button
     data-test="cancel"
     className={classnames('btn btn-info btn-square', {
@@ -58,62 +60,65 @@ export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) =>
   >
     <span className={icon} />
   </button>
+)
 
 class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
+  public static defaultProps: Partial<ConfirmButtonsProps> = {
+    buttonSize: 'btn-sm',
+    confirmTitle: 'Save',
+    onClickOutside: () => {},
+  }
+
   constructor(props) {
     super(props)
   }
 
-  public static defaultProps: Partial<ConfirmButtonsProps> = {
-    buttonSize: 'btn-sm',
-    onClickOutside: () => {},
-    confirmTitle: 'Save',
-  }
-
-  handleConfirm = item => () => {
+  public handleConfirm = item => () => {
     this.props.onConfirm(item)
   }
 
-  handleCancel = item => () => {
+  public handleCancel = item => () => {
     this.props.onCancel(item)
   }
 
-  handleClickOutside = () => {
+  public handleClickOutside = () => {
     this.props.onClickOutside(this.props.item)
   }
 
-  render() {
+  public render() {
     const {item, buttonSize, isDisabled, confirmLeft, confirmTitle} = this.props
 
-    return confirmLeft
-      ? <div className="confirm-buttons">
-          <Confirm
-            buttonSize={buttonSize}
-            isDisabled={isDisabled}
-            onConfirm={this.handleConfirm(item)}
-            icon="icon checkmark"
-            title={confirmTitle}
-          />
-          <Cancel
-            buttonSize={buttonSize}
-            onCancel={this.handleCancel(item)}
-            icon="icon remove"
-          />
-        </div>
-      : <div className="confirm-buttons">
-          <Cancel
-            buttonSize={buttonSize}
-            onCancel={this.handleCancel(item)}
-            icon="icon remove"
-          />
-          <Confirm
-            buttonSize={buttonSize}
-            isDisabled={isDisabled}
-            onConfirm={this.handleConfirm(item)}
-            icon="icon checkmark"
-            title={confirmTitle}
-          />
-        </div>
+    return confirmLeft ? (
+      <div className="confirm-buttons">
+        <Confirm
+          buttonSize={buttonSize}
+          isDisabled={isDisabled}
+          onConfirm={this.handleConfirm(item)}
+          icon="icon checkmark"
+          title={confirmTitle}
+        />
+        <Cancel
+          buttonSize={buttonSize}
+          onCancel={this.handleCancel(item)}
+          icon="icon remove"
+        />
+      </div>
+    ) : (
+      <div className="confirm-buttons">
+        <Cancel
+          buttonSize={buttonSize}
+          onCancel={this.handleCancel(item)}
+          icon="icon remove"
+        />
+        <Confirm
+          buttonSize={buttonSize}
+          isDisabled={isDisabled}
+          onConfirm={this.handleConfirm(item)}
+          icon="icon checkmark"
+          title={confirmTitle}
+        />
+      </div>
+    )
   }
 }
 
