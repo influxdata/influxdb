@@ -59,8 +59,8 @@ class TableGraph extends Component {
     super(props)
     this.state = {
       data: [[]],
-      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
       processedData: [[]],
+      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sortField: '',
@@ -139,7 +139,7 @@ class TableGraph extends Component {
   handleHover = (columnIndex, rowIndex) => () => {
     const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
     const {data} = this.state
-    if (rowIndex === 0 && verticalTimeAxis) {
+    if (verticalTimeAxis && rowIndex === 0) {
       return
     }
     if (onSetHoverTime) {
@@ -154,7 +154,7 @@ class TableGraph extends Component {
     })
   }
 
-  handleMouseOut = () => {
+  handleMouseLeave = () => {
     if (this.props.onSetHoverTime) {
       this.props.onSetHoverTime(NULL_HOVER_TIME)
       this.setState({
@@ -344,7 +344,7 @@ class TableGraph extends Component {
       <div
         className="table-graph-container"
         ref={gridContainer => (this.gridContainer = gridContainer)}
-        onMouseOut={this.handleMouseOut}
+        onMouseLeave={this.handleMouseLeave}
       >
         {rowCount > 0 && (
           <ColumnSizer
