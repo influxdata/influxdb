@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import DropdownInput from 'src/shared/components/DropdownInput'
 
-import OnClickOutside from 'src/shared/components/OnClickOutside'
+import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 interface State {
   isOpen: boolean
@@ -28,31 +28,33 @@ export class FuncsButton extends PureComponent<Props, State> {
     const {isOpen, inputText} = this.state
 
     return (
-      <div className={`dropdown dashboard-switcher ${isOpen ? 'open' : ''}`}>
-        <button
-          className="btn btn-square btn-default btn-sm dropdown-toggle"
-          onClick={this.handleClick}
-        >
-          <span className="icon plus" />
-        </button>
-        <ul className="dropdown-menu funcs">
-          <DropdownInput
-            buttonSize="btn-xs"
-            buttonColor="btn-default"
-            onFilterChange={this.handleInputChange}
-            onFilterKeyPress={this.handleKeyDown}
-            searchTerm={inputText}
-          />
-          <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={240}>
-            {isOpen &&
-              this.availableFuncs.map((func, i) => (
-                <li className="dropdown-item func" key={i}>
-                  <a>{func}</a>
-                </li>
-              ))}
-          </FancyScrollbar>
-        </ul>
-      </div>
+      <ClickOutside onClickOutside={this.handleClickOutside}>
+        <div className={`dropdown dashboard-switcher ${isOpen ? 'open' : ''}`}>
+          <button
+            className="btn btn-square btn-default btn-sm dropdown-toggle"
+            onClick={this.handleClick}
+          >
+            <span className="icon plus" />
+          </button>
+          <ul className="dropdown-menu funcs">
+            <DropdownInput
+              buttonSize="btn-xs"
+              buttonColor="btn-default"
+              onFilterChange={this.handleInputChange}
+              onFilterKeyPress={this.handleKeyDown}
+              searchTerm={inputText}
+            />
+            <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={240}>
+              {isOpen &&
+                this.availableFuncs.map((func, i) => (
+                  <li className="dropdown-item func" key={i}>
+                    <a>{func}</a>
+                  </li>
+                ))}
+            </FancyScrollbar>
+          </ul>
+        </div>
+      </ClickOutside>
     )
   }
 
@@ -78,10 +80,9 @@ export class FuncsButton extends PureComponent<Props, State> {
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  // tslint:disable-next-line
   private handleClickOutside = () => {
     this.setState({isOpen: false})
   }
 }
 
-export default OnClickOutside(FuncsButton)
+export default FuncsButton
