@@ -1,29 +1,31 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import DropdownInput from 'src/shared/components/DropdownInput'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
 
 interface State {
   isOpen: boolean
+  inputText: string
 }
 
 interface Props {
   funcs: string[]
 }
 
-class FuncsButton extends PureComponent<Props, State> {
+export class FuncsButton extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
     this.state = {
       isOpen: false,
+      inputText: '',
     }
   }
 
   public render() {
-    const {isOpen} = this.state
-    const {funcs} = this.props
+    const {isOpen, inputText} = this.state
 
     return (
       <div className={`dropdown dashboard-switcher ${isOpen ? 'open' : ''}`}>
@@ -34,14 +36,17 @@ class FuncsButton extends PureComponent<Props, State> {
           <span className="icon plus" />
         </button>
         <ul className="dropdown-menu funcs">
+          <DropdownInput
+            buttonSize="btn-xs"
+            buttonColor="btn-default"
+            onFilterChange={this.handleInputChange}
+            onFilterKeyPress={this.handleKeyDown}
+            searchTerm={inputText}
+          />
           <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={240}>
             {isOpen &&
-              funcs.map((func, i) => (
-                <li
-                  className="dropdown-item func"
-                  data-test="func-item"
-                  key={i}
-                >
+              this.availableFuncs.map((func, i) => (
+                <li className="dropdown-item func" key={i}>
                   <a>{func}</a>
                 </li>
               ))}
@@ -49,6 +54,24 @@ class FuncsButton extends PureComponent<Props, State> {
         </ul>
       </div>
     )
+  }
+
+  private get availableFuncs(): string[] {
+    return this.props.funcs.filter(f =>
+      f.toLowerCase().includes(this.state.inputText)
+    )
+  }
+
+  private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({inputText: e.target.value})
+  }
+
+  private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Escape') {
+      return
+    }
+
+    this.setState({inputText: '', isOpen: false})
   }
 
   private handleClick = () => {

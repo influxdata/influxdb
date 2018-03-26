@@ -1,6 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
-import FuncsButton from 'src/ifql/components/FuncsButton'
+import {FuncsButton} from 'src/ifql/components/FuncsButton'
+import DropdownInput from 'src/shared/components/DropdownInput'
 
 const setup = (override = {}) => {
   const props = {
@@ -39,13 +40,66 @@ describe('IFQL.Components.FuncsButton', () => {
       it('displays the list of functions', () => {
         const {wrapper} = setup()
 
-        wrapper.simulate('click')
+        const dropdownButton = wrapper.find('button')
+        dropdownButton.simulate('click')
 
-        const list = wrapper.find({'data-test': 'func-item'})
+        const list = wrapper.find('.func')
 
         expect(list.length).toBe(2)
         expect(list.first().text()).toBe('f1')
         expect(list.last().text()).toBe('f2')
+      })
+    })
+
+    describe('filtering the list', () => {
+      it('displays the filtered funcs', () => {
+        const {wrapper} = setup()
+
+        const dropdownButton = wrapper.find('button')
+        dropdownButton.simulate('click')
+
+        let list = wrapper.find('.func')
+
+        expect(list.length).toBe(2)
+        expect(list.first().text()).toBe('f1')
+        expect(list.last().text()).toBe('f2')
+
+        const input = wrapper
+          .find(DropdownInput)
+          .dive()
+          .find('input')
+
+        input.simulate('change', {target: {value: '2'}})
+        wrapper.update()
+
+        list = wrapper.find('.func')
+
+        expect(list.length).toBe(1)
+        expect(list.first().text()).toBe('f2')
+      })
+    })
+
+    describe('exiting the list', () => {
+      it('closes when ESC is pressed', () => {
+        const {wrapper} = setup()
+
+        const dropdownButton = wrapper.find('button')
+        dropdownButton.simulate('click')
+        let list = wrapper.find('.func')
+
+        expect(list.exists()).toBe(true)
+
+        const input = wrapper
+          .find(DropdownInput)
+          .dive()
+          .find('input')
+
+        input.simulate('keyDown', {key: 'Escape'})
+        wrapper.update()
+
+        list = wrapper.find('.func')
+
+        expect(list.exists()).toBe(false)
       })
     })
   })
