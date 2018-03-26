@@ -1,5 +1,9 @@
 import React, {PureComponent} from 'react'
 
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+
+import OnClickOutside from 'src/shared/components/OnClickOutside'
+
 interface State {
   isOpen: boolean
 }
@@ -29,13 +33,19 @@ class FuncsButton extends PureComponent<Props, State> {
         >
           <span className="icon plus" />
         </button>
-        <ul className="dropdown-menu">
-          {isOpen &&
-            funcs.map((func, i) => (
-              <li className="dropdown-item func" data-test="func-item" key={i}>
-                <a>{func}</a>
-              </li>
-            ))}
+        <ul className="dropdown-menu funcs">
+          <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={240}>
+            {isOpen &&
+              funcs.map((func, i) => (
+                <li
+                  className="dropdown-item func"
+                  data-test="func-item"
+                  key={i}
+                >
+                  <a>{func}</a>
+                </li>
+              ))}
+          </FancyScrollbar>
         </ul>
       </div>
     )
@@ -44,6 +54,11 @@ class FuncsButton extends PureComponent<Props, State> {
   private handleClick = () => {
     this.setState({isOpen: !this.state.isOpen})
   }
+
+  // tslint:disable-next-line
+  private handleClickOutside = () => {
+    this.setState({isOpen: false})
+  }
 }
 
-export default FuncsButton
+export default OnClickOutside(FuncsButton)
