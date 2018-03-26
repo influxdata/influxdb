@@ -677,7 +677,10 @@ func (c *compiledField) compileTrigFunction(expr *influxql.Call) error {
 
 func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) error {
 	for _, d := range stmt.Dimensions {
-		switch expr := d.Expr.(type) {
+		// Reduce the expression before attempting anything. Do not evaluate the call.
+		expr := influxql.Reduce(d.Expr, nil)
+
+		switch expr := expr.(type) {
 		case *influxql.VarRef:
 			if strings.ToLower(expr.Val) == "time" {
 				return errors.New("time() is a function and expects at least one argument")
@@ -709,6 +712,11 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 						}
 						now := c.Options.Now
 						c.Interval.Offset = now.Sub(now.Truncate(c.Interval.Duration))
+
+						// Use the evaluated offset to replace the argument. Ideally, we would
+						// use the interval assigned above, but the query engine hasn't been changed
+						// to use the compiler information yet.
+						expr.Args[1] = &influxql.DurationLiteral{Val: c.Interval.Offset}
 					case *influxql.StringLiteral:
 						// If literal looks like a date time then parse it as a time literal.
 						if lit.IsTimeLiteral() {
@@ -730,6 +738,9 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 		default:
 			return errors.New("only time and tag dimensions allowed")
 		}
+
+		// Assign the reduced/changed expression to the dimension.
+		d.Expr = expr
 	}
 	return nil
 }
