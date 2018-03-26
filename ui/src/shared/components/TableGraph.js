@@ -89,6 +89,7 @@ class TableGraph extends Component {
       this.setState({
         timeColumnWidth: calculateTimeColumnWidth(timeFormat),
       })
+      this.multiGridRef.forceUpdateGrids()
     }
 
     if (setDataLabels) {
@@ -196,18 +197,27 @@ class TableGraph extends Component {
     const {index} = column
     const {tableOptions: {verticalTimeAxis}} = this.props
     const {timeColumnWidth, processedData} = this.state
+    const columnCount = _.get(processedData, ['0', 'length'], 0)
+    let adjustedColumnSizerWidth = columnSizerWidth
 
     const labels = verticalTimeAxis
       ? _.unzip(processedData)[0]
       : processedData[0]
 
     if (labels.length > 0) {
+      if (columnSizerWidth !== timeColumnWidth) {
+        const difference = columnSizerWidth - timeColumnWidth
+        const increment = Math.ceil(difference / columnCount)
+
+        adjustedColumnSizerWidth = columnSizerWidth + increment
+      }
+
       return verticalTimeAxis && labels[index] === 'time'
         ? timeColumnWidth
-        : columnSizerWidth
+        : adjustedColumnSizerWidth
     }
 
-    return columnSizerWidth
+    return adjustedColumnSizerWidth
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
@@ -302,10 +312,16 @@ class TableGraph extends Component {
     )
   }
 
+  getMultiGridRef = (r, registerChild) => {
+    this.multiGridRef = r
+    return registerChild(r)
+  }
+
   render() {
     const {
       hoveredColumnIndex,
       hoveredRowIndex,
+      timeColumnWidth,
       sortField,
       sortDirection,
       processedData,
@@ -352,16 +368,17 @@ class TableGraph extends Component {
             columnMaxWidth={COLUMN_MAX_WIDTH}
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
+            timeColumnWidth={timeColumnWidth}
           >
-            {({getColumnWidth, registerChild}) => (
+            {({adjustedWidth, columnWidth, registerChild}) => (
               <MultiGrid
-                ref={registerChild}
+                ref={r => this.getMultiGridRef(r, registerChild)}
                 columnCount={columnCount}
-                columnWidth={this.calculateColumnWidth(getColumnWidth())}
+                columnWidth={this.calculateColumnWidth(columnWidth)}
                 rowCount={rowCount}
                 rowHeight={ROW_HEIGHT}
                 height={tableHeight}
-                width={tableWidth}
+                width={adjustedWidth}
                 fixedColumnCount={fixedColumnCount}
                 fixedRowCount={1}
                 enableFixedColumnScroll={true}
@@ -376,6 +393,7 @@ class TableGraph extends Component {
                 hoverTime={hoverTime}
                 colors={colors}
                 tableOptions={tableOptions}
+                timeColumnWidth={timeColumnWidth}
                 classNameBottomRightGrid="table-graph--scroll-window"
               />
             )}
