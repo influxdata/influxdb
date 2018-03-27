@@ -1,3 +1,10 @@
+v1.5.2 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#9638](https://github.com/influxdata/influxdb/pull/9638): backport: check for failure case where backup dir has no manifest files.
+
 v1.5.1 [2018-03-20]
 -------------------
 
