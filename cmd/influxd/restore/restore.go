@@ -184,6 +184,10 @@ func (cmd *Command) parseFlags(args []string) error {
 			cmd.manifestMeta, cmd.manifestFiles, err = backup_util.LoadIncremental(cmd.backupFilesPath)
 			if err != nil {
 				return fmt.Errorf("restore failed while processing manifest files: %s", err.Error())
+			} else if cmd.manifestMeta == nil {
+				// No manifest files found.
+				return fmt.Errorf("No manifest files found in: %s\n", cmd.backupFilesPath)
+
 			}
 		}
 	} else {
