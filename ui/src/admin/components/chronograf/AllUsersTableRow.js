@@ -38,7 +38,9 @@ const AllUsersTableRow = ({
     name: organizations.find(o => r.organization === o.id).name,
   }))
 
-  const wrappedDelete = _.curry(onDelete, user)
+  const wrappedDelete = () => {
+    onDelete(user)
+  }
 
   const removeWarning = userIsMe
     ? 'Delete your user record\nand log yourself out?'
