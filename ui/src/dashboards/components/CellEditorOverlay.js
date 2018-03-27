@@ -107,7 +107,7 @@ class CellEditorOverlay extends Component {
 
   handleSaveCell = () => {
     const {queriesWorkingDraft, staticLegend} = this.state
-    const {cell, thresholdsListColors, gaugeColors} = this.props
+    const {cell, thresholdsListColors, gaugeColors, lineColors} = this.props
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
@@ -132,6 +132,12 @@ class CellEditorOverlay extends Component {
       case 'table': {
         colors = stringifyColorValues(thresholdsListColors)
         break
+      }
+      case 'bar':
+      case 'line':
+      case 'line-stacked':
+      case 'line-stepplot': {
+        colors = stringifyColorValues(lineColors)
       }
     }
 
@@ -392,6 +398,7 @@ CellEditorOverlay.propTypes = {
   thresholdsListType: string.isRequired,
   thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
   gaugeColors: arrayOf(shape({}).isRequired).isRequired,
+  lineColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
 CEOBottom.propTypes = {

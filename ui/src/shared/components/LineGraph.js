@@ -6,8 +6,6 @@ import shallowCompare from 'react-addons-shallow-compare'
 import SingleStat from 'src/shared/components/SingleStat'
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 
-import {SINGLE_STAT_LINE_COLORS} from 'src/shared/graphs/helpers'
-
 class LineGraph extends Component {
   constructor(props) {
     super(props)
@@ -84,10 +82,6 @@ class LineGraph extends Component {
       connectSeparatedPoints: true,
     }
 
-    const lineColors = showSingleStat
-      ? SINGLE_STAT_LINE_COLORS
-      : overrideLineColors
-
     const containerStyle = {
       width: 'calc(100% - 32px)',
       height: 'calc(100% - 16px)',
@@ -117,7 +111,8 @@ class LineGraph extends Component {
           resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
-          overrideLineColors={lineColors}
+          colors={colors}
+          overrideLineColors={overrideLineColors}
           containerStyle={containerStyle}
           staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}

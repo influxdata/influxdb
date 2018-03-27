@@ -267,6 +267,7 @@ class DashboardPage extends Component {
       showTemplateControlBar,
       dashboard,
       dashboards,
+      lineColors,
       gaugeColors,
       autoRefresh,
       selectedCell,
@@ -383,6 +384,7 @@ class DashboardPage extends Component {
             thresholdsListType={thresholdsListType}
             thresholdsListColors={thresholdsListColors}
             gaugeColors={gaugeColors}
+            lineColors={lineColors}
           />
         ) : null}
         <DashboardHeader
@@ -515,6 +517,7 @@ DashboardPage.propTypes = {
   thresholdsListType: string.isRequired,
   thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
   gaugeColors: arrayOf(shape({}).isRequired).isRequired,
+  lineColors: arrayOf(shape({}).isRequired).isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -532,6 +535,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
       thresholdsListType,
       thresholdsListColors,
       gaugeColors,
+      lineColors,
     },
   } = state
 
@@ -562,6 +566,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     thresholdsListType,
     thresholdsListColors,
     gaugeColors,
+    lineColors,
   }
 }
 

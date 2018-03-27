@@ -14,6 +14,7 @@ const DashVisualization = (
     type,
     templates,
     timeRange,
+    lineColors,
     autoRefresh,
     gaugeColors,
     queryConfigs,
@@ -26,14 +27,32 @@ const DashVisualization = (
   },
   {source: {links: {proxy}}}
 ) => {
-  const colors = type === 'gauge' ? gaugeColors : thresholdsListColors
+  let colors = []
+  switch (type) {
+    case 'gauge': {
+      colors = stringifyColorValues(gaugeColors)
+      break
+    }
+    case 'single-stat':
+    case 'line-plus-single-stat':
+    case 'table': {
+      colors = stringifyColorValues(thresholdsListColors)
+      break
+    }
+    case 'bar':
+    case 'line':
+    case 'line-stacked':
+    case 'line-stepplot': {
+      colors = stringifyColorValues(lineColors)
+    }
+  }
 
   return (
     <div className="graph">
       <VisualizationName />
       <div className="graph-container">
         <RefreshingGraph
-          colors={stringifyColorValues(colors)}
+          colors={colors}
           axes={axes}
           type={type}
           tableOptions={tableOptions}
@@ -87,6 +106,15 @@ DashVisualization.propTypes = {
       value: number.isRequired,
     }).isRequired
   ),
+  lineColors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: number.isRequired,
+    }).isRequired
+  ),
   staticLegend: bool,
   setDataLabels: func,
 }
@@ -103,11 +131,13 @@ const mapStateToProps = ({
   cellEditorOverlay: {
     thresholdsListColors,
     gaugeColors,
+    lineColors,
     cell: {type, axes, tableOptions},
   },
 }) => ({
   gaugeColors,
   thresholdsListColors,
+  lineColors,
   type,
   axes,
   tableOptions,

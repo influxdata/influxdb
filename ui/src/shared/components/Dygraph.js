@@ -4,6 +4,7 @@ import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
+import chroma from 'chroma-js'
 import NanoDate from 'nano-date'
 
 import Dygraphs from 'src/external/dygraph'
@@ -26,7 +27,11 @@ import {
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 
-import {generateColorScale} from 'src/shared/constants/graphColorPalettes'
+import {
+  DEFAULT_LINE_COLORS,
+  validateLineColors,
+  transformColorsForChroma,
+} from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 class Dygraph extends Component {
@@ -191,15 +196,35 @@ class Dygraph extends Component {
   }
 
   colorDygraphSeries = () => {
-    const {dygraphSeries} = this.props
+    const {dygraphSeries, children, colors, overrideLineColors} = this.props
     const numSeries = Object.keys(dygraphSeries).length
-    const colors = generateColorScale(numSeries)
+    const validatedLineColors = validateLineColors(colors) // ensures safe defaults
+
+    let lineColors = chroma
+      .scale(transformColorsForChroma(validatedLineColors))
+      .mode('lch')
+      .colors(numSeries)
+
+    if (React.children && React.children.count(children)) {
+      // If graph is line-plus-single-stat then reserve colors for single stat
+      lineColors = chroma
+        .scale(transformColorsForChroma(DEFAULT_LINE_COLORS))
+        .mode('lch')
+        .colors(numSeries)
+    }
+
+    if (overrideLineColors && overrideLineColors.length > 0) {
+      lineColors = chroma
+        .scale(overrideLineColors)
+        .mode('lch')
+        .colors(numSeries)
+    }
 
     const coloredDygraphSeries = {}
 
     for (const seriesName in dygraphSeries) {
       const series = dygraphSeries[seriesName]
-      const color = colors[Object.keys(dygraphSeries).indexOf(seriesName)]
+      const color = lineColors[Object.keys(dygraphSeries).indexOf(seriesName)]
 
       coloredDygraphSeries[seriesName] = {...series, color}
     }
@@ -423,7 +448,7 @@ Dygraph.propTypes = {
   isGraphFilled: bool,
   isBarGraph: bool,
   staticLegend: bool,
-  overrideLineColors: array,
+  overrideLineColors: arrayOf(string.isRequired),
   dygraphSeries: shape({}).isRequired,
   ruleValues: shape({
     operator: string,
@@ -440,6 +465,15 @@ Dygraph.propTypes = {
   onZoom: func,
   mode: string,
   children: node,
+  colors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: string.isRequired,
+    }).isRequired
+  ),
 }
 
 const mapStateToProps = ({annotations: {mode}}) => ({

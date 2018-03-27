@@ -1,24 +1,23 @@
-import _ from 'lodash'
-import chroma from 'chroma-js'
+const COLOR_TYPE_SCALE = 'scale'
 
 // Color Palettes
 export const LINE_COLORS_A = [
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#31C0F6',
     id: '0',
     name: 'Nineteen Eighty Four',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#A500A5',
     id: '0',
     name: 'Nineteen Eighty Four',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#FF7E27',
     id: '0',
     name: 'Nineteen Eighty Four',
@@ -28,21 +27,21 @@ export const LINE_COLORS_A = [
 
 export const LINE_COLORS_B = [
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#74D495',
     id: '1',
     name: 'Atlantis',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#3F3FBA',
     id: '1',
     name: 'Atlantis',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#EA5994',
     id: '1',
     name: 'Atlantis',
@@ -52,123 +51,125 @@ export const LINE_COLORS_B = [
 
 export const LINE_COLORS_C = [
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#8F8AF4',
     id: '1',
-    name: 'Glarbh',
+    name: 'Do Androids Dream of Electric Sheep?',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#A51414',
     id: '1',
-    name: 'Glarbh',
+    name: 'Do Androids Dream of Electric Sheep?',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#F4CF31',
     id: '1',
-    name: 'Glarbh',
+    name: 'Do Androids Dream of Electric Sheep?',
     value: 0,
   },
 ]
 
 export const LINE_COLORS_D = [
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#FD7A5D',
     id: '1',
-    name: 'Spoot',
+    name: 'Delorean',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#5F1CF2',
     id: '1',
-    name: 'Spoot',
+    name: 'Delorean',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#4CE09A',
     id: '1',
-    name: 'Spoot',
+    name: 'Delorean',
     value: 0,
   },
 ]
 
 export const LINE_COLORS_E = [
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#FDC44F',
     id: '1',
-    name: 'Swump',
+    name: 'Cthulhu',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#007C76',
     id: '1',
-    name: 'Swump',
+    name: 'Cthulhu',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#8983FF',
     id: '1',
-    name: 'Swump',
+    name: 'Cthulhu',
     value: 0,
   },
 ]
 
 export const LINE_COLORS_F = [
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#DA6FF1',
     id: '1',
-    name: 'Splort',
+    name: 'Ectoplasm',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#00717A',
     id: '1',
-    name: 'Splort',
+    name: 'Ectoplasm',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#05B7E0',
     id: '1',
-    name: 'Splort',
+    name: 'Ectoplasm',
     value: 0,
   },
 ]
 
 export const LINE_COLORS_G = [
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#F6F6F8',
     id: '1',
-    name: 'OldTimey',
+    name: 'T-Max 400 Film',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#A4A8B6',
     id: '1',
-    name: 'OldTimey',
+    name: 'T-Max 400 Film',
     value: 0,
   },
   {
-    type: 'scale',
+    type: COLOR_TYPE_SCALE,
     hex: '#545667',
     id: '1',
-    name: 'OldTimey',
+    name: 'T-Max 400 Film',
     value: 0,
   },
 ]
+
+export const DEFAULT_LINE_COLORS = LINE_COLORS_A
 
 export const LINE_COLOR_SCALES = [
   LINE_COLORS_A,
@@ -180,23 +181,24 @@ export const LINE_COLOR_SCALES = [
   LINE_COLORS_G,
 ].map(colorScale => {
   const name = colorScale[0].name
-  const colors = colorScale.map(color => color.hex)
+  const colors = colorScale
   const id = colorScale[0].id
 
   return {name, colors, id}
 })
 
-const paletteA = ['#31C0F6', '#A500A5', '#FF7E27']
-const paletteB = ['#74D495', '#3F3FBA', '#EA5994']
-const paletteC = ['#8F8AF4', '#A51414', '#F4CF31']
-const paletteD = ['#FD7A5D', '#5F1CF2', '#4CE09A']
-const paletteE = ['#FDC44F', '#007C76', '#8983FF']
-const paletteF = ['#DA6FF1', '#00717A', '#05B7E0']
-const paletteG = ['#F6F6F8', '#A4A8B6', '#545667']
+export const transformColorsForChroma = colors => {
+  return colors.map(color => color.hex)
+}
 
-export const generateColorScale = numSeries => {
-  return chroma
-    .scale(paletteB)
-    .mode('lch')
-    .colors(numSeries)
+export const validateLineColors = colors => {
+  if (!colors || colors.length !== 3) {
+    return DEFAULT_LINE_COLORS
+  }
+
+  const testColorsTypes =
+    colors.filter(color => color.type === COLOR_TYPE_SCALE).length ===
+    colors.length
+
+  return testColorsTypes ? colors : DEFAULT_LINE_COLORS
 }
