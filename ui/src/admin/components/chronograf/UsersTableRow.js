@@ -2,7 +2,7 @@ import React from 'react'
 import PropTypes from 'prop-types'
 
 import Dropdown from 'shared/components/Dropdown'
-import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import ConfirmButton from 'shared/components/ConfirmButton'
 
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -25,6 +25,12 @@ const UsersTableRow = ({
   )
 
   const userIsMe = user.id === meID
+
+  const wrappedDelete = () => {
+    onDelete(user)
+  }
+
+  const removeWarning = 'Remove this user\nfrom Current Org?'
 
   return (
     <tr className={'chronograf-admin-table--user'}>
@@ -52,12 +58,13 @@ const UsersTableRow = ({
       </td>
       <td style={{width: colProvider}}>{user.provider}</td>
       <td style={{width: colScheme}}>{user.scheme}</td>
-      <DeleteConfirmTableCell
+      <ConfirmButton
+        confirmText={removeWarning}
+        confirmAction={wrappedDelete}
+        size="btn-xs"
+        type="btn-danger"
         text="Remove"
-        onDelete={onDelete}
-        item={user}
-        buttonSize="btn-xs"
-        disabled={userIsMe}
+        customClass="table--show-on-row-hover"
       />
     </tr>
   )
