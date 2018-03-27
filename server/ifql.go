@@ -1,11 +1,13 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/ifql"
+	"github.com/influxdata/ifql/parser"
 )
 
 // SuggestionsResponse provides a list of available IFQL functions
@@ -75,4 +77,23 @@ func (s *Service) IFQLSuggestion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encodeJSON(w, http.StatusOK, SuggestionResponse{Name: name, Params: suggestion.Params}, s.Logger)
+}
+
+type ASTRequest struct {
+	Body string `json:"body"`
+}
+
+func (s *Service) IFQLAST(w http.ResponseWriter, r *http.Request) {
+	var request ASTRequest
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		invalidJSON(w, s.Logger)
+	}
+
+	ast, err := parser.NewAST(request.Body)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), s.Logger)
+	}
+
+	encodeJSON(w, http.StatusOK, ast, s.Logger)
 }
