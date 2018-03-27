@@ -3988,6 +3988,47 @@
                   }
                 }
               },
+              "tableOptions": {
+                "description":
+                  "options for visualization of a cell with table type",
+                "type": "object",
+                "properties": {
+                  "timeFormat": {
+                    "description":
+                      "timeFormat is the momentjs format of time in a cell of type table",
+                    "type": "string"
+                  },
+                  "verticalTimeAxis": {
+                    "description":
+                      "verticalTimeAxis defines the orientation of the table and whether or not time is a column or row",
+                    "type": "boolean"
+                  },
+                  "sortBy": {
+                    "description":
+                      "sortBy defines the column or row that a table should be sorted by",
+                    "type": "object",
+                    "$ref": "#/definitions/RenamableField"
+                  },
+                  "wrapping": {
+                    "description":
+                      "wrapping defines the text wrapping format for tables",
+                    "type": "string"
+                  },
+                  "fieldNames": {
+                    "description":
+                      "fieldNames represent the fields retrieved by the query with customization options",
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/RenamableField"
+                    }
+                  },
+                  "fixFirstColumn": {
+                    "description":
+                      "fixFirstColumn represents locking or freezing the first column of the table",
+                    "type": "boolean"
+                  }
+                }
+              },
               "links": {
                 "type": "object",
                 "properties": {
@@ -4126,6 +4167,27 @@
           "description":
             "Scale is the axis formatting scale. Supported: \"log\", \"linear\"",
           "type": "string"
+        }
+      }
+    },
+    "RenamableField": {
+      "description":
+        "renamableField represents a field that can be renamed and toggled visible or not",
+      "type": "object",
+      "properties": {
+        "internalName": {
+          "description": "internalName is the calculated name of a field",
+          "type": "string"
+        },
+        "displayName": {
+          "description":
+            "displayName is the name that a field is renamed to by the user",
+          "type": "string"
+        },
+        "visible": {
+          "description":
+            "visible defines whether or not this field row or column should be visible within the table",
+          "type": "boolean"
         }
       }
     },
