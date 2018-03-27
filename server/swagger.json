@@ -3990,29 +3990,30 @@
               },
               "tableOptions": {
                 "description":
-                  "options for visualization of a cell with table type",
+                  "visualization options for a cell with table type",
                 "type": "object",
                 "properties": {
                   "timeFormat": {
                     "description":
-                      "timeFormat is the momentjs format of time in a cell of type table",
+                      "timeFormat describes the display format for time values according to moment.js date formatting",
                     "type": "string"
                   },
                   "verticalTimeAxis": {
                     "description":
-                      "verticalTimeAxis defines the orientation of the table and whether or not time is a column or row",
+                      "verticalTimeAxis describes the orientation of the table by indicating whether the time axis will be displayed vertically",
                     "type": "boolean"
                   },
                   "sortBy": {
                     "description":
-                      "sortBy defines the column or row that a table should be sorted by",
+                      "sortBy contains the name of the series that is used for sorting the table",
                     "type": "object",
                     "$ref": "#/definitions/RenamableField"
                   },
                   "wrapping": {
                     "description":
-                      "wrapping defines the text wrapping format for tables",
-                    "type": "string"
+                      "wrapping describes the text wrapping style to be used in table cells",
+                    "type": "string",
+                    "enum": ["truncate", "wrap", "single-line"]
                   },
                   "fieldNames": {
                     "description":
@@ -4024,7 +4025,7 @@
                   },
                   "fixFirstColumn": {
                     "description":
-                      "fixFirstColumn represents locking or freezing the first column of the table",
+                      "fixFirstColumn indicates whether this field should be visible on the table",
                     "type": "boolean"
                   }
                 }
@@ -4172,7 +4173,7 @@
     },
     "RenamableField": {
       "description":
-        "renamableField represents a field that can be renamed and toggled visible or not",
+        "renamableField describes a field that can be renamed and made visible or invisible",
       "type": "object",
       "properties": {
         "internalName": {
