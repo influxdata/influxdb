@@ -58,7 +58,7 @@ const DropdownMenuItem: SFC<ItemProps> = ({
         {item.text}
       </a>
       {actions &&
-        actions.length && (
+        !!actions.length && (
           <div className="dropdown-actions">
             {actions.map(action => {
               return (
