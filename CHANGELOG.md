@@ -18,6 +18,7 @@ v1.6.0 [unreleased]
 -	[#9580](https://github.com/influxdata/influxdb/pull/9580): Fix data race in WAL.
 -	[#9586](https://github.com/influxdata/influxdb/pull/9586): Allow SHOW SERIES kill.
 -	[#9612](https://github.com/influxdata/influxdb/pull/9612): Revert "Use MADV_WILLNEED when loading TSM files".
+-	[#9633](https://github.com/influxdata/influxdb/pull/9633): Fix regression to allow now() to be used as the group by offset again.
 
 v1.5.0 [2018-03-06]
 -------------------
