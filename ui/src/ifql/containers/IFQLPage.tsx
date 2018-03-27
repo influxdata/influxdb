@@ -31,7 +31,8 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {suggestions} = this.props.links
 
     try {
-      const funcs = await getSuggestions(suggestions)
+      const results = await getSuggestions(suggestions)
+      const funcs = results.map(s => s.name)
       this.setState({funcs})
     } catch (error) {
       console.error('Could not get function suggestions: ', error)

@@ -10,11 +10,12 @@ import (
 
 // SuggestionsResponse provides a list of available IFQL functions
 type SuggestionsResponse struct {
-	Functions []string `json:"funcs"`
+	Functions []SuggestionResponse `json:"funcs"`
 }
 
 // SuggestionResponse provides the parameters available for a given IFQL function
 type SuggestionResponse struct {
+	Name   string            `json:"name"`
 	Params map[string]string `json:"params"`
 }
 
@@ -44,7 +45,20 @@ func (s *Service) IFQL(w http.ResponseWriter, r *http.Request) {
 func (s *Service) IFQLSuggestions(w http.ResponseWriter, r *http.Request) {
 	completer := ifql.DefaultCompleter()
 	names := completer.FunctionNames()
-	res := SuggestionsResponse{Functions: names}
+	var functions []SuggestionResponse
+	for _, name := range names {
+		suggestion, err := completer.FunctionSuggestion(name)
+		if err != nil {
+			Error(w, http.StatusNotFound, err.Error(), s.Logger)
+			return
+		}
+
+		functions = append(functions, SuggestionResponse{
+			Name:   name,
+			Params: suggestion.Params,
+		})
+	}
+	res := SuggestionsResponse{Functions: functions}
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
@@ -55,10 +69,10 @@ func (s *Service) IFQLSuggestion(w http.ResponseWriter, r *http.Request) {
 	name := httprouter.GetParamFromContext(ctx, "name")
 	completer := ifql.DefaultCompleter()
 
-	res, err := completer.FunctionSuggestion(name)
+	suggestion, err := completer.FunctionSuggestion(name)
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 	}
 
-	encodeJSON(w, http.StatusOK, SuggestionResponse(res), s.Logger)
+	encodeJSON(w, http.StatusOK, SuggestionResponse{Name: name, Params: suggestion.Params}, s.Logger)
 }
