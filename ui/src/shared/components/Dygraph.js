@@ -29,8 +29,7 @@ import {
 
 import {
   DEFAULT_LINE_COLORS,
-  validateLineColors,
-  transformColorsForChroma,
+  getLineColorsHexes,
 } from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
@@ -198,19 +197,12 @@ class Dygraph extends Component {
   colorDygraphSeries = () => {
     const {dygraphSeries, children, colors, overrideLineColors} = this.props
     const numSeries = Object.keys(dygraphSeries).length
-    const validatedLineColors = validateLineColors(colors) // ensures safe defaults
 
-    let lineColors = chroma
-      .scale(transformColorsForChroma(validatedLineColors))
-      .mode('lch')
-      .colors(numSeries)
+    let lineColors = getLineColorsHexes(colors, numSeries)
 
     if (React.children && React.children.count(children)) {
       // If graph is line-plus-single-stat then reserve colors for single stat
-      lineColors = chroma
-        .scale(transformColorsForChroma(DEFAULT_LINE_COLORS))
-        .mode('lch')
-        .colors(numSeries)
+      lineColors = getLineColorsHexes(DEFAULT_LINE_COLORS, numSeries)
     }
 
     if (overrideLineColors && overrideLineColors.length > 0) {

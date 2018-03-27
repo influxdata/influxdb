@@ -1,3 +1,5 @@
+import chroma from 'chroma-js'
+
 const COLOR_TYPE_SCALE = 'scale'
 
 // Color Palettes
@@ -187,10 +189,6 @@ export const LINE_COLOR_SCALES = [
   return {name, colors, id}
 })
 
-export const transformColorsForChroma = colors => {
-  return colors.map(color => color.hex)
-}
-
 export const validateLineColors = colors => {
   if (!colors || colors.length !== 3) {
     return DEFAULT_LINE_COLORS
@@ -201,4 +199,20 @@ export const validateLineColors = colors => {
     colors.length
 
   return testColorsTypes ? colors : DEFAULT_LINE_COLORS
+}
+
+export const getLineColorsHexes = (colors, numSeries) => {
+  const validatedColors = validateLineColors(colors) // ensures safe defaults
+  const colorsHexArray = validatedColors.map(color => color.hex)
+
+  if (numSeries === 1) {
+    return [colorsHexArray[0]]
+  }
+  if (numSeries === 2) {
+    return [colorsHexArray[0], colorsHexArray[1]]
+  }
+  return chroma
+    .scale(colorsHexArray)
+    .mode('lch')
+    .colors(numSeries)
 }
