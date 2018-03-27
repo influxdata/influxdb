@@ -130,40 +130,29 @@ class TableGraph extends Component {
   }
 
   calcScrollToColRow = () => {
-    const {
-      data,
-      sortedTimeVals,
-      hoveredColumnIndex,
-      hoveredRowIndex,
-    } = this.state
+    const {data, sortedTimeVals, hoveredColumnIndex} = this.state
     const {hoverTime, tableOptions} = this.props
-    if (_.isEmpty(data[0]) || hoverTime === NULL_HOVER_TIME) {
+    const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
+    const notHovering = hoverTime === NULL_HOVER_TIME
+    if (_.isEmpty(data[0]) || notHovering || hoveringThisTable) {
       return {scrollToColumn: undefined, scrollToRow: undefined}
     }
-    const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
-    if (hoveringThisTable) {
-      return {scrollToColumn: hoveredColumnIndex, scrollToRow: hoveredRowIndex}
-    }
 
-    const {verticalTimeAxis} = tableOptions
-
-    const hoverTimeIndex = sortedTimeVals.reduce(
-      (acc, currentTime, index, array) => {
-        const diff = Math.abs(hoverTime - currentTime)
-        if (diff === 0) {
-          return index
-        }
-        if (Math.abs(hoverTime - array[acc]) > diff) {
-          return index
+    const firstDiff = Math.abs(hoverTime - sortedTimeVals[1]) // sortedTimeVals[0] is "time"
+    const hoverTimeFound = sortedTimeVals.reduce(
+      (acc, currentTime, index) => {
+        const thisDiff = Math.abs(hoverTime - currentTime)
+        if (thisDiff < acc.diff) {
+          return {index, diff: thisDiff}
         }
         return acc
       },
-      1
+      {index: 1, diff: firstDiff}
     )
-    const scrollToColumn =
-      !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
-    const scrollToRow =
-      !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
+
+    const {verticalTimeAxis} = tableOptions
+    const scrollToColumn = verticalTimeAxis ? undefined : hoverTimeFound.index
+    const scrollToRow = verticalTimeAxis ? hoverTimeFound.index : undefined
     return {scrollToRow, scrollToColumn}
   }
 
