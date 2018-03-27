@@ -140,7 +140,7 @@ export const LINE_COLORS_F = [
   },
   {
     type: COLOR_TYPE_SCALE,
-    hex: '#05B7E0',
+    hex: '#ACFF76',
     id: '1',
     name: 'Ectoplasm',
     value: 0,
