@@ -48,10 +48,11 @@ const processData = (
     data[0],
     ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
   ]
+  const sortedTimeVals = sortedData.map(r => r[0])
   const filteredData = filterInvisibleColumns(sortedData, fieldNames)
   const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
 
-  return {processedData}
+  return {processedData, sortedTimeVals}
 }
 
 class TableGraph extends Component {
@@ -59,11 +60,13 @@ class TableGraph extends Component {
     super(props)
     this.state = {
       data: [[]],
-      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
       processedData: [[]],
+      sortedTimeVals: [],
+      labels: [],
+      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
-      sortField: '',
+      sortField: 'time',
       sortDirection: DEFAULT_SORT,
     }
   }
@@ -108,7 +111,7 @@ class TableGraph extends Component {
       sortFieldName = sortField
     }
 
-    const {processedData} = processData(
+    const {processedData, sortedTimeVals} = processData(
       data,
       sortFieldName,
       direction,
@@ -118,34 +121,51 @@ class TableGraph extends Component {
 
     this.setState({
       data,
+      labels,
       processedData,
+      sortedTimeVals,
       sortField: sortFieldName,
       sortDirection: direction,
     })
   }
 
-  calcHoverTimeIndex = (data, hoverTime, verticalTimeAxis) => {
-    if (_.isEmpty(data) || hoverTime === NULL_HOVER_TIME) {
-      return undefined
+  calcScrollToColRow = () => {
+    const {data, sortedTimeVals, hoveredColumnIndex} = this.state
+    const {hoverTime, tableOptions} = this.props
+    const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
+    const notHovering = hoverTime === NULL_HOVER_TIME
+    if (_.isEmpty(data[0]) || notHovering || hoveringThisTable) {
+      return {scrollToColumn: undefined, scrollToRow: undefined}
     }
-    if (verticalTimeAxis) {
-      return data.findIndex(
-        row => row[0] && _.isNumber(row[0]) && row[0] >= hoverTime
-      )
-    }
-    return data[0].findIndex(d => _.isNumber(d) && d >= hoverTime)
+
+    const firstDiff = Math.abs(hoverTime - sortedTimeVals[1]) // sortedTimeVals[0] is "time"
+    const hoverTimeFound = sortedTimeVals.reduce(
+      (acc, currentTime, index) => {
+        const thisDiff = Math.abs(hoverTime - currentTime)
+        if (thisDiff < acc.diff) {
+          return {index, diff: thisDiff}
+        }
+        return acc
+      },
+      {index: 1, diff: firstDiff}
+    )
+
+    const {verticalTimeAxis} = tableOptions
+    const scrollToColumn = verticalTimeAxis ? undefined : hoverTimeFound.index
+    const scrollToRow = verticalTimeAxis ? hoverTimeFound.index : undefined
+    return {scrollToRow, scrollToColumn}
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
     const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
-    const {data} = this.state
-    if (rowIndex === 0 && verticalTimeAxis) {
+    const {sortedTimeVals} = this.state
+    if (verticalTimeAxis && rowIndex === 0) {
       return
     }
     if (onSetHoverTime) {
       const hoverTime = verticalTimeAxis
-        ? data[rowIndex][0]
-        : data[columnIndex][0]
+        ? sortedTimeVals[rowIndex]
+        : sortedTimeVals[columnIndex]
       onSetHoverTime(hoverTime.toString())
     }
     this.setState({
@@ -154,7 +174,7 @@ class TableGraph extends Component {
     })
   }
 
-  handleMouseOut = () => {
+  handleMouseLeave = () => {
     if (this.props.onSetHoverTime) {
       this.props.onSetHoverTime(NULL_HOVER_TIME)
       this.setState({
@@ -177,7 +197,7 @@ class TableGraph extends Component {
       direction = DEFAULT_SORT
     }
 
-    const {processedData} = processData(
+    const {processedData, sortedTimeVals} = processData(
       data,
       fieldName,
       direction,
@@ -187,6 +207,7 @@ class TableGraph extends Component {
 
     this.setState({
       processedData,
+      sortedTimeVals,
       sortField: fieldName,
       sortDirection: direction,
     })
@@ -195,11 +216,7 @@ class TableGraph extends Component {
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
     const {tableOptions: {verticalTimeAxis}} = this.props
-    const {timeColumnWidth, processedData} = this.state
-
-    const labels = verticalTimeAxis
-      ? _.unzip(processedData)[0]
-      : processedData[0]
+    const {timeColumnWidth, labels} = this.state
 
     if (labels.length > 0) {
       return verticalTimeAxis && labels[index] === 'time'
@@ -309,14 +326,9 @@ class TableGraph extends Component {
       sortField,
       sortDirection,
       processedData,
-      data,
     } = this.state
     const {hoverTime, tableOptions, colors} = this.props
-    const {
-      verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
-      fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
-    } = tableOptions
-
+    const {fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT} = tableOptions
     const columnCount = _.get(processedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : processedData.length
 
@@ -328,23 +340,12 @@ class TableGraph extends Component {
 
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
-
-    const hoverTimeIndex =
-      hoveredRowIndex === NULL_ARRAY_INDEX
-        ? this.calcHoverTimeIndex(data, hoverTime, verticalTimeAxis)
-        : hoveredRowIndex
-    const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
-
-    const scrollToColumn =
-      !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
-    const scrollToRow =
-      !hoveringThisTable && verticalTimeAxis ? hoverTimeIndex : undefined
-
+    const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
     return (
       <div
         className="table-graph-container"
         ref={gridContainer => (this.gridContainer = gridContainer)}
-        onMouseOut={this.handleMouseOut}
+        onMouseLeave={this.handleMouseLeave}
       >
         {rowCount > 0 && (
           <ColumnSizer
