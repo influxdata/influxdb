@@ -8,6 +8,7 @@ import {
   updateThresholdsListColors,
   updateThresholdsListType,
   updateGaugeColors,
+  updateLineColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
 import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
@@ -17,6 +18,7 @@ import {
   validateThresholdsListColors,
   getThresholdsListType,
 } from 'shared/constants/thresholds'
+import {validateLineColors} from 'src/shared/constants/graphColorPalettes'
 
 const defaultCellType = 'line'
 const defaultCellName = 'defaultCell'
@@ -45,6 +47,7 @@ const defaultThresholdsListColors = validateThresholdsListColors(
   defaultThresholdsListType
 )
 const defaultGaugeColors = validateGaugeColors(defaultCell.colors)
+const defaultLineColors = validateLineColors(defaultCell.colors)
 
 describe('Dashboards.Reducers.cellEditorOverlay', () => {
   it('should show cell editor overlay', () => {
@@ -116,5 +119,12 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
     const expected = defaultCellAxes
 
     expect(actual.cell.axes).toBe(expected)
+  })
+
+  it('should update the cell line graph colors', () => {
+    const actual = reducer(initialState, updateLineColors(defaultLineColors))
+    const expected = defaultLineColors
+
+    expect(actual.lineColors).toBe(expected)
   })
 })
