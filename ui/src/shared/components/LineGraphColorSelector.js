@@ -31,7 +31,7 @@ class LineGraphColorSelector extends Component {
   }
 }
 
-const {arrayOf, func, shape, string, number} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 LineGraphColorSelector.propTypes = {
   lineColors: arrayOf(
@@ -40,7 +40,6 @@ LineGraphColorSelector.propTypes = {
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
-      value: number.isRequired,
     }).isRequired
   ).isRequired,
   handleUpdateLineColors: func.isRequired,

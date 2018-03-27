@@ -98,7 +98,7 @@ class ColorScaleDropdown extends Component {
   }
 }
 
-const {arrayOf, bool, func, shape, string, number} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 ColorScaleDropdown.propTypes = {
   selected: arrayOf(
@@ -107,7 +107,6 @@ ColorScaleDropdown.propTypes = {
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
-      value: number.isRequired,
     }).isRequired
   ).isRequired,
   onChoose: func.isRequired,

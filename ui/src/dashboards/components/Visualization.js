@@ -88,33 +88,9 @@ DashVisualization.propTypes = {
   }),
   tableOptions: shape({}),
   resizerTopHeight: number,
-  thresholdsListColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  gaugeColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  lineColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
+  thresholdsListColors: arrayOf(shape({}).isRequired),
+  gaugeColors: arrayOf(shape({}).isRequired),
+  lineColors: arrayOf(shape({}).isRequired),
   staticLegend: bool,
   setDataLabels: func,
 }
