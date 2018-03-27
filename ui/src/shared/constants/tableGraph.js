@@ -5,9 +5,6 @@ export const NULL_ARRAY_INDEX = -1
 
 export const NULL_HOVER_TIME = '0'
 
-export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.SS'
-export const TIME_FORMAT_CUSTOM = 'Custom'
-
 export const TIME_FIELD_DEFAULT = {
   internalName: 'time',
   displayName: '',
@@ -21,15 +18,17 @@ export const VERTICAL_TIME_AXIS_DEFAULT = true
 
 export const CELL_HORIZONTAL_PADDING = 18
 
+export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss'
+export const TIME_FORMAT_CUSTOM = 'Custom'
+
 export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_DEFAULT},
-  {text: 'MM/DD/YYYY HH:mm'},
-  {text: 'MM/DD/YYYY'},
-  {text: 'h:mm:ss A'},
-  {text: 'h:mm A'},
-  {text: 'MMMM D, YYYY'},
-  {text: 'MMMM D, YYYY h:mm A'},
-  {text: 'dddd, MMMM D, YYYY h:mm A'},
+  {text: 'MM/DD/YYYY HH:mm:ss.SSS'},
+  {text: 'YYYY-MM-DD HH:mm:ss'},
+  {text: 'HH:mm:ss'},
+  {text: 'HH:mm:ss.SSS'},
+  {text: 'MMMM D, YYYY HH:mm:ss'},
+  {text: 'dddd, MMMM D, YYYY HH:mm:ss'},
   {text: TIME_FORMAT_CUSTOM},
 ]
 
