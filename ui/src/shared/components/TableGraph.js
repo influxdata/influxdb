@@ -48,10 +48,11 @@ const processData = (
     data[0],
     ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
   ]
+  const sortedTimeVals = sortedData.map(r => r[0])
   const filteredData = filterInvisibleColumns(sortedData, fieldNames)
   const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
 
-  return {processedData}
+  return {processedData, sortedTimeVals}
 }
 
 class TableGraph extends Component {
@@ -60,6 +61,8 @@ class TableGraph extends Component {
     this.state = {
       data: [[]],
       processedData: [[]],
+      sortedTimeVals: [],
+      labels: [],
       timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
@@ -108,7 +111,7 @@ class TableGraph extends Component {
       sortFieldName = sortField
     }
 
-    const {processedData} = processData(
+    const {processedData, sortedTimeVals} = processData(
       data,
       sortFieldName,
       direction,
@@ -118,7 +121,9 @@ class TableGraph extends Component {
 
     this.setState({
       data,
+      labels,
       processedData,
+      sortedTimeVals,
       sortField: sortFieldName,
       sortDirection: direction,
     })
@@ -127,10 +132,9 @@ class TableGraph extends Component {
   calcScrollToColRow = () => {
     const {
       data,
-      processedData,
+      sortedTimeVals,
       hoveredColumnIndex,
       hoveredRowIndex,
-      sortField,
     } = this.state
     const {hoverTime, tableOptions} = this.props
     if (_.isEmpty(data[0]) || hoverTime === NULL_HOVER_TIME) {
@@ -140,17 +144,22 @@ class TableGraph extends Component {
     if (hoveringThisTable) {
       return {scrollToColumn: hoveredColumnIndex, scrollToRow: hoveredRowIndex}
     }
-    const {verticalTimeAxis, timeFormat} = tableOptions
-    let hoverTimeIndex
-    hoverTimeIndex = data.findIndex(
-      (row, rowIndex) => rowIndex > 0 && row[0] && row[0] >= Number(hoverTime)
+
+    const {verticalTimeAxis} = tableOptions
+
+    const hoverTimeIndex = sortedTimeVals.reduce(
+      (acc, currentTime, index, array) => {
+        const diff = Math.abs(hoverTime - currentTime)
+        if (diff === 0) {
+          return index
+        }
+        if (Math.abs(hoverTime - array[acc]) > diff) {
+          return index
+        }
+        return acc
+      },
+      1
     )
-    if (sortField !== 'time') {
-      const foundHoverTime = data[hoverTimeIndex][0]
-      hoverTimeIndex = processedData.findIndex(
-        (row, rowIndex) => rowIndex > 0 && row[0] && row[0] === foundHoverTime
-      )
-    }
     const scrollToColumn =
       !hoveringThisTable && !verticalTimeAxis ? hoverTimeIndex : undefined
     const scrollToRow =
@@ -160,14 +169,14 @@ class TableGraph extends Component {
 
   handleHover = (columnIndex, rowIndex) => () => {
     const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
-    const {processedData} = this.state
+    const {sortedTimeVals} = this.state
     if (verticalTimeAxis && rowIndex === 0) {
       return
     }
     if (onSetHoverTime) {
       const hoverTime = verticalTimeAxis
-        ? processedData[rowIndex][0]
-        : processedData[columnIndex][0]
+        ? sortedTimeVals[rowIndex]
+        : sortedTimeVals[columnIndex]
       onSetHoverTime(hoverTime.toString())
     }
     this.setState({
@@ -199,7 +208,7 @@ class TableGraph extends Component {
       direction = DEFAULT_SORT
     }
 
-    const {processedData} = processData(
+    const {processedData, sortedTimeVals} = processData(
       data,
       fieldName,
       direction,
@@ -209,6 +218,7 @@ class TableGraph extends Component {
 
     this.setState({
       processedData,
+      sortedTimeVals,
       sortField: fieldName,
       sortDirection: direction,
     })
@@ -345,7 +355,6 @@ class TableGraph extends Component {
 
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
-
     const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
     return (
       <div
