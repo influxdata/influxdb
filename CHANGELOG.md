@@ -19,6 +19,7 @@
 1.  [#2970](https://github.com/influxdata/chronograf/pull/2970): Fix hanging browser on docker host dashboard
 1.  [#3006](https://github.com/influxdata/chronograf/pull/3006): Fix Kapacitor Rules task enabled checkboxes to only toggle exactly as clicked
 1.  [#3048](https://github.com/influxdata/chronograf/pull/3048): Prevent Multi-Select Dropdown in InfluxDB Admin Users and Roles tabs from losing selection state
+1.  [#3073](https://github.com/influxdata/chronograf/pull/3073): Fix Delete button in All Users admin page
 
 ## v1.4.2.3 [2018-03-08]
 
