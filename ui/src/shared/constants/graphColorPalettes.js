@@ -44,7 +44,7 @@ export const LINE_COLORS_B = [
   },
   {
     type: COLOR_TYPE_SCALE,
-    hex: '#EA5994',
+    hex: '#FF4D9E',
     id: '1',
     name: 'Atlantis',
     value: 0,
