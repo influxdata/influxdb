@@ -5,6 +5,7 @@ import {connect} from 'react-redux'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 
 import {getSuggestions} from 'src/ifql/apis'
+import {ast} from 'src/ifql/constants'
 
 interface Links {
   self: string
@@ -51,7 +52,7 @@ export class IFQLPage extends PureComponent<Props, State> {
         </div>
         <div className="page-contents">
           <div className="container-fluid">
-            <TimeMachine funcs={this.state.funcs} />
+            <TimeMachine funcs={this.state.funcs} ast={ast} />
           </div>
         </div>
       </div>

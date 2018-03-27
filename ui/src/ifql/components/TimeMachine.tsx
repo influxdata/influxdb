@@ -3,6 +3,7 @@ import FuncsButton from 'src/ifql/components/FuncsButton'
 
 interface Props {
   funcs: string[]
+  ast: object
 }
 
 const TimeMachine: SFC<Props> = ({funcs}) => {
