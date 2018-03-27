@@ -8,6 +8,8 @@ import underlayCallback from 'src/kapacitor/helpers/ruleGraphUnderlay'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 
+import {LINE_COLORS_RULE_GRAPH} from 'src/shared/constants/graphColorPalettes'
+
 const {shape, string, func} = PropTypes
 const RuleGraph = ({
   query,
@@ -20,7 +22,6 @@ const RuleGraph = ({
   const autoRefreshMs = 30000
   const queryText = buildInfluxQLQuery({lower}, query)
   const queries = [{host: source.links.proxy, text: queryText}]
-  const kapacitorLineColors = ['#4ED8A0']
 
   if (!queryText) {
     return (
@@ -47,7 +48,7 @@ const RuleGraph = ({
         isGraphFilled={false}
         ruleValues={rule.values}
         autoRefresh={autoRefreshMs}
-        overrideLineColors={kapacitorLineColors}
+        overrideLineColors={LINE_COLORS_RULE_GRAPH}
         underlayCallback={underlayCallback(rule)}
       />
     </div>

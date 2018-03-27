@@ -4,7 +4,6 @@ import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
-import chroma from 'chroma-js'
 import NanoDate from 'nano-date'
 
 import Dygraphs from 'src/external/dygraph'
@@ -205,11 +204,8 @@ class Dygraph extends Component {
       lineColors = getLineColorsHexes(DEFAULT_LINE_COLORS, numSeries)
     }
 
-    if (overrideLineColors && overrideLineColors.length > 0) {
-      lineColors = chroma
-        .scale(overrideLineColors)
-        .mode('lch')
-        .colors(numSeries)
+    if (overrideLineColors) {
+      lineColors = getLineColorsHexes(overrideLineColors, numSeries)
     }
 
     const coloredDygraphSeries = {}
@@ -440,7 +436,12 @@ Dygraph.propTypes = {
   isGraphFilled: bool,
   isBarGraph: bool,
   staticLegend: bool,
-  overrideLineColors: arrayOf(string.isRequired),
+  overrideLineColors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+    }).isRequired
+  ),
   dygraphSeries: shape({}).isRequired,
   ruleValues: shape({
     operator: string,

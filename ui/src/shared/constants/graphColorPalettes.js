@@ -171,6 +171,16 @@ export const LINE_COLORS_G = [
   },
 ]
 
+export const LINE_COLORS_RULE_GRAPH = [
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#4ED8A0',
+    id: '1',
+    name: 'Rainforest',
+    value: 0,
+  },
+]
+
 export const DEFAULT_LINE_COLORS = LINE_COLORS_A
 
 export const LINE_COLOR_SCALES = [
@@ -190,7 +200,7 @@ export const LINE_COLOR_SCALES = [
 })
 
 export const validateLineColors = colors => {
-  if (!colors || colors.length !== 3) {
+  if (!colors) {
     return DEFAULT_LINE_COLORS
   }
 
@@ -205,7 +215,7 @@ export const getLineColorsHexes = (colors, numSeries) => {
   const validatedColors = validateLineColors(colors) // ensures safe defaults
   const colorsHexArray = validatedColors.map(color => color.hex)
 
-  if (numSeries === 1) {
+  if (numSeries === 1 || numSeries === 0) {
     return [colorsHexArray[0]]
   }
   if (numSeries === 2) {
