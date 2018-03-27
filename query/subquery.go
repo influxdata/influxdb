@@ -23,7 +23,12 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 	}
 
 	// Map the desired auxiliary fields from the substatement.
-	indexes := b.mapAuxFields(auxFields)
+	indexes, ok := b.mapAuxFields(auxFields)
+	if !ok {
+		// No actual fields were selected so do not waste time running the query.
+		return nil, nil
+	}
+
 	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
 		return nil, err
@@ -44,18 +49,19 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 	return input, nil
 }
 
-func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef) []IteratorMap {
-	indexes := make([]IteratorMap, len(auxFields))
+func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef) (indexes []IteratorMap, ok bool) {
+	indexes = make([]IteratorMap, len(auxFields))
 	for i, name := range auxFields {
 		m := b.mapAuxField(&name)
 		if m == nil {
 			// If this field doesn't map to anything, use the NullMap so it
 			// shows up as null.
-			m = NullMap{}
+			indexes[i] = NullMap{}
+			continue
 		}
-		indexes[i] = m
+		indexes[i], ok = m, true
 	}
-	return indexes
+	return indexes, ok
 }
 
 func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef) IteratorMap {
@@ -113,7 +119,7 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 	}
 
 	// Map the auxiliary fields to their index in the subquery.
-	indexes := b.mapAuxFields(auxFields)
+	indexes, _ := b.mapAuxFields(auxFields)
 	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
 		return nil, err
