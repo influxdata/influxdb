@@ -4187,7 +4187,7 @@
         },
         "visible": {
           "description":
-            "visible defines whether or not this field row or column should be visible within the table",
+            "visible indicates whether this field should be visible on the table",
           "type": "boolean"
         }
       }
