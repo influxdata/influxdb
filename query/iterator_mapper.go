@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/influxdata/influxql"
 )
@@ -12,7 +13,15 @@ type IteratorMap interface {
 
 type FieldMap int
 
-func (i FieldMap) Value(row *Row) interface{} { return row.Values[i] }
+func (i FieldMap) Value(row *Row) interface{} {
+	v := row.Values[i]
+	if v == NullFloat {
+		// If the value is a null float, then convert it back to NaN
+		// so it is treated as a float for eval.
+		v = math.NaN()
+	}
+	return v
+}
 
 type TagMap string
 

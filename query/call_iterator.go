@@ -846,9 +846,9 @@ func newStddevIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 
 // FloatStddevReduceSlice returns the stddev value within a window.
 func FloatStddevReduceSlice(a []FloatPoint) []FloatPoint {
-	// If there is only one point then return 0.
+	// If there is only one point then return NaN.
 	if len(a) < 2 {
-		return []FloatPoint{{Time: ZeroTime, Nil: true}}
+		return []FloatPoint{{Time: ZeroTime, Value: math.NaN()}}
 	}
 
 	// Calculate the mean.
@@ -878,9 +878,9 @@ func FloatStddevReduceSlice(a []FloatPoint) []FloatPoint {
 
 // IntegerStddevReduceSlice returns the stddev value within a window.
 func IntegerStddevReduceSlice(a []IntegerPoint) []FloatPoint {
-	// If there is only one point then return 0.
+	// If there is only one point then return NaN.
 	if len(a) < 2 {
-		return []FloatPoint{{Time: ZeroTime, Nil: true}}
+		return []FloatPoint{{Time: ZeroTime, Value: math.NaN()}}
 	}
 
 	// Calculate the mean.
@@ -904,9 +904,9 @@ func IntegerStddevReduceSlice(a []IntegerPoint) []FloatPoint {
 
 // UnsignedStddevReduceSlice returns the stddev value within a window.
 func UnsignedStddevReduceSlice(a []UnsignedPoint) []FloatPoint {
-	// If there is only one point then return 0.
+	// If there is only one point then return NaN.
 	if len(a) < 2 {
-		return []FloatPoint{{Time: ZeroTime, Nil: true}}
+		return []FloatPoint{{Time: ZeroTime, Value: math.NaN()}}
 	}
 
 	// Calculate the mean.

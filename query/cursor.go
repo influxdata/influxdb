@@ -1,10 +1,13 @@
 package query
 
 import (
+	"math"
 	"time"
 
 	"github.com/influxdata/influxql"
 )
+
+var NullFloat interface{} = (*float64)(nil)
 
 // Series represents the metadata about a series.
 type Series struct {
@@ -198,7 +201,14 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
 		}
-		row.Values[i] = valuer.Eval(expr)
+		v := valuer.Eval(expr)
+		if fv, ok := v.(float64); ok && math.IsNaN(fv) {
+			// If the float value is NaN, convert it to a null float
+			// so this can be serialized correctly, but not mistaken for
+			// a null value that needs to be filled.
+			v = NullFloat
+		}
+		row.Values[i] = v
 	}
 	return true
 }
