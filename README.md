@@ -191,13 +191,13 @@ docker pull chronograf:1.4.2.3
 1. [Install Node and NPM](https://nodejs.org/en/download/)
 1. [Install yarn](https://yarnpkg.com/docs/install)
 1. [Setup your GOPATH](https://golang.org/doc/code.html#GOPATH)
-1. Build the Chronograf package
+1. Build the Chronograf package:
     ```bash
     go get github.com/influxdata/chronograf
     cd $GOPATH/src/github.com/influxdata/chronograf
     make
     ```
-1. Install the newly built Chronograf package
+1. Install the newly built Chronograf package:
     ```bash
     go install github.com/influxdata/chronograf/cmd/chronograf
     ```
