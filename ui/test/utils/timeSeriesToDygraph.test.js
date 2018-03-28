@@ -1,4 +1,6 @@
-import timeSeriesToDygraph from 'src/utils/timeSeriesToDygraph'
+import timeSeriesToDygraph, {
+  timeSeriesToTableGraph,
+} from 'src/utils/timeSeriesToDygraph'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -286,5 +288,176 @@ describe('timeSeriesToDygraph', () => {
     const expected = ['time', `ma.f1`, `mb.f1`, `mc.f1`, `mc.f2`]
 
     expect(actual.labels).toEqual(expected)
+  })
+})
+
+describe('timeSeriesToTableGraph', () => {
+  it('parses raw data into a nested array of data', () => {
+    const influxResponse = [
+      {
+        response: {
+          results: [
+            {
+              series: [
+                {
+                  name: 'mb',
+                  columns: ['time', 'f1'],
+                  values: [[1000, 1], [2000, 2]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'ma',
+                  columns: ['time', 'f1'],
+                  values: [[1000, 1], [2000, 2]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'mc',
+                  columns: ['time', 'f2'],
+                  values: [[2000, 3], [4000, 4]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'mc',
+                  columns: ['time', 'f1'],
+                  values: [[2000, 3], [4000, 4]],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]
+
+    const actual = timeSeriesToTableGraph(influxResponse)
+    const expected = [
+      ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2'],
+      [1000, 1, 1, null, null],
+      [2000, 2, 2, 3, 3],
+      [4000, null, null, 4, 4],
+    ]
+    expect(actual.data).toEqual(expected)
+  })
+
+  it('returns labels starting with time and then alphabetized', () => {
+    const influxResponse = [
+      {
+        response: {
+          results: [
+            {
+              series: [
+                {
+                  name: 'mb',
+                  columns: ['time', 'f1'],
+                  values: [[1000, 1], [2000, 2]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'ma',
+                  columns: ['time', 'f1'],
+                  values: [[1000, 1], [2000, 2]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'mc',
+                  columns: ['time', 'f2'],
+                  values: [[2000, 3], [4000, 4]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'mc',
+                  columns: ['time', 'f1'],
+                  values: [[2000, 3], [4000, 4]],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]
+
+    const actual = timeSeriesToTableGraph(influxResponse)
+    const expected = ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2']
+
+    expect(actual.labels).toEqual(expected)
+  })
+
+  it('parses raw data into a table-readable format with the first row being labels', () => {
+    const influxResponse = [
+      {
+        response: {
+          results: [
+            {
+              series: [
+                {
+                  name: 'mb',
+                  columns: ['time', 'f1'],
+                  values: [[1000, 1], [2000, 2]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'ma',
+                  columns: ['time', 'f1'],
+                  values: [[1000, 1], [2000, 2]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'mc',
+                  columns: ['time', 'f2'],
+                  values: [[2000, 3], [4000, 4]],
+                },
+              ],
+            },
+            {
+              series: [
+                {
+                  name: 'mc',
+                  columns: ['time', 'f1'],
+                  values: [[2000, 3], [4000, 4]],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]
+
+    const actual = timeSeriesToTableGraph(influxResponse)
+    const expected = ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2']
+
+    expect(actual.data[0]).toEqual(expected)
+  })
+
+  it('returns an array of an empty array if there is an empty response', () => {
+    const influxResponse = []
+
+    const actual = timeSeriesToTableGraph(influxResponse)
+    const expected = [[]]
+
+    expect(actual.data).toEqual(expected)
   })
 })
