@@ -1253,6 +1253,12 @@ func (e *Engine) WritePoints(points []models.Point) error {
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
 func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
+	return e.DeleteSeriesRangeWithPredicate(itr, min, max, nil)
+}
+
+// DeleteSeriesRangeWithPredicate removes the values between min and max (inclusive) from all series
+// for which predicate() returns true. If predicate() is nil, then all values in range are removed.
+func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, min, max int64, predicate func(name []byte, tags models.Tags) bool) error {
 	var disableOnce bool
 
 	// Ensure that the index does not compact away the measurement or series we're
@@ -1277,6 +1283,8 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 			return err
 		} else if elem == nil {
 			break
+		} else if predicate != nil && !predicate(elem.Name(), elem.Tags()) {
+			continue
 		}
 
 		if elem.Expr() != nil {
