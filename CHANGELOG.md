@@ -8,6 +8,7 @@
 ### UI Improvements
 
 1.  [#2910](https://github.com/influxdata/chronograf/pull/2910): Redesign system notifications
+1.  [#3088](https://github.com/influxdata/chronograf/pull/3088): New dashboard cells appear at bottom of layout and assume the size of the most common cell
 
 ### Bug Fixes
 
