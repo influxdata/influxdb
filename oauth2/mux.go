@@ -118,12 +118,12 @@ func (j *AuthMux) Callback() http.Handler {
 
 		// if we received an extra id_token, inspect it
 		var id string
-        var group string
+		var group string
 		if token.Extra("id_token") != nil && token.Extra("id_token") != "" {
 			log.Debug("token contains extra id_token")
 			if provider, ok := j.Provider.(ExtendedProvider); ok {
 				log.Debug("provider implements PrincipalIDFromClaims()")
-                tokenString, ok := token.Extra("id_token").(string)
+				tokenString, ok := token.Extra("id_token").(string)
 				if !ok {
 					log.Error("cannot cast id_token as string")
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
@@ -136,13 +136,13 @@ func (j *AuthMux) Callback() http.Handler {
 					return
 				}
 				log.Debug("found claims: ", claims)
-                id, err = provider.PrincipalIDFromClaims(claims)
+				id, err = provider.PrincipalIDFromClaims(claims)
 				if err != nil {
 					log.Error("requested claim not found in id_token:", err)
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 					return
 				}
-                group, err = provider.GroupFromClaims(claims)
+				group, err = provider.GroupFromClaims(claims)
 				if err != nil {
 					log.Error("requested claim not found in id_token:", err)
 					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
@@ -152,16 +152,16 @@ func (j *AuthMux) Callback() http.Handler {
 				log.Debug("provider does not implement PrincipalIDFromClaims()")
 			}
 		} else {
-            // otherwise perform an additional lookup
-            oauthClient := conf.Client(r.Context(), token)
+			// otherwise perform an additional lookup
+			oauthClient := conf.Client(r.Context(), token)
 			// Using the token get the principal identifier from the provider
-            id, err = j.Provider.PrincipalID(oauthClient)
+			id, err = j.Provider.PrincipalID(oauthClient)
 			if err != nil {
 				log.Error("Unable to get principal identifier ", err.Error())
 				http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
 				return
 			}
-            group, err = j.Provider.Group(oauthClient)
+			group, err = j.Provider.Group(oauthClient)
 			if err != nil {
 				log.Error("Unable to get OAuth Group", err.Error())
 				http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
