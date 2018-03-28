@@ -58,7 +58,7 @@ type Server struct {
 	ResourcesPath string        `long:"resources-path" description:"Path to directory of pre-canned dashboards, sources, kapacitors, and organizations (/usr/share/chronograf/resources)" env:"RESOURCES_PATH" default:"canned"`
 	TokenSecret   string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	JwksURL       string        `long:"jwks-url" description:"URL that returns OpenID Key Discovery JWKS document." env:"JWKS_URL"`
-	UseIDToken    bool          `long:"useidtoken" description:"Enable id_token processing." env:"USE_ID_TOKEN"`
+	UseIDToken    bool          `long:"use-id-token" description:"Enable id_token processing." env:"USE_ID_TOKEN"`
 	AuthDuration  time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
