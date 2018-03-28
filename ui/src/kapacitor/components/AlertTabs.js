@@ -8,6 +8,7 @@ import {
   getKapacitorConfig,
   updateKapacitorConfigSection,
   testAlertOutput,
+  getAllServices,
 } from 'shared/apis'
 
 import {
@@ -38,11 +39,15 @@ class AlertTabs extends Component {
 
     this.state = {
       configSections: null,
+      services: [],
     }
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     this.refreshKapacitorConfig(this.props.kapacitor)
+    const services = await getAllServices(this.props.kapacitor)
+
+    this.setState({services})
   }
 
   componentWillReceiveProps(nextProps) {
@@ -132,7 +137,7 @@ class AlertTabs extends Component {
   }
 
   render() {
-    const {configSections} = this.state
+    const {configSections, services} = this.state
     const {hash} = this.props
 
     if (!configSections) {
@@ -285,8 +290,11 @@ class AlertTabs extends Component {
           <TabList customClass="config-endpoint--tabs">
             {_.reduce(
               configSections,
-              (acc, _cur, k) =>
-                supportedConfigs[k]
+              (acc, _cur, k) => {
+                return supportedConfigs[k] &&
+                  services.find(service => {
+                    return service.name === _.toLower(supportedConfigs[k].type)
+                  })
                   ? acc.concat(
                       <Tab
                         key={supportedConfigs[k].type}
@@ -295,7 +303,8 @@ class AlertTabs extends Component {
                         {supportedConfigs[k].type}
                       </Tab>
                     )
-                  : acc,
+                  : acc
+              },
               []
             )}
           </TabList>
