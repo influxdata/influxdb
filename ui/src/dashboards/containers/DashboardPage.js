@@ -105,7 +105,7 @@ class DashboardPage extends Component {
     this.setState({windowHeight: window.innerHeight})
   }
 
-  componentWillUnMount() {
+  componentWillUnmount() {
     window.removeEventListener('resize', this.handleWindowResize, true)
   }
 
