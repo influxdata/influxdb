@@ -241,7 +241,7 @@ class TableGraph extends Component {
 
     if (columnSizerWidth !== specialColumnWidth) {
       const difference = columnSizerWidth - specialColumnWidth
-      const increment = difference / columnCount
+      const increment = difference / (columnCount - 1)
 
       adjustedColumnSizerWidth = columnSizerWidth + increment
     }
@@ -393,7 +393,7 @@ class TableGraph extends Component {
             width={tableWidth}
             timeColumnWidth={timeColumnWidth}
           >
-            {({adjustedWidth, columnWidth, registerChild}) => (
+            {({columnWidth, registerChild}) => (
               <MultiGrid
                 ref={r => this.getMultiGridRef(r, registerChild)}
                 columnCount={columnCount}
@@ -401,7 +401,7 @@ class TableGraph extends Component {
                 rowCount={rowCount}
                 rowHeight={ROW_HEIGHT}
                 height={tableHeight}
-                width={adjustedWidth}
+                width={tableWidth}
                 fixedColumnCount={fixedColumnCount}
                 fixedRowCount={1}
                 enableFixedColumnScroll={true}
