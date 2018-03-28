@@ -19,11 +19,11 @@ export const createAnnotation = async (url, annotation) => {
   return annoToMillisecond(response.data)
 }
 
-export const getAnnotations = async (url, since) => {
+export const getAnnotations = async (url, since, until) => {
   const {data} = await AJAX({
     method: 'GET',
     url,
-    params: {since: msToRFC(since)},
+    params: {since: msToRFC(since), until: msToRFC(until)},
   })
   return data.annotations.map(annoToMillisecond)
 }
