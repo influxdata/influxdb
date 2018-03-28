@@ -29,6 +29,7 @@
 1.  [#3048](https://github.com/influxdata/chronograf/pull/3048): Prevent Multi-Select Dropdown in InfluxDB Admin Users and Roles tabs from losing selection state
 1.  [#3068](https://github.com/influxdata/chronograf/pull/3068): Fix intermittent missing fill from graphs
 1.  [#3079](https://github.com/influxdata/chronograf/pull/3082): Support custom time range in annotations api wrapper
+1.  [#3087](https://github.com/influxdata/chronograf/pull/3087): Exit annotation edit mode when user navigates away from dashboard
 
 ## v1.4.2.3 [2018-03-08]
 
