@@ -25,12 +25,47 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   tableOptions: DEFAULT_TABLE_OPTIONS,
 }
 
+const getMostCommonValue = values => {
+  const distribution = {}
+  let max = 0
+  let result = 0
+
+  values.forEach(value => {
+    distribution[value] = (distribution[value] || 0) + 1
+    if (distribution[value] > max) {
+      max = distribution[value]
+      result = [value]
+      return
+    }
+    if (distribution[value] === max) {
+      result.push(value)
+    }
+  })
+
+  return result[0]
+}
+
 export const generateNewDashboardCell = dashboard => {
+  if (dashboard.cells.length === 0) {
+    return NEW_DEFAULT_DASHBOARD_CELL
+  }
+
   const newCellY = dashboard.cells
     .map(cell => cell.y + cell.h)
     .reduce((a, b) => (a > b ? a : b))
 
-  return {...NEW_DEFAULT_DASHBOARD_CELL, y: newCellY}
+  const existingCellWidths = dashboard.cells.map(cell => cell.w)
+  const existingCellHeights = dashboard.cells.map(cell => cell.h)
+
+  const mostCommonCellWidth = getMostCommonValue(existingCellWidths)
+  const mostCommonCellHeight = getMostCommonValue(existingCellHeights)
+
+  return {
+    ...NEW_DEFAULT_DASHBOARD_CELL,
+    y: newCellY,
+    w: mostCommonCellWidth,
+    h: mostCommonCellHeight,
+  }
 }
 
 export const NEW_DASHBOARD = {
