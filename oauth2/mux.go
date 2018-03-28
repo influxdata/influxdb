@@ -16,7 +16,7 @@ var _ Mux = &AuthMux{}
 const TenMinutes = 10 * time.Minute
 
 // NewAuthMux constructs a Mux handler that checks a cookie against the authenticator
-func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chronograf.Logger) *AuthMux {
+func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chronograf.Logger, UseIDToken bool) *AuthMux {
 	return &AuthMux{
 		Provider:   p,
 		Auth:       a,
@@ -25,6 +25,7 @@ func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chr
 		FailureURL: path.Join(basepath, "/login"),
 		Now:        DefaultNowTime,
 		Logger:     l,
+		UseIDToken: UseIDToken,
 	}
 }
 
@@ -41,6 +42,7 @@ type AuthMux struct {
 	SuccessURL string            // SuccessURL is redirect location after successful authorization
 	FailureURL string            // FailureURL is redirect location after authorization failure
 	Now        func() time.Time  // Now returns the current time (for testing)
+	UseIDToken bool              // UseIDToken enables OpenID id_token support
 }
 
 // Login uses a Cookie with a random string as the state validation method.  JWTs are
@@ -116,11 +118,15 @@ func (j *AuthMux) Callback() http.Handler {
 			return
 		}
 
+		if token.Extra("id_token") != nil && !j.UseIDToken {
+			log.Info("found an extra id_token, but option --useidtoken is not set")
+		}
+
 		// if we received an extra id_token, inspect it
 		var id string
 		var group string
-		if token.Extra("id_token") != nil && token.Extra("id_token") != "" {
-			log.Debug("token contains extra id_token")
+		if j.UseIDToken && token.Extra("id_token") != nil && token.Extra("id_token") != "" {
+			log.Debug("found an extra id_token")
 			if provider, ok := j.Provider.(ExtendedProvider); ok {
 				log.Debug("provider implements PrincipalIDFromClaims()")
 				tokenString, ok := token.Extra("id_token").(string)
