@@ -1,3 +1,11 @@
+## v1.5.0.0 [unreleased]
+
+### Features
+1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
+
+### UI Improvements
+### Bug Fixes
+
 ## v1.4.3.0 [unreleased]
 
 ### Features
@@ -35,7 +43,6 @@
 ## v1.4.2.1 [2018-02-28]
 
 ### Features
-
 1.  [#2837](https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 1.  [#2829](https://github.com/influxdata/chronograf/pull/2829): Add an optional persistent legend which can toggle series visibility to dashboard cells
 1.  [#2846](https://github.com/influxdata/chronograf/pull/2846): Allow user to annotate graphs via UI or API

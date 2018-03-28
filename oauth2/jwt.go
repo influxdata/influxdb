@@ -2,7 +2,12 @@ package oauth2
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"time"
 
 	gojwt "github.com/dgrijalva/jwt-go"
@@ -13,15 +18,19 @@ var _ Tokenizer = &JWT{}
 
 // JWT represents a javascript web token that can be validated or marshaled into string.
 type JWT struct {
-	Secret string
-	Now    func() time.Time
+	Secret  string
+	Jwksurl string
+	Now     func() time.Time
 }
 
-// NewJWT creates a new JWT using time.Now; secret is used for signing and validating.
-func NewJWT(secret string) *JWT {
+// NewJWT creates a new JWT using time.Now
+// secret is used for signing and validating signatures (HS256/HMAC)
+// jwksurl is used for validating RS256 signatures.
+func NewJWT(secret string, jwksurl string) *JWT {
 	return &JWT{
-		Secret: secret,
-		Now:    DefaultNowTime,
+		Secret:  secret,
+		Jwksurl: jwksurl,
+		Now:     DefaultNowTime,
 	}
 }
 
@@ -62,14 +71,96 @@ func (j *JWT) ValidPrincipal(ctx context.Context, jwtToken Token, lifespan time.
 	gojwt.TimeFunc = j.Now
 
 	// Check for expected signing method.
-	alg := func(token *gojwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*gojwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(j.Secret), nil
-	}
+	alg := j.KeyFunc
 
 	return j.ValidClaims(jwtToken, lifespan, alg)
+}
+
+// KeyFunc verifies HMAC or RSA/RS256 signatures
+func (j *JWT) KeyFunc(token *gojwt.Token) (interface{}, error) {
+	if _, ok := token.Method.(*gojwt.SigningMethodHMAC); ok {
+		return []byte(j.Secret), nil
+	} else if _, ok := token.Method.(*gojwt.SigningMethodRSA); ok {
+		return j.KeyFuncRS256(token)
+	}
+	return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+}
+
+// For the id_token, the recommended signature algorithm is RS256, which
+// means we need to verify the token against a public key. This public key
+// is available from the key discovery service in JSON Web Key (JWK).
+// JWK is specified in RFC 7517.
+//
+// The location of the key discovery service (JWKSURL) is published in the
+// OpenID Provider Configuration Information at /.well-known/openid-configuration
+// implements rfc7517 section 4.7 "x5c" (X.509 Certificate Chain) Parameter
+
+// JWK defines a JSON Web KEy nested struct
+type JWK struct {
+	Kty string   `json:"kty"`
+	Use string   `json:"use"`
+	Alg string   `json:"alg"`
+	Kid string   `json:"kid"`
+	X5t string   `json:"x5t"`
+	N   string   `json:"n"`
+	E   string   `json:"e"`
+	X5c []string `json:"x5c"`
+}
+
+// JWKS defines a JKW[]
+type JWKS struct {
+	Keys []JWK `json:"keys"`
+}
+
+// KeyFuncRS256 verifies RS256 signed JWT tokens, it looks up the signing key in the key discovery service
+func (j *JWT) KeyFuncRS256(token *gojwt.Token) (interface{}, error) {
+	// Don't forget to validate the alg is what you expect:
+	if _, ok := token.Method.(*gojwt.SigningMethodRSA); !ok {
+		return nil, fmt.Errorf("Unsupported signing method: %v", token.Header["alg"])
+	}
+
+	// read JWKS document from key discovery service
+	if j.Jwksurl == "" {
+		return nil, fmt.Errorf("JWKSURL not specified, cannot validate RS256 signature")
+	}
+
+	rr, err := http.Get(j.Jwksurl)
+	if err != nil {
+		return nil, err
+	}
+	defer rr.Body.Close()
+	body, err := ioutil.ReadAll(rr.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// parse json to struct
+	var jwks JWKS
+	if err := json.Unmarshal([]byte(body), &jwks); err != nil {
+		return nil, err
+	}
+
+	// extract cert when kid and alg match
+	var certPkix []byte
+	for _, jwk := range jwks.Keys {
+		if token.Header["kid"] == jwk.Kid && token.Header["alg"] == jwk.Alg {
+			// FIXME: optionally walk the key chain, see rfc7517 section 4.7
+			certPkix, err = base64.StdEncoding.DecodeString(jwk.X5c[0])
+			if err != nil {
+				return nil, fmt.Errorf("base64 decode error for JWK kid %v", token.Header["kid"])
+			}
+		}
+	}
+	if certPkix == nil {
+		return nil, fmt.Errorf("no signing key found for kid %v", token.Header["kid"])
+	}
+
+	// parse certificate (from PKIX format) and return signing key
+	cert, err := x509.ParseCertificate(certPkix)
+	if err != nil {
+		return nil, err
+	}
+	return cert.PublicKey, nil
 }
 
 // ValidClaims validates a token with StandardClaims
@@ -112,6 +203,28 @@ func (j *JWT) ValidClaims(jwtToken Token, lifespan time.Duration, alg gojwt.Keyf
 		ExpiresAt:    exp,
 		IssuedAt:     iat,
 	}, nil
+}
+
+// GetClaims extracts claims from id_token
+func (j *JWT) GetClaims(tokenString string) (gojwt.MapClaims, error) {
+	var claims gojwt.MapClaims
+
+	gojwt.TimeFunc = j.Now
+	token, err := gojwt.Parse(tokenString, j.KeyFunc)
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("token is not valid")
+	}
+
+	claims, ok := token.Claims.(gojwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("token has no claims")
+	}
+
+	return claims, nil
 }
 
 // Create creates a signed JWT token from user that expires at Principal's ExpireAt time.
