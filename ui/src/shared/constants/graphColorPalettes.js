@@ -200,7 +200,7 @@ export const LINE_COLOR_SCALES = [
 })
 
 export const validateLineColors = colors => {
-  if (!colors) {
+  if (!colors || colors.length === 0) {
     return DEFAULT_LINE_COLORS
   }
 
