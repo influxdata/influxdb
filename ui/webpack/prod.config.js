@@ -167,16 +167,10 @@ const config = {
     function() {
       /* Webpack does not exit with non-zero status if error. */
       this.plugin('done', function(stats) {
-        if (
-          stats.compilation.errors &&
-          stats.compilation.errors.length &&
-          process.argv.indexOf('--watch') == -1
-        ) {
-          console.log(
-            stats.compilation.errors.toString({
-              colors: true,
-            })
-          )
+        const {compilation: {errors}} = stats
+
+        if (errors && errors.length) {
+          errors.forEach(err => console.log(err))
           process.exit(1)
         }
       })
