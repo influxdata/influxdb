@@ -10,7 +10,7 @@ import * as actions from 'shared/actions/annotations'
 
 const TimeStamp = ({time}) => (
   <div className="annotation-tooltip--timestamp">
-    {`${moment(+time).format('YYYY/DD/MM HH:mm:ss.SS')}`}
+    {`${moment(+time).format('YYYY/MM/DD HH:mm:ss.SS')}`}
   </div>
 )
 
