@@ -78,10 +78,8 @@ class DashboardPage extends Component {
       timeRange,
     } = this.props
 
-    getAnnotationsAsync(
-      source.links.annotations,
-      Date.now() - timeRange.seconds * 1000
-    )
+    const annotationRange = this.millisecondTimeRange(timeRange)
+    getAnnotationsAsync(source.links.annotations, annotationRange)
     window.addEventListener('resize', this.handleWindowResize, true)
 
     const dashboards = await getDashboardsAsync()
@@ -159,10 +157,25 @@ class DashboardPage extends Component {
       ...timeRange,
       format: FORMAT_INFLUXQL,
     })
-    getAnnotationsAsync(
-      source.links.annotations,
-      Date.now() - timeRange.seconds * 1000
-    )
+
+    const annotationRange = this.millisecondTimeRange(timeRange)
+    getAnnotationsAsync(source.links.annotations, annotationRange)
+  }
+
+  millisecondTimeRange({seconds, lower, upper}) {
+    // Is this a relative time range?
+    if (seconds) {
+      return {
+        since: Date.now() - seconds * 1000,
+        until: null,
+      }
+    }
+
+    // No, this is an absolute (custom) time range
+    return {
+      since: Date.parse(lower),
+      until: Date.parse(upper),
+    }
   }
 
   handleUpdatePosition = cells => {
