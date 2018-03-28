@@ -16,7 +16,7 @@ var _ Mux = &AuthMux{}
 const TenMinutes = 10 * time.Minute
 
 // NewAuthMux constructs a Mux handler that checks a cookie against the authenticator
-func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chronograf.Logger) *AuthMux {
+func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chronograf.Logger, UseIDToken bool) *AuthMux {
 	return &AuthMux{
 		Provider:   p,
 		Auth:       a,
@@ -25,6 +25,7 @@ func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chr
 		FailureURL: path.Join(basepath, "/login"),
 		Now:        DefaultNowTime,
 		Logger:     l,
+		UseIDToken: UseIDToken,
 	}
 }
 
@@ -41,6 +42,7 @@ type AuthMux struct {
 	SuccessURL string            // SuccessURL is redirect location after successful authorization
 	FailureURL string            // FailureURL is redirect location after authorization failure
 	Now        func() time.Time  // Now returns the current time (for testing)
+	UseIDToken bool              // UseIDToken enables OpenID id_token support
 }
 
 // Login uses a Cookie with a random string as the state validation method.  JWTs are
@@ -116,20 +118,61 @@ func (j *AuthMux) Callback() http.Handler {
 			return
 		}
 
-		// Using the token get the principal identifier from the provider
-		oauthClient := conf.Client(r.Context(), token)
-		id, err := j.Provider.PrincipalID(oauthClient)
-		if err != nil {
-			log.Error("Unable to get principal identifier ", err.Error())
-			http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
-			return
+		if token.Extra("id_token") != nil && !j.UseIDToken {
+			log.Info("found an extra id_token, but option --useidtoken is not set")
 		}
 
-		group, err := j.Provider.Group(oauthClient)
-		if err != nil {
-			log.Error("Unable to get OAuth Group", err.Error())
-			http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
-			return
+		// if we received an extra id_token, inspect it
+		var id string
+		var group string
+		if j.UseIDToken && token.Extra("id_token") != nil && token.Extra("id_token") != "" {
+			log.Debug("found an extra id_token")
+			if provider, ok := j.Provider.(ExtendedProvider); ok {
+				log.Debug("provider implements PrincipalIDFromClaims()")
+				tokenString, ok := token.Extra("id_token").(string)
+				if !ok {
+					log.Error("cannot cast id_token as string")
+					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+					return
+				}
+				claims, err := j.Tokens.GetClaims(tokenString)
+				if err != nil {
+					log.Error("parsing extra id_token failed:", err)
+					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+					return
+				}
+				log.Debug("found claims: ", claims)
+				id, err = provider.PrincipalIDFromClaims(claims)
+				if err != nil {
+					log.Error("requested claim not found in id_token:", err)
+					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+					return
+				}
+				group, err = provider.GroupFromClaims(claims)
+				if err != nil {
+					log.Error("requested claim not found in id_token:", err)
+					http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+					return
+				}
+			} else {
+				log.Debug("provider does not implement PrincipalIDFromClaims()")
+			}
+		} else {
+			// otherwise perform an additional lookup
+			oauthClient := conf.Client(r.Context(), token)
+			// Using the token get the principal identifier from the provider
+			id, err = j.Provider.PrincipalID(oauthClient)
+			if err != nil {
+				log.Error("Unable to get principal identifier ", err.Error())
+				http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+				return
+			}
+			group, err = j.Provider.Group(oauthClient)
+			if err != nil {
+				log.Error("Unable to get OAuth Group", err.Error())
+				http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)
+				return
+			}
 		}
 
 		p := Principal{

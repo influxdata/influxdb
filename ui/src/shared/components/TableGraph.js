@@ -19,11 +19,11 @@ import {
   calculateTimeColumnWidth,
   calculateLabelsColumnWidth,
 } from 'src/shared/constants/tableGraph'
-const DEFAULT_SORT = ASCENDING
+export const DEFAULT_SORT = ASCENDING
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
-const filterInvisibleColumns = (data, fieldNames) => {
+export const filterInvisibleColumns = (data, fieldNames) => {
   const visibility = {}
   const filteredData = data.map((row, i) => {
     return row.filter((col, j) => {
@@ -37,7 +37,7 @@ const filterInvisibleColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
-const processData = (
+export const processData = (
   data,
   sortFieldName,
   direction,
@@ -427,10 +427,9 @@ class TableGraph extends Component {
   }
 }
 
-const {arrayOf, bool, number, shape, string, func} = PropTypes
+const {arrayOf, bool, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
-  cellHeight: number,
   data: arrayOf(shape()),
   tableOptions: shape({
     timeFormat: string.isRequired,

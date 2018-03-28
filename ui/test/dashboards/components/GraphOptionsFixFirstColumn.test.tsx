@@ -26,5 +26,23 @@ describe('Dashboards.Components.GraphOptionsFixFirstColumn', () => {
       expect(checkbox.exists()).toBe(true)
       expect(checkbox.prop('type')).toBe('checkbox')
     })
+
+    describe('if fixed is true', () => {
+      it('input is checked', () => {
+        const {wrapper} = setup()
+        const checkbox = wrapper.find('input')
+
+        expect(checkbox.prop('checked')).toBe(true)
+      })
+    })
+
+    describe('if fixed is false', () => {
+      it('input is not checked', () => {
+        const {wrapper} = setup({fixed: false})
+        const checkbox = wrapper.find('input')
+
+        expect(checkbox.prop('checked')).toBe(false)
+      })
+    })
   })
 })
