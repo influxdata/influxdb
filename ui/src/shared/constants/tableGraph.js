@@ -57,3 +57,35 @@ export const calculateTimeColumnWidth = timeFormat => {
 
   return width + CELL_HORIZONTAL_PADDING
 }
+
+export const calculateLabelsColumnWidth = (labels, fieldNames) => {
+  if (!labels) {
+    return
+  }
+  if (fieldNames.length === 1) {
+    const longestLabel = labels.reduce((a, b) => (a.length > b.length ? a : b))
+    const {width} = calculateSize(longestLabel, {
+      font: '"RobotoMono", monospace',
+      fontSize: '13px',
+      fontWeight: 'bold',
+    })
+
+    return width + CELL_HORIZONTAL_PADDING
+  }
+
+  const longestFieldName = fieldNames
+    .map(fieldName => {
+      return fieldName.displayName
+        ? fieldName.displayName
+        : fieldName.internalName
+    })
+    .reduce((a, b) => (a.length > b.length ? a : b))
+
+  const {width} = calculateSize(longestFieldName, {
+    font: '"RobotoMono", monospace',
+    fontSize: '13px',
+    fontWeight: 'bold',
+  })
+
+  return width + CELL_HORIZONTAL_PADDING
+}
