@@ -25,6 +25,7 @@ func TestSelect(t *testing.T) {
 		expr   string
 		itrs   []query.Iterator
 		points [][]query.Point
+		now    time.Time
 		err    string
 	}{
 		{
@@ -2757,6 +2758,27 @@ func TestSelect(t *testing.T) {
 				{&query.FloatPoint{Name: "cpu", Time: 22 * Second, Value: 7.953140268154609}},
 			},
 		},
+		{
+			name: "GroupByOffset",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= now() - 2m AND time < now() GROUP BY time(1m, now())`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 34 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 92 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 45 * Second, Value: 10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 30 * Second, Value: 11, Aggregated: 3}},
+				{&query.FloatPoint{Name: "cpu", Time: 90 * Second, Value: 100, Aggregated: 1}},
+			},
+			now: mustParseTime("1970-01-01T00:02:30Z"),
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			shardMapper := ShardMapper{
@@ -2790,7 +2812,22 @@ func TestSelect(t *testing.T) {
 				},
 			}
 
-			itrs, _, err := query.Select(context.Background(), MustParseSelectStatement(tt.q), &shardMapper, query.SelectOptions{})
+			stmt := MustParseSelectStatement(tt.q)
+			stmt.OmitTime = true
+			itrs, _, err := func(stmt *influxql.SelectStatement) ([]query.Iterator, []string, error) {
+				c, err := query.Compile(stmt, query.CompileOptions{
+					Now: tt.now,
+				})
+				if err != nil {
+					return nil, nil, err
+				}
+
+				p, err := c.Prepare(&shardMapper, query.SelectOptions{})
+				if err != nil {
+					return nil, nil, err
+				}
+				return p.Select(context.Background())
+			}(stmt)
 			if err != nil {
 				if tt.err == "" {
 					t.Fatal(err)
