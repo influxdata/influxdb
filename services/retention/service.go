@@ -96,6 +96,14 @@ func (s *Service) run() {
 			dbs := s.MetaClient.Databases()
 			for _, d := range dbs {
 				for _, r := range d.RetentionPolicies {
+					// Build list of already deleted shards.
+					for _, g := range r.DeletedShardGroups() {
+						for _, sh := range g.Shards {
+							deletedShardIDs[sh.ID] = deletionInfo{db: d.Name, rp: r.Name}
+						}
+					}
+
+					// Determine all shards that have expired and need to be deleted.
 					for _, g := range r.ExpiredShardGroups(time.Now().UTC()) {
 						if err := s.MetaClient.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
 							log.Info("Failed to delete shard group",

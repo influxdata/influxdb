@@ -236,16 +236,16 @@ func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) 
 
 	// A database and a bunch of shards
 	var mu sync.Mutex
-	shards := []uint64{3, 5, 8, 9, 11}
-	localShards := []uint64{3, 5, 8, 9, 11}
+	shards := []uint64{3, 5, 8, 9, 11, 12}
+	localShards := []uint64{3, 5, 8, 9, 11, 12}
 	databases := []meta.DatabaseInfo{
 		{
 			Name: "db0",
 			RetentionPolicies: []meta.RetentionPolicyInfo{
 				{
 					Name:               "autogen",
-					Duration:           time.Millisecond,
-					ShardGroupDuration: time.Millisecond,
+					Duration:           24 * time.Hour,
+					ShardGroupDuration: 24 * time.Hour,
 					ShardGroups: []meta.ShardGroupInfo{
 						{
 							ID:        1,
@@ -253,6 +253,15 @@ func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) 
 							EndTime:   time.Date(1981, 1, 1, 0, 0, 0, 0, time.UTC),
 							Shards: []meta.ShardInfo{
 								{ID: 3}, {ID: 9},
+							},
+						},
+						{
+							ID:        2,
+							StartTime: time.Now().Add(-1 * time.Hour),
+							EndTime:   time.Now(),
+							DeletedAt: time.Now(),
+							Shards: []meta.ShardInfo{
+								{ID: 11}, {ID: 12},
 							},
 						},
 					},
@@ -326,7 +335,7 @@ func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) 
 		}
 
 		// We should have removed shards 3 and 9
-		if !reflect.DeepEqual(localShards, []uint64{5, 8, 11}) {
+		if !reflect.DeepEqual(localShards, []uint64{5, 8}) {
 			sendError(fmt.Errorf("removed shards still present locally: %v", localShards))
 			return nil
 		}
