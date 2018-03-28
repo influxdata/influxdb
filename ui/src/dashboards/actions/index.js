@@ -11,7 +11,7 @@ import {
 import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
-import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
+import {generateNewDashboardCell} from 'src/dashboards/constants'
 import {
   notifyDashboardDeleted,
   notifyDashboardDeleteFailed,
@@ -277,7 +277,7 @@ export const addDashboardCellAsync = dashboard => async dispatch => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
-      NEW_DEFAULT_DASHBOARD_CELL
+      generateNewDashboardCell(dashboard)
     )
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {

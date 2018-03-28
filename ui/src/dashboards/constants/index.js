@@ -25,6 +25,14 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   tableOptions: DEFAULT_TABLE_OPTIONS,
 }
 
+export const generateNewDashboardCell = dashboard => {
+  const newCellY = dashboard.cells
+    .map(cell => cell.y + cell.h)
+    .reduce((a, b) => (a > b ? a : b))
+
+  return {...NEW_DEFAULT_DASHBOARD_CELL, y: newCellY}
+}
+
 export const NEW_DASHBOARD = {
   name: 'Name This Dashboard',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
