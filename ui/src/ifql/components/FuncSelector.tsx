@@ -24,7 +24,6 @@ export class FuncSelector extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onAddNode} = this.props
     const {isOpen, inputText} = this.state
 
     return (

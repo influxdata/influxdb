@@ -6,6 +6,7 @@ const setup = () => {
   const props = {
     funcs: [],
     ast: {},
+    nodes: [],
   }
 
   const wrapper = shallow(<TimeMachine {...props} />)

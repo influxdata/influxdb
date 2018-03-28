@@ -1,5 +1,5 @@
 // Texas Ranger
-import {get} from 'lodash'
+import _ from 'lodash'
 
 interface Expression {
   expression: object
@@ -32,6 +32,10 @@ export default class Walker {
   }
 
   private walk = currentNode => {
+    if (_.isEmpty(currentNode)) {
+      return []
+    }
+
     let name
     let args
     if (currentNode.call) {
@@ -57,11 +61,15 @@ export default class Walker {
   private getProperties = props => {
     return props.map(prop => ({
       key: prop.key.name,
-      value: get(prop, 'value.value', get(prop, 'value.location.source', '')),
+      value: _.get(
+        prop,
+        'value.value',
+        _.get(prop, 'value.location.source', '')
+      ),
     }))
   }
 
   private get baseExpression() {
-    return this.ast.body[0].expression
+    return _.get(this.ast, 'body.0.expression', {})
   }
 }
