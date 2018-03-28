@@ -76,6 +76,7 @@ class LineGraph extends Component {
       rightGap: 0,
       yRangePad: 10,
       labelsKMB: true,
+      fillGraph: true,
       underlayCallback,
       axisLabelWidth: 60,
       drawAxesAtZero: true,
