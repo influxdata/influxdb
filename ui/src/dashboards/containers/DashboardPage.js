@@ -28,6 +28,8 @@ import {
   hideCellEditorOverlay,
 } from 'src/dashboards/actions/cellEditorOverlay'
 
+import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
+
 import {
   setAutoRefresh,
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
@@ -105,8 +107,9 @@ class DashboardPage extends Component {
     this.setState({windowHeight: window.innerHeight})
   }
 
-  componentWillUnMount() {
+  componentWillUnmount() {
     window.removeEventListener('resize', this.handleWindowResize, true)
+    this.props.handleDismissEditingAnnotation()
   }
 
   inView = cell => {
@@ -524,6 +527,7 @@ DashboardPage.propTypes = {
   getAnnotationsAsync: func.isRequired,
   handleShowCellEditorOverlay: func.isRequired,
   handleHideCellEditorOverlay: func.isRequired,
+  handleDismissEditingAnnotation: func.isRequired,
   selectedCell: shape({}),
   thresholdsListType: string.isRequired,
   thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
@@ -598,6 +602,10 @@ const mapDispatchToProps = dispatch => ({
   ),
   handleHideCellEditorOverlay: bindActionCreators(
     hideCellEditorOverlay,
+    dispatch
+  ),
+  handleDismissEditingAnnotation: bindActionCreators(
+    dismissEditingAnnotation,
     dispatch
   ),
 })
