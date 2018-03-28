@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import {
   getUsers as getUsersAJAX,
@@ -16,8 +16,14 @@ import {
   deleteMapping as deleteMappingAJAX,
 } from 'src/admin/apis/chronograf'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
+import {
+  notifyMappingDeleted,
+  notifyChronografOrgDeleted,
+  notifyChronografUserUpdated,
+  notifyChronografUserDeleted,
+} from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
 
@@ -162,9 +168,9 @@ export const createMappingAsync = (url, mapping) => async dispatch => {
     const {data} = await createMappingAJAX(url, mapping)
     dispatch(updateMapping(mappingWithTempId, data))
   } catch (error) {
-    const message = `${_.upperFirst(
-      _.toLower(error.data.message)
-    )}: Scheme: ${mapping.scheme} Provider: ${mapping.provider}`
+    const message = `${_.upperFirst(_.toLower(error.data.message))}: Scheme: ${
+      mapping.scheme
+    } Provider: ${mapping.provider}`
     dispatch(errorThrown(error, message))
     setTimeout(
       () => dispatch(removeMapping(mappingWithTempId)),
@@ -177,12 +183,7 @@ export const deleteMappingAsync = mapping => async dispatch => {
   dispatch(removeMapping(mapping))
   try {
     await deleteMappingAJAX(mapping)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Mapping deleted: ${mapping.id} ${mapping.scheme}`
-      )
-    )
+    dispatch(notify(notifyMappingDeleted(mapping.id, mapping.scheme)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addMapping(mapping))
@@ -211,9 +212,9 @@ export const createUserAsync = (url, user) => async dispatch => {
     const {data} = await createUserAJAX(url, user)
     dispatch(syncUser(userWithTempID, data))
   } catch (error) {
-    const message = `${_.upperFirst(
-      _.toLower(error.data.message)
-    )}: ${user.scheme}::${user.provider}::${user.name}`
+    const message = `${_.upperFirst(_.toLower(error.data.message))}: ${
+      user.scheme
+    }::${user.provider}::${user.name}`
     dispatch(errorThrown(error, message))
     // undo optimistic update
     setTimeout(() => dispatch(removeUser(userWithTempID)), REVERT_STATE_DELAY)
@@ -238,7 +239,7 @@ export const updateUserAsync = (
       provider: null,
       scheme: null,
     })
-    dispatch(publishAutoDismissingNotification('success', successMessage))
+    dispatch(notify(notifyChronografUserUpdated(successMessage)))
     // it's not necessary to syncUser again but it's useful for good
     // measure and for the clarity of insight in the redux story
     dispatch(syncUser(user, data))
@@ -255,14 +256,7 @@ export const deleteUserAsync = (
   dispatch(removeUser(user))
   try {
     await deleteUserAJAX(user)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `${user.name} has been removed from ${isAbsoluteDelete
-          ? 'all organizations and deleted'
-          : 'the current organization'}`
-      )
-    )
+    dispatch(notify(notifyChronografUserDeleted(user.name, isAbsoluteDelete)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addUser(user))
@@ -281,9 +275,9 @@ export const createOrganizationAsync = (
     const {data} = await createOrganizationAJAX(url, organization)
     dispatch(syncOrganization(organization, data))
   } catch (error) {
-    const message = `${_.upperFirst(
-      _.toLower(error.data.message)
-    )}: ${organization.name}`
+    const message = `${_.upperFirst(_.toLower(error.data.message))}: ${
+      organization.name
+    }`
     dispatch(errorThrown(error, message))
     // undo optimistic update
     setTimeout(
@@ -313,12 +307,7 @@ export const deleteOrganizationAsync = organization => async dispatch => {
   dispatch(removeOrganization(organization))
   try {
     await deleteOrganizationAJAX(organization)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Organization deleted: ${organization.name}`
-      )
-    )
+    dispatch(notify(notifyChronografOrgDeleted(organization.name)))
   } catch (error) {
     dispatch(errorThrown(error))
     dispatch(addOrganization(organization))

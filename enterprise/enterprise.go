@@ -144,6 +144,14 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 	return c.nextDataNode().Query(ctx, q)
 }
 
+// Write records points into a time series
+func (c *Client) Write(ctx context.Context, points []chronograf.Point) error {
+	if !c.opened {
+		return chronograf.ErrUninitialized
+	}
+	return c.nextDataNode().Write(ctx, points)
+}
+
 // Users is the interface to the users within Influx Enterprise
 func (c *Client) Users(context.Context) chronograf.UsersStore {
 	return c.UsersStore

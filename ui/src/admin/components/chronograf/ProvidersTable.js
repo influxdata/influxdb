@@ -1,6 +1,7 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 import ProvidersTableRow from 'src/admin/components/chronograf/ProvidersTableRow'
 import ProvidersTableRowNew from 'src/admin/components/chronograf/ProvidersTableRowNew'
 
@@ -43,7 +44,7 @@ class ProvidersTable extends Component {
 
     if (isLoading) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -52,11 +53,9 @@ class ProvidersTable extends Component {
     }
 
     return (
-      <div className="panel panel-default">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">
-            {tableTitle}
-          </h2>
+      <div className="panel panel-solid">
+        <div className="panel-heading">
+          <h2 className="panel-title">{tableTitle}</h2>
           <button
             className="btn btn-sm btn-primary"
             onClick={this.handleClickCreateMap}
@@ -65,59 +64,58 @@ class ProvidersTable extends Component {
             <span className="icon plus" /> Create Mapping
           </button>
         </div>
-        {mappings.length || isCreatingMap
-          ? <div className="panel-body">
-              <div className="fancytable--labels">
-                <div className="fancytable--th provider--scheme">Scheme</div>
-                <div className="fancytable--th provider--provider">
-                  Provider
-                </div>
-                <div className="fancytable--th provider--providerorg">
-                  Provider Org
-                </div>
-                <div className="fancytable--th provider--arrow" />
-                <div className="fancytable--th provider--redirect">
-                  Organization
-                </div>
-                <div className="fancytable--th" />
-                <div className="fancytable--th provider--delete" />
+        {mappings.length || isCreatingMap ? (
+          <div className="panel-body">
+            <div className="fancytable--labels">
+              <div className="fancytable--th provider--scheme">Scheme</div>
+              <div className="fancytable--th provider--provider">Provider</div>
+              <div className="fancytable--th provider--providerorg">
+                Provider Org
               </div>
-              {mappings.map((mapping, i) =>
-                <ProvidersTableRow
-                  key={uuid.v4()}
-                  mapping={mapping}
-                  organizations={organizations}
-                  schemes={SCHEMES}
-                  onDelete={onDeleteMap}
-                  onUpdate={onUpdateMap}
-                  rowIndex={i + 1}
-                />
-              )}
-              {isCreatingMap
-                ? <ProvidersTableRowNew
-                    organizations={organizations}
-                    schemes={SCHEMES}
-                    onCreate={this.handleCreateMap}
-                    onCancel={this.handleCancelCreateMap}
-                    rowIndex={mappings.length + 1}
-                  />
-                : null}
+              <div className="fancytable--th provider--arrow" />
+              <div className="fancytable--th provider--redirect">
+                Organization
+              </div>
+              <div className="fancytable--th provider--delete" />
             </div>
-          : <div className="panel-body">
-              <div className="generic-empty-state">
-                <h4 style={{margin: '50px 0'}}>
-                  Looks like you have no mappings<br />
-                  New users will not be able to sign up automatically
-                </h4>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={this.handleClickCreateMap}
-                  disabled={isCreatingMap}
-                >
-                  <span className="icon plus" /> Create Mapping
-                </button>
-              </div>
-            </div>}
+            {mappings.map((mapping, i) => (
+              <ProvidersTableRow
+                key={uuid.v4()}
+                mapping={mapping}
+                organizations={organizations}
+                schemes={SCHEMES}
+                onDelete={onDeleteMap}
+                onUpdate={onUpdateMap}
+                rowIndex={i + 1}
+              />
+            ))}
+            {isCreatingMap ? (
+              <ProvidersTableRowNew
+                organizations={organizations}
+                schemes={SCHEMES}
+                onCreate={this.handleCreateMap}
+                onCancel={this.handleCancelCreateMap}
+                rowIndex={mappings.length + 1}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <div className="panel-body">
+            <div className="generic-empty-state">
+              <h4 style={{margin: '50px 0'}}>
+                Looks like you have no mappings<br />
+                New users will not be able to sign up automatically
+              </h4>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={this.handleClickCreateMap}
+                disabled={isCreatingMap}
+              >
+                <span className="icon plus" /> Create Mapping
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

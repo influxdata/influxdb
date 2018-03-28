@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
@@ -11,7 +12,7 @@ const DeleteButton = ({
   square,
   text,
   disabled,
-}) =>
+}) => (
   <button
     className={classnames('btn btn-danger table--show-on-row-hover', {
       [buttonSize]: buttonSize,
@@ -23,6 +24,7 @@ const DeleteButton = ({
     {icon ? <span className={`icon ${icon}`} /> : null}
     {square ? null : text}
   </button>
+)
 
 class DeleteConfirmButtons extends Component {
   constructor(props) {
@@ -30,15 +32,13 @@ class DeleteConfirmButtons extends Component {
     this.state = {
       isConfirming: false,
     }
-    this.handleClickDelete = ::this.handleClickDelete
-    this.handleCancel = ::this.handleCancel
   }
 
-  handleClickDelete() {
+  handleClickDelete = () => {
     this.setState({isConfirming: true})
   }
 
-  handleCancel() {
+  handleCancel = () => {
     this.setState({isConfirming: false})
   }
 
@@ -64,21 +64,23 @@ class DeleteConfirmButtons extends Component {
       )
     }
 
-    return isConfirming
-      ? <ConfirmButtons
-          onConfirm={onDelete}
-          item={item}
-          onCancel={this.handleCancel}
-          buttonSize={buttonSize}
-        />
-      : <DeleteButton
-          text={text}
-          onClickDelete={disabled ? () => {} : this.handleClickDelete}
-          buttonSize={buttonSize}
-          icon={icon}
-          square={square}
-          disabled={disabled}
-        />
+    return isConfirming ? (
+      <ConfirmButtons
+        onConfirm={onDelete}
+        item={item}
+        onCancel={this.handleCancel}
+        buttonSize={buttonSize}
+      />
+    ) : (
+      <DeleteButton
+        text={text}
+        onClickDelete={disabled ? () => {} : this.handleClickDelete}
+        buttonSize={buttonSize}
+        icon={icon}
+        square={square}
+        disabled={disabled}
+      />
+    )
   }
 }
 

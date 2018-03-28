@@ -1,7 +1,8 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {withRouter} from 'react-router'
 
-import groupByTimeOptions from 'hson!src/data_explorer/data/groupByTimes.hson'
+import groupByTimeOptions from 'src/data_explorer/data/groupByTimes'
 
 import Dropdown from 'shared/components/Dropdown'
 
@@ -18,7 +19,7 @@ const GroupByTimeDropdown = ({
   selected,
   onChooseGroupByTime,
   location: {pathname},
-}) =>
+}) => (
   <div className="group-by-time">
     <label className="group-by-time--label">Group by:</label>
     <Dropdown
@@ -33,6 +34,7 @@ const GroupByTimeDropdown = ({
       selected={selected || 'Time'}
     />
   </div>
+)
 
 const {func, string, shape} = PropTypes
 

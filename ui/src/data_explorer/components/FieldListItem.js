@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import _ from 'lodash'
 
@@ -89,27 +90,27 @@ class FieldListItem extends Component {
             <div className="query-builder--checkbox" />
             {fieldName}
           </span>
-          {isSelected
-            ? <div
-                className={classnames('btn btn-xs', {
-                  active: isOpen,
-                  'btn-default': !num,
-                  'btn-primary': num,
-                })}
-                onClick={this.toggleFunctionsMenu}
-                data-test={`query-builder-list-item-function-${fieldName}`}
-              >
-                {fieldFuncsLabel}
-              </div>
-            : null}
+          {isSelected ? (
+            <div
+              className={classnames('btn btn-xs', {
+                active: isOpen,
+                'btn-default': !num,
+                'btn-primary': num,
+              })}
+              onClick={this.toggleFunctionsMenu}
+              data-test={`query-builder-list-item-function-${fieldName}`}
+            >
+              {fieldFuncsLabel}
+            </div>
+          ) : null}
         </div>
-        {isSelected && isOpen
-          ? <FunctionSelector
-              onApply={this.handleApplyFunctions}
-              selectedItems={funcs}
-              singleSelect={isKapacitorRule}
-            />
-          : null}
+        {isSelected && isOpen ? (
+          <FunctionSelector
+            onApply={this.handleApplyFunctions}
+            selectedItems={funcs}
+            singleSelect={isKapacitorRule}
+          />
+        ) : null}
       </div>
     )
   }

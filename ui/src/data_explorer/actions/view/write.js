@@ -1,20 +1,18 @@
 import {writeLineProtocol as writeLineProtocolAJAX} from 'src/data_explorer/apis'
 
-import {errorThrown} from 'shared/actions/errors'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify} from 'shared/actions/notifications'
+
+import {
+  notifyDataWritten,
+  notifyDataWriteFailed,
+} from 'shared/copy/notifications'
 
 export const writeLineProtocolAsync = (source, db, data) => async dispatch => {
   try {
     await writeLineProtocolAJAX(source, db, data)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Data was written successfully'
-      )
-    )
+    dispatch(notify(notifyDataWritten()))
   } catch (response) {
-    const errorMessage = `Write failed: ${response.data.error}`
-    dispatch(errorThrown(response, errorMessage))
+    dispatch(notify(notifyDataWriteFailed(response.data.error)))
     throw response
   }
 }

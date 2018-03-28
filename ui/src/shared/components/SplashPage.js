@@ -1,6 +1,7 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
-const SplashPage = ({children}) =>
+const SplashPage = ({children}) => (
   <div className="auth-page">
     <div className="auth-box">
       <div className="auth-logo" />
@@ -11,6 +12,7 @@ const SplashPage = ({children}) =>
     </p>
     <div className="auth-image" />
   </div>
+)
 
 const {node} = PropTypes
 SplashPage.propTypes = {

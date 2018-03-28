@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import _ from 'lodash'
@@ -6,7 +7,13 @@ import _ from 'lodash'
 import DatabaseManager from 'src/admin/components/DatabaseManager'
 
 import * as adminActionCreators from 'src/admin/actions/influxdb'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify as notifyAction} from 'shared/actions/notifications'
+
+import {
+  notifyDatabaseDeleteConfirmationRequired,
+  notifyDatabaseNameAlreadyExists,
+  notifyDatabaseNameInvalid,
+} from 'shared/copy/notifications'
 
 class DatabaseManagerPage extends Component {
   constructor(props) {
@@ -34,11 +41,11 @@ class DatabaseManagerPage extends Component {
   handleCreateDatabase = database => {
     const {actions, notify, source, databases} = this.props
     if (!database.name) {
-      return notify('error', 'Database name cannot be blank')
+      return notify(notifyDatabaseNameInvalid())
     }
 
     if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-      return notify('error', 'A database by this name already exists')
+      return notify(notifyDatabaseNameAlreadyExists())
     }
 
     actions.createDatabaseAsync(source.links.databases, database)
@@ -59,11 +66,11 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (!database.name) {
-        return notify('error', 'Database name cannot be blank')
+        return notify(notifyDatabaseNameInvalid())
       }
 
       if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
-        return notify('error', 'A database by this name already exists')
+        return notify(notifyDatabaseNameAlreadyExists())
       }
 
       actions.createDatabaseAsync(source.links.databases, database)
@@ -80,7 +87,7 @@ class DatabaseManagerPage extends Component {
 
     if (key === 'Enter') {
       if (database.deleteCode !== `DELETE ${database.name}`) {
-        return notify('error', `Please type DELETE ${database.name} to confirm`)
+        return notify(notifyDatabaseDeleteConfirmationRequired(database.name))
       }
 
       return actions.deleteDatabaseAsync(database)
@@ -152,7 +159,7 @@ DatabaseManagerPage.propTypes = {
     removeRetentionPolicy: func,
     deleteRetentionPolicyAsync: func,
   }),
-  notify: func,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {databases, retentionPolicies}}) => ({
@@ -162,7 +169,7 @@ const mapStateToProps = ({adminInfluxDB: {databases, retentionPolicies}}) => ({
 
 const mapDispatchToProps = dispatch => ({
   actions: bindActionCreators(adminActionCreators, dispatch),
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DatabaseManagerPage)

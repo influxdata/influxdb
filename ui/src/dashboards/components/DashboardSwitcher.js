@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {Link} from 'react-router'
 import _ from 'lodash'
 import classnames from 'classnames'
@@ -41,7 +42,7 @@ class DashboardSwitcher extends Component {
           <span className="icon dash-f" />
         </button>
         <ul className="dropdown-menu">
-          {sorted.map(({name, link}) =>
+          {sorted.map(({name, link}) => (
             <NameLink
               key={link}
               name={name}
@@ -49,14 +50,14 @@ class DashboardSwitcher extends Component {
               activeName={activeDashboard}
               onClose={this.handleCloseMenu}
             />
-          )}
+          ))}
         </ul>
       </div>
     )
   }
 }
 
-const NameLink = ({name, link, activeName, onClose}) =>
+const NameLink = ({name, link, activeName, onClose}) => (
   <li
     className={classnames('dropdown-item', {
       active: name === activeName,
@@ -66,6 +67,7 @@ const NameLink = ({name, link, activeName, onClose}) =>
       {name}
     </Link>
   </li>
+)
 
 const {arrayOf, func, shape, string} = PropTypes
 

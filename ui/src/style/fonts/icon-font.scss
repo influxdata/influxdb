@@ -1,0 +1,89 @@
+/*
+   Icon Font
+   -----------------------------------------------------------------------------
+   Created using a tool called IcoMoon
+   See more at http://icomoon.io
+*/
+
+@font-face {
+  font-family: 'icomoon';
+  src:    url('icomoon.eot');
+  src:    url('icomoon.eot') format('embedded-opentype'),
+      url('icomoon.woff2') format('woff2'),
+      url('icomoon.ttf') format('truetype'),
+      url('icomoon.woff') format('woff'),
+      url('icomoon.svg') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.icon {
+  font-family: 'icomoon' !important;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  // Better Font Rendering
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  &.user-remove:before {content: "\e904";}
+  &.user-add:before {content: "\e907";}
+  &.group:before {content: "\e908";}
+  &.user:before {content: "\e90d";}
+  &.eye-closed:before {content: "\e956";}
+  &.eye-open:before {content: "\e957";}
+  &.arrow-down:before {content: "\e910";}
+  &.arrow-left:before {content: "\e90c";}
+  &.arrow-right:before {content: "\e911";}
+  &.arrow-up:before {content: "\e90b";}
+  &.authzero:before {content: "\e951";}
+  &.brush:before {content: "\e939";}
+  &.caret-down:before {content: "\e902";}
+  &.caret-left:before {content: "\e900";}
+  &.caret-right:before {content: "\e903";}
+  &.caret-up:before {content: "\e901";}
+  &.checkmark:before {content: "\e918";}
+  &.circle:before {content: "\e940";}
+  &.clock:before {content: "\e91b";}
+  &.cog-thick:before {content: "\e906";}
+  &.crown2:before {content: "\e94b";}
+  &.cube:before {content: "\e92e";}
+  &.cubo-node:before {content: "\e919";}
+  &.cubo-uniform:before {content: "\e91a";}
+  &.dash-f:before {content: "\e927";}
+  &.dash-h:before {content: "\e929";}
+  &.disks:before {content: "\e950";}
+  &.download:before {content: "\e91d";}
+  &.duplicate:before {content: "\e917";}
+  &.expand-a:before {content: "\e944";}
+  &.expand-b:before {content: "\e942";}
+  &.export:before {content: "\e941";}
+  &.graphline:before {content: "\e90e";}
+  &.heroku:before {content: "\e947";}
+  &.heroku-simple:before {content: "\e948";}
+  &.oauth:before {content: "\e94f";}
+  &.octagon:before {content: "\e92d";}
+  &.pause:before {content: "\e94a";}
+  &.plus:before {content: "\e90a";}
+  &.pulse-c:before {content: "\e936";}
+  &.refresh:before {content: "\e949";}
+  &.remove:before {content: "\e909";}
+  &.search:before {content: "\e916";}
+  &.server2:before {content: "\e94c";}
+  &.shuffle:before {content: "\e94e";}
+  &.square:before {content: "\e93e";}
+  &.trash:before {content: "\e905";}
+  &.triangle:before {content: "\e92c";}
+  &.alert-triangle:before {content: "\f02d";}
+  &.link:before {content: "\f05c";}
+  &.pencil:before {content: "\f058";}
+  &.star:before {content: "\f02a";}
+  &.stop:before {content: "\f08f";}
+  &.zap:before {content: "\26a1";}
+  &.google:before {content: "\ea88";}
+  &.github:before {content: "\eab0";}
+}

@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import {Scrollbars} from 'react-custom-scrollbars'
 import _ from 'lodash'
@@ -72,8 +73,9 @@ class InfiniteScroll extends Component {
 
   throttledHandleResize = _.throttle(this.handleResize, 100)
 
-  handleMakeDiv = className => props =>
+  handleMakeDiv = className => props => (
     <div {...props} className={`fancy-scroll--${className}`} />
+  )
 
   componentDidMount() {
     window.addEventListener('resize', this.handleResize, true)

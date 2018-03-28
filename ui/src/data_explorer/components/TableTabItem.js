@@ -1,13 +1,15 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
-const TableTabItem = ({name, index, onClickTab, isActive}) =>
+const TableTabItem = ({name, index, onClickTab, isActive}) => (
   <div
     className={classnames('table--tab', {active: isActive})}
     onClick={onClickTab(index)}
   >
     {name}
   </div>
+)
 
 const {bool, func, number, string} = PropTypes
 

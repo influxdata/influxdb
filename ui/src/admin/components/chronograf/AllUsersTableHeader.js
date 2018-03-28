@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import SlideToggle from 'shared/components/SlideToggle'
 
@@ -11,13 +12,12 @@ const AllUsersTableHeader = ({
   onChangeAuthConfig,
 }) => {
   const numUsersString = `${numUsers} User${numUsers === 1 ? '' : 's'}`
-  const numOrganizationsString = `${numOrganizations} Org${numOrganizations ===
-  1
-    ? ''
-    : 's'}`
+  const numOrganizationsString = `${numOrganizations} Org${
+    numOrganizations === 1 ? '' : 's'
+  }`
 
   return (
-    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+    <div className="panel-heading">
       <h2 className="panel-title">
         {numUsersString} across {numOrganizationsString}
       </h2>

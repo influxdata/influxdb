@@ -1,7 +1,8 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
-const YesNoButtons = ({onConfirm, onCancel, buttonSize}) =>
+const YesNoButtons = ({onConfirm, onCancel, buttonSize}) => (
   <div>
     <button
       className={classnames('btn btn-square btn-info', {
@@ -20,6 +21,7 @@ const YesNoButtons = ({onConfirm, onCancel, buttonSize}) =>
       <span className="icon checkmark" />
     </button>
   </div>
+)
 
 const {func, string} = PropTypes
 

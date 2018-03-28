@@ -1,7 +1,8 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import ClickOutsideInput from 'shared/components/ClickOutsideInput'
 

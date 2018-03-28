@@ -1,14 +1,11 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import LoadingDots from 'shared/components/LoadingDots'
 import classnames from 'classnames'
 
 const QueryStatus = ({status, children}) => {
   if (!status) {
-    return (
-      <div className="query-editor--status">
-        {children}
-      </div>
-    )
+    return <div className="query-editor--status">{children}</div>
   }
 
   if (status.loading) {

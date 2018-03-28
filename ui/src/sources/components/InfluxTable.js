@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {Link, withRouter} from 'react-router'
 import {connect} from 'react-redux'
 
@@ -44,9 +45,7 @@ const kapacitorDropdown = (
   }
 
   const unauthorizedDropdown = (
-    <div className="source-table--kapacitor__view-only">
-      {selected}
-    </div>
+    <div className="source-table--kapacitor__view-only">{selected}</div>
   )
 
   return (
@@ -97,17 +96,19 @@ const InfluxTable = ({
   handleDeleteKapacitor,
   isUsingAuth,
   me,
-}) =>
+}) => (
   <div className="row">
     <div className="col-md-12">
-      <div className="panel panel-minimal">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="panel">
+        <div className="panel-heading">
           <h2 className="panel-title">
-            {isUsingAuth
-              ? <span>
-                  Connections for <em>{me.currentOrganization.name}</em>
-                </span>
-              : <span>Connections</span>}
+            {isUsingAuth ? (
+              <span>
+                Connections for <em>{me.currentOrganization.name}</em>
+              </span>
+            ) : (
+              <span>Connections</span>
+            )}
           </h2>
           <Authorized requiredRole={EDITOR_ROLE}>
             <Link
@@ -144,26 +145,24 @@ const InfluxTable = ({
                     className={s.id === source.id ? 'highlight' : null}
                   >
                     <td>
-                      {s.id === source.id
-                        ? <div className="btn btn-success btn-xs source-table--connect">
-                            Connected
-                          </div>
-                        : <Link
-                            className="btn btn-default btn-xs source-table--connect"
-                            to={`/sources/${s.id}/hosts`}
-                          >
-                            Connect
-                          </Link>}
+                      {s.id === source.id ? (
+                        <div className="btn btn-success btn-xs source-table--connect">
+                          Connected
+                        </div>
+                      ) : (
+                        <Link
+                          className="btn btn-default btn-xs source-table--connect"
+                          to={`/sources/${s.id}/hosts`}
+                        >
+                          Connect
+                        </Link>
+                      )}
                     </td>
                     <td>
                       <h5 className="margin-zero">
                         <Authorized
                           requiredRole={EDITOR_ROLE}
-                          replaceWithIfNotAuthorized={
-                            <strong>
-                              {s.name}
-                            </strong>
-                          }
+                          replaceWithIfNotAuthorized={<strong>{s.name}</strong>}
                         >
                           <Link
                             to={`${location.pathname}/${s.id}/edit`}
@@ -171,16 +170,12 @@ const InfluxTable = ({
                               s.id === source.id ? 'link-success' : null
                             }
                           >
-                            <strong>
-                              {s.name}
-                            </strong>
+                            <strong>{s.name}</strong>
                             {s.default ? ' (Default)' : null}
                           </Link>
                         </Authorized>
                       </h5>
-                      <span>
-                        {s.url}
-                      </span>
+                      <span>{s.url}</span>
                     </td>
                     <td className="text-right">
                       <Authorized requiredRole={EDITOR_ROLE}>
@@ -211,6 +206,7 @@ const InfluxTable = ({
       </div>
     </div>
   </div>
+)
 
 const {array, bool, func, shape, string} = PropTypes
 

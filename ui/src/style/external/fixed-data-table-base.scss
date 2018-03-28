@@ -89,7 +89,7 @@
 
 .fixedDataTableCellLayout_columnResizerContainer {
   position: absolute;
-  right: 0px;
+  right: 0;
   width: 6px;
   z-index: 1;
 }
@@ -104,7 +104,7 @@
 
 .fixedDataTableCellLayout_columnResizerKnob {
   position: absolute;
-  right: 0px;
+  right: 0;
   visibility: hidden;
   width: 4px;
 }

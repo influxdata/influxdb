@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 const QueryMakerTab = React.createClass({
@@ -30,9 +31,7 @@ const QueryMakerTab = React.createClass({
         })}
         onClick={this.handleSelect}
       >
-        <label>
-          {this.props.queryTabText}
-        </label>
+        <label>{this.props.queryTabText}</label>
         <span
           className="query-maker--delete"
           onClick={this.handleDelete}

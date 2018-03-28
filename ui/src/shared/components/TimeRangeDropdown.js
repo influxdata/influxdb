@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import moment from 'moment'
 
@@ -6,7 +7,7 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import CustomTimeRangeOverlay from 'shared/components/CustomTimeRangeOverlay'
 
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 const dateFormat = 'YYYY-MM-DD HH:mm'
@@ -104,22 +105,22 @@ class TimeRangeDropdown extends Component {
               autoHeight={true}
               maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
             >
-              {preventCustomTimeRange
-                ? null
-                : <div>
-                    <li className="dropdown-header">Absolute Time Ranges</li>
-                    <li
-                      className={
-                        isCustomTimeRangeOpen
-                          ? 'active dropdown-item custom-timerange'
-                          : 'dropdown-item custom-timerange'
-                      }
-                    >
-                      <a href="#" onClick={this.showCustomTimeRange}>
-                        Custom Date Picker
-                      </a>
-                    </li>
-                  </div>}
+              {preventCustomTimeRange ? null : (
+                <div>
+                  <li className="dropdown-header">Absolute Time Ranges</li>
+                  <li
+                    className={
+                      isCustomTimeRangeOpen
+                        ? 'active dropdown-item custom-timerange'
+                        : 'dropdown-item custom-timerange'
+                    }
+                  >
+                    <a href="#" onClick={this.showCustomTimeRange}>
+                      Custom Date Picker
+                    </a>
+                  </li>
+                </div>
+              )}
               <li className="dropdown-header">
                 {preventCustomTimeRange ? '' : 'Relative '}Time Ranges
               </li>
@@ -135,16 +136,16 @@ class TimeRangeDropdown extends Component {
             </FancyScrollbar>
           </ul>
         </div>
-        {isCustomTimeRangeOpen
-          ? <CustomTimeRangeOverlay
-              onApplyTimeRange={this.handleApplyCustomTimeRange}
-              timeRange={customTimeRange}
-              isVisible={isCustomTimeRangeOpen}
-              onToggle={this.handleToggleCustomTimeRange}
-              onClose={this.handleCloseCustomTimeRange}
-              page={page}
-            />
-          : null}
+        {isCustomTimeRangeOpen ? (
+          <CustomTimeRangeOverlay
+            onApplyTimeRange={this.handleApplyCustomTimeRange}
+            timeRange={customTimeRange}
+            isVisible={isCustomTimeRangeOpen}
+            onToggle={this.handleToggleCustomTimeRange}
+            onClose={this.handleCloseCustomTimeRange}
+            page={page}
+          />
+        ) : null}
       </div>
     )
   }

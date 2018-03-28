@@ -117,6 +117,7 @@
       "h": 4,
       "i": "0fa47984-825b-46f1-9ca5-0366e3220008",
       "name": "Mesos Master Uptime",
+      "colors": [],
       "type": "single-stat",
       "queries": [
         {

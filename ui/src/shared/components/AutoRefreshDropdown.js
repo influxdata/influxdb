@@ -1,8 +1,9 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
-import autoRefreshItems from 'hson!shared/data/autoRefreshes.hson'
+import autoRefreshItems from 'shared/data/autoRefreshes'
 
 class AutoRefreshDropdown extends Component {
   constructor(props) {
@@ -49,30 +50,28 @@ class AutoRefreshDropdown extends Component {
                 +milliseconds > 0 ? 'refresh' : 'pause'
               )}
             />
-            <span className="dropdown-selected">
-              {inputValue}
-            </span>
+            <span className="dropdown-selected">{inputValue}</span>
             <span className="caret" />
           </div>
           <ul className="dropdown-menu">
             <li className="dropdown-header">AutoRefresh Interval</li>
-            {autoRefreshItems.map(item =>
+            {autoRefreshItems.map(item => (
               <li className="dropdown-item" key={item.menuOption}>
                 <a href="#" onClick={this.handleSelection(item.milliseconds)}>
                   {item.menuOption}
                 </a>
               </li>
-            )}
+            ))}
           </ul>
         </div>
-        {+milliseconds === 0
-          ? <div
-              className="btn btn-sm btn-default btn-square"
-              onClick={onManualRefresh}
-            >
-              <span className="icon refresh" />
-            </div>
-          : null}
+        {+milliseconds === 0 ? (
+          <div
+            className="btn btn-sm btn-default btn-square"
+            onClick={onManualRefresh}
+          >
+            <span className="icon refresh" />
+          </div>
+        ) : null}
       </div>
     )
   }

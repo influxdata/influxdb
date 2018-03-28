@@ -192,13 +192,13 @@ func Test_Service_DashboardCells(t *testing.T) {
 					CellColors: []chronograf.CellColor{},
 					Axes: map[string]chronograf.Axis{
 						"x": chronograf.Axis{
-							Bounds: []string{},
+							Bounds: []string{"", ""},
 						},
 						"y": chronograf.Axis{
-							Bounds: []string{},
+							Bounds: []string{"", ""},
 						},
 						"y2": chronograf.Axis{
-							Bounds: []string{},
+							Bounds: []string{"", ""},
 						},
 					},
 				},
@@ -420,13 +420,13 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 								},
 								Axes: map[string]chronograf.Axis{
 									"x": {
-										Bounds: []string{},
+										Bounds: []string{"", ""},
 									},
 									"y": {
-										Bounds: []string{},
+										Bounds: []string{"", ""},
 									},
 									"y2": {
-										Bounds: []string{},
+										Bounds: []string{"", ""},
 									},
 								},
 								Type: "line",
@@ -491,7 +491,7 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 					],
 					"axes": {
 					  "x": {
-						"bounds": [],
+						"bounds": ["",""],
 						"label": "",
 						"prefix": "",
 						"suffix": "",
@@ -499,7 +499,7 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 						"scale": ""
 					  },
 					  "y": {
-						"bounds": [],
+						"bounds": ["",""],
 						"label": "",
 						"prefix": "",
 						"suffix": "",
@@ -507,7 +507,7 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 						"scale": ""
 					  },
 					  "y2": {
-						"bounds": [],
+						"bounds": ["",""],
 						"label": "",
 						"prefix": "",
 						"suffix": "",
@@ -532,7 +532,7 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 					}
 				  }
 				  `))),
-			want: `{"i":"3c5c4102-fa40-4585-a8f9-917c77e37192","x":0,"y":0,"w":4,"h":4,"name":"Untitled Cell","queries":[{"query":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","queryConfig":{"id":"3cd3eaa4-a4b8-44b3-b69e-0c7bf6b91d9e","database":"telegraf","measurement":"cpu","retentionPolicy":"autogen","fields":[{"value":"mean","type":"func","alias":"mean_usage_user","args":[{"value":"usage_user","type":"field","alias":""}]}],"tags":{"cpu":["ChristohersMBP2.lan"]},"groupBy":{"time":"2s","tags":[]},"areTagsAccepted":true,"fill":"null","rawText":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","range":{"upper":"","lower":"now() - 15m"},"shifts":[]},"source":""}],"axes":{"x":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""},"y2":{"bounds":[],"label":"","prefix":"","suffix":"","base":"","scale":""}},"type":"line","colors":[{"id":"0","type":"min","hex":"#00C9FF","name":"laser","value":"0"},{"id":"1","type":"max","hex":"#9394FF","name":"comet","value":"100"}],"legend":{},"links":{"self":"/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192"}}
+			want: `{"i":"3c5c4102-fa40-4585-a8f9-917c77e37192","x":0,"y":0,"w":4,"h":4,"name":"Untitled Cell","queries":[{"query":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","queryConfig":{"id":"3cd3eaa4-a4b8-44b3-b69e-0c7bf6b91d9e","database":"telegraf","measurement":"cpu","retentionPolicy":"autogen","fields":[{"value":"mean","type":"func","alias":"mean_usage_user","args":[{"value":"usage_user","type":"field","alias":""}]}],"tags":{"cpu":["ChristohersMBP2.lan"]},"groupBy":{"time":"2s","tags":[]},"areTagsAccepted":true,"fill":"null","rawText":"SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\" WHERE time \u003e :dashboardTime: AND \"cpu\"=:cpu: GROUP BY :interval: FILL(null)","range":{"upper":"","lower":"now() - 15m"},"shifts":[]},"source":""}],"axes":{"x":{"bounds":["",""],"label":"","prefix":"","suffix":"","base":"","scale":""},"y":{"bounds":["",""],"label":"","prefix":"","suffix":"","base":"","scale":""},"y2":{"bounds":["",""],"label":"","prefix":"","suffix":"","base":"","scale":""}},"type":"line","colors":[{"id":"0","type":"min","hex":"#00C9FF","name":"laser","value":"0"},{"id":"1","type":"max","hex":"#9394FF","name":"comet","value":"100"}],"legend":{},"tableOptions":{"timeFormat":"","verticalTimeAxis":false,"sortBy":{"internalName":"","displayName":"","visible":false},"wrapping":"","fieldNames":null,"fixFirstColumn":false},"links":{"self":"/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192"}}
 `,
 		},
 		{
@@ -854,13 +854,13 @@ func Test_newCellResponses(t *testing.T) {
 						Queries: []chronograf.DashboardQuery{},
 						Axes: map[string]chronograf.Axis{
 							"x": chronograf.Axis{
-								Bounds: []string{},
+								Bounds: []string{"", ""},
 							},
 							"y": chronograf.Axis{
-								Bounds: []string{},
+								Bounds: []string{"", ""},
 							},
 							"y2": chronograf.Axis{
-								Bounds: []string{},
+								Bounds: []string{"", ""},
 							},
 						},
 						CellColors: []chronograf.CellColor{},

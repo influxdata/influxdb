@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
@@ -55,36 +56,32 @@ class ColorDropdown extends Component {
             className="color-dropdown--swatch"
             style={{backgroundColor: selected.hex}}
           />
-          <div className="color-dropdown--name">
-            {selected.name}
-          </div>
+          <div className="color-dropdown--name">{selected.name}</div>
           <span className="caret" />
         </div>
-        {visible
-          ? <div className="color-dropdown--menu">
-              <FancyScrollbar autoHide={false} autoHeight={true}>
-                {colors.map((color, i) =>
-                  <div
-                    className={
-                      color.name === selected.name
-                        ? 'color-dropdown--item active'
-                        : 'color-dropdown--item'
-                    }
-                    key={i}
-                    onClick={this.handleColorClick(color)}
-                  >
-                    <span
-                      className="color-dropdown--swatch"
-                      style={{backgroundColor: color.hex}}
-                    />
-                    <span className="color-dropdown--name">
-                      {color.name}
-                    </span>
-                  </div>
-                )}
-              </FancyScrollbar>
-            </div>
-          : null}
+        {visible ? (
+          <div className="color-dropdown--menu">
+            <FancyScrollbar autoHide={false} autoHeight={true}>
+              {colors.map((color, i) => (
+                <div
+                  className={
+                    color.name === selected.name
+                      ? 'color-dropdown--item active'
+                      : 'color-dropdown--item'
+                  }
+                  key={i}
+                  onClick={this.handleColorClick(color)}
+                >
+                  <span
+                    className="color-dropdown--swatch"
+                    style={{backgroundColor: color.hex}}
+                  />
+                  <span className="color-dropdown--name">{color.name}</span>
+                </div>
+              ))}
+            </FancyScrollbar>
+          </div>
+        ) : null}
       </div>
     )
   }

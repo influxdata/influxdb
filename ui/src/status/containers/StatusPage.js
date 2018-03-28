@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -62,18 +63,20 @@ class StatusPage extends Component {
         </div>
         <FancyScrollbar className="page-contents">
           <div className="dashboard container-fluid full-width">
-            {cells.length
-              ? <LayoutRenderer
-                  autoRefresh={autoRefresh}
-                  timeRange={timeRange}
-                  cells={cells}
-                  templates={templates}
-                  source={source}
-                  shouldNotBeEditable={true}
-                  isStatusPage={true}
-                  isEditable={false}
-                />
-              : <span>Loading Status Page...</span>}
+            {cells.length ? (
+              <LayoutRenderer
+                autoRefresh={autoRefresh}
+                timeRange={timeRange}
+                cells={cells}
+                templates={templates}
+                source={source}
+                shouldNotBeEditable={true}
+                isStatusPage={true}
+                isEditable={false}
+              />
+            ) : (
+              <span>Loading Status Page...</span>
+            )}
           </div>
         </FancyScrollbar>
       </div>

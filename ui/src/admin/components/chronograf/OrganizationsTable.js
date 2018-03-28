@@ -1,6 +1,7 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
@@ -38,14 +39,13 @@ class OrganizationsTable extends Component {
     } = this.props
     const {isCreatingOrganization} = this.state
 
-    const tableTitle = `${organizations.length} Organization${organizations.length ===
-    1
-      ? ''
-      : 's'}`
+    const tableTitle = `${organizations.length} Organization${
+      organizations.length === 1 ? '' : 's'
+    }`
 
     if (!organizations.length) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -53,11 +53,9 @@ class OrganizationsTable extends Component {
       )
     }
     return (
-      <div className="panel panel-default">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">
-            {tableTitle}
-          </h2>
+      <div className="panel panel-solid">
+        <div className="panel-heading">
+          <h2 className="panel-title">{tableTitle}</h2>
           <button
             className="btn btn-sm btn-primary"
             onClick={this.handleClickCreateOrganization}
@@ -75,13 +73,13 @@ class OrganizationsTable extends Component {
             </div>
             <div className="fancytable--th orgs-table--delete" />
           </div>
-          {isCreatingOrganization
-            ? <OrganizationsTableRowNew
-                onCreateOrganization={this.handleCreateOrganization}
-                onCancelCreateOrganization={this.handleCancelCreateOrganization}
-              />
-            : null}
-          {organizations.map(org =>
+          {isCreatingOrganization ? (
+            <OrganizationsTableRowNew
+              onCreateOrganization={this.handleCreateOrganization}
+              onCancelCreateOrganization={this.handleCancelCreateOrganization}
+            />
+          ) : null}
+          {organizations.map(org => (
             <OrganizationsTableRow
               key={uuid.v4()}
               organization={org}
@@ -90,7 +88,7 @@ class OrganizationsTable extends Component {
               onChooseDefaultRole={onChooseDefaultRole}
               currentOrganization={currentOrganization}
             />
-          )}
+          ))}
         </div>
       </div>
     )

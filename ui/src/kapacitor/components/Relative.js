@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {CHANGES, RELATIVE_OPERATORS, SHIFTS} from 'src/kapacitor/constants'
 import Dropdown from 'shared/components/Dropdown'
 
@@ -11,7 +12,7 @@ const Relative = ({
   onRuleTypeInputChange,
   onDropdownChange,
   rule: {values: {change, shift, operator, value}},
-}) =>
+}) => (
   <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
     <p>Send Alert when</p>
     <Dropdown
@@ -51,6 +52,7 @@ const Relative = ({
     </form>
     {change === CHANGES[1] ? <p>%</p> : null}
   </div>
+)
 
 const {shape, string, func} = PropTypes
 

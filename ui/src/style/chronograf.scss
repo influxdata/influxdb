@@ -1,32 +1,38 @@
+/*
+   Chronograf Styles
+   -----------------------------------------------------------------------------
+*/
+
 // Modules
 @import 'modules/influx-colors';
 @import 'modules/variables';
 @import 'modules/mixins';
+@import 'modules/helpers';
 
 // Fonts
 @import 'fonts/fonts';
+@import 'fonts/icon-font';
 
-// Base Theme
-@import 'theme/bootstrap';
-@import 'theme/bootstrap-theme';
-@import 'theme/reset';
+// Theme
+@import 'theme/chronograf-theme';
 
 // Vendor
 @import 'external/react-grid-layout';
 @import 'external/fixed-data-table-base';
 @import 'external/fixed-data-table-style';
 @import 'external/fixed-data-table';
-@import "external/codemirror";
-@import "../../node_modules/codemirror/theme/material.css";
+@import 'external/codemirror';
+@import '../../node_modules/codemirror/theme/material.css';
 
 // Layout
 @import 'layout/page';
 @import 'layout/page-header';
 @import 'layout/sidebar';
 @import 'layout/overlay';
-@import 'layout/flash-messages';
 
 // Components
+@import 'components/annotations';
+@import 'components/crosshairs';
 @import 'components/ceo-display-options';
 @import 'components/confirm-button';
 @import 'components/confirm-buttons';
@@ -35,6 +41,7 @@
 @import 'components/confirm-button';
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
+@import 'components/customize-fields';
 @import 'components/dygraphs';
 @import 'components/fancy-scrollbars';
 @import 'components/fancy-table';
@@ -51,6 +58,7 @@
 @import 'components/page-header-dropdown';
 @import 'components/page-header-editable';
 @import 'components/page-spinner';
+@import 'components/static-legend';
 @import 'components/query-maker';
 @import 'components/react-tooltips';
 @import 'components/redacted-input';
@@ -60,6 +68,8 @@
 @import 'components/info-indicators';
 @import 'components/source-selector';
 @import 'components/tables';
+@import 'components/table-graph';
+@import 'components/threshold-controls';
 @import 'components/kapacitor-logs-table';
 
 // Pages

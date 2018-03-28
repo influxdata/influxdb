@@ -1,8 +1,9 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import rome from 'rome'
 import moment from 'moment'
 
-import shortcuts from 'hson!shared/data/timeRangeShortcuts.hson'
+import shortcuts from 'shared/data/timeRangeShortcuts'
 const dateFormat = 'YYYY-MM-DD HH:mm'
 
 class CustomTimeRange extends Component {
@@ -171,7 +172,7 @@ class CustomTimeRange extends Component {
       <div className="custom-time--container">
         <div className="custom-time--shortcuts">
           <div className="custom-time--shortcuts-header">Shortcuts</div>
-          {shortcuts.map(({id, name}) =>
+          {shortcuts.map(({id, name}) => (
             <div
               key={id}
               className="custom-time--shortcut"
@@ -179,7 +180,7 @@ class CustomTimeRange extends Component {
             >
               {name}
             </div>
-          )}
+          ))}
         </div>
         <div className="custom-time--wrap">
           <div className="custom-time--dates" onClick={this.handleRefreshCals}>
@@ -199,16 +200,16 @@ class CustomTimeRange extends Component {
               ref={r => (this.upperContainer = r)}
               disabled={isNow}
             >
-              {isNowDisplayed
-                ? <div
-                    className={`btn btn-xs custom-time--now ${isNow
-                      ? 'btn-primary'
-                      : 'btn-default'}`}
-                    onClick={this.handleToggleNow}
-                  >
-                    Now
-                  </div>
-                : null}
+              {isNowDisplayed ? (
+                <div
+                  className={`btn btn-xs custom-time--now ${
+                    isNow ? 'btn-primary' : 'btn-default'
+                  }`}
+                  onClick={this.handleToggleNow}
+                >
+                  Now
+                </div>
+              ) : null}
               <input
                 className="custom-time--upper form-control input-sm"
                 ref={r => (this.upper = r)}
@@ -216,12 +217,12 @@ class CustomTimeRange extends Component {
                 onKeyUp={this.handleRefreshCals}
                 disabled={isNow}
               />
-              {isNow && page !== 'DataExplorer'
-                ? <div
-                    className="custom-time--mask"
-                    onClick={this.handleNowOff}
-                  />
-                : null}
+              {isNow && page !== 'DataExplorer' ? (
+                <div
+                  className="custom-time--mask"
+                  onClick={this.handleNowOff}
+                />
+              ) : null}
             </div>
           </div>
           <div

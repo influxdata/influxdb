@@ -1,8 +1,9 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import TagsAddButton from 'src/shared/components/TagsAddButton'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
-const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) =>
+const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) => (
   <div className="input-tag-list">
     {tags.map(item => {
       return (
@@ -13,10 +14,11 @@ const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) =>
         />
       )
     })}
-    {addMenuItems.length && addMenuChoose
-      ? <TagsAddButton items={addMenuItems} onChoose={addMenuChoose} />
-      : null}
+    {addMenuItems.length && addMenuChoose ? (
+      <TagsAddButton items={addMenuItems} onChoose={addMenuChoose} />
+    ) : null}
   </div>
+)
 
 class Tag extends Component {
   handleClickDelete = item => () => {
@@ -26,19 +28,16 @@ class Tag extends Component {
   render() {
     const {item} = this.props
     return (
-      <span key={item} className="input-tag-item">
-        <span>
-          {item.text || item.name || item}
-        </span>
-        {
-          <ConfirmButton
-            icon="remove"
-            size="btn-xs"
-            customClass="btn-xxs"
-            confirmText="Remove user from organization?"
-            confirmAction={this.handleClickDelete(item)}
-          />
-        }
+      <span key={item} className="input-tag--item">
+        <span>{item.text || item.name || item}</span>
+        <ConfirmButton
+          icon="remove"
+          size="btn-xs"
+          customClass="input-tag--remove"
+          square={true}
+          confirmText="Remove user from organization?"
+          confirmAction={this.handleClickDelete(item)}
+        />
       </span>
     )
   }

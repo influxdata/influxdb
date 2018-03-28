@@ -17,8 +17,8 @@ export const timeRangeType = ({upper, lower, type}) => {
     return INVALID
   }
 
-  const isUpperValid = moment(upper).isValid()
-  const isLowerValid = moment(lower).isValid()
+  const isUpperValid = moment(new Date(upper)).isValid()
+  const isLowerValid = moment(new Date(lower)).isValid()
 
   // {lower: <Date>, upper: <Date>}
   if (isLowerValid && isUpperValid) {
@@ -103,8 +103,8 @@ const getMomentUnit = unit => {
 
 export const shiftDate = (date, quantity, unit) => {
   if (!date && !quantity && !unit) {
-    return moment(date)
+    return moment(new Date(date))
   }
 
-  return moment(date).add(quantity, getMomentUnit(unit))
+  return moment(new Date(date)).add(quantity, getMomentUnit(unit))
 }

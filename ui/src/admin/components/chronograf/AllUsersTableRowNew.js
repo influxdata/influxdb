@@ -1,7 +1,12 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
+import {notify as notifyAction} from 'shared/actions/notifications'
 import Dropdown from 'shared/components/Dropdown'
 
+import {notifyChronografUserMissingNameAndProvider} from 'shared/copy/notifications'
 import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 const {
   colOrganizations,
@@ -78,10 +83,7 @@ class AllUsersTableRowNew extends Component {
 
     if (e.key === 'Enter') {
       if (preventCreate) {
-        return this.props.notify(
-          'warning',
-          'User must have a name and provider'
-        )
+        return this.props.notify(notifyChronografUserMissingNameAndProvider())
       }
       this.handleConfirmCreateUser()
     }
@@ -180,4 +182,8 @@ AllUsersTableRowNew.propTypes = {
   notify: func.isRequired,
 }
 
-export default AllUsersTableRowNew
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(AllUsersTableRowNew)

@@ -1,5 +1,9 @@
 import _ from 'lodash'
 import normalizer from 'src/normalizers/dashboardTime'
+import {
+  notifyNewVersion,
+  notifyLoadLocalSettingsFailed,
+} from 'src/shared/copy/notifications'
 
 export const loadLocalStorage = errorsQueue => {
   try {
@@ -9,11 +13,11 @@ export const loadLocalStorage = errorsQueue => {
 
     // eslint-disable-next-line no-undef
     if (state.VERSION && state.VERSION !== VERSION) {
-      const errorText =
-        'New version of Chronograf detected. Local settings cleared.'
+      // eslint-disable-next-line no-undef
+      const version = VERSION ? ` (${VERSION})` : ''
 
-      console.log(errorText) // eslint-disable-line no-console
-      errorsQueue.push(errorText)
+      console.log(notifyNewVersion(version).message) // eslint-disable-line no-console
+      errorsQueue.push(notifyNewVersion(version))
 
       if (!state.dashTimeV1) {
         window.localStorage.removeItem('state')
@@ -37,10 +41,8 @@ export const loadLocalStorage = errorsQueue => {
 
     return state
   } catch (error) {
-    const errorText = `Loading local settings failed: ${error}`
-
-    console.error(errorText) // eslint-disable-line no-console
-    errorsQueue.push(errorText)
+    console.error(notifyLoadLocalSettingsFailed(error).message) // eslint-disable-line no-console
+    errorsQueue.push(notifyLoadLocalSettingsFailed(error))
 
     return {}
   }
@@ -52,7 +54,6 @@ export const saveToLocalStorage = ({
   timeRange,
   dataExplorer,
   dashTimeV1: {ranges},
-  dismissedNotifications,
 }) => {
   try {
     const appPersisted = Object.assign({}, {app: {persisted}})
@@ -67,7 +68,6 @@ export const saveToLocalStorage = ({
         dataExplorer,
         VERSION, // eslint-disable-line no-undef
         dashTimeV1,
-        dismissedNotifications,
       })
     )
   } catch (err) {

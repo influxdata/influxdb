@@ -1,16 +1,10 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 
 class UserNewPassword extends Component {
-  constructor(props) {
-    super(props)
-
-    this.handleKeyPress = ::this.handleKeyPress
-    this.handleEdit = ::this.handleEdit
-  }
-
-  handleKeyPress(user) {
+  handleKeyPress = user => {
     return e => {
       if (e.key === 'Enter') {
         this.props.onSave(user)
@@ -18,7 +12,7 @@ class UserNewPassword extends Component {
     }
   }
 
-  handleEdit(user) {
+  handleEdit = user => {
     return e => {
       this.props.onEdit(user, {[e.target.name]: e.target.value})
     }
@@ -28,19 +22,21 @@ class UserNewPassword extends Component {
     const {user, isNew} = this.props
     return (
       <td style={{width: `${USERS_TABLE.colPassword}px`}}>
-        {isNew
-          ? <input
-              className="form-control input-xs"
-              name="password"
-              type="password"
-              value={user.password || ''}
-              placeholder="Password"
-              onChange={this.handleEdit(user)}
-              onKeyPress={this.handleKeyPress(user)}
-              spellCheck={false}
-              autoComplete={false}
-            />
-          : '--'}
+        {isNew ? (
+          <input
+            className="form-control input-xs"
+            name="password"
+            type="password"
+            value={user.password || ''}
+            placeholder="Password"
+            onChange={this.handleEdit(user)}
+            onKeyPress={this.handleKeyPress(user)}
+            spellCheck={false}
+            autoComplete={false}
+          />
+        ) : (
+          '--'
+        )}
       </td>
     )
   }

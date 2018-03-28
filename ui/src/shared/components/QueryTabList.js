@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import QueryMakerTab from 'src/data_explorer/components/QueryMakerTab'
 import buildInfluxQLQuery from 'utils/influxql'
 
@@ -9,9 +10,9 @@ const QueryTabList = ({
   onDeleteQuery,
   activeQueryIndex,
   setActiveQueryIndex,
-}) =>
+}) => (
   <div className="query-maker--tabs">
-    {queries.map((q, i) =>
+    {queries.map((q, i) => (
       <QueryMakerTab
         isActive={i === activeQueryIndex}
         key={i}
@@ -23,7 +24,7 @@ const QueryTabList = ({
           q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`
         }
       />
-    )}
+    ))}
     <div
       className="query-maker--new btn btn-sm btn-primary"
       onClick={onAddQuery}
@@ -31,6 +32,7 @@ const QueryTabList = ({
       <span className="icon plus" />
     </div>
   </div>
+)
 
 const {arrayOf, func, number, shape, string} = PropTypes
 

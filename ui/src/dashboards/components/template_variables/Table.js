@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import TemplateVariableRow from 'src/dashboards/components/template_variables/Row'
 
@@ -9,36 +10,39 @@ const TemplateVariableTable = ({
   onRunQueryFailure,
   onDelete,
   tempVarAlreadyExists,
-}) =>
+}) => (
   <div className="template-variable-manager--table">
-    {templates.length
-      ? <div className="template-variable-manager--table-container">
-          <div className="template-variable-manager--table-heading">
-            <div className="tvm--col-1">Variable</div>
-            <div className="tvm--col-2">Type</div>
-            <div className="tvm--col-3">Definition / Values</div>
-            <div className="tvm--col-4" />
-          </div>
-          <div className="template-variable-manager--table-rows">
-            {templates.map(t =>
-              <TemplateVariableRow
-                key={t.id}
-                source={source}
-                template={t}
-                onRunQuerySuccess={onRunQuerySuccess}
-                onRunQueryFailure={onRunQueryFailure}
-                onDelete={onDelete}
-                tempVarAlreadyExists={tempVarAlreadyExists}
-              />
-            )}
-          </div>
+    {templates.length ? (
+      <div className="template-variable-manager--table-container">
+        <div className="template-variable-manager--table-heading">
+          <div className="tvm--col-1">Variable</div>
+          <div className="tvm--col-2">Type</div>
+          <div className="tvm--col-3">Definition / Values</div>
+          <div className="tvm--col-4" />
         </div>
-      : <div className="generic-empty-state">
-          <h4 style={{margin: '60px 0'}} className="no-user-select">
-            You have no Template Variables, why not create one?
-          </h4>
-        </div>}
+        <div className="template-variable-manager--table-rows">
+          {templates.map(t => (
+            <TemplateVariableRow
+              key={t.id}
+              source={source}
+              template={t}
+              onRunQuerySuccess={onRunQuerySuccess}
+              onRunQueryFailure={onRunQueryFailure}
+              onDelete={onDelete}
+              tempVarAlreadyExists={tempVarAlreadyExists}
+            />
+          ))}
+        </div>
+      </div>
+    ) : (
+      <div className="generic-empty-state">
+        <h4 style={{margin: '60px 0'}} className="no-user-select">
+          You have no Template Variables, why not create one?
+        </h4>
+      </div>
+    )}
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

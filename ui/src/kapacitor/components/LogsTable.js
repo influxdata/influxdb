@@ -1,11 +1,12 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import LogsTableRow from 'src/kapacitor/components/LogsTableRow'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const numLogsToRender = 200
 
-const LogsTable = ({logs}) =>
+const LogsTable = ({logs}) => (
   <div className="logs-table">
     <div className="logs-table--header">
       {`${numLogsToRender} Most Recent Logs`}
@@ -19,6 +20,7 @@ const LogsTable = ({logs}) =>
         .map(log => <LogsTableRow key={log.key} logItem={log} />)}
     </FancyScrollbar>
   </div>
+)
 
 const {arrayOf, shape, string} = PropTypes
 

@@ -1,6 +1,7 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import AllUsersTableHeader from 'src/admin/components/chronograf/AllUsersTableHeader'
 import AllUsersTableRowNew from 'src/admin/components/chronograf/AllUsersTableRowNew'
@@ -14,6 +15,11 @@ const {
   colSuperAdmin,
   colActions,
 } = ALL_USERS_TABLE
+
+import {
+  notifyChronografUserAddedToOrg,
+  notifyChronografUserRemovedFromOrg,
+} from 'shared/copy/notifications'
 
 class AllUsersTable extends Component {
   constructor(props) {
@@ -46,7 +52,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      `${user.name} has been added to ${organization.name}`
+      notifyChronografUserAddedToOrg(user.name, organization.name)
     )
   }
 
@@ -60,7 +66,7 @@ class AllUsersTable extends Component {
     this.props.onUpdateUserRoles(
       user,
       newRoles,
-      `${user.name} has been removed from ${name}`
+      notifyChronografUserRemovedFromOrg(user.name, name)
     )
   }
 
@@ -83,7 +89,6 @@ class AllUsersTable extends Component {
       onCreateUser,
       authConfig,
       meID,
-      notify,
       onDeleteUser,
       isLoading,
     } = this.props
@@ -91,7 +96,7 @@ class AllUsersTable extends Component {
     const {isCreatingUser} = this.state
     if (isLoading) {
       return (
-        <div className="panel panel-default">
+        <div className="panel panel-solid">
           <div className="panel-body">
             <div className="page-spinner" />
           </div>
@@ -99,7 +104,7 @@ class AllUsersTable extends Component {
       )
     }
     return (
-      <div className="panel panel-default">
+      <div className="panel panel-solid">
         <AllUsersTableHeader
           numUsers={users.length}
           numOrganizations={organizations.length}
@@ -128,34 +133,33 @@ class AllUsersTable extends Component {
               </tr>
             </thead>
             <tbody>
-              {users.length
-                ? users.map(user =>
-                    <AllUsersTableRow
-                      user={user}
-                      key={uuid.v4()}
-                      organizations={organizations}
-                      onAddToOrganization={this.handleAddToOrganization}
-                      onRemoveFromOrganization={
-                        this.handleRemoveFromOrganization
-                      }
-                      onChangeSuperAdmin={this.handleChangeSuperAdmin}
-                      onDelete={onDeleteUser}
-                      meID={meID}
-                    />
-                  )
-                : <tr className="table-empty-state">
-                    <th colSpan="6">
-                      <p>No Users to display</p>
-                    </th>
-                  </tr>}
-              {isCreatingUser
-                ? <AllUsersTableRowNew
+              {users.length ? (
+                users.map(user => (
+                  <AllUsersTableRow
+                    user={user}
+                    key={uuid.v4()}
                     organizations={organizations}
-                    onBlur={this.handleBlurCreateUserRow}
-                    onCreateUser={onCreateUser}
-                    notify={notify}
+                    onAddToOrganization={this.handleAddToOrganization}
+                    onRemoveFromOrganization={this.handleRemoveFromOrganization}
+                    onChangeSuperAdmin={this.handleChangeSuperAdmin}
+                    onDelete={onDeleteUser}
+                    meID={meID}
                   />
-                : null}
+                ))
+              ) : (
+                <tr className="table-empty-state">
+                  <th colSpan="6">
+                    <p>No Users to display</p>
+                  </th>
+                </tr>
+              )}
+              {isCreatingUser ? (
+                <AllUsersTableRowNew
+                  organizations={organizations}
+                  onBlur={this.handleBlurCreateUserRow}
+                  onCreateUser={onCreateUser}
+                />
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -208,7 +212,6 @@ AllUsersTable.propTypes = {
     superAdminNewUsers: bool,
   }),
   meID: string.isRequired,
-  notify: func.isRequired,
   isLoading: bool.isRequired,
 }
 

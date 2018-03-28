@@ -1,15 +1,21 @@
 import _ from 'lodash'
 
 import {authExpired} from 'shared/actions/auth'
-import {publishNotification as notify} from 'shared/actions/notifications'
+import {notify} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
+import {
+  notifySessionTimedOut,
+  notifyErrorWithAltText,
+  notifyOrgIsPrivate,
+  notifyCurrentOrgDeleted,
+} from 'shared/copy/notifications'
 
 const actionsAllowedDuringBlackout = [
   '@@',
   'AUTH_',
   'ME_',
-  'NOTIFICATION_',
+  'PUBLISH_NOTIFICATION',
   'ERROR_',
   'LINKS_',
 ]
@@ -20,7 +26,7 @@ const errorsMiddleware = store => next => action => {
   const {auth: {me}} = store.getState()
 
   if (action.type === 'ERROR_THROWN') {
-    const {error, error: {status, auth}, altText, alertType = 'error'} = action
+    const {error, error: {status, auth}, altText, alertType = 'info'} = action
 
     if (status === HTTP_FORBIDDEN) {
       const message = _.get(error, 'data.message', '')
@@ -35,25 +41,18 @@ const errorsMiddleware = store => next => action => {
         message ===
         `This organization is private. To gain access, you must be explicitly added by an administrator.` // eslint-disable-line quotes
       ) {
-        store.dispatch(notify(alertType, message))
+        store.dispatch(notify(notifyOrgIsPrivate()))
       }
 
       if (organizationWasRemoved) {
-        store.dispatch(
-          notify(alertType, 'Your current organization was deleted.')
-        )
+        store.dispatch(notify(notifyCurrentOrgDeleted()))
 
         allowNotifications = false
         setTimeout(() => {
           allowNotifications = true
         }, notificationsBlackoutDuration)
       } else if (wasSessionTimeout) {
-        store.dispatch(
-          notify(
-            alertType,
-            'Your session has timed out. Log in again to continue.'
-          )
-        )
+        store.dispatch(notify(notifySessionTimedOut()))
 
         allowNotifications = false
         setTimeout(() => {
@@ -61,10 +60,10 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       }
     } else if (altText) {
-      store.dispatch(notify(alertType, altText))
+      store.dispatch(notify(notifyErrorWithAltText(alertType, altText)))
     } else {
       // TODO: actually do proper error handling
-      // store.dispatch(notify(alertType, 'Cannot communicate with server.'))
+      // store.dispatch(notify({type: alertType, 'Cannot communicate with server.'))
     }
   }
 

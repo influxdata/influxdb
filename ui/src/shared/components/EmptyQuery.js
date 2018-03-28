@@ -1,6 +1,7 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
-const EmptyQueryState = ({onAddQuery}) =>
+const EmptyQueryState = ({onAddQuery}) => (
   <div className="query-maker--empty">
     <h5>This Graph has no Queries</h5>
     <br />
@@ -8,6 +9,7 @@ const EmptyQueryState = ({onAddQuery}) =>
       <span className="icon plus" /> Add a Query
     </div>
   </div>
+)
 
 const {func} = PropTypes
 

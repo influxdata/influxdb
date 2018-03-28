@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 import ConfirmButtons from 'shared/components/ConfirmButtons'
@@ -14,7 +15,7 @@ const OverlayControls = ({
   onSetQuerySource,
   isDisplayOptionsTabActive,
   onClickDisplayOptions,
-}) =>
+}) => (
   <div className="overlay-controls">
     <SourceSelector
       sources={sources}
@@ -50,6 +51,7 @@ const OverlayControls = ({
       />
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

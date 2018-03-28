@@ -1,139 +1,83 @@
-import React, {PropTypes} from 'react'
-import _ from 'lodash'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import Threshold from 'src/dashboards/components/Threshold'
-import ColorDropdown from 'shared/components/ColorDropdown'
+import ThresholdsList from 'shared/components/ThresholdsList'
+import ThresholdsListTypeToggle from 'shared/components/ThresholdsListTypeToggle'
 
-import {
-  GAUGE_COLORS,
-  MAX_THRESHOLDS,
-  SINGLE_STAT_BASE,
-  SINGLE_STAT_TEXT,
-  SINGLE_STAT_BG,
-} from 'src/dashboards/constants/gaugeColors'
+import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 
-const formatColor = color => {
-  const {hex, name} = color
-  return {hex, name}
-}
-const SingleStatOptions = ({
-  suffix,
-  onSetSuffix,
-  colors,
-  onAddThreshold,
-  onDeleteThreshold,
-  onChooseColor,
-  onValidateColorValue,
-  onUpdateColorValue,
-  singleStatType,
-  onToggleSingleStatType,
-}) => {
-  const disableAddThreshold = colors.length > MAX_THRESHOLDS
+class SingleStatOptions extends Component {
+  handleUpdatePrefix = e => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, prefix: e.target.value}}
 
-  const sortedColors = _.sortBy(colors, color => color.value)
+    handleUpdateAxes(newAxes)
+  }
 
-  return (
-    <FancyScrollbar
-      className="display-options--cell y-axis-controls"
-      autoHide={false}
-    >
-      <div className="display-options--cell-wrapper">
-        <h5 className="display-options--header">Single Stat Controls</h5>
-        <div className="gauge-controls">
-          <button
-            className="btn btn-sm btn-primary gauge-controls--add-threshold"
-            onClick={onAddThreshold}
-            disabled={disableAddThreshold}
-          >
-            <span className="icon plus" /> Add Threshold
-          </button>
-          {sortedColors.map(
-            color =>
-              color.id === SINGLE_STAT_BASE
-                ? <div className="gauge-controls--section" key={color.id}>
-                    <div className="gauge-controls--label">Base Color</div>
-                    <ColorDropdown
-                      colors={GAUGE_COLORS}
-                      selected={formatColor(color)}
-                      onChoose={onChooseColor(color)}
-                      stretchToFit={true}
-                    />
-                  </div>
-                : <Threshold
-                    visualizationType="single-stat"
-                    threshold={color}
-                    key={color.id}
-                    onChooseColor={onChooseColor}
-                    onValidateColorValue={onValidateColorValue}
-                    onUpdateColorValue={onUpdateColorValue}
-                    onDeleteThreshold={onDeleteThreshold}
-                  />
-          )}
-        </div>
-        <div className="single-stat-controls">
-          <div className="form-group col-xs-6">
-            <label>Coloring</label>
-            <ul className="nav nav-tablist nav-tablist-sm">
-              <li
-                className={`${singleStatType === SINGLE_STAT_BG
-                  ? 'active'
-                  : ''}`}
-                onClick={onToggleSingleStatType(SINGLE_STAT_BG)}
-              >
-                Background
-              </li>
-              <li
-                className={`${singleStatType === SINGLE_STAT_TEXT
-                  ? 'active'
-                  : ''}`}
-                onClick={onToggleSingleStatType(SINGLE_STAT_TEXT)}
-              >
-                Text
-              </li>
-            </ul>
-          </div>
-          <div className="form-group col-xs-6">
-            <label>Suffix</label>
-            <input
-              className="form-control input-sm"
-              placeholder="%, MPH, etc."
-              defaultValue={suffix}
-              onChange={onSetSuffix}
-              maxLength="5"
-            />
+  handleUpdateSuffix = e => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, suffix: e.target.value}}
+
+    handleUpdateAxes(newAxes)
+  }
+
+  render() {
+    const {axes: {y: {prefix, suffix}}, onResetFocus} = this.props
+
+    return (
+      <FancyScrollbar
+        className="display-options--cell y-axis-controls"
+        autoHide={false}
+      >
+        <div className="display-options--cell-wrapper">
+          <h5 className="display-options--header">Single Stat Controls</h5>
+          <ThresholdsList onResetFocus={onResetFocus} />
+          <div className="graph-options-group form-group-wrapper">
+            <div className="form-group col-xs-6">
+              <label>Prefix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={prefix}
+                onChange={this.handleUpdatePrefix}
+                maxLength="5"
+              />
+            </div>
+            <div className="form-group col-xs-6">
+              <label>Suffix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={suffix}
+                onChange={this.handleUpdateSuffix}
+                maxLength="5"
+              />
+            </div>
+            <ThresholdsListTypeToggle containerClass="form-group col-xs-6" />
           </div>
         </div>
-      </div>
-    </FancyScrollbar>
-  )
+      </FancyScrollbar>
+    )
+  }
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
-
-SingleStatOptions.defaultProps = {
-  colors: [],
-}
+const {func, shape} = PropTypes
 
 SingleStatOptions.propTypes = {
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  onAddThreshold: func.isRequired,
-  onDeleteThreshold: func.isRequired,
-  onChooseColor: func.isRequired,
-  onValidateColorValue: func.isRequired,
-  onUpdateColorValue: func.isRequired,
-  singleStatType: string.isRequired,
-  onToggleSingleStatType: func.isRequired,
-  onSetSuffix: func.isRequired,
-  suffix: string.isRequired,
+  handleUpdateAxes: func.isRequired,
+  axes: shape({}).isRequired,
+  onResetFocus: func.isRequired,
 }
 
-export default SingleStatOptions
+const mapStateToProps = ({cellEditorOverlay: {cell: {axes}}}) => ({
+  axes,
+})
+
+const mapDispatchToProps = dispatch => ({
+  handleUpdateAxes: bindActionCreators(updateAxes, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(SingleStatOptions)

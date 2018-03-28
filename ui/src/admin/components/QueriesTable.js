@@ -1,11 +1,12 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import QueryRow from 'src/admin/components/QueryRow'
 import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
 
-const QueriesTable = ({queries, onKillQuery}) =>
+const QueriesTable = ({queries, onKillQuery}) => (
   <div>
-    <div className="panel panel-default">
+    <div className="panel panel-solid">
       <div className="panel-body">
         <table className="table v-center admin-table table-highlight">
           <thead>
@@ -19,14 +20,15 @@ const QueriesTable = ({queries, onKillQuery}) =>
             </tr>
           </thead>
           <tbody>
-            {queries.map(q =>
+            {queries.map(q => (
               <QueryRow key={q.id} query={q} onKill={onKillQuery} />
-            )}
+            ))}
           </tbody>
         </table>
       </div>
     </div>
   </div>
+)
 
 const {arrayOf, func, shape} = PropTypes
 

@@ -1,7 +1,8 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import ReactTooltip from 'react-tooltip'
 
-const QuestionMarkTooltip = ({tipID, tipContent}) =>
+const QuestionMarkTooltip = ({tipID, tipContent}) => (
   <div className="question-mark-tooltip">
     <div
       className="question-mark-tooltip--icon"
@@ -18,6 +19,7 @@ const QuestionMarkTooltip = ({tipID, tipContent}) =>
       class="influx-tooltip"
     />
   </div>
+)
 
 const {string} = PropTypes
 

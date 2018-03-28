@@ -18,8 +18,39 @@ import {
 
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
+
+import {
+  notifyDBUserCreated,
+  notifyDBUserCreationFailed,
+  notifyDBUserDeleted,
+  notifyDBUserDeleteFailed,
+  notifyDBUserPermissionsUpdated,
+  notifyDBUserPermissionsUpdateFailed,
+  notifyDBUserRolesUpdated,
+  notifyDBUserRolesUpdateFailed,
+  notifyDBUserPasswordUpdated,
+  notifyDBUserPasswordUpdateFailed,
+  notifyDatabaseCreated,
+  notifyDBCreationFailed,
+  notifyDBDeleted,
+  notifyDBDeleteFailed,
+  notifyRoleCreated,
+  notifyRoleCreationFailed,
+  notifyRoleDeleted,
+  notifyRoleDeleteFailed,
+  notifyRoleUsersUpdated,
+  notifyRoleUsersUpdateFailed,
+  notifyRolePermissionsUpdated,
+  notifyRolePermissionsUpdateFailed,
+  notifyRetentionPolicyCreated,
+  notifyRetentionPolicyCreationFailed,
+  notifyRetentionPolicyDeleted,
+  notifyRetentionPolicyDeleteFailed,
+  notifyRetentionPolicyUpdated,
+  notifyRetentionPolicyUpdateFailed,
+} from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
 import _ from 'lodash'
@@ -276,12 +307,10 @@ export const loadDBsAndRPsAsync = url => async dispatch => {
 export const createUserAsync = (url, user) => async dispatch => {
   try {
     const {data} = await createUserAJAX(url, user)
-    dispatch(
-      publishAutoDismissingNotification('success', 'User created successfully')
-    )
+    dispatch(notify(notifyDBUserCreated()))
     dispatch(syncUser(user, data))
   } catch (error) {
-    dispatch(errorThrown(error, `Failed to create user: ${error.data.message}`))
+    dispatch(errorThrown(error, notifyDBUserCreationFailed(error.data.message)))
     // undo optimistic update
     setTimeout(() => dispatch(deleteUser(user)), REVERT_STATE_DELAY)
   }
@@ -290,12 +319,10 @@ export const createUserAsync = (url, user) => async dispatch => {
 export const createRoleAsync = (url, role) => async dispatch => {
   try {
     const {data} = await createRoleAJAX(url, role)
-    dispatch(
-      publishAutoDismissingNotification('success', 'Role created successfully')
-    )
+    dispatch(notify(notifyRoleCreated()))
     dispatch(syncRole(role, data))
   } catch (error) {
-    dispatch(errorThrown(error, `Failed to create role: ${error.data.message}`))
+    dispatch(errorThrown(error, notifyRoleCreationFailed(error.data.message)))
     // undo optimistic update
     setTimeout(() => dispatch(deleteRole(role)), REVERT_STATE_DELAY)
   }
@@ -305,16 +332,9 @@ export const createDatabaseAsync = (url, database) => async dispatch => {
   try {
     const {data} = await createDatabaseAJAX(url, database)
     dispatch(syncDatabase(database, data))
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Database created successfully'
-      )
-    )
+    dispatch(notify(notifyDatabaseCreated()))
   } catch (error) {
-    dispatch(
-      errorThrown(error, `Failed to create database: ${error.data.message}`)
-    )
+    dispatch(errorThrown(error, notifyDBCreationFailed(error.data.message)))
     // undo optimistic update
     setTimeout(() => dispatch(removeDatabase(database)), REVERT_STATE_DELAY)
   }
@@ -329,19 +349,11 @@ export const createRetentionPolicyAsync = (
       database.links.retentionPolicies,
       retentionPolicy
     )
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Retention policy created successfully'
-      )
-    )
+    dispatch(notify(notifyRetentionPolicyCreated()))
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        `Failed to create retention policy: ${error.data.message}`
-      )
+      errorThrown(notifyRetentionPolicyCreationFailed(error.data.message))
     )
     // undo optimistic update
     setTimeout(
@@ -360,19 +372,11 @@ export const updateRetentionPolicyAsync = (
     dispatch(editRetentionPolicyRequested(database, oldRP, newRP))
     const {data} = await updateRetentionPolicyAJAX(oldRP.links.self, newRP)
     dispatch(editRetentionPolicyCompleted(database, oldRP, data))
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Retention policy updated successfully'
-      )
-    )
+    dispatch(notify(notifyRetentionPolicyUpdated()))
   } catch (error) {
     dispatch(editRetentionPolicyFailed(database, oldRP))
     dispatch(
-      errorThrown(
-        error,
-        `Failed to update retention policy: ${error.data.message}`
-      )
+      errorThrown(error, notifyRetentionPolicyUpdateFailed(error.data.message))
     )
   }
 }
@@ -394,9 +398,9 @@ export const deleteRoleAsync = role => async dispatch => {
   dispatch(deleteRole(role))
   try {
     await deleteRoleAJAX(role.links.self)
-    dispatch(publishAutoDismissingNotification('success', 'Role deleted'))
+    dispatch(notify(notifyRoleDeleted(role.name)))
   } catch (error) {
-    dispatch(errorThrown(error, `Failed to delete role: ${error.data.message}`))
+    dispatch(errorThrown(error, notifyRoleDeleteFailed(error.data.message)))
   }
 }
 
@@ -404,9 +408,9 @@ export const deleteUserAsync = user => async dispatch => {
   dispatch(deleteUser(user))
   try {
     await deleteUserAJAX(user.links.self)
-    dispatch(publishAutoDismissingNotification('success', 'User deleted'))
+    dispatch(notify(notifyDBUserDeleted(user.name)))
   } catch (error) {
-    dispatch(errorThrown(error, `Failed to delete user: ${error.data.message}`))
+    dispatch(errorThrown(error, notifyDBUserDeleteFailed(error.data.message)))
   }
 }
 
@@ -414,11 +418,9 @@ export const deleteDatabaseAsync = database => async dispatch => {
   dispatch(removeDatabase(database))
   try {
     await deleteDatabaseAJAX(database.links.self)
-    dispatch(publishAutoDismissingNotification('success', 'Database deleted'))
+    dispatch(notify(notifyDBDeleted(database.name)))
   } catch (error) {
-    dispatch(
-      errorThrown(error, `Failed to delete database: ${error.data.message}`)
-    )
+    dispatch(errorThrown(error, notifyDBDeleteFailed(error.data.message)))
   }
 }
 
@@ -429,18 +431,10 @@ export const deleteRetentionPolicyAsync = (
   dispatch(removeRetentionPolicy(database, retentionPolicy))
   try {
     await deleteRetentionPolicyAJAX(retentionPolicy.links.self)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        `Retention policy ${retentionPolicy.name} deleted`
-      )
-    )
+    dispatch(notify(notifyRetentionPolicyDeleted(retentionPolicy.name)))
   } catch (error) {
     dispatch(
-      errorThrown(
-        error,
-        `Failed to delete retentionPolicy: ${error.data.message}`
-      )
+      errorThrown(error, notifyRetentionPolicyDeleteFailed(error.data.message))
     )
   }
 }
@@ -452,10 +446,12 @@ export const updateRoleUsersAsync = (role, users) => async dispatch => {
       users,
       role.permissions
     )
-    dispatch(publishAutoDismissingNotification('success', 'Role users updated'))
+    dispatch(notify(notifyRoleUsersUpdated()))
     dispatch(syncRole(role, data))
   } catch (error) {
-    dispatch(errorThrown(error, `Failed to update role: ${error.data.message}`))
+    dispatch(
+      errorThrown(error, notifyRoleUsersUpdateFailed(error.data.message))
+    )
   }
 }
 
@@ -469,13 +465,11 @@ export const updateRolePermissionsAsync = (
       role.users,
       permissions
     )
-    dispatch(
-      publishAutoDismissingNotification('success', 'Role permissions updated')
-    )
+    dispatch(notify(notifyRolePermissionsUpdated()))
     dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, `Failed to update role:  ${error.data.message}`)
+      errorThrown(error, notifyRolePermissionsUpdateFailed(error.data.message))
     )
   }
 }
@@ -486,13 +480,14 @@ export const updateUserPermissionsAsync = (
 ) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {permissions})
-    dispatch(
-      publishAutoDismissingNotification('success', 'User permissions updated')
-    )
+    dispatch(notify(notifyDBUserPermissionsUpdated()))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, `Failed to update user:  ${error.data.message}`)
+      errorThrown(
+        error,
+        notifyDBUserPermissionsUpdateFailed(error.data.message)
+      )
     )
   }
 }
@@ -500,11 +495,11 @@ export const updateUserPermissionsAsync = (
 export const updateUserRolesAsync = (user, roles) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {roles})
-    dispatch(publishAutoDismissingNotification('success', 'User roles updated'))
+    dispatch(notify(notifyDBUserRolesUpdated()))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, `Failed to update user:  ${error.data.message}`)
+      errorThrown(error, notifyDBUserRolesUpdateFailed(error.data.message))
     )
   }
 }
@@ -512,13 +507,11 @@ export const updateUserRolesAsync = (user, roles) => async dispatch => {
 export const updateUserPasswordAsync = (user, password) => async dispatch => {
   try {
     const {data} = await updateUserAJAX(user.links.self, {password})
-    dispatch(
-      publishAutoDismissingNotification('success', 'User password updated')
-    )
+    dispatch(notify(notifyDBUserPasswordUpdated()))
     dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(
-      errorThrown(error, `Failed to update user:  ${error.data.message}`)
+      errorThrown(error, notifyDBUserPasswordUpdateFailed(error.data.message))
     )
   }
 }

@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 import classnames from 'classnames'
 
@@ -214,15 +215,15 @@ class QueryTextArea extends Component {
               <QueryStatus status={status} />
             </div>
             <div className="varmoji-back">
-              {isTemplating
-                ? <TemplateDrawer
-                    onClickTempVar={this.handleClickTempVar}
-                    templates={filteredTemplates}
-                    selected={selectedTemplate}
-                    onMouseOverTempVar={this.handleMouseOverTempVar}
-                    handleClickOutside={this.handleCloseDrawer}
-                  />
-                : null}
+              {isTemplating ? (
+                <TemplateDrawer
+                  onClickTempVar={this.handleClickTempVar}
+                  templates={filteredTemplates}
+                  selected={selectedTemplate}
+                  onMouseOverTempVar={this.handleMouseOverTempVar}
+                  handleClickOutside={this.handleCloseDrawer}
+                />
+              ) : null}
             </div>
           </div>
         </div>

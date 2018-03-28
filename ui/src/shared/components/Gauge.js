@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import {GAUGE_SPECS} from 'shared/constants/gaugeSpecs'
@@ -7,7 +8,7 @@ import {
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
   MIN_THRESHOLDS,
-} from 'src/dashboards/constants/gaugeColors'
+} from 'shared/constants/thresholds'
 
 class Gauge extends Component {
   constructor(props) {
@@ -226,6 +227,7 @@ class Gauge extends Component {
     minValue,
     maxValue
   ) => {
+    const {prefix, suffix} = this.props
     const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
     const incrementValue = (maxValue - minValue) / lineCount
@@ -258,12 +260,14 @@ class Gauge extends Component {
       if (i > 3) {
         ctx.textAlign = 'left'
       }
+      const labelText = `${prefix}${gaugeValues[i]}${suffix}`
+
       ctx.rotate(startDegree)
       ctx.rotate(i * arcIncrement)
       ctx.translate(labelRadius, 0)
       ctx.rotate(i * -arcIncrement)
       ctx.rotate(-startDegree)
-      ctx.fillText(gaugeValues[i], 0, 0)
+      ctx.fillText(labelText, 0, 0)
       ctx.rotate(startDegree)
       ctx.rotate(i * arcIncrement)
       ctx.translate(-labelRadius, 0)
@@ -273,7 +277,7 @@ class Gauge extends Component {
   }
 
   drawGaugeValue = (ctx, radius, labelValueFontSize) => {
-    const {gaugePosition} = this.props
+    const {gaugePosition, prefix, suffix} = this.props
     const {valueColor} = GAUGE_SPECS
 
     ctx.font = `${labelValueFontSize}px Roboto`
@@ -282,7 +286,8 @@ class Gauge extends Component {
     ctx.textAlign = 'center'
 
     const textY = radius
-    ctx.fillText(gaugePosition.toString(), 0, textY)
+    const textContent = `${prefix}${gaugePosition.toString()}${suffix}`
+    ctx.fillText(textContent, 0, textY)
   }
 
   drawNeedle = (ctx, radius, minValue, maxValue) => {
@@ -335,6 +340,8 @@ Gauge.propTypes = {
       value: string.isRequired,
     }).isRequired
   ).isRequired,
+  prefix: string.isRequired,
+  suffix: string.isRequired,
 }
 
 export default Gauge

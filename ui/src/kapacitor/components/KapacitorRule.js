@@ -1,4 +1,7 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
@@ -9,8 +12,19 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {createRule, editRule} from 'src/kapacitor/apis'
 import buildInfluxQLQuery from 'utils/influxql'
-import timeRanges from 'hson!shared/data/timeRanges.hson'
+import {timeRanges} from 'shared/data/timeRanges'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {notify as notifyAction} from 'shared/actions/notifications'
+
+import {
+  notifyAlertRuleCreated,
+  notifyAlertRuleCreateFailed,
+  notifyAlertRuleUpdated,
+  notifyAlertRuleUpdateFailed,
+  notifyAlertRuleRequiresQuery,
+  notifyAlertRuleRequiresConditionValue,
+  notifyAlertRuleDeadmanInvalid,
+} from 'shared/copy/notifications'
 
 class KapacitorRule extends Component {
   constructor(props) {
@@ -26,14 +40,7 @@ class KapacitorRule extends Component {
   }
 
   handleCreate = pathname => {
-    const {
-      addFlashMessage,
-      queryConfigs,
-      rule,
-      source,
-      router,
-      kapacitor,
-    } = this.props
+    const {notify, queryConfigs, rule, source, router, kapacitor} = this.props
 
     const newRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -43,18 +50,15 @@ class KapacitorRule extends Component {
     createRule(kapacitor, newRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        addFlashMessage({type: 'success', text: 'Rule successfully created'})
+        notify(notifyAlertRuleCreated())
       })
       .catch(() => {
-        addFlashMessage({
-          type: 'error',
-          text: 'There was a problem creating the rule',
-        })
+        notify(notifyAlertRuleCreateFailed())
       })
   }
 
   handleEdit = pathname => {
-    const {addFlashMessage, queryConfigs, rule, router, source} = this.props
+    const {notify, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     })
@@ -62,16 +66,10 @@ class KapacitorRule extends Component {
     editRule(updatedRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        addFlashMessage({
-          type: 'success',
-          text: `${rule.name} successfully saved!`,
-        })
+        notify(notifyAlertRuleUpdated(rule.name))
       })
       .catch(e => {
-        addFlashMessage({
-          type: 'error',
-          text: `There was a problem saving ${rule.name}: ${e.data.message}`,
-        })
+        notify(notifyAlertRuleUpdateFailed(rule.name, e.data.message))
       })
   }
 
@@ -117,11 +115,11 @@ class KapacitorRule extends Component {
     }
 
     if (!buildInfluxQLQuery({}, query)) {
-      return 'Please select a Database, Measurement, and Field'
+      return notifyAlertRuleRequiresQuery()
     }
 
     if (!rule.values.value) {
-      return 'Please enter a value in the Conditions section'
+      return notifyAlertRuleRequiresConditionValue()
     }
 
     return ''
@@ -130,7 +128,7 @@ class KapacitorRule extends Component {
   deadmanValidation = () => {
     const {query} = this.props
     if (query && (!query.database || !query.measurement)) {
-      return 'Deadman rules require a Database and Measurement'
+      return notifyAlertRuleDeadmanInvalid()
     }
 
     return ''
@@ -233,7 +231,7 @@ KapacitorRule.propTypes = {
   queryConfigs: shape({}).isRequired,
   queryConfigActions: shape({}).isRequired,
   ruleActions: shape({}).isRequired,
-  addFlashMessage: func.isRequired,
+  notify: func.isRequired,
   ruleID: string.isRequired,
   handlersFromConfig: arrayOf(shape({})).isRequired,
   router: shape({
@@ -243,4 +241,8 @@ KapacitorRule.propTypes = {
   configLink: string.isRequired,
 }
 
-export default KapacitorRule
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(KapacitorRule)

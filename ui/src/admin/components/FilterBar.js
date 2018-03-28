@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 class FilterBar extends Component {
   constructor(props) {
@@ -26,8 +27,8 @@ class FilterBar extends Component {
       return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
     })
     return (
-      <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-        <div className="users__search-widget input-group admin__search-widget">
+      <div className="panel-heading">
+        <div className="search-widget" style={{width: '300px'}}>
           <input
             type="text"
             className="form-control input-sm"
@@ -35,9 +36,7 @@ class FilterBar extends Component {
             value={this.state.filterText}
             onChange={this.handleText}
           />
-          <div className="input-group-addon">
-            <span className="icon search" aria-hidden="true" />
-          </div>
+          <span className="icon search" />
         </div>
         <button
           className="btn btn-sm btn-primary"

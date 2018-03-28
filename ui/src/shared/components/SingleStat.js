@@ -1,10 +1,11 @@
-import React, {PropTypes, PureComponent} from 'react'
+import React, {PureComponent} from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
-import {SINGLE_STAT_TEXT} from 'src/dashboards/constants/gaugeColors'
-import {generateSingleStatHexs} from 'shared/constants/colorOperations'
+import {DYGRAPH_CONTAINER_V_MARGIN} from 'shared/constants'
+import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
 class SingleStat extends PureComponent {
   render() {
@@ -16,6 +17,7 @@ class SingleStat extends PureComponent {
       prefix,
       suffix,
       lineGraph,
+      staticLegendHeight,
     } = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -30,20 +32,31 @@ class SingleStat extends PureComponent {
     const lastValue = lastValues(data)[1]
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
-    const colorizeText = !!colors.find(color => color.type === SINGLE_STAT_TEXT)
 
-    const {bgColor, textColor} = generateSingleStatHexs(
+    const {bgColor, textColor} = generateThresholdsListHexs({
       colors,
-      lineGraph,
-      colorizeText,
-      lastValue
-    )
+      lastValue,
+      cellType: lineGraph ? 'line-plus-single-stat' : 'single-stat',
+    })
+
+    const backgroundColor = bgColor
+    const color = textColor
+    const height = `calc(100% - ${staticLegendHeight +
+      DYGRAPH_CONTAINER_V_MARGIN * 2}px)`
+
+    const singleStatStyles = staticLegendHeight
+      ? {
+          backgroundColor,
+          color,
+          height,
+        }
+      : {
+          backgroundColor,
+          color,
+        }
 
     return (
-      <div
-        className="single-stat"
-        style={{backgroundColor: bgColor, color: textColor}}
-      >
+      <div className="single-stat" style={singleStatStyles}>
         <span
           className={classnames('single-stat--value', {
             'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
@@ -77,6 +90,7 @@ SingleStat.propTypes = {
   prefix: string,
   suffix: string,
   lineGraph: bool,
+  staticLegendHeight: number,
 }
 
 export default SingleStat

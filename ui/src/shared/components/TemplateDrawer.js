@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import OnClickOutside from 'react-onclickoutside'
 import classnames from 'classnames'
 
@@ -7,9 +8,9 @@ const TemplateDrawer = ({
   selected,
   onMouseOverTempVar,
   onClickTempVar,
-}) =>
+}) => (
   <div className="template-drawer">
-    {templates.map(t =>
+    {templates.map(t => (
       <div
         className={classnames('template-drawer--item', {
           'template-drawer--selected': t.tempVar === selected.tempVar,
@@ -18,10 +19,12 @@ const TemplateDrawer = ({
         onClick={onClickTempVar(t)}
         key={t.tempVar}
       >
-        {' '}{t.tempVar}{' '}
+        {' '}
+        {t.tempVar}{' '}
       </div>
-    )}
+    ))}
   </div>
+)
 
 const {arrayOf, func, shape, string} = PropTypes
 

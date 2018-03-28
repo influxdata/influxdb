@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import {connect} from 'react-redux'
 import _ from 'lodash'
@@ -17,22 +18,23 @@ const SourceForm = ({
   gotoPurgatory,
   isInitialSource,
   me,
-}) =>
+}) => (
   <div className="panel-body">
-    {isUsingAuth && isInitialSource
-      ? <div className="text-center">
-          {me.role === SUPERADMIN_ROLE
-            ? <h3>
-                <strong>{me.currentOrganization.name}</strong> has no
-                connections
-              </h3>
-            : <h3>
-                <strong>{me.currentOrganization.name}</strong> has no
-                connections available to <em>{me.role}s</em>
-              </h3>}
-          <h6>Add a Connection below:</h6>
-        </div>
-      : null}
+    {isUsingAuth && isInitialSource ? (
+      <div className="text-center">
+        {me.role === SUPERADMIN_ROLE ? (
+          <h3>
+            <strong>{me.currentOrganization.name}</strong> has no connections
+          </h3>
+        ) : (
+          <h3>
+            <strong>{me.currentOrganization.name}</strong> has no connections
+            available to <em>{me.role}s</em>
+          </h3>
+        )}
+        <h6>Add a Connection below:</h6>
+      </div>
+    ) : null}
 
     <form onSubmit={onSubmit}>
       <div className="form-group col-xs-12 col-sm-6">
@@ -84,20 +86,20 @@ const SourceForm = ({
           value={source.password}
         />
       </div>
-      {_.get(source, 'type', '').includes('enterprise')
-        ? <div className="form-group col-xs-12">
-            <label htmlFor="meta-url">Meta Service Connection URL</label>
-            <input
-              type="text"
-              name="metaUrl"
-              className="form-control"
-              id="meta-url"
-              placeholder="http://localhost:8091"
-              onChange={onInputChange}
-              value={source.metaUrl}
-            />
-          </div>
-        : null}
+      {_.get(source, 'type', '').includes('enterprise') ? (
+        <div className="form-group col-xs-12">
+          <label htmlFor="meta-url">Meta Service Connection URL</label>
+          <input
+            type="text"
+            name="metaUrl"
+            className="form-control"
+            id="meta-url"
+            placeholder="http://localhost:8091"
+            onChange={onInputChange}
+            value={source.metaUrl}
+          />
+        </div>
+      ) : null}
       <div className="form-group col-xs-12">
         <label htmlFor="telegraf">Telegraf Database</label>
         <input
@@ -123,23 +125,21 @@ const SourceForm = ({
           </label>
         </div>
       </div>
-      {_.get(source, 'url', '').startsWith('https')
-        ? <div className="form-group col-xs-12">
-            <div className="form-control-static">
-              <input
-                type="checkbox"
-                id="insecureSkipVerifyCheckbox"
-                name="insecureSkipVerify"
-                checked={source.insecureSkipVerify}
-                onChange={onInputChange}
-              />
-              <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
-            </div>
-            <label className="form-helper">
-              {insecureSkipVerifyText}
-            </label>
+      {_.get(source, 'url', '').startsWith('https') ? (
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="insecureSkipVerifyCheckbox"
+              name="insecureSkipVerify"
+              checked={source.insecureSkipVerify}
+              onChange={onInputChange}
+            />
+            <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
           </div>
-        : null}
+          <label className="form-helper">{insecureSkipVerifyText}</label>
+        </div>
+      ) : null}
       <div className="form-group form-group-submit text-center col-xs-12 col-sm-6 col-sm-offset-3">
         <button
           className={classnames('btn btn-block', {
@@ -153,14 +153,15 @@ const SourceForm = ({
         </button>
 
         <br />
-        {isUsingAuth
-          ? <button className="btn btn-link btn-sm" onClick={gotoPurgatory}>
-              <span className="icon shuffle" /> Switch Orgs
-            </button>
-          : null}
+        {isUsingAuth ? (
+          <button className="btn btn-link btn-sm" onClick={gotoPurgatory}>
+            <span className="icon shuffle" /> Switch Orgs
+          </button>
+        ) : null}
       </div>
     </form>
   </div>
+)
 
 const {bool, func, shape, string} = PropTypes
 

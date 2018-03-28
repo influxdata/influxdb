@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
@@ -30,90 +31,85 @@ const DashboardHeader = ({
   handleClickPresentationButton,
   zoomedTimeRange: {zoomedLower, zoomedUpper},
 }) =>
-  isHidden
-    ? null
-    : <div className="page-header full-width">
-        <div className="page-header__container">
-          <div
-            className={
-              dashboard
-                ? 'page-header__left page-header__dash-editable'
-                : 'page-header__left'
-            }
-          >
-            {names && names.length > 1
-              ? <DashboardSwitcher
-                  names={names}
-                  activeDashboard={activeDashboard}
-                />
-              : null}
-            {dashboard
-              ? <Authorized
-                  requiredRole={EDITOR_ROLE}
-                  replaceWithIfNotAuthorized={
-                    <h1 className="page-header__title">
-                      {activeDashboard}
-                    </h1>
-                  }
-                >
-                  <DashboardHeaderEdit
-                    onSave={onSave}
-                    onCancel={onCancel}
-                    activeDashboard={activeDashboard}
-                    onEditDashboard={onEditDashboard}
-                    isEditMode={isEditMode}
-                  />
-                </Authorized>
-              : <h1 className="page-header__title">
-                  {activeDashboard}
-                </h1>}
-          </div>
-          <div className="page-header__right">
-            <GraphTips />
-            <SourceIndicator />
-            {dashboard
-              ? <Authorized requiredRole={EDITOR_ROLE}>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={onAddCell}
-                  >
-                    <span className="icon plus" />
-                    Add Cell
-                  </button>
-                </Authorized>
-              : null}
-            {dashboard
-              ? <div
-                  className={classnames('btn btn-default btn-sm', {
-                    active: showTemplateControlBar,
-                  })}
-                  onClick={onToggleTempVarControls}
-                >
-                  <span className="icon cube" />Template Variables
-                </div>
-              : null}
-            <AutoRefreshDropdown
-              onChoose={handleChooseAutoRefresh}
-              onManualRefresh={onManualRefresh}
-              selected={autoRefresh}
-              iconName="refresh"
+  isHidden ? null : (
+    <div className="page-header full-width">
+      <div className="page-header__container">
+        <div
+          className={
+            dashboard
+              ? 'page-header__left page-header__dash-editable'
+              : 'page-header__left'
+          }
+        >
+          {names && names.length > 1 ? (
+            <DashboardSwitcher
+              names={names}
+              activeDashboard={activeDashboard}
             />
-            <TimeRangeDropdown
-              onChooseTimeRange={handleChooseTimeRange}
-              selected={{
-                upper: zoomedUpper || upper,
-                lower: zoomedLower || lower,
-              }}
-            />
-            <div
-              className="btn btn-default btn-sm btn-square"
-              onClick={handleClickPresentationButton}
+          ) : null}
+          {dashboard ? (
+            <Authorized
+              requiredRole={EDITOR_ROLE}
+              replaceWithIfNotAuthorized={
+                <h1 className="page-header__title">{activeDashboard}</h1>
+              }
             >
-              <span className="icon expand-a" />
+              <DashboardHeaderEdit
+                onSave={onSave}
+                onCancel={onCancel}
+                activeDashboard={activeDashboard}
+                onEditDashboard={onEditDashboard}
+                isEditMode={isEditMode}
+              />
+            </Authorized>
+          ) : (
+            <h1 className="page-header__title">{activeDashboard}</h1>
+          )}
+        </div>
+        <div className="page-header__right">
+          <GraphTips />
+          <SourceIndicator />
+          {dashboard ? (
+            <Authorized requiredRole={EDITOR_ROLE}>
+              <button className="btn btn-primary btn-sm" onClick={onAddCell}>
+                <span className="icon plus" />
+                Add Cell
+              </button>
+            </Authorized>
+          ) : null}
+          {dashboard ? (
+            <div
+              className={classnames('btn btn-default btn-sm', {
+                active: showTemplateControlBar,
+              })}
+              onClick={onToggleTempVarControls}
+            >
+              <span className="icon cube" />Template Variables
             </div>
+          ) : null}
+          <AutoRefreshDropdown
+            onChoose={handleChooseAutoRefresh}
+            onManualRefresh={onManualRefresh}
+            selected={autoRefresh}
+            iconName="refresh"
+          />
+          <TimeRangeDropdown
+            onChooseTimeRange={handleChooseTimeRange}
+            selected={{
+              upper: zoomedUpper || upper,
+              lower: zoomedLower || lower,
+            }}
+          />
+          <div
+            className="btn btn-default btn-sm btn-square"
+            onClick={handleClickPresentationButton}
+          >
+            <span className="icon expand-a" />
           </div>
         </div>
       </div>
+    </div>
+  )
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 

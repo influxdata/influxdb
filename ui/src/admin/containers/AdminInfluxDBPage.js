@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {
@@ -28,7 +29,12 @@ import AdminTabs from 'src/admin/components/AdminTabs'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify as notifyAction} from 'shared/actions/notifications'
+
+import {
+  notifyRoleNameInvalid,
+  notifyDBUserNamePasswordInvalid,
+} from 'shared/copy/notifications'
 
 const isValidUser = user => {
   const minLen = 3
@@ -74,7 +80,7 @@ class AdminInfluxDBPage extends Component {
   handleSaveUser = async user => {
     const {notify} = this.props
     if (!isValidUser(user)) {
-      notify('error', 'Username and/or password too short')
+      notify(notifyDBUserNamePasswordInvalid())
       return
     }
     if (user.isNew) {
@@ -87,7 +93,7 @@ class AdminInfluxDBPage extends Component {
   handleSaveRole = async role => {
     const {notify} = this.props
     if (!isValidRole(role)) {
-      notify('error', 'Role name too short')
+      notify(notifyRoleNameInvalid())
       return
     }
     if (role.isNew) {
@@ -159,37 +165,39 @@ class AdminInfluxDBPage extends Component {
           </div>
         </div>
         <FancyScrollbar className="page-contents">
-          {users
-            ? <div className="container-fluid">
-                <div className="row">
-                  <AdminTabs
-                    users={users}
-                    roles={roles}
-                    source={source}
-                    hasRoles={hasRoles}
-                    permissions={allowed}
-                    onFilterUsers={filterUsers}
-                    onFilterRoles={filterRoles}
-                    onEditUser={this.handleEditUser}
-                    onEditRole={this.handleEditRole}
-                    onSaveUser={this.handleSaveUser}
-                    onSaveRole={this.handleSaveRole}
-                    onDeleteUser={this.handleDeleteUser}
-                    onDeleteRole={this.handleDeleteRole}
-                    onClickCreate={this.handleClickCreate}
-                    onCancelEditUser={this.handleCancelEditUser}
-                    onCancelEditRole={this.handleCancelEditRole}
-                    isEditingUsers={users.some(u => u.isEditing)}
-                    isEditingRoles={roles.some(r => r.isEditing)}
-                    onUpdateRoleUsers={this.handleUpdateRoleUsers}
-                    onUpdateUserRoles={this.handleUpdateUserRoles}
-                    onUpdateUserPassword={this.handleUpdateUserPassword}
-                    onUpdateRolePermissions={this.handleUpdateRolePermissions}
-                    onUpdateUserPermissions={this.handleUpdateUserPermissions}
-                  />
-                </div>
+          {users ? (
+            <div className="container-fluid">
+              <div className="row">
+                <AdminTabs
+                  users={users}
+                  roles={roles}
+                  source={source}
+                  hasRoles={hasRoles}
+                  permissions={allowed}
+                  onFilterUsers={filterUsers}
+                  onFilterRoles={filterRoles}
+                  onEditUser={this.handleEditUser}
+                  onEditRole={this.handleEditRole}
+                  onSaveUser={this.handleSaveUser}
+                  onSaveRole={this.handleSaveRole}
+                  onDeleteUser={this.handleDeleteUser}
+                  onDeleteRole={this.handleDeleteRole}
+                  onClickCreate={this.handleClickCreate}
+                  onCancelEditUser={this.handleCancelEditUser}
+                  onCancelEditRole={this.handleCancelEditRole}
+                  isEditingUsers={users.some(u => u.isEditing)}
+                  isEditingRoles={roles.some(r => r.isEditing)}
+                  onUpdateRoleUsers={this.handleUpdateRoleUsers}
+                  onUpdateUserRoles={this.handleUpdateUserRoles}
+                  onUpdateUserPassword={this.handleUpdateUserPassword}
+                  onUpdateRolePermissions={this.handleUpdateRolePermissions}
+                  onUpdateUserPermissions={this.handleUpdateUserPermissions}
+                />
               </div>
-            : <div className="page-spinner" />}
+            </div>
+          ) : (
+            <div className="page-spinner" />
+          )}
         </FancyScrollbar>
       </div>
     )
@@ -228,7 +236,7 @@ AdminInfluxDBPage.propTypes = {
   updateUserPermissions: func,
   updateUserRoles: func,
   updateUserPassword: func,
-  notify: func,
+  notify: func.isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {users, roles, permissions}}) => ({
@@ -264,7 +272,7 @@ const mapDispatchToProps = dispatch => ({
   ),
   updateUserRoles: bindActionCreators(updateUserRolesAsync, dispatch),
   updateUserPassword: bindActionCreators(updateUserPasswordAsync, dispatch),
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminInfluxDBPage)

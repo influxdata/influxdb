@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
@@ -19,8 +20,8 @@ const UsersTable = ({
   onUpdatePermissions,
   onUpdateRoles,
   onUpdatePassword,
-}) =>
-  <div className="panel panel-default">
+}) => (
+  <div className="panel panel-solid">
     <FilterBar
       type="users"
       onFilter={onFilter}
@@ -39,32 +40,35 @@ const UsersTable = ({
           </tr>
         </thead>
         <tbody>
-          {users.length
-            ? users
-                .filter(u => !u.hidden)
-                .map(user =>
-                  <UserRow
-                    key={user.links.self}
-                    user={user}
-                    onEdit={onEdit}
-                    onSave={onSave}
-                    onCancel={onCancel}
-                    onDelete={onDelete}
-                    isEditing={user.isEditing}
-                    isNew={user.isNew}
-                    allRoles={allRoles}
-                    hasRoles={hasRoles}
-                    allPermissions={permissions}
-                    onUpdatePermissions={onUpdatePermissions}
-                    onUpdateRoles={onUpdateRoles}
-                    onUpdatePassword={onUpdatePassword}
-                  />
-                )
-            : <EmptyRow tableName={'Users'} />}
+          {users.length ? (
+            users
+              .filter(u => !u.hidden)
+              .map(user => (
+                <UserRow
+                  key={user.links.self}
+                  user={user}
+                  onEdit={onEdit}
+                  onSave={onSave}
+                  onCancel={onCancel}
+                  onDelete={onDelete}
+                  isEditing={user.isEditing}
+                  isNew={user.isNew}
+                  allRoles={allRoles}
+                  hasRoles={hasRoles}
+                  allPermissions={permissions}
+                  onUpdatePermissions={onUpdatePermissions}
+                  onUpdateRoles={onUpdateRoles}
+                  onUpdatePassword={onUpdatePassword}
+                />
+              ))
+          ) : (
+            <EmptyRow tableName={'Users'} />
+          )}
         </tbody>
       </table>
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import classnames from 'classnames'
 import _ from 'lodash'
@@ -39,7 +40,10 @@ class MultiSelectDropdown extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    if (!_.isEqual(this.props.selectedItems, nextProps.selectedItems)) {
+    if (
+      !this.props.resetStateOnReceiveProps ||
+      !_.isEqual(this.props.selectedItems, nextProps.selectedItems)
+    ) {
       return
     }
 
@@ -105,17 +109,16 @@ class MultiSelectDropdown extends Component {
 
   renderMenu() {
     const {items, isApplyShown} = this.props
-    const applyButton = isApplyShown
-      ? <li className="multi-select--apply">
-          <button className="btn btn-xs btn-info" onClick={this.handleApply}>
-            Apply
-          </button>
-        </li>
-      : null
 
     return (
       <ul className="dropdown-menu">
-        {applyButton}
+        {isApplyShown && (
+          <li className="multi-select--apply">
+            <button className="btn btn-xs btn-info" onClick={this.handleApply}>
+              Apply
+            </button>
+          </li>
+        )}
         <FancyScrollbar
           autoHide={false}
           autoHeight={true}
@@ -131,9 +134,7 @@ class MultiSelectDropdown extends Component {
                 onClick={_.wrap(listItem, this.onSelect)}
               >
                 <div className="multi-select--checkbox" />
-                <span>
-                  {listItem.name}
-                </span>
+                <span>{listItem.name}</span>
               </li>
             )
           })}
@@ -163,6 +164,7 @@ MultiSelectDropdown.propTypes = {
   customClass: string,
   iconName: string,
   isApplyShown: bool,
+  resetStateOnReceiveProps: bool,
 }
 
 MultiSelectDropdown.defaultProps = {
@@ -171,6 +173,7 @@ MultiSelectDropdown.defaultProps = {
   customClass: 'dropdown-160',
   selectedItems: [],
   isApplyShown: true,
+  resetStateOnReceiveProps: true,
 }
 
 export default OnClickOutside(MultiSelectDropdown)

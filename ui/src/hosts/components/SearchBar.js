@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 class SearchBar extends Component {
@@ -22,27 +23,30 @@ class SearchBar extends Component {
   }
 
   render() {
-    const {placeholder} = this.props
+    const {placeholder, width} = this.props
     return (
-      <div className="users__search-widget input-group">
+      <div className="search-widget" style={{width: `${width}px`}}>
         <input
           type="text"
-          className="form-control"
+          className="form-control input-sm"
           placeholder={placeholder}
           ref="searchInput"
           onChange={this.handleChange}
         />
-        <div className="input-group-addon">
-          <span className="icon search" aria-hidden="true" />
-        </div>
+        <span className="icon search" />
       </div>
     )
   }
 }
 
-const {func, string} = PropTypes
+const {func, number, string} = PropTypes
+
+SearchBar.defaultProps = {
+  width: 260,
+}
 
 SearchBar.propTypes = {
+  width: number,
   onSearch: func.isRequired,
   placeholder: string.isRequired,
 }

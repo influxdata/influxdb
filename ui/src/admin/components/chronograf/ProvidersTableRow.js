@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import Dropdown from 'shared/components/Dropdown'
@@ -70,24 +71,26 @@ class ProvidersTableRow extends Component {
     const isDefaultMapping = DEFAULT_MAPPING_ID === mapping.id
     return (
       <div className="fancytable--row">
-        <Dropdown
-          items={schemes}
-          onChoose={this.handleChooseScheme}
-          selected={scheme}
-          className="fancytable--td provider--scheme"
-          disabled={isDefaultMapping}
-        />
+        <div className="fancytable--td provider--scheme">
+          <Dropdown
+            items={schemes}
+            onChoose={this.handleChooseScheme}
+            selected={scheme}
+            className="dropdown-stretch"
+            disabled={isDefaultMapping}
+          />
+        </div>
         <InputClickToEdit
           value={provider}
           wrapperClass="fancytable--td provider--provider"
-          onUpdate={this.handleChangeProvider}
+          onBlur={this.handleChangeProvider}
           disabled={isDefaultMapping}
           tabIndex={rowIndex}
         />
         <InputClickToEdit
           value={providerOrganization}
           wrapperClass="fancytable--td provider--providerorg"
-          onUpdate={this.handleChangeProviderOrg}
+          onBlur={this.handleChangeProviderOrg}
           disabled={isDefaultMapping}
           tabIndex={rowIndex}
         />
@@ -103,19 +106,22 @@ class ProvidersTableRow extends Component {
             disabled={isDefaultMapping}
           />
         </div>
-        {isDeleting
-          ? <ConfirmButtons
-              item={mapping}
-              onCancel={this.handleDismissDeleteConfirmation}
-              onConfirm={this.handleDeleteMap}
-              onClickOutside={this.handleDismissDeleteConfirmation}
-            />
-          : <button
-              className="btn btn-sm btn-default btn-square"
-              onClick={this.handleDeleteClick}
-            >
-              <span className="icon trash" />
-            </button>}
+        {isDeleting ? (
+          <ConfirmButtons
+            item={mapping}
+            onCancel={this.handleDismissDeleteConfirmation}
+            onConfirm={this.handleDeleteMap}
+            onClickOutside={this.handleDismissDeleteConfirmation}
+            confirmTitle="Delete"
+          />
+        ) : (
+          <button
+            className="btn btn-sm btn-default btn-square"
+            onClick={this.handleDeleteClick}
+          >
+            <span className="icon trash" />
+          </button>
+        )}
       </div>
     )
   }

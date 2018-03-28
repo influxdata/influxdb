@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 const renderKeysAndValues = (object, name) => {
   if (!object) {
@@ -9,26 +10,22 @@ const renderKeysAndValues = (object, name) => {
 
   return (
     <div className="logs-table--column">
-      <h1>
-        {`${sortedObjKeys.length} ${name}`}
-      </h1>
+      <h1>{`${sortedObjKeys.length} ${name}`}</h1>
       <div className="logs-table--scrollbox">
-        {sortedObjKeys.map(objKey =>
+        {sortedObjKeys.map(objKey => (
           <div key={objKey} className="logs-table--key-value">
             {objKey}: <span>{object[objKey]}</span>
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
 }
-const LogItemKapacitorPoint = ({logItem}) =>
+const LogItemKapacitorPoint = ({logItem}) => (
   <div className="logs-table--row">
     <div className="logs-table--divider">
       <div className={`logs-table--level ${logItem.lvl}`} />
-      <div className="logs-table--timestamp">
-        {logItem.ts}
-      </div>
+      <div className="logs-table--timestamp">{logItem.ts}</div>
     </div>
     <div className="logs-table--details">
       <div className="logs-table--service">Kapacitor Point</div>
@@ -38,6 +35,7 @@ const LogItemKapacitorPoint = ({logItem}) =>
       </div>
     </div>
   </div>
+)
 
 const {shape, string} = PropTypes
 

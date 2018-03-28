@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import _ from 'lodash'
 import classnames from 'classnames'
@@ -11,7 +12,6 @@ const {func, shape, bool} = PropTypes
 
 const DatabaseTable = ({
   database,
-  notify,
   isRFDisplayed,
   onEditDatabase,
   onKeyDownDatabase,
@@ -35,7 +35,6 @@ const DatabaseTable = ({
     >
       <DatabaseTableHeader
         database={database}
-        notify={notify}
         onEdit={onEditDatabase}
         onCancel={onCancelDatabase}
         onDelete={onDeleteDatabase}
@@ -58,11 +57,11 @@ const DatabaseTable = ({
               <th style={{width: `${DATABASE_TABLE.colDuration}px`}}>
                 Duration
               </th>
-              {isRFDisplayed
-                ? <th style={{width: `${DATABASE_TABLE.colReplication}px`}}>
-                    Replication Factor
-                  </th>
-                : null}
+              {isRFDisplayed ? (
+                <th style={{width: `${DATABASE_TABLE.colReplication}px`}}>
+                  Replication Factor
+                </th>
+              ) : null}
               <th style={{width: `${DATABASE_TABLE.colDelete}px`}} />
             </tr>
           </thead>
@@ -73,7 +72,6 @@ const DatabaseTable = ({
               return (
                 <DatabaseRow
                   key={rp.links.self}
-                  notify={notify}
                   database={database}
                   retentionPolicy={rp}
                   onCreate={onCreateRetentionPolicy}
@@ -95,7 +93,6 @@ const DatabaseTable = ({
 DatabaseTable.propTypes = {
   onEditDatabase: func,
   database: shape(),
-  notify: func,
   isRFDisplayed: bool,
   isAddRPDisabled: bool,
   onKeyDownDatabase: func,

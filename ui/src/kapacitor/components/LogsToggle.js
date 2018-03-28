@@ -1,6 +1,7 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
-const LogsToggle = ({areLogsVisible, onToggleLogsVisibility}) =>
+const LogsToggle = ({areLogsVisible, onToggleLogsVisibility}) => (
   <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite logs-toggle">
     <li
       className={areLogsVisible ? null : 'active'}
@@ -15,6 +16,7 @@ const LogsToggle = ({areLogsVisible, onToggleLogsVisibility}) =>
       Editor + Logs
     </li>
   </ul>
+)
 
 const {bool, func} = PropTypes
 

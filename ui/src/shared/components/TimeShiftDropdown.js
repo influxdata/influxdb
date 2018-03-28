@@ -1,8 +1,9 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import Dropdown from 'shared/components/Dropdown'
 import {TIME_SHIFTS} from 'shared/constants/timeShift'
 
-const TimeShiftDropdown = ({selected, onChooseTimeShift}) =>
+const TimeShiftDropdown = ({selected, onChooseTimeShift}) => (
   <div className="group-by-time">
     <label className="group-by-time--label">Compare:</label>
     <Dropdown
@@ -13,6 +14,7 @@ const TimeShiftDropdown = ({selected, onChooseTimeShift}) =>
       selected={selected || 'none'}
     />
   </div>
+)
 
 const {func, string} = PropTypes
 

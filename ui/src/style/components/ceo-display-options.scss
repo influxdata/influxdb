@@ -76,9 +76,7 @@ $graph-type--gutter: 4px;
     position: absolute;
     top: $graph-type--gutter / 2;
     left: $graph-type--gutter / 2;
-    transition:
-      color 0.25s ease,
-      border-color 0.25s ease,
+    transition: color 0.25s ease, border-color 0.25s ease,
       background-color 0.25s ease;
 
     &:hover {
@@ -127,11 +125,11 @@ $graph-type--gutter: 4px;
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%,-50%);
+  transform: translate(-50%, -50%);
 
   > svg,
   > svg * {
-    transform: translate3d(0,0,0);
+    transform: translate3d(0, 0, 0);
   }
   > svg {
     width: 100%;
@@ -145,35 +143,69 @@ $graph-type--gutter: 4px;
   stroke-miterlimit: 10;
   // transition: all 0.5s ease;
 
-  &.graphic-line-a {stroke: $g11-sidewalk;}
-  &.graphic-line-b {stroke: $g9-mountain;}
-  &.graphic-line-c {stroke: $g7-graphite;}
-  &.graphic-line-d {stroke: $g13-mist;}
+  &.graphic-line-a {
+    stroke: $g11-sidewalk;
+  }
+  &.graphic-line-b {
+    stroke: $g9-mountain;
+  }
+  &.graphic-line-c {
+    stroke: $g7-graphite;
+  }
+  &.graphic-line-d {
+    stroke: $g13-mist;
+  }
 }
 .viz-type-selector--graphic-fill {
   opacity: 0.045;
   // transition: opacity 0.5s ease;
 
-  &.graphic-fill-a {fill: $g11-sidewalk;}
-  &.graphic-fill-b {fill: $g9-mountain;}
-  &.graphic-fill-c {fill: $g7-graphite;}
-  &.graphic-fill-d {fill: $g13-mist; opacity: 1;}
+  &.graphic-fill-a {
+    fill: $g11-sidewalk;
+  }
+  &.graphic-fill-b {
+    fill: $g9-mountain;
+  }
+  &.graphic-fill-c {
+    fill: $g7-graphite;
+  }
+  &.graphic-fill-d {
+    fill: $g13-mist;
+    opacity: 1;
+  }
 }
 .viz-type-selector--option.active .viz-type-selector--graphic {
-  .viz-type-selector--graphic-line.graphic-line-a {stroke: $c-pool;}
-  .viz-type-selector--graphic-line.graphic-line-b {stroke: $c-dreamsicle;}
-  .viz-type-selector--graphic-line.graphic-line-c {stroke: $c-rainforest;}
-  .viz-type-selector--graphic-line.graphic-line-d {stroke: $g17-whisper;}
-  .viz-type-selector--graphic-fill.graphic-fill-a {fill: $c-pool;}
-  .viz-type-selector--graphic-fill.graphic-fill-b {fill: $c-dreamsicle;}
-  .viz-type-selector--graphic-fill.graphic-fill-c {fill: $c-rainforest;}
+  .viz-type-selector--graphic-line.graphic-line-a {
+    stroke: $c-pool;
+  }
+  .viz-type-selector--graphic-line.graphic-line-b {
+    stroke: $c-dreamsicle;
+  }
+  .viz-type-selector--graphic-line.graphic-line-c {
+    stroke: $c-rainforest;
+  }
+  .viz-type-selector--graphic-line.graphic-line-d {
+    stroke: $g17-whisper;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-a {
+    fill: $c-pool;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-b {
+    fill: $c-dreamsicle;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-c {
+    fill: $c-rainforest;
+  }
   .viz-type-selector--graphic-fill.graphic-fill-a,
   .viz-type-selector--graphic-fill.graphic-fill-b,
-  .viz-type-selector--graphic-fill.graphic-fill-c {opacity: 0.22;}
-  .viz-type-selector--graphic-fill.graphic-fill-d {fill: $g17-whisper; opacity: 1;}
+  .viz-type-selector--graphic-fill.graphic-fill-c {
+    opacity: 0.22;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-d {
+    fill: $g17-whisper;
+    opacity: 1;
+  }
 }
-
-
 
 .display-options--cell .form-group .nav.nav-tablist {
   display: flex;
@@ -196,8 +228,6 @@ $graph-type--gutter: 4px;
   @include no-user-select();
 }
 
-
-
 /*
   Cell Editor Overlay - Gauge Controls
   ------------------------------------------------------------------------------
@@ -213,57 +243,62 @@ $graph-type--gutter: 4px;
   align-items: center;
   height: 30px;
   margin-top: 8px;
+
+  > * {
+    margin-left: 4px;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
 }
 button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
   width: 100%;
 }
 
-.gauge-controls--label {
+%gauge-controls-label-styles {
   height: 30px;
-  background-color: $g4-onyx;
+  line-height: 30px;
   font-weight: 600;
-  color: $g11-sidewalk;
+  font-size: 13px;
   padding: 0 11px;
   border-radius: 4px;
-  line-height: 30px;
   @include no-user-select();
+}
+.gauge-controls--label {
+  @extend %gauge-controls-label-styles;
+  color: $g11-sidewalk;
+  background-color: $g4-onyx;
   width: 120px;
 }
 .gauge-controls--label-editable {
-  height: 30px;
-  font-weight: 600;
+  @extend %gauge-controls-label-styles;
   color: $g16-pearl;
-  padding: 0 11px;
-  border-radius: 4px;
-  line-height: 30px;
-  @include no-user-select();
   width: 90px;
 }
 
 .gauge-controls--input {
   flex: 1 0 0;
-  margin: 0 0 0 4px;
-}
-.gauge-controls--section .color-dropdown {
-  margin-left: 4px;
 }
 .gauge-controls--section .color-dropdown.color-dropdown--stretch {
   width: auto;
   flex: 1 0 0;
 }
 
-
 /*
   Cell Editor Overlay - Single-Stat Controls
   ------------------------------------------------------------------------------
 */
-.single-stat-controls {
+.graph-options-group {
+  margin-top: 30px;
+}
+.form-group-wrapper {
   display: inline-block;
   width: calc(100% + 12px);
-  margin: 30px -6px 0 -6px;
+  margin-left: -6px;
+  margin-right: -6px;
 
-  > div.form-group {
-    padding-left: 6px;
-    padding-right: 6px;
+  .form-group:last-of-type {
+    margin-bottom: 0;
   }
 }

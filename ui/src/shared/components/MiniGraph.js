@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import Dygraph from './Dygraph'
 import shallowCompare from 'react-addons-shallow-compare'
 
@@ -74,13 +75,9 @@ export default React.createClass({
 
     const statText = (
       <div className="cluster-stat--label">
+        <span>{this.props.queryDescription}</span>
         <span>
-          {this.props.queryDescription}
-        </span>
-        <span>
-          <strong>
-            {truncated}
-          </strong>
+          <strong>{truncated}</strong>
         </span>
       </div>
     )

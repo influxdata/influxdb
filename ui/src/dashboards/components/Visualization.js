@@ -1,52 +1,59 @@
-import React, {PropTypes} from 'react'
-import RefreshingGraph from 'shared/components/RefreshingGraph'
+import React from 'react'
+import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
+
+import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
 
-import {stringifyColorValues} from 'src/dashboards/constants/gaugeColors'
+import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 
 const DashVisualization = (
   {
     axes,
     type,
-    name,
-    colors,
     templates,
     timeRange,
     autoRefresh,
-    onCellRename,
+    gaugeColors,
     queryConfigs,
     editQueryStatus,
     resizerTopHeight,
+    staticLegend,
+    thresholdsListColors,
+    tableOptions,
+    setDataLabels,
   },
   {source: {links: {proxy}}}
-) =>
-  <div className="graph">
-    <VisualizationName defaultName={name} onCellRename={onCellRename} />
-    <div className="graph-container">
-      <RefreshingGraph
-        colors={stringifyColorValues(colors)}
-        axes={axes}
-        type={type}
-        queries={buildQueries(proxy, queryConfigs, timeRange)}
-        templates={templates}
-        autoRefresh={autoRefresh}
-        editQueryStatus={editQueryStatus}
-        resizerTopHeight={resizerTopHeight}
-      />
+) => {
+  const colors = type === 'gauge' ? gaugeColors : thresholdsListColors
+
+  return (
+    <div className="graph">
+      <VisualizationName />
+      <div className="graph-container">
+        <RefreshingGraph
+          colors={stringifyColorValues(colors)}
+          axes={axes}
+          type={type}
+          tableOptions={tableOptions}
+          queries={buildQueries(proxy, queryConfigs, timeRange)}
+          templates={templates}
+          autoRefresh={autoRefresh}
+          editQueryStatus={editQueryStatus}
+          resizerTopHeight={resizerTopHeight}
+          staticLegend={staticLegend}
+          setDataLabels={setDataLabels}
+        />
+      </div>
     </div>
-  </div>
-
-const {arrayOf, func, number, shape, string} = PropTypes
-
-DashVisualization.defaultProps = {
-  name: '',
-  type: '',
+  )
 }
 
+const {arrayOf, bool, func, number, shape, string} = PropTypes
+
 DashVisualization.propTypes = {
-  name: string,
-  type: string,
+  type: string.isRequired,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),
   timeRange: shape({
@@ -60,17 +67,28 @@ DashVisualization.propTypes = {
       bounds: arrayOf(string),
     }),
   }),
-  onCellRename: func,
+  tableOptions: shape({}),
   resizerTopHeight: number,
-  colors: arrayOf(
+  thresholdsListColors: arrayOf(
     shape({
       type: string.isRequired,
       hex: string.isRequired,
       id: string.isRequired,
       name: string.isRequired,
       value: number.isRequired,
-    })
+    }).isRequired
   ),
+  gaugeColors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+      id: string.isRequired,
+      name: string.isRequired,
+      value: number.isRequired,
+    }).isRequired
+  ),
+  staticLegend: bool,
+  setDataLabels: func,
 }
 
 DashVisualization.contextTypes = {
@@ -81,4 +99,18 @@ DashVisualization.contextTypes = {
   }).isRequired,
 }
 
-export default DashVisualization
+const mapStateToProps = ({
+  cellEditorOverlay: {
+    thresholdsListColors,
+    gaugeColors,
+    cell: {type, axes, tableOptions},
+  },
+}) => ({
+  gaugeColors,
+  thresholdsListColors,
+  type,
+  axes,
+  tableOptions,
+})
+
+export default connect(mapStateToProps, null)(DashVisualization)

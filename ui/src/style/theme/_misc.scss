@@ -1,0 +1,27 @@
+/*
+   Miscellaneous
+   -----------------------------------------------------------------------------
+*/
+
+.caret {
+  position: absolute;
+  top: calc(50% + 1px);
+  right: $form-md-padding;
+  transform: translateY(-50%);
+  width: 11px;
+  height: 16px;
+
+  &:after {
+    content: "\e902";
+    font-family: 'icomoon' !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: inherit;
+    display: inline;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-55%);
+    font-size: 11px;
+  }
+}

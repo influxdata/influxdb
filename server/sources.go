@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/influxdata/chronograf/organizations"
+
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
@@ -21,7 +23,8 @@ type sourceLinks struct {
 	Permissions string `json:"permissions"`     // URL for all allowed permissions for this source
 	Users       string `json:"users"`           // URL for all users associated with this source
 	Roles       string `json:"roles,omitempty"` // URL for all users associated with this source
-	Databases   string `json:"databases"`       // URL for the databases contained within this soure
+	Databases   string `json:"databases"`       // URL for the databases contained within this source
+	Annotations string `json:"annotations"`     // URL for the annotations of this source
 }
 
 type sourceResponse struct {
@@ -51,6 +54,7 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 			Permissions: fmt.Sprintf("%s/%d/permissions", httpAPISrcs, src.ID),
 			Users:       fmt.Sprintf("%s/%d/users", httpAPISrcs, src.ID),
 			Databases:   fmt.Sprintf("%s/%d/dbs", httpAPISrcs, src.ID),
+			Annotations: fmt.Sprintf("%s/%d/annotations", httpAPISrcs, src.ID),
 		},
 	}
 
@@ -328,6 +332,8 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 		return nil
 	}
 
+	s.Logger.Error("--new-sources is deprecated and will be removed in a future version.")
+
 	var srcsKaps []struct {
 		Source    chronograf.Source `json:"influxdb"`
 		Kapacitor chronograf.Server `json:"kapacitor"`
@@ -340,6 +346,7 @@ func (s *Service) HandleNewSources(ctx context.Context, input string) error {
 		return err
 	}
 
+	ctx = context.WithValue(ctx, organizations.ContextKey, "default")
 	defaultOrg, err := s.Store.Organizations(ctx).DefaultOrganization(ctx)
 	if err != nil {
 		return err

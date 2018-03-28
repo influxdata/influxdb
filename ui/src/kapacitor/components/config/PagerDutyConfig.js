@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import RedactedInput from './RedactedInput'
 
 class PagerDutyConfig extends Component {
@@ -6,6 +7,9 @@ class PagerDutyConfig extends Component {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
+    }
+    this.refFunc = r => {
+      this.serviceKey = r
     }
   }
 
@@ -31,7 +35,6 @@ class PagerDutyConfig extends Component {
     const {options} = this.props.config
     const {url} = options
     const serviceKey = options['service-key']
-    const refFunc = r => (this.serviceKey = r)
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
@@ -39,7 +42,7 @@ class PagerDutyConfig extends Component {
           <RedactedInput
             defaultValue={serviceKey || ''}
             id="service-key"
-            refFunc={refFunc}
+            refFunc={this.refFunc}
             disableTest={this.disableTest}
           />
         </div>
@@ -56,7 +59,7 @@ class PagerDutyConfig extends Component {
           />
         </div>
 
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"

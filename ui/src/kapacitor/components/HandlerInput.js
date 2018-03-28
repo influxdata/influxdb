@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 const HandlerInput = ({
@@ -16,9 +17,7 @@ const HandlerInput = ({
   const formGroupClass = `form-group ${fieldColumns}`
   return (
     <div className={formGroupClass}>
-      <label htmlFor={fieldName}>
-        {fieldDisplay}
-      </label>
+      <label htmlFor={fieldName}>{fieldDisplay}</label>
       <div className={redacted ? 'form-control-static redacted-handler' : null}>
         <input
           name={fieldName}
@@ -41,11 +40,11 @@ const HandlerInput = ({
           spellCheck="false"
           disabled={disabled}
         />
-        {redacted
-          ? <span className="alert-value-set">
-              <span className="icon checkmark" /> Value set in Config
-            </span>
-          : null}
+        {redacted ? (
+          <span className="alert-value-set">
+            <span className="icon checkmark" /> Value set in Config
+          </span>
+        ) : null}
       </div>
     </div>
   )

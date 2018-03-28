@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
@@ -88,18 +89,12 @@ const AdminTabs = ({
   return (
     <Tabs className="row">
       <TabList customClass="col-md-2 admin-tabs">
-        {tabs.map((t, i) =>
-          <Tab key={tabs[i].type}>
-            {tabs[i].type}
-          </Tab>
-        )}
+        {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
       </TabList>
       <TabPanels customClass="col-md-10 admin-tabs--content">
-        {tabs.map((t, i) =>
-          <TabPanel key={tabs[i].type}>
-            {t.component}
-          </TabPanel>
-        )}
+        {tabs.map((t, i) => (
+          <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
+        ))}
       </TabPanels>
     </Tabs>
   )

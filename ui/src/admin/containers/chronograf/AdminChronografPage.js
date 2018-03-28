@@ -1,10 +1,11 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
 import AdminTabs from 'src/admin/components/chronograf/AdminTabs'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-const AdminChronografPage = ({me}) =>
+const AdminChronografPage = ({me}) => (
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
@@ -21,6 +22,7 @@ const AdminChronografPage = ({me}) =>
       </div>
     </FancyScrollbar>
   </div>
+)
 
 const {shape, string} = PropTypes
 

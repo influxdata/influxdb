@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import QueryEditor from './QueryEditor'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
@@ -13,7 +14,7 @@ const QueryMaker = ({
   timeRange,
   activeQuery,
   initialGroupByTime,
-}) =>
+}) => (
   <div className="query-maker query-maker--panel">
     <div className="query-maker--tab-contents">
       <QueryEditor
@@ -32,6 +33,7 @@ const QueryMaker = ({
       />
     </div>
   </div>
+)
 
 const {func, shape, string} = PropTypes
 

@@ -75,14 +75,15 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 // MarshalServer encodes a server to binary protobuf format.
 func MarshalServer(s chronograf.Server) ([]byte, error) {
 	return proto.Marshal(&Server{
-		ID:           int64(s.ID),
-		SrcID:        int64(s.SrcID),
-		Name:         s.Name,
-		Username:     s.Username,
-		Password:     s.Password,
-		URL:          s.URL,
-		Active:       s.Active,
-		Organization: s.Organization,
+		ID:                 int64(s.ID),
+		SrcID:              int64(s.SrcID),
+		Name:               s.Name,
+		Username:           s.Username,
+		Password:           s.Password,
+		URL:                s.URL,
+		Active:             s.Active,
+		Organization:       s.Organization,
+		InsecureSkipVerify: s.InsecureSkipVerify,
 	})
 }
 
@@ -101,6 +102,7 @@ func UnmarshalServer(data []byte, s *chronograf.Server) error {
 	s.URL = pb.URL
 	s.Active = pb.Active
 	s.Organization = pb.Organization
+	s.InsecureSkipVerify = pb.InsecureSkipVerify
 	return nil
 }
 
@@ -263,6 +265,30 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			}
 		}
 
+		sortBy := &RenamableField{
+			InternalName: c.TableOptions.SortBy.InternalName,
+			DisplayName:  c.TableOptions.SortBy.DisplayName,
+			Visible:      c.TableOptions.SortBy.Visible,
+		}
+
+		fieldNames := make([]*RenamableField, len(c.TableOptions.FieldNames))
+		for i, field := range c.TableOptions.FieldNames {
+			fieldNames[i] = &RenamableField{
+				InternalName: field.InternalName,
+				DisplayName:  field.DisplayName,
+				Visible:      field.Visible,
+			}
+		}
+
+		tableOptions := &TableOptions{
+			TimeFormat:       c.TableOptions.TimeFormat,
+			VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
+			SortBy:           sortBy,
+			Wrapping:         c.TableOptions.Wrapping,
+			FieldNames:       fieldNames,
+			FixFirstColumn:   c.TableOptions.FixFirstColumn,
+		}
+
 		cells[i] = &DashboardCell{
 			ID:      c.ID,
 			X:       c.X,
@@ -278,6 +304,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				Type:        c.Legend.Type,
 				Orientation: c.Legend.Orientation,
 			},
+			TableOptions: tableOptions,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -404,18 +431,51 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			legend.Orientation = c.Legend.Orientation
 		}
 
+		tableOptions := chronograf.TableOptions{}
+		if c.TableOptions != nil {
+			sortBy := chronograf.RenamableField{}
+			if c.TableOptions.SortBy != nil {
+				sortBy.InternalName = c.TableOptions.SortBy.InternalName
+				sortBy.DisplayName = c.TableOptions.SortBy.DisplayName
+				sortBy.Visible = c.TableOptions.SortBy.Visible
+			}
+			tableOptions.SortBy = sortBy
+
+			fieldNames := make([]chronograf.RenamableField, len(c.TableOptions.FieldNames))
+			for i, field := range c.TableOptions.FieldNames {
+				fieldNames[i] = chronograf.RenamableField{}
+				fieldNames[i].InternalName = field.InternalName
+				fieldNames[i].DisplayName = field.DisplayName
+				fieldNames[i].Visible = field.Visible
+			}
+			tableOptions.FieldNames = fieldNames
+			tableOptions.TimeFormat = c.TableOptions.TimeFormat
+			tableOptions.VerticalTimeAxis = c.TableOptions.VerticalTimeAxis
+			tableOptions.Wrapping = c.TableOptions.Wrapping
+			tableOptions.FixFirstColumn = c.TableOptions.FixFirstColumn
+
+		}
+
+		// FIXME: this is merely for legacy cells and
+		//        should be removed as soon as possible
+		cellType := c.Type
+		if cellType == "" {
+			cellType = "line"
+		}
+
 		cells[i] = chronograf.DashboardCell{
-			ID:         c.ID,
-			X:          c.X,
-			Y:          c.Y,
-			W:          c.W,
-			H:          c.H,
-			Name:       c.Name,
-			Queries:    queries,
-			Type:       c.Type,
-			Axes:       axes,
-			CellColors: colors,
-			Legend:     legend,
+			ID:           c.ID,
+			X:            c.X,
+			Y:            c.Y,
+			W:            c.W,
+			H:            c.H,
+			Name:         c.Name,
+			Queries:      queries,
+			Type:         cellType,
+			Axes:         axes,
+			CellColors:   colors,
+			Legend:       legend,
+			TableOptions: tableOptions,
 		}
 	}
 

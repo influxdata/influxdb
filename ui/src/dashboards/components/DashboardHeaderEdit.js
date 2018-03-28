@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {
   DASHBOARD_NAME_MAX_LENGTH,
   NEW_DASHBOARD,
@@ -45,24 +46,24 @@ class DashboardEditHeader extends Component {
 
     return (
       <div className="dashboard-title">
-        {isEditMode
-          ? <input
-              maxLength={DASHBOARD_NAME_MAX_LENGTH}
-              type="text"
-              className="dashboard-title--input form-control input-sm"
-              defaultValue={activeDashboard}
-              autoComplete="off"
-              autoFocus={true}
-              spellCheck={false}
-              onBlur={this.handleInputBlur}
-              onKeyDown={this.handleKeyDown}
-              onFocus={this.handleFocus}
-              placeholder="Name this Dashboard"
-              ref={r => (this.inputRef = r)}
-            />
-          : <h1 onClick={onEditDashboard}>
-              {activeDashboard}
-            </h1>}
+        {isEditMode ? (
+          <input
+            maxLength={DASHBOARD_NAME_MAX_LENGTH}
+            type="text"
+            className="dashboard-title--input form-control input-sm"
+            defaultValue={activeDashboard}
+            autoComplete="off"
+            autoFocus={true}
+            spellCheck={false}
+            onBlur={this.handleInputBlur}
+            onKeyDown={this.handleKeyDown}
+            onFocus={this.handleFocus}
+            placeholder="Name this Dashboard"
+            ref={r => (this.inputRef = r)}
+          />
+        ) : (
+          <h1 onClick={onEditDashboard}>{activeDashboard}</h1>
+        )}
       </div>
     )
   }

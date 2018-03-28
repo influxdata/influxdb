@@ -1,6 +1,6 @@
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 import {getActiveKapacitor} from 'shared/apis'
-import {publishNotification} from 'shared/actions/notifications'
+import {notify} from 'shared/actions/notifications'
 import {
   getRules,
   getRule as getRuleAJAX,
@@ -10,6 +10,17 @@ import {
   updateTask as updateTaskAJAX,
 } from 'src/kapacitor/apis'
 import {errorThrown} from 'shared/actions/errors'
+
+import {
+  notifyAlertRuleDeleted,
+  notifyAlertRuleDeleteFailed,
+  notifyAlertRuleStatusUpdated,
+  notifyAlertRuleStatusUpdateFailed,
+  notifyTickScriptCreated,
+  notifyTickscriptCreationFailed,
+  notifyTickscriptUpdated,
+  notifyTickscriptUpdateFailed,
+} from 'shared/copy/notifications'
 
 const loadQuery = query => ({
   type: 'KAPA_LOAD_QUERY',
@@ -170,39 +181,31 @@ export const deleteRule = rule => dispatch => {
   deleteRuleAPI(rule)
     .then(() => {
       dispatch(deleteRuleSuccess(rule.id))
-      dispatch(
-        publishNotification('success', `${rule.name} deleted successfully`)
-      )
+      dispatch(notify(notifyAlertRuleDeleted(rule.name)))
     })
     .catch(() => {
-      dispatch(
-        publishNotification('error', `${rule.name} could not be deleted`)
-      )
+      dispatch(notify(notifyAlertRuleDeleteFailed(rule.name)))
     })
 }
 
 export const updateRuleStatus = (rule, status) => dispatch => {
   updateRuleStatusAPI(rule, status)
     .then(() => {
-      dispatch(
-        publishNotification('success', `${rule.name} ${status} successfully`)
-      )
+      dispatch(notify(notifyAlertRuleStatusUpdated(rule.name, status)))
     })
     .catch(() => {
-      dispatch(
-        publishNotification('error', `${rule.name} could not be ${status}`)
-      )
+      dispatch(notify(notifyAlertRuleStatusUpdateFailed(rule.name, status)))
     })
 }
 
 export const createTask = (kapacitor, task) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    dispatch(publishNotification('success', 'TICKscript successfully created'))
+    dispatch(notify(notifyTickScriptCreated()))
     return data
   } catch (error) {
     if (!error) {
-      dispatch(errorThrown('Could not communicate with server'))
+      dispatch(errorThrown(notifyTickscriptCreationFailed()))
       return
     }
 
@@ -218,11 +221,11 @@ export const updateTask = (
 ) => async dispatch => {
   try {
     const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
-    dispatch(publishNotification('success', 'TICKscript saved'))
+    dispatch(notify(notifyTickscriptUpdated()))
     return data
   } catch (error) {
     if (!error) {
-      dispatch(errorThrown('Could not communicate with server'))
+      dispatch(errorThrown(notifyTickscriptUpdateFailed()))
       return
     }
     return error.data

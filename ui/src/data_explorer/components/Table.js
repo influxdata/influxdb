@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
@@ -133,60 +134,60 @@ class ChronoTable extends Component {
 
     return (
       <div style={{width: '100%', height: '100%', position: 'relative'}}>
-        {series.length < maximumTabsCount
-          ? <div className="table--tabs">
-              {series.map((s, i) =>
-                <TabItem
-                  isActive={i === activeSeriesIndex}
-                  key={i}
-                  name={this.makeTabName(s)}
-                  index={i}
-                  onClickTab={this.handleClickTab}
-                />
-              )}
-            </div>
-          : <Dropdown
-              className="dropdown-160 table--tabs-dropdown"
-              items={series.map((s, index) => ({
-                ...s,
-                text: this.makeTabName(s),
-                index,
-              }))}
-              onChoose={this.handleClickDropdown}
-              selected={this.makeTabName(series[activeSeriesIndex])}
-              buttonSize="btn-xs"
-            />}
+        {series.length < maximumTabsCount ? (
+          <div className="table--tabs">
+            {series.map((s, i) => (
+              <TabItem
+                isActive={i === activeSeriesIndex}
+                key={i}
+                name={this.makeTabName(s)}
+                index={i}
+                onClickTab={this.handleClickTab}
+              />
+            ))}
+          </div>
+        ) : (
+          <Dropdown
+            className="dropdown-160 table--tabs-dropdown"
+            items={series.map((s, index) => ({
+              ...s,
+              text: this.makeTabName(s),
+              index,
+            }))}
+            onChoose={this.handleClickDropdown}
+            selected={this.makeTabName(series[activeSeriesIndex])}
+            buttonSize="btn-xs"
+          />
+        )}
         <div className="table--tabs-content">
-          {(columns && !columns.length) || (values && !values.length)
-            ? <div className="generic-empty-state">This series is empty</div>
-            : <Table
-                onColumnResizeEndCallback={this.handleColumnResize}
-                isColumnResizing={false}
-                rowHeight={rowHeight}
-                rowsCount={values.length}
-                width={containerWidth}
-                ownerHeight={styleAdjustedHeight}
-                height={styleAdjustedHeight}
-                headerHeight={headerHeight}
-              >
-                {columns.map((columnName, colIndex) => {
-                  return (
-                    <Column
-                      isResizable={true}
-                      key={columnName}
-                      columnKey={columnName}
-                      header={
-                        <Cell>
-                          {columnName}
-                        </Cell>
-                      }
-                      cell={this.handleCustomCell(columnName, values, colIndex)}
-                      width={columnWidths[columnName] || width}
-                      minWidth={minWidth}
-                    />
-                  )
-                })}
-              </Table>}
+          {(columns && !columns.length) || (values && !values.length) ? (
+            <div className="generic-empty-state">This series is empty</div>
+          ) : (
+            <Table
+              onColumnResizeEndCallback={this.handleColumnResize}
+              isColumnResizing={false}
+              rowHeight={rowHeight}
+              rowsCount={values.length}
+              width={containerWidth}
+              ownerHeight={styleAdjustedHeight}
+              height={styleAdjustedHeight}
+              headerHeight={headerHeight}
+            >
+              {columns.map((columnName, colIndex) => {
+                return (
+                  <Column
+                    isResizable={true}
+                    key={columnName}
+                    columnKey={columnName}
+                    header={<Cell>{columnName}</Cell>}
+                    cell={this.handleCustomCell(columnName, values, colIndex)}
+                    width={columnWidths[columnName] || width}
+                    minWidth={minWidth}
+                  />
+                )
+              })}
+            </Table>
+          )}
         </div>
       </div>
     )

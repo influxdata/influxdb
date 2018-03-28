@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
@@ -25,7 +26,7 @@ const SchemaExplorer = ({
     applyFuncsToField,
     toggleTagAcceptance,
   },
-}) =>
+}) => (
   <div className="query-builder">
     <DatabaseList
       query={query}
@@ -55,6 +56,7 @@ const SchemaExplorer = ({
       applyFuncsToField={actionBinder(id, applyFuncsToField)}
     />
   </div>
+)
 
 const {func, shape, string} = PropTypes
 

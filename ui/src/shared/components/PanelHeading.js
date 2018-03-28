@@ -1,6 +1,7 @@
 import React from 'react'
+import PropTypes from 'prop-types'
 
-const {node} = React.PropTypes
+const {node} = PropTypes
 const PanelHeading = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -9,9 +10,7 @@ const PanelHeading = React.createClass({
   render() {
     return (
       <div className="panel-heading text-center">
-        <h2 className="deluxe">
-          {this.props.children}
-        </h2>
+        <h2 className="deluxe">{this.props.children}</h2>
       </div>
     )
   },

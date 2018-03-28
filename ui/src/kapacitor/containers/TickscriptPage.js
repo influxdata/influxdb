@@ -1,14 +1,21 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
 import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
-import {publishNotification} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'shared/actions/notifications'
+
+import {
+  notifyTickscriptLoggingUnavailable,
+  notifyTickscriptLoggingError,
+  notifyKapacitorNotFound,
+} from 'shared/copy/notifications'
 
 class TickscriptPage extends Component {
   constructor(props) {
@@ -43,11 +50,7 @@ class TickscriptPage extends Component {
         this.setState({
           areLogsEnabled: false,
         })
-        notify(
-          'warning',
-          'Could not use logging, requires Kapacitor version 1.4',
-          {once: true}
-        )
+        notify(notifyTickscriptLoggingUnavailable())
         return
       }
 
@@ -116,7 +119,7 @@ class TickscriptPage extends Component {
       }
     } catch (error) {
       console.error(error)
-      notify('error', error)
+      notify(notifyTickscriptLoggingError()(error))
       throw error
     }
   }
@@ -131,9 +134,7 @@ class TickscriptPage extends Component {
 
     const kapacitor = await getActiveKapacitor(source)
     if (!kapacitor) {
-      errorActions.errorThrown(
-        'We could not find a configured Kapacitor for this source'
-      )
+      errorActions.errorThrown(notifyKapacitorNotFound())
     }
 
     if (this._isEditing()) {
@@ -286,7 +287,7 @@ const mapStateToProps = state => {
 const mapDispatchToProps = dispatch => ({
   kapacitorActions: bindActionCreators(kapactiorActionCreators, dispatch),
   errorActions: bindActionCreators(errorActionCreators, dispatch),
-  notify: bindActionCreators(publishNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TickscriptPage)

@@ -1,6 +1,7 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
-const CodeData = ({onClickTemplate, template}) =>
+const CodeData = ({onClickTemplate, template}) => (
   <code
     className="rule-builder--message-template"
     data-tip={template.text}
@@ -8,6 +9,7 @@ const CodeData = ({onClickTemplate, template}) =>
   >
     {template.label}
   </code>
+)
 
 const {func, shape, string} = PropTypes
 

@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {withRouter} from 'react-router'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
@@ -15,7 +16,7 @@ const Header = ({
   onManualRefresh,
   onChooseTimeRange,
   onChooseAutoRefresh,
-}) =>
+}) => (
   <div className="page-header full-width">
     <div className="page-header__container">
       <div className="page-header__left">
@@ -46,6 +47,7 @@ const Header = ({
       </div>
     </div>
   </div>
+)
 
 Header.propTypes = {
   onChooseAutoRefresh: func.isRequired,

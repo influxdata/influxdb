@@ -28,7 +28,6 @@ import {
   KapacitorPage,
   KapacitorRulePage,
   KapacitorRulesPage,
-  KapacitorTasksPage,
   TickscriptPage,
 } from 'src/kapacitor'
 import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
@@ -40,6 +39,7 @@ import {getMeAsync} from 'shared/actions/auth'
 
 import {disablePresentationMode} from 'shared/actions/app'
 import {errorThrown} from 'shared/actions/errors'
+import {notify} from 'shared/actions/notifications'
 
 import 'src/style/chronograf.scss'
 
@@ -115,73 +115,60 @@ const Root = React.createClass({
 
   flushErrorsQueue() {
     if (errorsQueue.length) {
-      errorsQueue.forEach(errorText => {
-        dispatch(errorThrown({status: 0, auth: null}, errorText, 'warning'))
+      errorsQueue.forEach(error => {
+        if (typeof error === 'object') {
+          dispatch(notify(error))
+        } else {
+          dispatch(errorThrown({status: 0, auth: null}, error, 'warning'))
+        }
       })
     }
   },
 
   render() {
-    return !this.state.ready // eslint-disable-line no-negated-condition
-      ? <div className="page-spinner" />
-      : <Provider store={store}>
-          <Router history={history}>
-            <Route path="/" component={UserIsAuthenticated(CheckSources)} />
-            <Route path="/login" component={UserIsNotAuthenticated(Login)} />
-            <Route
-              path="/purgatory"
-              component={UserIsAuthenticated(Purgatory)}
-            />
-            <Route
-              path="/sources/new"
-              component={UserIsAuthenticated(SourcePage)}
-            />
-            <Route
-              path="/sources/:sourceID"
-              component={UserIsAuthenticated(App)}
-            >
-              <Route component={CheckSources}>
-                <Route path="status" component={StatusPage} />
-                <Route path="hosts" component={HostsPage} />
-                <Route path="hosts/:hostID" component={HostPage} />
-                <Route
-                  path="chronograf/data-explorer"
-                  component={DataExplorer}
-                />
-                <Route path="dashboards" component={DashboardsPage} />
-                <Route
-                  path="dashboards/:dashboardID"
-                  component={DashboardPage}
-                />
-                <Route path="alerts" component={AlertsApp} />
-                <Route path="alert-rules" component={KapacitorRulesPage} />
-                <Route
-                  path="alert-rules/:ruleID"
-                  component={KapacitorRulePage}
-                />
-                <Route path="alert-rules/new" component={KapacitorRulePage} />
-                <Route path="tickscript/new" component={TickscriptPage} />
-                <Route path="tickscript/:ruleID" component={TickscriptPage} />
-                <Route path="kapacitors/new" component={KapacitorPage} />
-                <Route path="kapacitors/:id/edit" component={KapacitorPage} />
-                <Route
-                  path="kapacitors/:id/edit:hash"
-                  component={KapacitorPage}
-                />
-                <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
-                <Route
-                  path="admin-chronograf"
-                  component={AdminChronografPage}
-                />
-                <Route path="admin-influxdb" component={AdminInfluxDBPage} />
-                <Route path="manage-sources" component={ManageSources} />
-                <Route path="manage-sources/new" component={SourcePage} />
-                <Route path="manage-sources/:id/edit" component={SourcePage} />
-              </Route>
+    return !this.state.ready ? ( // eslint-disable-line no-negated-condition
+      <div className="page-spinner" />
+    ) : (
+      <Provider store={store}>
+        <Router history={history}>
+          <Route path="/" component={UserIsAuthenticated(CheckSources)} />
+          <Route path="/login" component={UserIsNotAuthenticated(Login)} />
+          <Route path="/purgatory" component={UserIsAuthenticated(Purgatory)} />
+          <Route
+            path="/sources/new"
+            component={UserIsAuthenticated(SourcePage)}
+          />
+          <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
+            <Route component={CheckSources}>
+              <Route path="status" component={StatusPage} />
+              <Route path="hosts" component={HostsPage} />
+              <Route path="hosts/:hostID" component={HostPage} />
+              <Route path="chronograf/data-explorer" component={DataExplorer} />
+              <Route path="dashboards" component={DashboardsPage} />
+              <Route path="dashboards/:dashboardID" component={DashboardPage} />
+              <Route path="alerts" component={AlertsApp} />
+              <Route path="alert-rules" component={KapacitorRulesPage} />
+              <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
+              <Route path="alert-rules/new" component={KapacitorRulePage} />
+              <Route path="tickscript/new" component={TickscriptPage} />
+              <Route path="tickscript/:ruleID" component={TickscriptPage} />
+              <Route path="kapacitors/new" component={KapacitorPage} />
+              <Route path="kapacitors/:id/edit" component={KapacitorPage} />
+              <Route
+                path="kapacitors/:id/edit:hash"
+                component={KapacitorPage}
+              />
+              <Route path="admin-chronograf" component={AdminChronografPage} />
+              <Route path="admin-influxdb" component={AdminInfluxDBPage} />
+              <Route path="manage-sources" component={ManageSources} />
+              <Route path="manage-sources/new" component={SourcePage} />
+              <Route path="manage-sources/:id/edit" component={SourcePage} />
             </Route>
-            <Route path="*" component={NotFound} />
-          </Router>
-        </Provider>
+          </Route>
+          <Route path="*" component={NotFound} />
+        </Router>
+      </Provider>
+    )
   },
 })
 

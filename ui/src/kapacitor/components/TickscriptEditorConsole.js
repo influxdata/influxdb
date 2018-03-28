@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 const TickscriptEditorConsole = ({consoleMessage, unsavedChanges}) => {
   let consoleOutput = 'TICKscript is valid'
@@ -14,9 +15,7 @@ const TickscriptEditorConsole = ({consoleMessage, unsavedChanges}) => {
 
   return (
     <div className="tickscript-console">
-      <p className={consoleClass}>
-        {consoleOutput}
-      </p>
+      <p className={consoleClass}>{consoleOutput}</p>
     </div>
   )
 }

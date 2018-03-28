@@ -1,8 +1,7 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
-import Resizeable from 'react-component-resizable'
-
-import _ from 'lodash'
+import {ResizableBox} from 'react-resizable'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -33,13 +32,11 @@ class LayoutRenderer extends Component {
     if (!this.props.onPositionChange) {
       return
     }
-
     const newCells = this.props.cells.map(cell => {
       const l = layout.find(ly => ly.i === cell.i)
       const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
       return {...cell, ...newLayout}
     })
-
     this.props.onPositionChange(newCells)
   }
 
@@ -53,16 +50,12 @@ class LayoutRenderer extends Component {
           PAGE_HEADER_HEIGHT -
           PAGE_CONTAINER_MARGIN -
           PAGE_CONTAINER_MARGIN) /
-        STATUS_PAGE_ROW_COUNT
+          STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
-  handleCellResize = (__, oldCoords, resizeCoords) => {
-    if (_.isEqual(oldCoords, resizeCoords)) {
-      return
-    }
-
-    this.setState({resizeCoords})
+  handleCellResize = () => {
+    this.resizeCoords = this.setState({resizeCoords: new Date()})
   }
 
   render() {
@@ -79,16 +72,21 @@ class LayoutRenderer extends Component {
       autoRefresh,
       manualRefresh,
       onDeleteCell,
-      synchronizer,
       onCancelEditCell,
       onSummonOverlayTechnologies,
+      hoverTime,
+      onSetHoverTime,
     } = this.props
 
     const {rowHeight, resizeCoords} = this.state
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <Resizeable onResize={this.handleCellResize}>
+      <ResizableBox
+        height={Infinity}
+        width={Infinity}
+        onResize={this.handleCellResize}
+      >
         <Authorized
           requiredRole={EDITOR_ROLE}
           propsOverride={{
@@ -110,7 +108,7 @@ class LayoutRenderer extends Component {
             isDraggable={isDashboard}
             isResizable={isDashboard}
           >
-            {cells.map(cell =>
+            {cells.map(cell => (
               <div key={cell.i}>
                 <Authorized
                   requiredRole={EDITOR_ROLE}
@@ -129,20 +127,22 @@ class LayoutRenderer extends Component {
                     timeRange={timeRange}
                     isEditable={isEditable}
                     onEditCell={onEditCell}
-                    resizeCoords={resizeCoords}
                     autoRefresh={autoRefresh}
-                    manualRefresh={manualRefresh}
+                    resizeCoords={resizeCoords}
                     onDeleteCell={onDeleteCell}
-                    synchronizer={synchronizer}
+                    hoverTime={hoverTime}
+                    onSetHoverTime={onSetHoverTime}
+                    manualRefresh={manualRefresh}
                     onCancelEditCell={onCancelEditCell}
+                    onStopAddAnnotation={this.handleStopAddAnnotation}
                     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
                   />
                 </Authorized>
               </div>
-            )}
+            ))}
           </GridLayout>
         </Authorized>
-      </Resizeable>
+      </ResizableBox>
     )
   }
 }
@@ -186,7 +186,8 @@ LayoutRenderer.propTypes = {
   onEditCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,

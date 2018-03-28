@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -21,7 +22,9 @@ import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 import generateTemplateVariableQuery from 'src/dashboards/utils/templateVariableQueryGenerator'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {notify as notifyAction} from 'shared/actions/notifications'
+
+import {notifyTempVarAlreadyExists} from 'shared/copy/notifications'
 
 const compact = values => uniq(values).filter(value => /\S/.test(value))
 
@@ -42,7 +45,7 @@ const TemplateVariableRow = ({
   onSubmit,
   onErrorThrown,
   onDeleteTempVar,
-}) =>
+}) => (
   <form
     className={classnames('template-variable-manager--table-row', {
       editing: isEditing,
@@ -103,6 +106,7 @@ const TemplateVariableRow = ({
       />
     </div>
   </form>
+)
 
 class RowWrapper extends Component {
   constructor(props) {
@@ -119,8 +123,6 @@ class RowWrapper extends Component {
       selectedTagKey: query && query.tagKey,
       autoFocusTarget: 'tempVar',
     }
-
-    this.runTemplateVariableQuery = ::this.runTemplateVariableQuery
   }
 
   handleSubmit = ({
@@ -145,10 +147,7 @@ class RowWrapper extends Component {
     const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
 
     if (tempVarAlreadyExists(tempVar, id)) {
-      return notify(
-        'error',
-        `Variable '${_tempVar}' already exists. Please enter a new value.`
-      )
+      return notify(notifyTempVarAlreadyExists(_tempVar))
     }
 
     this.setState({
@@ -349,7 +348,7 @@ TemplateVariableRow.propTypes = {
 
 const mapDispatchToProps = dispatch => ({
   onErrorThrown: bindActionCreators(errorThrownAction, dispatch),
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(OnClickOutside(RowWrapper))

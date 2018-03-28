@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import MeasurementDropdown from 'src/dashboards/components/MeasurementDropdown'
 import TagKeyDropdown from 'src/dashboards/components/TagKeyDropdown'
@@ -45,15 +46,17 @@ const TemplateQueryBuilder = ({
             onErrorThrown={onErrorThrown}
           />
           <span className="tvm-query-builder--text">FROM</span>
-          {selectedDatabase
-            ? <MeasurementDropdown
-                database={selectedDatabase}
-                measurement={selectedMeasurement}
-                onSelectMeasurement={onSelectMeasurement}
-                onStartEdit={onStartEdit}
-                onErrorThrown={onErrorThrown}
-              />
-            : <div>No database selected</div>}
+          {selectedDatabase ? (
+            <MeasurementDropdown
+              database={selectedDatabase}
+              measurement={selectedMeasurement}
+              onSelectMeasurement={onSelectMeasurement}
+              onStartEdit={onStartEdit}
+              onErrorThrown={onErrorThrown}
+            />
+          ) : (
+            <div>No database selected</div>
+          )}
         </div>
       )
     case 'tagValues':
@@ -67,26 +70,30 @@ const TemplateQueryBuilder = ({
             onErrorThrown={onErrorThrown}
           />
           <span className="tvm-query-builder--text">FROM</span>
-          {selectedDatabase
-            ? <MeasurementDropdown
-                database={selectedDatabase}
-                measurement={selectedMeasurement}
-                onSelectMeasurement={onSelectMeasurement}
-                onStartEdit={onStartEdit}
-                onErrorThrown={onErrorThrown}
-              />
-            : 'Pick a DB'}
+          {selectedDatabase ? (
+            <MeasurementDropdown
+              database={selectedDatabase}
+              measurement={selectedMeasurement}
+              onSelectMeasurement={onSelectMeasurement}
+              onStartEdit={onStartEdit}
+              onErrorThrown={onErrorThrown}
+            />
+          ) : (
+            'Pick a DB'
+          )}
           <span className="tvm-query-builder--text">WITH KEY =</span>
-          {selectedMeasurement
-            ? <TagKeyDropdown
-                database={selectedDatabase}
-                measurement={selectedMeasurement}
-                tagKey={selectedTagKey}
-                onSelectTagKey={onSelectTagKey}
-                onStartEdit={onStartEdit}
-                onErrorThrown={onErrorThrown}
-              />
-            : 'Pick a Tag Key'}
+          {selectedMeasurement ? (
+            <TagKeyDropdown
+              database={selectedDatabase}
+              measurement={selectedMeasurement}
+              tagKey={selectedTagKey}
+              onSelectTagKey={onSelectTagKey}
+              onStartEdit={onStartEdit}
+              onErrorThrown={onErrorThrown}
+            />
+          ) : (
+            'Pick a Tag Key'
+          )}
         </div>
       )
     default:

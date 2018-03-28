@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import RuleHeaderSave from 'src/kapacitor/components/RuleHeaderSave'
 
 class RuleHeader extends Component {

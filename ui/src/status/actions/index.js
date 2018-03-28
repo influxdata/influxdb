@@ -3,7 +3,8 @@ import he from 'he'
 
 import {fetchJSONFeed as fetchJSONFeedAJAX} from 'src/status/apis'
 
-import {errorThrown} from 'shared/actions/errors'
+import {notify} from 'src/shared/actions/notifications'
+import {notifyJSONFeedFailed} from 'src/shared/copy/notifications'
 
 import * as actionTypes from 'src/status/constants/actionTypes'
 
@@ -43,11 +44,6 @@ export const fetchJSONFeedAsync = url => async dispatch => {
   } catch (error) {
     console.error(error)
     dispatch(fetchJSONFeedFailed())
-    dispatch(
-      errorThrown(
-        error,
-        `Failed to fetch JSON Feed for News Feed from '${url}'`
-      )
-    )
+    dispatch(notify(notifyJSONFeedFailed(url)))
   }
 }

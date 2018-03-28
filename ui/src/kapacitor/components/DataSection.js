@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
@@ -75,16 +76,16 @@ const DataSection = ({
           onGroupByTag={handleGroupByTag}
           onToggleTagAcceptance={handleToggleTagAcceptance}
         />
-        {isDeadman
-          ? null
-          : <FieldList
-              query={query}
-              onToggleField={handleToggleField}
-              isKapacitorRule={isKapacitorRule}
-              onGroupByTime={handleGroupByTime}
-              removeFuncs={handleRemoveFuncs}
-              applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
-            />}
+        {isDeadman ? null : (
+          <FieldList
+            query={query}
+            onToggleField={handleToggleField}
+            isKapacitorRule={isKapacitorRule}
+            onGroupByTime={handleGroupByTime}
+            removeFuncs={handleRemoveFuncs}
+            applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
+          />
+        )}
       </div>
     </div>
   )
@@ -96,7 +97,6 @@ DataSection.propTypes = {
   query: shape({
     id: string.isRequired,
   }).isRequired,
-  addFlashMessage: func,
   actions: shape({
     chooseNamespace: func.isRequired,
     chooseMeasurement: func.isRequired,

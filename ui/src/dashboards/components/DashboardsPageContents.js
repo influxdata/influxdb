@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -45,12 +46,10 @@ class DashboardsPageContents extends Component {
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-12">
-              <div className="panel panel-minimal">
-                <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                  <h2 className="panel-title">
-                    {tableHeader}
-                  </h2>
-                  <div className="u-flex u-ai-center dashboards-page--actions">
+              <div className="panel">
+                <div className="panel-heading">
+                  <h2 className="panel-title">{tableHeader}</h2>
+                  <div className="dashboards-page--actions">
                     <SearchBar
                       placeholder="Filter by Name..."
                       onSearch={this.filterDashboards}

@@ -1,5 +1,12 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
+
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import {notify as notifyAction} from 'shared/actions/notifications'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
+import {notifyDatabaseDeleteConfirmationRequired} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
   database,
@@ -53,7 +60,7 @@ const Header = ({
   onDatabaseDeleteConfirm,
 }) => {
   const buttons = (
-    <div className="text-right db-manager-header--actions">
+    <div className="db-manager-header--actions text-right">
       <button
         className="btn btn-xs btn-primary"
         disabled={isAddRPDisabled}
@@ -61,20 +68,20 @@ const Header = ({
       >
         <span className="icon plus" /> Add Retention Policy
       </button>
-      {database.name === '_internal'
-        ? null
-        : <button
-            className="btn btn-xs btn-danger"
-            onClick={onStartDelete(database)}
-          >
-            Delete
-          </button>}
+      {database.name === '_internal' ? null : (
+        <button
+          className="btn btn-xs btn-danger"
+          onClick={onStartDelete(database)}
+        >
+          Delete
+        </button>
+      )}
     </div>
   )
 
-  const onConfirm = db => {
+  function onConfirm(db) {
     if (database.deleteCode !== `DELETE ${database.name}`) {
-      return notify('error', `Type DELETE ${database.name} to confirm`)
+      return notify(notifyDatabaseDeleteConfirmationRequired(database.name))
     }
 
     onDelete(db)
@@ -105,15 +112,13 @@ const Header = ({
 
   return (
     <div className="db-manager-header">
-      <h4>
-        {database.name}
-      </h4>
+      <h4>{database.name}</h4>
       {database.hasOwnProperty('deleteCode') ? deleteConfirmation : buttons}
     </div>
   )
 }
 
-const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) =>
+const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
   <div className="db-manager-header db-manager-header--edit">
     <input
       className="form-control input-sm"
@@ -129,12 +134,13 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) =>
     />
     <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
   </div>
+)
 
 const {func, shape, bool} = PropTypes
 
 DatabaseTableHeader.propTypes = {
   onEdit: func,
-  notify: func,
+  notify: func.isRequired,
   database: shape(),
   onKeyDown: func,
   onCancel: func,
@@ -148,7 +154,7 @@ DatabaseTableHeader.propTypes = {
 }
 
 Header.propTypes = {
-  notify: func,
+  notify: func.isRequired,
   onConfirm: func,
   onCancel: func,
   onDelete: func,
@@ -168,4 +174,8 @@ EditHeader.propTypes = {
   isRFDisplayed: bool,
 }
 
-export default DatabaseTableHeader
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(DatabaseTableHeader)

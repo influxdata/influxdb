@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import TickscriptEditor from 'src/kapacitor/components/TickscriptEditor'
@@ -21,7 +22,7 @@ const Tickscript = ({
   areLogsVisible,
   areLogsEnabled,
   onToggleLogsVisibility,
-}) =>
+}) => (
   <div className="page">
     <TickscriptHeader
       task={task}
@@ -57,6 +58,7 @@ const Tickscript = ({
       {areLogsVisible ? <LogsTable logs={logs} /> : null}
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

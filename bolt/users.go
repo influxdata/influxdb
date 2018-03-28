@@ -150,26 +150,26 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 }
 
 // Delete a user from the UsersStore
-func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
-	_, err := s.get(ctx, usr.ID)
+func (s *UsersStore) Delete(ctx context.Context, u *chronograf.User) error {
+	_, err := s.get(ctx, u.ID)
 	if err != nil {
 		return err
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(UsersBucket).Delete(u64tob(usr.ID))
+		return tx.Bucket(UsersBucket).Delete(u64tob(u.ID))
 	})
 }
 
 // Update a user
-func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
-	_, err := s.get(ctx, usr.ID)
+func (s *UsersStore) Update(ctx context.Context, u *chronograf.User) error {
+	_, err := s.get(ctx, u.ID)
 	if err != nil {
 		return err
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
-		if v, err := internal.MarshalUser(usr); err != nil {
+		if v, err := internal.MarshalUser(u); err != nil {
 			return err
-		} else if err := tx.Bucket(UsersBucket).Put(u64tob(usr.ID), v); err != nil {
+		} else if err := tx.Bucket(UsersBucket).Put(u64tob(u.ID), v); err != nil {
 			return err
 		}
 		return nil

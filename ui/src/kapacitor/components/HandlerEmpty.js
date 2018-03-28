@@ -1,11 +1,12 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
-const HandlerEmpty = ({onGoToConfig, validationError}) =>
+const HandlerEmpty = ({onGoToConfig, validationError}) => (
   <div className="endpoint-tab-contents">
     <div className="endpoint-tab--parameters">
       <div className="endpoint-tab--parameters--empty">
         <p>This handler has not been configured</p>
-        <div className="form-group-submit col-xs-12 text-center">
+        <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
             type="submit"
@@ -19,6 +20,7 @@ const HandlerEmpty = ({onGoToConfig, validationError}) =>
       </div>
     </div>
   </div>
+)
 
 const {string, func} = PropTypes
 

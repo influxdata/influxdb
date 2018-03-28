@@ -34,6 +34,10 @@ const (
 	ErrOrganizationAlreadyExists       = Error("organization already exists")
 	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
 	ErrConfigNotFound                  = Error("cannot find configuration")
+	ErrAnnotationNotFound              = Error("annotation not found")
+	ErrInvalidCellOptionsText          = Error("invalid text wrapping option. Valid wrappings are 'truncate', 'wrap', and 'single line'")
+	ErrInvalidCellOptionsSort          = Error("cell options sortby cannot be empty'")
+	ErrInvalidCellOptionsColumns       = Error("cell options columns cannot be empty'")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -98,12 +102,24 @@ type TSDBStatus interface {
 	Type(context.Context) (string, error)
 }
 
+// Point is a field set in a series
+type Point struct {
+	Database        string
+	RetentionPolicy string
+	Measurement     string
+	Time            int64
+	Tags            map[string]string
+	Fields          map[string]interface{}
+}
+
 // TimeSeries represents a queryable time series database.
 type TimeSeries interface {
-	// Query retrieves time series data from the database.
-	Query(context.Context, Query) (Response, error)
 	// Connect will connect to the time series using the information in `Source`.
 	Connect(context.Context, *Source) error
+	// Query retrieves time series data from the database.
+	Query(context.Context, Query) (Response, error)
+	// Write records points into a series
+	Write(context.Context, []Point) error
 	// UsersStore represents the user accounts within the TimeSeries database
 	Users(context.Context) UsersStore
 	// Permissions returns all valid names permissions in this database
@@ -170,6 +186,7 @@ type Query struct {
 	Command      string        `json:"query"`                // Command is the query itself
 	DB           string        `json:"db,omitempty"`         // DB is optional and if empty will not be used.
 	RP           string        `json:"rp,omitempty"`         // RP is a retention policy and optional; if empty will not be used.
+	Epoch        string        `json:"epoch,omitempty"`      // Epoch is the time format for the return results
 	TemplateVars []TemplateVar `json:"tempVars,omitempty"`   // TemplateVars are template variables to replace within an InfluxQL query
 	Wheres       []string      `json:"wheres,omitempty"`     // Wheres restricts the query to certain attributes
 	GroupBys     []string      `json:"groupbys,omitempty"`   // GroupBys collate the query by these tags
@@ -235,7 +252,7 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
-// DBRP is a database and retention policy for a kapacitor task
+// DBRP represents a database and retention policy for a time series source
 type DBRP struct {
 	DB string `json:"db"`
 	RP string `json:"rp"`
@@ -341,15 +358,15 @@ type KapacitorProperty struct {
 
 // Server represents a proxy connection to an HTTP server
 type Server struct {
-	ID                 int    // ID is the unique ID of the server
-	SrcID              int    // SrcID of the data source
-	Name               string // Name is the user-defined name for the server
-	Username           string // Username is the username to connect to the server
-	Password           string // Password is in CLEARTEXT
-	URL                string // URL are the connections to the server
-	InsecureSkipVerify bool   // InsecureSkipVerify as true means any certificate presented by the server is accepted.
-	Active             bool   // Is this the active server for the source?
-	Organization       string // Organization is the organization ID that resource belongs to
+	ID                 int    `json:"id,string"`          // ID is the unique ID of the server
+	SrcID              int    `json:"srcId,string"`       // SrcID of the data source
+	Name               string `json:"name"`               // Name is the user-defined name for the server
+	Username           string `json:"username"`           // Username is the username to connect to the server
+	Password           string `json:"password"`           // Password is in CLEARTEXT
+	URL                string `json:"url"`                // URL are the connections to the server
+	InsecureSkipVerify bool   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the server is accepted.
+	Active             bool   `json:"active"`             // Is this the active server for the source?
+	Organization       string `json:"organization"`       // Organization is the organization ID that resource belongs to
 }
 
 // ServersStore stores connection information for a `Server`
@@ -471,6 +488,24 @@ type Databases interface {
 	DropRP(context.Context, string, string) error
 }
 
+// Annotation represents a time-based metadata associated with a source
+type Annotation struct {
+	ID        string    // ID is the unique annotation identifier
+	StartTime time.Time // StartTime starts the annotation
+	EndTime   time.Time // EndTime ends the annotation
+	Text      string    // Text is the associated user-facing text describing the annotation
+	Type      string    // Type describes the kind of annotation
+}
+
+// AnnotationStore represents storage and retrieval of annotations
+type AnnotationStore interface {
+	All(ctx context.Context, start, stop time.Time) ([]Annotation, error) // All lists all Annotations between start and stop
+	Add(context.Context, *Annotation) (*Annotation, error)                // Add creates a new annotation in the store
+	Delete(ctx context.Context, id string) error                          // Delete removes the annotation from the store
+	Get(ctx context.Context, id string) (*Annotation, error)              // Get retrieves an annotation
+	Update(context.Context, *Annotation) error                            // Update replaces annotation
+}
+
 // DashboardID is the dashboard ID
 type DashboardID int
 
@@ -511,17 +546,35 @@ type Legend struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	ID         string           `json:"i"`
-	X          int32            `json:"x"`
-	Y          int32            `json:"y"`
-	W          int32            `json:"w"`
-	H          int32            `json:"h"`
-	Name       string           `json:"name"`
-	Queries    []DashboardQuery `json:"queries"`
-	Axes       map[string]Axis  `json:"axes"`
-	Type       string           `json:"type"`
-	CellColors []CellColor      `json:"colors"`
-	Legend     Legend           `json:"legend"`
+	ID           string           `json:"i"`
+	X            int32            `json:"x"`
+	Y            int32            `json:"y"`
+	W            int32            `json:"w"`
+	H            int32            `json:"h"`
+	Name         string           `json:"name"`
+	Queries      []DashboardQuery `json:"queries"`
+	Axes         map[string]Axis  `json:"axes"`
+	Type         string           `json:"type"`
+	CellColors   []CellColor      `json:"colors"`
+	Legend       Legend           `json:"legend"`
+	TableOptions TableOptions     `json:"tableOptions,omitempty"`
+}
+
+// RenamableField is a column/row field in a DashboardCell of type Table
+type RenamableField struct {
+	InternalName string `json:"internalName"`
+	DisplayName  string `json:"displayName"`
+	Visible      bool   `json:"visible"`
+}
+
+// TableOptions is a type of options for a DashboardCell with type Table
+type TableOptions struct {
+	TimeFormat       string           `json:"timeFormat"`
+	VerticalTimeAxis bool             `json:"verticalTimeAxis"`
+	SortBy           RenamableField   `json:"sortBy"`
+	Wrapping         string           `json:"wrapping"`
+	FieldNames       []RenamableField `json:"fieldNames"`
+	FixFirstColumn   bool             `json:"fixFirstColumn"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
@@ -540,15 +593,16 @@ type DashboardsStore interface {
 
 // Cell is a rectangle and multiple time series queries to visualize.
 type Cell struct {
-	X       int32           `json:"x"`
-	Y       int32           `json:"y"`
-	W       int32           `json:"w"`
-	H       int32           `json:"h"`
-	I       string          `json:"i"`
-	Name    string          `json:"name"`
-	Queries []Query         `json:"queries"`
-	Axes    map[string]Axis `json:"axes"`
-	Type    string          `json:"type"`
+	X          int32           `json:"x"`
+	Y          int32           `json:"y"`
+	W          int32           `json:"w"`
+	H          int32           `json:"h"`
+	I          string          `json:"i"`
+	Name       string          `json:"name"`
+	Queries    []Query         `json:"queries"`
+	Axes       map[string]Axis `json:"axes"`
+	Type       string          `json:"type"`
+	CellColors []CellColor     `json:"colors"`
 }
 
 // Layout is a collection of Cells for visualization

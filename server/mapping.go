@@ -13,6 +13,22 @@ import (
 	"github.com/influxdata/chronograf/oauth2"
 )
 
+func (s *Service) mapPrincipalToSuperAdmin(p oauth2.Principal) bool {
+	if p.Issuer != "auth0" {
+		return false
+	}
+
+	groups := strings.Split(p.Group, ",")
+	superAdmin := false
+	for _, group := range groups {
+		if group != "" && group == s.SuperAdminProviderGroups.auth0 {
+			superAdmin = true
+			break
+		}
+	}
+	return superAdmin
+}
+
 func (s *Service) mapPrincipalToRoles(ctx context.Context, p oauth2.Principal) ([]chronograf.Role, error) {
 	mappings, err := s.Store.Mappings(ctx).All(ctx)
 	if err != nil {
@@ -130,8 +146,6 @@ func (s *Service) Mappings(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusInternalServerError, "failed to retrieve mappings from database", s.Logger)
 		return
 	}
-
-	fmt.Printf("mappings: %#v\n", mappings)
 
 	res := newMappingsResponse(mappings)
 

@@ -1,7 +1,8 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
-const TICKscriptOverlay = ({tickscript, onClose}) =>
+const TICKscriptOverlay = ({tickscript, onClose}) => (
   <OverlayTechnologies>
     <div className="tick-script-overlay">
       <div className="write-data-form--header">
@@ -13,12 +14,11 @@ const TICKscriptOverlay = ({tickscript, onClose}) =>
         </div>
       </div>
       <div className="write-data-form--body">
-        <pre className="tick-script-overlay--sample">
-          {tickscript}
-        </pre>
+        <pre className="tick-script-overlay--sample">{tickscript}</pre>
       </div>
     </div>
   </OverlayTechnologies>
+)
 
 const {string, func} = PropTypes
 

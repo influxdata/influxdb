@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 const CustomTimeIndicator = ({queries}) => {
@@ -14,11 +15,7 @@ const CustomTimeIndicator = ({queries}) => {
     ? `${customLower} AND ${customUpper}`
     : customLower
 
-  return (
-    <span className="custom-indicator">
-      {customTimeRange}
-    </span>
-  )
+  return <span className="custom-indicator">{customTimeRange}</span>
 }
 
 const {arrayOf, shape} = PropTypes

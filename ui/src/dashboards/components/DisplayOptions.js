@@ -1,9 +1,12 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
 import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
+import TableOptions from 'src/dashboards/components/TableOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
 
@@ -35,124 +38,64 @@ class DisplayOptions extends Component {
 
   renderOptions = () => {
     const {
-      gaugeColors,
-      singleStatColors,
-      onSetBase,
-      onSetScale,
-      onSetLabel,
-      selectedGraphType,
-      onSetPrefixSuffix,
-      onSetYAxisBoundMin,
-      onSetYAxisBoundMax,
-      onAddGaugeThreshold,
-      onAddSingleStatThreshold,
-      onDeleteThreshold,
-      onChooseColor,
-      onValidateColorValue,
-      onUpdateColorValue,
-      singleStatType,
-      onToggleSingleStatType,
-      onSetSuffix,
+      cell: {type},
+      staticLegend,
+      onToggleStaticLegend,
+      onResetFocus,
+      dataLabels,
     } = this.props
-    const {axes, axes: {y: {suffix}}} = this.state
-
-    switch (selectedGraphType) {
+    switch (type) {
       case 'gauge':
-        return (
-          <GaugeOptions
-            colors={gaugeColors}
-            onChooseColor={onChooseColor}
-            onValidateColorValue={onValidateColorValue}
-            onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddGaugeThreshold}
-            onDeleteThreshold={onDeleteThreshold}
-          />
-        )
+        return <GaugeOptions onResetFocus={onResetFocus} />
       case 'single-stat':
+        return <SingleStatOptions onResetFocus={onResetFocus} />
+      case 'table':
         return (
-          <SingleStatOptions
-            colors={singleStatColors}
-            suffix={suffix}
-            onSetSuffix={onSetSuffix}
-            onChooseColor={onChooseColor}
-            onValidateColorValue={onValidateColorValue}
-            onUpdateColorValue={onUpdateColorValue}
-            onAddThreshold={onAddSingleStatThreshold}
-            onDeleteThreshold={onDeleteThreshold}
-            singleStatType={singleStatType}
-            onToggleSingleStatType={onToggleSingleStatType}
-          />
+          <TableOptions onResetFocus={onResetFocus} dataLabels={dataLabels} />
         )
       default:
         return (
           <AxesOptions
-            selectedGraphType={selectedGraphType}
-            axes={axes}
-            onSetBase={onSetBase}
-            onSetLabel={onSetLabel}
-            onSetScale={onSetScale}
-            onSetPrefixSuffix={onSetPrefixSuffix}
-            onSetYAxisBoundMin={onSetYAxisBoundMin}
-            onSetYAxisBoundMax={onSetYAxisBoundMax}
+            onToggleStaticLegend={onToggleStaticLegend}
+            staticLegend={staticLegend}
           />
         )
     }
   }
 
   render() {
-    const {selectedGraphType, onSelectGraphType} = this.props
-
     return (
       <div className="display-options">
-        <GraphTypeSelector
-          selectedGraphType={selectedGraphType}
-          onSelectGraphType={onSelectGraphType}
-        />
+        <GraphTypeSelector />
         {this.renderOptions()}
       </div>
     )
   }
 }
-const {arrayOf, func, number, shape, string} = PropTypes
+
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
-  onAddGaugeThreshold: func.isRequired,
-  onAddSingleStatThreshold: func.isRequired,
-  onDeleteThreshold: func.isRequired,
-  onChooseColor: func.isRequired,
-  onValidateColorValue: func.isRequired,
-  onUpdateColorValue: func.isRequired,
-  selectedGraphType: string.isRequired,
-  onSelectGraphType: func.isRequired,
-  onSetPrefixSuffix: func.isRequired,
-  onSetSuffix: func.isRequired,
-  onSetYAxisBoundMin: func.isRequired,
-  onSetYAxisBoundMax: func.isRequired,
-  onSetScale: func.isRequired,
-  onSetLabel: func.isRequired,
-  onSetBase: func.isRequired,
-  axes: shape({}).isRequired,
-  gaugeColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  singleStatColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
+  cell: shape({
+    type: string.isRequired,
+  }).isRequired,
+  axes: shape({
+    y: shape({
+      bounds: arrayOf(string),
+      label: string,
+      defaultYLabel: string,
+    }),
+  }).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
-  singleStatType: string.isRequired,
-  onToggleSingleStatType: func.isRequired,
+  onToggleStaticLegend: func.isRequired,
+  staticLegend: bool,
+  onResetFocus: func.isRequired,
+  dataLabels: arrayOf(string),
 }
 
-export default DisplayOptions
+const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({
+  cell,
+  axes,
+})
+
+export default connect(mapStateToProps, null)(DisplayOptions)

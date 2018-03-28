@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
@@ -7,24 +8,20 @@ class QueryRow extends Component {
   constructor(props) {
     super(props)
 
-    this.handleInitiateKill = ::this.handleInitiateKill
-    this.handleFinishHim = ::this.handleFinishHim
-    this.handleShowMercy = ::this.handleShowMercy
-
     this.state = {
       confirmingKill: false,
     }
   }
 
-  handleInitiateKill() {
+  handleInitiateKill = () => {
     this.setState({confirmingKill: true})
   }
 
-  handleFinishHim() {
+  handleFinishHim = () => {
     this.props.onKill(this.props.query.id)
   }
 
-  handleShowMercy() {
+  handleShowMercy = () => {
     this.setState({confirmingKill: false})
   }
 
@@ -40,9 +37,7 @@ class QueryRow extends Component {
           {database}
         </td>
         <td>
-          <code>
-            {query}
-          </code>
+          <code>{query}</code>
         </td>
         <td
           style={{width: `${QUERIES_TABLE.colRunning}px`}}
@@ -54,18 +49,20 @@ class QueryRow extends Component {
           style={{width: `${QUERIES_TABLE.colKillQuery}px`}}
           className="text-right"
         >
-          {this.state.confirmingKill
-            ? <ConfirmButtons
-                onConfirm={this.handleFinishHim}
-                onCancel={this.handleShowMercy}
-                buttonSize="btn-xs"
-              />
-            : <button
-                className="btn btn-xs btn-danger table--show-on-row-hover"
-                onClick={this.handleInitiateKill}
-              >
-                Kill
-              </button>}
+          {this.state.confirmingKill ? (
+            <ConfirmButtons
+              onConfirm={this.handleFinishHim}
+              onCancel={this.handleShowMercy}
+              buttonSize="btn-xs"
+            />
+          ) : (
+            <button
+              className="btn btn-xs btn-danger table--show-on-row-hover"
+              onClick={this.handleInitiateKill}
+            >
+              Kill
+            </button>
+          )}
         </td>
       </tr>
     )

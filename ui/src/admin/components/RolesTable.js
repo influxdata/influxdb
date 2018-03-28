@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import RoleRow from 'src/admin/components/RoleRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 import FilterBar from 'src/admin/components/FilterBar'
@@ -16,8 +17,8 @@ const RolesTable = ({
   onFilter,
   onUpdateRoleUsers,
   onUpdateRolePermissions,
-}) =>
-  <div className="panel panel-default">
+}) => (
+  <div className="panel panel-solid">
     <FilterBar
       type="roles"
       onFilter={onFilter}
@@ -35,30 +36,33 @@ const RolesTable = ({
           </tr>
         </thead>
         <tbody>
-          {roles.length
-            ? roles
-                .filter(r => !r.hidden)
-                .map(role =>
-                  <RoleRow
-                    key={role.links.self}
-                    allUsers={allUsers}
-                    allPermissions={permissions}
-                    role={role}
-                    onEdit={onEdit}
-                    onSave={onSave}
-                    onCancel={onCancel}
-                    onDelete={onDelete}
-                    onUpdateRoleUsers={onUpdateRoleUsers}
-                    onUpdateRolePermissions={onUpdateRolePermissions}
-                    isEditing={role.isEditing}
-                    isNew={role.isNew}
-                  />
-                )
-            : <EmptyRow tableName={'Roles'} />}
+          {roles.length ? (
+            roles
+              .filter(r => !r.hidden)
+              .map(role => (
+                <RoleRow
+                  key={role.links.self}
+                  allUsers={allUsers}
+                  allPermissions={permissions}
+                  role={role}
+                  onEdit={onEdit}
+                  onSave={onSave}
+                  onCancel={onCancel}
+                  onDelete={onDelete}
+                  onUpdateRoleUsers={onUpdateRoleUsers}
+                  onUpdateRolePermissions={onUpdateRolePermissions}
+                  isEditing={role.isEditing}
+                  isNew={role.isNew}
+                />
+              ))
+          ) : (
+            <EmptyRow tableName={'Roles'} />
+          )}
         </tbody>
       </table>
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

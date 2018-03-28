@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import HandlerOptions from 'src/kapacitor/components/HandlerOptions'
@@ -168,24 +169,24 @@ class RuleHandlers extends Component {
               className="dropdown-170 rule-message--add-endpoint"
             />
           </div>
-          {handlersOnThisAlert.length
-            ? <div className="rule-message--endpoints">
-                <HandlerTabs
-                  handlersOnThisAlert={handlersOnThisAlert}
-                  selectedHandler={selectedHandler}
-                  handleChooseHandler={this.handleChooseHandler}
-                  handleRemoveHandler={this.handleRemoveHandler}
-                />
-                <HandlerOptions
-                  selectedHandler={selectedHandler}
-                  handleModifyHandler={this.handleModifyHandler}
-                  updateDetails={ruleActions.updateDetails}
-                  rule={rule}
-                  onGoToConfig={onGoToConfig}
-                  validationError={validationError}
-                />
-              </div>
-            : null}
+          {handlersOnThisAlert.length ? (
+            <div className="rule-message--endpoints">
+              <HandlerTabs
+                handlersOnThisAlert={handlersOnThisAlert}
+                selectedHandler={selectedHandler}
+                handleChooseHandler={this.handleChooseHandler}
+                handleRemoveHandler={this.handleRemoveHandler}
+              />
+              <HandlerOptions
+                selectedHandler={selectedHandler}
+                handleModifyHandler={this.handleModifyHandler}
+                updateDetails={ruleActions.updateDetails}
+                rule={rule}
+                onGoToConfig={onGoToConfig}
+                validationError={validationError}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     )

@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import {THRESHOLD_OPERATORS} from 'src/kapacitor/constants'
 import Dropdown from 'shared/components/Dropdown'
 import _ from 'lodash'
@@ -20,12 +21,10 @@ const Threshold = ({
   query,
   onDropdownChange,
   onRuleTypeInputChange,
-}) =>
+}) => (
   <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
     <p>Send Alert where</p>
-    <span className="rule-builder--metric">
-      {getField(query)}
-    </span>
+    <span className="rule-builder--metric">{getField(query)}</span>
     <p>is</p>
     <Dropdown
       className="dropdown-180"
@@ -49,7 +48,7 @@ const Threshold = ({
             : null
         }
       />
-      {(operator === 'inside range' || operator === 'outside range') &&
+      {(operator === 'inside range' || operator === 'outside range') && (
         <input
           className="form-control input-sm form-malachite monotype"
           name="upper"
@@ -59,9 +58,11 @@ const Threshold = ({
           spellCheck="false"
           value={rangeValue}
           onChange={onRuleTypeInputChange}
-        />}
+        />
+      )}
     </form>
   </div>
+)
 
 const {shape, string, func} = PropTypes
 

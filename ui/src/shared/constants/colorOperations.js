@@ -1,8 +1,9 @@
 import _ from 'lodash'
 import {
-  GAUGE_COLORS,
-  SINGLE_STAT_BASE,
-} from 'src/dashboards/constants/gaugeColors'
+  THRESHOLD_COLORS,
+  THRESHOLD_TYPE_BASE,
+  THRESHOLD_TYPE_TEXT,
+} from 'shared/constants/thresholds'
 
 const hexToRgb = hex => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -41,42 +42,52 @@ const findNearestCrossedThreshold = (colors, lastValue) => {
   return nearestCrossedThreshold
 }
 
-export const generateSingleStatHexs = (
+export const stringifyColorValues = colors => {
+  return colors.map(color => ({...color, value: `${color.value}`}))
+}
+
+export const generateThresholdsListHexs = ({
   colors,
-  containsLineGraph,
-  colorizeText,
-  lastValue
-) => {
-  const defaultColoring = {bgColor: null, textColor: GAUGE_COLORS[11].hex}
+  lastValue,
+  cellType = 'line',
+}) => {
+  const defaultColoring = {
+    bgColor: null,
+    textColor: cellType === 'table' ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
+  }
+  const lastValueNumber = Number(lastValue) || 0
 
   if (!colors.length || !lastValue) {
     return defaultColoring
   }
 
   // baseColor is expected in all cases
-  const baseColor = colors.find(color => (color.id = SINGLE_STAT_BASE)) || {
+  const baseColor = colors.find(color => (color.id = THRESHOLD_TYPE_BASE)) || {
     hex: defaultColoring.textColor,
   }
 
   // If the single stat is above a line graph never have a background color
-  if (containsLineGraph) {
+  if (cellType === 'line-plus-single-stat') {
     return baseColor
       ? {bgColor: null, textColor: baseColor.hex}
       : defaultColoring
   }
 
   // When there is only a base color and it's applied to the text
-  if (colorizeText && colors.length === 1) {
+  const shouldColorizeText = !!colors.find(
+    color => color.type === THRESHOLD_TYPE_TEXT
+  )
+  if (shouldColorizeText && colors.length === 1) {
     return baseColor
       ? {bgColor: null, textColor: baseColor.hex}
       : defaultColoring
   }
 
   // When there's multiple colors and they're applied to the text
-  if (colorizeText && colors.length > 1) {
+  if (shouldColorizeText && colors.length > 1) {
     const nearestCrossedThreshold = findNearestCrossedThreshold(
       colors,
-      lastValue
+      lastValueNumber
     )
     const bgColor = null
     const textColor = nearestCrossedThreshold.hex
@@ -96,7 +107,7 @@ export const generateSingleStatHexs = (
   if (colors.length > 1) {
     const nearestCrossedThreshold = findNearestCrossedThreshold(
       colors,
-      lastValue
+      lastValueNumber
     )
 
     const bgColor = nearestCrossedThreshold

@@ -1,9 +1,16 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import onClickOutside from 'react-onclickoutside'
+
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {formatRPDuration} from 'utils/formatting'
 import YesNoButtons from 'shared/components/YesNoButtons'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
+import {notifyRetentionPolicyCantHaveEmptyFields} from 'shared/copy/notifications'
 
 class DatabaseRow extends Component {
   constructor(props) {
@@ -109,7 +116,7 @@ class DatabaseRow extends Component {
     const replication = isRFDisplayed ? +this.replication.value.trim() : 1
 
     if (!duration || (isRFDisplayed && !replication)) {
-      notify('error', 'Fields cannot be empty')
+      notify(notifyRetentionPolicyCantHaveEmptyFields())
       return
     }
 
@@ -141,19 +148,21 @@ class DatabaseRow extends Component {
       return (
         <tr>
           <td style={{width: `${DATABASE_TABLE.colRetentionPolicy}px`}}>
-            {isNew
-              ? <input
-                  className="form-control input-xs"
-                  type="text"
-                  defaultValue={name}
-                  placeholder="Name this RP"
-                  onKeyDown={this.handleKeyDown}
-                  ref={r => (this.name = r)}
-                  autoFocus={true}
-                  spellCheck={false}
-                  autoComplete={false}
-                />
-              : name}
+            {isNew ? (
+              <input
+                className="form-control input-xs"
+                type="text"
+                defaultValue={name}
+                placeholder="Name this RP"
+                onKeyDown={this.handleKeyDown}
+                ref={r => (this.name = r)}
+                autoFocus={true}
+                spellCheck={false}
+                autoComplete={false}
+              />
+            ) : (
+              name
+            )}
           </td>
           <td style={{width: `${DATABASE_TABLE.colDuration}px`}}>
             <input
@@ -169,22 +178,22 @@ class DatabaseRow extends Component {
               autoComplete={false}
             />
           </td>
-          {isRFDisplayed
-            ? <td style={{width: `${DATABASE_TABLE.colReplication}px`}}>
-                <input
-                  className="form-control input-xs"
-                  name="name"
-                  type="number"
-                  min="1"
-                  defaultValue={replication || 1}
-                  placeholder="# of Nodes"
-                  onKeyDown={this.handleKeyDown}
-                  ref={r => (this.replication = r)}
-                  spellCheck={false}
-                  autoComplete={false}
-                />
-              </td>
-            : null}
+          {isRFDisplayed ? (
+            <td style={{width: `${DATABASE_TABLE.colReplication}px`}}>
+              <input
+                className="form-control input-xs"
+                name="name"
+                type="number"
+                min="1"
+                defaultValue={replication || 1}
+                placeholder="# of Nodes"
+                onKeyDown={this.handleKeyDown}
+                ref={r => (this.replication = r)}
+                spellCheck={false}
+                autoComplete={false}
+              />
+            </td>
+          ) : null}
           <td
             className="text-right"
             style={{width: `${DATABASE_TABLE.colDelete}px`}}
@@ -203,9 +212,9 @@ class DatabaseRow extends Component {
       <tr>
         <td>
           {`${name} `}
-          {isDefault
-            ? <span className="default-source-label">default</span>
-            : null}
+          {isDefault ? (
+            <span className="default-source-label">default</span>
+          ) : null}
         </td>
         <td
           onClick={this.handleStartEdit}
@@ -213,31 +222,33 @@ class DatabaseRow extends Component {
         >
           {formattedDuration}
         </td>
-        {isRFDisplayed
-          ? <td
-              onClick={this.handleStartEdit}
-              style={{width: `${DATABASE_TABLE.colReplication}px`}}
-            >
-              {replication}
-            </td>
-          : null}
+        {isRFDisplayed ? (
+          <td
+            onClick={this.handleStartEdit}
+            style={{width: `${DATABASE_TABLE.colReplication}px`}}
+          >
+            {replication}
+          </td>
+        ) : null}
         <td
           className="text-right"
           style={{width: `${DATABASE_TABLE.colDelete}px`}}
         >
-          {isDeleting
-            ? <YesNoButtons
-                onConfirm={onDelete(database, retentionPolicy)}
-                onCancel={this.handleEndDelete}
-                buttonSize="btn-xs"
-              />
-            : <button
-                className="btn btn-danger btn-xs table--show-on-row-hover"
-                style={isDeletable ? {} : {visibility: 'hidden'}}
-                onClick={this.handleStartDelete}
-              >
-                {`Delete ${name}`}
-              </button>}
+          {isDeleting ? (
+            <YesNoButtons
+              onConfirm={onDelete(database, retentionPolicy)}
+              onCancel={this.handleEndDelete}
+              buttonSize="btn-xs"
+            />
+          ) : (
+            <button
+              className="btn btn-danger btn-xs table--show-on-row-hover"
+              style={isDeletable ? {} : {visibility: 'hidden'}}
+              onClick={this.handleStartDelete}
+            >
+              {`Delete ${name}`}
+            </button>
+          )}
         </td>
       </tr>
     )
@@ -260,8 +271,12 @@ DatabaseRow.propTypes = {
   onCreate: func,
   onUpdate: func,
   onDelete: func,
-  notify: func,
+  notify: func.isRequired,
   isRFDisplayed: bool,
 }
 
-export default onClickOutside(DatabaseRow)
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(onClickOutside(DatabaseRow))

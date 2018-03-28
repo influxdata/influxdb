@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import Tags from 'shared/components/Tags'
@@ -32,9 +33,7 @@ class TagInput extends Component {
 
     return (
       <div className="form-group col-xs-12">
-        <label htmlFor={title}>
-          {title}
-        </label>
+        <label htmlFor={title}>{title}</label>
         <input
           placeholder={`Type and hit 'Enter' to add to list of ${title}`}
           autoComplete="off"

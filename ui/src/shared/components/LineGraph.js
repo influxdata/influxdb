@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
 import shallowCompare from 'react-addons-shallow-compare'
 
@@ -48,14 +49,17 @@ class LineGraph extends Component {
       ruleValues,
       isBarGraph,
       resizeCoords,
-      synchronizer,
       isRefreshing,
+      setResolution,
       isGraphFilled,
       showSingleStat,
       displayOptions,
+      staticLegend,
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
+      hoverTime,
+      onSetHoverTime,
     } = this.props
 
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
@@ -84,13 +88,15 @@ class LineGraph extends Component {
       ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
 
-    let prefix
-    let suffix
-
-    if (axes) {
-      prefix = axes.y.prefix
-      suffix = axes.y.suffix
+    const containerStyle = {
+      width: 'calc(100% - 32px)',
+      height: 'calc(100% - 16px)',
+      position: 'absolute',
+      top: '8px',
     }
+
+    const prefix = axes ? axes.y.prefix : ''
+    const suffix = axes ? axes.y.suffix : ''
 
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
@@ -101,21 +107,23 @@ class LineGraph extends Component {
           onZoom={onZoom}
           labels={labels}
           queries={queries}
+          options={options}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          synchronizer={synchronizer}
+          hoverTime={hoverTime}
+          onSetHoverTime={onSetHoverTime}
           resizeCoords={resizeCoords}
-          overrideLineColors={lineColors}
           dygraphSeries={dygraphSeries}
-          setResolution={this.props.setResolution}
-          containerStyle={{width: '100%', height: '100%'}}
+          setResolution={setResolution}
+          overrideLineColors={lineColors}
+          containerStyle={containerStyle}
+          staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
-          options={options}
-        />
-        {showSingleStat
-          ? <SingleStat
+        >
+          {showSingleStat && (
+            <SingleStat
               prefix={prefix}
               suffix={suffix}
               data={data}
@@ -123,23 +131,26 @@ class LineGraph extends Component {
               colors={colors}
               cellHeight={cellHeight}
             />
-          : null}
+          )}
+        </Dygraph>
       </div>
     )
   }
 }
 
-const GraphLoadingDots = () =>
+const GraphLoadingDots = () => (
   <div className="graph-panel__refreshing">
     <div />
     <div />
     <div />
   </div>
+)
 
-const GraphSpinner = () =>
+const GraphSpinner = () => (
   <div className="graph-fetching">
     <div className="graph-spinner" />
   </div>
+)
 
 const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
@@ -147,6 +158,7 @@ LineGraph.defaultProps = {
   underlayCallback: () => {},
   isGraphFilled: true,
   overrideLineColors: null,
+  staticLegend: false,
 }
 
 LineGraph.propTypes = {
@@ -166,6 +178,7 @@ LineGraph.propTypes = {
   underlayCallback: func,
   isGraphFilled: bool,
   isBarGraph: bool,
+  staticLegend: bool,
   overrideLineColors: array,
   showSingleStat: bool,
   displayOptions: shape({
@@ -178,7 +191,8 @@ LineGraph.propTypes = {
     lower: string.isRequired,
   }),
   isInDataExplorer: bool,
-  synchronizer: func,
+  hoverTime: string,
+  onSetHoverTime: func,
   setResolution: func,
   cellHeight: number,
   cell: shape(),

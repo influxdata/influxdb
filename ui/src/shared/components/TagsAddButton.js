@@ -1,7 +1,8 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-import uuid from 'node-uuid'
+import uuid from 'uuid'
 
 class TagsAddButton extends Component {
   constructor(props) {
@@ -32,7 +33,7 @@ class TagsAddButton extends Component {
       <div className={classname} onClick={this.handleButtonClick}>
         <span className="icon plus" />
         <div className="tags-add--menu">
-          {items.map(item =>
+          {items.map(item => (
             <div
               key={uuid.v4()}
               className="tags-add--menu-item"
@@ -40,7 +41,7 @@ class TagsAddButton extends Component {
             >
               {item.text}
             </div>
-          )}
+          ))}
         </div>
       </div>
     )

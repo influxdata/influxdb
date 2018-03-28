@@ -1,6 +1,7 @@
 import React from 'react'
+import PropTypes from 'prop-types'
 
-const {node} = React.PropTypes
+const {node} = PropTypes
 const PanelBody = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -10,9 +11,7 @@ const PanelBody = React.createClass({
     return (
       <div className="panel-body text-center">
         <h3 className="deluxe">How to resolve:</h3>
-        <p>
-          {this.props.children}
-        </p>
+        <p>{this.props.children}</p>
       </div>
     )
   },

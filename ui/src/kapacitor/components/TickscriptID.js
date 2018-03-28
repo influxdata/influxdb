@@ -1,4 +1,5 @@
-import React, {PropTypes, Component} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 class TickscriptID extends Component {
   constructor(props) {
@@ -22,10 +23,9 @@ class TickscriptID extends Component {
   }
 }
 
-export const TickscriptStaticID = ({id}) =>
-  <h1 className="tickscript-controls--name">
-    {id}
-  </h1>
+export const TickscriptStaticID = ({id}) => (
+  <h1 className="tickscript-controls--name">{id}</h1>
+)
 
 const {func, string} = PropTypes
 

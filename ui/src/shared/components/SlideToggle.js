@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 
 class SlideToggle extends Component {
   constructor(props) {
@@ -29,9 +30,9 @@ class SlideToggle extends Component {
     const {size, disabled} = this.props
     const {active} = this.state
 
-    const className = `slide-toggle slide-toggle__${size} ${active
-      ? 'active'
-      : ''} ${disabled ? 'disabled' : ''}`
+    const className = `slide-toggle slide-toggle__${size} ${
+      active ? 'active' : ''
+    } ${disabled ? 'disabled' : ''}`
 
     return (
       <div className={className} onClick={this.handleClick}>

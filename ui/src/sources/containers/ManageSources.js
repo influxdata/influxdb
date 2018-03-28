@@ -1,4 +1,5 @@
-import React, {Component, PropTypes} from 'react'
+import React, {Component} from 'react'
+import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -8,10 +9,16 @@ import {
   setActiveKapacitorAsync,
   deleteKapacitorAsync,
 } from 'shared/actions/sources'
+import {notify as notifyAction} from 'shared/actions/notifications'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import InfluxTable from 'src/sources/components/InfluxTable'
+
+import {
+  notifySourceDeleted,
+  notifySourceDeleteFailed,
+} from 'shared/copy/notifications'
 
 const V_NUMBER = VERSION // eslint-disable-line no-undef
 
@@ -35,19 +42,13 @@ class ManageSources extends Component {
   }
 
   handleDeleteSource = source => () => {
-    const {addFlashMessage} = this.props
+    const {notify} = this.props
 
     try {
       this.props.removeAndLoadSources(source)
-      addFlashMessage({
-        type: 'success',
-        text: `Deleted source ${source.name}`,
-      })
+      notify(notifySourceDeleted(source.name))
     } catch (e) {
-      addFlashMessage({
-        type: 'error',
-        text: 'Could not remove source from Chronograf',
-      })
+      notify(notifySourceDeleteFailed(source.name))
     }
   }
 
@@ -79,9 +80,7 @@ class ManageSources extends Component {
               handleDeleteSource={this.handleDeleteSource}
               setActiveKapacitor={this.handleSetActiveKapacitor}
             />
-            <p className="version-number">
-              Chronograf Version: {V_NUMBER}
-            </p>
+            <p className="version-number">Chronograf Version: {V_NUMBER}</p>
           </div>
         </FancyScrollbar>
       </div>
@@ -100,7 +99,7 @@ ManageSources.propTypes = {
     }),
   }),
   sources: array,
-  addFlashMessage: func,
+  notify: func.isRequired,
   removeAndLoadSources: func.isRequired,
   fetchKapacitors: func.isRequired,
   setActiveKapacitor: func.isRequired,
@@ -116,6 +115,7 @@ const mapDispatchToProps = dispatch => ({
   fetchKapacitors: bindActionCreators(fetchKapacitorsAsync, dispatch),
   setActiveKapacitor: bindActionCreators(setActiveKapacitorAsync, dispatch),
   deleteKapacitor: bindActionCreators(deleteKapacitorAsync, dispatch),
+  notify: bindActionCreators(notifyAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(ManageSources)

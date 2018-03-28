@@ -1,11 +1,12 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 
 const HandlerCheckbox = ({
   fieldName,
   fieldDisplay,
   selectedHandler,
   handleModifyHandler,
-}) =>
+}) => (
   <div className="form-group ">
     <div className="form-control-static handler-checkbox">
       <input
@@ -15,11 +16,10 @@ const HandlerCheckbox = ({
         defaultChecked={selectedHandler[fieldName]}
         onClick={handleModifyHandler(selectedHandler, fieldName)}
       />
-      <label htmlFor={fieldName}>
-        {fieldDisplay}
-      </label>
+      <label htmlFor={fieldName}>{fieldDisplay}</label>
     </div>
   </div>
+)
 
 const {func, shape, string, bool} = PropTypes
 
