@@ -38,7 +38,7 @@ export class FuncSelector extends PureComponent<Props, State> {
           </button>
           <FuncList
             inputText={inputText}
-            onAddNode={onAddNode}
+            onAddNode={this.handleAddNode}
             isOpen={isOpen}
             funcs={this.availableFuncs}
             onInputChange={this.handleInputChange}
@@ -55,6 +55,11 @@ export class FuncSelector extends PureComponent<Props, State> {
     }
 
     return ''
+  }
+
+  private handleAddNode = (name: string) => {
+    this.setState({isOpen: false})
+    this.props.onAddNode(name)
   }
 
   private get availableFuncs(): string[] {

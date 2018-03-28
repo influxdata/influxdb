@@ -20,6 +20,7 @@ interface Props {
 interface State {
   funcs: string[]
   ast: object
+  query: string
 }
 
 export class IFQLPage extends PureComponent<Props, State> {
@@ -28,13 +29,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       funcs: [],
       ast: null,
+      query: 'from(db: "")',
     }
   }
 
   public async componentDidMount() {
     const {links} = this.props
     const {suggestions} = links
-    const baseQuery = 'from()'
 
     try {
       const results = await getSuggestions(suggestions)
@@ -44,12 +45,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       console.error('Could not get function suggestions: ', error)
     }
 
-    try {
-      const ast = await getAST({url: links.ast, body: baseQuery})
-      this.setState({ast})
-    } catch (error) {
-      console.error('Could not parse AST', error)
-    }
+    this.getASTResponse(this.state.query)
   }
 
   public render() {
@@ -78,8 +74,8 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleAddNode = (name: string) => {
-    console.log(name)
-    // Do a flip
+    const query = `${this.state.query} |> ${name}()`
+    this.getASTResponse(query)
   }
 
   private get nodes() {
@@ -92,6 +88,17 @@ export class IFQLPage extends PureComponent<Props, State> {
     const walker = new Walker(ast)
 
     return walker.functions
+  }
+
+  private async getASTResponse(query: string) {
+    const {links} = this.props
+
+    try {
+      const ast = await getAST({url: links.ast, body: query})
+      this.setState({ast, query})
+    } catch (error) {
+      console.error('Could not parse AST', error)
+    }
   }
 }
 
