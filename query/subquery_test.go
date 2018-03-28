@@ -18,7 +18,6 @@ func TestSubquery(t *testing.T) {
 		Fields      map[string]influxql.DataType
 		MapShardsFn func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn
 		Rows        []query.Row
-		Skip        string
 	}{
 		{
 			Name:      "AuxiliaryFields",
@@ -86,7 +85,6 @@ func TestSubquery(t *testing.T) {
 				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{"server02"}},
 				{Time: 10 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{"server03"}},
 			},
-			Skip: `causes a panic`,
 		},
 		{
 			Name:      "AuxiliaryFields_NonExistentField",
@@ -141,10 +139,6 @@ func TestSubquery(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			if test.Skip != "" {
-				t.Skip(test.Skip)
-			}
-
 			shardMapper := ShardMapper{
 				MapShardsFn: func(sources influxql.Sources, tr influxql.TimeRange) query.ShardGroup {
 					fn := test.MapShardsFn(t, tr)
