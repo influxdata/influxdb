@@ -21,6 +21,10 @@ export default class Walker {
   }
 
   private reduceArgs = args => {
+    if (!args) {
+      return []
+    }
+
     return args.reduce(
       (acc, arg) => [...acc, ...this.getProperties(arg.properties)],
       []
@@ -52,7 +56,7 @@ export default class Walker {
 
   private getProperties = props => {
     return props.map(prop => ({
-      name: prop.key.name,
+      key: prop.key.name,
       value: get(prop, 'value.value', get(prop, 'value.location.source', '')),
     }))
   }

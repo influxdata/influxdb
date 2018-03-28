@@ -12,3 +12,25 @@ export const getSuggestions = async (url: string) => {
     throw error
   }
 }
+
+interface ASTRequest {
+  url: string
+  body: string
+}
+
+export const getAST = async (request: ASTRequest) => {
+  const {url, body} = request
+
+  try {
+    const {data} = await AJAX({
+      method: 'POST',
+      url,
+      data: {body},
+    })
+
+    return data
+  } catch (error) {
+    console.error('Could not parse query', error)
+    throw error
+  }
+}

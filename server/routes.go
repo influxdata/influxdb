@@ -97,6 +97,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 		IFQL: getIFQLLinksResponse{
 			Self:        "/chronograf/v1/ifql",
+			AST:         "/chronograf/v1/ifql/ast",
 			Suggestions: "/chronograf/v1/ifql/suggestions",
 		},
 	}

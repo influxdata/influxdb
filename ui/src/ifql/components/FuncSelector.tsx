@@ -1,9 +1,7 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import DropdownInput from 'src/shared/components/DropdownInput'
-
 import {ClickOutside} from 'src/shared/components/ClickOutside'
+import FuncList from 'src/ifql/components/FuncList'
 
 interface State {
   isOpen: boolean
@@ -12,9 +10,10 @@ interface State {
 
 interface Props {
   funcs: string[]
+  onAddNode: (name: string) => void
 }
 
-export class FuncsButton extends PureComponent<Props, State> {
+export class FuncSelector extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -25,37 +24,37 @@ export class FuncsButton extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {onAddNode} = this.props
     const {isOpen, inputText} = this.state
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
-        <div className={`dropdown dashboard-switcher ${isOpen ? 'open' : ''}`}>
+        <div className={`dropdown dashboard-switcher ${this.openClass}`}>
           <button
             className="btn btn-square btn-default btn-sm dropdown-toggle"
             onClick={this.handleClick}
           >
             <span className="icon plus" />
           </button>
-          <ul className="dropdown-menu funcs">
-            <DropdownInput
-              buttonSize="btn-xs"
-              buttonColor="btn-default"
-              onFilterChange={this.handleInputChange}
-              onFilterKeyPress={this.handleKeyDown}
-              searchTerm={inputText}
-            />
-            <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={240}>
-              {isOpen &&
-                this.availableFuncs.map((func, i) => (
-                  <li className="dropdown-item func" key={i}>
-                    <a>{func}</a>
-                  </li>
-                ))}
-            </FancyScrollbar>
-          </ul>
+          <FuncList
+            inputText={inputText}
+            onAddNode={onAddNode}
+            isOpen={isOpen}
+            funcs={this.availableFuncs}
+            onInputChange={this.handleInputChange}
+            onKeyDown={this.handleKeyDown}
+          />
         </div>
       </ClickOutside>
     )
+  }
+
+  private get openClass(): string {
+    if (this.state.isOpen) {
+      return 'open'
+    }
+
+    return ''
   }
 
   private get availableFuncs(): string[] {
@@ -85,4 +84,4 @@ export class FuncsButton extends PureComponent<Props, State> {
   }
 }
 
-export default FuncsButton
+export default FuncSelector

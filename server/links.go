@@ -6,6 +6,7 @@ import (
 )
 
 type getIFQLLinksResponse struct {
+	AST         string `json:"ast"`
 	Self        string `json:"self"`
 	Suggestions string `json:"suggestions"`
 }

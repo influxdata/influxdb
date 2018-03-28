@@ -1,15 +1,16 @@
 import React from 'react'
 import {shallow} from 'enzyme'
-import {FuncsButton} from 'src/ifql/components/FuncsButton'
+import {FuncSelector} from 'src/ifql/components/FuncSelector'
 import DropdownInput from 'src/shared/components/DropdownInput'
 
 const setup = (override = {}) => {
   const props = {
     funcs: ['f1', 'f2'],
+    onAddNode: () => {},
     ...override,
   }
 
-  const wrapper = shallow(<FuncsButton {...props} />)
+  const wrapper = shallow(<FuncSelector {...props} />)
 
   return {
     wrapper,
