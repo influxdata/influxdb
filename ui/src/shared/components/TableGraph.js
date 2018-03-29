@@ -81,14 +81,14 @@ class TableGraph extends Component {
 
     let direction, sortFieldName
     if (
-      _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
+      _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') ===
       internalName
     ) {
-      direction = DEFAULT_SORT
-      sortFieldName = internalName
-    } else {
       direction = sortDirection
       sortFieldName = sortField
+    } else {
+      direction = DEFAULT_SORT
+      sortFieldName = internalName
     }
 
     const {processedData, sortedTimeVals} = processTableData(
