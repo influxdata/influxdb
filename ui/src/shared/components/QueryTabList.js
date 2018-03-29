@@ -1,6 +1,6 @@
 import React from 'react'
 import PropTypes from 'prop-types'
-import QueryMakerTab from 'src/data_explorer/components/QueryMakerTab'
+import QueryMakerTab from 'src/data_explorer/components/QueryMakerTab.tsx'
 import buildInfluxQLQuery from 'utils/influxql'
 
 const QueryTabList = ({
