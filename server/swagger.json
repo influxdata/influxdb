@@ -2322,7 +2322,7 @@
           },
           "400": {
             "description":
-              "Invalid JSON; or failed to perform operation in data store",
+              "Invalid JSON – unable to encode or decode; or failed to perform operation in data store",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2334,7 +2334,8 @@
             }
           },
           "422": {
-            "description": "Invalid data schema for organization",
+            "description":
+              "Invalid data schema provided to server for organization",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2427,7 +2428,7 @@
           },
           "400": {
             "description":
-              "Invalid JSON; or failed to perform operation in data store",
+              "Invalid JSON – unable to encode or decode; or failed to perform operation in data store",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2439,7 +2440,8 @@
             }
           },
           "422": {
-            "description": "Invalid data schema for organization",
+            "description":
+              "Invalid data schema provided to server for organization",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2560,7 +2562,7 @@
           },
           "400": {
             "description":
-              "Invalid JSON; or failed to perform operation in data store",
+              "Invalid JSON – unable to encode or decode; or failed to perform operation in data store",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2578,7 +2580,7 @@
             }
           },
           "422": {
-            "description": "Invalid data schema for user",
+            "description": "Invalid data schema provided to server for user",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2672,7 +2674,7 @@
           },
           "400": {
             "description":
-              "Invalid JSON; failed to parse user id as valid; or failed to perform operation in data store",
+              "Invalid JSON – unable to encode or decode; failed to parse user id as valid; or failed to perform operation in data store",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2696,7 +2698,7 @@
             }
           },
           "422": {
-            "description": "Invalid data schema for user",
+            "description": "Invalid data schema provided to server for user",
             "schema": {
               "$ref": "#/definitions/Error"
             }
