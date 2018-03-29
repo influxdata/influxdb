@@ -6,52 +6,13 @@ import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
 
 import UserNavBlock from 'src/side_nav/components/UserNavBlock'
 import {
-  NavBar,
   NavBlock,
   NavHeader,
   NavListItem,
 } from 'src/side_nav/components/NavItems'
 
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
-
-interface Params {
-  sourceID: string
-}
-
-interface Location {
-  pathname: string
-}
-
-interface ExternalLink {
-  name: string
-  url: string
-}
-
-interface ExternalLinks {
-  custom: ExternalLink[]
-}
-
-interface Links {
-  me?: string
-  external?: ExternalLinks
-}
-
-interface Organization {
-  id: string
-  name: string
-}
-
-interface Role {
-  id: string
-  name: string
-}
-
-interface Me {
-  name: string
-  currentOrganization: Organization
-  organizations: Organization[]
-  role: Role[]
-}
+import {Params, Location, Links, Me} from 'src/types/sideNav'
 
 interface Props {
   params: Params
@@ -85,7 +46,7 @@ class SideNav extends PureComponent<Props> {
     const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
 
     return isHidden ? null : (
-      <NavBar location={location}>
+      <nav className="sidebar">
         <div
           className={isDefaultPage ? 'sidebar--item active' : 'sidebar--item'}
         >
@@ -111,7 +72,7 @@ class SideNav extends PureComponent<Props> {
           link={`${sourcePrefix}/dashboards`}
           location={location}
         >
-          <NavHeader link={`${sourcePrefix}/dashboards`} title={'Dashboards'} />
+          <NavHeader link={`${sourcePrefix}/dashboards`} title="Dashboards" />
         </NavBlock>
         <NavBlock
           matcher="alerts"
@@ -178,7 +139,7 @@ class SideNav extends PureComponent<Props> {
             sourcePrefix={sourcePrefix}
           />
         ) : null}
-      </NavBar>
+      </nav>
     )
   }
 }
