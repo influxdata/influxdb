@@ -2869,7 +2869,7 @@
         "superAdmin": {
           "type": "boolean",
           "description":
-            "If user has the ability to perform CRUD operations on Organization and User resources"
+            "If user has the ability to perform CRUD operations on Organizations, across Organizations, and on other SuperAdmin users"
         }
       },
       "required": ["id", "name", "provider", "roles", "scheme"],
