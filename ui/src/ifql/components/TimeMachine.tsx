@@ -21,8 +21,10 @@ interface Props {
 const TimeMachine: SFC<Props> = ({funcs, nodes, onAddNode}) => {
   return (
     <div>
-      {nodes.map((n, i) => <Node key={i} node={n} />)}
-      <FuncSelector funcs={funcs} onAddNode={onAddNode} />
+      <div className="func-node-container">
+        {nodes.map((n, i) => <Node key={i} node={n} />)}
+        <FuncSelector funcs={funcs} onAddNode={onAddNode} />
+      </div>
     </div>
   )
 }

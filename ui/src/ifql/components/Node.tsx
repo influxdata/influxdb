@@ -16,7 +16,7 @@ interface Props {
 
 const Node: SFC<Props> = ({node}) => {
   return (
-    <div>
+    <div className="func-node">
       <div>{node.name}</div>
     </div>
   )

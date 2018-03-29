@@ -29,7 +29,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       funcs: [],
       ast: null,
-      query: 'from(db: "")',
+      query: 'from(db: "telegraf") |> filter() |> range()',
     }
   }
 
