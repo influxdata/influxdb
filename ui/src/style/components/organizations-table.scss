@@ -26,10 +26,12 @@ $orgs-table--delete-width: 30px;
   width: $orgs-table--active-width;
   justify-content: center;
   @include no-user-select();
-  
-  .btn {width: 100%;}
+
+  .btn {
+    width: 100%;
+  }
 }
-.orgs-table--default-role.deleting {
+.orgs-table--default-role.creating {
   width: (
     $orgs-table--default-role-width - $fancytable--table--margin -
       $orgs-table--delete-width
