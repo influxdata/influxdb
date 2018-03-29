@@ -7,11 +7,20 @@ import (
 	"net/http"
 	"strings"
 
+	gojwt "github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/chronograf"
 	"golang.org/x/oauth2"
 )
 
-var _ Provider = &Generic{}
+// ExtendedProvider extendts the base Provider interface with optional methods
+type ExtendedProvider interface {
+	Provider
+	// get PrincipalID from id_token
+	PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error)
+	GroupFromClaims(claims gojwt.MapClaims) (string, error)
+}
+
+var _ ExtendedProvider = &Generic{}
 
 // Generic provides OAuth Login and Callback server and is modeled
 // after the Github OAuth2 provider. Callback will set an authentication
@@ -196,4 +205,27 @@ func ofDomain(requiredDomains []string, email string) bool {
 		}
 	}
 	return false
+}
+
+// PrincipalIDFromClaims verifies an optional id_token and extracts email address of the user
+func (g *Generic) PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error) {
+	if id, ok := claims[g.APIKey].(string); ok {
+		return id, nil
+	}
+	return "", fmt.Errorf("no claim for %s", g.APIKey)
+}
+
+// GroupFromClaims verifies an optional id_token, extracts the email address of the user and splits off the domain part
+func (g *Generic) GroupFromClaims(claims gojwt.MapClaims) (string, error) {
+	if id, ok := claims[g.APIKey].(string); ok {
+		email := strings.Split(id, "@")
+		if len(email) != 2 {
+			g.Logger.Error("malformed email address, expected %q to contain @ symbol", id)
+			return "DEFAULT", nil
+		}
+
+		return email[1], nil
+	}
+
+	return "", fmt.Errorf("no claim for %s", g.APIKey)
 }

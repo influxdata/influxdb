@@ -2821,6 +2821,9 @@ func TestServer(t *testing.T) {
 			// This is so that we can use staticly generate jwts
 			tt.args.server.TokenSecret = "secret"
 
+			// Endpoint for validating RSA256 signatures when using id_token parsing for ADFS
+			tt.args.server.JwksURL = ""
+
 			boltFile := newBoltFile()
 			tt.args.server.BoltPath = boltFile
 
@@ -2938,7 +2941,7 @@ func TestServer(t *testing.T) {
 			buf, _ := json.Marshal(tt.args.payload)
 			reqBody := ioutil.NopCloser(bytes.NewReader(buf))
 			req, _ := http.NewRequest(tt.args.method, serverURL, reqBody)
-			token, _ := oauth2.NewJWT(tt.args.server.TokenSecret).Create(ctx, tt.args.principal)
+			token, _ := oauth2.NewJWT(tt.args.server.TokenSecret, tt.args.server.JwksURL).Create(ctx, tt.args.principal)
 			req.AddCookie(&http.Cookie{
 				Name:     "session",
 				Value:    string(token),

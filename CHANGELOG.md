@@ -1,3 +1,11 @@
+## v1.5.0.0 [unreleased]
+
+### Features
+1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
+
+### UI Improvements
+### Bug Fixes
+
 ## v1.4.3.0 [unreleased]
 
 ### Features
@@ -19,7 +27,10 @@
 1.  [#2970](https://github.com/influxdata/chronograf/pull/2970): Fix hanging browser on docker host dashboard
 1.  [#3006](https://github.com/influxdata/chronograf/pull/3006): Fix Kapacitor Rules task enabled checkboxes to only toggle exactly as clicked
 1.  [#3048](https://github.com/influxdata/chronograf/pull/3048): Prevent Multi-Select Dropdown in InfluxDB Admin Users and Roles tabs from losing selection state
+1.  [#3073](https://github.com/influxdata/chronograf/pull/3073): Fix Delete button in All Users admin page
 1.  [#3068](https://github.com/influxdata/chronograf/pull/3068): Fix intermittent missing fill from graphs
+1.  [#3087](https://github.com/influxdata/chronograf/pull/3087): Exit annotation edit mode when user navigates away from dashboard
+1.  [#3079](https://github.com/influxdata/chronograf/pull/3082): Support custom time range in annotations api wrapper
 
 ## v1.4.2.3 [2018-03-08]
 
@@ -35,7 +46,6 @@
 ## v1.4.2.1 [2018-02-28]
 
 ### Features
-
 1.  [#2837](https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 1.  [#2829](https://github.com/influxdata/chronograf/pull/2829): Add an optional persistent legend which can toggle series visibility to dashboard cells
 1.  [#2846](https://github.com/influxdata/chronograf/pull/2846): Allow user to annotate graphs via UI or API
