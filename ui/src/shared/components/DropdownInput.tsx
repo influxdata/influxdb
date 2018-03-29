@@ -1,9 +1,21 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, ChangeEvent, KeyboardEvent} from 'react'
 
 const disabledClass = disabled => (disabled ? ' disabled' : '')
 
-const DropdownInput = ({
+type OnFilterChangeHandler = (e: ChangeEvent<HTMLInputElement>) => void
+type OnFilterKeyPress = (e: KeyboardEvent<HTMLInputElement>) => void
+
+interface Props {
+  searchTerm: string
+  buttonSize: string
+  buttonColor: string
+  toggleStyle?: object
+  disabled?: boolean
+  onFilterChange: OnFilterChangeHandler
+  onFilterKeyPress: OnFilterKeyPress
+}
+
+const DropdownInput: SFC<Props> = ({
   searchTerm,
   buttonSize,
   buttonColor,
@@ -33,15 +45,3 @@ const DropdownInput = ({
 )
 
 export default DropdownInput
-
-const {bool, func, shape, string} = PropTypes
-
-DropdownInput.propTypes = {
-  searchTerm: string,
-  buttonSize: string,
-  buttonColor: string,
-  toggleStyle: shape({}),
-  disabled: bool,
-  onFilterChange: func.isRequired,
-  onFilterKeyPress: func.isRequired,
-}

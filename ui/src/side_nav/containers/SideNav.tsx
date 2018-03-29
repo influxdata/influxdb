@@ -5,6 +5,8 @@ import {connect} from 'react-redux'
 import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
 
 import UserNavBlock from 'src/side_nav/components/UserNavBlock'
+import FeatureFlag from 'src/shared/components/FeatureFlag'
+
 import {
   NavBlock,
   NavHeader,
@@ -139,6 +141,15 @@ class SideNav extends PureComponent<Props> {
             sourcePrefix={sourcePrefix}
           />
         ) : null}
+        <FeatureFlag name="time-machine">
+          <NavBlock
+            icon="cog-thick"
+            link={`${sourcePrefix}/ifql`}
+            location={location}
+          >
+            <NavHeader link={`${sourcePrefix}/ifql`} title="IFQL Builder" />
+          </NavBlock>
+        </FeatureFlag>
       </nav>
     )
   }
