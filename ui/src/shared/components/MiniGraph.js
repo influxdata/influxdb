@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import Dygraph from './Dygraph'
 import shallowCompare from 'react-addons-shallow-compare'
 
-import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
+import timeSeriesToDygraph from 'utils/timeSeriesTransformers'
 
 export default React.createClass({
   displayName: 'MiniGraph',

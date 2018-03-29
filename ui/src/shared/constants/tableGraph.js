@@ -16,6 +16,8 @@ export const TIME_FIELD_DEFAULT = {
 
 export const ASCENDING = 'asc'
 export const DESCENDING = 'desc'
+export const DEFAULT_SORT = ASCENDING
+
 export const FIX_FIRST_COLUMN_DEFAULT = true
 export const VERTICAL_TIME_AXIS_DEFAULT = true
 

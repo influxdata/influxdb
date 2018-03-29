@@ -2,11 +2,12 @@ import React from 'react'
 
 import {shallow} from 'enzyme'
 
-import TableGraph, {
-  filterInvisibleColumns,
-  processData,
-  DEFAULT_SORT,
-} from 'src/shared/components/TableGraph'
+import TableGraph from 'src/shared/components/TableGraph'
+import {DEFAULT_SORT} from 'src/shared/constants/tableGraph'
+import {
+  filterTableColumns,
+  processTableData,
+} from 'src/utils/timeSeriesTransformers.js'
 
 const setup = (override = []) => {
   const props = {
@@ -44,7 +45,7 @@ const setup = (override = []) => {
 
 describe('Components.Shared.TableGraph', () => {
   describe('functions', () => {
-    describe('filterInvisibleColumns', () => {
+    describe('filterTableColumns', () => {
       it("returns a nested array of that only include columns whose corresponding fieldName's visibility is true", () => {
         const {data} = setup()
 
@@ -54,7 +55,7 @@ describe('Components.Shared.TableGraph', () => {
           {internalName: 'f2', displayName: 'F2', visible: false},
         ]
 
-        const actual = filterInvisibleColumns(data, fieldNames)
+        const actual = filterTableColumns(data, fieldNames)
         const expected = [['time'], [1000], [2000], [3000]]
         expect(actual).toEqual(expected)
       })
@@ -68,13 +69,13 @@ describe('Components.Shared.TableGraph', () => {
           {internalName: 'f2', displayName: 'F2', visible: false},
         ]
 
-        const actual = filterInvisibleColumns(data, fieldNames)
+        const actual = filterTableColumns(data, fieldNames)
         const expected = [[]]
         expect(actual).toEqual(expected)
       })
     })
 
-    describe('processData', () => {
+    describe('processTableData', () => {
       it('sorts the data based on the provided sortFieldName', () => {
         const {data} = setup()
         const sortFieldName = 'f1'
@@ -87,7 +88,7 @@ describe('Components.Shared.TableGraph', () => {
           {internalName: 'f2', displayName: 'F2', visible: true},
         ]
 
-        const actual = processData(
+        const actual = processTableData(
           data,
           sortFieldName,
           direction,
@@ -116,7 +117,7 @@ describe('Components.Shared.TableGraph', () => {
           {internalName: 'f2', displayName: 'F2', visible: true},
         ]
 
-        const actual = processData(
+        const actual = processTableData(
           data,
           sortFieldName,
           direction,
@@ -145,7 +146,7 @@ describe('Components.Shared.TableGraph', () => {
           {internalName: 'f2', displayName: 'F2', visible: true},
         ]
 
-        const actual = processData(
+        const actual = processTableData(
           data,
           sortFieldName,
           direction,
@@ -175,7 +176,7 @@ describe('Components.Shared.TableGraph', () => {
             {internalName: 'f2', displayName: 'F2', visible: true},
           ]
 
-          const actual = processData(
+          const actual = processTableData(
             data,
             sortFieldName,
             direction,
@@ -203,7 +204,7 @@ describe('Components.Shared.TableGraph', () => {
             {internalName: 'f2', displayName: 'F2', visible: true},
           ]
 
-          const actual = processData(
+          const actual = processTableData(
             data,
             sortFieldName,
             direction,

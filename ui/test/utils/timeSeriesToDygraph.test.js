@@ -1,6 +1,6 @@
 import timeSeriesToDygraph, {
   timeSeriesToTableGraph,
-} from 'src/utils/timeSeriesToDygraph'
+} from 'src/utils/timeSeriesTransformers'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
