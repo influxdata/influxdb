@@ -1,72 +1,43 @@
-import React, {Component} from 'react'
+import React from 'react'
 import PropTypes from 'prop-types'
 
-import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
+import ConfirmButton from 'shared/components/ConfirmButton'
 import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
 
-class QueryRow extends Component {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      confirmingKill: false,
-    }
+const QueryRow = ({query, onKill}) => {
+  const {database, duration} = query
+  const wrappedKill = () => {
+    onKill(query.id)
   }
 
-  handleInitiateKill = () => {
-    this.setState({confirmingKill: true})
-  }
-
-  handleFinishHim = () => {
-    this.props.onKill(this.props.query.id)
-  }
-
-  handleShowMercy = () => {
-    this.setState({confirmingKill: false})
-  }
-
-  render() {
-    const {query: {database, query, duration}} = this.props
-
-    return (
-      <tr>
-        <td
-          style={{width: `${QUERIES_TABLE.colDatabase}px`}}
-          className="monotype"
-        >
-          {database}
-        </td>
-        <td>
-          <code>{query}</code>
-        </td>
-        <td
-          style={{width: `${QUERIES_TABLE.colRunning}px`}}
-          className="monotype"
-        >
-          {duration}
-        </td>
-        <td
-          style={{width: `${QUERIES_TABLE.colKillQuery}px`}}
-          className="text-right"
-        >
-          {this.state.confirmingKill ? (
-            <ConfirmOrCancel
-              onConfirm={this.handleFinishHim}
-              onCancel={this.handleShowMercy}
-              buttonSize="btn-xs"
-            />
-          ) : (
-            <button
-              className="btn btn-xs btn-danger table--show-on-row-hover"
-              onClick={this.handleInitiateKill}
-            >
-              Kill
-            </button>
-          )}
-        </td>
-      </tr>
-    )
-  }
+  return (
+    <tr>
+      <td
+        style={{width: `${QUERIES_TABLE.colDatabase}px`}}
+        className="monotype"
+      >
+        {database}
+      </td>
+      <td>
+        <code>{query.query}</code>
+      </td>
+      <td style={{width: `${QUERIES_TABLE.colRunning}px`}} className="monotype">
+        {duration}
+      </td>
+      <td
+        style={{width: `${QUERIES_TABLE.colKillQuery}px`}}
+        className="text-right"
+      >
+        <ConfirmButton
+          text="Kill"
+          confirmAction={wrappedKill}
+          size="btn-xs"
+          type="btn-danger"
+          customClass="table--show-on-row-hover"
+        />
+      </td>
+    </tr>
+  )
 }
 
 const {func, shape} = PropTypes
