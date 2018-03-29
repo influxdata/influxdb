@@ -647,7 +647,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 
 // DiskSize returns the total size in bytes of all TSM and WAL segments on disk.
 func (e *Engine) DiskSize() int64 {
-	return e.FileStore.DiskSizeBytes() + e.WAL.DiskSizeBytes() + e.index.DiskSizeBytes()
+	return e.FileStore.DiskSizeBytes() + e.WAL.DiskSizeBytes()
 }
 
 // Open opens and initializes the engine.
