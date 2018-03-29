@@ -8,7 +8,7 @@ import onClickOutside from 'react-onclickoutside'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {formatRPDuration} from 'utils/formatting'
-import YesNoButtons from 'shared/components/YesNoButtons'
+import ConfirmButton from 'shared/components/ConfirmButton'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
 import {notifyRetentionPolicyCantHaveEmptyFields} from 'shared/copy/notifications'
 
@@ -17,7 +17,6 @@ class DatabaseRow extends Component {
     super(props)
     this.state = {
       isEditing: false,
-      isDeleting: false,
     }
   }
 
@@ -48,14 +47,6 @@ class DatabaseRow extends Component {
 
   handleEndEdit = () => {
     this.setState({isEditing: false})
-  }
-
-  handleStartDelete = () => {
-    this.setState({isDeleting: true})
-  }
-
-  handleEndDelete = () => {
-    this.setState({isDeleting: false})
   }
 
   handleCreate = () => {
@@ -140,7 +131,7 @@ class DatabaseRow extends Component {
       isDeletable,
       isRFDisplayed,
     } = this.props
-    const {isEditing, isDeleting} = this.state
+    const {isEditing} = this.state
 
     const formattedDuration = formatRPDuration(duration)
 
@@ -198,11 +189,18 @@ class DatabaseRow extends Component {
             className="text-right"
             style={{width: `${DATABASE_TABLE.colDelete}px`}}
           >
-            <YesNoButtons
-              buttonSize="btn-xs"
-              onConfirm={isNew ? this.handleCreate : this.handleUpdate}
-              onCancel={isNew ? this.handleRemove : this.handleEndEdit}
-            />
+            <button
+              className="btn btn-xs btn-info"
+              onClick={isNew ? this.handleRemove : this.handleEndEdit}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-xs btn-success"
+              onClick={isNew ? this.handleCreate : this.handleUpdate}
+            >
+              Save
+            </button>
           </td>
         </tr>
       )
@@ -216,17 +214,11 @@ class DatabaseRow extends Component {
             <span className="default-source-label">default</span>
           ) : null}
         </td>
-        <td
-          onClick={this.handleStartEdit}
-          style={{width: `${DATABASE_TABLE.colDuration}px`}}
-        >
+        <td style={{width: `${DATABASE_TABLE.colDuration}px`}}>
           {formattedDuration}
         </td>
         {isRFDisplayed ? (
-          <td
-            onClick={this.handleStartEdit}
-            style={{width: `${DATABASE_TABLE.colReplication}px`}}
-          >
+          <td style={{width: `${DATABASE_TABLE.colReplication}px`}}>
             {replication}
           </td>
         ) : null}
@@ -234,21 +226,20 @@ class DatabaseRow extends Component {
           className="text-right"
           style={{width: `${DATABASE_TABLE.colDelete}px`}}
         >
-          {isDeleting ? (
-            <YesNoButtons
-              onConfirm={onDelete(database, retentionPolicy)}
-              onCancel={this.handleEndDelete}
-              buttonSize="btn-xs"
-            />
-          ) : (
-            <button
-              className="btn btn-danger btn-xs table--show-on-row-hover"
-              style={isDeletable ? {} : {visibility: 'hidden'}}
-              onClick={this.handleStartDelete}
-            >
-              {`Delete ${name}`}
-            </button>
-          )}
+          <button
+            className="btn btn-xs btn-info table--show-on-row-hover"
+            onClick={this.handleStartEdit}
+          >
+            Edit
+          </button>
+          <ConfirmButton
+            text={`Delete ${name}`}
+            confirmAction={onDelete(database, retentionPolicy)}
+            size="btn-xs"
+            type="btn-danger"
+            customClass="table--show-on-row-hover"
+            disabled={!isDeletable}
+          />
         </td>
       </tr>
     )

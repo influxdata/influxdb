@@ -78,6 +78,7 @@ class ConfirmOrCancel extends PureComponent<ConfirmOrCancelProps, {}> {
   public static defaultProps: Partial<ConfirmOrCancelProps> = {
     buttonSize: 'btn-sm',
     confirmTitle: 'Save',
+    cancelTitle: 'Cancel',
     onClickOutside: () => {},
   }
 
