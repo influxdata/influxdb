@@ -7,6 +7,7 @@ v1.5.2 [unreleased]
 -	[#9651](https://github.com/influxdata/influxdb/pull/9651): Fix regression to allow now() to be used as the group by offset again.
 -	[#9614](https://github.com/influxdata/influxdb/pull/9614): 1.5: Revert "Use MADV_WILLNEED when loading TSM files".
 -	[#9660](https://github.com/influxdata/influxdb/pull/9660): Ignore index size in Engine.DiskSize().
+-	[#9662](https://github.com/influxdata/influxdb/pull/9662): [1.5] Fix buildtsi partition key.
 
 v1.5.1 [2018-03-20]
 -------------------
