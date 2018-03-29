@@ -11,6 +11,7 @@ const setup = () => {
     links: {
       self: '',
       suggestions: '',
+      ast: '',
     },
   }
 

@@ -1,6 +1,6 @@
 import 'babel-polyfill'
 
-import React from 'react'
+import React, {PureComponent} from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
 import {Router, Route, useRouterHistory} from 'react-router'
@@ -32,27 +32,34 @@ import {
 } from 'src/kapacitor'
 import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
-import {IFQLPage} from 'src/ifql/index.ts'
-import NotFound from 'shared/components/NotFound'
+import {IFQLPage} from 'src/ifql/index'
+import NotFound from 'src/shared/components/NotFound'
 
-import {getLinksAsync} from 'shared/actions/links'
-import {getMeAsync} from 'shared/actions/auth'
+import {getLinksAsync} from 'src/shared/actions/links'
+import {getMeAsync} from 'src/shared/actions/auth'
 
-import {disablePresentationMode} from 'shared/actions/app'
-import {errorThrown} from 'shared/actions/errors'
-import {notify} from 'shared/actions/notifications'
+import {disablePresentationMode} from 'src/shared/actions/app'
+import {errorThrown} from 'src/shared/actions/errors'
+import {notify} from 'src/shared/actions/notifications'
 
 import 'src/style/chronograf.scss'
 
-import {HEARTBEAT_INTERVAL} from 'shared/constants'
+import {HEARTBEAT_INTERVAL} from 'src/shared/constants'
 
 const errorsQueue = []
 
 const rootNode = document.getElementById('react-root')
 
+declare global {
+  interface Window {
+    basepath: string
+  }
+}
+
 // Older method used for pre-IE 11 compatibility
 const basepath = rootNode.getAttribute('data-basepath') || ''
 window.basepath = basepath
+
 const browserHistory = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware
 })
@@ -74,14 +81,22 @@ window.addEventListener('keyup', event => {
 
 const history = syncHistoryWithStore(browserHistory, store)
 
-const Root = React.createClass({
-  getInitialState() {
-    return {
+interface State {
+  ready: boolean
+}
+
+class Root extends PureComponent<{}, State> {
+  private getLinks = bindActionCreators(getLinksAsync, dispatch)
+  private getMe = bindActionCreators(getMeAsync, dispatch)
+
+  constructor(props) {
+    super(props)
+    this.state = {
       ready: false,
     }
-  },
+  }
 
-  async componentWillMount() {
+  public async componentWillMount() {
     this.flushErrorsQueue()
 
     try {
@@ -91,45 +106,10 @@ const Root = React.createClass({
     } catch (error) {
       dispatch(errorThrown(error))
     }
-  },
+  }
 
-  getLinks: bindActionCreators(getLinksAsync, dispatch),
-  getMe: bindActionCreators(getMeAsync, dispatch),
-
-  async checkAuth() {
-    try {
-      await this.performHeartbeat({shouldResetMe: true})
-    } catch (error) {
-      dispatch(errorThrown(error))
-    }
-  },
-
-  async performHeartbeat({shouldResetMe = false} = {}) {
-    await this.getMe({shouldResetMe})
-
-    setTimeout(() => {
-      if (store.getState().auth.me !== null) {
-        this.performHeartbeat()
-      }
-    }, HEARTBEAT_INTERVAL)
-  },
-
-  flushErrorsQueue() {
-    if (errorsQueue.length) {
-      errorsQueue.forEach(error => {
-        if (typeof error === 'object') {
-          dispatch(notify(error))
-        } else {
-          dispatch(errorThrown({status: 0, auth: null}, error, 'warning'))
-        }
-      })
-    }
-  },
-
-  render() {
-    return !this.state.ready ? ( // eslint-disable-line no-negated-condition
-      <div className="page-spinner" />
-    ) : (
+  public render() {
+    return this.state.ready ? (
       <Provider store={store}>
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
@@ -170,9 +150,41 @@ const Root = React.createClass({
           <Route path="*" component={NotFound} />
         </Router>
       </Provider>
+    ) : (
+      <div className="page-spinner" />
     )
-  },
-})
+  }
+
+  private async performHeartbeat({shouldResetMe = false} = {}) {
+    await this.getMe({shouldResetMe})
+
+    setTimeout(() => {
+      if (store.getState().auth.me !== null) {
+        this.performHeartbeat()
+      }
+    }, HEARTBEAT_INTERVAL)
+  }
+
+  private flushErrorsQueue() {
+    if (errorsQueue.length) {
+      errorsQueue.forEach(error => {
+        if (typeof error === 'object') {
+          dispatch(notify(error))
+        } else {
+          dispatch(errorThrown({status: 0, auth: null}, error, 'warning'))
+        }
+      })
+    }
+  }
+
+  private async checkAuth() {
+    try {
+      await this.performHeartbeat({shouldResetMe: true})
+    } catch (error) {
+      dispatch(errorThrown(error))
+    }
+  }
+}
 
 if (rootNode) {
   render(<Root />, rootNode)

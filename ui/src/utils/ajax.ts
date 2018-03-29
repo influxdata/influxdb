@@ -42,6 +42,16 @@ const generateResponseWithLinks = (response, newLinks) => {
   }
 }
 
+interface RequestParams {
+  url: string
+  resource?: string | null
+  id?: string | null
+  method?: string
+  data?: object
+  params?: object
+  headers?: object
+}
+
 const AJAX = async (
   {
     url,
@@ -51,8 +61,8 @@ const AJAX = async (
     data = {},
     params = {},
     headers = {},
-  },
-  {excludeBasepath} = {}
+  }: RequestParams,
+  excludeBasepath = false
 ) => {
   try {
     if (!links) {
@@ -91,7 +101,7 @@ export const getAJAX = async url => {
   try {
     return await axios({
       method: 'GET',
-      url: addBasepath(url),
+      url: addBasepath(url, false),
     })
   } catch (error) {
     console.error(error)

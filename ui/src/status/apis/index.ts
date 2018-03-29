@@ -1,4 +1,6 @@
-import AJAX from 'utils/ajax'
+import AJAX from 'src/utils/ajax'
+
+const excludeBasepath = true // don't prefix route of external link with basepath/
 
 export const fetchJSONFeed = url =>
   AJAX(
@@ -9,5 +11,5 @@ export const fetchJSONFeed = url =>
       // https://stackoverflow.com/questions/22968406/how-to-skip-the-options-preflight-request-in-angularjs
       headers: {'Content-Type': 'text/plain; charset=UTF-8'},
     },
-    {excludeBasepath: true} // don't prefix route of external link with basepath
+    excludeBasepath // don't prefix route of external link with basepath
   )

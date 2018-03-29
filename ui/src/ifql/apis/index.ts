@@ -20,7 +20,6 @@ interface ASTRequest {
 
 export const getAST = async (request: ASTRequest) => {
   const {url, body} = request
-
   try {
     const {data} = await AJAX({
       method: 'POST',

@@ -25,7 +25,7 @@ const config = {
   bail: true,
   devtool: false,
   entry: {
-    app: path.resolve(__dirname, '..', 'src', 'index.js'),
+    app: path.resolve(__dirname, '..', 'src', 'index.tsx'),
     vendor: Object.keys(dependencies),
   },
   output: {
