@@ -38,7 +38,6 @@ class DatabaseRow extends Component {
     }
 
     this.handleEndEdit()
-    this.handleEndDelete()
   }
 
   handleStartEdit = () => {
