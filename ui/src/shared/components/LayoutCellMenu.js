@@ -96,16 +96,17 @@ class LayoutCellMenu extends Component {
               />
             </div>
           )}
-        {mode === 'editing' && (
-          <div className="dash-graph-context--buttons">
-            <div
-              className="btn btn-xs btn-success"
-              onClick={onDismissEditingAnnotation}
-            >
-              Done Editing
+        {mode === 'editing' &&
+          cellSupportsAnnotations(cell.type) && (
+            <div className="dash-graph-context--buttons">
+              <div
+                className="btn btn-xs btn-success"
+                onClick={onDismissEditingAnnotation}
+              >
+                Done Editing
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
     )
   }

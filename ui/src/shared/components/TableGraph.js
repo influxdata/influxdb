@@ -18,12 +18,13 @@ import {
   FIX_FIRST_COLUMN_DEFAULT,
   VERTICAL_TIME_AXIS_DEFAULT,
   calculateTimeColumnWidth,
+  calculateLabelsColumnWidth,
 } from 'src/shared/constants/tableGraph'
-const DEFAULT_SORT = ASCENDING
+export const DEFAULT_SORT = ASCENDING
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
-const filterInvisibleColumns = (data, fieldNames) => {
+export const filterInvisibleColumns = (data, fieldNames) => {
   const visibility = {}
   const filteredData = map(data, (row, i) => {
     return filter(row, (col, j) => {
@@ -37,7 +38,7 @@ const filterInvisibleColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
-const processData = (
+export const processData = (
   data,
   sortFieldName,
   direction,
@@ -65,6 +66,7 @@ class TableGraph extends Component {
       sortedTimeVals: [],
       labels: [],
       timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
+      labelsColumnWidth: calculateLabelsColumnWidth(props.data.labels),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sortField: 'time',
@@ -93,6 +95,7 @@ class TableGraph extends Component {
       this.setState({
         timeColumnWidth: calculateTimeColumnWidth(timeFormat),
       })
+      this.multiGridRef.forceUpdateGrids()
     }
 
     if (setDataLabels) {
@@ -120,6 +123,10 @@ class TableGraph extends Component {
       fieldNames
     )
 
+    const processedLabels = verticalTimeAxis
+      ? processedData[0]
+      : processedData.map(row => row[0])
+
     this.setState({
       data,
       labels,
@@ -127,6 +134,10 @@ class TableGraph extends Component {
       sortedTimeVals,
       sortField: sortFieldName,
       sortDirection: direction,
+      labelsColumnWidth: calculateLabelsColumnWidth(
+        processedLabels,
+        fieldNames
+      ),
     })
   }
 
@@ -218,15 +229,28 @@ class TableGraph extends Component {
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
     const {tableOptions: {verticalTimeAxis}} = this.props
-    const {timeColumnWidth, labels} = this.state
+    const {timeColumnWidth, labelsColumnWidth, processedData} = this.state
+    const columnCount = _.get(processedData, ['0', 'length'], 0)
+    const processedLabels = verticalTimeAxis
+      ? processedData[0]
+      : processedData.map(row => row[0])
 
-    if (labels.length > 0) {
-      return verticalTimeAxis && labels[index] === 'time'
-        ? timeColumnWidth
-        : columnSizerWidth
+    const specialColumnWidth = verticalTimeAxis
+      ? timeColumnWidth
+      : labelsColumnWidth
+
+    let adjustedColumnSizerWidth = columnSizerWidth
+
+    if (columnSizerWidth !== specialColumnWidth) {
+      const difference = columnSizerWidth - specialColumnWidth
+      const increment = difference / (columnCount - 1)
+
+      adjustedColumnSizerWidth = columnSizerWidth + increment
     }
 
-    return columnSizerWidth
+    return processedLabels[index] === 'time'
+      ? specialColumnWidth
+      : adjustedColumnSizerWidth
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
@@ -321,20 +345,34 @@ class TableGraph extends Component {
     )
   }
 
+  getMultiGridRef = (r, registerChild) => {
+    this.multiGridRef = r
+    return registerChild(r)
+  }
+
   render() {
     const {
       hoveredColumnIndex,
       hoveredRowIndex,
+      timeColumnWidth,
+      labelsColumnWidth,
       sortField,
       sortDirection,
       processedData,
     } = this.state
-    const {hoverTime, tableOptions, colors} = this.props
+    const {
+      hoverTime,
+      tableOptions,
+      tableOptions: {verticalTimeAxis},
+      colors,
+    } = this.props
     const {fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT} = tableOptions
     const columnCount = _.get(processedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : processedData.length
 
-    const COLUMN_MIN_WIDTH = 98
+    const COLUMN_MIN_WIDTH = verticalTimeAxis
+      ? labelsColumnWidth
+      : timeColumnWidth
     const COLUMN_MAX_WIDTH = 1000
     const ROW_HEIGHT = 30
 
@@ -355,12 +393,13 @@ class TableGraph extends Component {
             columnMaxWidth={COLUMN_MAX_WIDTH}
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
+            timeColumnWidth={timeColumnWidth}
           >
-            {({getColumnWidth, registerChild}) => (
+            {({columnWidth, registerChild}) => (
               <MultiGrid
-                ref={registerChild}
+                ref={r => this.getMultiGridRef(r, registerChild)}
                 columnCount={columnCount}
-                columnWidth={this.calculateColumnWidth(getColumnWidth())}
+                columnWidth={this.calculateColumnWidth(columnWidth)}
                 rowCount={rowCount}
                 rowHeight={ROW_HEIGHT}
                 height={tableHeight}
@@ -379,6 +418,7 @@ class TableGraph extends Component {
                 hoverTime={hoverTime}
                 colors={colors}
                 tableOptions={tableOptions}
+                timeColumnWidth={timeColumnWidth}
                 classNameBottomRightGrid="table-graph--scroll-window"
               />
             )}
@@ -389,10 +429,9 @@ class TableGraph extends Component {
   }
 }
 
-const {arrayOf, bool, number, shape, string, func} = PropTypes
+const {arrayOf, bool, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
-  cellHeight: number,
   data: arrayOf(shape()),
   tableOptions: shape({
     timeFormat: string.isRequired,

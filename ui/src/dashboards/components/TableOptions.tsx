@@ -53,7 +53,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     return fieldNames || []
   }
 
-  get timeColumn() {
+  get timeField() {
     return (
       this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
     )
@@ -63,7 +63,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {dataLabels} = this.props
 
     return _.isEmpty(dataLabels)
-      ? [this.timeColumn]
+      ? [this.timeField]
       : dataLabels.map(label => {
           const existing = this.fieldNames.find(f => f.internalName === label)
           return (

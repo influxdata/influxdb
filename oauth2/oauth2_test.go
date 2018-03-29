@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"time"
 
 	goauth "golang.org/x/oauth2"
 
+	gojwt "github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/chronograf"
 )
 
@@ -45,6 +47,20 @@ func (mp *MockProvider) PrincipalID(provider *http.Client) (string, error) {
 	return mp.Email, nil
 }
 
+func (mp *MockProvider) PrincipalIDFromClaims(claims gojwt.MapClaims) (string, error) {
+	return mp.Email, nil
+}
+
+func (mp *MockProvider) GroupFromClaims(claims gojwt.MapClaims) (string, error) {
+	email := strings.Split(mp.Email, "@")
+	if len(email) != 2 {
+		//g.Logger.Error("malformed email address, expected %q to contain @ symbol", id)
+		return "DEFAULT", nil
+	}
+
+	return email[1], nil
+}
+
 func (mp *MockProvider) Group(provider *http.Client) (string, error) {
 	return mp.Orgs, nil
 }
@@ -74,6 +90,10 @@ func (y *YesManTokenizer) Create(ctx context.Context, p Principal) (Token, error
 
 func (y *YesManTokenizer) ExtendedPrincipal(ctx context.Context, p Principal, ext time.Duration) (Principal, error) {
 	return p, nil
+}
+
+func (y *YesManTokenizer) GetClaims(tokenString string) (gojwt.MapClaims, error) {
+	return gojwt.MapClaims{}, nil
 }
 
 func NewTestTripper(log chronograf.Logger, ts *httptest.Server, rt http.RoundTripper) (*TestTripper, error) {

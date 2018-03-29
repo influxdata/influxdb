@@ -3,7 +3,7 @@
   "info": {
     "title": "Chronograf",
     "description": "API endpoints for Chronograf",
-    "version": "1.4.2.3"
+    "version": "1.4.3.0"
   },
   "schemes": ["http"],
   "basePath": "/chronograf/v1",
@@ -3988,6 +3988,48 @@
                   }
                 }
               },
+              "tableOptions": {
+                "description":
+                  "visualization options for a cell with table type",
+                "type": "object",
+                "properties": {
+                  "timeFormat": {
+                    "description":
+                      "timeFormat describes the display format for time values according to moment.js date formatting",
+                    "type": "string"
+                  },
+                  "verticalTimeAxis": {
+                    "description":
+                      "verticalTimeAxis describes the orientation of the table by indicating whether the time axis will be displayed vertically",
+                    "type": "boolean"
+                  },
+                  "sortBy": {
+                    "description":
+                      "sortBy contains the name of the series that is used for sorting the table",
+                    "type": "object",
+                    "$ref": "#/definitions/RenamableField"
+                  },
+                  "wrapping": {
+                    "description":
+                      "wrapping describes the text wrapping style to be used in table cells",
+                    "type": "string",
+                    "enum": ["truncate", "wrap", "single-line"]
+                  },
+                  "fieldNames": {
+                    "description":
+                      "fieldNames represent the fields retrieved by the query with customization options",
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/RenamableField"
+                    }
+                  },
+                  "fixFirstColumn": {
+                    "description":
+                      "fixFirstColumn indicates whether this field should be visible on the table",
+                    "type": "boolean"
+                  }
+                }
+              },
               "links": {
                 "type": "object",
                 "properties": {
@@ -4126,6 +4168,27 @@
           "description":
             "Scale is the axis formatting scale. Supported: \"log\", \"linear\"",
           "type": "string"
+        }
+      }
+    },
+    "RenamableField": {
+      "description":
+        "renamableField describes a field that can be renamed and made visible or invisible",
+      "type": "object",
+      "properties": {
+        "internalName": {
+          "description": "internalName is the calculated name of a field",
+          "type": "string"
+        },
+        "displayName": {
+          "description":
+            "displayName is the name that a field is renamed to by the user",
+          "type": "string"
+        },
+        "visible": {
+          "description":
+            "visible indicates whether this field should be visible on the table",
+          "type": "boolean"
         }
       }
     },

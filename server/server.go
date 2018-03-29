@@ -57,6 +57,8 @@ type Server struct {
 	CannedPath    string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
 	ResourcesPath string        `long:"resources-path" description:"Path to directory of pre-canned dashboards, sources, kapacitors, and organizations (/usr/share/chronograf/resources)" env:"RESOURCES_PATH" default:"canned"`
 	TokenSecret   string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	JwksURL       string        `long:"jwks-url" description:"URL that returns OpenID Key Discovery JWKS document." env:"JWKS_URL"`
+	UseIDToken    bool          `long:"use-id-token" description:"Enable id_token processing." env:"USE_ID_TOKEN"`
 	AuthDuration  time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
@@ -144,8 +146,8 @@ func (s *Server) githubOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Orgs:         s.GithubOrgs,
 		Logger:       logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
-	ghMux := oauth2.NewAuthMux(&gh, auth, jwt, s.Basepath, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksURL)
+	ghMux := oauth2.NewAuthMux(&gh, auth, jwt, s.Basepath, logger, s.UseIDToken)
 	return &gh, ghMux, s.UseGithub
 }
 
@@ -158,8 +160,8 @@ func (s *Server) googleOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		RedirectURL:  redirectURL,
 		Logger:       logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
-	goMux := oauth2.NewAuthMux(&google, auth, jwt, s.Basepath, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksURL)
+	goMux := oauth2.NewAuthMux(&google, auth, jwt, s.Basepath, logger, s.UseIDToken)
 	return &google, goMux, s.UseGoogle
 }
 
@@ -170,8 +172,8 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Organizations: s.HerokuOrganizations,
 		Logger:        logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
-	hMux := oauth2.NewAuthMux(&heroku, auth, jwt, s.Basepath, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksURL)
+	hMux := oauth2.NewAuthMux(&heroku, auth, jwt, s.Basepath, logger, s.UseIDToken)
 	return &heroku, hMux, s.UseHeroku
 }
 
@@ -189,8 +191,8 @@ func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticato
 		APIKey:         s.GenericAPIKey,
 		Logger:         logger,
 	}
-	jwt := oauth2.NewJWT(s.TokenSecret)
-	genMux := oauth2.NewAuthMux(&gen, auth, jwt, s.Basepath, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksURL)
+	genMux := oauth2.NewAuthMux(&gen, auth, jwt, s.Basepath, logger, s.UseIDToken)
 	return &gen, genMux, s.UseGenericOAuth2
 }
 
@@ -205,8 +207,8 @@ func (s *Server) auth0OAuth(logger chronograf.Logger, auth oauth2.Authenticator)
 
 	auth0, err := oauth2.NewAuth0(s.Auth0Domain, s.Auth0ClientID, s.Auth0ClientSecret, redirectURL.String(), s.Auth0Organizations, logger)
 
-	jwt := oauth2.NewJWT(s.TokenSecret)
-	genMux := oauth2.NewAuthMux(&auth0, auth, jwt, s.Basepath, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret, s.JwksURL)
+	genMux := oauth2.NewAuthMux(&auth0, auth, jwt, s.Basepath, logger, s.UseIDToken)
 
 	if err != nil {
 		logger.Error("Error parsing Auth0 domain: err:", err)
