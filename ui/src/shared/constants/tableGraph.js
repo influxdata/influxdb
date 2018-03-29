@@ -47,6 +47,7 @@ export const calculateTimeColumnWidth = timeFormat => {
   timeFormat = _.replace(timeFormat, 'dddd', 'Wednesday')
   timeFormat = _.replace(timeFormat, 'A', 'AM')
   timeFormat = _.replace(timeFormat, 'h', '00')
+  timeFormat = _.replace(timeFormat, 'X', '1522286058')
 
   const {width} = calculateSize(timeFormat, {
     font: '"RobotoMono", monospace',
