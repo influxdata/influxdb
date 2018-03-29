@@ -39,30 +39,6 @@ describe('Componenets.Shared.ConfirmOrCancel', () => {
       expect(cancel.exists()).toBe(true)
     })
 
-    describe('reversed is true', () => {
-      it('has a confirm button to the left of the cancel button', () => {
-        const {wrapper} = setup({reversed: true})
-        const buttons = wrapper.dive().children()
-        const firstButton = buttons.first()
-        const lastButton = buttons.last()
-
-        expect(firstButton.find(Confirm).exists()).toBe(true)
-        expect(lastButton.find(Cancel).exists()).toBe(true)
-      })
-    })
-
-    describe('reversed is false', () => {
-      it('has a confirm button to the right of the cancel button', () => {
-        const {wrapper} = setup({reversed: false})
-        const buttons = wrapper.dive().children()
-        const firstButton = buttons.first()
-        const lastButton = buttons.last()
-
-        expect(firstButton.find(Cancel).exists()).toBe(true)
-        expect(lastButton.find(Confirm).exists()).toBe(true)
-      })
-    })
-
     describe('confirmTitle', () => {
       describe('is not defined', () => {
         it('has a default title', () => {
