@@ -89,7 +89,7 @@ class ProvidersTableRowNew extends PureComponent<Props, State> {
         <div className="fancytable--td provider--arrow">
           <span />
         </div>
-        <div className="fancytable--td provider--redirect deleting">
+        <div className="fancytable--td provider--redirect creating">
           <Dropdown
             items={dropdownItems}
             onChoose={this.handleChooseOrganization}
