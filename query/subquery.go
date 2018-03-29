@@ -13,49 +13,45 @@ type subqueryBuilder struct {
 
 // buildAuxIterator constructs an auxiliary Iterator from a subquery.
 func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOptions) (Iterator, error) {
-	// Retrieve a list of fields needed for conditions.
-	auxFields := opt.Aux
-	conds := influxql.ExprNames(opt.Condition)
-	if len(conds) > 0 {
-		auxFields = make([]influxql.VarRef, len(opt.Aux)+len(conds))
-		copy(auxFields, opt.Aux)
-		copy(auxFields[len(opt.Aux):], conds)
+	// Map the desired auxiliary fields from the substatement.
+	indexes, ok := b.mapAuxFields(opt.Aux)
+	if !ok {
+		// No actual fields were selected so do not waste time running the query.
+		return nil, nil
 	}
 
-	// Map the desired auxiliary fields from the substatement.
-	indexes := b.mapAuxFields(auxFields)
 	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
 		return nil, err
 	}
-	subOpt.Aux = auxFields
 
 	cur, err := buildCursor(ctx, b.stmt, b.ic, subOpt)
 	if err != nil {
 		return nil, err
 	}
 
-	// Construct the iterators for the subquery.
-	input := NewIteratorMapper(cur, nil, indexes, subOpt)
-	// If there is a condition, filter it now.
+	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		input = NewFilterIterator(input, opt.Condition, subOpt)
+		cur = newFilterCursor(cur, opt.Condition)
 	}
-	return input, nil
+
+	// Construct the iterators for the subquery.
+	return NewIteratorMapper(cur, nil, indexes, subOpt), nil
 }
 
-func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef) []IteratorMap {
-	indexes := make([]IteratorMap, len(auxFields))
+func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef) (indexes []IteratorMap, ok bool) {
+	indexes = make([]IteratorMap, len(auxFields))
 	for i, name := range auxFields {
 		m := b.mapAuxField(&name)
 		if m == nil {
 			// If this field doesn't map to anything, use the NullMap so it
 			// shows up as null.
-			m = NullMap{}
+			indexes[i] = NullMap{}
+			continue
 		}
-		indexes[i] = m
+		indexes[i], ok = m, true
 	}
-	return indexes
+	return indexes, ok
 }
 
 func (b *subqueryBuilder) mapAuxField(name *influxql.VarRef) IteratorMap {
@@ -98,38 +94,23 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 		return nil, nil
 	}
 
-	// Determine necessary auxiliary fields for this query.
-	auxFields := opt.Aux
-	conds := influxql.ExprNames(opt.Condition)
-	if len(conds) > 0 && len(opt.Aux) > 0 {
-		// Combine the auxiliary fields requested with the ones in the condition.
-		auxFields = make([]influxql.VarRef, len(opt.Aux)+len(conds))
-		copy(auxFields, opt.Aux)
-		copy(auxFields[len(opt.Aux):], conds)
-	} else if len(conds) > 0 {
-		// Set the auxiliary fields to what is in the condition since we have
-		// requested none in the query itself.
-		auxFields = conds
-	}
-
 	// Map the auxiliary fields to their index in the subquery.
-	indexes := b.mapAuxFields(auxFields)
+	indexes, _ := b.mapAuxFields(opt.Aux)
 	subOpt, err := newIteratorOptionsSubstatement(ctx, b.stmt, opt)
 	if err != nil {
 		return nil, err
 	}
-	subOpt.Aux = auxFields
 
 	cur, err := buildCursor(ctx, b.stmt, b.ic, subOpt)
 	if err != nil {
 		return nil, err
 	}
 
-	// Construct the iterators for the subquery.
-	input := NewIteratorMapper(cur, driver, indexes, subOpt)
-	// If there is a condition, filter it now.
+	// Filter the cursor by a condition if one was given.
 	if opt.Condition != nil {
-		input = NewFilterIterator(input, opt.Condition, subOpt)
+		cur = newFilterCursor(cur, opt.Condition)
 	}
-	return input, nil
+
+	// Construct the iterators for the subquery.
+	return NewIteratorMapper(cur, driver, indexes, subOpt), nil
 }

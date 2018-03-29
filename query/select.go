@@ -181,8 +181,9 @@ func (b *exprIteratorBuilder) buildVarRefIterator(ctx context.Context, expr *inf
 				input, err := subquery.buildVarRefIterator(ctx, expr, b.opt)
 				if err != nil {
 					return err
+				} else if input != nil {
+					inputs = append(inputs, input)
 				}
-				inputs = append(inputs, input)
 			}
 		}
 		return nil
@@ -667,8 +668,9 @@ func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.
 				input, err := b.buildAuxIterator(ctx, opt)
 				if err != nil {
 					return err
+				} else if input != nil {
+					inputs = append(inputs, input)
 				}
-				inputs = append(inputs, input)
 			}
 		}
 		return nil

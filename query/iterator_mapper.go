@@ -47,7 +47,12 @@ func NewIteratorMapper(cur Cursor, driver IteratorMap, fields []IteratorMap, opt
 			case influxql.Boolean:
 				return newBooleanIteratorMapper(cur, driver, fields, opt)
 			default:
-				panic(fmt.Sprintf("unable to map iterator type: %s", typ))
+				// The driver doesn't appear to to have a valid driver type.
+				// We should close the cursor and return a blank iterator.
+				// We close the cursor because we own it and have a responsibility
+				// to close it once it is passed into this function.
+				cur.Close()
+				return &nilFloatIterator{}
 			}
 		case TagMap:
 			return newStringIteratorMapper(cur, driver, fields, opt)

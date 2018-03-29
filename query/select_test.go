@@ -2738,7 +2738,7 @@ func TestSelect(t *testing.T) {
 				t.Fatal("expected error")
 			} else if a, err := ReadCursor(cur); err != nil {
 				t.Fatalf("unexpected point: %s", err)
-			} else if diff := cmp.Diff(a, tt.rows); diff != "" {
+			} else if diff := cmp.Diff(tt.rows, a); diff != "" {
 				t.Fatalf("unexpected points:\n%s", diff)
 			}
 		})
@@ -2790,7 +2790,7 @@ func TestSelect_Raw(t *testing.T) {
 		t.Errorf("parse error: %s", err)
 	} else if a, err := ReadCursor(cur); err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, []query.Row{
+	} else if diff := cmp.Diff([]query.Row{
 		{
 			Time: 0 * Second,
 			Series: query.Series{
@@ -2812,7 +2812,7 @@ func TestSelect_Raw(t *testing.T) {
 			},
 			Values: []interface{}{float64(19), int64(19), uint64(19), "c", true},
 		},
-	}); diff != "" {
+	}, a); diff != "" {
 		t.Errorf("unexpected points:\n%s", diff)
 	}
 }
@@ -3701,7 +3701,7 @@ func TestSelect_BinaryExpr(t *testing.T) {
 				t.Fatalf("%s: expected error", test.Name)
 			} else if a, err := ReadCursor(cur); err != nil {
 				t.Fatalf("%s: unexpected error: %s", test.Name, err)
-			} else if diff := cmp.Diff(a, test.Rows); diff != "" {
+			} else if diff := cmp.Diff(test.Rows, a); diff != "" {
 				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
 			}
 		})
@@ -3779,7 +3779,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := ReadCursor(cur); err != nil {
 				t.Fatalf("%s: unexpected error: %s", test.Name, err)
-			} else if diff := cmp.Diff(a, test.Rows); diff != "" {
+			} else if diff := cmp.Diff(test.Rows, a); diff != "" {
 				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
 			}
 		})
@@ -3861,7 +3861,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := ReadCursor(cur); err != nil {
 				t.Fatalf("%s: unexpected error: %s", test.Name, err)
-			} else if diff := cmp.Diff(a, test.Rows); diff != "" {
+			} else if diff := cmp.Diff(test.Rows, a); diff != "" {
 				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
 			}
 		})
