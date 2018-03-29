@@ -28,22 +28,35 @@ $tvmp-table-gutter: 8px;
   }
 }
 .template-variable-manager--body {
-  padding: 18px ($tvmp-gutter - $tvmp-table-gutter) $tvmp-gutter ($tvmp-gutter - $tvmp-table-gutter);
+  padding: 18px ($tvmp-gutter - $tvmp-table-gutter) $tvmp-gutter
+    ($tvmp-gutter - $tvmp-table-gutter);
   border-radius: 0 0 $radius $radius;
   min-height: $tvmp-min-height;
   max-height: $tvmp-max-height;
-  @include gradient-v($g2-kevlar,$g0-obsidian);
-  @include custom-scrollbar-round($g0-obsidian,$g3-castle);
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+  @include custom-scrollbar-round($g0-obsidian, $g3-castle);
 }
 .template-variable-manager--table,
 .template-variable-manager--table-container {
   width: 100%;
 }
 /* Column Widths */
-.tvm--col-1 {flex: 0 0 140px;}
-.tvm--col-2 {flex: 0 0 140px;}
-.tvm--col-3 {flex: 1 0 0;}
-.tvm--col-4 {flex: 0 0 68px;}
+.tvm--col-1 {
+  flex: 0 0 140px;
+}
+.tvm--col-2 {
+  flex: 0 0 140px;
+}
+.tvm--col-3 {
+  flex: 1 0 0;
+}
+.tvm--col-4 {
+  flex: 0 0 30px;
+
+  &.editing {
+    flex: 0 0 68px;
+  }
+}
 
 /* Table Column Labels */
 .template-variable-manager--table-heading {
@@ -61,7 +74,9 @@ $tvmp-table-gutter: 8px;
     @include no-user-select();
     padding-left: 6px;
     margin-right: $tvmp-table-gutter;
-    &:last-child {margin-right: 0;}
+    &:last-child {
+      margin-right: 0;
+    }
   }
 }
 
@@ -84,7 +99,9 @@ $tvmp-table-gutter: 8px;
 
   > * {
     margin-right: $tvmp-table-gutter;
-    &:last-child {margin-right: 0;}
+    &:last-child {
+      margin-right: 0;
+    }
   }
 }
 
@@ -110,8 +127,7 @@ $tvmp-table-gutter: 8px;
   border: 2px solid $g5-pepper;
   background-color: $g2-kevlar;
   overflow: hidden;
-  transition:
-    border-color 0.25s ease;
+  transition: border-color 0.25s ease;
 
   &:hover {
     cursor: text;
@@ -167,12 +183,16 @@ $tvmp-table-gutter: 8px;
     margin-bottom: 2px;
     margin-right: 2px;
   }
-  > *:last-child {margin-right: 0;}
+  > *:last-child {
+    margin-right: 0;
+  }
 
   .dropdown {
-    flex: 1 0 0%;
+    flex: 1 0 0;
 
-    & > .dropdown-toggle {width: 100%;}
+    & > .dropdown-toggle {
+      width: 100%;
+    }
   }
 }
 .tvm-query-builder--text {
@@ -188,29 +208,13 @@ $tvmp-table-gutter: 8px;
   font-weight: 600;
   font-family: $code-font;
 }
+
 .tvm-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
 
-  .btn-edit {
-    order: 1;
-  }
-
-  > .btn:first-child {
+  & > .btn:nth-child(2) {
     margin-left: $tvmp-table-gutter;
-  }
-
-  /* Override confirm buttons styles */
-  /* Janky, but doing this quick & dirty for now  */
-  .btn-danger {
-    order: 2;
-  }
-  .confirm-or-cancel > .btn {
-    margin-left: $tvmp-table-gutter !important;
-  }
-  /* Hide the edit button when confirming a delete */
-  .confirm-or-cancel + .btn-edit {
-    display: none;
   }
 }
