@@ -1,5 +1,4 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
 
@@ -13,54 +12,63 @@ import {
   NavListItem,
 } from 'src/side_nav/components/NavItems'
 
-import {DEFAULT_HOME_PAGE} from 'shared/constants'
+import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
 
-const {arrayOf, bool, shape, string} = PropTypes
+interface Params {
+  sourceID: string
+}
 
-const SideNav = React.createClass({
-  propTypes: {
-    params: shape({
-      sourceID: string.isRequired,
-    }).isRequired,
-    location: shape({
-      pathname: string.isRequired,
-    }).isRequired,
-    isHidden: bool.isRequired,
-    isUsingAuth: bool,
-    logoutLink: string,
-    links: shape({
-      me: string,
-      external: shape({
-        custom: arrayOf(
-          shape({
-            name: string.isRequired,
-            url: string.isRequired,
-          })
-        ),
-      }),
-    }),
-    me: shape({
-      currentOrganization: shape({
-        id: string.isRequired,
-        name: string.isRequired,
-      }),
-      name: string,
-      organizations: arrayOf(
-        shape({
-          id: string.isRequired,
-          name: string.isRequired,
-        })
-      ),
-      roles: arrayOf(
-        shape({
-          id: string,
-          name: string,
-        })
-      ),
-    }),
-  },
+interface Location {
+  pathname: string
+}
 
-  render() {
+interface ExternalLink {
+  name: string
+  url: string
+}
+
+interface ExternalLinks {
+  custom: ExternalLink[]
+}
+
+interface Links {
+  me?: string
+  external?: ExternalLinks
+}
+
+interface Organization {
+  id: string
+  name: string
+}
+
+interface Role {
+  id: string
+  name: string
+}
+
+interface Me {
+  name: string
+  currentOrganization: Organization
+  organizations: Organization[]
+  role: Role[]
+}
+
+interface Props {
+  params: Params
+  location: Location
+  isHidden?: boolean
+  isUsingAuth?: boolean
+  logoutLink?: string
+  links?: Links
+  me: Me
+}
+
+class SideNav extends PureComponent<Props> {
+  constructor(props) {
+    super(props)
+  }
+
+  public render() {
     const {
       params: {sourceID},
       location: {pathname: location},
@@ -172,8 +180,9 @@ const SideNav = React.createClass({
         ) : null}
       </NavBar>
     )
-  },
-})
+  }
+}
+
 const mapStateToProps = ({
   auth: {isUsingAuth, logoutLink, me},
   app: {ephemeral: {inPresentationMode}},
