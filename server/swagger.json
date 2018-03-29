@@ -439,7 +439,7 @@
           "200": {
             "description": "Listing of all users",
             "schema": {
-              "$ref": "#/definitions/Users"
+              "$ref": "#/definitions/InfluxDB-Users"
             }
           },
           "404": {
@@ -472,7 +472,7 @@
             "in": "body",
             "description": "Configuration options for new user",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           }
         ],
@@ -487,7 +487,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           },
           "404": {
@@ -530,7 +530,7 @@
           "200": {
             "description": "Information relating to the user",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           },
           "404": {
@@ -572,7 +572,7 @@
             "in": "body",
             "description": "user configuration",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             },
             "required": true
           }
@@ -581,7 +581,7 @@
           "200": {
             "description": "Users's configuration was changed",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           },
           "404": {
@@ -655,7 +655,7 @@
           "200": {
             "description": "Listing of all roles",
             "schema": {
-              "$ref": "#/definitions/Roles"
+              "$ref": "#/definitions/InfluxDB-Roles"
             }
           },
           "404": {
@@ -688,7 +688,7 @@
             "in": "body",
             "description": "Configuration options for new role",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           }
         ],
@@ -703,7 +703,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           },
           "404": {
@@ -746,7 +746,7 @@
           "200": {
             "description": "Information relating to the role",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           },
           "404": {
@@ -786,7 +786,7 @@
             "in": "body",
             "description": "role configuration",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             },
             "required": true
           }
@@ -795,7 +795,7 @@
           "200": {
             "description": "Roles's configuration was changed",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           },
           "404": {
@@ -3922,10 +3922,10 @@
         }
       }
     },
-    "Roles": {
+    "InfluxDB-Roles": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Role"
+        "$ref": "#/definitions/InfluxDB-Role"
       },
       "example": {
         "roles": [
@@ -3953,7 +3953,7 @@
         ]
       }
     },
-    "Role": {
+    "InfluxDB-Role": {
       "type": "object",
       "required": ["name"],
       "properties": {
@@ -3964,10 +3964,10 @@
           "minLength": 1
         },
         "users": {
-          "$ref": "#/definitions/Users"
+          "$ref": "#/definitions/InfluxDB-Users"
         },
         "permissions": {
-          "$ref": "#/definitions/Permissions"
+          "$ref": "#/definitions/InfluxDB-Permissions"
         },
         "links": {
           "type": "object",
@@ -4003,13 +4003,13 @@
         }
       }
     },
-    "Users": {
+    "InfluxDB-Users": {
       "type": "object",
       "properties": {
         "users": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/User"
+            "$ref": "#/definitions/InfluxDB-User"
           }
         }
       },
@@ -4060,7 +4060,7 @@
         ]
       }
     },
-    "User": {
+    "InfluxDB-User": {
       "type": "object",
       "properties": {
         "name": {
@@ -4073,10 +4073,10 @@
           "type": "string"
         },
         "permissions": {
-          "$ref": "#/definitions/Permissions"
+          "$ref": "#/definitions/InfluxDB-Permissions"
         },
         "roles": {
-          "$ref": "#/definitions/Roles"
+          "$ref": "#/definitions/InfluxDB-Roles"
         },
         "links": {
           "type": "object",
@@ -4133,17 +4133,17 @@
         }
       }
     },
-    "Permissions": {
+    "InfluxDB-Permissions": {
       "description":
-        "Permissions represent the entire set of permissions a User or Role may have",
+        "Permissions represent the entire set of permissions a InfluxDB User or InfluxDB Role may have",
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Permission"
+        "$ref": "#/definitions/InfluxDB-Permission"
       }
     },
-    "Permission": {
+    "InfluxDB-Permission": {
       "description":
-        "Permission is a specific allowance for User or Role bound to a scope of the data source",
+        "Permission is a specific allowance for InfluxDB User or InfluxDB Role bound to a scope of the data source",
       "type": "object",
       "required": ["scope", "allowed"],
       "properties": {
@@ -4159,7 +4159,7 @@
             "If the scope is database this identifies the name of the database"
         },
         "allowed": {
-          "$ref": "#/definitions/Allowances"
+          "$ref": "#/definitions/InfluxDB-Allowances"
         }
       },
       "example": {
@@ -4174,7 +4174,7 @@
       "type": "object",
       "properties": {
         "permissions": {
-          "$ref": "#/definitions/Permissions"
+          "$ref": "#/definitions/InfluxDB-Permissions"
         },
         "links": {
           "type": "object",
@@ -4193,7 +4193,7 @@
         }
       }
     },
-    "Allowances": {
+    "InfluxDB-Allowances": {
       "description":
         "Allowances defines what actions a user can have on a scoped permission",
       "type": "array",
