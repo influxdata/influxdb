@@ -2260,7 +2260,7 @@
     },
     "/organizations": {
       "get": {
-        "tags": ["organizations", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary": "Retrieve all organizations",
         "description":
           "Organizations are groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
@@ -2292,7 +2292,7 @@
         }
       },
       "post": {
-        "tags": ["organizations", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary": "Create new organization",
         "parameters": [
           {
@@ -2349,7 +2349,7 @@
     },
     "/organizations/{id}": {
       "get": {
-        "tags": ["organizations", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "parameters": [
           {
             "name": "id",
@@ -2390,7 +2390,7 @@
         }
       },
       "patch": {
-        "tags": ["organizations", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary": "Update existing organization",
         "parameters": [
           {
@@ -2452,7 +2452,7 @@
         }
       },
       "delete": {
-        "tags": ["organizations", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary": "Delete organization",
         "parameters": [
           {
@@ -2496,7 +2496,7 @@
     },
     "/users": {
       "get": {
-        "tags": ["users", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary":
           "Retrieve all Chronograf users within the current organization",
         "description":
@@ -2529,7 +2529,7 @@
         }
       },
       "post": {
-        "tags": ["users", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary": "Create new user",
         "parameters": [
           {
@@ -2591,7 +2591,7 @@
     },
     "/users/{id}": {
       "get": {
-        "tags": ["users", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "parameters": [
           {
             "name": "id",
@@ -2633,7 +2633,7 @@
         }
       },
       "patch": {
-        "tags": ["users", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary": "Update existing user",
         "parameters": [
           {
@@ -2707,7 +2707,7 @@
         }
       },
       "delete": {
-        "tags": ["users", "multiorganization", "multiuser"],
+        "tags": ["organizations", "users"],
         "summary": "Delete user",
         "parameters": [
           {
