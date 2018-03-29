@@ -2507,7 +2507,7 @@
           "200": {
             "description": "Successfully retrieved all users from the store",
             "schema": {
-              "$ref": "#/definitions/Users-Chronograf"
+              "$ref": "#/definitions/Users"
             }
           },
           "400": {
@@ -2540,7 +2540,7 @@
             "in": "body",
             "description": "User to create",
             "schema": {
-              "$ref": "#/definitions/User-Chronograf"
+              "$ref": "#/definitions/User"
             }
           }
         ],
@@ -2555,7 +2555,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/User-Chronograf"
+              "$ref": "#/definitions/User"
             }
           },
           "400": {
@@ -2610,7 +2610,7 @@
           "200": {
             "description": "An User object",
             "schema": {
-              "$ref": "#/definitions/User-Chronograf"
+              "$ref": "#/definitions/User"
             }
           },
           "400": {
@@ -2651,7 +2651,7 @@
             "in": "body",
             "description": "Updated user",
             "schema": {
-              "$ref": "#/definitions/User-Chronograf"
+              "$ref": "#/definitions/User"
             },
             "required": true
           }
@@ -2667,7 +2667,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/User-Chronograf"
+              "$ref": "#/definitions/User"
             }
           },
           "400": {
@@ -2822,7 +2822,7 @@
         }
       }
     },
-    "User-Chronograf": {
+    "User": {
       "type": "object",
       "description":
         "A Chronograf user with role-based access-control to an organization's resources.",
@@ -2857,7 +2857,7 @@
         "roles": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Role-Chronograf"
+            "$ref": "#/definitions/Role"
           }
         },
         "scheme": {
@@ -2888,7 +2888,7 @@
         "superAdmin": false
       }
     },
-    "Users-Chronograf": {
+    "Users": {
       "type": "object",
       "required": ["users"],
       "properties": {
@@ -2905,12 +2905,12 @@
         "users": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/User-Chronograf"
+            "$ref": "#/definitions/User"
           }
         }
       }
     },
-    "Role-Chronograf": {
+    "Role": {
       "type": "object",
       "properties": {
         "name": {
