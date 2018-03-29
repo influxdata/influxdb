@@ -207,7 +207,7 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 			cmd.Logger.Info("series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 		}
 
-		if err := tsiIndex.CreateSeriesIfNotExists(nil, []byte(name), tags); err != nil {
+		if err := tsiIndex.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
 			return fmt.Errorf("cannot create series: %s %s (%s)", name, tags.String(), err)
 		}
 	}
@@ -251,7 +251,7 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string) error {
 			cmd.Logger.Info("series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 		}
 
-		if err := index.CreateSeriesIfNotExists(nil, []byte(name), tags); err != nil {
+		if err := index.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
 			return fmt.Errorf("cannot create series: %s %s (%s)", name, tags.String(), err)
 		}
 	}
