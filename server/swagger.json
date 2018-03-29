@@ -2262,17 +2262,17 @@
       "get": {
         "tags": ["organizations", "users"],
         "summary": "Retrieve all organizations",
-        "description":
-          "Organizations are groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
+        "description": "Returns all organizations from the store",
         "responses": {
           "200": {
-            "description": "An object with links and an array of organizations",
+            "description":
+              "Successfully retrieved all organizations from the store",
             "schema": {
               "$ref": "#/definitions/Organizations"
             }
           },
           "400": {
-            "description": "Failed to load organizations from store",
+            "description": "Failed to retrieve organizations from store",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2294,6 +2294,7 @@
       "post": {
         "tags": ["organizations", "users"],
         "summary": "Create new organization",
+        "description": "Creates a Chronograf organization in the store",
         "parameters": [
           {
             "name": "organization",
@@ -2360,8 +2361,7 @@
           }
         ],
         "summary": "Retrieve a specific organization",
-        "description":
-          "Organizations are groups of users with various role-based access-control. They are created by SuperAdmins and managed by Admins.",
+        "description": "Returns a specific organization from the store",
         "responses": {
           "200": {
             "description": "An Organization object",
@@ -2392,6 +2392,7 @@
       "patch": {
         "tags": ["organizations", "users"],
         "summary": "Update existing organization",
+        "description": "Updates a Chronograf organization in the store",
         "parameters": [
           {
             "name": "id",
@@ -2454,6 +2455,7 @@
       "delete": {
         "tags": ["organizations", "users"],
         "summary": "Delete organization",
+        "description": "Deletes a Chronograf organization in the store",
         "parameters": [
           {
             "name": "id",
@@ -2500,10 +2502,10 @@
         "summary":
           "Retrieve all Chronograf users within the current organization",
         "description":
-          "Users have role-based access-control to an organization's resources. They are created by SuperAdmins and Admins.",
+          "Returns all Chronograf users within the current organization from the store",
         "responses": {
           "200": {
-            "description": "An object with links and an array of users",
+            "description": "Successfully retrieved all users from the store",
             "schema": {
               "$ref": "#/definitions/Users-Chronograf"
             }
@@ -2531,6 +2533,7 @@
       "post": {
         "tags": ["organizations", "users"],
         "summary": "Create new user",
+        "description": "Creates a Chronograf user in the store",
         "parameters": [
           {
             "name": "user",
@@ -2602,8 +2605,7 @@
           }
         ],
         "summary": "Retrieve a specific user",
-        "description":
-          "Users have role-based access-control to an organization's resources",
+        "description": "Returns a specific user from the store",
         "responses": {
           "200": {
             "description": "An User object",
@@ -2635,6 +2637,7 @@
       "patch": {
         "tags": ["organizations", "users"],
         "summary": "Update existing user",
+        "description": "Updates a Chronograf user in the store",
         "parameters": [
           {
             "name": "id",
@@ -2709,6 +2712,7 @@
       "delete": {
         "tags": ["organizations", "users"],
         "summary": "Delete user",
+        "description": "Deletes a Chronograf user in the store",
         "parameters": [
           {
             "name": "id",
@@ -2754,7 +2758,8 @@
   "definitions": {
     "Organization": {
       "type": "object",
-      "description": "A group of users with various role-based access-control.",
+      "description":
+        "A group of Chronograf users with various role-based access-control.",
       "properties": {
         "defaultRole": {
           "type": "string"
