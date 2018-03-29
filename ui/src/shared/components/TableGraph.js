@@ -40,7 +40,7 @@ class TableGraph extends Component {
       labelsColumnWidth: calculateLabelsColumnWidth(props.data.labels),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
-      sortField: 'time',
+      sortField: TIME_FIELD_DEFAULT.internalName,
       sortDirection: DEFAULT_SORT,
     }
   }
@@ -77,7 +77,7 @@ class TableGraph extends Component {
     if (
       _.isEmpty(sortField) ||
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
-        _.get(nextProps, ['tableOptions', 'sortBy', 'internalName'], '')
+        internalName
     ) {
       direction = DEFAULT_SORT
       sortFieldName = internalName
@@ -98,6 +98,11 @@ class TableGraph extends Component {
       ? processedData[0]
       : processedData.map(row => row[0])
 
+    const labelsColumnWidth = calculateLabelsColumnWidth(
+      processedLabels,
+      fieldNames
+    )
+
     this.setState({
       data,
       labels,
@@ -105,10 +110,7 @@ class TableGraph extends Component {
       sortedTimeVals,
       sortField: sortFieldName,
       sortDirection: direction,
-      labelsColumnWidth: calculateLabelsColumnWidth(
-        processedLabels,
-        fieldNames
-      ),
+      labelsColumnWidth,
     })
   }
 
@@ -352,6 +354,7 @@ class TableGraph extends Component {
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
     const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
+
     return (
       <div
         className="table-graph-container"
