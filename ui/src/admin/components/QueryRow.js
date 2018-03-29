@@ -1,7 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
 
 class QueryRow extends Component {
@@ -50,7 +50,7 @@ class QueryRow extends Component {
           className="text-right"
         >
           {this.state.confirmingKill ? (
-            <ConfirmButtons
+            <ConfirmOrCancel
               onConfirm={this.handleFinishHim}
               onCancel={this.handleShowMercy}
               buttonSize="btn-xs"

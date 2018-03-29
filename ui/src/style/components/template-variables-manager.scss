@@ -206,11 +206,11 @@ $tvmp-table-gutter: 8px;
   .btn-danger {
     order: 2;
   }
-  .confirm-buttons > .btn {
+  .confirm-or-cancel > .btn {
     margin-left: $tvmp-table-gutter !important;
   }
   /* Hide the edit button when confirming a delete */
-  .confirm-buttons + .btn-edit {
+  .confirm-or-cancel + .btn-edit {
     display: none;
   }
 }

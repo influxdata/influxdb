@@ -1,7 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import Dropdown from 'shared/components/Dropdown'
 
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
@@ -82,7 +82,7 @@ class OrganizationsTableRowNew extends Component {
             className="dropdown-stretch"
           />
         </div>
-        <ConfirmButtons
+        <ConfirmOrCancel
           disabled={isSaveDisabled}
           onCancel={onCancelCreateOrganization}
           onConfirm={this.handleClickSave}

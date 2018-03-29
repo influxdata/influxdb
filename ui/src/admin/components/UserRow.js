@@ -7,7 +7,7 @@ import classnames from 'classnames'
 import UserEditName from 'src/admin/components/UserEditName'
 import UserNewPassword from 'src/admin/components/UserNewPassword'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 import ChangePassRow from 'src/admin/components/ChangePassRow'
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
@@ -62,7 +62,7 @@ const UserRow = ({
           className="text-right"
           style={{width: `${USERS_TABLE.colDelete}px`}}
         >
-          <ConfirmButtons
+          <ConfirmOrCancel
             item={user}
             onConfirm={onSave}
             onCancel={onCancel}

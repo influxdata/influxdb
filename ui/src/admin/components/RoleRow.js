@@ -6,7 +6,7 @@ import classnames from 'classnames'
 
 import RoleEditingRow from 'src/admin/components/RoleEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 import {ROLES_TABLE} from 'src/admin/constants/tableSizing'
 
@@ -51,7 +51,7 @@ const RoleRow = ({
           className="text-right"
           style={{width: `${ROLES_TABLE.colDelete}px`}}
         >
-          <ConfirmButtons
+          <ConfirmOrCancel
             item={role}
             onConfirm={onSave}
             onCancel={onCancel}

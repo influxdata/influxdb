@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 
-import ConfirmButtons from 'src/shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import Dropdown from 'src/shared/components/Dropdown'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
@@ -97,7 +97,7 @@ class ProvidersTableRowNew extends PureComponent<Props, State> {
             className="dropdown-stretch"
           />
         </div>
-        <ConfirmButtons
+        <ConfirmOrCancel
           onCancel={onCancel}
           onConfirm={this.handleSaveNewMapping}
           isDisabled={preventCreate}

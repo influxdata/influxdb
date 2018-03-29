@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 
 const DeleteButton = ({
   onClickDelete,
@@ -65,7 +65,7 @@ class DeleteConfirmButtons extends Component {
     }
 
     return isConfirming ? (
-      <ConfirmButtons
+      <ConfirmOrCancel
         onConfirm={onDelete}
         item={item}
         onCancel={this.handleCancel}

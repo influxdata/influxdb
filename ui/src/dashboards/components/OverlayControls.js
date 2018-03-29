@@ -2,7 +2,7 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
 
 const OverlayControls = ({
@@ -44,7 +44,7 @@ const OverlayControls = ({
       </li>
     </ul>
     <div className="overlay-controls--right">
-      <ConfirmButtons
+      <ConfirmOrCancel
         onCancel={onCancel}
         onConfirm={onSave}
         isDisabled={!isSavable}

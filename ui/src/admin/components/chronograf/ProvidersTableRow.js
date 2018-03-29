@@ -1,7 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import Dropdown from 'shared/components/Dropdown'
 import InputClickToEdit from 'shared/components/InputClickToEdit'
 
@@ -107,7 +107,7 @@ class ProvidersTableRow extends Component {
           />
         </div>
         {isDeleting ? (
-          <ConfirmButtons
+          <ConfirmOrCancel
             item={mapping}
             onCancel={this.handleDismissDeleteConfirmation}
             onConfirm={this.handleDeleteMap}

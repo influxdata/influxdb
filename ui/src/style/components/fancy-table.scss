@@ -12,7 +12,7 @@ $fancytable--table--margin: 4px;
   flex-wrap: nowrap;
   align-items: center;
 
-  > div:not(.confirm-buttons) {
+  > div:not(.confirm-or-cancel) {
     margin-right: $fancytable--table--margin;
   }
 }

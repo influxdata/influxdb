@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter} from 'react-router'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import Dropdown from 'shared/components/Dropdown'
 import InputClickToEdit from 'shared/components/InputClickToEdit'
 
@@ -110,7 +110,7 @@ class OrganizationsTableRow extends Component {
           />
         </div>
         {isDeleting ? (
-          <ConfirmButtons
+          <ConfirmOrCancel
             item={organization}
             onCancel={this.handleDismissDeleteConfirmation}
             onConfirm={this.handleDeleteOrg}
