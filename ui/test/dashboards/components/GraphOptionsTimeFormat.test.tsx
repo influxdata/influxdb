@@ -6,7 +6,10 @@ import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFo
 import {Dropdown} from 'src/shared/components/Dropdown'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
-import {TIME_FORMAT_CUSTOM} from 'src/shared/constants/tableGraph'
+import {
+  TIME_FORMAT_CUSTOM,
+  TIME_FORMAT_TOOLTIP_LINK,
+} from 'src/shared/constants/tableGraph'
 
 const setup = (override = {}) => {
   const props = {
@@ -36,8 +39,14 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
 
         wrapper.setState({customFormat: true})
 
+        const label = wrapper.find('label')
+        const link = label.find('a')
+
         expect(wrapper.find(Dropdown).exists()).toBe(true)
-        expect(wrapper.find(QuestionMarkTooltip).exists()).toBe(true)
+        expect(label.exists()).toBe(true)
+        expect(link.exists()).toBe(true)
+        expect(link.prop('href')).toBe(TIME_FORMAT_TOOLTIP_LINK)
+        expect(link.find(QuestionMarkTooltip).exists()).toBe(true)
         expect(wrapper.find(InputClickToEdit).exists()).toBe(true)
       })
     })
@@ -48,10 +57,14 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
         const wrapper = setup({timeFormat})
         const dropdown = wrapper.find(Dropdown)
         const input = wrapper.find(InputClickToEdit)
+        const label = wrapper.find('label')
+        const link = label.find('a')
 
         expect(dropdown.prop('selected')).toBe(TIME_FORMAT_CUSTOM)
         expect(input.exists()).toBe(true)
         expect(input.prop('value')).toBe(timeFormat)
+        expect(link.exists()).toBe(true)
+        expect(link.find(QuestionMarkTooltip).exists()).toBe(true)
       })
     })
   })
@@ -68,7 +81,7 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
       })
 
       describe('when input is not custom', () => {
-        it('sets the state custom format to false', () => {
+        it('sets the state custom format to false and calls onTimeFormatChange', () => {
           const onTimeFormatChange = jest.fn()
           const instance = setup({
             onTimeFormatChange,
@@ -79,6 +92,21 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
           expect(onTimeFormatChange).toBeCalledWith('blah')
           expect(onTimeFormatChange).toHaveBeenCalledTimes(1)
         })
+      })
+    })
+
+    describe('#handleChangeFormat', () => {
+      it('sets state format to format and calls onTimeFormatChange', () => {
+        const onTimeFormatChange = jest.fn()
+        const format = 'mmmmmm'
+        const instance = setup({
+          onTimeFormatChange,
+        }).instance() as GraphOptionsTimeFormat
+
+        instance.handleChangeFormat(format)
+        expect(instance.state.format).toBe(format)
+        expect(onTimeFormatChange).toBeCalledWith(format)
+        expect(onTimeFormatChange).toHaveBeenCalledTimes(1)
       })
     })
   })

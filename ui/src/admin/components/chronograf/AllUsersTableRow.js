@@ -1,6 +1,5 @@
 import React from 'react'
 import PropTypes from 'prop-types'
-import _ from 'lodash'
 
 import Tags from 'shared/components/Tags'
 import SlideToggle from 'shared/components/SlideToggle'
@@ -38,7 +37,9 @@ const AllUsersTableRow = ({
     name: organizations.find(o => r.organization === o.id).name,
   }))
 
-  const wrappedDelete = _.curry(onDelete, user)
+  const wrappedDelete = () => {
+    onDelete(user)
+  }
 
   const removeWarning = userIsMe
     ? 'Delete your user record\nand log yourself out?'

@@ -28,6 +28,8 @@ import {
   hideCellEditorOverlay,
 } from 'src/dashboards/actions/cellEditorOverlay'
 
+import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
+
 import {
   setAutoRefresh,
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
@@ -78,10 +80,8 @@ class DashboardPage extends Component {
       timeRange,
     } = this.props
 
-    getAnnotationsAsync(
-      source.links.annotations,
-      Date.now() - timeRange.seconds * 1000
-    )
+    const annotationRange = this.millisecondTimeRange(timeRange)
+    getAnnotationsAsync(source.links.annotations, annotationRange)
     window.addEventListener('resize', this.handleWindowResize, true)
 
     const dashboards = await getDashboardsAsync()
@@ -107,8 +107,9 @@ class DashboardPage extends Component {
     this.setState({windowHeight: window.innerHeight})
   }
 
-  componentWillUnMount() {
+  componentWillUnmount() {
     window.removeEventListener('resize', this.handleWindowResize, true)
+    this.props.handleDismissEditingAnnotation()
   }
 
   inView = cell => {
@@ -159,10 +160,25 @@ class DashboardPage extends Component {
       ...timeRange,
       format: FORMAT_INFLUXQL,
     })
-    getAnnotationsAsync(
-      source.links.annotations,
-      Date.now() - timeRange.seconds * 1000
-    )
+
+    const annotationRange = this.millisecondTimeRange(timeRange)
+    getAnnotationsAsync(source.links.annotations, annotationRange)
+  }
+
+  millisecondTimeRange({seconds, lower, upper}) {
+    // Is this a relative time range?
+    if (seconds) {
+      return {
+        since: Date.now() - seconds * 1000,
+        until: null,
+      }
+    }
+
+    // No, this is an absolute (custom) time range
+    return {
+      since: Date.parse(lower),
+      until: Date.parse(upper),
+    }
   }
 
   handleUpdatePosition = cells => {
@@ -513,6 +529,7 @@ DashboardPage.propTypes = {
   getAnnotationsAsync: func.isRequired,
   handleShowCellEditorOverlay: func.isRequired,
   handleHideCellEditorOverlay: func.isRequired,
+  handleDismissEditingAnnotation: func.isRequired,
   selectedCell: shape({}),
   thresholdsListType: string.isRequired,
   thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
@@ -590,6 +607,10 @@ const mapDispatchToProps = dispatch => ({
   ),
   handleHideCellEditorOverlay: bindActionCreators(
     hideCellEditorOverlay,
+    dispatch
+  ),
+  handleDismissEditingAnnotation: bindActionCreators(
+    dismissEditingAnnotation,
     dispatch
   ),
 })

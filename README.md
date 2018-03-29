@@ -136,7 +136,7 @@ option.
 ## Versions
 
 The most recent version of Chronograf is
-[v1.4.2.3](https://www.influxdata.com/downloads/).
+[v1.4.3.0](https://www.influxdata.com/downloads/).
 
 Spotted a bug or have a feature request? Please open
 [an issue](https://github.com/influxdata/chronograf/issues/new)!
@@ -178,7 +178,7 @@ By default, chronograf runs on port `8888`.
 To get started right away with Docker, you can pull down our latest release:
 
 ```sh
-docker pull chronograf:1.4.2.3
+docker pull chronograf:1.4.3.0
 ```
 
 ### From Source
@@ -191,10 +191,16 @@ docker pull chronograf:1.4.2.3
 1. [Install Node and NPM](https://nodejs.org/en/download/)
 1. [Install yarn](https://yarnpkg.com/docs/install)
 1. [Setup your GOPATH](https://golang.org/doc/code.html#GOPATH)
-1. Run `go get github.com/influxdata/chronograf`
-1. Run `cd $GOPATH/src/github.com/influxdata/chronograf`
-1. Run `make`
-1. To install run `go install github.com/influxdata/chronograf/cmd/chronograf`
+1. Build the Chronograf package:
+    ```bash
+    go get github.com/influxdata/chronograf
+    cd $GOPATH/src/github.com/influxdata/chronograf
+    make
+    ```
+1. Install the newly built Chronograf package:
+    ```bash
+    go install github.com/influxdata/chronograf/cmd/chronograf
+    ```
 
 ## Documentation
 

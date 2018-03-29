@@ -5,8 +5,11 @@ export const NULL_ARRAY_INDEX = -1
 
 export const NULL_HOVER_TIME = '0'
 
-export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.ss'
+export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss.SS'
 export const TIME_FORMAT_CUSTOM = 'Custom'
+
+export const TIME_FORMAT_TOOLTIP_LINK =
+  'http://momentjs.com/docs/#/parsing/string-format/'
 
 export const TIME_FIELD_DEFAULT = {
   internalName: 'time',
@@ -50,6 +53,38 @@ export const calculateTimeColumnWidth = timeFormat => {
   timeFormat = _.replace(timeFormat, 'h', '00')
 
   const {width} = calculateSize(timeFormat, {
+    font: '"RobotoMono", monospace',
+    fontSize: '13px',
+    fontWeight: 'bold',
+  })
+
+  return width + CELL_HORIZONTAL_PADDING
+}
+
+export const calculateLabelsColumnWidth = (labels, fieldNames) => {
+  if (!labels) {
+    return
+  }
+  if (fieldNames.length === 1) {
+    const longestLabel = labels.reduce((a, b) => (a.length > b.length ? a : b))
+    const {width} = calculateSize(longestLabel, {
+      font: '"RobotoMono", monospace',
+      fontSize: '13px',
+      fontWeight: 'bold',
+    })
+
+    return width + CELL_HORIZONTAL_PADDING
+  }
+
+  const longestFieldName = fieldNames
+    .map(fieldName => {
+      return fieldName.displayName
+        ? fieldName.displayName
+        : fieldName.internalName
+    })
+    .reduce((a, b) => (a.length > b.length ? a : b))
+
+  const {width} = calculateSize(longestFieldName, {
     font: '"RobotoMono", monospace',
     fontSize: '13px',
     fontWeight: 'bold',

@@ -63,8 +63,11 @@ export const addAnnotationAsync = (createUrl, annotation) => async dispatch => {
   dispatch(deleteAnnotation(annotation))
 }
 
-export const getAnnotationsAsync = (indexUrl, since) => async dispatch => {
-  const annotations = await api.getAnnotations(indexUrl, since)
+export const getAnnotationsAsync = (
+  indexUrl,
+  {since, until}
+) => async dispatch => {
+  const annotations = await api.getAnnotations(indexUrl, since, until)
   dispatch(loadAnnotations(annotations))
 }
 
