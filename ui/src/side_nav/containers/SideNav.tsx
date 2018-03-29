@@ -1,5 +1,4 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
 
@@ -7,60 +6,30 @@ import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
 
 import UserNavBlock from 'src/side_nav/components/UserNavBlock'
 import {
-  NavBar,
   NavBlock,
   NavHeader,
   NavListItem,
 } from 'src/side_nav/components/NavItems'
 
-import {DEFAULT_HOME_PAGE} from 'shared/constants'
+import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
+import {Params, Location, Links, Me} from 'src/types/sideNav'
 
-const {arrayOf, bool, shape, string} = PropTypes
+interface Props {
+  params: Params
+  location: Location
+  isHidden: boolean
+  isUsingAuth?: boolean
+  logoutLink?: string
+  links?: Links
+  me: Me
+}
 
-const SideNav = React.createClass({
-  propTypes: {
-    params: shape({
-      sourceID: string.isRequired,
-    }).isRequired,
-    location: shape({
-      pathname: string.isRequired,
-    }).isRequired,
-    isHidden: bool.isRequired,
-    isUsingAuth: bool,
-    logoutLink: string,
-    links: shape({
-      me: string,
-      external: shape({
-        custom: arrayOf(
-          shape({
-            name: string.isRequired,
-            url: string.isRequired,
-          })
-        ),
-      }),
-    }),
-    me: shape({
-      currentOrganization: shape({
-        id: string.isRequired,
-        name: string.isRequired,
-      }),
-      name: string,
-      organizations: arrayOf(
-        shape({
-          id: string.isRequired,
-          name: string.isRequired,
-        })
-      ),
-      roles: arrayOf(
-        shape({
-          id: string,
-          name: string,
-        })
-      ),
-    }),
-  },
+class SideNav extends PureComponent<Props> {
+  constructor(props) {
+    super(props)
+  }
 
-  render() {
+  public render() {
     const {
       params: {sourceID},
       location: {pathname: location},
@@ -77,7 +46,7 @@ const SideNav = React.createClass({
     const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
 
     return isHidden ? null : (
-      <NavBar location={location}>
+      <nav className="sidebar">
         <div
           className={isDefaultPage ? 'sidebar--item active' : 'sidebar--item'}
         >
@@ -103,7 +72,7 @@ const SideNav = React.createClass({
           link={`${sourcePrefix}/dashboards`}
           location={location}
         >
-          <NavHeader link={`${sourcePrefix}/dashboards`} title={'Dashboards'} />
+          <NavHeader link={`${sourcePrefix}/dashboards`} title="Dashboards" />
         </NavBlock>
         <NavBlock
           matcher="alerts"
@@ -170,10 +139,11 @@ const SideNav = React.createClass({
             sourcePrefix={sourcePrefix}
           />
         ) : null}
-      </NavBar>
+      </nav>
     )
-  },
-})
+  }
+}
+
 const mapStateToProps = ({
   auth: {isUsingAuth, logoutLink, me},
   app: {ephemeral: {inPresentationMode}},
