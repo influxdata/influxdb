@@ -8,6 +8,12 @@
 
 ## v1.4.3.0 [unreleased]
 
+### UI Improvements
+
+### Bug Fixes
+
+## v1.4.3.0 [2018-3-28]
+
 ### Features
 
 1.  [#2973](https://github.com/influxdata/chronograf/pull/2973): Add unsafe SSL to Kapacitor UI configuration
@@ -31,6 +37,10 @@
 1.  [#3068](https://github.com/influxdata/chronograf/pull/3068): Fix intermittent missing fill from graphs
 1.  [#3087](https://github.com/influxdata/chronograf/pull/3087): Exit annotation edit mode when user navigates away from dashboard
 1.  [#3079](https://github.com/influxdata/chronograf/pull/3082): Support custom time range in annotations api wrapper
+1.  [#3068](https://github.com/influxdata/chronograf/pull/3068): Fix intermittent missing fill from graphs
+1.  [#3079](https://github.com/influxdata/chronograf/pull/3082): Support custom time range in annotations api wrapper
+1.  [#3087](https://github.com/influxdata/chronograf/pull/3087): Exit annotation edit mode when user navigates away from dashboard
+1.  [#3073](https://github.com/influxdata/chronograf/pull/3073): Fix Delete button in All Users admin page
 
 ## v1.4.2.3 [2018-03-08]
 
@@ -38,8 +48,6 @@
 
 ### Bug Fixes
 
-1.  [#2866](https://github.com/influxdata/chronograf/pull/2866): Change hover text on delete mappings confirmation button to 'Delete'
-1.  [#2911](https://github.com/influxdata/chronograf/pull/2911): Fix Heroku OAuth
 1.  [#2859](https://github.com/influxdata/chronograf/pull/2859): Enable Mappings save button when valid
 1.  [#2933](https://github.com/influxdata/chronograf/pull/2933): Include url in Kapacitor connection creation requests
 
