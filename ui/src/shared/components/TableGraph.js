@@ -31,6 +31,12 @@ import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 class TableGraph extends Component {
   constructor(props) {
     super(props)
+
+    const sortField = _.get(
+      this.props,
+      ['tableOptions', 'sortBy', 'internalName'],
+      TIME_FIELD_DEFAULT.internalName
+    )
     this.state = {
       data: [[]],
       processedData: [[]],
@@ -40,7 +46,7 @@ class TableGraph extends Component {
       labelsColumnWidth: calculateLabelsColumnWidth(props.data.labels),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
-      sortField: TIME_FIELD_DEFAULT.internalName,
+      sortField,
       sortDirection: DEFAULT_SORT,
     }
   }
@@ -75,9 +81,8 @@ class TableGraph extends Component {
 
     let direction, sortFieldName
     if (
-      _.isEmpty(sortField) ||
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
-        internalName
+      internalName
     ) {
       direction = DEFAULT_SORT
       sortFieldName = internalName
