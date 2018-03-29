@@ -3684,39 +3684,141 @@
           "format": "uuid4"
         },
         "x": {
-          "description": "X-coordinate of Cell in the Layout",
+          "description": "X-coordinate of Cell in the Dashboard",
           "type": "integer",
           "format": "int32"
         },
         "y": {
-          "description": "Y-coordinate of Cell in the Layout",
+          "description": "Y-coordinate of Cell in the Dashboard",
           "type": "integer",
           "format": "int32"
         },
         "w": {
-          "description": "Width of Cell in the Layout",
+          "description": "Width of Cell in the Dashboard",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "minimum": 1,
+          "default": 4
         },
         "h": {
-          "description": "Height of Cell in the Layout",
+          "description": "Height of Cell in the Dashboard",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "minimum": 1,
+          "default": 4
         },
         "name": {
-          "description": "Cell name",
+          "description": "Title of Cell in the Dashboard",
           "type": "string"
         },
         "queries": {
-          "description": "Time-series data queries for Cell.",
+          "description": "Time-series data queries for Cell",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/LayoutQuery"
+            "$ref": "#/definitions/DashboardQuery"
+          }
+        },
+        "axes": {
+          "description": "The viewport for a Cell's visualizations",
+          "type": "object",
+          "properties": {
+            "x": {
+              "$ref": "#/definitions/Axis"
+            },
+            "y": {
+              "$ref": "#/definitions/Axis"
+            },
+            "y2": {
+              "$ref": "#/definitions/Axis"
+            }
           }
         },
         "type": {
           "description": "Cell visualization type",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "single-stat",
+            "line",
+            "line-plus-single-stat",
+            "line-stacked",
+            "line-stepplot",
+            "bar",
+            "gauge",
+            "table"
+          ],
+          "default": "line"
+        },
+        "colors": {
+          "description": "Colors define encoding data into a visualization",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DashboardColor"
+          }
+        },
+        "legend": {
+          "description":
+            "Legend define encoding of the data into a cell's legend",
+          "type": "object",
+          "properties": {
+            "type": {
+              "description": "type is the style of the legend",
+              "type": "string",
+              "enum": ["static"]
+            },
+            "orientation": {
+              "description":
+                "orientation is the location of the legend with respect to the cell graph",
+              "type": "string",
+              "enum": ["top", "bottom", "left", "right"]
+            }
+          }
+        },
+        "tableOptions": {
+          "timeFormat": {
+            "description":
+              "timeFormat describes the display format for time values according to moment.js date formatting",
+            "type": "string"
+          },
+          "verticalTimeAxis": {
+            "description":
+              "verticalTimeAxis describes the orientation of the table by indicating whether the time axis will be displayed vertically",
+            "type": "boolean"
+          },
+          "sortBy": {
+            "description":
+              "sortBy contains the name of the series that is used for sorting the table",
+            "type": "object",
+            "$ref": "#/definitions/RenamableField"
+          },
+          "wrapping": {
+            "description":
+              "wrapping describes the text wrapping style to be used in table cells",
+            "type": "string",
+            "enum": ["truncate", "wrap", "single-line"]
+          },
+          "fieldNames": {
+            "description":
+              "fieldNames represent the fields retrieved by the query with customization options",
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/RenamableField"
+            }
+          },
+          "fixFirstColumn": {
+            "description":
+              "fixFirstColumn indicates whether the first column of the table should be locked",
+            "type": "boolean"
+          }
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          }
         }
       },
       "example": {
@@ -3885,6 +3987,7 @@
       }
     },
     "Dashboard": {
+      "description": "a description of a dashboard, contains cells",
       "type": "object",
       "properties": {
         "id": {
@@ -3893,154 +3996,9 @@
           "format": "int64"
         },
         "cells": {
-          "description": "a list of dashboard visualizations",
           "type": "array",
           "items": {
-            "description": "cell visualization information",
-            "type": "object",
-            "properties": {
-              "x": {
-                "description": "X-coordinate of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32"
-              },
-              "y": {
-                "description": "Y-coordinate of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32"
-              },
-              "w": {
-                "description": "Width of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32",
-                "minimum": 1,
-                "default": 4
-              },
-              "h": {
-                "description": "Height of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32",
-                "minimum": 1,
-                "default": 4
-              },
-              "name": {
-                "description": "Name of Cell in the Dashboard",
-                "type": "string"
-              },
-              "queries": {
-                "description": "Time-series data queries for Cell.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/DashboardQuery"
-                }
-              },
-              "axes": {
-                "description": "The viewport for a cell's visualizations",
-                "type": "object",
-                "properties": {
-                  "x": {
-                    "$ref": "#/definitions/Axis"
-                  },
-                  "y": {
-                    "$ref": "#/definitions/Axis"
-                  },
-                  "y2": {
-                    "$ref": "#/definitions/Axis"
-                  }
-                }
-              },
-              "type": {
-                "description": "Cell visualization type",
-                "type": "string",
-                "enum": [
-                  "single-stat",
-                  "line",
-                  "line-plus-single-stat",
-                  "line-stacked",
-                  "line-stepplot",
-                  "bar"
-                ],
-                "default": "line"
-              },
-              "colors": {
-                "description":
-                  "Colors define encoding data into a visualization",
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/DashboardColor"
-                }
-              },
-              "legend": {
-                "description":
-                  "Legend define encoding of the data into a cell's legend",
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "description": "type is the style of the legend",
-                    "type": "string",
-                    "enum": ["static"]
-                  },
-                  "orientation": {
-                    "description":
-                      "orientation is the location of the legend with respect to the cell graph",
-                    "type": "string",
-                    "enum": ["top", "bottom", "left", "right"]
-                  }
-                }
-              },
-              "tableOptions": {
-                "description":
-                  "visualization options for a cell with table type",
-                "type": "object",
-                "properties": {
-                  "timeFormat": {
-                    "description":
-                      "timeFormat describes the display format for time values according to moment.js date formatting",
-                    "type": "string"
-                  },
-                  "verticalTimeAxis": {
-                    "description":
-                      "verticalTimeAxis describes the orientation of the table by indicating whether the time axis will be displayed vertically",
-                    "type": "boolean"
-                  },
-                  "sortBy": {
-                    "description":
-                      "sortBy contains the name of the series that is used for sorting the table",
-                    "type": "object",
-                    "$ref": "#/definitions/RenamableField"
-                  },
-                  "wrapping": {
-                    "description":
-                      "wrapping describes the text wrapping style to be used in table cells",
-                    "type": "string",
-                    "enum": ["truncate", "wrap", "single-line"]
-                  },
-                  "fieldNames": {
-                    "description":
-                      "fieldNames represent the fields retrieved by the query with customization options",
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/definitions/RenamableField"
-                    }
-                  },
-                  "fixFirstColumn": {
-                    "description":
-                      "fixFirstColumn indicates whether this field should be visible on the table",
-                    "type": "boolean"
-                  }
-                }
-              },
-              "links": {
-                "type": "object",
-                "properties": {
-                  "self": {
-                    "type": "string",
-                    "description": "Self link mapping to this resource",
-                    "format": "url"
-                  }
-                }
-              }
-            }
+            "$ref": "#/definitions/Cell"
           }
         },
         "name": {
