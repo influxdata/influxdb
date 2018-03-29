@@ -26,8 +26,8 @@ export interface Organization {
 }
 
 export interface Role {
-  id: string
-  name: string
+  id?: string
+  name?: string
 }
 
 export interface Me {

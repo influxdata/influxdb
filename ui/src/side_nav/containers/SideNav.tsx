@@ -17,7 +17,7 @@ import {Params, Location, Links, Me} from 'src/types/sideNav'
 interface Props {
   params: Params
   location: Location
-  isHidden?: boolean
+  isHidden: boolean
   isUsingAuth?: boolean
   logoutLink?: string
   links?: Links

@@ -3,7 +3,7 @@ import {Link} from 'react-router'
 import classnames from 'classnames'
 
 interface NavListItemProps {
-  link?: string
+  link: string
   location?: string
   useAnchor?: boolean
   isExternal?: boolean
