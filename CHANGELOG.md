@@ -11,6 +11,8 @@
 
 ### Bug Fixes
 
+1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
+
 ## v1.4.3.0 [unreleased]
 
 ### UI Improvements

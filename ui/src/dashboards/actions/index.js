@@ -201,10 +201,13 @@ export const getDashboardsAsync = () => async dispatch => {
 
 const removeUnselectedTemplateValues = dashboard => {
   const templates = dashboard.templates.map(template => {
-    const values =
-      template.type === 'csv'
-        ? template.values
-        : [template.values.find(val => val.selected)] || []
+    if (template.type === 'csv') {
+      return template
+    }
+
+    const value = template.values.find(val => val.selected)
+    const values = value ? [value] : []
+
     return {...template, values}
   })
   return templates
