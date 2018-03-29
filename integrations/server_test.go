@@ -2717,8 +2717,9 @@ func TestServer(t *testing.T) {
 		    "statusFeed": ""
 		  },
 		  "ifql": {
-			"self": "/chronograf/v1/ifql",
-			"suggestions": "/chronograf/v1/ifql/suggestions"
+				"ast": "/chronograf/v1/ifql/ast",
+				"self": "/chronograf/v1/ifql",
+				"suggestions": "/chronograf/v1/ifql/suggestions"
 		  }
 		}
 		`,
@@ -2804,8 +2805,9 @@ func TestServer(t *testing.T) {
 		    "statusFeed": ""
 		  },
 		  "ifql": {
-			"self": "/chronograf/v1/ifql",
-			"suggestions": "/chronograf/v1/ifql/suggestions"
+				"ast": "/chronograf/v1/ifql/ast",
+				"self": "/chronograf/v1/ifql",
+				"suggestions": "/chronograf/v1/ifql/suggestions"
 		  }
 		}
 		`,
