@@ -2787,11 +2787,6 @@
         "name": {
           "type": "string",
           "description": "User-facing name of the organization resource."
-        },
-        "public": {
-          "type": "boolean",
-          "description":
-            "If the Default organization is public, any successfully authenticated user becomes a user in the Default organization. This property can be set but is negligible on any organization other than Default."
         }
       },
       "required": ["name"],
@@ -2801,8 +2796,7 @@
         "links": {
           "self": "/chronograf/v1/organizations/1"
         },
-        "name": "Chronogiraffes",
-        "public": false
+        "name": "Chronogiraffes"
       }
     },
     "Organizations": {
