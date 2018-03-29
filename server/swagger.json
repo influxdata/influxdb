@@ -2762,7 +2762,10 @@
         "A group of Chronograf users with various role-based access-control.",
       "properties": {
         "defaultRole": {
-          "type": "string"
+          "description":
+            "The default role that new users in this organization will have.",
+          "type": "string",
+          "enum": ["member", "viewer", "editor", "admin"]
         },
         "id": {
           "type": "string",
@@ -2917,9 +2920,9 @@
       "type": "object",
       "properties": {
         "name": {
+          "description": "A Chronograf user's role within an organization.",
           "type": "string",
-          "description":
-            "Name of role (e.g. 'member', 'viewer', 'editor', or 'admin')"
+          "enum": ["member", "viewer", "editor", "admin"]
         },
         "organization": {
           "type": "string",
