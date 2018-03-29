@@ -5,6 +5,7 @@ import classnames from 'classnames'
 
 import {MultiGrid, ColumnSizer} from 'react-virtualized'
 import moment from 'moment'
+import {map, reduce, filter} from 'fast.js'
 
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
 import {
@@ -24,8 +25,8 @@ import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 
 const filterInvisibleColumns = (data, fieldNames) => {
   const visibility = {}
-  const filteredData = data.map((row, i) => {
-    return row.filter((col, j) => {
+  const filteredData = map(data, (row, i) => {
+    return filter(row, (col, j) => {
       if (i === 0) {
         const foundField = fieldNames.find(field => field.internalName === col)
         visibility[j] = foundField ? foundField.visible : true
@@ -48,7 +49,7 @@ const processData = (
     data[0],
     ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
   ]
-  const sortedTimeVals = sortedData.map(r => r[0])
+  const sortedTimeVals = map(sortedData, r => r[0])
   const filteredData = filterInvisibleColumns(sortedData, fieldNames)
   const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
 
@@ -139,7 +140,8 @@ class TableGraph extends Component {
     }
 
     const firstDiff = Math.abs(hoverTime - sortedTimeVals[1]) // sortedTimeVals[0] is "time"
-    const hoverTimeFound = sortedTimeVals.reduce(
+    const hoverTimeFound = reduce(
+      sortedTimeVals,
       (acc, currentTime, index) => {
         const thisDiff = Math.abs(hoverTime - currentTime)
         if (thisDiff < acc.diff) {
