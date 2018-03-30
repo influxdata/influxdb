@@ -28,7 +28,7 @@ class DashboardsPage extends Component {
     createDashboard({...dashboard, name: `${dashboard.name} (Clone)`})
   }
 
-  handleDeleteDashboard = dashboard => {
+  handleDeleteDashboard = dashboard => () => {
     this.props.handleDeleteDashboard(dashboard)
   }
 

@@ -36,9 +36,6 @@ const DashboardsTable = ({
   onCloneDashboard,
   dashboardLink,
 }) => {
-  const wrappedDelete = dashboard => () => {
-    onDeleteDashboard(dashboard)
-  }
   return dashboards && dashboards.length ? (
     <table className="table v-center admin-table table-highlight">
       <thead>
@@ -80,7 +77,7 @@ const DashboardsTable = ({
                   Clone
                 </button>
                 <ConfirmButton
-                  confirmAction={wrappedDelete}
+                  confirmAction={onDeleteDashboard(dashboard)}
                   size="btn-xs"
                   type="btn-danger"
                   text="Delete"
