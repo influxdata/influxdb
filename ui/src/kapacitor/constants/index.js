@@ -104,6 +104,7 @@ export const MAP_KEYS_FROM_CONFIG = {
   hipchat: 'hipChat',
   opsgenie: 'opsGenie',
   pagerduty: 'pagerDuty',
+  pagerduty2: 'pagerDuty2',
   smtp: 'email',
   victorops: 'victorOps',
 }
@@ -114,6 +115,7 @@ export const ALERTS_FROM_CONFIG = {
   hipChat: ['url', 'room', 'token'], // token = bool
   opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
   pagerDuty: ['service-key'], // service-key = bool
+  pagerDuty2: ['service-key'], // service-key = bool
   pushover: ['token', 'user-key'], // token = bool, user-key = bool
   sensu: ['addr', 'source'],
   slack: ['url', 'channel'], // url = bool
