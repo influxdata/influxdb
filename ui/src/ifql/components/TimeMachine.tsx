@@ -1,6 +1,6 @@
 import React, {SFC} from 'react'
 import FuncSelector from 'src/ifql/components/FuncSelector'
-import Node from 'src/ifql/components/Node'
+import FuncNode from 'src/ifql/components/FuncNode'
 
 interface Arg {
   key: string
@@ -22,7 +22,7 @@ const TimeMachine: SFC<Props> = ({funcs, nodes, onAddNode}) => {
   return (
     <div>
       <div className="func-node-container">
-        {nodes.map((n, i) => <Node key={i} node={n} />)}
+        {nodes.map((n, i) => <FuncNode key={i} node={n} />)}
         <FuncSelector funcs={funcs} onAddNode={onAddNode} />
       </div>
     </div>
