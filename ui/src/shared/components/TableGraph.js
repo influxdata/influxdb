@@ -5,8 +5,13 @@ import classnames from 'classnames'
 
 import {MultiGrid, ColumnSizer} from 'react-virtualized'
 import moment from 'moment'
+import {reduce} from 'fast.js'
 
-import {timeSeriesToTableGraph} from 'src/utils/timeSeriesToDygraph'
+import {
+  timeSeriesToTableGraph,
+  processTableData,
+} from 'src/utils/timeSeriesTransformers'
+
 import {
   NULL_ARRAY_INDEX,
   NULL_HOVER_TIME,
@@ -14,51 +19,24 @@ import {
   TIME_FIELD_DEFAULT,
   ASCENDING,
   DESCENDING,
+  DEFAULT_SORT,
   FIX_FIRST_COLUMN_DEFAULT,
   VERTICAL_TIME_AXIS_DEFAULT,
   calculateTimeColumnWidth,
   calculateLabelsColumnWidth,
 } from 'src/shared/constants/tableGraph'
-export const DEFAULT_SORT = ASCENDING
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
-
-export const filterInvisibleColumns = (data, fieldNames) => {
-  const visibility = {}
-  const filteredData = data.map((row, i) => {
-    return row.filter((col, j) => {
-      if (i === 0) {
-        const foundField = fieldNames.find(field => field.internalName === col)
-        visibility[j] = foundField ? foundField.visible : true
-      }
-      return visibility[j]
-    })
-  })
-  return filteredData[0].length ? filteredData : [[]]
-}
-
-export const processData = (
-  data,
-  sortFieldName,
-  direction,
-  verticalTimeAxis,
-  fieldNames
-) => {
-  const sortIndex = _.indexOf(data[0], sortFieldName)
-  const sortedData = [
-    data[0],
-    ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
-  ]
-  const sortedTimeVals = sortedData.map(r => r[0])
-  const filteredData = filterInvisibleColumns(sortedData, fieldNames)
-  const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
-
-  return {processedData, sortedTimeVals}
-}
 
 class TableGraph extends Component {
   constructor(props) {
     super(props)
+
+    const sortField = _.get(
+      this.props,
+      ['tableOptions', 'sortBy', 'internalName'],
+      TIME_FIELD_DEFAULT.internalName
+    )
     this.state = {
       data: [[]],
       processedData: [[]],
@@ -68,7 +46,7 @@ class TableGraph extends Component {
       labelsColumnWidth: calculateLabelsColumnWidth(props.data.labels),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
-      sortField: 'time',
+      sortField,
       sortDirection: DEFAULT_SORT,
     }
   }
@@ -103,18 +81,17 @@ class TableGraph extends Component {
 
     let direction, sortFieldName
     if (
-      _.isEmpty(sortField) ||
-      _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') !==
-        _.get(nextProps, ['tableOptions', 'sortBy', 'internalName'], '')
+      _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') ===
+      internalName
     ) {
-      direction = DEFAULT_SORT
-      sortFieldName = internalName
-    } else {
       direction = sortDirection
       sortFieldName = sortField
+    } else {
+      direction = DEFAULT_SORT
+      sortFieldName = internalName
     }
 
-    const {processedData, sortedTimeVals} = processData(
+    const {processedData, sortedTimeVals} = processTableData(
       data,
       sortFieldName,
       direction,
@@ -126,6 +103,11 @@ class TableGraph extends Component {
       ? processedData[0]
       : processedData.map(row => row[0])
 
+    const labelsColumnWidth = calculateLabelsColumnWidth(
+      processedLabels,
+      fieldNames
+    )
+
     this.setState({
       data,
       labels,
@@ -133,10 +115,7 @@ class TableGraph extends Component {
       sortedTimeVals,
       sortField: sortFieldName,
       sortDirection: direction,
-      labelsColumnWidth: calculateLabelsColumnWidth(
-        processedLabels,
-        fieldNames
-      ),
+      labelsColumnWidth,
     })
   }
 
@@ -150,7 +129,8 @@ class TableGraph extends Component {
     }
 
     const firstDiff = Math.abs(hoverTime - sortedTimeVals[1]) // sortedTimeVals[0] is "time"
-    const hoverTimeFound = sortedTimeVals.reduce(
+    const hoverTimeFound = reduce(
+      sortedTimeVals,
       (acc, currentTime, index) => {
         const thisDiff = Math.abs(hoverTime - currentTime)
         if (thisDiff < acc.diff) {
@@ -208,7 +188,7 @@ class TableGraph extends Component {
       direction = DEFAULT_SORT
     }
 
-    const {processedData, sortedTimeVals} = processData(
+    const {processedData, sortedTimeVals} = processTableData(
       data,
       fieldName,
       direction,
@@ -379,6 +359,7 @@ class TableGraph extends Component {
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
     const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
+
     return (
       <div
         className="table-graph-container"
