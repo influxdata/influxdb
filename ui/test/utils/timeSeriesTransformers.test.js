@@ -1,6 +1,9 @@
 import timeSeriesToDygraph, {
   timeSeriesToTableGraph,
+  filterTableColumns,
+  processTableData,
 } from 'src/utils/timeSeriesTransformers'
+import {DEFAULT_SORT} from 'src/shared/constants/tableGraph'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -459,5 +462,203 @@ describe('timeSeriesToTableGraph', () => {
     const expected = [[]]
 
     expect(actual.data).toEqual(expected)
+  })
+})
+
+describe('filterTableColumns', () => {
+  it("returns a nested array of fieldnamesthat only include columns whose corresponding fieldName's visibility is true", () => {
+    const data = [
+      ['time', 'f1', 'f2'],
+      [1000, 3000, 2000],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+    ]
+
+    const fieldNames = [
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: false},
+    ]
+
+    const actual = filterTableColumns(data, fieldNames)
+    const expected = [['time'], [1000], [2000], [3000]]
+    expect(actual).toEqual(expected)
+  })
+
+  it('returns an array of an empty array if all fieldNames are not visible', () => {
+    const data = [
+      ['time', 'f1', 'f2'],
+      [1000, 3000, 2000],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+    ]
+
+    const fieldNames = [
+      {internalName: 'time', displayName: 'Time', visible: false},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: false},
+    ]
+
+    const actual = filterTableColumns(data, fieldNames)
+    const expected = [[]]
+    expect(actual).toEqual(expected)
+  })
+})
+
+describe('processTableData', () => {
+  it('sorts the data based on the provided sortFieldName', () => {
+    const data = [
+      ['time', 'f1', 'f2'],
+      [1000, 3000, 2000],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+    ]
+    const sortFieldName = 'f1'
+    const direction = DEFAULT_SORT
+    const verticalTimeAxis = true
+
+    const fieldNames = [
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: true},
+      {internalName: 'f2', displayName: 'F2', visible: true},
+    ]
+
+    const actual = processTableData(
+      data,
+      sortFieldName,
+      direction,
+      verticalTimeAxis,
+      fieldNames
+    )
+    const expected = [
+      ['time', 'f1', 'f2'],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+      [1000, 3000, 2000],
+    ]
+
+    expect(actual.processedData).toEqual(expected)
+  })
+
+  it('filters out columns that should not be visible', () => {
+    const data = [
+      ['time', 'f1', 'f2'],
+      [1000, 3000, 2000],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+    ]
+    const sortFieldName = 'time'
+    const direction = DEFAULT_SORT
+    const verticalTimeAxis = true
+
+    const fieldNames = [
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: true},
+    ]
+
+    const actual = processTableData(
+      data,
+      sortFieldName,
+      direction,
+      verticalTimeAxis,
+      fieldNames
+    )
+    const expected = [['time', 'f2'], [1000, 2000], [2000, 3000], [3000, 1000]]
+
+    expect(actual.processedData).toEqual(expected)
+  })
+
+  it('filters out invisible columns after sorting', () => {
+    const data = [
+      ['time', 'f1', 'f2'],
+      [1000, 3000, 2000],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+    ]
+    const sortFieldName = 'f1'
+    const direction = DEFAULT_SORT
+    const verticalTimeAxis = true
+
+    const fieldNames = [
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: true},
+    ]
+
+    const actual = processTableData(
+      data,
+      sortFieldName,
+      direction,
+      verticalTimeAxis,
+      fieldNames
+    )
+    const expected = [['time', 'f2'], [2000, 3000], [3000, 1000], [1000, 2000]]
+
+    expect(actual.processedData).toEqual(expected)
+  })
+})
+
+describe('if verticalTimeAxis is false', () => {
+  it('transforms data', () => {
+    const data = [
+      ['time', 'f1', 'f2'],
+      [1000, 3000, 2000],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+    ]
+    const sortFieldName = 'time'
+    const direction = DEFAULT_SORT
+    const verticalTimeAxis = false
+
+    const fieldNames = [
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: true},
+      {internalName: 'f2', displayName: 'F2', visible: true},
+    ]
+
+    const actual = processTableData(
+      data,
+      sortFieldName,
+      direction,
+      verticalTimeAxis,
+      fieldNames
+    )
+    const expected = [
+      ['time', 1000, 2000, 3000],
+      ['f1', 3000, 1000, 2000],
+      ['f2', 2000, 3000, 1000],
+    ]
+
+    expect(actual.processedData).toEqual(expected)
+  })
+
+  it('transforms data after filtering out invisible columns', () => {
+    const data = [
+      ['time', 'f1', 'f2'],
+      [1000, 3000, 2000],
+      [2000, 1000, 3000],
+      [3000, 2000, 1000],
+    ]
+    const sortFieldName = 'f1'
+    const direction = DEFAULT_SORT
+    const verticalTimeAxis = false
+
+    const fieldNames = [
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: true},
+    ]
+
+    const actual = processTableData(
+      data,
+      sortFieldName,
+      direction,
+      verticalTimeAxis,
+      fieldNames
+    )
+    const expected = [['time', 2000, 3000, 1000], ['f2', 3000, 1000, 2000]]
+
+    expect(actual.processedData).toEqual(expected)
   })
 })
