@@ -6,18 +6,13 @@
 
 ### UI Improvements
 
+1.  [#3088](https://github.com/influxdata/chronograf/pull/3088): New dashboard cells appear at bottom of layout and assume the size of the most common cell
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize delete confirmation interactions
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
 
 ### Bug Fixes
 
 1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
-
-## v1.4.3.0 [unreleased]
-
-### UI Improvements
-
-### Bug Fixes
 
 ## v1.4.3.0 [2018-3-28]
 
