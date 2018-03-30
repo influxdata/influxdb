@@ -73,7 +73,6 @@ export const deleteDashboard = dashboard => ({
   type: 'DELETE_DASHBOARD',
   payload: {
     dashboard,
-    dashboardID: dashboard.id,
   },
 })
 
