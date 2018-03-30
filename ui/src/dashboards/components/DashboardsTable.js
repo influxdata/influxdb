@@ -33,6 +33,7 @@ const DashboardsTable = ({
   dashboards,
   onDeleteDashboard,
   onCreateDashboard,
+  onCloneDashboard,
   dashboardLink,
 }) => {
   const wrappedDelete = dashboard => () => {
@@ -71,6 +72,13 @@ const DashboardsTable = ({
               replaceWithIfNotAuthorized={<td />}
             >
               <td className="text-right">
+                <button
+                  className="btn btn-xs btn-default"
+                  onClick={onCloneDashboard(dashboard)}
+                >
+                  <span className="icon duplicate" />
+                  Clone
+                </button>
                 <ConfirmButton
                   confirmAction={wrappedDelete}
                   size="btn-xs"
@@ -100,6 +108,7 @@ DashboardsTable.propTypes = {
   dashboards: arrayOf(shape()),
   onDeleteDashboard: func.isRequired,
   onCreateDashboard: func.isRequired,
+  onCloneDashboard: func.isRequired,
   dashboardLink: string.isRequired,
 }
 
