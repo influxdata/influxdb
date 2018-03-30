@@ -4,6 +4,7 @@ import reducer from 'src/dashboards/reducers/ui'
 
 import {
   loadDashboards,
+  deleteDashboard,
   deleteDashboardFailed,
   setTimeRange,
   updateDashboardCells,
@@ -82,6 +83,16 @@ describe('DataExplorer.Reducers.UI', () => {
     }
 
     expect(actual.dashboards).toEqual(expected.dashboards)
+  })
+
+  it('can delete a dashboard', () => {
+    const initialState = {...state, dashboards}
+    const actual = reducer(initialState, deleteDashboard(d1))
+    const expected = initialState.dashboards.filter(
+      dashboard => dashboard.id !== d1.id
+    )
+
+    expect(actual.dashboards).toEqual(expected)
   })
 
   it('can handle a failed dashboard deletion', () => {
