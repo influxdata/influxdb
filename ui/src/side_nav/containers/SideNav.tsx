@@ -147,7 +147,7 @@ class SideNav extends PureComponent<Props> {
             link={`${sourcePrefix}/ifql`}
             location={location}
           >
-            <NavHeader link={`${sourcePrefix}/ifql`} title="IFQL Builder" />
+            <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
           </NavBlock>
         </FeatureFlag>
       </nav>

@@ -5,6 +5,8 @@ import {connect} from 'react-redux'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import Walker from 'src/ifql/ast/walker'
 
+import {Func} from 'src/ifql/components/FuncNode'
+
 import {getSuggestions, getAST} from 'src/ifql/apis'
 
 interface Links {
@@ -18,7 +20,7 @@ interface Props {
 }
 
 interface State {
-  funcs: string[]
+  funcs: Func[]
   ast: object
   query: string
 }
@@ -29,7 +31,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       funcs: [],
       ast: null,
-      query: 'from(db: "telegraf") |> filter() |> range()',
+      query: 'from(db: "telegraf") |> filter() |> range(start: -15m)',
     }
   }
 
@@ -38,8 +40,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {suggestions} = links
 
     try {
-      const results = await getSuggestions(suggestions)
-      const funcs = results.map(s => s.name)
+      const funcs = await getSuggestions(suggestions)
       this.setState({funcs})
     } catch (error) {
       console.error('Could not get function suggestions: ', error)
