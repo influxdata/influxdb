@@ -192,6 +192,18 @@ class AlertTabs extends Component {
           />
         ),
       },
+      pagerduty2: {
+        type: 'PagerDuty2',
+        enabled: this.getEnabled(configSections, 'pagerduty2'),
+        renderComponent: () => (
+          <PagerDutyConfig
+            onSave={this.handleSaveConfig('pagerduty2')}
+            config={this.getSection(configSections, 'pagerduty2')}
+            onTest={this.handleTestConfig('pagerduty2')}
+            enabled={this.getEnabled(configSections, 'pagerduty2')}
+          />
+        ),
+      },
       pushover: {
         type: 'Pushover',
         enabled: this.getEnabled(configSections, 'pushover'),
@@ -312,7 +324,10 @@ class AlertTabs extends Component {
             {_.reduce(
               configSections,
               (acc, _cur, k) =>
-                supportedConfigs[k]
+                supportedConfigs[k] &&
+                services.find(service => {
+                  return service.name === _.toLower(supportedConfigs[k].type)
+                })
                   ? acc.concat(
                       <TabPanel key={supportedConfigs[k].type}>
                         {supportedConfigs[k].renderComponent()}
