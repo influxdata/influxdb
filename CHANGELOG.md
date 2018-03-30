@@ -7,6 +7,8 @@
 ### UI Improvements
 
 1.  [#3088](https://github.com/influxdata/chronograf/pull/3088): New dashboard cells appear at bottom of layout and assume the size of the most common cell
+1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize delete confirmation interactions
+1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
 
 ### Bug Fixes
 

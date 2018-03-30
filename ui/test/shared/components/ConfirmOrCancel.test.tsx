@@ -1,16 +1,17 @@
 import React from 'react'
-import ConfirmButtons, {
+import ConfirmOrCancel, {
   Cancel,
   Confirm,
-} from 'src/shared/components/ConfirmButtons'
+} from 'src/shared/components/ConfirmOrCancel'
 
 import {shallow} from 'enzyme'
 
 const setup = (override = {}) => {
   const props = {
     buttonSize: '',
-    confirmLeft: false,
+    reversed: false,
     confirmTitle: '',
+    cancelTitle: '',
     isDisabled: false,
     item: '',
     onCancel: () => {},
@@ -19,7 +20,7 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  const wrapper = shallow(<ConfirmButtons {...props} />)
+  const wrapper = shallow(<ConfirmOrCancel {...props} />)
 
   return {
     props,
@@ -27,7 +28,7 @@ const setup = (override = {}) => {
   }
 }
 
-describe('Componenets.Shared.ConfirmButtons', () => {
+describe('Componenets.Shared.ConfirmOrCancel', () => {
   describe('rendering', () => {
     it('has a confirm and cancel button', () => {
       const {wrapper} = setup()
@@ -36,30 +37,6 @@ describe('Componenets.Shared.ConfirmButtons', () => {
 
       expect(confirm.exists()).toBe(true)
       expect(cancel.exists()).toBe(true)
-    })
-
-    describe('confirmLeft is true', () => {
-      it('has a confirm button to the left of the cancel button', () => {
-        const {wrapper} = setup({confirmLeft: true})
-        const buttons = wrapper.dive().children()
-        const firstButton = buttons.first()
-        const lastButton = buttons.last()
-
-        expect(firstButton.find(Confirm).exists()).toBe(true)
-        expect(lastButton.find(Cancel).exists()).toBe(true)
-      })
-    })
-
-    describe('confirmLeft is false', () => {
-      it('has a confirm button to the right of the cancel button', () => {
-        const {wrapper} = setup({confirmLeft: false})
-        const buttons = wrapper.dive().children()
-        const firstButton = buttons.first()
-        const lastButton = buttons.last()
-
-        expect(firstButton.find(Cancel).exists()).toBe(true)
-        expect(lastButton.find(Confirm).exists()).toBe(true)
-      })
     })
 
     describe('confirmTitle', () => {
