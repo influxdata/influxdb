@@ -10,24 +10,38 @@ $provider--providerorg-width: 210px;
 $provider--redirect-width: 220px;
 $provider--delete-width: 30px;
 
-
-.provider--id {width: $provider--id-width;}
-.provider--scheme {width: $provider--scheme-width;}
-.provider--provider {width: $provider--provider-width;}
-.provider--providerorg {width: $provider--providerorg-width;}
-.provider--redirect {width: $provider--redirect-width;}
+.provider--id {
+  width: $provider--id-width;
+}
+.provider--scheme {
+  width: $provider--scheme-width;
+}
+.provider--provider {
+  width: $provider--provider-width;
+}
+.provider--providerorg {
+  width: $provider--providerorg-width;
+}
+.provider--redirect {
+  width: $provider--redirect-width;
+}
 .provider--delete {
   width: $provider--delete-width;
   min-width: $provider--delete-width;
 }
-.provider--arrow {flex: 1 0 0;}
+.provider--arrow {
+  flex: 1 0 0;
+}
 
 .fancytable--td.provider--id,
 .fancytable--th.provider--id {
   padding: 0 8px;
 }
-.provider--redirect.deleting {
-  width: ($provider--redirect-width - $fancytable--table--margin - $provider--delete-width);
+.provider--redirect.creating {
+  width: (
+    $provider--redirect-width - $fancytable--table--margin -
+      $provider--delete-width
+  );
 }
 
 .provider--arrow {
@@ -43,7 +57,7 @@ $provider--delete-width: 30px;
     position: relative;
     height: 2px;
     width: 100%;
-    @include gradient-h($c-pool,$c-star);
+    @include gradient-h($c-pool, $c-star);
 
     &:before,
     &:after {

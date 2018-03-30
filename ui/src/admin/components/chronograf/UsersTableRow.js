@@ -58,14 +58,16 @@ const UsersTableRow = ({
       </td>
       <td style={{width: colProvider}}>{user.provider}</td>
       <td style={{width: colScheme}}>{user.scheme}</td>
-      <ConfirmButton
-        confirmText={removeWarning}
-        confirmAction={wrappedDelete}
-        size="btn-xs"
-        type="btn-danger"
-        text="Remove"
-        customClass="table--show-on-row-hover"
-      />
+      <td className="text-right">
+        <ConfirmButton
+          confirmText={removeWarning}
+          confirmAction={wrappedDelete}
+          size="btn-xs"
+          type="btn-danger"
+          text="Remove"
+          customClass="table--show-on-row-hover"
+        />
+      </td>
     </tr>
   )
 }

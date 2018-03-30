@@ -18,16 +18,19 @@ interface CancelProps {
   buttonSize: string
   onCancel: () => void
   icon: string
+  title: string
 }
-interface ConfirmButtonsProps {
+
+interface ConfirmOrCancelProps {
   onConfirm: (item: Item) => void
   item: Item
   onCancel: (item: Item) => void
   buttonSize?: string
   isDisabled?: boolean
   onClickOutside?: (item: Item) => void
-  confirmLeft?: boolean
+  reversed?: boolean
   confirmTitle?: string
+  cancelTitle?: string
 }
 
 export const Confirm: SFC<ConfirmProps> = ({
@@ -39,9 +42,12 @@ export const Confirm: SFC<ConfirmProps> = ({
 }) => (
   <button
     data-test="confirm"
-    className={classnames('btn btn-success btn-square', {
-      [buttonSize]: buttonSize,
-    })}
+    className={classnames(
+      'confirm-or-cancel--confirm btn btn-success btn-square',
+      {
+        [buttonSize]: buttonSize,
+      }
+    )}
     disabled={isDisabled}
     title={isDisabled ? `Cannot ${title}` : title}
     onClick={onConfirm}
@@ -50,22 +56,29 @@ export const Confirm: SFC<ConfirmProps> = ({
   </button>
 )
 
-export const Cancel: SFC<CancelProps> = ({buttonSize, onCancel, icon}) => (
+export const Cancel: SFC<CancelProps> = ({
+  buttonSize,
+  onCancel,
+  icon,
+  title,
+}) => (
   <button
     data-test="cancel"
-    className={classnames('btn btn-info btn-square', {
+    className={classnames('confirm-or-cancel--cancel btn btn-info btn-square', {
       [buttonSize]: buttonSize,
     })}
     onClick={onCancel}
+    title={title}
   >
     <span className={icon} />
   </button>
 )
 
-class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
-  public static defaultProps: Partial<ConfirmButtonsProps> = {
+class ConfirmOrCancel extends PureComponent<ConfirmOrCancelProps, {}> {
+  public static defaultProps: Partial<ConfirmOrCancelProps> = {
     buttonSize: 'btn-sm',
     confirmTitle: 'Save',
+    cancelTitle: 'Cancel',
     onClickOutside: () => {},
   }
 
@@ -86,29 +99,23 @@ class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
   }
 
   public render() {
-    const {item, buttonSize, isDisabled, confirmLeft, confirmTitle} = this.props
+    const {
+      item,
+      buttonSize,
+      isDisabled,
+      reversed,
+      confirmTitle,
+      cancelTitle,
+    } = this.props
 
-    return confirmLeft ? (
-      <div className="confirm-buttons">
-        <Confirm
-          buttonSize={buttonSize}
-          isDisabled={isDisabled}
-          onConfirm={this.handleConfirm(item)}
-          icon="icon checkmark"
-          title={confirmTitle}
-        />
+    const className = `confirm-or-cancel${reversed ? ' reversed' : ''}`
+    return (
+      <div className={className}>
         <Cancel
           buttonSize={buttonSize}
           onCancel={this.handleCancel(item)}
           icon="icon remove"
-        />
-      </div>
-    ) : (
-      <div className="confirm-buttons">
-        <Cancel
-          buttonSize={buttonSize}
-          onCancel={this.handleCancel(item)}
-          icon="icon remove"
+          title={cancelTitle}
         />
         <Confirm
           buttonSize={buttonSize}
@@ -122,4 +129,4 @@ class ConfirmButtons extends PureComponent<ConfirmButtonsProps, {}> {
   }
 }
 
-export default OnClickOutside(ConfirmButtons)
+export default OnClickOutside(ConfirmOrCancel)

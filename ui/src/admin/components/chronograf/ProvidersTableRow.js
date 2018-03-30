@@ -1,7 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmButton from 'shared/components/ConfirmButton'
 import Dropdown from 'shared/components/Dropdown'
 import InputClickToEdit from 'shared/components/InputClickToEdit'
 
@@ -13,21 +13,11 @@ class ProvidersTableRow extends Component {
 
     this.state = {
       ...this.props.mapping,
-      isDeleting: false,
     }
-  }
-
-  handleDeleteClick = () => {
-    this.setState({isDeleting: true})
-  }
-
-  handleDismissDeleteConfirmation = () => {
-    this.setState({isDeleting: false})
   }
 
   handleDeleteMap = mapping => {
     const {onDelete} = this.props
-    this.setState({isDeleting: false})
     onDelete(mapping)
   }
 
@@ -106,22 +96,13 @@ class ProvidersTableRow extends Component {
             disabled={isDefaultMapping}
           />
         </div>
-        {isDeleting ? (
-          <ConfirmButtons
-            item={mapping}
-            onCancel={this.handleDismissDeleteConfirmation}
-            onConfirm={this.handleDeleteMap}
-            onClickOutside={this.handleDismissDeleteConfirmation}
-            confirmTitle="Delete"
-          />
-        ) : (
-          <button
-            className="btn btn-sm btn-default btn-square"
-            onClick={this.handleDeleteClick}
-          >
-            <span className="icon trash" />
-          </button>
-        )}
+        <ConfirmButton
+          square={true}
+          icon="trash"
+          confirmAction={this.handleDeleteMap}
+          confirmText="Delete this Mapping?"
+          disabled={isDefaultMapping}
+        />
       </div>
     )
   }

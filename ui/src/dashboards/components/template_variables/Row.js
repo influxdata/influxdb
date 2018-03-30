@@ -12,7 +12,7 @@ import Dropdown from 'shared/components/Dropdown'
 import TemplateQueryBuilder from 'src/dashboards/components/template_variables/TemplateQueryBuilder'
 import TableInput from 'src/dashboards/components/template_variables/TableInput'
 import RowValues from 'src/dashboards/components/template_variables/RowValues'
-import RowButtons from 'src/dashboards/components/template_variables/RowButtons'
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 import {runTemplateVariableQuery as runTemplateVariableQueryAJAX} from 'src/dashboards/apis'
 
@@ -95,15 +95,31 @@ const TemplateVariableRow = ({
         autoFocusTarget={autoFocusTarget}
       />
     </div>
-    <div className="tvm--col-4">
-      <RowButtons
-        onStartEdit={onStartEdit}
-        isEditing={isEditing}
-        onCancelEdit={onCancelEdit}
-        onDelete={onDeleteTempVar}
-        id={id}
-        selectedType={selectedType}
-      />
+    <div className={`tvm--col-4${isEditing ? ' editing' : ''}`}>
+      {isEditing ? (
+        <div className="tvm-actions">
+          <button
+            className="btn btn-sm btn-info btn-square"
+            type="button"
+            onClick={onCancelEdit}
+          >
+            <span className="icon remove" />
+          </button>
+          <button className="btn btn-sm btn-success btn-square" type="submit">
+            <span className="icon checkmark" />
+          </button>
+        </div>
+      ) : (
+        <div className="tvm-actions">
+          <ConfirmButton
+            type="btn-danger"
+            confirmText="Delete template variable?"
+            confirmAction={onDeleteTempVar(id)}
+            icon="trash"
+            square={true}
+          />
+        </div>
+      )}
     </div>
   </form>
 )

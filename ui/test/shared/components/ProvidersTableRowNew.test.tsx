@@ -1,6 +1,6 @@
 import React from 'react'
 import ProvidersTableRowNew from 'src/admin/components/chronograf/ProvidersTableRowNew'
-import ConfirmButtons from 'src/shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
 import {shallow} from 'enzyme'
@@ -37,10 +37,10 @@ describe('Components.Shared.ProvidersTableRowNew', () => {
         const organizations = [{id: 'default', name: 'default'}]
         const {row} = setup({organizations})
 
-        const confirmButtons = row.find(ConfirmButtons)
-        const confirmButtonsDisabled = confirmButtons.prop('isDisabled')
+        const confirmOrCancel = row.find(ConfirmOrCancel)
+        const confirmOrCancelDisabled = confirmOrCancel.prop('isDisabled')
 
-        expect(confirmButtonsDisabled).toBe(true)
+        expect(confirmOrCancelDisabled).toBe(true)
       })
     })
 
@@ -54,10 +54,10 @@ describe('Components.Shared.ProvidersTableRowNew', () => {
         providerInput.simulate('click')
         providerInput.simulate('change', '*')
 
-        const confirmButtons = row.find(ConfirmButtons)
-        const confirmButtonsDisabled = confirmButtons.prop('isDisabled')
+        const confirmOrCancel = row.find(ConfirmOrCancel)
+        const confirmOrCancelDisabled = confirmOrCancel.prop('isDisabled')
 
-        expect(confirmButtonsDisabled).toBe(true)
+        expect(confirmOrCancelDisabled).toBe(true)
       })
     })
 
@@ -71,10 +71,10 @@ describe('Components.Shared.ProvidersTableRowNew', () => {
         providerOrganizationInput.simulate('click')
         providerOrganizationInput.simulate('change', '*')
 
-        const confirmButtons = row.find(ConfirmButtons)
-        const confirmButtonsDisabled = confirmButtons.prop('isDisabled')
+        const confirmOrCancel = row.find(ConfirmOrCancel)
+        const confirmOrCancelDisabled = confirmOrCancel.prop('isDisabled')
 
-        expect(confirmButtonsDisabled).toBe(true)
+        expect(confirmOrCancelDisabled).toBe(true)
       })
     })
 
@@ -92,10 +92,10 @@ describe('Components.Shared.ProvidersTableRowNew', () => {
         providerOrganizationInput.simulate('click')
         providerOrganizationInput.simulate('change', '*')
 
-        const confirmButtons = row.find(ConfirmButtons)
-        const confirmButtonsDisabled = confirmButtons.prop('isDisabled')
+        const confirmOrCancel = row.find(ConfirmOrCancel)
+        const confirmOrCancelDisabled = confirmOrCancel.prop('isDisabled')
 
-        expect(confirmButtonsDisabled).toBe(false)
+        expect(confirmOrCancelDisabled).toBe(false)
       })
     })
   })

@@ -5,7 +5,7 @@ import _ from 'lodash'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
-import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import ConfirmButton from 'shared/components/ConfirmButton'
 
 const AuthorizedEmptyState = ({onCreateDashboard}) => (
   <div className="generic-empty-state">
@@ -35,6 +35,9 @@ const DashboardsTable = ({
   onCreateDashboard,
   dashboardLink,
 }) => {
+  const wrappedDelete = dashboard => () => {
+    onDeleteDashboard(dashboard)
+  }
   return dashboards && dashboards.length ? (
     <table className="table v-center admin-table table-highlight">
       <thead>
@@ -67,11 +70,15 @@ const DashboardsTable = ({
               requiredRole={EDITOR_ROLE}
               replaceWithIfNotAuthorized={<td />}
             >
-              <DeleteConfirmTableCell
-                onDelete={onDeleteDashboard}
-                item={dashboard}
-                buttonSize="btn-xs"
-              />
+              <td className="text-right">
+                <ConfirmButton
+                  confirmAction={wrappedDelete}
+                  size="btn-xs"
+                  type="btn-danger"
+                  text="Delete"
+                  customClass="table--show-on-row-hover"
+                />
+              </td>
             </Authorized>
           </tr>
         ))}

@@ -13,7 +13,8 @@ $table--highlight-color: $g4-onyx;
   border-collapse: collapse;
   margin: 0;
 
-  th, td {
+  th,
+  td {
     font-size: 13px;
     text-align: left;
 
@@ -22,14 +23,20 @@ $table--highlight-color: $g4-onyx;
       letter-spacing: 0;
     }
 
-    &.text-left {text-align: left;}
-    &.text-center {text-align: center;}
-    &.text-right {text-align: right;}
+    &.text-left {
+      text-align: left;
+    }
+    &.text-center {
+      text-align: center;
+    }
+    &.text-right {
+      text-align: right;
+    }
   }
 
   // Header
   > thead > tr > th,
-  > thead > tr > td, {
+  > thead > tr > td {
     color: $g17-whisper;
     font-weight: 600;
     padding: 8px;
@@ -39,7 +46,7 @@ $table--highlight-color: $g4-onyx;
   }
 
   // Body
-  > tbody > tr > td, {
+  > tbody > tr > td {
     text-align: left;
     color: $g13-mist;
     font-weight: 500;
@@ -71,17 +78,26 @@ $table--highlight-color: $g4-onyx;
 
 .table.table-striped {
   > tbody > tr {
-    &:nth-child(odd) {background-color: $table--highlight-color;}
-    &:nth-child(even) {background-color: transparent;}
+    &:nth-child(odd) {
+      background-color: $table--highlight-color;
+    }
+    &:nth-child(even) {
+      background-color: transparent;
+    }
   }
 }
 
-.table.table-highlight > tbody > tr:hover {background-color: $table--highlight-color;}
+.table.table-highlight > tbody > tr:hover {
+  background-color: $table--highlight-color;
+}
 
-.table > tbody > tr .table--show-on-row-hover {visibility: hidden;}
+.table > tbody > tr .table--show-on-row-hover {
+  visibility: hidden;
+}
 .table > tbody > tr:hover .table--show-on-row-hover,
-.table > tbody > tr .table--show-on-row-hover.active {visibility: visible;}
-
+.table > tbody > tr .table--show-on-row-hover.active {
+  visibility: visible;
+}
 
 // For use in a Status column
 .table-dot {
@@ -91,9 +107,25 @@ $table--highlight-color: $g4-onyx;
   border-radius: 50%;
   background-color: $g17-whisper;
 
-  &.dot-success {background-color: $c-rainforest;}
-  &.dot-primary {background-color: $c-pool;}
-  &.dot-warning {background-color: $c-pineapple;}
-  &.dot-danger {background-color: $c-dreamsicle;}
-  &.dot-critical {background-color: $c-fire;}
+  &.dot-success {
+    background-color: $c-rainforest;
+  }
+  &.dot-primary {
+    background-color: $c-pool;
+  }
+  &.dot-warning {
+    background-color: $c-pineapple;
+  }
+  &.dot-danger {
+    background-color: $c-dreamsicle;
+  }
+  &.dot-critical {
+    background-color: $c-fire;
+  }
+}
+
+// Ensuring buttons inside tables don't get huge
+.table th .btn,
+.table td .btn {
+  display: inline-block;
 }

@@ -6,8 +6,8 @@ import classnames from 'classnames'
 
 import RoleEditingRow from 'src/admin/components/RoleEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
-import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
+import ConfirmButton from 'shared/components/ConfirmButton'
 import {ROLES_TABLE} from 'src/admin/constants/tableSizing'
 
 const RoleRow = ({
@@ -51,7 +51,7 @@ const RoleRow = ({
           className="text-right"
           style={{width: `${ROLES_TABLE.colDelete}px`}}
         >
-          <ConfirmButtons
+          <ConfirmOrCancel
             item={role}
             onConfirm={onSave}
             onCancel={onCancel}
@@ -60,6 +60,10 @@ const RoleRow = ({
         </td>
       </tr>
     )
+  }
+
+  const wrappedDelete = () => {
+    onDelete(role)
   }
 
   return (
@@ -97,11 +101,15 @@ const RoleRow = ({
           />
         ) : null}
       </td>
-      <DeleteConfirmTableCell
-        onDelete={onDelete}
-        item={role}
-        buttonSize="btn-xs"
-      />
+      <td className="text-right">
+        <ConfirmButton
+          customClass="table--show-on-row-hover"
+          size="btn-xs"
+          type="btn-danger"
+          text="Delete Role"
+          confirmAction={wrappedDelete}
+        />
+      </td>
     </tr>
   )
 }
