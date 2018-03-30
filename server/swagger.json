@@ -3987,7 +3987,6 @@
       }
     },
     "Dashboard": {
-      "description": "a description of a dashboard, contains cells",
       "type": "object",
       "properties": {
         "id": {
