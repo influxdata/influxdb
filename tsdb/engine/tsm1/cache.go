@@ -698,7 +698,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				entry, err := r.Read()
 				if err != nil {
 					n := r.Count()
-					cl.Logger.Info("File corrupt", zap.String("path", f.Name()), zap.Int64("pos", n))
+					cl.Logger.Info("File corrupt", zap.Error(err), zap.String("path", f.Name()), zap.Int64("pos", n))
 					if err := f.Truncate(n); err != nil {
 						return err
 					}
