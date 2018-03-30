@@ -1,4 +1,4 @@
-import AJAX from 'utils/ajax'
+import AJAX from 'src/utils/ajax'
 import _ from 'lodash'
 import {buildInfluxUrl, proxy} from 'utils/queryUrlGenerator'
 

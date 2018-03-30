@@ -1,6 +1,7 @@
 import {SFC} from 'react'
 
 interface Props {
+  name?: string
   children?: any
 }
 

@@ -38,7 +38,7 @@ module.exports = {
   cache: true,
   devtool: 'inline-eval-cheap-source-map',
   entry: {
-    app: path.resolve(__dirname, '..', 'src', 'index.js'),
+    app: path.resolve(__dirname, '..', 'src', 'index.tsx'),
   },
   output: {
     publicPath: '/',
