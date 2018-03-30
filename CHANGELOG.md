@@ -3,6 +3,7 @@
 ### Features
 
 1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
+1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
 
 ### UI Improvements
 
