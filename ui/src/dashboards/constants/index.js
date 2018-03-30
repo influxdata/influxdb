@@ -26,23 +26,23 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
 }
 
 const getMostCommonValue = values => {
-  const distribution = {}
-  let max = 0
-  let result = 0
+  const results = values.reduce(
+    (acc, value) => {
+      const {distribution, mostCommonCount} = acc
+      distribution[value] = (distribution[value] || 0) + 1
+      if (distribution[value] > mostCommonCount) {
+        return {
+          distribution,
+          mostCommonCount: distribution[value],
+          mostCommonValue: value,
+        }
+      }
+      return acc
+    },
+    {distribution: {}, mostCommonCount: 0}
+  )
 
-  values.forEach(value => {
-    distribution[value] = (distribution[value] || 0) + 1
-    if (distribution[value] > max) {
-      max = distribution[value]
-      result = [value]
-      return
-    }
-    if (distribution[value] === max) {
-      result.push(value)
-    }
-  })
-
-  return result[0]
+  return results.mostCommonValue
 }
 
 export const generateNewDashboardCell = dashboard => {
