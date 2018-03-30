@@ -2,34 +2,29 @@ import React, {PureComponent} from 'react'
 import FuncSelector from 'src/ifql/components/FuncSelector'
 import FuncNode from 'src/ifql/components/FuncNode'
 
-import {Func} from 'src/ifql/components/FuncNode'
+import {Func} from 'src/ifql/components/FuncArgs'
 
-interface Arg {
-  key: string
-  value: string
-}
-
-interface NodeProp {
+export interface Suggestion {
   name: string
-  arguments: Arg[]
+  params: {
+    [key: string]: string
+  }
 }
 
 interface Props {
+  suggestions: Suggestion[]
   funcs: Func[]
-  nodes: NodeProp[]
   onAddNode: (name: string) => void
 }
 
 class TimeMachine extends PureComponent<Props> {
   public render() {
-    const {nodes, onAddNode} = this.props
+    const {funcs, onAddNode} = this.props
 
     return (
       <div>
         <div className="func-node-container">
-          {nodes.map((n, i) => (
-            <FuncNode key={i} node={n} func={this.getFunc(n.name)} />
-          ))}
+          {funcs.map((f, i) => <FuncNode key={i} func={f} />)}
           <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
         </div>
       </div>
@@ -37,11 +32,7 @@ class TimeMachine extends PureComponent<Props> {
   }
 
   private get funcNames() {
-    return this.props.funcs.map(f => f.name)
-  }
-
-  private getFunc(name) {
-    return this.props.funcs.find(f => f.name === name)
+    return this.props.suggestions.map(f => f.name)
   }
 }
 

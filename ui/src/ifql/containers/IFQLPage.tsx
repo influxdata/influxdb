@@ -1,11 +1,10 @@
 import React, {PureComponent} from 'react'
 
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
-import TimeMachine from 'src/ifql/components/TimeMachine'
+import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
 import Walker from 'src/ifql/ast/walker'
-
-import {Func} from 'src/ifql/components/FuncNode'
 
 import {getSuggestions, getAST} from 'src/ifql/apis'
 
@@ -20,7 +19,7 @@ interface Props {
 }
 
 interface State {
-  funcs: Func[]
+  suggestions: Suggestion[]
   ast: object
   query: string
 }
@@ -29,7 +28,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      funcs: [],
+      suggestions: [],
       ast: null,
       query: 'from(db: "telegraf") |> filter() |> range(start: -15m)',
     }
@@ -37,11 +36,10 @@ export class IFQLPage extends PureComponent<Props, State> {
 
   public async componentDidMount() {
     const {links} = this.props
-    const {suggestions} = links
 
     try {
-      const funcs = await getSuggestions(suggestions)
-      this.setState({funcs})
+      const suggestions = await getSuggestions(links.suggestions)
+      this.setState({suggestions})
     } catch (error) {
       console.error('Could not get function suggestions: ', error)
     }
@@ -50,7 +48,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {funcs} = this.state
+    const {suggestions} = this.state
 
     return (
       <div className="page">
@@ -64,8 +62,8 @@ export class IFQLPage extends PureComponent<Props, State> {
         <div className="page-contents">
           <div className="container-fluid">
             <TimeMachine
-              funcs={funcs}
-              nodes={this.nodes}
+              suggestions={suggestions}
+              funcs={this.funcs}
               onAddNode={this.handleAddNode}
             />
           </div>
@@ -79,16 +77,38 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.getASTResponse(query)
   }
 
-  private get nodes() {
-    const {ast} = this.state
+  private get funcs() {
+    const {ast, suggestions} = this.state
 
     if (!ast) {
       return []
     }
 
     const walker = new Walker(ast)
+    const functions = walker.functions.map(func => {
+      const {params, name} = suggestions.find(f => f.name === func.name)
 
-    return walker.functions
+      const args = Object.entries(params).map(([key, type]) => {
+        const value = _.get(
+          func.arguments.find(arg => arg.key === key),
+          'value',
+          ''
+        )
+
+        return {
+          key,
+          value,
+          type,
+        }
+      })
+
+      return {
+        name,
+        args,
+      }
+    })
+
+    return functions
   }
 
   private async getASTResponse(query: string) {
