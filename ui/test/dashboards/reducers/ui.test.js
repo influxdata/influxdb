@@ -14,39 +14,42 @@ import {
   templateVariableSelected,
   templateVariablesSelectedByName,
   cancelEditCell,
+  editTemplateVariableValues,
 } from 'src/dashboards/actions'
 
 let state
-const templates = [
-  {
-    id: '1',
-    type: 'query',
-    label: 'test query',
-    tempVar: ':region:',
-    query: {
-      db: 'db1',
-      rp: 'rp1',
-      measurement: 'm1',
-      influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
-    },
-    values: [
-      {value: 'us-west', type: 'tagKey', selected: false},
-      {value: 'us-east', type: 'tagKey', selected: true},
-      {value: 'us-mount', type: 'tagKey', selected: false},
-    ],
+
+const t1 = {
+  id: '1',
+  type: 'tagKeys',
+  label: 'test query',
+  tempVar: ':region:',
+  query: {
+    db: 'db1',
+    rp: 'rp1',
+    measurement: 'm1',
+    influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
   },
-  {
-    id: '2',
-    type: 'csv',
-    label: 'test csv',
-    tempVar: ':temperature:',
-    values: [
-      {value: '98.7', type: 'measurement', selected: false},
-      {value: '99.1', type: 'measurement', selected: false},
-      {value: '101.3', type: 'measurement', selected: true},
-    ],
-  },
-]
+  values: [
+    {value: 'us-west', type: 'tagKey', selected: false},
+    {value: 'us-east', type: 'tagKey', selected: true},
+    {value: 'us-mount', type: 'tagKey', selected: false},
+  ],
+}
+
+const t2 = {
+  id: '2',
+  type: 'csv',
+  label: 'test csv',
+  tempVar: ':temperature:',
+  values: [
+    {value: '98.7', type: 'measurement', selected: false},
+    {value: '99.1', type: 'measurement', selected: false},
+    {value: '101.3', type: 'measurement', selected: true},
+  ],
+}
+
+const templates = [t1, t2]
 
 const d1 = {
   id: 1,
@@ -54,6 +57,7 @@ const d1 = {
   name: 'd1',
   templates,
 }
+
 const d2 = {id: 2, cells: [], name: 'd2', templates: []}
 const dashboards = [d1, d2]
 const c1 = {
@@ -222,5 +226,54 @@ describe('DataExplorer.Reducers.UI', () => {
 
     expect(actual.dashboards[0].cells[0].isEditing).toBe(false)
     expect(actual.dashboards[0].cells[0].name).toBe(editingCell.name)
+  })
+
+  describe('EDIT_TEMPLATE_VARIABLE_VALUES', () => {
+    it('can edit the tempvar values', () => {
+      const actual = reducer(
+        {dashboards},
+        editTemplateVariableValues(d1.id, t1.id, ['v1', 'v2'])
+      )
+
+      const expected = [
+        {
+          selected: false,
+          value: 'v1',
+          type: 'tagKey',
+        },
+        {
+          selected: false,
+          value: 'v2',
+          type: 'tagKey',
+        },
+      ]
+
+      expect(actual.dashboards[0].templates[0].values).toEqual(expected)
+    })
+
+    it('can handle an empty template.values', () => {
+      const ts = [{...t1, values: []}]
+      const ds = [{...d1, templates: ts}]
+
+      const actual = reducer(
+        {dashboards: ds},
+        editTemplateVariableValues(d1.id, t1.id, ['v1', 'v2'])
+      )
+
+      const expected = [
+        {
+          selected: false,
+          value: 'v1',
+          type: 'tagKey',
+        },
+        {
+          selected: false,
+          value: 'v2',
+          type: 'tagKey',
+        },
+      ]
+
+      expect(actual.dashboards[0].templates[0].values).toEqual(expected)
+    })
   })
 })
