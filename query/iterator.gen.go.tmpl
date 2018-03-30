@@ -494,12 +494,12 @@ type {{$k.name}}SortedMergeHeapItem struct {
 type {{$k.name}}IteratorScanner struct {
 	input        *buf{{$k.Name}}Iterator
 	err          error
-	keys         []string
+	keys         []influxql.VarRef
 	defaultValue interface{}
 }
 
 // new{{$k.Name}}IteratorScanner creates a new IteratorScanner.
-func new{{$k.Name}}IteratorScanner(input {{$k.Name}}Iterator, keys []string, defaultValue interface{}) *{{$k.name}}IteratorScanner {
+func new{{$k.Name}}IteratorScanner(input {{$k.Name}}Iterator, keys []influxql.VarRef, defaultValue interface{}) *{{$k.name}}IteratorScanner {
 	return &{{$k.name}}IteratorScanner{
 		input: newBuf{{$k.Name}}Iterator(input),
 		keys: keys,
@@ -540,24 +540,24 @@ func (s *{{$k.name}}IteratorScanner) ScanAt(ts int64, name string, tags Tags, m 
 		return
 	}
 
-	if k := s.keys[0]; k != "" {
+	if k := s.keys[0]; k.Val != "" {
 		if p.Nil {
 			if s.defaultValue != SkipDefault {
-				m[k] = s.defaultValue
+				m[k.Val] = castToType(s.defaultValue, k.Type)
 			}
 		} else {
-			m[k] = p.Value
+			m[k.Val] = p.Value
 		}
 	}
 	for i, v := range p.Aux {
 		k := s.keys[i+1]
 		switch v.(type) {
 		case float64, int64, uint64, string, bool:
-			m[k] = v
+			m[k.Val] = v
 		default:
 			// Insert the fill value if one was specified.
 			if s.defaultValue != SkipDefault {
-				m[k] = s.defaultValue
+				m[k.Val] = castToType(s.defaultValue, k.Type)
 			}
 		}
 	}
@@ -568,10 +568,10 @@ func (s *{{$k.name}}IteratorScanner) useDefaults(m map[string]interface{}) {
 		return
 	}
 	for _, k := range s.keys {
-    if k == "" {
-      continue
-    }
-		m[k] = s.defaultValue
+		if k.Val == "" {
+		  continue
+		}
+		m[k.Val] = castToType(s.defaultValue, k.Type)
 	}
 }
 
@@ -846,7 +846,7 @@ CONSTRUCT:
 		case influxql.NullFill:
 			p.Nil = true
 		case influxql.NumberFill:
-			p.Value = castTo{{$k.Name}}(itr.opt.FillValue)
+			p.Value, _ = castTo{{$k.Name}}(itr.opt.FillValue)
 		case influxql.PreviousFill:
 			if !itr.prev.Nil {
 				p.Value = itr.prev.Value
@@ -1315,7 +1315,7 @@ func (itr *{{$k.name}}IteratorMapper) Next() (*{{$k.Name}}Point, error) {
 
 	if itr.driver != nil {
 	if v := itr.driver.Value(&itr.row); v != nil {
-			if v, ok := v.({{$k.Type}}); ok {
+			if v, ok := castTo{{$k.Name}}(v); ok {
 				itr.point.Value = v
 				itr.point.Nil = false
 			} else {

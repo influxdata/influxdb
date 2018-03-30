@@ -345,7 +345,10 @@ func newFilterCursor(cur Cursor, filter influxql.Expr) *filterCursor {
 	for _, name := range influxql.ExprNames(filter) {
 		for i, col := range cur.Columns() {
 			if name.Val == col.Val {
-				fields[name.Val] = FieldMap(i)
+				fields[name.Val] = FieldMap{
+					Index: i,
+					Type:  name.Type,
+				}
 				break
 			}
 		}
@@ -383,6 +386,38 @@ func (cur *filterCursor) Scan(row *Row) bool {
 		}
 	}
 	return false
+}
+
+type nullCursor struct {
+	columns []influxql.VarRef
+}
+
+func newNullCursor(fields []*influxql.Field) *nullCursor {
+	columns := make([]influxql.VarRef, len(fields))
+	for i, f := range fields {
+		columns[i].Val = f.Name()
+	}
+	return &nullCursor{columns: columns}
+}
+
+func (cur *nullCursor) Scan(row *Row) bool {
+	return false
+}
+
+func (cur *nullCursor) Stats() IteratorStats {
+	return IteratorStats{}
+}
+
+func (cur *nullCursor) Err() error {
+	return nil
+}
+
+func (cur *nullCursor) Columns() []influxql.VarRef {
+	return cur.columns
+}
+
+func (cur *nullCursor) Close() error {
+	return nil
 }
 
 // DrainCursor will read and discard all values from a Cursor and return the error

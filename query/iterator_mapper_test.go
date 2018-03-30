@@ -56,8 +56,8 @@ func TestIteratorMapper(t *testing.T) {
 		},
 	}
 	itr := query.NewIteratorMapper(cur, nil, []query.IteratorMap{
-		query.FieldMap(0),
-		query.FieldMap(1),
+		query.FieldMap{Index: 0},
+		query.FieldMap{Index: 1},
 		query.TagMap("host"),
 	}, opt)
 	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {

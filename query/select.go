@@ -12,6 +12,7 @@ import (
 
 var DefaultTypeMapper = influxql.MultiTypeMapper(
 	FunctionTypeMapper{},
+	MathTypeMapper{},
 )
 
 // SelectOptions are options that customize the select call.
@@ -582,7 +583,7 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 	}
 
 	// Retrieve the refs to retrieve the auxiliary fields.
-	var auxKeys []string
+	var auxKeys []influxql.VarRef
 	if len(valueMapper.refs) > 0 {
 		opt.Aux = make([]influxql.VarRef, 0, len(valueMapper.refs))
 		for ref := range valueMapper.refs {
@@ -590,7 +591,7 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 		}
 		sort.Sort(influxql.VarRefs(opt.Aux))
 
-		auxKeys = make([]string, len(opt.Aux))
+		auxKeys = make([]influxql.VarRef, len(opt.Aux))
 		for i, ref := range opt.Aux {
 			auxKeys[i] = valueMapper.symbols[ref.String()]
 		}
@@ -598,12 +599,19 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 
 	// If there are no calls, then produce an auxiliary cursor.
 	if len(valueMapper.calls) == 0 {
+		// If all of the auxiliary keys are of an unknown type,
+		// do not construct the iterator and return a null cursor.
+		if !hasValidType(auxKeys) {
+			return newNullCursor(fields), nil
+		}
+
 		itr, err := buildAuxIterator(ctx, ic, stmt.Sources, opt)
 		if err != nil {
 			return nil, err
 		}
 
-		keys := []string{""}
+		// Create a slice with an empty first element.
+		keys := []influxql.VarRef{{}}
 		keys = append(keys, auxKeys...)
 
 		scanner := NewIteratorScanner(itr, keys, opt.FillValue)
@@ -625,7 +633,13 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 	// Produce an iterator for every single call and create an iterator scanner
 	// associated with it.
 	scanners := make([]IteratorScanner, 0, len(valueMapper.calls))
-	for call, symbol := range valueMapper.calls {
+	for call := range valueMapper.calls {
+		driver := valueMapper.table[call]
+		if driver.Type == influxql.Unknown {
+			// The primary driver of this call is of unknown type, so skip this.
+			continue
+		}
+
 		itr, err := buildFieldIterator(ctx, call, ic, stmt.Sources, opt, selector, stmt.Target != nil)
 		if err != nil {
 			for _, s := range scanners {
@@ -634,15 +648,17 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 			return nil, err
 		}
 
-		keys := make([]string, 0, len(auxKeys)+1)
-		keys = append(keys, symbol)
+		keys := make([]influxql.VarRef, 0, len(auxKeys)+1)
+		keys = append(keys, driver)
 		keys = append(keys, auxKeys...)
 
 		scanner := NewIteratorScanner(itr, keys, opt.FillValue)
 		scanners = append(scanners, scanner)
 	}
 
-	if len(scanners) == 1 {
+	if len(scanners) == 0 {
+		return newNullCursor(fields), nil
+	} else if len(scanners) == 1 {
 		return newScannerCursor(scanners[0], fields, opt), nil
 	}
 	return newMultiScannerCursor(scanners, fields, opt), nil
@@ -724,23 +740,23 @@ func buildFieldIterator(ctx context.Context, expr influxql.Expr, ic IteratorCrea
 type valueMapper struct {
 	// An index that maps a node's string output to its symbol so that all
 	// nodes with the same signature are mapped the same.
-	symbols map[string]string
+	symbols map[string]influxql.VarRef
 	// An index that maps a specific expression to a symbol. This ensures that
 	// only expressions that were mapped get symbolized.
-	table map[influxql.Expr]string
-	// A mapping of calls to their symbol.
-	calls map[*influxql.Call]string
-	// A mapping of variable references to their symbol.
-	refs map[*influxql.VarRef]string
+	table map[influxql.Expr]influxql.VarRef
+	// A collection of all of the calls in the table.
+	calls map[*influxql.Call]struct{}
+	// A collection of all of the calls in the table.
+	refs map[*influxql.VarRef]struct{}
 	i    int
 }
 
 func newValueMapper() *valueMapper {
 	return &valueMapper{
-		symbols: make(map[string]string),
-		table:   make(map[influxql.Expr]string),
-		calls:   make(map[*influxql.Call]string),
-		refs:    make(map[*influxql.VarRef]string),
+		symbols: make(map[string]influxql.VarRef),
+		table:   make(map[influxql.Expr]influxql.VarRef),
+		calls:   make(map[*influxql.Call]struct{}),
+		refs:    make(map[*influxql.VarRef]struct{}),
 	}
 }
 
@@ -763,19 +779,30 @@ func (v *valueMapper) Visit(n influxql.Node) influxql.Visitor {
 	symbol, ok := v.symbols[key]
 	if !ok {
 		// This symbol has not been assigned yet.
-		// If this is a call or expression, store the node in
-		// the appropriate index.
-		symbol = fmt.Sprintf("val%d", v.i)
+		// If this is a call or expression, mark the node
+		// as stored in the symbol table.
 		switch n := n.(type) {
 		case *influxql.Call:
 			if isMathFunction(n) {
 				return v
 			}
-			v.calls[n] = symbol
+			v.calls[n] = struct{}{}
 		case *influxql.VarRef:
-			v.refs[n] = symbol
+			v.refs[n] = struct{}{}
 		default:
 			return v
+		}
+
+		// Determine the symbol name and the symbol type.
+		symbolName := fmt.Sprintf("val%d", v.i)
+		valuer := influxql.TypeValuerEval{
+			TypeMapper: DefaultTypeMapper,
+		}
+		typ, _ := valuer.EvalType(expr)
+
+		symbol = influxql.VarRef{
+			Val:  symbolName,
+			Type: typ,
 		}
 
 		// Assign this symbol to the symbol table if it is not presently there
@@ -794,18 +821,7 @@ func (v *valueMapper) rewriteExpr(expr influxql.Expr) influxql.Expr {
 	if !ok {
 		return expr
 	}
-
-	valuer := influxql.TypeValuerEval{
-		TypeMapper: influxql.MultiTypeMapper(
-			FunctionTypeMapper{},
-			MathTypeMapper{},
-		),
-	}
-	typ, _ := valuer.EvalType(expr)
-	return &influxql.VarRef{
-		Val:  symbol,
-		Type: typ,
-	}
+	return &symbol
 }
 
 func validateTypes(stmt *influxql.SelectStatement) error {
@@ -821,4 +837,15 @@ func validateTypes(stmt *influxql.SelectStatement) error {
 		}
 	}
 	return nil
+}
+
+// hasValidType returns true if there is at least one non-unknown type
+// in the slice.
+func hasValidType(refs []influxql.VarRef) bool {
+	for _, ref := range refs {
+		if ref.Type != influxql.Unknown {
+			return true
+		}
+	}
+	return false
 }

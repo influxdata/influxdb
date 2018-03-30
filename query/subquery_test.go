@@ -137,6 +137,27 @@ func TestSubquery(t *testing.T) {
 				{Time: 10 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{float64(34)}},
 			},
 		},
+		{
+			Name:      "Cast",
+			Statement: `SELECT value::integer FROM (SELECT mean(value) AS value FROM cpu)`,
+			Fields:    map[string]influxql.DataType{"value": influxql.Integer},
+			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
+				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {
+					if got, want := m.Name, "cpu"; got != want {
+						t.Errorf("unexpected source: got=%s want=%s", got, want)
+					}
+					if got, want := opt.Expr.String(), "mean(value::integer)"; got != want {
+						t.Errorf("unexpected expression: got=%s want=%s", got, want)
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: 0 * Second, Value: float64(20) / float64(6)},
+					}}
+				}
+			},
+			Rows: []query.Row{
+				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(3)}},
+			},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			shardMapper := ShardMapper{
