@@ -2715,6 +2715,11 @@ func TestServer(t *testing.T) {
 		  "logout": "/oauth/logout",
 		  "external": {
 		    "statusFeed": ""
+		  },
+		  "ifql": {
+				"ast": "/chronograf/v1/ifql/ast",
+				"self": "/chronograf/v1/ifql",
+				"suggestions": "/chronograf/v1/ifql/suggestions"
 		  }
 		}
 		`,
@@ -2798,6 +2803,11 @@ func TestServer(t *testing.T) {
 		  "logout": "/oauth/logout",
 		  "external": {
 		    "statusFeed": ""
+		  },
+		  "ifql": {
+				"ast": "/chronograf/v1/ifql/ast",
+				"self": "/chronograf/v1/ifql",
+				"suggestions": "/chronograf/v1/ifql/suggestions"
 		  }
 		}
 		`,

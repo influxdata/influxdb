@@ -1,6 +1,14 @@
 {
   "compilerOptions": {
-    "types": ["node", "chai", "lodash", "enzyme", "react", "prop-types", "jest"],
+    "types": [
+      "node",
+      "chai",
+      "lodash",
+      "enzyme",
+      "react",
+      "prop-types",
+      "jest"
+    ],
     "target": "es6",
     "module": "es2015",
     "moduleResolution": "node",
@@ -25,7 +33,7 @@
     "checkJs": false,
     "sourceMap": true,
     "baseUrl": "./",
-    "rootDir": "./src",
+    "rootDir": "./src"
   },
   "exclude": ["./assets/*", "./build/*", "./node_modules/*"]
 }
