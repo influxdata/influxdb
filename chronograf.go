@@ -493,7 +493,7 @@ type Databases interface {
 	UpdateRP(context.Context, string, string, *RetentionPolicy) (*RetentionPolicy, error)
 	DropRP(context.Context, string, string) error
 
-	AllMeasurements(ctx context.Context, db string, limit, offset int) ([]Measurement, error)
+	GetMeasurements(ctx context.Context, db string, limit, offset int) ([]Measurement, error)
 }
 
 // Annotation represents a time-based metadata associated with a source

@@ -457,7 +457,7 @@ func (h *Service) Measurements(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-	measurements, err := db.AllMeasurements(ctx, dbID, limit, offset)
+	measurements, err := db.GetMeasurements(ctx, dbID, limit, offset)
 	if err != nil {
 		msg := fmt.Sprintf("Unable to get measurements %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)

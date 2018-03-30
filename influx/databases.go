@@ -151,8 +151,10 @@ func (c *Client) DropRP(ctx context.Context, database string, rp string) error {
 	return nil
 }
 
-// AllMeasurements returns all measurements for a specific database
-func (c *Client) AllMeasurements(ctx context.Context, database string, limit, offset int) ([]chronograf.Measurement, error) {
+// GetMeasurements returns measurements for a specific database. It allows for
+// paging via limit and offset. If no limit or offset is provided, it returns
+// all measurements.
+func (c *Client) GetMeasurements(ctx context.Context, database string, limit, offset int) ([]chronograf.Measurement, error) {
 	return c.showMeasurements(ctx, database, limit, offset)
 }
 
