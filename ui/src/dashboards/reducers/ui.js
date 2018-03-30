@@ -278,27 +278,37 @@ export default function ui(state = initialState, action) {
     case 'EDIT_TEMPLATE_VARIABLE_VALUES': {
       const {dashboardID, templateID, values} = action.payload
 
-      const dashboards = state.dashboards.map(
-        dashboard =>
-          dashboard.id === dashboardID
-            ? {
-                ...dashboard,
-                templates: dashboard.templates.map(
-                  template =>
-                    template.id === templateID && template.type !== 'csv'
-                      ? {
-                          ...template,
-                          values: values.map(value => ({
-                            selected: template.values[0].value === value,
-                            value,
-                            type: TEMPLATE_VARIABLE_TYPES[template.type],
-                          })),
-                        }
-                      : template
-                ),
-              }
-            : dashboard
-      )
+      const dashboards = state.dashboards.map(dashboard => {
+        if (dashboard.id !== dashboardID) {
+          return dashboard
+        }
+
+        const templates = dashboard.templates.map(template => {
+          if (template.id !== templateID && template.type !== 'csv') {
+            return template
+          }
+
+          const selectedValue = _.get(template, 'values', []).find(
+            v => v.selected
+          )
+
+          const v = values.map(value => ({
+            selected: _.get(selectedValue, 'value') === value,
+            value,
+            type: TEMPLATE_VARIABLE_TYPES[template.type],
+          }))
+
+          return {
+            ...template,
+            values: v,
+          }
+        })
+
+        return {
+          ...dashboard,
+          templates,
+        }
+      })
 
       return {...state, dashboards}
     }
