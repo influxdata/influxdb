@@ -70,7 +70,7 @@ const DashboardsTable = ({
             >
               <td className="text-right">
                 <button
-                  className="btn btn-xs btn-default"
+                  className="btn btn-xs btn-default table--show-on-row-hover"
                   onClick={onCloneDashboard(dashboard)}
                 >
                   <span className="icon duplicate" />
