@@ -482,17 +482,25 @@ type Measurement struct {
 
 // Databases represents a databases in a time series source
 type Databases interface {
-	// All lists all databases
+	// AllDB lists all databases in the current data source
 	AllDB(context.Context) ([]Database, error)
+	// Connect connects to a database in the current data source
 	Connect(context.Context, *Source) error
+	// CreateDB creates a database in the current data source
 	CreateDB(context.Context, *Database) (*Database, error)
+	// DropDB drops a database in the current data source
 	DropDB(context.Context, string) error
 
+	// AllRP lists all retention policies in the current data source
 	AllRP(context.Context, string) ([]RetentionPolicy, error)
+	// CreateRP creates a retention policy in the current data source
 	CreateRP(context.Context, string, *RetentionPolicy) (*RetentionPolicy, error)
+	// UpdateRP updates a retention policy in the current data source
 	UpdateRP(context.Context, string, string, *RetentionPolicy) (*RetentionPolicy, error)
+	// DropRP drops a retention policy in the current data source
 	DropRP(context.Context, string, string) error
 
+	// GetMeasurements lists some or all measurements in the current data source
 	GetMeasurements(ctx context.Context, db string, limit, offset int) ([]Measurement, error)
 }
 

@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/mocks"
 )
 
 func TestService_GetDatabases(t *testing.T) {
@@ -304,6 +306,66 @@ func TestService_DropRetentionPolicy(t *testing.T) {
 				Databases:        tt.fields.Databases,
 			}
 			h.DropRetentionPolicy(tt.args.w, tt.args.r)
+		})
+	}
+}
+
+func TestService_Measurements(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+		Databases    chronograf.Databases
+	}
+	type args struct {
+		w http.ResponseWriter
+		r *http.Request
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		{
+			name: "Gets all measurements",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID: 0,
+						}, nil
+					},
+				},
+				Databases: &mocks.Databases{
+					ConnectF: func(context.Context, *chronograf.Source) error {
+						return nil
+					},
+					GetMeasurementsF: func(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
+						return []chronograf.Measurement{
+							{
+								Name: "pineapple",
+							},
+							{
+								Name: "cubeapple",
+							},
+							{
+								Name: "pinecube",
+							},
+						}, nil
+					},
+				},
+			},
+		},
+		// TODO: Add more test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO(jared): start here -- need to bring in http module
+			h := &Service{
+				Store: &Store{
+					SourcesStore: tt.fields.SourcesStore,
+				},
+				Databases: tt.fields.Databases,
+			}
+			h.Measurements(tt.args.w, tt.args.r)
 		})
 	}
 }
