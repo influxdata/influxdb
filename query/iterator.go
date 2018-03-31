@@ -426,7 +426,7 @@ type IteratorScanner interface {
 var SkipDefault = interface{}(0)
 
 // NewIteratorScanner produces an IteratorScanner for the Iterator.
-func NewIteratorScanner(input Iterator, keys []string, defaultValue interface{}) IteratorScanner {
+func NewIteratorScanner(input Iterator, keys []influxql.VarRef, defaultValue interface{}) IteratorScanner {
 	switch input := input.(type) {
 	case FloatIterator:
 		return newFloatIteratorScanner(input, keys, defaultValue)
