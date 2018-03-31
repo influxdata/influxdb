@@ -78,12 +78,19 @@ class DashboardPage extends Component {
       notify,
       getAnnotationsAsync,
       timeRange,
+      autoRefresh,
     } = this.props
 
     const annotationRange = this.millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
-    window.addEventListener('resize', this.handleWindowResize, true)
 
+    if (autoRefresh) {
+      this.intervalID = setInterval(() => {
+        getAnnotationsAsync(source.links.annotations, annotationRange)
+      }, autoRefresh)
+    }
+
+    window.addEventListener('resize', this.handleWindowResize, true)
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
@@ -100,6 +107,19 @@ class DashboardPage extends Component {
     if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
       await updateTempVarValues(source, dashboard)
       await putDashboardByID(dashboardID)
+    }
+  }
+
+  componentWillReceiveProps(nextProps) {
+    const {source, getAnnotationsAsync, timeRange} = this.props
+    if (this.props.autoRefresh !== nextProps.autoRefresh) {
+      clearInterval(this.intervalID)
+      const annotationRange = this.millisecondTimeRange(timeRange)
+      if (nextProps.autoRefresh) {
+        this.intervalID = setInterval(() => {
+          getAnnotationsAsync(source.links.annotations, annotationRange)
+        }, nextProps.autoRefresh)
+      }
     }
   }
 
