@@ -128,6 +128,8 @@ class DashboardPage extends Component {
   }
 
   componentWillUnmount() {
+    clearInterval(this.intervalID)
+    this.intervalID = false
     window.removeEventListener('resize', this.handleWindowResize, true)
     this.props.handleDismissEditingAnnotation()
   }
