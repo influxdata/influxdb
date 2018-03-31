@@ -23,6 +23,7 @@ v1.6.0 [unreleased]
 -	[#9647](https://github.com/influxdata/influxdb/pull/9647): Delete deleted shards in retention service.
 -	[#9659](https://github.com/influxdata/influxdb/pull/9659): Ignore index size in Engine.DiskSize().
 -	[#9661](https://github.com/influxdata/influxdb/pull/9661): Fix buildtsi partition key.
+-	[#9665](https://github.com/influxdata/influxdb/pull/9665): Enable casting values from a subquery.
 
 v1.5.0 [2018-03-06]
 -------------------
