@@ -5,7 +5,7 @@ import TimeMachine from 'src/ifql/components/TimeMachine'
 const setup = () => {
   const props = {
     funcs: [],
-    nodes: [],
+    suggestions: [],
     onAddNode: () => {},
   }
 

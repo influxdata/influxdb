@@ -18,9 +18,9 @@ interface Props {
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
     return (
-      <div>
+      <div className="func-args">
         {this.props.func.args.map(({key, value}) => (
-          <div key={key}>
+          <div className="func-arg" key={key}>
             {key} : {value}
           </div>
         ))}

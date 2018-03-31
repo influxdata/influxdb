@@ -14,7 +14,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      isOpen: false,
+      isOpen: true,
     }
   }
 
@@ -23,8 +23,8 @@ export default class FuncNode extends PureComponent<Props, State> {
     const {isOpen} = this.state
 
     return (
-      <div>
-        <div className="func-node" onClick={this.handleClick}>
+      <div className="func-node">
+        <div className="func-node--name" onClick={this.handleClick}>
           <div>{func.name}</div>
         </div>
         {isOpen && <FuncArgs func={func} />}

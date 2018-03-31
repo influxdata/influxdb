@@ -23,7 +23,7 @@ class TimeMachine extends PureComponent<Props> {
 
     return (
       <div>
-        <div className="func-node-container">
+        <div className="func-nodes-container">
           {funcs.map((f, i) => <FuncNode key={i} func={f} />)}
           <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
         </div>
