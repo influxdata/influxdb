@@ -190,9 +190,10 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 	}
 
 	valuer := influxql.ValuerEval{
-		Valuer: &MathValuer{
-			Valuer: influxql.MapValuer(cur.m),
-		},
+		Valuer: influxql.MultiValuer(
+			MathValuer{},
+			influxql.MapValuer(cur.m),
+		),
 		IntegerFloatDivision: true,
 	}
 	for i, expr := range cur.fields {
