@@ -25,9 +25,6 @@ import (
 // Version is the current version of the TSI index.
 const Version = 1
 
-// DefaultMaxLogFileSize is the default compaction threshold.
-const DefaultMaxLogFileSize = 5 * 1024 * 1024
-
 // File extensions.
 const (
 	LogFileExt   = ".tsl"
@@ -97,7 +94,7 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 		seriesIDSet: tsdb.NewSeriesIDSet(),
 
 		// Default compaction thresholds.
-		MaxLogFileSize: DefaultMaxLogFileSize,
+		MaxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 
 		// compactionEnabled: true,
 		compactionInterrupt: make(chan struct{}),
